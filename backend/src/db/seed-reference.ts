@@ -1,5 +1,6 @@
 import type { DataSource } from 'typeorm';
 import { RUNGS } from '../domains/achieve/families.ts';
+import { BUNDLES, FEATURED_FIRST, LOOKS, SHOP_COLLECTIONS } from '../domains/shop/catalogue.ts';
 import type { ClockId } from '../domains/table/clocks.ts';
 import type { Partners } from '../domains/table/teams.ts';
 
@@ -157,6 +158,11 @@ export const GAME_SEEDS: GameSeed[] = [
  * switch in the admin's Play section, written to the staff's log with its reason - not a redeploy.
  *
  * Every other column is definition and is brought back in line on every boot.
+ *
+ * The shop is the same rule twice over: a look's price, its sale and its status are the staff's
+ * (Admin › Shop), so the seed writes each look and bundle of `domains/shop/catalogue.ts` once,
+ * at its tier's price and on sale, and never touches it again; and it features the first
+ * collection only on the day the collections are first written.
  */
 export async function seedReference(db: DataSource)
 {
@@ -244,5 +250,22 @@ export async function seedReference(db: DataSource)
         );
 
         await tx.query(`delete from achievements where id <> all($1::text[])`, [RUNGS.map((rung) => rung.id)]);
+
+        const items = [...LOOKS, ...BUNDLES];
+
+        // Raw for `insert ... select` over `unnest` with `on conflict do nothing`, which no repository says in one statement.
+        await tx.query(
+            `insert into shop_items (id, price, status)
+             select id, price, 'on-sale' from unnest($1::text[], $2::numeric[]) as item(id, price)
+             on conflict (id) do nothing`,
+            [items.map((item) => item.id), items.map((item) => item.price.toString())]
+        );
+
+        await tx.query(
+            `insert into shop_collections (id, featured_at)
+             select id, case when id = $2 then now() end from unnest($1::text[]) as collection(id)
+             on conflict (id) do nothing`,
+            [SHOP_COLLECTIONS, FEATURED_FIRST]
+        );
     });
 }

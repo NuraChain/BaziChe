@@ -4,6 +4,7 @@ import { Block } from './block.entity.ts';
 import { ConversationEpoch } from './conversation-epoch.entity.ts';
 import { ConversationMember } from './conversation-member.entity.ts';
 import { Device } from './device.entity.ts';
+import { EquippedItem } from './equipped-item.entity.ts';
 import { EscrowSeat } from './escrow-seat.entity.ts';
 import { Escrow } from './escrow.entity.ts';
 import { EpochArchive } from './epoch-archive.entity.ts';
@@ -27,6 +28,7 @@ import { Table } from './table.entity.ts';
 import { Mute } from './mute.entity.ts';
 import { Notice } from './notice.entity.ts';
 import { Notification } from './notification.entity.ts';
+import { OwnedItem } from './owned-item.entity.ts';
 import { PaidAccount } from './paid-account.entity.ts';
 import { PushSubscription } from './push-subscription.entity.ts';
 import { RecoveryNonce } from './recovery-nonce.entity.ts';
@@ -34,6 +36,9 @@ import { RecoveryVault } from './recovery-vault.entity.ts';
 import { Referral } from './referral.entity.ts';
 import { Report } from './report.entity.ts';
 import { Session } from './session.entity.ts';
+import { ShopCollection } from './shop-collection.entity.ts';
+import { ShopItem } from './shop-item.entity.ts';
+import { ShopOrder } from './shop-order.entity.ts';
 import { SiweNonce } from './siwe-nonce.entity.ts';
 import { StaffAction } from './staff-action.entity.ts';
 import { StaffMember } from './staff-member.entity.ts';
@@ -45,11 +50,11 @@ import { UserAchievement } from './user-achievement.entity.ts';
 import { Wallet } from './wallet.entity.ts';
 
 export {
-    Achievement, Avatar, Block, Conversation, ConversationEpoch, ConversationMember, Device, EpochKey, Escrow, EscrowSeat,
+    Achievement, Avatar, Block, Conversation, ConversationEpoch, ConversationMember, Device, EpochKey, EquippedItem, Escrow, EscrowSeat,
     EpochArchive, FriendRequest, Friendship,
     Game, GameRule, Group, GroupMember, Match, MatchAction, MatchPlayer, Message, Mute,
-    Notice, Notification, PaidAccount, PlayerStats, PushSubscription,
-    QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, Session, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
+    Notice, Notification, OwnedItem, PaidAccount, PlayerStats, PushSubscription,
+    QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, Session, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
     UserAchievement, Wallet
 };
 
@@ -74,5 +79,6 @@ export const entities: Function[] = [
     Match, MatchPlayer, MatchAction, PlayerStats, UserAchievement,
     Notification, PushSubscription,
     PaidAccount, TableStake, StakeConsent, Escrow, EscrowSeat,
-    StaffMember, StaffAction, Suspension, Notice
+    StaffMember, StaffAction, Suspension, Notice,
+    ShopItem, ShopCollection, ShopOrder, OwnedItem, EquippedItem
 ];

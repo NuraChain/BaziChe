@@ -90,6 +90,17 @@ describe('an aura round a framed picture', () =>
         stop();
     });
 
+    it('shows nothing of itself inside the picture’s circle, so a stream that rises is drawn round the face and never over it', async () =>
+    {
+        const stop = glowAround(picture, 'inferno');
+        const { host } = await playing();
+        const face = (0.5 / (0.5 + 0.4)) * 100;
+
+        expect(host.style.cssText).toContain(`mask: radial-gradient(circle closest-side,transparent ${ face.toFixed(2) }%,#000 ${ (face + 1).toFixed(2) }%)`);
+
+        stop();
+    });
+
     it('plays the frame’s own stream in its colours, round the middle of its host, on the frame’s ring whatever the picture’s size', async () =>
     {
         const stop = glowAround(picture, 'gold');

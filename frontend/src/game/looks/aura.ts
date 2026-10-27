@@ -6,6 +6,13 @@ import { AURAS, type Frame } from './frames.ts';
 const REACH = 0.4;
 
 /**
+ * The picture's circle on a gradient that runs from the host's middle to its nearest side, as a
+ * share of that run. The host shows nothing inside it, so a stream that rises or drifts inward is
+ * drawn round the face and never over it.
+ */
+const FACE = 50 / (0.5 + REACH);
+
+/**
  * Where the frame's ring runs from the picture's middle, as a share of its width: halfway through
  * the frame, which reaches an eighth of the picture past its edge (`[data-deco]::after`).
  */
@@ -27,7 +34,7 @@ export function glowAround(picture: HTMLElement, frame: Frame, area: HTMLElement
     const host = document.createElement('span');
     host.setAttribute('aria-hidden', 'true');
     host.dataset.aura = frame;
-    host.style.cssText = `position:absolute;inset:${ -REACH * 100 }%;z-index:1;pointer-events:none`;
+    host.style.cssText = `position:absolute;inset:${ -REACH * 100 }%;z-index:1;pointer-events:none;mask:radial-gradient(circle closest-side,transparent ${ FACE.toFixed(2) }%,#000 ${ (FACE + 1).toFixed(2) }%)`;
     picture.append(host);
 
     const effects = lazyVfx(host);

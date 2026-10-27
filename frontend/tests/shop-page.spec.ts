@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fire, renderTest } from '@azerothjs/testing';
 import { createMemoryHistory, createRouter, RouterProvider, type Route, type Router } from 'azerothjs';
 
-import { BUNDLES, SHOP_KINDS } from '../../backend/src/domains/shop/catalogue.ts';
+import { BUNDLES, SHOP_COLLECTIONS, SHOP_KINDS } from '../../backend/src/domains/shop/catalogue.ts';
 import ShopPage from '../src/pages/app/shop.page.azeroth';
 import '../src/locales/app-catalogue.ts';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
@@ -99,7 +99,7 @@ describe('the shop page', () =>
         }
 
         expect(sections(root)).toEqual([...SHOP_KINDS]);
-        expect(root.querySelector('section[data-kind="dice"]')?.querySelectorAll('[data-look]').length).toBe(4);
+        expect(root.querySelector('section[data-kind="dice"]')?.querySelectorAll('[data-look]').length).toBe(SHOP_COLLECTIONS.length);
     });
 
     it('keeps the filter in the address, opens on it, and leaves All out of it', async () =>

@@ -72,6 +72,7 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.tier.rare': '稀有',
     'shop.tier.epic': '史诗',
     'shop.tier.legendary': '传说',
+    'shop.tier.mythic': '神话',
     'shop.sale.until': '特惠截至 {date}',
     'shop.owned': '已拥有',
     'shop.inUse': '使用中',

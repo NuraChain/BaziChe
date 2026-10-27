@@ -13,8 +13,10 @@ import { fileURLToPath } from 'node:url';
 
 import { SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
 import { PALETTES, SEAT_RAMPS } from '../../frontend/src/game/looks/palette.ts';
+import { cardBack, HALO } from './card-back.mjs';
 import { H, W, deck } from './card-parts.mjs';
-import { gloss, motif, octagram, radial, sparkle, starOf } from './look-parts.mjs';
+import { LEGENDARY } from './legendary/index.mjs';
+import { gloss, octagram, radial, sparkle, starOf } from './look-parts.mjs';
 import { PAWN, outlined } from './pawn-shape.mjs';
 
 const PUBLIC = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'public');
@@ -43,8 +45,6 @@ const lighting = (shade, lit, strength) => [
 /** The pawn's outline drawn wide and soft in `colour`, a light it gives off. */
 const halo = (colour, opacity) =>
     `<g fill="none" stroke="${ colour }" stroke-width="16" stroke-linejoin="round" filter="url(#halo)" opacity="${ opacity }"><ellipse ${ PAWN.foot }/><path d="${ PAWN.body }"/><circle ${ PAWN.head }/></g>`;
-
-const HALO = '<filter id="halo" x="-25%" y="-25%" width="150%" height="150%"><feGaussianBlur stdDeviation="5"/></filter>';
 
 /** Nura Glow: the seat's colour as lit glass in a pale light, a rim inside its head, white and gold sparkles. */
 function glow(seat)
@@ -206,27 +206,13 @@ const BACKS = {
     }
 };
 
-/** A collection's card back, in the classic back's shape: a border, its pattern framed twice, an emblem. */
+/** A collection's card back: its own module's border and emblem, or the one drawn here. */
 function back(collection)
 {
     const palette = PALETTES[collection];
-    const { border, emblem } = BACKS[collection];
-    const [lit, mid, dark] = palette.surface;
+    const { border, emblem } = LEGENDARY[collection]?.back ?? BACKS[collection];
 
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${ W } ${ H }" width="${ W }" height="${ H }">
-<defs>
-    <linearGradient id="field" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${ lit }"/><stop offset="0.55" stop-color="${ mid }"/><stop offset="1" stop-color="${ dark }"/></linearGradient>
-    ${ motif('pattern', palette, 1.2) }
-    ${ HALO }
-</defs>
-<rect width="${ W }" height="${ H }" fill="${ border }"/>
-<rect x="9" y="9" width="${ W - 18 }" height="${ H - 18 }" rx="10" fill="url(#field)"/>
-<rect x="9" y="9" width="${ W - 18 }" height="${ H - 18 }" rx="10" fill="url(#pattern)" opacity="0.55"/>
-<rect x="17" y="17" width="${ W - 34 }" height="${ H - 34 }" rx="6" fill="none" stroke="${ palette.edge }" stroke-opacity="0.85" stroke-width="2"/>
-<rect x="22" y="22" width="${ W - 44 }" height="${ H - 44 }" rx="4" fill="none" stroke="${ palette.edge }" stroke-opacity="0.35" stroke-width="1"/>
-${ emblem(palette) }
-</svg>
-`;
+    return cardBack(palette, border, emblem(palette, W, H));
 }
 
 /** Empties `folder` under public/ and writes what `draw` gives for each name. */
@@ -249,8 +235,22 @@ const write = (folder, entries) =>
     return entries.length;
 };
 
-const pawns = write('pawns', SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => [`${ collection }-${ seat }`, DRAW[collection](seat)])));
-const decks = write('decks', SHOP_COLLECTIONS.map((collection) => [collection, deck(DRESSES[collection], { ornament: ORNAMENTS[collection] })]));
+/** What a legendary collection's pawn is drawn with: the pawn's own shapes and light, and every palette. */
+const KIT = { svg, vertical, radial, outlined, lighting, SEAT_RAMPS, PALETTES };
+
+const pawnOf = (collection, seat) => LEGENDARY[collection]?.pawn(seat, KIT) ?? DRAW[collection](seat);
+
+/** A collection's deck; a legendary one's corner ornament is drawn once and used on every card. */
+const deckOf = (collection) =>
+{
+    const line = LEGENDARY[collection];
+    return line === undefined
+        ? deck(DRESSES[collection], { ornament: ORNAMENTS[collection] })
+        : deck(line.dress, { ornament: '<use href="#ornament"/>', defs: `<g id="ornament">${ line.ornament(W, H) }</g>` });
+};
+
+const pawns = write('pawns', SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => [`${ collection }-${ seat }`, pawnOf(collection, seat)])));
+const decks = write('decks', SHOP_COLLECTIONS.map((collection) => [collection, deckOf(collection)]));
 const backs = write('backs', SHOP_COLLECTIONS.map((collection) => [collection, back(collection)]));
 
 console.log(`table looks: ${ pawns } pawns, ${ decks } decks, ${ backs } backs`);

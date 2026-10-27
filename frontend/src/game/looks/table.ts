@@ -1,4 +1,4 @@
-import type { Preset } from '../vfx/presets.ts';
+import type { Effect } from '../vfx/engine.ts';
 import { PALETTES } from './palette.ts';
 
 export type Collection = keyof typeof PALETTES;
@@ -18,10 +18,26 @@ export function lightOf(collection: Collection)
     return [edge, glint, '#FFFFFF'];
 }
 
-/** Each collection's burst: where its die lands, and where its pawn takes another. */
-const BURSTS = { glow: 'stars', shiraz: 'dust', neon: 'sparks', gold: 'burst' } as const satisfies Record<Collection, Preset>;
+/**
+ * Each collection's burst: where its die lands, where a card of it is laid, and where its pawn
+ * takes another. A legendary collection's is one of its own effect families.
+ */
+const BURSTS = {
+    glow: 'stars',
+    shiraz: 'dust',
+    neon: 'sparks',
+    gold: 'burst',
+    inferno: 'cracks',
+    storm: 'discharge',
+    astral: 'starburst',
+    void: 'release',
+    jade: 'orbs',
+    frost: 'shatter',
+    phoenix: 'flare',
+    oni: 'glitch'
+} as const satisfies Record<Collection, Effect>;
 
 export function burstOf(collection: Collection)
 {
-    return { preset: BURSTS[collection], tune: { colors: lightOf(collection) } };
+    return { effect: BURSTS[collection], tune: { colors: lightOf(collection) } };
 }

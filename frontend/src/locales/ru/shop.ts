@@ -72,6 +72,7 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.tier.rare': 'Редкий',
     'shop.tier.epic': 'Эпический',
     'shop.tier.legendary': 'Легендарный',
+    'shop.tier.mythic': 'Мифический',
     'shop.sale.until': 'Скидка до {date}',
     'shop.owned': 'Есть',
     'shop.inUse': 'Используется',

@@ -946,9 +946,9 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             return;
         }
 
-        const { preset, at, tune } = burstAt(worn, rectIn(bursts, card));
+        const { effect, at, tune } = burstAt(worn, rectIn(bursts, card));
 
-        effects?.play((vfx) => vfx.burst(preset, at, tune));
+        effects?.play((vfx) => vfx.burst(effect, at, tune));
     };
 
     const moved = (event: PointerEvent) =>

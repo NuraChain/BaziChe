@@ -160,6 +160,57 @@ describe('what a table wears', () =>
     });
 });
 
+describe('the legendary collections\' art', () =>
+{
+    const CLASSIC = ['sparkle', 'girih', 'grid', 'filigree'];
+
+    const art = async () =>
+    {
+        const { LEGENDARY, lineOf } = await import(new URL('../../tools/art/legendary/index.mjs', import.meta.url).href);
+        const { motif } = await import(new URL('../../tools/art/look-parts.mjs', import.meta.url).href);
+        return { LEGENDARY, lineOf, motif };
+    };
+
+    it('draws every pattern the tools do not draw themselves from a module of its own collection, and no module for nothing', async () =>
+    {
+        const { LEGENDARY, lineOf } = await art();
+        const drawn = SHOP_COLLECTIONS.filter((collection) => !CLASSIC.includes(PALETTES[collection].pattern));
+
+        expect(Object.keys(LEGENDARY).sort()).toEqual([...drawn].sort());
+        for (const collection of drawn)
+        {
+            expect(lineOf(PALETTES[collection]), collection).toBe(LEGENDARY[collection]);
+            expect(LEGENDARY[collection].pattern).toBe(PALETTES[collection].pattern);
+        }
+        for (const collection of SHOP_COLLECTIONS.filter((one) => !drawn.includes(one)))
+        {
+            expect(lineOf(PALETTES[collection]), collection).toBeUndefined();
+        }
+    });
+
+    it.each(SHOP_COLLECTIONS.filter((collection) => !['glow', 'shiraz', 'neon', 'gold'].includes(collection)))('gives %s every part its looks are drawn from', async (collection) =>
+    {
+        const { LEGENDARY, motif } = await art();
+        const line = LEGENDARY[collection];
+        const palette = PALETTES[collection];
+        const tile = line.tile(palette);
+
+        expect(tile.size).toBeGreaterThan(0);
+        expect(motif('pattern', palette)).toContain(tile.body);
+        for (const part of [line.emblem(palette, 50, 50, 40), line.crest(palette), line.frame(palette, false), line.cover(palette), line.back.emblem(palette, 204, 288)])
+        {
+            expect(part.defs).toBeInstanceOf(Array);
+            expect(part.body.join('')).toMatch(/<(path|circle|rect|ellipse|g)\b/);
+        }
+        expect(line.frame(palette, false).body.join('')).toMatch(/<animate/);
+        expect(line.frame(palette, true).body.join('')).not.toMatch(/<animate|<set\b/);
+        expect(line.dress.paper).toHaveLength(2);
+        expect(line.dress.suits.map((suit: { name: string }) => suit.name)).toEqual(['club', 'diamond', 'heart', 'spade']);
+        expect(line.ornament(204, 288)).toMatch(/^</);
+        expect(line.back.border).toMatch(/^#[0-9A-F]{6}$/i);
+    });
+});
+
 describe('the drawings', () =>
 {
     it('draws every look and every bundle, and nothing the shop does not sell', () =>

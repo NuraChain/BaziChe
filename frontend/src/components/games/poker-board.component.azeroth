@@ -445,9 +445,9 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         }
 
         const felt = rectIn(layer, bursts);
-        const { preset, at, tune } = burstAt(faces, { ...card, x: card.x - felt.x, y: card.y - felt.y });
+        const { effect, at, tune } = burstAt(faces, { ...card, x: card.x - felt.x, y: card.y - felt.y });
 
-        effects?.play((vfx) => vfx.burst(preset, at, tune));
+        effects?.play((vfx) => vfx.burst(effect, at, tune));
     };
 
     const leaning = (event: PointerEvent) =>

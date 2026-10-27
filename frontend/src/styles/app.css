@@ -648,6 +648,62 @@ html:has(.site-drawer[open])
     --holo-b: #FFFAE6;
 }
 
+[data-faces='inferno']
+{
+    --deck: url('/decks/inferno.svg');
+    --holo-a: #FFB43A;
+    --holo-b: #FFE7A1;
+}
+
+[data-faces='storm']
+{
+    --deck: url('/decks/storm.svg');
+    --holo-a: #3FA9FF;
+    --holo-b: #EAF6FF;
+}
+
+[data-faces='astral']
+{
+    --deck: url('/decks/astral.svg');
+    --holo-a: #4FE3D8;
+    --holo-b: #FFE58A;
+}
+
+[data-faces='void']
+{
+    --deck: url('/decks/void.svg');
+    --holo-a: #A855F7;
+    --holo-b: #E9D5FF;
+}
+
+[data-faces='jade']
+{
+    --deck: url('/decks/jade.svg');
+    --holo-a: #F2C14E;
+    --holo-b: #FFF1C4;
+}
+
+[data-faces='frost']
+{
+    --deck: url('/decks/frost.svg');
+    --holo-a: #8FD3FF;
+    --holo-b: #F2FBFF;
+}
+
+[data-faces='phoenix']
+{
+    --deck: url('/decks/phoenix.svg');
+    --holo-a: #FFC94A;
+    --holo-b: #FFF6D6;
+}
+
+[data-faces='oni']
+{
+    --deck: url('/decks/oni.svg');
+    --holo-a: #FF2E4D;
+    --holo-b: #20E6FF;
+}
+
 [data-backs='glow']
 {
     --back: url('/backs/glow.svg');
@@ -666,6 +722,46 @@ html:has(.site-drawer[open])
 [data-backs='gold']
 {
     --back: url('/backs/gold.svg');
+}
+
+[data-backs='inferno']
+{
+    --back: url('/backs/inferno.svg');
+}
+
+[data-backs='storm']
+{
+    --back: url('/backs/storm.svg');
+}
+
+[data-backs='astral']
+{
+    --back: url('/backs/astral.svg');
+}
+
+[data-backs='void']
+{
+    --back: url('/backs/void.svg');
+}
+
+[data-backs='jade']
+{
+    --back: url('/backs/jade.svg');
+}
+
+[data-backs='frost']
+{
+    --back: url('/backs/frost.svg');
+}
+
+[data-backs='phoenix']
+{
+    --back: url('/backs/phoenix.svg');
+}
+
+[data-backs='oni']
+{
+    --back: url('/backs/oni.svg');
 }
 
 .page-table:has(.table-stage)
@@ -5938,6 +6034,51 @@ button.chess-san:hover
     border-color: color-mix(in oklab, var(--accent) 70%, var(--line));
 }
 
+/*
+ * A mythic look's edge is the light of the legendary collections at once: a conic gradient laid
+ * under the card's own fill, so it shows only in the border. It turns while a pointer is on the
+ * card, and is still under a finger and for somebody who asked for less motion.
+ */
+@property --mythic-turn
+{
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+}
+
+.look-card[data-tier='mythic'],
+.look-large[data-tier='mythic']
+{
+    border-color: transparent;
+    background:
+        linear-gradient(var(--field), var(--field)) padding-box,
+        conic-gradient(from var(--mythic-turn), #FF2E4D, #FFC94A, #4FE3D8, #8B5CFF, #A855F7, #FF2E4D) border-box;
+    box-shadow: 0 10px 30px -14px color-mix(in oklab, #A855F7 70%, transparent);
+}
+
+.look-card[data-tier='mythic']:hover,
+.look-card[data-tier='mythic']:focus-visible
+{
+    border-color: transparent;
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)
+{
+    .look-card[data-tier='mythic']:hover,
+    .look-card[data-tier='mythic']:focus-visible
+    {
+        animation: mythic-turn 3s linear infinite;
+    }
+}
+
+@keyframes mythic-turn
+{
+    to
+    {
+        --mythic-turn: 360deg;
+    }
+}
+
 .look-choice[aria-pressed='true']
 {
     border-color: var(--accent);
@@ -5980,6 +6121,46 @@ button.chess-san:hover
     --deco: url('/frames/gold.svg');
 }
 
+[data-deco='inferno']
+{
+    --deco: url('/frames/inferno.svg');
+}
+
+[data-deco='storm']
+{
+    --deco: url('/frames/storm.svg');
+}
+
+[data-deco='astral']
+{
+    --deco: url('/frames/astral.svg');
+}
+
+[data-deco='void']
+{
+    --deco: url('/frames/void.svg');
+}
+
+[data-deco='jade']
+{
+    --deco: url('/frames/jade.svg');
+}
+
+[data-deco='frost']
+{
+    --deco: url('/frames/frost.svg');
+}
+
+[data-deco='phoenix']
+{
+    --deco: url('/frames/phoenix.svg');
+}
+
+[data-deco='oni']
+{
+    --deco: url('/frames/oni.svg');
+}
+
 @media (prefers-reduced-motion: reduce)
 {
     [data-deco='glow']
@@ -6000,5 +6181,45 @@ button.chess-san:hover
     [data-deco='gold']
     {
         --deco: url('/frames/gold-still.svg');
+    }
+
+    [data-deco='inferno']
+    {
+        --deco: url('/frames/inferno-still.svg');
+    }
+
+    [data-deco='storm']
+    {
+        --deco: url('/frames/storm-still.svg');
+    }
+
+    [data-deco='astral']
+    {
+        --deco: url('/frames/astral-still.svg');
+    }
+
+    [data-deco='void']
+    {
+        --deco: url('/frames/void-still.svg');
+    }
+
+    [data-deco='jade']
+    {
+        --deco: url('/frames/jade-still.svg');
+    }
+
+    [data-deco='frost']
+    {
+        --deco: url('/frames/frost-still.svg');
+    }
+
+    [data-deco='phoenix']
+    {
+        --deco: url('/frames/phoenix-still.svg');
+    }
+
+    [data-deco='oni']
+    {
+        --deco: url('/frames/oni-still.svg');
     }
 }

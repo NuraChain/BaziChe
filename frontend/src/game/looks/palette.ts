@@ -34,7 +34,8 @@ export interface Palette
     /** Where its looks are shown. */
     ground: Ramp;
 
-    pattern: 'sparkle' | 'girih' | 'grid' | 'filigree';
+    /** Its pattern; a legendary collection's is drawn by its own module in `tools/art/legendary/`. */
+    pattern: 'sparkle' | 'girih' | 'grid' | 'filigree' | 'magma' | 'bolts' | 'stars' | 'fractures' | 'scales' | 'crystals' | 'feathers' | 'circuits';
 }
 
 export const PALETTES = {
@@ -85,6 +86,102 @@ export const PALETTES = {
         die: { face: ['#FFF6CF', '#E8C35A', '#B48A24'], pip: '#1B1404' },
         ground: ['#241C0E', '#120E07', '#060402'],
         pattern: 'filigree'
+    },
+    inferno: {
+        piece: ['#6B4A3C', '#2A1812', '#120807'],
+        pale: ['#FFF4E2', '#FFDDA8', '#F0B46A'],
+        deep: ['#4A2418', '#22100A', '#0C0503'],
+        surface: ['#3E1D12', '#22100A', '#120807'],
+        edge: '#FFB43A',
+        glint: '#FFE7A1',
+        ink: '#FFE2B0',
+        die: { face: ['#3A2018', '#1E0F0A', '#0C0604'], pip: '#FFB43A' },
+        ground: ['#2A120A', '#160905', '#080302'],
+        pattern: 'magma'
+    },
+    storm: {
+        piece: ['#C9D4E6', '#5A6884', '#0D1424'],
+        pale: ['#FFFFFF', '#E6EEFA', '#BCCBE2'],
+        deep: ['#3A4458', '#1E2534', '#0B0F18'],
+        surface: ['#22304E', '#141E36', '#0D1424'],
+        edge: '#3FA9FF',
+        glint: '#EAF6FF',
+        ink: '#EAF6FF',
+        die: { face: ['#EEF3FA', '#CDD7E6', '#A7B5CC'], pip: '#142057' },
+        ground: ['#1B2440', '#0F1530', '#060918'],
+        pattern: 'bolts'
+    },
+    astral: {
+        piece: ['#C9B6FF', '#5B2A9E', '#1A0A3A'],
+        pale: ['#FFFFFF', '#FFF6D9', '#E9D9A8'],
+        deep: ['#3A1E6E', '#1C0C3E', '#0A0420'],
+        surface: ['#2A1458', '#170A36', '#080318'],
+        edge: '#4FE3D8',
+        glint: '#FFE58A',
+        ink: '#F7F2FF',
+        die: { face: ['#2E1A5E', '#1A0C3A', '#0B0420'], pip: '#FFE58A' },
+        ground: ['#1E0E42', '#100626', '#0A0820'],
+        pattern: 'stars'
+    },
+    void: {
+        piece: ['#3A2A4E', '#140C1E', '#030106'],
+        pale: ['#F3EAFF', '#D9C4FA', '#B497E8'],
+        deep: ['#241838', '#0E0818', '#030106'],
+        surface: ['#1A1028', '#0C0614', '#030106'],
+        edge: '#A855F7',
+        glint: '#E9D5FF',
+        ink: '#EFE4FF',
+        die: { face: ['#1E1430', '#0E0818', '#050209'], pip: '#C79BFF' },
+        ground: ['#120A1E', '#08040F', '#020104'],
+        pattern: 'fractures'
+    },
+    jade: {
+        piece: ['#BFF2D9', '#2BB67F', '#0E5A3D'],
+        pale: ['#F4FFF8', '#D2F5E2', '#A8E3C4'],
+        deep: ['#167A54', '#0B4A33', '#052A1C'],
+        surface: ['#13684A', '#0B4A35', '#05281C'],
+        edge: '#F2C14E',
+        glint: '#FFF1C4',
+        ink: '#FFF8E1',
+        die: { face: ['#E8FFF2', '#BFF2D9', '#8FD9B5'], pip: '#0B3D2A' },
+        ground: ['#0E3A2A', '#08251B', '#03130D'],
+        pattern: 'scales'
+    },
+    frost: {
+        piece: ['#FFFFFF', '#BFE6FF', '#5FA8D9'],
+        pale: ['#FFFFFF', '#EEF8FF', '#CFE8FA'],
+        deep: ['#2E5F86', '#173A5A', '#0A1E33'],
+        surface: ['#2C5A80', '#173A58', '#0A1E33'],
+        edge: '#8FD3FF',
+        glint: '#F2FBFF',
+        ink: '#F2FAFF',
+        die: { face: ['#F7FCFF', '#DDF0FC', '#B6DDF5'], pip: '#123E63' },
+        ground: ['#173A58', '#0C2238', '#0A1A2B'],
+        pattern: 'crystals'
+    },
+    phoenix: {
+        piece: ['#FFE9A8', '#FF8A2A', '#B0261A'],
+        pale: ['#FFFBEA', '#FFEBB0', '#F7CF70'],
+        deep: ['#8E1E1A', '#57100E', '#2A0606'],
+        surface: ['#7A1E14', '#4D120C', '#220605'],
+        edge: '#FFC94A',
+        glint: '#FFF6D6',
+        ink: '#FFF3D0',
+        die: { face: ['#FFF8E1', '#FFE3A0', '#F7C25A'], pip: '#7A1410' },
+        ground: ['#3A0E08', '#220705', '#100302'],
+        pattern: 'feathers'
+    },
+    oni: {
+        piece: ['#4A1E2E', '#1E0B14', '#08030A'],
+        pale: ['#FFFFFF', '#E6FBFF', '#A8EEF8'],
+        deep: ['#4A0F1E', '#24060E', '#0C0205'],
+        surface: ['#2A0A16', '#16050B', '#070205'],
+        edge: '#FF2E4D',
+        glint: '#20E6FF',
+        ink: '#F5FEFF',
+        die: { face: ['#22101A', '#12060C', '#060205'], pip: '#20E6FF' },
+        ground: ['#1C0610', '#0E0308', '#050103'],
+        pattern: 'circuits'
     }
 } as const satisfies Record<ShopCollection, Palette>;
 

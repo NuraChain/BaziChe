@@ -66,18 +66,25 @@ const BED_SOURCES = join(PACK_SOURCES, 'beds');
 /** Each look's drawing in the shop: a card loads twelve of them at once on a phone. */
 const LOOK_BUDGET = 16 * KB;
 
-/** What a profile wears, a folder each: a list of friends can load a frame and a plate for every row. */
+/**
+ * What a profile wears, a folder each: a list of friends can load a frame and a plate for every
+ * row. A legendary frame carries layered fire, feathers or a dragon with their motion, and is
+ * fetched once for every row that wears it.
+ */
 const PROFILE_LOOKS = {
-    frames: { names: SHOP_COLLECTIONS.flatMap((collection) => [collection, `${ collection }-still`]), budget: 12 * KB },
+    frames: { names: SHOP_COLLECTIONS.flatMap((collection) => [collection, `${ collection }-still`]), budget: 20 * KB },
     plates: { names: [...SHOP_COLLECTIONS], budget: 6 * KB },
     covers: { names: [...SHOP_COLLECTIONS], budget: 24 * KB }
 };
 
-/** What a table draws of its owner's looks: pawns in each seat's colour, and each collection's deck and back. */
+/**
+ * What a table draws of its owner's looks: pawns in each seat's colour, and each collection's
+ * deck and back. A legendary pawn wears its collection's crest and a legendary back its emblem.
+ */
 const TABLE_LOOKS = {
-    pawns: { names: SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => `${ collection }-${ seat }`)), budget: 4 * KB },
+    pawns: { names: SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => `${ collection }-${ seat }`)), budget: 6 * KB },
     decks: { names: [...SHOP_COLLECTIONS], budget: 96 * KB },
-    backs: { names: [...SHOP_COLLECTIONS], budget: 4 * KB }
+    backs: { names: [...SHOP_COLLECTIONS], budget: 8 * KB }
 };
 
 /**

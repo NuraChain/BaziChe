@@ -3,6 +3,8 @@
  * `frontend/public/looks/<id>.svg`: layered vector shapes under one light from the upper left, a
  * rim of light on each body, a cast shadow and the collection's own pattern behind it. Nothing is
  * taken from anybody else's art. `npm run looks` writes them; the build refuses a look without one.
+ * A legendary collection's looks are drawn from its own art (`legendary/`): its frame round the
+ * picture, its cover, its emblem, its pawns' crest and its real card back.
  */
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -10,7 +12,10 @@ import { fileURLToPath } from 'node:url';
 
 import { BUNDLES, LOOKS } from '../../backend/src/domains/shop/catalogue.ts';
 import { PALETTES, SEAT_RAMPS } from '../../frontend/src/game/looks/palette.ts';
+import { cardBack as backArt } from './card-back.mjs';
+import { H as CARD_H, W as CARD_W } from './card-parts.mjs';
 import { pieceShapes } from './chess-set.mjs';
+import { lineOf } from './legendary/index.mjs';
 import { SUIT_PATH } from './suits.mjs';
 import { gloss, linear, motif, neon, octagram, polygon, r2, radial, sparkle, starOf } from './look-parts.mjs';
 
@@ -18,6 +23,12 @@ const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend'
 
 const W = 160;
 const H = 120;
+
+/** A drawing's ids and every reference to one, given a prefix, so a part drawn on its own can lie inside another drawing. */
+const prefixed = (prefix, text) => text.replace(/id="([^"]+)"/g, `id="${ prefix }-$1"`).replace(/url\(#([^)]+)\)/g, `url(#${ prefix }-$1)`);
+
+/** The pawn's crest drawn in the board's 256 square, laid on the shop's own pawn, whose head is a circle of 8.4 at (0, -15.6). */
+const ONTO_PAWN = 'translate(0 -15.6) scale(0.15) translate(-128 -62)';
 
 /** What every drawing of a look shares: its ground, its pattern, the light, the shadow's blur and the neon glow. */
 function stage(palette)
@@ -120,17 +131,21 @@ function pawn(palette, id, seat, x, y, scale)
     const head = '<circle cx="0" cy="-15.6" r="8.4"/>';
     const collar = `<path d="${ PAWN.collar }" fill="${ metal ? `url(#${ id }-metal)` : fill }"/>`;
     const base = `<path d="${ PAWN.base }" fill="${ metal ? `url(#${ id }-metal)` : fill }"/>`;
-    const extra = palette.pattern === 'sparkle'
-        ? `<path d="${ sparkle(-3.2, -18.6, 3.6) }" fill="#FFFFFF" opacity="0.95"/><path d="${ sparkle(4.8, 6, 2) }" fill="${ palette.glint }"/>`
-        : palette.pattern === 'girih'
-            ? `<path d="${ octagram(0, 5, 3.6) }" fill="none" stroke="${ palette.edge }" stroke-width="0.8"/>`
-            : neon(palette)
-                ? `<circle cx="0" cy="-15.6" r="4.2" fill="none" stroke="${ palette.glint }" stroke-width="1.1"${ glowing }/>`
-                : `<circle cx="0" cy="-15.6" r="8.4" fill="none" stroke="url(#${ id }-metal)" stroke-width="1.6"/>`;
+    const crested = lineOf(palette) !== undefined;
+    const extra = crested
+        ? `<use href="#crest-front" transform="${ ONTO_PAWN }"/>`
+        : palette.pattern === 'sparkle'
+            ? `<path d="${ sparkle(-3.2, -18.6, 3.6) }" fill="#FFFFFF" opacity="0.95"/><path d="${ sparkle(4.8, 6, 2) }" fill="${ palette.glint }"/>`
+            : palette.pattern === 'girih'
+                ? `<path d="${ octagram(0, 5, 3.6) }" fill="none" stroke="${ palette.edge }" stroke-width="0.8"/>`
+                : neon(palette)
+                    ? `<circle cx="0" cy="-15.6" r="4.2" fill="none" stroke="${ palette.glint }" stroke-width="1.1"${ glowing }/>`
+                    : `<circle cx="0" cy="-15.6" r="8.4" fill="none" stroke="url(#${ id }-metal)" stroke-width="1.6"/>`;
 
     const body = [
         shadow(x + 2, y + 22 * scale, 15 * scale, 4 * scale, 0.55),
         `<g transform="translate(${ x } ${ y }) scale(${ scale })">`,
+        crested ? `<use href="#crest-back" transform="${ ONTO_PAWN }"/>` : '',
         base,
         `<g fill="${ fill }" stroke="${ rim }" stroke-width="${ neon(palette) ? 1.5 : 0.9 }" stroke-opacity="${ neon(palette) ? 1 : 0.55 }"${ glowing }><path d="${ PAWN.body }"/>${ head }</g>`,
         collar,
@@ -142,12 +157,19 @@ function pawn(palette, id, seat, x, y, scale)
     return { defs, body };
 }
 
+/** A legendary collection's crest, drawn once for every pawn of a drawing to wear (`#crest-front`, and `#crest-back` behind the head). */
+const crestDefs = (palette) =>
+{
+    const crest = lineOf(palette)?.crest(palette, 'crest');
+    return crest === undefined ? [] : [...crest.defs, `<g id="crest-front">${ crest.body.join('') }</g>`, `<g id="crest-back">${ (crest.back ?? []).join('') }</g>`];
+};
+
 function pawns(palette)
 {
     const set = [['yellow', 50, 44, 0.86], ['blue', 108, 44, 0.86], ['red', 66, 66, 1.08], ['green', 96, 68, 1.08]];
     const drawn = set.map(([seat, x, y, scale], index) => pawn(palette, `p${ index }`, seat, x, y, scale));
 
-    return { defs: drawn.flatMap((one) => one.defs), body: drawn.flatMap((one) => one.body) };
+    return { defs: [...crestDefs(palette), ...drawn.flatMap((one) => one.defs)], body: drawn.flatMap((one) => one.body) };
 }
 
 // ---------------------------------------------------------------- the yard
@@ -165,13 +187,18 @@ function yard(palette)
     const wells = [[62, 42], [98, 42], [62, 78], [98, 78]].map(([cx, cy]) =>
         `<circle cx="${ cx }" cy="${ cy }" r="9.6" fill="#FFFFFF" opacity="0.92"/><circle cx="${ cx }" cy="${ cy }" r="7.4" fill="url(#y-well)" stroke="${ palette.edge }" stroke-width="1.4"/>`).join('');
 
-    const centre = palette.pattern === 'sparkle'
-        ? `<path d="${ sparkle(80, 60, 7.5) }" fill="${ palette.glint }"/>`
-        : palette.pattern === 'girih'
-            ? `<path d="${ starOf(80, 60, 8, 3.6, 8) }" fill="${ palette.edge }"/>`
-            : neon(palette)
-                ? `<path d="${ polygon(80, 60, 7, 4, 0) }" fill="none" stroke="${ palette.glint }" stroke-width="1.6" filter="url(#glow)"/>`
-                : `<circle cx="80" cy="60" r="6" fill="none" stroke="${ palette.edge }" stroke-width="1.6"/><circle cx="80" cy="60" r="2.4" fill="${ palette.edge }"/>`;
+    const sign = lineOf(palette)?.emblem(palette, 80, 60, 18, 'y-sign');
+    const centre = sign !== undefined
+        ? sign.body.join('')
+        : palette.pattern === 'sparkle'
+            ? `<path d="${ sparkle(80, 60, 7.5) }" fill="${ palette.glint }"/>`
+            : palette.pattern === 'girih'
+                ? `<path d="${ starOf(80, 60, 8, 3.6, 8) }" fill="${ palette.edge }"/>`
+                : neon(palette)
+                    ? `<path d="${ polygon(80, 60, 7, 4, 0) }" fill="none" stroke="${ palette.glint }" stroke-width="1.6" filter="url(#glow)"/>`
+                    : `<circle cx="80" cy="60" r="6" fill="none" stroke="${ palette.edge }" stroke-width="1.6"/><circle cx="80" cy="60" r="2.4" fill="${ palette.edge }"/>`;
+
+    defs.push(...(sign?.defs ?? []));
 
     const body = [
         shadow(82, 106, 50, 6),
@@ -232,12 +259,42 @@ function cardBack(palette, id, x, y, turn)
     return { defs, body };
 }
 
+/** A legendary collection's real card back (`public/backs/`), drawn once for every card of a drawing to show (`#real-back`). */
+const realBackDefs = (palette) =>
+{
+    const line = lineOf(palette);
+
+    return line === undefined ? [] : [
+        gloss('real-gloss', 0.32, [0.2, 0.08, 0.9]),
+        '<clipPath id="real-round"><rect x="-30" y="-42" width="60" height="84" rx="6"/></clipPath>',
+        prefixed('rb', backArt(palette, line.back.border, line.back.emblem(palette, CARD_W, CARD_H)))
+            .replace(/<svg [^>]*>/, `<svg id="real-back" x="-30" y="-42" width="60" height="84" viewBox="0 0 ${ CARD_W } ${ CARD_H }" preserveAspectRatio="none">`)
+    ];
+};
+
+/** The real back laid as one of the drawing's cards, tilted, with its shadow and its sheen. */
+const realBack = (palette, x, y, turn) => ({
+    defs: [],
+    body: [
+        shadow(x + 3, y + 46, 30, 5),
+        `<g transform="translate(${ x } ${ y }) rotate(${ turn })">`,
+        '<rect x="-30" y="-42" width="60" height="84" rx="6" fill="#0A0A10" opacity="0.35" transform="translate(1.6 2.2)"/>',
+        '<g clip-path="url(#real-round)"><use href="#real-back"/></g>',
+        `<rect x="-30" y="-42" width="60" height="84" rx="6" fill="none" stroke="${ palette.edge }" stroke-width="0.9"/>`,
+        '<rect x="-30" y="-42" width="60" height="84" rx="6" fill="url(#real-gloss)"/>',
+        '</g>'
+    ]
+});
+
+/** A card back as the drawing lays one: a legendary collection's real back, or one drawn here. */
+const backCard = (palette, id, x, y, turn) => (lineOf(palette) === undefined ? cardBack(palette, id, x, y, turn) : realBack(palette, x, y, turn));
+
 function backs(palette)
 {
-    const behind = cardBack(palette, 'k', 94, 58, 11);
-    const front = cardBack(palette, 'c', 68, 62, -8);
+    const behind = backCard(palette, 'k', 94, 58, 11);
+    const front = backCard(palette, 'c', 68, 62, -8);
 
-    return { defs: [...behind.defs, ...front.defs], body: [...behind.body, ...front.body] };
+    return { defs: [...realBackDefs(palette), ...behind.defs, ...front.defs], body: [...behind.body, ...front.body] };
 }
 
 /** The letter A for a card's index, drawn as strokes so no font is asked for. */
@@ -245,10 +302,13 @@ const LETTER_A = 'M-4.4 6L0 -6L4.4 6M-2.8 1.6H2.8';
 
 function cardFace(palette, id, x, y, turn, suit, red)
 {
-    const ink = red ? '#C2263A' : '#151821';
+    const dress = lineOf(palette)?.dress;
+    const inked = dress?.suits.find((one) => one.name === suit);
+    const ink = inked?.ink ?? (red ? '#C2263A' : '#151821');
+    const paper = dress?.paper ?? ['#FFFFFF', '#EEF2F7'];
     const defs = [
-        `<linearGradient id="${ id }-paper" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#EEF2F7"/></linearGradient>`,
-        linear(`${ id }-pip`, red ? ['#F25C6E', '#C2263A', '#8F1527'] : neon(palette) ? palette.piece : palette.piece),
+        `<linearGradient id="${ id }-paper" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${ paper[0] }"/><stop offset="1" stop-color="${ paper[1] }"/></linearGradient>`,
+        linear(`${ id }-pip`, inked === undefined ? (red ? ['#F25C6E', '#C2263A', '#8F1527'] : palette.piece) : [inked.ink, inked.ink, inked.accent]),
         gloss(`${ id }-gloss`, 0.4, [0.2, 0.06, 0.9])
     ];
 
@@ -309,18 +369,22 @@ function felt(palette)
         '<rect x="14" y="22" width="132" height="74" rx="37" fill="url(#f-cloth)" filter="url(#grain)"/>',
         '<rect x="14" y="22" width="132" height="74" rx="37" fill="url(#f-motif)" opacity="0.22"/>',
         `<rect x="18" y="26" width="124" height="66" rx="33" fill="none" stroke="${ palette.edge }" stroke-width="0.8" stroke-dasharray="1.6 3.2" opacity="0.7"/>`,
-        '<rect x="14" y="22" width="132" height="74" rx="37" fill="url(#f-alive)"/>',
-        emblem(palette, 'f', 80, 59, 9)
+        '<rect x="14" y="22" width="132" height="74" rx="37" fill="url(#f-alive)"/>'
     ];
+    const sign = lineOf(palette)?.emblem(palette, 80, 59, 24, 'f-sign');
 
-    return { defs, body };
+    return sign === undefined
+        ? { defs, body: [...body, emblem(palette, 'f', 80, 59, 9)] }
+        : { defs: [...defs, ...sign.defs], body: [...body, ...sign.body] };
 }
 
 // ---------------------------------------------------------------- chips
 
 function chip(palette, id, x, y, top)
 {
-    const tone = palette.pattern === 'sparkle' || palette.pattern === 'girih' ? palette.piece : palette.surface;
+    const tone = lineOf(palette) !== undefined
+        ? [palette.glint, palette.edge, palette.deep[1]]
+        : palette.pattern === 'sparkle' || palette.pattern === 'girih' ? palette.piece : palette.surface;
     const stripe = neon(palette) ? palette.glint : palette.pattern === 'filigree' ? palette.edge : '#FFFFFF';
     const side = `<path d="M${ x - 21 } ${ y }V${ y + 5 }C${ x - 21 } ${ y + 9.4 } ${ x + 21 } ${ y + 9.4 } ${ x + 21 } ${ y + 5 }V${ y }Z" fill="url(#${ id }-side)"/>`;
     const dashes = [-15, -6, 6, 15].map((dx) => `<rect x="${ x + dx - 2 }" y="${ y + 2 + Math.abs(dx) * 0.03 }" width="4" height="${ 5.6 - Math.abs(dx) * 0.07 }" fill="${ stripe }" opacity="0.92"/>`).join('');
@@ -628,14 +692,17 @@ function nameplate(palette)
 
 // ---------------------------------------------------------------- the celebration
 
+/** Sixteen rays of light from the middle of a win. */
+const burst = (palette) => Array.from({ length: 16 }, (_, index) =>
+{
+    const from = (index * 22.5 - 4) * Math.PI / 180;
+    const to = (index * 22.5 + 4) * Math.PI / 180;
+    return `<path d="M80 62L${ r2(80 + 90 * Math.cos(from)) } ${ r2(62 + 90 * Math.sin(from)) }L${ r2(80 + 90 * Math.cos(to)) } ${ r2(62 + 90 * Math.sin(to)) }Z" fill="${ index % 2 === 0 ? palette.glint : palette.edge }" opacity="${ index % 2 === 0 ? 0.16 : 0.1 }"/>`;
+}).join('');
+
 function celebration(palette)
 {
-    const rays = Array.from({ length: 16 }, (_, index) =>
-    {
-        const from = (index * 22.5 - 4) * Math.PI / 180;
-        const to = (index * 22.5 + 4) * Math.PI / 180;
-        return `<path d="M80 62L${ r2(80 + 90 * Math.cos(from)) } ${ r2(62 + 90 * Math.sin(from)) }L${ r2(80 + 90 * Math.cos(to)) } ${ r2(62 + 90 * Math.sin(to)) }Z" fill="${ index % 2 === 0 ? palette.glint : palette.edge }" opacity="${ index % 2 === 0 ? 0.16 : 0.1 }"/>`;
-    }).join('');
+    const rays = burst(palette);
 
     const confetti = [[34, 30, 20, 'edge'], [124, 26, -30, 'glint'], [44, 92, 60, 'seat'], [128, 88, -15, 'edge'], [60, 20, 45, 'seat'], [104, 100, 30, 'glint'], [24, 62, -40, 'glint'], [138, 58, 15, 'seat']]
         .map(([x, y, turn, tone], index) =>
@@ -664,16 +731,89 @@ function celebration(palette)
     };
 }
 
+// ---------------------------------------------------------------- a legendary collection's own
+
+/** Its frame, still, round the picture. */
+function decorationOf(palette, line)
+{
+    const drawn = line.frame(palette, true);
+
+    return {
+        defs: [AVATAR, ...drawn.defs.map((one) => prefixed('d', one))],
+        body: [shadow(80, 98, 30, 4), picture(), `<g transform="translate(80 60) scale(0.59) translate(-60 -60)">${ prefixed('d', drawn.body.join('')) }</g>`]
+    };
+}
+
+/** A cover's drawing without what a theme's card draws under half a pixel: its motes and stars, its scanlines, and lines thinner than a unit. */
+const coarse = (text) => text
+    .replace(/<circle [^>]*\br="([\d.]+)"[^>]*\/>/g, (whole, r) => (Number(r) < 2 ? '' : whole))
+    .replace(/<rect [^>]*\bheight="1"[^>]*\/>/g, '')
+    .replace(/<path [^>]*\bstroke-width="([\d.]+)"[^>]*\/>/g, (whole, width) => (Number(width) < 1 && !/\bfill="(?!none")/.test(whole) ? '' : whole));
+
+/** Its cover across the band of a profile's card, from the scene to the medallion at its end. */
+function themeOf(palette, line)
+{
+    const cover = line.cover(palette);
+    const drawn = { defs: cover.defs, body: cover.body.map(coarse) };
+
+    return {
+        defs: [AVATAR, ...drawn.defs.map((one) => prefixed('t', one))],
+        body: [
+            shadow(80, 112, 50, 4, 0.45),
+            '<rect x="30" y="16" width="100" height="92" rx="9" fill="#0F172A" stroke="#334155" stroke-width="0.8"/>',
+            '<clipPath id="t-top"><rect x="30" y="16" width="100" height="36" rx="9"/><rect x="30" y="40" width="100" height="12"/></clipPath>',
+            `<g clip-path="url(#t-top)"><g transform="translate(-2 16) scale(0.15)">${ prefixed('t', drawn.body.join('')) }</g></g>`,
+            `<rect x="30" y="51" width="100" height="1.6" fill="${ palette.edge }"/>`,
+            `<rect x="30" y="52.6" width="100" height="55.4" fill="${ palette.ground[1] }" opacity="0.55"/>`,
+            '<circle cx="56" cy="53" r="13" fill="url(#avatar)"/>',
+            `<circle cx="56" cy="53" r="13" fill="none" stroke="${ palette.edge }" stroke-width="2.2"/>`,
+            `<rect x="44" y="74" width="46" height="6" rx="3" fill="${ palette.ink }" opacity="0.9"/>`,
+            `<rect x="44" y="85" width="64" height="4" rx="2" fill="${ palette.edge }" opacity="0.55"/>`,
+            `<rect x="44" y="94" width="50" height="4" rx="2" fill="${ palette.edge }" opacity="0.35"/>`
+        ]
+    };
+}
+
+/** Its effect over a profile: its emblem rising from the card in its light, glints round it. */
+function effectOf(palette, line)
+{
+    const sign = line.emblem(palette, 80, 54, 44, 'e-sign');
+    const glints = [[40, 28, 3.6], [120, 24, 4.6], [128, 66, 3], [34, 80, 2.8], [108, 98, 3.4], [56, 102, 2.6], [92, 22, 2.2]]
+        .map(([x, y, size], index) => `<path d="${ sparkle(x, y, size) }" fill="${ index % 2 === 0 ? palette.glint : palette.edge }" opacity="0.9"/>`);
+
+    return {
+        defs: [AVATAR, `<radialGradient id="e-light" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${ palette.glint }" stop-opacity="0.55"/><stop offset="1" stop-color="${ palette.edge }" stop-opacity="0"/></radialGradient>`, ...sign.defs],
+        body: [shadow(80, 112, 50, 4, 0.45), card(palette), '<circle cx="80" cy="54" r="42" fill="url(#e-light)"/>', ...sign.body, ...glints]
+    };
+}
+
+/** Its celebration: its emblem raised in a burst of its light, confetti in its colours round it. */
+function celebrationOf(palette, line)
+{
+    const sign = line.emblem(palette, 80, 60, 50, 'w-sign');
+    const tones = [palette.edge, palette.glint, palette.pale[1], palette.piece[0]];
+    const confetti = [[34, 30, 20], [124, 26, -30], [44, 92, 60], [128, 88, -15], [60, 20, 45], [104, 100, 30], [24, 62, -40], [138, 58, 15]]
+        .map(([x, y, turn], index) => `<rect x="${ x - 2.2 }" y="${ y - 4 }" width="4.4" height="8" rx="1" transform="rotate(${ turn } ${ x } ${ y })" fill="${ tones[index % 4] }"/>`).join('');
+
+    return {
+        defs: [`<radialGradient id="w-light" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${ palette.glint }" stop-opacity="0.6"/><stop offset="1" stop-color="${ palette.edge }" stop-opacity="0"/></radialGradient>`, ...sign.defs],
+        body: [burst(palette), confetti, '<circle cx="80" cy="60" r="40" fill="url(#w-light)"/>', ...sign.body]
+    };
+}
+
+/** The kinds a legendary collection draws from its own art; every other kind is drawn from its palette. */
+const OWN = { decoration: decorationOf, effect: effectOf, theme: themeOf, celebration: celebrationOf };
+
 // ---------------------------------------------------------------- bundles
 
 function bundle(palette)
 {
-    const back = cardBack(palette, 'c', 58, 60, -10);
+    const back = backCard(palette, 'c', 58, 60, -10);
     const thrown = die(palette, 'a', 112, 80, 32, 14, 6);
     const pawned = pawn(palette, 'p', 'blue', 114, 44, 0.78);
 
     return {
-        defs: [...back.defs, ...thrown.defs, ...pawned.defs],
+        defs: [...realBackDefs(palette), ...crestDefs(palette), ...back.defs, ...thrown.defs, ...pawned.defs],
         body: [...back.body, ...pawned.body, ...thrown.body]
     };
 }
@@ -717,9 +857,16 @@ for (const name of readdirSync(OUT))
     rmSync(join(OUT, name));
 }
 
+/** A look's drawing: from its collection's own art for a kind that is its identity, from its palette otherwise. */
+const drawingOf = (kind, palette) =>
+{
+    const line = lineOf(palette);
+    return line !== undefined && Object.hasOwn(OWN, kind) ? OWN[kind](palette, line) : DRAW[kind](palette);
+};
+
 for (const look of LOOKS)
 {
-    writeFileSync(join(OUT, `${ look.id }.svg`), file(PALETTES[look.collection], DRAW[look.kind](PALETTES[look.collection])));
+    writeFileSync(join(OUT, `${ look.id }.svg`), file(PALETTES[look.collection], drawingOf(look.kind, PALETTES[look.collection])));
 }
 
 for (const one of BUNDLES)

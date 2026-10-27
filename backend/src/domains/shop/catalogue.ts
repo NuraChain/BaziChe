@@ -10,11 +10,14 @@ export const SHOP_KINDS = ['decoration', 'effect', 'theme', 'nameplate', 'dice',
 
 export type ShopKind = (typeof SHOP_KINDS)[number];
 
-export const SHOP_COLLECTIONS = ['glow', 'shiraz', 'neon', 'gold'] as const;
+export const SHOP_COLLECTIONS = ['glow', 'shiraz', 'neon', 'gold', 'inferno', 'storm', 'astral', 'void', 'jade', 'frost', 'phoenix', 'oni'] as const;
 
 export type ShopCollection = (typeof SHOP_COLLECTIONS)[number];
 
-export const SHOP_TIERS = ['common', 'rare', 'epic', 'legendary'] as const;
+/** The legendary line: collections whose looks are priced by `LEGENDARY_TIER_OF`, the most of them mythic. */
+export const LEGENDARY_COLLECTIONS = ['inferno', 'storm', 'astral', 'void', 'jade', 'frost', 'phoenix', 'oni'] as const satisfies readonly ShopCollection[];
+
+export const SHOP_TIERS = ['common', 'rare', 'epic', 'legendary', 'mythic'] as const;
 
 export type ShopTier = (typeof SHOP_TIERS)[number];
 
@@ -60,7 +63,7 @@ export type ShopGame = keyof typeof GAME_SLOTS;
 
 export const CELEBRATION_SLOT = 'table.celebration' satisfies ShopSlot;
 
-/** The tier of every look of a kind, in every collection: what it does sets what it costs. */
+/** The tier of every look of a kind in the collections the shop opened with: what it does sets what it costs. */
 export const TIER_OF = {
     theme: 'common',
     face: 'common',
@@ -79,8 +82,37 @@ export const TIER_OF = {
     celebration: 'legendary'
 } as const satisfies Record<ShopKind, ShopTier>;
 
+/**
+ * The tier of every look of a kind in a legendary collection: what lies still (a theme, faces,
+ * chips, checkers, a home board) is epic, a table's pieces are legendary, and what plays on a
+ * profile or at a win is mythic.
+ */
+export const LEGENDARY_TIER_OF = {
+    theme: 'epic',
+    face: 'epic',
+    chips: 'epic',
+    checkers: 'epic',
+    home: 'epic',
+    nameplate: 'legendary',
+    back: 'legendary',
+    felt: 'legendary',
+    dice: 'legendary',
+    pawns: 'legendary',
+    pieces: 'legendary',
+    yard: 'legendary',
+    decoration: 'mythic',
+    effect: 'mythic',
+    celebration: 'mythic'
+} as const satisfies Record<ShopKind, ShopTier>;
+
 /** What each tier costs, in whole NURA, until the staff set another price. */
-export const TIER_PRICE = { common: 5, rare: 12, epic: 25, legendary: 50 } as const satisfies Record<ShopTier, number>;
+export const TIER_PRICE = { common: 5, rare: 12, epic: 25, legendary: 50, mythic: 100 } as const satisfies Record<ShopTier, number>;
+
+/** A look's tier: by its kind, on its collection's line. */
+export function tierOf(kind: ShopKind, collection: ShopCollection)
+{
+    return (LEGENDARY_COLLECTIONS as readonly ShopCollection[]).includes(collection) ? LEGENDARY_TIER_OF[kind] : TIER_OF[kind];
+}
 
 /** A bundle costs its looks' prices less this share, in basis points. */
 export const BUNDLE_OFF_BPS = 3_000;
@@ -88,13 +120,21 @@ export const BUNDLE_OFF_BPS = 3_000;
 export const NURA = 10n ** 18n;
 
 /** The newest collection is featured until the staff feature another. */
-export const FEATURED_FIRST: ShopCollection = 'glow';
+export const FEATURED_FIRST: ShopCollection = 'inferno';
 
 export const COLLECTION_NAMES = {
     glow: { en: 'Nura Glow', fa: 'درخشش نورا' },
     shiraz: { en: 'Shiraz Garden', fa: 'باغ شیراز' },
     neon: { en: 'Midnight Neon', fa: 'نئون نیمه‌شب' },
-    gold: { en: 'Royal Gold', fa: 'طلای سلطنتی' }
+    gold: { en: 'Royal Gold', fa: 'طلای سلطنتی' },
+    inferno: { en: 'Infernal Sovereign', fa: 'سلطان دوزخ' },
+    storm: { en: 'Stormforged Monarch', fa: 'پادشاه طوفان' },
+    astral: { en: 'Astral Rift', fa: 'شکاف کیهانی' },
+    void: { en: 'Void Emperor', fa: 'امپراتور خلأ' },
+    jade: { en: 'Jade Dragon Dynasty', fa: 'دودمان اژدهای یشم' },
+    frost: { en: 'Frost Revenant', fa: 'شبح یخبندان' },
+    phoenix: { en: 'Solar Phoenix', fa: 'ققنوس خورشید' },
+    oni: { en: 'Neon Oni', fa: 'دیو نئونی' }
 } as const satisfies Record<ShopCollection, { en: string; fa: string }>;
 
 export const COLLECTION_BLURBS = {
@@ -113,6 +153,38 @@ export const COLLECTION_BLURBS = {
     gold: {
         en: 'Polished gold on black, with fine filigree.',
         fa: 'طلای براق روی مشکی، با ملیله‌کاری ظریف.'
+    },
+    inferno: {
+        en: 'Obsidian cracked with molten gold, crowned in fire that smoulders and then erupts.',
+        fa: 'ابسیدین ترک‌خورده با طلای مذاب و تاجی از آتیش که آروم می‌سوزه و یهو فوران می‌کنه.'
+    },
+    storm: {
+        en: 'Forged steel charged with the storm: arcs that gather, crawl and strike.',
+        fa: 'فولاد آب‌دیده که طوفان توشه؛ صاعقه‌ای که جمع می‌شه، می‌خزه و فرود میاد.'
+    },
+    astral: {
+        en: 'Dark glass full of stars, worlds in orbit and a rift of light that opens in the night.',
+        fa: 'شیشه‌ی تیره پر از ستاره، سیاره‌هایی که می‌چرخن و شکافی از نور که وسط شب باز می‌شه.'
+    },
+    void: {
+        en: 'Matte black split by violet fractures, drawing the light in and letting it go.',
+        fa: 'مشکیِ مات با ترک‌های بنفش که نور رو می‌کشه تو خودش و دوباره ولش می‌کنه.'
+    },
+    jade: {
+        en: 'Carved jade inlaid with gold, and a dragon coiled round its pearl.',
+        fa: 'یشم کنده‌کاری‌شده با منبت طلا و اژدهایی که دور مرواریدش پیچیده.'
+    },
+    frost: {
+        en: 'Faceted ice and six-fold crystals growing in a brittle stillness.',
+        fa: 'یخ تراش‌خورده و بلورهای شش‌پر که توی یه سکوت شکننده رشد می‌کنن.'
+    },
+    phoenix: {
+        en: 'Gilded feathers on burnished bronze, rising to a sun that never sets.',
+        fa: 'پرهای طلایی روی برنز صیقلی که تا خورشیدی که هیچ‌وقت غروب نمی‌کنه اوج می‌گیرن.'
+    },
+    oni: {
+        en: 'Black chrome under holographic film, circuits and a horned mask that glitches.',
+        fa: 'کروم مشکی زیر لایه‌ی هولوگرامی، مدار و یه نقاب شاخ‌دار که هی پرش می‌کنه.'
     }
 } as const satisfies Record<ShopCollection, { en: string; fa: string }>;
 
@@ -145,8 +217,8 @@ export const LOOKS: readonly ShopLook[] = SHOP_COLLECTIONS.flatMap((collection) 
     id: `${ kind }.${ collection }` as LookId,
     kind,
     collection,
-    tier: TIER_OF[kind],
-    price: BigInt(TIER_PRICE[TIER_OF[kind]]) * NURA
+    tier: tierOf(kind, collection),
+    price: BigInt(TIER_PRICE[tierOf(kind, collection)]) * NURA
 })));
 
 /** A collection's bundle: every look of it, at their prices less `BUNDLE_OFF_BPS`, in whole NURA. */

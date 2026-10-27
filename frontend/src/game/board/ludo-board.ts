@@ -1103,9 +1103,9 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
         if (worn !== null)
         {
-            const { preset, tune } = burstOf(worn);
+            const { effect, tune } = burstOf(worn);
 
-            effects.play((vfx) => vfx.burst(preset, pixels(spot), { ...tune, scale: scaleFor(DIE_SIZE) }));
+            effects.play((vfx) => vfx.burst(effect, pixels(spot), { ...tune, scale: scaleFor(DIE_SIZE) }));
         }
 
         if (beat.fate === 'pending')
@@ -1245,9 +1245,9 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
             if (worn !== null)
             {
-                const { preset, tune } = burstOf(worn);
+                const { effect, tune } = burstOf(worn);
 
-                effects.play((vfx) => vfx.burst(preset, pixels(piece.at), { ...tune, scale: scaleFor(1) }));
+                effects.play((vfx) => vfx.burst(effect, pixels(piece.at), { ...tune, scale: scaleFor(1) }));
             }
 
             if (reader)

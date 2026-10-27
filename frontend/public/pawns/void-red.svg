@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+<defs>
+<linearGradient id="enamel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF9489"/><stop offset="0.5" stop-color="#FF5A4E"/><stop offset="1" stop-color="#D8372D"/></linearGradient>
+<radialGradient id="dome" cx="0.4" cy="0.34" r="0.85"><stop offset="0" stop-color="#FF9489"/><stop offset="0.6" stop-color="#FF5A4E"/><stop offset="1" stop-color="#D8372D"/></radialGradient>
+<linearGradient id="matte" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#241838"/><stop offset="0.5" stop-color="#0C0614"/><stop offset="1" stop-color="#050308"/></linearGradient>
+<linearGradient id="hood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2A1840"/><stop offset="0.6" stop-color="#0E0818"/><stop offset="1" stop-color="#050308"/></linearGradient>
+<linearGradient id="hood-shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050308" stop-opacity="0.85"/><stop offset="1" stop-color="#050308" stop-opacity="0"/></linearGradient>
+<filter id="hood-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
+</defs>
+<g stroke="#050308" stroke-width="9" stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="128" cy="203" rx="80" ry="28" fill="url(#matte)"/>
+    <ellipse cx="128" cy="191" rx="80" ry="28" fill="url(#matte)"/>
+    <path d="M60 190C68 154 86 128 96 110H160C170 128 188 154 196 190C176 207 80 207 60 190Z" fill="url(#enamel)"/>
+    <ellipse cx="128" cy="109" rx="44" ry="15" fill="url(#matte)"/>
+    <circle cx="128" cy="62" r="56" fill="url(#dome)"/>
+</g>
+<path d="M74 190L96 184L104 194L124 186L140 196L156 188L178 194" fill="none" stroke="#A855F7" stroke-width="6" stroke-linejoin="round" opacity="0.5"/>
+<path d="M74 190L96 184L104 194L124 186L140 196L156 188L178 194" fill="none" stroke="#E9D5FF" stroke-width="2" stroke-linejoin="round"/>
+<path d="M162 120C174 142 184 164 188 188C178 196 168 198 158 199C156 172 154 146 150 122Z" fill="#D8372D" opacity="0.25"/>
+<path d="M80 184C84 160 94 140 106 124" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" fill="none" opacity="0.5"/>
+<path d="M177 35A56 56 0 0 1 152 113A52 52 0 0 0 177 35Z" fill="#D8372D" opacity="0.225"/>
+<path d="M88 46A44 44 0 0 1 120 18" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.5"/>
+<ellipse cx="104" cy="36" rx="12" ry="8" fill="#FFFFFF" transform="rotate(-30 104 36)"/>
+<path d="M66 196C88 209 168 209 190 196" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.4"/>
+<ellipse cx="128" cy="62" rx="50" ry="28" fill="url(#hood-shade)" transform="translate(0 4)"/>
+<path d="M66 96C58 46 84 4 128 3C172 4 198 46 190 96C182 80 172 66 160 58C150 50 140 46 128 46C116 46 106 50 96 58C84 66 74 80 66 96Z" fill="url(#hood)" stroke="#050308" stroke-width="7" stroke-linejoin="round"/>
+<path d="M70 92C66 50 88 6 128 4C168 6 190 50 186 92" fill="none" stroke="#A855F7" stroke-width="3" opacity="0.9"/>
+<path d="M104 18L112 30L106 40" fill="none" stroke="#A855F7" stroke-width="2.4" stroke-linejoin="round"/>
+<ellipse cx="108" cy="66" rx="9" ry="5" fill="#E9D5FF" filter="url(#hood-glow)"/><ellipse cx="108" cy="66" rx="6" ry="3" fill="#FFFFFF"/>
+<ellipse cx="148" cy="66" rx="9" ry="5" fill="#E9D5FF" filter="url(#hood-glow)"/><ellipse cx="148" cy="66" rx="6" ry="3" fill="#FFFFFF"/>
+</svg>

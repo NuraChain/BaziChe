@@ -6,8 +6,9 @@ import { describe, expect, it } from 'vitest';
 import '../src/entities/index.ts';
 import { GAME_SEEDS } from '../src/db/seed-reference.ts';
 import {
-    BUNDLES, BUNDLE_OFF_BPS, CELEBRATION_SLOT, COLLECTION_BLURBS, COLLECTION_NAMES, FEATURED_FIRST, GAME_SLOTS, LOOKS, NURA, PROFILE_SLOTS, SHOP_COLLECTIONS,
-    SHOP_KINDS, SHOP_SLOTS, SHOP_TIERS, TIER_OF, TIER_PRICE, bundleOf, bundlePriceFor, fitsSlot, isItemId, isSlot, lookOf, tableSlotsOf
+    BUNDLES, BUNDLE_OFF_BPS, CELEBRATION_SLOT, COLLECTION_BLURBS, COLLECTION_NAMES, FEATURED_FIRST, GAME_SLOTS, LEGENDARY_COLLECTIONS, LEGENDARY_TIER_OF, LOOKS, NURA,
+    PROFILE_SLOTS, SHOP_COLLECTIONS, SHOP_KINDS, SHOP_SLOTS, SHOP_TIERS, TIER_OF, TIER_PRICE, bundleOf, bundlePriceFor, fitsSlot, isItemId, isSlot, lookOf, tableSlotsOf,
+    tierOf
 } from '../src/domains/shop/catalogue.ts';
 import { ORDER_STATES, OWNED_VIA, SHOP_ITEM_STATUSES } from '../src/domains/shop/policy.ts';
 import { tableLook } from '../src/schemas.ts';
@@ -18,7 +19,7 @@ const wordsIn = (name: string) => [...expressionOf(name).matchAll(/'([a-z.-]+)'/
 
 describe('what the shop sells', () =>
 {
-    it('is every kind in every collection, one look each, at its kind\'s tier', () =>
+    it('is every kind in every collection, one look each, at its kind\'s tier on its collection\'s line', () =>
     {
         expect(LOOKS).toHaveLength(SHOP_KINDS.length * SHOP_COLLECTIONS.length);
         expect(new Set(LOOKS.map((look) => look.id)).size).toBe(LOOKS.length);
@@ -26,15 +27,38 @@ describe('what the shop sells', () =>
         for (const look of LOOKS)
         {
             expect(look.id).toBe(`${ look.kind }.${ look.collection }`);
-            expect(look.tier).toBe(TIER_OF[look.kind]);
+            expect(look.tier).toBe(tierOf(look.kind, look.collection));
             expect(look.price).toBe(BigInt(TIER_PRICE[look.tier]) * NURA);
             expect(lookOf(look.id)).toBe(look);
             expect(isItemId(look.id)).toBe(true);
         }
 
         expect(Object.keys(TIER_OF).sort()).toEqual([...SHOP_KINDS].sort());
+        expect(Object.keys(LEGENDARY_TIER_OF).sort()).toEqual([...SHOP_KINDS].sort());
         expect(Object.keys(TIER_PRICE)).toEqual([...SHOP_TIERS]);
-        expect(SHOP_TIERS.map((tier) => TIER_PRICE[tier])).toEqual([5, 12, 25, 50]);
+        expect(SHOP_TIERS.map((tier) => TIER_PRICE[tier])).toEqual([5, 12, 25, 50, 100]);
+    });
+
+    it('prices a legendary collection by its own line: still looks epic, a table\'s pieces legendary, a profile\'s decoration and effect and a win\'s celebration mythic', () =>
+    {
+        expect(SHOP_COLLECTIONS.slice(4)).toEqual([...LEGENDARY_COLLECTIONS]);
+
+        for (const collection of LEGENDARY_COLLECTIONS)
+        {
+            const tiers = Object.fromEntries(SHOP_KINDS.map((kind) => [kind, lookOf(`${ kind }.${ collection }`)!.tier]));
+
+            expect(tiers, collection).toEqual({
+                theme: 'epic', face: 'epic', chips: 'epic', checkers: 'epic', home: 'epic',
+                nameplate: 'legendary', back: 'legendary', felt: 'legendary', dice: 'legendary', pawns: 'legendary', pieces: 'legendary', yard: 'legendary',
+                decoration: 'mythic', effect: 'mythic', celebration: 'mythic'
+            });
+            expect(lookOf(`effect.${ collection }`)!.price).toBe(100n * NURA);
+        }
+
+        for (const collection of SHOP_COLLECTIONS.slice(0, 4))
+        {
+            expect(SHOP_KINDS.map((kind) => lookOf(`${ kind }.${ collection }`)!.tier), collection).not.toContain('mythic');
+        }
     });
 
     it('has a bundle for each collection holding all of it, 30% under its parts in whole NURA', () =>

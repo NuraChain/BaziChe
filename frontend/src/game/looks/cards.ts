@@ -37,9 +37,9 @@ const BURST_FITS = 40;
 /** The burst a card in a look plays where it lands: its collection's, round the card's middle and sized to it. */
 export function burstAt(collection: Collection, card: Rect)
 {
-    const { preset, tune } = burstOf(collection);
+    const { effect, tune } = burstOf(collection);
 
-    return { preset, at: centreOf(card), tune: { ...tune, scale: card.width / BURST_FITS } };
+    return { effect, at: centreOf(card), tune: { ...tune, scale: card.width / BURST_FITS } };
 }
 
 /** Leans a card toward the pointer over it, by `--hx` and `--hy` on the element listening, for its holographic edge to follow; a finger leans nothing. */

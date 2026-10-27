@@ -69,6 +69,7 @@ export const shop = {
     'shop.tier.rare': 'Rare',
     'shop.tier.epic': 'Epic',
     'shop.tier.legendary': 'Legendary',
+    'shop.tier.mythic': 'Mythic',
     'shop.sale.until': 'Sale ends {date}',
     'shop.owned': 'Owned',
     'shop.inUse': 'In use',

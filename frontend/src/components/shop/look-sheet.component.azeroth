@@ -18,7 +18,7 @@ import IconButton from '../ui/icon-button.component.azeroth';
 import SearchInput from '../ui/search-input.component.azeroth';
 import Spinner from '../ui/spinner.component.azeroth';
 
-const TIER_TONE = { common: 'neutral', rare: 'accent', epic: 'epic', legendary: 'gold' } as const;
+const TIER_TONE = { common: 'neutral', rare: 'accent', epic: 'epic', legendary: 'gold', mythic: 'epic' } as const;
 
 export default component LookSheet(props: OverlayProps & { item: string })
 {

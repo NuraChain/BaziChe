@@ -9,7 +9,15 @@ const SHEEN = {
     glow: { gloss: 0.55, glowing: false },
     shiraz: { gloss: 0.55, glowing: false },
     neon: { gloss: 0.18, glowing: true },
-    gold: { gloss: 0.55, glowing: false }
+    gold: { gloss: 0.55, glowing: false },
+    inferno: { gloss: 0.2, glowing: true },
+    storm: { gloss: 0.6, glowing: false },
+    astral: { gloss: 0.25, glowing: true },
+    void: { gloss: 0.15, glowing: true },
+    jade: { gloss: 0.55, glowing: false },
+    frost: { gloss: 0.7, glowing: false },
+    phoenix: { gloss: 0.5, glowing: false },
+    oni: { gloss: 0.18, glowing: true }
 } as const satisfies Record<Collection, { gloss: number; glowing: boolean }>;
 
 /** A die in its collection's colours, as the shop draws it (`tools/art/looks.mjs`): its face, side, rim and pips. */

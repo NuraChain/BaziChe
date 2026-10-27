@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+<defs>
+<linearGradient id="enamel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF9489"/><stop offset="0.5" stop-color="#FF5A4E"/><stop offset="1" stop-color="#D8372D"/></linearGradient>
+<radialGradient id="dome" cx="0.4" cy="0.34" r="0.85"><stop offset="0" stop-color="#FF9489"/><stop offset="0.6" stop-color="#FF5A4E"/><stop offset="1" stop-color="#D8372D"/></radialGradient>
+<linearGradient id="jade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#BFF2D9"/><stop offset="0.4" stop-color="#2BB67F"/><stop offset="1" stop-color="#0F7A55"/></linearGradient>
+<linearGradient id="dragon-jade" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#BFF2D9"/><stop offset="0.35" stop-color="#2BB67F"/><stop offset="1" stop-color="#0F7A55"/></linearGradient>
+<linearGradient id="dragon-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF1C4"/><stop offset="0.5" stop-color="#F2C14E"/><stop offset="1" stop-color="#9A6E12"/></linearGradient>
+<radialGradient id="dragon-pearl" cx="0.36" cy="0.32" r="0.8"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.5" stop-color="#FFF1C4"/><stop offset="1" stop-color="#F2C14E"/></radialGradient>
+</defs>
+<g stroke="#063A27" stroke-width="9" stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="128" cy="203" rx="80" ry="28" fill="url(#jade)"/>
+    <ellipse cx="128" cy="191" rx="80" ry="28" fill="url(#jade)"/>
+    <path d="M60 190C68 154 86 128 96 110H160C170 128 188 154 196 190C176 207 80 207 60 190Z" fill="url(#enamel)"/>
+    <ellipse cx="128" cy="109" rx="44" ry="15" fill="url(#jade)"/>
+    <circle cx="128" cy="62" r="56" fill="url(#dome)"/>
+</g>
+<path d="M66 196C88 209 168 209 190 196" fill="none" stroke="#F2C14E" stroke-width="4" stroke-linecap="round"/>
+<path d="M100 196c4.4 -8.8 15.4 -8.8 15.4 -1.1c0 4.4 -5.5 5.5 -6.6 2.2m6.6 -2.2c2.2 -6.6 11 -6.6 11 0M156 196c-4.4 -8.8 -15.4 -8.8 -15.4 -1.1c0 4.4 5.5 5.5 6.6 2.2m-6.6 -2.2c-2.2 -6.6 -11 -6.6 -11 0" fill="none" stroke="#F2C14E" stroke-width="2.6" stroke-linecap="round"/>
+<path d="M162 120C174 142 184 164 188 188C178 196 168 198 158 199C156 172 154 146 150 122Z" fill="#D8372D" opacity="0.275"/>
+<path d="M80 184C84 160 94 140 106 124" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" fill="none" opacity="0.55"/>
+<path d="M177 35A56 56 0 0 1 152 113A52 52 0 0 0 177 35Z" fill="#D8372D" opacity="0.24750000000000003"/>
+<path d="M88 46A44 44 0 0 1 120 18" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.55"/>
+<ellipse cx="104" cy="36" rx="12" ry="8" fill="#FFFFFF" transform="rotate(-30 104 36)"/>
+<path d="M66 196C88 209 168 209 190 196" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.44000000000000006"/>
+<path d="M76 92C62 66 74 34 104 26C132 18 146 38 166 34C180 31 186 22 186 14" fill="none" stroke="#063A27" stroke-width="24" stroke-linecap="round"/>
+<path d="M76 92C72 104 84 110 92 102C98 96 92 88 86 92" fill="none" stroke="#063A27" stroke-width="12" stroke-linecap="round"/>
+<path d="M76 92C62 66 74 34 104 26C132 18 146 38 166 34C180 31 186 22 186 14" fill="none" stroke="url(#dragon-jade)" stroke-width="16" stroke-linecap="round"/>
+<path d="M76 92C72 104 84 110 92 102C98 96 92 88 86 92" fill="none" stroke="url(#dragon-gold)" stroke-width="5" stroke-linecap="round"/>
+<path d="M76 92C62 66 74 34 104 26C132 18 146 38 166 34C180 31 186 22 186 14" fill="none" stroke="#F2C14E" stroke-width="3.4" stroke-dasharray="4 7" stroke-linecap="round"/>
+<path d="M217.47 20.93C214.4 8.67 199.07 5.6 186.8 11.73L171.47 14.8C166.87 16.33 166.87 22.47 173 24L183.73 25.53L171.47 30.13C174.53 34.73 186.8 34.73 192.93 31.67C202.13 36.27 214.4 33.2 217.47 20.93Z" fill="url(#dragon-jade)" stroke="#063A27" stroke-width="1.69" stroke-linejoin="round"/><path d="M205.2 8.67C211.33 -3.6 220.53 -6.67 229.73 -3.6M199.07 7.13C202.13 -6.67 211.33 -12.8 220.53 -12.8" fill="none" stroke="url(#dragon-gold)" stroke-width="2.76" stroke-linecap="round"/><path d="M174.53 25.53C165.33 33.2 162.27 42.4 168.4 48.53" fill="none" stroke="#F2C14E" stroke-width="1.38" stroke-linecap="round"/><circle cx="189.87" cy="16.33" r="2.45" fill="#C7372F"/>
+<circle cx="160" cy="44" r="10" fill="url(#dragon-pearl)" stroke="#063A27" stroke-width="4"/>
+<circle cx="157" cy="41" r="3" fill="#FFFFFF"/>
+</svg>

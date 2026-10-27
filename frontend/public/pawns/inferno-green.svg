@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+<defs>
+<linearGradient id="enamel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#74DE96"/><stop offset="0.5" stop-color="#2FC262"/><stop offset="1" stop-color="#1B9646"/></linearGradient>
+<radialGradient id="dome" cx="0.4" cy="0.34" r="0.85"><stop offset="0" stop-color="#74DE96"/><stop offset="0.6" stop-color="#2FC262"/><stop offset="1" stop-color="#1B9646"/></radialGradient>
+<linearGradient id="obsidian" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4A3630"/><stop offset="0.45" stop-color="#160B08"/><stop offset="1" stop-color="#050201"/></linearGradient>
+<linearGradient id="flames" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#E2381C"/><stop offset="1" stop-color="#FF7A1F"/></linearGradient>
+<linearGradient id="flames-core" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FF7A1F"/><stop offset="0.6" stop-color="#FFB43A"/><stop offset="1" stop-color="#FFE7A1"/></linearGradient>
+</defs>
+<g stroke="#2A1E5C" stroke-width="9" stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="128" cy="203" rx="80" ry="28" fill="url(#obsidian)"/>
+    <ellipse cx="128" cy="191" rx="80" ry="28" fill="url(#obsidian)"/>
+    <path d="M60 190C68 154 86 128 96 110H160C170 128 188 154 196 190C176 207 80 207 60 190Z" fill="url(#enamel)"/>
+    <ellipse cx="128" cy="109" rx="44" ry="15" fill="url(#obsidian)"/>
+    <circle cx="128" cy="62" r="56" fill="url(#dome)"/>
+</g>
+<path d="M70 192L92 186L104 196L122 188L138 198L158 190L176 196L188 190" fill="none" stroke="#E2381C" stroke-width="7" stroke-linejoin="round" opacity="0.6"/>
+<path d="M70 192L92 186L104 196L122 188L138 198L158 190L176 196L188 190" fill="none" stroke="#FFB43A" stroke-width="2.6" stroke-linejoin="round"/>
+<path d="M92 108L108 104L118 112L134 104L146 112L162 106" fill="none" stroke="#FFB43A" stroke-width="2.4" stroke-linejoin="round"/>
+<path d="M162 120C174 142 184 164 188 188C178 196 168 198 158 199C156 172 154 146 150 122Z" fill="#1B9646" opacity="0.275"/>
+<path d="M80 184C84 160 94 140 106 124" stroke="#FFF4E2" stroke-width="11" stroke-linecap="round" fill="none" opacity="0.55"/>
+<path d="M177 35A56 56 0 0 1 152 113A52 52 0 0 0 177 35Z" fill="#1B9646" opacity="0.24750000000000003"/>
+<path d="M88 46A44 44 0 0 1 120 18" stroke="#FFF4E2" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.55"/>
+<ellipse cx="104" cy="36" rx="12" ry="8" fill="#FFFFFF" transform="rotate(-30 104 36)"/>
+<path d="M66 196C88 209 168 209 190 196" stroke="#FFF4E2" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.44000000000000006"/>
+<path d="M79 43.6C76.84 33.7 77.28 28.2 80.52 21.6C84.12 29.08 99.52 34.36 97 43.6Z" fill="url(#flames)" stroke="#2A0E06" stroke-width="5" stroke-linejoin="round"/><path d="M82.72 42.72C81.6 36.38 80.93 32.86 82.61 28.64C84.49 33.43 93.39 36.81 92.08 42.72Z" fill="url(#flames-core)"/><path d="M84.94 42.28C84.42 39.31 84.08 37.66 84.86 35.68C85.72 37.92 89.87 39.51 89.26 42.28Z" fill="#FFFBEA" opacity="0.92"/>
+<path d="M159 43.6C156.84 33.7 172.24 28.2 175.48 21.6C179.08 29.08 179.52 34.36 177 43.6Z" fill="url(#flames)" stroke="#2A0E06" stroke-width="5" stroke-linejoin="round"/><path d="M163.92 42.72C162.8 36.38 171.7 32.86 173.39 28.64C175.26 33.43 174.59 36.81 173.28 42.72Z" fill="url(#flames-core)"/><path d="M166.74 42.28C166.22 39.31 170.36 37.66 171.14 35.68C172.01 37.92 171.66 39.51 171.06 42.28Z" fill="#FFFBEA" opacity="0.92"/>
+<path d="M94 46.48C91.12 30.28 95.2 21.28 99.52 10.48C104.32 22.72 121.36 31.36 118 46.48Z" fill="url(#flames)" stroke="#2A0E06" stroke-width="5" stroke-linejoin="round"/><path d="M99.24 45.04C97.74 34.67 99.09 28.91 101.33 22C103.83 29.83 113.47 35.36 111.72 45.04Z" fill="url(#flames-core)"/><path d="M102.34 44.32C101.65 39.46 102.24 36.76 103.28 33.52C104.43 37.19 108.91 39.78 108.1 44.32Z" fill="#FFFBEA" opacity="0.92"/>
+<path d="M138 46.48C135.12 30.28 152.16 21.28 156.48 10.48C161.28 22.72 165.36 31.36 162 46.48Z" fill="url(#flames)" stroke="#2A0E06" stroke-width="5" stroke-linejoin="round"/><path d="M144.28 45.04C142.78 34.67 152.42 28.91 154.67 22C157.16 29.83 158.51 35.36 156.76 45.04Z" fill="url(#flames-core)"/><path d="M147.9 44.32C147.21 39.46 151.68 36.76 152.72 33.52C153.87 37.19 154.46 39.78 153.66 44.32Z" fill="#FFFBEA" opacity="0.92"/>
+<path d="M112 50C108.16 27.5 122.24 15 128 0C134.4 17 148.48 29 144 50Z" fill="url(#flames)" stroke="#2A0E06" stroke-width="5" stroke-linejoin="round"/><path d="M119.68 48C117.68 33.6 125 25.6 128 16C131.33 26.88 138.65 34.56 136.32 48Z" fill="url(#flames-core)"/><path d="M124.16 47C123.24 40.25 126.62 36.5 128 32C129.54 37.1 132.92 40.7 131.84 47Z" fill="#FFFBEA" opacity="0.92"/>
+<path d="M82 50C100 41 156 41 174 50" stroke="#2A0E06" stroke-width="11" stroke-linecap="round" fill="none"/>
+<path d="M82 50C100 41 156 41 174 50" stroke="#FFB43A" stroke-width="6" stroke-linecap="round" fill="none"/>
+<circle cx="100" cy="46" r="4.2" fill="#E2381C" stroke="#2A0E06" stroke-width="2.5"/>
+<circle cx="128" cy="43" r="4.2" fill="#E2381C" stroke="#2A0E06" stroke-width="2.5"/>
+<circle cx="156" cy="46" r="4.2" fill="#E2381C" stroke="#2A0E06" stroke-width="2.5"/>
+</svg>

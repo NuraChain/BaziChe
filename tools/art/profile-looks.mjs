@@ -15,19 +15,11 @@ import { fileURLToPath } from 'node:url';
 
 import { SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
 import { PALETTES } from '../../frontend/src/game/looks/palette.ts';
+import { lineOf } from './legendary/index.mjs';
 import { linear, motif, octagram, r2, sparkle, starOf } from './look-parts.mjs';
+import { at, C, RING, seeded } from './svg-parts.mjs';
 
 const PUBLIC = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'public');
-
-const C = 60;
-const RING = 52.5;
-
-/** A point on a circle round the frame's middle, a turn of 0 at the top and going clockwise. */
-const at = (r, turn) =>
-{
-    const angle = (turn - 90) * Math.PI / 180;
-    return [r2(C + r * Math.cos(angle)), r2(C + r * Math.sin(angle))];
-};
 
 const arc = (r, from, to) =>
 {
@@ -37,17 +29,6 @@ const arc = (r, from, to) =>
 };
 
 const ring = (r, stroke, width, extra = '') => `<circle cx="${ C }" cy="${ C }" r="${ r }" fill="none" stroke="${ stroke }" stroke-width="${ width }"${ extra }/>`;
-
-/** A seeded sequence, so every drawing comes out the same each time it is drawn. */
-const seeded = (seed) =>
-{
-    let state = seed;
-    return () =>
-    {
-        state = (state * 1664525 + 1013904223) % 4294967296;
-        return state / 4294967296;
-    };
-};
 
 const SOFT = '<filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.2"/></filter>';
 const GLOW = '<filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.5" result="soft"/><feMerge><feMergeNode in="soft"/><feMergeNode in="soft"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
@@ -208,7 +189,7 @@ const FRAMES = { sparkle: frameGlow, girih: frameShiraz, grid: frameNeon, filigr
 
 const frame = (palette, still) =>
 {
-    const drawn = FRAMES[palette.pattern](palette, still);
+    const drawn = lineOf(palette)?.frame(palette, still) ?? FRAMES[palette.pattern](palette, still);
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120"><defs>${ drawn.defs.join('') }</defs>${ drawn.body.join('') }</svg>`;
 };
 
@@ -412,7 +393,7 @@ const COVERS = { sparkle: coverGlow, girih: coverShiraz, grid: coverNeon, filigr
 
 const cover = (palette) =>
 {
-    const drawn = COVERS[palette.pattern](palette);
+    const drawn = lineOf(palette)?.cover(palette) ?? COVERS[palette.pattern](palette);
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 240" width="960" height="240" preserveAspectRatio="xMidYMid slice"><defs>${ drawn.defs.join('') }</defs>${ drawn.body.join('') }</svg>`;
 };
 

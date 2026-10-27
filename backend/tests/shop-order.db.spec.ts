@@ -205,7 +205,7 @@ describe.skipIf(!active)('buying a look with NURA, against a real database', () 
             expect(await refusal(ports.shop.order(minor.id, 'dice.shiraz', undefined))).toEqual({ status: 409, code: 'shop-minor' });
             expect(await ports.shop.state(guest.id)).toMatchObject({ open: true, may: 'shop-wallet' });
             expect(await ports.shop.state(minor.id)).toMatchObject({ open: true, may: 'shop-minor' });
-            expect(await ports.shop.state(adult.id)).toMatchObject({ open: true, chainId: 31337, featured: 'glow', may: 'yes' });
+            expect(await ports.shop.state(adult.id)).toMatchObject({ open: true, chainId: 31337, featured: FEATURED_FIRST, may: 'yes' });
 
             const closed = door(fakeShop(false)).ports;
 

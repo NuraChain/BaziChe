@@ -133,7 +133,10 @@ export default component ShopPage()
                     <div class="grid gap-5 p-5 @xl:grid-cols-[minmax(0,1fr)_minmax(0,15rem)] @xl:items-center @xl:p-7">
                         <div class="flex min-w-0 flex-col gap-3">
                             <p class="text-ui-sm font-semibold text-gold">{ locale.t('shop.featured') }</p>
-                            <h2 id="shop-featured" class="title text-ui-3xl @xl:text-ui-4xl">{ featuredName }</h2>
+                            <div class="flex min-w-0 items-center gap-3">
+                                <img src={ `/sigils/${ featured }.svg` } alt="" width="56" height="56" decoding="async" class="h-12 w-12 shrink-0 @xl:h-14 @xl:w-14" data-sigil={ featured } />
+                                <h2 id="shop-featured" class="title min-w-0 text-ui-3xl @xl:text-ui-4xl">{ featuredName }</h2>
+                            </div>
                             <p class="max-w-[48ch] text-ui-md text-muted">{ blurb }</p>
                         </div>
                         <div class="w-full max-w-[15rem] justify-self-center @xl:justify-self-end">

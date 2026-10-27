@@ -73,4 +73,18 @@ describe('a look\'s edge, in the stylesheet', () =>
         expect(turns.filter((at) => !moving.some(([start, end]) => at > start && at < end)), 'the edge turns outside the block').toEqual([]);
         expect(moving.some(([start, end]) => sheet.slice(start, end).includes('.look-card[data-tier=\'mythic\']:hover'))).toBe(true);
     });
+
+    it('slides a mythic badge\'s light a whole tile along, with no seam, only for somebody who asked for no less motion', () =>
+    {
+        const unhurried = blocks('@media (prefers-reduced-motion: no-preference)');
+        const shines = [...sheet.matchAll(/animation: mythic-shine\b/g)].map(({ index }) => index);
+        const badge = rule('.tier-mythic');
+        const stops = [...badge.matchAll(/#[0-9A-F]{6}/gi)].map(([stop]) => stop);
+
+        expect(shines.length).toBeGreaterThan(0);
+        expect(shines.filter((at) => !unhurried.some(([start, end]) => at > start && at < end)), 'the badge shines outside the block').toEqual([]);
+        expect(badge).toContain('0 0 / 200% 100%');
+        expect(stops.at(0)).toBe(stops.at(-1));
+        expect(rule('@keyframes mythic-shine')).toContain('background-position: 200% 0;');
+    });
 });

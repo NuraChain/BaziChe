@@ -139,13 +139,35 @@ describe('the sheet about a look', () =>
         expect(root.textContent).toContain('Rare');
         expect(root.textContent).toContain('Your four pawns at Ludo, in your seat’s colour.');
         expect(root.textContent).toContain('Everybody sees it on your things.');
-        expect(root.querySelector('img')?.getAttribute('src')).toBe('/looks/pawns.shiraz.svg');
+        expect(root.querySelector('img.look-large')?.getAttribute('src')).toBe('/looks/pawns.shiraz.svg');
         expect(button(root, 'Buy for 12 NURA')).toBeDefined();
         expect(button(root, 'Send as a gift')).toBeDefined();
         expect(button(root, 'Use it'), 'nothing to use before it is owned').toBeUndefined();
     });
 
+    it('marks the look\'s collection with its sigil, and a mythic look with a badge in the light of its edge', async () =>
+    {
+        const rare = (await sheet('pawns.shiraz')).root;
+
+        expect(rare.querySelector('[data-sigil]')?.getAttribute('src')).toBe('/sigils/shiraz.svg');
+        expect(rare.querySelector('.tier-mythic')).toBeNull();
+        cleanup();
+
+        const mythic = (await sheet('decoration.inferno')).root;
+
+        expect(mythic.querySelector('[data-sigil]')?.getAttribute('src')).toBe('/sigils/inferno.svg');
+        expect(mythic.querySelector('.tier-mythic')?.textContent).toBe('Mythic');
+        expect([...mythic.querySelectorAll('p span')].filter((one) => one.textContent?.trim() === 'Mythic'), 'a second badge beside it').toHaveLength(1);
+        cleanup();
+
+        const bundle = (await sheet('bundle.oni')).root;
+
+        expect(bundle.querySelector('[data-sigil]')?.getAttribute('src')).toBe('/sigils/oni.svg');
+        expect(bundle.querySelector('.tier-mythic')).toBeNull();
+    });
+
     it('offers a look the reader owns for each place it goes, and chooses it at a press', async () =>
+
     {
         server.shop.owned = [{ item: 'back.glow', via: 'purchase', at: '2026-10-27T11:00:00.000Z' }];
         const { root } = await sheet('back.glow');

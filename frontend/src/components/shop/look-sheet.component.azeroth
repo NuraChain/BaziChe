@@ -18,7 +18,7 @@ import IconButton from '../ui/icon-button.component.azeroth';
 import SearchInput from '../ui/search-input.component.azeroth';
 import Spinner from '../ui/spinner.component.azeroth';
 
-const TIER_TONE = { common: 'neutral', rare: 'accent', epic: 'epic', legendary: 'gold', mythic: 'epic' } as const;
+const TIER_TONE = { common: 'neutral', rare: 'accent', epic: 'epic', legendary: 'gold' } as const;
 
 export default component LookSheet(props: OverlayProps & { item: string })
 {
@@ -39,15 +39,19 @@ export default component LookSheet(props: OverlayProps & { item: string })
 
     derived name = itemName(props.item, locale);
 
-    derived collection = collectionName(look?.collection ?? bundle?.collection ?? 'glow', locale);
+    derived collectionId = look?.collection ?? bundle?.collection ?? 'glow';
+
+    derived collection = collectionName(collectionId, locale);
 
     derived tier = look?.tier ?? null;
 
-    derived tiered = tier !== null;
+    derived mythic = tier === 'mythic';
+
+    derived ranked = tier !== null && !mythic;
 
     derived tierWord = tier === null ? '' : locale.t(`shop.tier.${ tier }`);
 
-    derived tierTone = tier === null ? 'neutral' : TIER_TONE[tier];
+    derived tierTone = tier === null || tier === 'mythic' ? 'neutral' : TIER_TONE[tier];
 
     derived where = look === null ? '' : locale.t(`shop.where.${ look.kind }`);
 
@@ -190,9 +194,13 @@ export default component LookSheet(props: OverlayProps & { item: string })
             <div class="min-w-0">
                 <h2 class="title text-ui-xl text-text">{ giving ? locale.t('shop.gift.title', { look: name }) : name }</h2>
                 <p class="mt-1 flex flex-wrap items-center gap-2 text-ui-sm text-muted">
+                    <img src={ `/sigils/${ collectionId }.svg` } alt="" width="20" height="20" decoding="async" class="h-5 w-5 shrink-0" data-sigil={ collectionId } />
                     <span>{ collection }</span>
-                    <Show when={ tiered }>
+                    <Show when={ ranked }>
                         <Badge text={ tierWord } tone={ tierTone } size="sm" />
+                    </Show>
+                    <Show when={ mythic }>
+                        <span class="tier-mythic inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-ui-2xs font-bold leading-none">{ tierWord }</span>
                     </Show>
                 </p>
             </div>

@@ -4,13 +4,14 @@
  * rim of light on each body, a cast shadow and the collection's own pattern behind it. Nothing is
  * taken from anybody else's art. `npm run looks` writes them; the build refuses a look without one.
  * A legendary collection's looks are drawn from its own art (`legendary/`): its frame round the
- * picture, its cover, its emblem, its pawns' crest and its real card back.
+ * picture, its cover, its emblem, its pawns' crest and its real card back. Each collection's sigil,
+ * its emblem in a medallion of its own light, goes to `frontend/public/sigils/<collection>.svg`.
  */
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { BUNDLES, LOOKS } from '../../backend/src/domains/shop/catalogue.ts';
+import { BUNDLES, LOOKS, SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
 import { PALETTES, SEAT_RAMPS } from '../../frontend/src/game/looks/palette.ts';
 import { cardBack as backArt } from './card-back.mjs';
 import { H as CARD_H, W as CARD_W } from './card-parts.mjs';
@@ -20,6 +21,8 @@ import { SUIT_PATH } from './suits.mjs';
 import { gloss, linear, motif, neon, octagram, polygon, r2, radial, sparkle, starOf } from './look-parts.mjs';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'public', 'looks');
+
+const SIGILS = join(OUT, '..', 'sigils');
 
 const W = 160;
 const H = 120;
@@ -233,6 +236,31 @@ function emblem(palette, id, cx, cy, size)
     }
 
     return `<g fill="none" stroke="${ palette.edge }" stroke-width="1.2" stroke-linecap="round"><circle cx="${ cx }" cy="${ cy }" r="${ size * 0.55 }"/><path d="M${ cx } ${ cy - size }C${ cx + size * 0.5 } ${ cy - size * 0.5 } ${ cx + size * 0.5 } ${ cy + size * 0.5 } ${ cx } ${ cy + size }C${ cx - size * 0.5 } ${ cy + size * 0.5 } ${ cx - size * 0.5 } ${ cy - size * 0.5 } ${ cx } ${ cy - size }Z"/><path d="M${ cx - size } ${ cy }C${ cx - size * 0.4 } ${ cy - size * 0.35 } ${ cx + size * 0.4 } ${ cy - size * 0.35 } ${ cx + size } ${ cy }C${ cx + size * 0.4 } ${ cy + size * 0.35 } ${ cx - size * 0.4 } ${ cy + size * 0.35 } ${ cx - size } ${ cy }Z"/></g><circle cx="${ cx }" cy="${ cy }" r="${ size * 0.18 }" fill="${ palette.glint }"/>`;
+}
+
+/**
+ * A collection's sigil: its emblem in a medallion of its surface, ringed in its light, drawn at a
+ * size that keeps a legendary emblem's flames, horns and whiskers inside the inner ring.
+ */
+function sigil(palette)
+{
+    const sign = lineOf(palette)?.emblem(palette, 32, 32, 35, 's');
+    const defs = [
+        `<radialGradient id="disc" cx="0.4" cy="0.32" r="0.78"><stop offset="0" stop-color="${ palette.surface[0] }"/><stop offset="0.62" stop-color="${ palette.surface[1] }"/><stop offset="1" stop-color="${ palette.surface[2] }"/></radialGradient>`,
+        `<linearGradient id="rim" x1="0.15" y1="0.1" x2="0.85" y2="0.95"><stop offset="0" stop-color="${ palette.glint }"/><stop offset="0.45" stop-color="${ palette.edge }"/><stop offset="1" stop-color="${ palette.deep[1] }"/></linearGradient>`,
+        `<radialGradient id="sigil-halo" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${ palette.glint }" stop-opacity="0.45"/><stop offset="1" stop-color="${ palette.glint }" stop-opacity="0"/></radialGradient>`,
+        '<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.4" result="soft"/><feMerge><feMergeNode in="soft"/><feMergeNode in="SourceGraphic"/></feMerge></filter>',
+        ...(sign?.defs ?? [])
+    ];
+    const body = [
+        '<circle cx="32" cy="32" r="30.5" fill="url(#disc)"/>',
+        '<circle cx="32" cy="32" r="29.3" fill="none" stroke="url(#rim)" stroke-width="2.4"/>',
+        `<circle cx="32" cy="32" r="25.6" fill="none" stroke="${ palette.edge }" stroke-opacity="0.45" stroke-width="0.7"/>`,
+        ...(sign?.body ?? [emblem(palette, 'sigil', 32, 32, 14)]),
+        '<path d="M9.5 24A23.5 23.5 0 0 1 40 8.6" fill="none" stroke="#FFFFFF" stroke-opacity="0.2" stroke-width="1.6" stroke-linecap="round"/>'
+    ];
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><defs>${ defs.join('') }</defs>${ body.join('') }</svg>`;
 }
 
 function cardBack(palette, id, x, y, turn)
@@ -874,4 +902,16 @@ for (const one of BUNDLES)
     writeFileSync(join(OUT, `${ one.id }.svg`), file(PALETTES[one.collection], bundle(PALETTES[one.collection])));
 }
 
-console.log(`looks: ${ LOOKS.length } looks and ${ BUNDLES.length } bundles in ${ OUT }`);
+mkdirSync(SIGILS, { recursive: true });
+
+for (const name of readdirSync(SIGILS))
+{
+    rmSync(join(SIGILS, name));
+}
+
+for (const collection of SHOP_COLLECTIONS)
+{
+    writeFileSync(join(SIGILS, `${ collection }.svg`), sigil(PALETTES[collection]));
+}
+
+console.log(`looks: ${ LOOKS.length } looks and ${ BUNDLES.length } bundles in ${ OUT }, and ${ SHOP_COLLECTIONS.length } sigils in ${ SIGILS }`);

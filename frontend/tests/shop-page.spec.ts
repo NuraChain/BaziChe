@@ -92,6 +92,9 @@ describe('the shop page', () =>
         expect(root.querySelector('[data-featured]')?.getAttribute('data-featured')).toBe('glow');
         expect(root.querySelector('#shop-featured')?.textContent).toBe('Nura Glow');
         expect(card(root.querySelector('[data-featured]')!, 'bundle.glow'), 'the featured bundle').not.toBeNull();
+        expect(root.querySelector('[data-featured] img[data-sigil="glow"]')?.getAttribute('src'), 'the featured collection\'s sigil').toBe('/sigils/glow.svg');
+        expect(card(root, 'bundle.oni')?.querySelector('[data-sigil]')?.getAttribute('src'), 'a bundle\'s sigil').toBe('/sigils/oni.svg');
+        expect(card(root, 'dice.oni')?.querySelector('[data-sigil]'), 'a look is not a bundle').toBeNull();
 
         for (const bundle of BUNDLES)
         {

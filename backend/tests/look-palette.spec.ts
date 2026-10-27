@@ -211,6 +211,42 @@ describe('the legendary collections\' art', () =>
     });
 });
 
+describe('the shop\'s marks', () =>
+{
+    const sigil = (collection: string) => readFileSync(new URL(`../../frontend/public/sigils/${ collection }.svg`, import.meta.url), 'utf8');
+
+    it('draws a sigil of every collection and nothing else', () =>
+    {
+        expect(readdirSync(new URL('../../frontend/public/sigils/', import.meta.url)).sort()).toEqual(SHOP_COLLECTIONS.map((collection) => `${ collection }.svg`).sort());
+    });
+
+    it.each([...SHOP_COLLECTIONS])('marks %s with a medallion of its own surface, ringed in its light', (collection) =>
+    {
+        const drawn = sigil(collection);
+
+        expect(drawn).toContain('viewBox="0 0 64 64"');
+        expect(drawn).toContain(`stop-color="${ PALETTES[collection].surface[0] }"`);
+        expect(drawn).toContain(`stop-color="${ PALETTES[collection].edge }"`);
+    });
+
+    it('paints a mythic badge pale enough that the page\'s ink reads on every stop of it at 4.5:1 or more', () =>
+    {
+        const sheet = readFileSync(new URL('../../frontend/src/styles/app.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+        const tokens = readFileSync(new URL('../../frontend/src/styles/tokens.css', import.meta.url), 'utf8');
+        const ink = /--bright-ink: (#\w{6});/.exec(tokens)![1]!;
+        const badge = /\n\.tier-mythic\n\{([^}]*)\}/.exec(sheet)?.[1] ?? '';
+        const stops = [...badge.matchAll(/#[0-9A-F]{6}/gi)].map(([stop]) => stop);
+
+        expect(badge).toContain('color: var(--bright-ink);');
+        expect(stops.length).toBeGreaterThanOrEqual(3);
+
+        for (const stop of stops)
+        {
+            expect(contrast(ink, stop), `${ ink } on ${ stop }`).toBeGreaterThanOrEqual(4.5);
+        }
+    });
+});
+
 describe('the drawings', () =>
 {
     it('draws every look and every bundle, and nothing the shop does not sell', () =>

@@ -87,6 +87,11 @@ const TABLE_LOOKS = {
     backs: { names: [...SHOP_COLLECTIONS], budget: 8 * KB }
 };
 
+/** Each collection's sigil, beside its name in the shop and on its bundle: every page of the shop loads a dozen. */
+const SHOP_MARKS = {
+    sigils: { names: [...SHOP_COLLECTIONS], budget: 8 * KB }
+};
+
 /**
  * Modules that must NOT be in the landing page's initial set, and why.
  *
@@ -653,6 +658,7 @@ const drawnIn = (folders) =>
 
 const profile = drawnIn(PROFILE_LOOKS);
 const table = drawnIn(TABLE_LOOKS);
+const marks = drawnIn(SHOP_MARKS);
 
 if (readdirSync(ASSETS).some((name) => /.(mp3|ogg|wav|m4a)$/.test(name)))
 {
@@ -719,6 +725,7 @@ console.log(`  beds         ${ beds.length } ${ beds.length === 1 ? 'bed' : 'bed
 console.log(`  looks        ${ lookFiles.length } drawings, ${ size(lookTotal) } in all, none over ${ size(LOOK_BUDGET) }`);
 console.log(`  profile      ${ profile.count } frames, plates and covers, ${ size(profile.total) } in all, none over its folder's ceiling`);
 console.log(`  table looks  ${ table.count } pawns, decks and backs, ${ size(table.total) } in all, none over its folder's ceiling`);
+console.log(`  sigils       ${ marks.count } sigils, ${ size(marks.total) } in all, none over ${ size(SHOP_MARKS.sigils.budget) }`);
 console.log(`  world        ${ size(worldBytes) } / ${ size(WORLD_BUDGET) }`);
 console.log(`  posters      ${ posterBytes.map(size).join(', ') }`);
 console.log(`  class binds  ${ classBindsRead } read, ${ problems.length === 0 ? 'every one that reads a signal effect-wrapped' : 'see below' }`);

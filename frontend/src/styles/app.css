@@ -6079,6 +6079,33 @@ button.chess-san:hover
     }
 }
 
+/*
+ * A mythic look's badge is the edge's light made pale, so the page's own ink reads on every stop
+ * of it. The gradient ends on the colour it starts with and is drawn twice as wide as the badge,
+ * so moving it a whole width along is a loop with no seam.
+ */
+.tier-mythic
+{
+    color: var(--bright-ink);
+    background: linear-gradient(100deg, #FFB3C0, #FFE39A, #9FF3EA, #D9CCFF, #FFB3C0) 0 0 / 200% 100%;
+}
+
+@media (prefers-reduced-motion: no-preference)
+{
+    .tier-mythic
+    {
+        animation: mythic-shine 9s linear infinite;
+    }
+}
+
+@keyframes mythic-shine
+{
+    to
+    {
+        background-position: 200% 0;
+    }
+}
+
 .look-choice[aria-pressed='true']
 {
     border-color: var(--accent);

@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import type { Haptic } from '../src/lib/haptics.ts';
 import type { LudoBoard, MatchPlayer } from '../src/data/match.ts';
-import { diceOf } from '../src/game/looks/dice.ts';
 import { PALETTES } from '../src/game/looks/palette.ts';
+import { lightOf, wornOf } from '../src/game/looks/table.ts';
 import { DIE_REST_MS, DIE_SIZE, ENTER_MS, GONE_MS, HAND, HOME_MS, KNOCK_MS, LIFTED, PASS_LEAST, PASS_MS, PICKUP_MS, SLIDE_MS, STEP_LEAST, STEP_MS, WIN_LEAST, WIN_MS, createLudoBoard, dieRest } from '../src/game/board/ludo-board.ts';
 import type { BoardHandle, Facts } from '../src/game/bridge.ts';
 import { BLOCK, CELL, HOME_SCALE, MARGIN, centreOf } from '../src/game/layout.ts';
@@ -36,7 +36,15 @@ interface Burst
     tune: { colors?: readonly string[]; scale?: number };
 }
 
-const engine = vi.hoisted(() => ({ made: 0, layers: [] as (number | undefined)[], bursts: [] as Burst[], disposed: 0 }));
+interface Streamed
+{
+    kind: string;
+    at: () => Burst['at'] | null;
+    tune: Burst['tune'];
+    stopped: boolean;
+}
+
+const engine = vi.hoisted(() => ({ made: 0, layers: [] as (number | undefined)[], bursts: [] as Burst[], streams: [] as Streamed[], disposed: 0 }));
 
 vi.mock('../src/game/vfx/engine.ts', () => ({
     createVfx: (_host: HTMLElement, options: { layer?: number }) =>
@@ -46,6 +54,16 @@ vi.mock('../src/game/vfx/engine.ts', () => ({
 
         return {
             burst: (preset: string, at: Burst['at'], tune: Burst['tune']) => engine.bursts.push({ preset, at, tune }),
+            stream: (kind: string, at: Streamed['at'], tune: Burst['tune']) =>
+            {
+                const running = { kind, at, tune, stopped: false };
+                engine.streams.push(running);
+
+                return () =>
+                {
+                    running.stopped = true;
+                };
+            },
             dispose: () =>
             {
                 engine.disposed += 1;
@@ -196,6 +214,7 @@ beforeEach(async () =>
     engine.made = 0;
     engine.layers = [];
     engine.bursts = [];
+    engine.streams = [];
     engine.disposed = 0;
     host = document.createElement('div');
     document.body.append(host);
@@ -2341,12 +2360,13 @@ describe('a ludo die in the look its thrower chose', () =>
 
     it('is named by a worn die of a collection this build draws, and by nothing else', () =>
     {
-        expect(diceOf('dice.gold')).toBe('gold');
-        expect(diceOf(undefined)).toBeNull();
-        expect(diceOf('pawns.gold')).toBeNull();
-        expect(diceOf('dice.')).toBeNull();
-        expect(diceOf('dice.nowhere')).toBeNull();
-        expect(diceOf('dice.toString'), 'a name every object has was taken for a collection').toBeNull();
+        expect(wornOf('dice', 'dice.gold')).toBe('gold');
+        expect(wornOf('pawns', 'pawns.neon')).toBe('neon');
+        expect(wornOf('dice', undefined)).toBeNull();
+        expect(wornOf('dice', 'pawns.gold')).toBeNull();
+        expect(wornOf('dice', 'dice.')).toBeNull();
+        expect(wornOf('dice', 'dice.nowhere')).toBeNull();
+        expect(wornOf('dice', 'dice.toString'), 'a name every object has was taken for a collection').toBeNull();
     });
 
     const rolled = (seat: number, face: number) =>
@@ -2442,5 +2462,94 @@ describe('a ludo die in the look its thrower chose', () =>
         table.dispose();
 
         expect(engine.disposed).toBe(1);
+    });
+});
+
+describe('ludo pawns in the look their owner chose', () =>
+{
+    const sprite = (key: string) => pawn(key).querySelector('.lp-pawn')!.getAttribute('src');
+
+    const played = async (before: LudoState, piece = 0) =>
+    {
+        const { state, act } = stepped(before, { kind: 'move', seat: 0, piece });
+
+        table.reset(sight(before));
+        play([act], sight(state));
+        await flush();
+
+        return { state, act };
+    };
+
+    it('draws each pawn in its owner’s look and every other plain, and a new game in its own', () =>
+    {
+        worn = { 0: { pawns: 'pawns.neon' } };
+        const board = standing([[10, YARD, YARD, YARD], [5, YARD, YARD, YARD]], null);
+
+        table.reset(sight(board));
+
+        expect(sprite('0-0')).toBe('/pawns/neon-red.svg');
+        expect(sprite('0-3')).toBe('/pawns/neon-red.svg');
+        expect(sprite('1-0')).toBe('/board/pawn-yellow.svg');
+
+        worn = { 1: { pawns: 'pawns.gold' } };
+        table.reset(sight(board, 0, 'next'));
+
+        expect(sprite('0-0'), 'a pawn kept the look of the game before').toBe('/board/pawn-red.svg');
+        expect(sprite('1-0')).toBe('/pawns/gold-yellow.svg');
+    });
+
+    it('leaves a trail in its look while it walks, which ends itself as it stands, and a puff where it lands', async () =>
+    {
+        worn = { 0: { pawns: 'pawns.gold' } };
+        await played(standing([[10, YARD, YARD, YARD], [5, YARD, YARD, YARD]], 4));
+        await vi.waitFor(() => expect(engine.streams).toHaveLength(1));
+
+        const [walking] = engine.streams;
+
+        expect(walking!.kind).toBe('trail');
+        expect(walking!.tune.colors).toEqual(lightOf('gold'));
+        expect(walking!.at(), 'a walking pawn left no trail').not.toBeNull();
+        expect(engine.bursts).toEqual([]);
+
+        await elapse(700);
+        await vi.waitFor(() => expect(engine.bursts.map((one) => one.preset)).toEqual(['dust']));
+
+        expect(walking!.at(), 'the trail went on after the pawn had stopped').toBeNull();
+        expect(walking!.stopped).toBe(true);
+    });
+
+    it('rings where it leaves its yard', async () =>
+    {
+        worn = { 0: { pawns: 'pawns.glow' } };
+        await played(standing([EMPTY, EMPTY], 6));
+        await elapse(ENTER_MS + 40);
+        await vi.waitFor(() => expect(engine.bursts.map((one) => one.preset)).toEqual(['shockwave']));
+
+        expect(engine.bursts[0]!.tune.colors).toEqual(lightOf('glow'));
+    });
+
+    it('bursts in its walker’s look where it takes a pawn, flashing the taken one in its own drawing', async () =>
+    {
+        worn = { 0: { pawns: 'pawns.neon' }, 1: { pawns: 'pawns.shiraz' } };
+        const before = standing([[10, YARD, YARD, YARD], [38, YARD, YARD, YARD]], 2);
+
+        await played(before);
+        await elapse(1700);
+        await vi.waitFor(() => expect(engine.bursts.map((one) => one.preset)).toContain('sparks'));
+
+        const flash = drawn.map((one) => one.el).find((el) => el instanceof HTMLImageElement && el.className.includes('invert(1)'));
+
+        expect(engine.bursts.find((one) => one.preset === 'sparks')!.tune.colors).toEqual(lightOf('neon'));
+        expect(flash?.getAttribute('src'), 'the taken pawn flashed in another drawing').toBe('/pawns/shiraz-yellow.svg');
+    });
+
+    it('plays nothing and fetches nothing for a pawn nobody chose a look for', async () =>
+    {
+        await played(standing([[10, YARD, YARD, YARD], [38, YARD, YARD, YARD]], 2));
+        await elapse(2000);
+        await new Promise((resolve) => setTimeout(resolve, 30));
+
+        expect(engine.made).toBe(0);
+        expect(sprite('0-0')).toBe('/board/pawn-red.svg');
     });
 });

@@ -1,5 +1,6 @@
 import { BLOCK, CELL, GRID, HOME_SCALE, MARGIN, aimNear, stackSpot } from '../layout.ts';
-import { DIE_PROPERTIES, diceOf, dieDress, dieLanding } from '../looks/dice.ts';
+import { DIE_PROPERTIES, dieDress } from '../looks/dice.ts';
+import { burstOf, lightOf, wornOf } from '../looks/table.ts';
 import { HISTORY, beatsOf, placeOf, sameAs, shownOf, step, type Beat, type Felt, type Pawn, type Rolled, type Shown } from '../ludo-felt.ts';
 import { celebrate } from '../stage/celebrate.ts';
 import { clamp, hashOf } from '../stage/curves.ts';
@@ -79,8 +80,16 @@ const DIE_OUT = 2.6;
 
 const DIE_LEAVE = 2.2;
 
-/** How wide a die is, in CSS pixels, that a landing played at a scale of 1 suits. */
-const LANDING_FITS = 40;
+/** How wide a thing on the board is, in CSS pixels, that an effect played at a scale of 1 suits. */
+const EFFECT_FITS = 40;
+
+/** A worn pawn's trail, as wide as this many cells and this much denser than the engine's own, so it reads behind a pawn. */
+const TRAIL_CELLS = 1.8;
+
+const TRAIL_DENSITY = 1.4;
+
+/** The puff where a worn pawn lands and the ring where it leaves its yard, as wide as this many cells. */
+const ARRIVAL_CELLS = 1.4;
 
 const HAND_FACE = 5;
 
@@ -283,6 +292,17 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
     const pixels = (spot: Point) => ({ x: spot.x * root.clientWidth / 100, y: spot.y * root.clientWidth / 100 });
 
+    const scaleFor = (cells: number) => root.clientWidth * cells * C / 100 / EFFECT_FITS;
+
+    const pawnsWorn = (pawn: Pawn) => wornOf('pawns', options.looks?.(pawn.owner)?.pawns);
+
+    const spriteOf = (pawn: Pawn) =>
+    {
+        const worn = pawnsWorn(pawn);
+
+        return worn === null ? `/board/pawn-${ pawn.colour }.svg` : `/pawns/${ worn }-${ pawn.colour }.svg`;
+    };
+
     const pawnOf = (state: Shown, key: string) => state.pawns.find((pawn) => pawn.key === key);
 
     const colourOf = (seat: number) => shown.pawns.find((pawn) => pawn.owner === seat)?.colour;
@@ -404,6 +424,17 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
     const dress = (piece: Piece, pawn: Pawn) =>
     {
         const pressable = usable(pawn.key);
+        const sprite = spriteOf(pawn);
+
+        if (piece.pawn.getAttribute('src') !== sprite)
+        {
+            piece.pawn.src = sprite;
+        }
+
+        if (pawnsWorn(pawn) !== null)
+        {
+            effects.warm();
+        }
 
         piece.root.toggleAttribute('data-movable', hints && pressable);
         piece.root.toggleAttribute('data-home', pawn.progress >= FINISHED && !pending.has(pawn.key));
@@ -433,7 +464,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         shadow.src = '/board/pawn-shadow.svg';
         shadow.alt = '';
         shadow.decoding = 'async';
-        body.src = `/board/pawn-${ pawn.colour }.svg`;
+        body.src = spriteOf(pawn);
         body.alt = '';
         body.decoding = 'async';
         body.draggable = false;
@@ -685,7 +716,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         fleeting(ring, stage.animate(ring, [{ scale: '0.37', opacity: 0.9 }, { scale: '1', opacity: 0 }], { duration: 280, easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)', fill: 'both' }));
     };
 
-    const flash = (piece: Piece, colour: string) =>
+    const flash = (piece: Piece) =>
     {
         if (stage.quiet())
         {
@@ -694,7 +725,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
         const white = element('img', `${ SPRITE } block ${ PAWN_BOX } [filter:brightness(0)_invert(1)]`, piece.lift);
 
-        white.src = `/board/pawn-${ colour }.svg`;
+        white.src = piece.pawn.getAttribute('src') ?? '';
         white.alt = '';
         fleeting(white, stage.animate(white, [{ opacity: 1 }, { opacity: 1, offset: 0.5 }, { opacity: 0 }], { duration: 140, fill: 'both' }));
     };
@@ -702,6 +733,48 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
     const land = (piece: Piece) =>
     {
         stage.animate(piece.pawn, [{ scale: '1 1' }, { scale: '1.05 0.93' }, { scale: '1 1' }], { duration: 180, easing: 'ease-out', quiet: 'skip' });
+    };
+
+    const footOf = (piece: Piece) =>
+    {
+        const frame = root.getBoundingClientRect();
+        const foot = piece.root.getBoundingClientRect();
+
+        return { x: foot.left - frame.left, y: foot.top - frame.top };
+    };
+
+    /**
+     * A worn pawn's trail for as long as it moves, and where `run` brings it, a puff, or a ring for a
+     * pawn that has just left its yard. The trail ends itself the first frame the pawn stands still,
+     * because a run the stage abandons never says it is done.
+     */
+    const trail = (piece: Piece, pawn: Pawn, run: Run, entering: boolean) =>
+    {
+        const worn = pawnsWorn(pawn);
+
+        if (worn === null)
+        {
+            return;
+        }
+
+        const colors = lightOf(worn);
+
+        effects.play((vfx) =>
+        {
+            const stop = vfx.stream('trail', () =>
+            {
+                if (!piece.root.hasAttribute('data-moving'))
+                {
+                    stop();
+
+                    return null;
+                }
+
+                return footOf(piece);
+            }, { colors, scale: scaleFor(TRAIL_CELLS), density: TRAIL_DENSITY });
+        });
+
+        void run.done.then(() => effects.play((vfx) => vfx.burst(entering ? 'shockwave' : 'dust', pixels(piece.at), { colors, scale: scaleFor(ARRIVAL_CELLS) })));
     };
 
     const travel = (piece: Piece, pawn: Pawn, from: number, to: number) =>
@@ -735,6 +808,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
             stage.animate(piece.lift, flight.map((one) => ({ offset: Math.min(1, one.at / ENTER_MS), translate: `0 ${ cq(-0.9 * C * one.lift) }` })), { duration: ENTER_MS, quiet: 'skip' });
             stage.animate(piece.shadow, flight.map((one) => ({ offset: Math.min(1, one.at / ENTER_MS), scale: String(1 - 0.3 * one.lift) })), { duration: ENTER_MS, quiet: 'skip' });
+            trail(piece, pawn, run, true);
 
             return run;
         }
@@ -764,10 +838,12 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
             }
         }
 
+        trail(piece, pawn, run, false);
+
         return run;
     };
 
-    const knock = (key: string, colour: string) =>
+    const knock = (key: string) =>
     {
         const pawn = pawnOf(shown, key);
         const piece = pieces.get(key);
@@ -783,7 +859,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
         flying.add(key);
         burst(from, '#FFFFFF');
-        flash(piece, colour);
+        flash(piece);
         piece.root.setAttribute('data-moving', '');
         piece.root.removeAttribute('data-movable');
         piece.root.removeAttribute('data-stacked');
@@ -843,7 +919,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
     const dressDie = (seat: number | null) =>
     {
-        const worn = seat === null ? null : diceOf(options.looks?.(seat)?.dice);
+        const worn = seat === null ? null : wornOf('dice', options.looks?.(seat)?.dice);
 
         for (const name of DIE_PROPERTIES)
         {
@@ -1027,10 +1103,9 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
         if (worn !== null)
         {
-            const { preset, tune } = dieLanding(worn);
-            const scale = root.clientWidth * DIE_SIZE * C / 100 / LANDING_FITS;
+            const { preset, tune } = burstOf(worn);
 
-            effects.play((vfx) => vfx.burst(preset, pixels(spot), { ...tune, scale }));
+            effects.play((vfx) => vfx.burst(preset, pixels(spot), { ...tune, scale: scaleFor(DIE_SIZE) }));
         }
 
         if (beat.fate === 'pending')
@@ -1164,7 +1239,16 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
         if (beat.victims.length > 0)
         {
+            const worn = pawnsWorn(pawn);
+
             options.sound()?.play('pawn-hit', { pan: pan(piece.at.x) });
+
+            if (worn !== null)
+            {
+                const { preset, tune } = burstOf(worn);
+
+                effects.play((vfx) => vfx.burst(preset, pixels(piece.at), { ...tune, scale: scaleFor(1) }));
+            }
 
             if (reader)
             {
@@ -1176,7 +1260,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
             }
         }
 
-        const flights = beat.victims.map((key) => knock(key, pawnOf(after, key)?.colour ?? 'red')).filter((run) => run !== null);
+        const flights = beat.victims.map((key) => knock(key)).filter((run) => run !== null);
 
         if (beat.home)
         {

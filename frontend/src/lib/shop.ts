@@ -61,7 +61,7 @@ export function looksForGame(game: ShopGame, featured: ShopCollection)
 export const slotsFor = (kind: ShopKind) => (Object.keys(SHOP_SLOTS) as ShopSlot[]).filter((slot) => SHOP_SLOTS[slot] === kind);
 
 /** The game a slot belongs to, or null for the profile's and the celebration every table plays. */
-export function gameOfSlot(slot: ShopSlot): ShopGame | null
+export function gameOfSlot(slot: ShopSlot)
 {
     const [area] = slot.split('.');
 

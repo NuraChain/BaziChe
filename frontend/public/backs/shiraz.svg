@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 204 288" width="204" height="288">
+<defs>
+    <linearGradient id="field" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#137187"/><stop offset="0.55" stop-color="#0D5B7C"/><stop offset="1" stop-color="#08324C"/></linearGradient>
+    <pattern id="pattern" width="28" height="28" patternUnits="userSpaceOnUse" patternTransform="scale(1.2)"><path d="M19.3 19.3L8.7 19.3L8.7 8.7L19.3 8.7ZM21.5 14L14 21.5L6.5 14L14 6.5ZM14 0V6.5M14 21.5V28M0 14H6.5M21.5 14H28M0 0L4 4M28 0L24 4M0 28L4 24M28 28L24 24" fill="none" stroke="#E7BE63" stroke-width="0.9" stroke-linejoin="round"/><circle cx="14" cy="14" r="1.6" fill="#FFF4D6"/></pattern>
+    <filter id="halo" x="-25%" y="-25%" width="150%" height="150%"><feGaussianBlur stdDeviation="5"/></filter>
+</defs>
+<rect width="204" height="288" fill="#FFFBEB"/>
+<rect x="9" y="9" width="186" height="270" rx="10" fill="url(#field)"/>
+<rect x="9" y="9" width="186" height="270" rx="10" fill="url(#pattern)" opacity="0.55"/>
+<rect x="17" y="17" width="170" height="254" rx="6" fill="none" stroke="#E7BE63" stroke-opacity="0.85" stroke-width="2"/>
+<rect x="22" y="22" width="160" height="244" rx="4" fill="none" stroke="#E7BE63" stroke-opacity="0.35" stroke-width="1"/>
+<circle cx="102" cy="144" r="46" fill="#08324C" stroke="#E7BE63" stroke-width="3"/><path d="M102 108L108.89 127.37L127.46 118.54L118.63 137.11L138 144L118.63 150.89L127.46 169.46L108.89 160.63L102 180L95.11 160.63L76.54 169.46L85.37 150.89L66 144L85.37 137.11L76.54 118.54L95.11 127.37Z" fill="#E7BE63" stroke="#FFF4D6" stroke-width="1.2"/><circle cx="102" cy="144" r="9" fill="#18A8A0" stroke="#FFF4D6" stroke-width="2"/>
+</svg>

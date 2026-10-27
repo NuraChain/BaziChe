@@ -2,7 +2,9 @@
  * Draws what a table shows of its owner's looks, from each collection's palette, on the board's own
  * pieces so a look stands exactly where the classic one does: a ludo pawn in every collection for
  * every seat's colour (`public/pawns/<collection>-<colour>.svg`), the seat's colour kept wherever a
- * board is read for whose pawn it is. `npm run looks` runs it.
+ * board is read for whose pawn it is; and every collection's deck (`public/decks/`, the classic
+ * cards in its dress, the standard indices kept) and card back (`public/backs/`). `npm run looks`
+ * runs it.
  */
 
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -11,10 +13,11 @@ import { fileURLToPath } from 'node:url';
 
 import { SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
 import { PALETTES, SEAT_RAMPS } from '../../frontend/src/game/looks/palette.ts';
-import { gloss, octagram, radial, sparkle } from './look-parts.mjs';
+import { H, W, deck } from './card-parts.mjs';
+import { gloss, motif, octagram, radial, sparkle, starOf } from './look-parts.mjs';
 import { PAWN, outlined } from './pawn-shape.mjs';
 
-const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'public', 'pawns');
+const PUBLIC = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'public');
 
 const vertical = (id, stops) =>
     `<linearGradient id="${ id }" x1="0" y1="0" x2="0" y2="1">${ stops.map(([at, colour]) => `<stop offset="${ at }" stop-color="${ colour }"/>`).join('') }</linearGradient>`;
@@ -128,19 +131,126 @@ function gold(seat)
 
 const DRAW = { glow, shiraz, neon, gold };
 
-mkdirSync(OUT, { recursive: true });
-
-for (const name of readdirSync(OUT))
-{
-    rmSync(join(OUT, name));
-}
-
-for (const collection of SHOP_COLLECTIONS)
-{
-    for (const seat of Object.keys(SEAT_RAMPS))
-    {
-        writeFileSync(join(OUT, `${ collection }-${ seat }.svg`), DRAW[collection](seat));
+/**
+ * Each collection's deck: its paper, its suits' inks (red kept warm and black kept cool, each index
+ * at 4.5:1 or more on both stops of its paper) and the metal of its courts.
+ */
+const DRESSES = {
+    glow: {
+        paper: ['#FFFFFF', '#E9F1FF'],
+        suits: [
+            { name: 'club', ink: '#14205A', tint: '#E8EFFF', accent: '#1B3480' },
+            { name: 'diamond', ink: '#C81E3A', tint: '#FDECEF', accent: '#9E1630' },
+            { name: 'heart', ink: '#C81E3A', tint: '#FDECEF', accent: '#9E1630' },
+            { name: 'spade', ink: '#14205A', tint: '#E8EFFF', accent: '#1B3480' }
+        ],
+        metal: { band: '#FBE7A6', line: '#B08A2E', frame: '#9CC2FF', crown: '#FBE7A6', jewel: '#FFFFFF' }
+    },
+    shiraz: {
+        paper: ['#FFFBEB', '#F3E9CF'],
+        suits: [
+            { name: 'club', ink: '#0A3F63', tint: '#E2F5F1', accent: '#0D5B7C' },
+            { name: 'diamond', ink: '#B3263A', tint: '#FBEAE6', accent: '#8E1A2C' },
+            { name: 'heart', ink: '#B3263A', tint: '#FBEAE6', accent: '#8E1A2C' },
+            { name: 'spade', ink: '#0A3F63', tint: '#E2F5F1', accent: '#0D5B7C' }
+        ],
+        metal: { band: '#E7BE63', line: '#8C6A1C', frame: '#18A8A0', crown: '#E7BE63', jewel: '#FFF4D6' }
+    },
+    neon: {
+        paper: ['#1B1333', '#0C0719'],
+        suits: [
+            { name: 'club', ink: '#38E8FF', tint: '#1E1640', accent: '#16B7D6' },
+            { name: 'diamond', ink: '#FF5FD8', tint: '#2A1236', accent: '#E040B8' },
+            { name: 'heart', ink: '#FF5FD8', tint: '#2A1236', accent: '#E040B8' },
+            { name: 'spade', ink: '#38E8FF', tint: '#1E1640', accent: '#16B7D6' }
+        ],
+        metal: { band: '#FF46D2', line: '#7A1E6A', frame: '#38E8FF', crown: '#FF46D2', jewel: '#FFFFFF' }
+    },
+    gold: {
+        paper: ['#1E180D', '#0D0A05'],
+        suits: [
+            { name: 'club', ink: '#E9C565', tint: '#2A2213', accent: '#B8902E' },
+            { name: 'diamond', ink: '#F26B57', tint: '#2E1610', accent: '#C84A38' },
+            { name: 'heart', ink: '#F26B57', tint: '#2E1610', accent: '#C84A38' },
+            { name: 'spade', ink: '#E9C565', tint: '#2A2213', accent: '#B8902E' }
+        ],
+        metal: { band: '#E9C565', line: '#7C5913', frame: '#D9B044', crown: '#FFF3BF', jewel: '#FFFAE6' }
     }
+};
+
+/** What every card of a collection's deck wears on its paper, in the corners its indices leave free. */
+const ORNAMENTS = {
+    glow: `<path d="${ sparkle(W - 26, 26, 9) }" fill="#9CC2FF" opacity="0.55"/><path d="${ sparkle(26, H - 26, 9) }" fill="#9CC2FF" opacity="0.55"/>`,
+    shiraz: `<path d="${ octagram(W - 26, 26, 9) }" fill="none" stroke="#18A8A0" stroke-opacity="0.5" stroke-width="1.6"/><path d="${ octagram(26, H - 26, 9) }" fill="none" stroke="#18A8A0" stroke-opacity="0.5" stroke-width="1.6"/>`,
+    neon: `<rect x="7" y="7" width="${ W - 14 }" height="${ H - 14 }" rx="9" fill="none" stroke="#38E8FF" stroke-opacity="0.4" stroke-width="1.5"/>`,
+    gold: `<rect x="8" y="8" width="${ W - 16 }" height="${ H - 16 }" rx="8" fill="none" stroke="#D9B044" stroke-opacity="0.55" stroke-width="1.5"/>`
+};
+
+/** Each collection's back: its border, and the emblem at its middle. */
+const BACKS = {
+    glow: {
+        border: '#F2F7FF',
+        emblem: (palette) => `<circle cx="${ W / 2 }" cy="${ H / 2 }" r="46" fill="${ palette.surface[2] }" stroke="${ palette.edge }" stroke-width="3"/><path d="${ sparkle(W / 2, H / 2, 34) }" fill="${ palette.glint }"/><path d="${ sparkle(W / 2 + 24, H / 2 - 22, 8) }" fill="#FFFFFF"/>`
+    },
+    shiraz: {
+        border: '#FFFBEB',
+        emblem: (palette) => `<circle cx="${ W / 2 }" cy="${ H / 2 }" r="46" fill="${ palette.surface[2] }" stroke="${ palette.edge }" stroke-width="3"/><path d="${ starOf(W / 2, H / 2, 36, 18, 8) }" fill="${ palette.edge }" stroke="${ palette.glint }" stroke-width="1.2"/><circle cx="${ W / 2 }" cy="${ H / 2 }" r="9" fill="${ palette.piece[1] }" stroke="${ palette.glint }" stroke-width="2"/>`
+    },
+    neon: {
+        border: '#0A0616',
+        emblem: (palette) => `<circle cx="${ W / 2 }" cy="${ H / 2 }" r="40" fill="none" stroke="${ palette.glint }" stroke-width="7" filter="url(#halo)"/><circle cx="${ W / 2 }" cy="${ H / 2 }" r="40" fill="none" stroke="${ palette.glint }" stroke-width="3"/><path d="M${ W / 2 } ${ H / 2 - 22 }L${ W / 2 + 22 } ${ H / 2 }L${ W / 2 } ${ H / 2 + 22 }L${ W / 2 - 22 } ${ H / 2 }Z" fill="none" stroke="${ palette.edge }" stroke-width="3" filter="url(#halo)"/><path d="M${ W / 2 } ${ H / 2 - 22 }L${ W / 2 + 22 } ${ H / 2 }L${ W / 2 } ${ H / 2 + 22 }L${ W / 2 - 22 } ${ H / 2 }Z" fill="none" stroke="${ palette.edge }" stroke-width="2"/>`
+    },
+    gold: {
+        border: '#0D0A05',
+        emblem: (palette) => `<circle cx="${ W / 2 }" cy="${ H / 2 }" r="48" fill="none" stroke="${ palette.edge }" stroke-width="3"/><circle cx="${ W / 2 }" cy="${ H / 2 }" r="41" fill="none" stroke="${ palette.edge }" stroke-opacity="0.5" stroke-width="1.2"/><path d="${ starOf(W / 2, H / 2, 32, 14, 12) }" fill="${ palette.edge }" stroke="${ palette.piece[2] }" stroke-width="1"/><circle cx="${ W / 2 }" cy="${ H / 2 }" r="6" fill="${ palette.surface[2] }" stroke="${ palette.glint }" stroke-width="2"/>`
+    }
+};
+
+/** A collection's card back, in the classic back's shape: a border, its pattern framed twice, an emblem. */
+function back(collection)
+{
+    const palette = PALETTES[collection];
+    const { border, emblem } = BACKS[collection];
+    const [lit, mid, dark] = palette.surface;
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${ W } ${ H }" width="${ W }" height="${ H }">
+<defs>
+    <linearGradient id="field" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${ lit }"/><stop offset="0.55" stop-color="${ mid }"/><stop offset="1" stop-color="${ dark }"/></linearGradient>
+    ${ motif('pattern', palette, 1.2) }
+    ${ HALO }
+</defs>
+<rect width="${ W }" height="${ H }" fill="${ border }"/>
+<rect x="9" y="9" width="${ W - 18 }" height="${ H - 18 }" rx="10" fill="url(#field)"/>
+<rect x="9" y="9" width="${ W - 18 }" height="${ H - 18 }" rx="10" fill="url(#pattern)" opacity="0.55"/>
+<rect x="17" y="17" width="${ W - 34 }" height="${ H - 34 }" rx="6" fill="none" stroke="${ palette.edge }" stroke-opacity="0.85" stroke-width="2"/>
+<rect x="22" y="22" width="${ W - 44 }" height="${ H - 44 }" rx="4" fill="none" stroke="${ palette.edge }" stroke-opacity="0.35" stroke-width="1"/>
+${ emblem(palette) }
+</svg>
+`;
 }
 
-console.log(`table looks: ${ readdirSync(OUT).length } pawns`);
+/** Empties `folder` under public/ and writes what `draw` gives for each name. */
+const write = (folder, entries) =>
+{
+    const into = join(PUBLIC, folder);
+
+    mkdirSync(into, { recursive: true });
+
+    for (const name of readdirSync(into))
+    {
+        rmSync(join(into, name));
+    }
+
+    for (const [name, drawing] of entries)
+    {
+        writeFileSync(join(into, `${ name }.svg`), drawing);
+    }
+
+    return entries.length;
+};
+
+const pawns = write('pawns', SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => [`${ collection }-${ seat }`, DRAW[collection](seat)])));
+const decks = write('decks', SHOP_COLLECTIONS.map((collection) => [collection, deck(DRESSES[collection], { ornament: ORNAMENTS[collection] })]));
+const backs = write('backs', SHOP_COLLECTIONS.map((collection) => [collection, back(collection)]));
+
+console.log(`table looks: ${ pawns } pawns, ${ decks } decks, ${ backs } backs`);

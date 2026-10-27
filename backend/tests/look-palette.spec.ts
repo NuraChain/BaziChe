@@ -128,6 +128,36 @@ describe('what a table wears', () =>
         expect(pawn).toContain(`<circle ${ outline('head') }`);
         expect(pawn, 'a pawn that does not say whose it is').toContain(SEAT_RAMPS[seat][1]);
     });
+
+    it.each(['decks', 'backs'])('draws the %s of every collection and nothing else', (folder) =>
+    {
+        expect(readdirSync(new URL(`../../frontend/public/${ folder }/`, import.meta.url)).sort()).toEqual(SHOP_COLLECTIONS.map((collection) => `${ collection }.svg`).sort());
+    });
+
+    it.each([...SHOP_COLLECTIONS])('deals %s’s deck as the classic one is laid out, every index at 4.5:1 or more on its paper', (collection) =>
+    {
+        const drawn = readFileSync(new URL(`../../frontend/public/decks/${ collection }.svg`, import.meta.url), 'utf8');
+        const classic = readFileSync(new URL('../../frontend/public/board/deck.svg', import.meta.url), 'utf8');
+        const paper = /<linearGradient id="paper"[^>]*><stop offset="0" stop-color="(#\w+)"\/><stop offset="1" stop-color="(#\w+)"\/>/.exec(drawn)!.slice(1);
+        const inks = new Set([...drawn.matchAll(/<text [^>]*fill="(#\w+)"/g)].map(([, ink]) => ink!));
+
+        expect(drawn).toContain(classic.slice(0, classic.indexOf('<defs>')));
+        expect([...drawn.matchAll(/<text /g)]).toHaveLength([...classic.matchAll(/<text /g)].length);
+        expect(inks.size).toBe(2);
+
+        for (const ink of inks)
+        {
+            for (const stop of paper)
+            {
+                expect(contrast(ink, stop!), `${ ink } on ${ stop }`).toBeGreaterThanOrEqual(4.5);
+            }
+        }
+    });
+
+    it.each([...SHOP_COLLECTIONS])('backs %s’s cards at the classic back’s size', (collection) =>
+    {
+        expect(readFileSync(new URL(`../../frontend/public/backs/${ collection }.svg`, import.meta.url), 'utf8')).toContain('viewBox="0 0 204 288"');
+    });
 });
 
 describe('the drawings', () =>

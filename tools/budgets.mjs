@@ -73,9 +73,11 @@ const PROFILE_LOOKS = {
     covers: { names: [...SHOP_COLLECTIONS], budget: 24 * KB }
 };
 
-/** What a table draws of its owner's looks: each collection in each seat's colour. */
+/** What a table draws of its owner's looks: pawns in each seat's colour, and each collection's deck and back. */
 const TABLE_LOOKS = {
-    pawns: { names: SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => `${ collection }-${ seat }`)), budget: 4 * KB }
+    pawns: { names: SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => `${ collection }-${ seat }`)), budget: 4 * KB },
+    decks: { names: [...SHOP_COLLECTIONS], budget: 96 * KB },
+    backs: { names: [...SHOP_COLLECTIONS], budget: 4 * KB }
 };
 
 /**
@@ -709,7 +711,7 @@ console.log(`  sounds       ${ sounds.length } packs, ${ size(soundTotal) } in a
 console.log(`  beds         ${ beds.length } ${ beds.length === 1 ? 'bed' : 'beds' }, ${ size(bedTotal) } in all, none over its ceiling`);
 console.log(`  looks        ${ lookFiles.length } drawings, ${ size(lookTotal) } in all, none over ${ size(LOOK_BUDGET) }`);
 console.log(`  profile      ${ profile.count } frames, plates and covers, ${ size(profile.total) } in all, none over its folder's ceiling`);
-console.log(`  table looks  ${ table.count } pawns, ${ size(table.total) } in all, none over its folder's ceiling`);
+console.log(`  table looks  ${ table.count } pawns, decks and backs, ${ size(table.total) } in all, none over its folder's ceiling`);
 console.log(`  world        ${ size(worldBytes) } / ${ size(WORLD_BUDGET) }`);
 console.log(`  posters      ${ posterBytes.map(size).join(', ') }`);
 console.log(`  class binds  ${ classBindsRead } read, ${ problems.length === 0 ? 'every one that reads a signal effect-wrapped' : 'see below' }`);

@@ -509,7 +509,7 @@
         "notices_fa_length :: CHECK (((char_length(fa) >= 3) AND (char_length(fa) <= 200)))",
         "notices_until_after :: CHECK ((until > created_at))",
         "notifications_count_positive :: CHECK ((count > 0))",
-        "notifications_kind_known :: CHECK (((kind)::text = ANY ((ARRAY['friend-request'::character varying, 'friend-accepted'::character varying, 'group-added'::character varying, 'table-invite'::character varying, 'table-removed'::character varying, 'message'::character varying, 'turn'::character varying, 'invite-joined'::character varying])::text[])))",
+        "notifications_kind_known :: CHECK (((kind)::text = ANY ((ARRAY['friend-request'::character varying, 'friend-accepted'::character varying, 'group-added'::character varying, 'table-invite'::character varying, 'table-removed'::character varying, 'message'::character varying, 'turn'::character varying, 'invite-joined'::character varying, 'gift'::character varying])::text[])))",
         "owned_items_giver_gives :: CHECK ((((via)::text = 'gift'::text) OR (giver_id IS NULL)))",
         "owned_items_look :: CHECK (((item_id)::text !~~ 'bundle.%'::text))",
         "owned_items_via_known :: CHECK (((via)::text = ANY ((ARRAY['purchase'::character varying, 'gift'::character varying, 'grant'::character varying])::text[])))",

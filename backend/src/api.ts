@@ -23,6 +23,8 @@ import {
     vaultBreakInput,
     vaultState,
     vaultTermsInput,
+    shopChooseInput,
+    shopCollection,
     walletCall,
     adminClearInput,
     adminHistoryQuery,
@@ -579,6 +581,13 @@ export function buildApi(ports: Ports)
 
             reclaim: routes.post('/reclaim', { input: reclaimInput, output: walletCall },
                 (context) => ports.vault.reclaim(context.principal.userId, context.input.id))
+        })),
+
+        shop: feature('/shop', [session], (routes) => ({
+            collection: routes.get('/collection', { output: shopCollection }, (context) => ports.shop.collection(context.principal.userId)),
+
+            choose: routes.post('/chosen', { input: shopChooseInput, output: shopCollection },
+                (context) => ports.shop.choose(context.principal.userId, context.input.slot, context.input.item ?? null))
         })),
 
         social: feature('/social', [session], (routes) => ({

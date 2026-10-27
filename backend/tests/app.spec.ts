@@ -996,6 +996,88 @@ describe('the vault', () =>
     });
 });
 
+describe('the shop', () =>
+{
+    const collection = {
+        owned: [{ item: 'dice.shiraz', via: 'gift', at: '2026-10-27T00:00:00.000Z', from: 'mina' }],
+        chosen: [{ slot: 'ludo.dice', item: 'dice.shiraz' }]
+    };
+
+    const shopAs = (told: unknown[][], who: unknown = { userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' }) => buildApp({
+        db: fakeDb({ initialized: true }),
+        config,
+        log: silent,
+        ports: {
+            identity: { principal: () => Promise.resolve(who) },
+            shop: Object.fromEntries(['collection', 'choose'].map((verb) => [verb, (...said: unknown[]) =>
+            {
+                told.push([verb, ...said]);
+
+                return Promise.resolve(collection);
+            }]))
+        } as unknown as Ports
+    });
+
+    const post = (app: ReturnType<typeof buildApp>, path: string, body: unknown) =>
+        app.handle(new Request(`http://local/api${ path }`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body)
+        }));
+
+    it('is a reader\'s collection and their choice of a look, for somebody signed in', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = shopAs(told, null);
+        const manifest = await (await app.handle(new Request('http://local/api/_manifest'))).json() as Record<string, Record<string, { method: string; path: string }>>;
+
+        expect(Object.entries(manifest.shop).map(([name, route]) => `${ name } ${ route.method } ${ route.path }`).sort()).toEqual([
+            'choose POST /shop/chosen',
+            'collection GET /shop/collection'
+        ]);
+        expect((await app.handle(new Request('http://local/api/shop/collection'))).status).toBe(401);
+        expect((await post(app, '/shop/chosen', { slot: 'ludo.dice', item: 'dice.shiraz' })).status).toBe(401);
+        expect(told).toEqual([]);
+    });
+
+    it('tells the port who chose what, Classic as no look, and answers with the collection', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = shopAs(told);
+
+        expect(await (await app.handle(new Request('http://local/api/shop/collection'))).json()).toEqual(collection);
+        expect(await (await post(app, '/shop/chosen', { slot: 'ludo.dice', item: 'dice.shiraz' })).json()).toEqual(collection);
+        expect((await post(app, '/shop/chosen', { slot: 'table.celebration' })).status).toBe(200);
+
+        expect(told).toEqual([
+            ['collection', 'somebody'],
+            ['choose', 'somebody', 'ludo.dice', 'dice.shiraz'],
+            ['choose', 'somebody', 'table.celebration', null]
+        ]);
+    });
+
+    it('refuses a slot nobody knows and a look that cannot be one before the port is asked', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = shopAs(told);
+
+        for (const body of [{}, { slot: 'ludo.board', item: 'dice.shiraz' }, { slot: 'ludo.dice', item: 'd'.repeat(41) }, { slot: 'ludo.dice', item: 5 }, { slot: 'ludo.dice', item: `dice.${ String.fromCharCode(0) }` }])
+        {
+            expect((await post(app, '/shop/chosen', body)).status, JSON.stringify(body)).toBe(422);
+        }
+
+        expect(told).toEqual([]);
+    });
+
+    it('is sent garbage by the pass that sends every route garbage', () =>
+    {
+        const pass = readFileSync(fileURLToPath(new URL('../../tools/qa/garbage-pass.mjs', import.meta.url)), 'utf8');
+        const bodies = pass.slice(pass.indexOf('const BODIES ='), pass.indexOf('const WOULD_ACT ='));
+
+        expect(bodies).toContain(`'/shop/chosen': (bad) => [`);
+    });
+});
+
 describe('the owner\'s view of the vault', () =>
 {
     const owned = (told: unknown[][], answer: unknown) => buildApp({

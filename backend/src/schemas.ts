@@ -2,6 +2,8 @@ import { array, boolean, enumOf, literal, number, object, record, string as text
 import { ACTION_KINDS, CLEAR_PARTS, GRANTED_ROLES, MATCH_LISTS, NOTICE_HOURS, NOTICE_MAX, PEOPLE_LISTS, REPORT_LISTS, REPORT_OUTCOMES, REPORT_STATUSES, STAFF_ROLES, STUCK_KINDS, SUSPEND_CATEGORIES, SUSPEND_DAYS } from './domains/admin/roles.ts';
 import { RARITY_IDS } from './domains/achieve/rarity.ts';
 import { PARTY_ENDS, PARTY_STAGES } from './domains/party/rules.ts';
+import { SLOT_IDS } from './domains/shop/catalogue.ts';
+import { OWNED_VIA } from './domains/shop/policy.ts';
 import { VARIANTS } from './domains/match/sides.ts';
 import { BREAK_DAYS, ELIGIBILITIES, ESCROW_STATES } from './domains/stake/policy.ts';
 import { REASONS } from './domains/match/chess/state.ts';
@@ -681,6 +683,28 @@ export const reclaimInput = object({ id: string({ max: 36 }) });
 export const vaultBreakInput = object({ days: union(BREAK_DAYS.map((days) => literal(days))) });
 
 export const vaultTermsInput = object({ adult: literal(true) });
+
+/** A look of `domains/shop/catalogue.ts` the reader owns: how it came to them, when, and who gave it when it was a gift. */
+export const ownedLook = object({
+    item: string(),
+    via: enumOf(OWNED_VIA),
+    at: string(),
+    from: string().optional()
+});
+
+/** Everything the reader owns and what they chose for each slot; a slot with nothing chosen is Classic. */
+export const shopCollection = object({
+    owned: array(ownedLook),
+    chosen: array(object({ slot: enumOf(SLOT_IDS), item: string() }))
+});
+
+export type ShopCollectionView = Infer<typeof shopCollection>;
+
+/** A look chosen for a slot, or Classic when `item` is left out. */
+export const shopChooseInput = object({
+    slot: enumOf(SLOT_IDS),
+    item: string({ max: 40 }).optional()
+});
 
 export const nftItem = object({
     contract: string(),
@@ -1663,6 +1687,26 @@ export const matchToken = object({
 });
 
 /**
+ * What a player chose for one game's table, a look by kind; a kind left out is Classic. Every
+ * player and every watcher of the game draws that player's things in it, and nobody else's.
+ */
+export const tableLook = object({
+    dice: string().optional(),
+    pawns: string().optional(),
+    yard: string().optional(),
+    back: string().optional(),
+    face: string().optional(),
+    felt: string().optional(),
+    chips: string().optional(),
+    checkers: string().optional(),
+    home: string().optional(),
+    pieces: string().optional(),
+    celebration: string().optional()
+});
+
+export type TableLookView = Infer<typeof tableLook>;
+
+/**
  * One seat, as the ENVELOPE knows it: who is in it and how their match went.
  *
  * Deliberately not where they stand on a board. This shape is shared by every game, and a colour, a
@@ -1697,7 +1741,10 @@ export const matchPlayer = object({
     ratingAfter: number().optional(),
 
     side: number({ int: true, min: 0, max: 8 }).optional(),
-    place: number({ int: true, min: 1, max: 9 }).optional()
+    place: number({ int: true, min: 1, max: 9 }).optional(),
+
+    /** What this seat's player had chosen for this game's table as it started; absent when it is all Classic. */
+    look: tableLook.optional()
 });
 
 /**

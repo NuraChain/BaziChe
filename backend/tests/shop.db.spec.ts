@@ -1,0 +1,228 @@
+import 'reflect-metadata';
+
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { DataSource } from 'typeorm';
+
+import { MatchPlayer, OwnedItem, Table, User, entities } from '../src/entities/index.ts';
+import { syncSchema } from '../src/db/schema.ts';
+import { seedReference } from '../src/db/seed-reference.ts';
+import { createSocialService } from '../src/domains/social/service.ts';
+import { createTableService } from '../src/domains/table/service.ts';
+import { buildPorts, type WriteListener } from '../src/services.ts';
+
+const url = process.env.TEST_DATABASE_URL;
+
+const active = url !== undefined && url !== '';
+
+let db: DataSource;
+let tables: ReturnType<typeof createTableService>;
+
+let seq = 0;
+
+const rung = { self: [] as [string, string][], social: [] as string[][] };
+
+const listener: WriteListener = {
+    chatChanged: () => undefined,
+    chatSeen: () => undefined,
+    socialChanged: (...ids) =>
+    {
+        rung.social.push(ids);
+    },
+    edgesChanged: () => undefined,
+    selfChanged: (userId, what) =>
+    {
+        rung.self.push([userId, what]);
+    },
+    gamePushed: () => undefined,
+    gameWatched: () => undefined,
+    tableChanged: () => undefined,
+    tableViewed: () => undefined,
+    catalogueChanged: () => undefined,
+    sessionsRevoked: () => undefined,
+    seen: () => undefined
+};
+
+const door = () => buildPorts(db, {
+    secret: 'a-test-secret-that-is-long-enough-to-use',
+    origin: 'http://localhost:1',
+    env: 'test',
+    vapidPublicKey: '',
+    vapidPrivateKey: '',
+    vapidSubject: ''
+} as Parameters<typeof buildPorts>[1], listener);
+
+const makeUser = async () =>
+{
+    seq += 1;
+
+    return db.getRepository(User).save({ handle: `looker${ seq }`, displayName: `Looker ${ seq }`, hue: 40, kind: 'wallet' });
+};
+
+const own = (userId: string, ...items: string[]) =>
+    db.getRepository(OwnedItem).insert(items.map((itemId) => ({ userId, itemId, via: 'grant' as const })));
+
+/** The word a refusal carries, or nothing when the call went through. */
+const refusal = async (call: Promise<unknown>) =>
+{
+    try
+    {
+        await call;
+        return null;
+    }
+    catch (error)
+    {
+        return { status: (error as { status?: number }).status, code: (error as { code?: string }).code };
+    }
+};
+
+describe.skipIf(!active)('looks a person owns and chooses, against a real database', () =>
+{
+    beforeAll(async () =>
+    {
+        db = new DataSource({ type: 'postgres', uuidExtension: 'pgcrypto', url, entities, synchronize: false, logging: ['error'] });
+        await db.initialize();
+        await syncSchema(db);
+        await seedReference(db);
+        tables = createTableService(db, createSocialService(db));
+    }, 60_000);
+
+    afterAll(async () =>
+    {
+        await db?.destroy();
+    });
+
+    beforeEach(async () =>
+    {
+        await db.getRepository(Table).createQueryBuilder().delete().execute();
+        await db.getRepository(User).createQueryBuilder().delete().execute();
+        rung.self.length = 0;
+        rung.social.length = 0;
+    });
+
+    it('lists what the reader owns, newest first, how each came and who gave a gift, and what they chose', async () =>
+    {
+        const me = await makeUser();
+        const friend = await makeUser();
+        const ports = door();
+
+        await db.getRepository(OwnedItem).insert({ userId: me.id, itemId: 'dice.shiraz', via: 'grant', acquiredAt: new Date(Date.now() - 60_000) });
+        await db.getRepository(OwnedItem).insert({ userId: me.id, itemId: 'back.neon', via: 'gift', giverId: friend.id });
+
+        const chosen = await ports.shop.choose(me.id, 'ludo.dice', 'dice.shiraz');
+
+        expect(chosen.chosen).toEqual([{ slot: 'ludo.dice', item: 'dice.shiraz' }]);
+        expect(chosen.owned.map((look) => [look.item, look.via, look.from])).toEqual([['back.neon', 'gift', friend.handle], ['dice.shiraz', 'grant', undefined]]);
+        expect(chosen.owned.every((look) => !Number.isNaN(Date.parse(look.at)))).toBe(true);
+        expect(await ports.shop.collection(me.id)).toEqual(chosen);
+        expect(await ports.shop.collection(friend.id)).toEqual({ owned: [], chosen: [] });
+    });
+
+    it('chooses only a look of the slot\'s kind the reader owns, and Classic with none', async () =>
+    {
+        const me = await makeUser();
+        const ports = door();
+
+        await own(me.id, 'dice.shiraz', 'pawns.shiraz');
+
+        expect(await refusal(ports.shop.choose(me.id, 'ludo.dice', 'pawns.shiraz'))).toEqual({ status: 422, code: 'shop-slot' });
+        expect(await refusal(ports.shop.choose(me.id, 'ludo.dice', 'bundle.shiraz'))).toEqual({ status: 422, code: 'shop-slot' });
+        expect(await refusal(ports.shop.choose(me.id, 'ludo.board' as 'ludo.dice', 'dice.shiraz'))).toEqual({ status: 422, code: 'shop-slot' });
+        expect(await refusal(ports.shop.choose(me.id, 'ludo.dice', 'dice.gold'))).toEqual({ status: 409, code: 'shop-not-owned' });
+
+        await ports.shop.choose(me.id, 'ludo.dice', 'dice.shiraz');
+        await ports.shop.choose(me.id, 'backgammon.dice', 'dice.shiraz');
+        await ports.shop.choose(me.id, 'ludo.dice', 'dice.shiraz');
+
+        expect((await ports.shop.collection(me.id)).chosen).toEqual([
+            { slot: 'backgammon.dice', item: 'dice.shiraz' },
+            { slot: 'ludo.dice', item: 'dice.shiraz' }
+        ]);
+
+        await ports.shop.choose(me.id, 'ludo.dice', null);
+        await ports.shop.choose(me.id, 'ludo.pawns', null);
+
+        expect((await ports.shop.collection(me.id)).chosen).toEqual([{ slot: 'backgammon.dice', item: 'dice.shiraz' }]);
+    });
+
+    it('takes a look off whatever it was chosen for once it is taken back', async () =>
+    {
+        const me = await makeUser();
+        const ports = door();
+
+        await own(me.id, 'dice.neon');
+        await ports.shop.choose(me.id, 'ludo.dice', 'dice.neon');
+        await ports.shop.choose(me.id, 'backgammon.dice', 'dice.neon');
+        await db.getRepository(OwnedItem).delete({ userId: me.id, itemId: 'dice.neon' });
+
+        expect(await ports.shop.collection(me.id)).toEqual({ owned: [], chosen: [] });
+    });
+
+    it('tells the reader\'s own tabs, and everybody who draws them only when the look is on their profile', async () =>
+    {
+        const me = await makeUser();
+        const ports = door();
+
+        await own(me.id, 'dice.gold', 'decoration.gold');
+        await ports.shop.choose(me.id, 'ludo.dice', 'dice.gold');
+
+        expect(rung.self).toEqual([[me.id, 'shop']]);
+        expect(rung.social).toEqual([]);
+
+        await ports.shop.choose(me.id, 'profile.decoration', 'decoration.gold');
+
+        expect(rung.self).toEqual([[me.id, 'shop'], [me.id, 'shop'], [me.id, 'profile']]);
+        expect(rung.social.length).toBe(1);
+        expect(rung.social[0]).toContain(me.id);
+    });
+
+    it('lets a game keep what each player chose for that game as it starts, and nothing of another game or the profile', async () =>
+    {
+        const host = await makeUser();
+        const guest = await makeUser();
+        const ports = door();
+
+        await own(host.id, 'dice.shiraz', 'pawns.neon', 'back.gold', 'celebration.glow', 'decoration.glow');
+
+        for (const [slot, item] of [['ludo.dice', 'dice.shiraz'], ['ludo.pawns', 'pawns.neon'], ['hokm.back', 'back.gold'], ['table.celebration', 'celebration.glow'], ['profile.decoration', 'decoration.glow']] as const)
+        {
+            await ports.shop.choose(host.id, slot, item);
+        }
+
+        const table = await tables.create(host.id, {
+            game: 'ludo',
+            seats: 2,
+            mode: 'live',
+            privacy: 'public',
+            target: 0,
+            cube: false,
+            blinds: 'low',
+            chat: true,
+            voice: 'off',
+            teams: false,
+            invitees: []
+        });
+
+        await tables.claimSeat(guest.id, table.id);
+        await tables.setReady(host.id, table.id, true);
+        await tables.setReady(guest.id, table.id, true);
+
+        const started = await ports.match.start(host.id, table.id);
+        const hostSeat = started.players.find((player) => player.who === host.handle);
+        const guestSeat = started.players.find((player) => player.who === guest.handle);
+        const look = { dice: 'dice.shiraz', pawns: 'pawns.neon', celebration: 'celebration.glow' };
+
+        expect(hostSeat?.look).toEqual(look);
+        expect(guestSeat).toBeDefined();
+        expect(guestSeat && 'look' in guestSeat).toBe(false);
+
+        const rows = await db.getRepository(MatchPlayer).find({ where: { matchId: started.id }, order: { seat: 'ASC' } });
+
+        expect(rows.map((row) => row.look)).toEqual(rows.map((row) => row.userId === host.id ? look : {}));
+
+        await ports.shop.choose(host.id, 'ludo.dice', null);
+
+        const later = await ports.match.view(guest.id, started.id);
+
+        expect(later?.players.find((player) => player.who === host.handle)?.look).toEqual(look);
+    });
+});

@@ -10,6 +10,7 @@ import {
     SHOP_KINDS, SHOP_SLOTS, SHOP_TIERS, TIER_OF, TIER_PRICE, bundleOf, bundlePriceFor, fitsSlot, isItemId, isSlot, lookOf, tableSlotsOf
 } from '../src/domains/shop/catalogue.ts';
 import { ORDER_STATES, OWNED_VIA, SHOP_ITEM_STATUSES } from '../src/domains/shop/policy.ts';
+import { tableLook } from '../src/schemas.ts';
 
 const expressionOf = (name: string) => getMetadataArgsStorage().checks.find((one) => one.name === name)?.expression ?? '';
 
@@ -125,6 +126,22 @@ describe('where a look is chosen', () =>
         expect(tableSlotsOf('toString')).toEqual([]);
         expect(PROFILE_SLOTS.every((slot) => slot.startsWith('profile.'))).toBe(true);
         expect(new Set([...PROFILE_SLOTS, ...Object.values(GAME_SLOTS).flat(), CELEBRATION_SLOT])).toEqual(new Set(Object.keys(SHOP_SLOTS)));
+    });
+});
+
+describe('a game\'s look on the wire', () =>
+{
+    it('carries every kind a table draws and none a profile does, since a kind it does not name is dropped', () =>
+    {
+        const drawn = new Set([...Object.values(GAME_SLOTS).flat(), CELEBRATION_SLOT].filter(isSlot).map((slot) => SHOP_SLOTS[slot]));
+
+        for (const kind of SHOP_KINDS)
+        {
+            const read = tableLook.safeParse({ [kind]: `${ kind }.glow` });
+
+            expect(read.ok, kind).toBe(true);
+            expect(read.ok && kind in read.value, kind).toBe(drawn.has(kind));
+        }
     });
 });
 

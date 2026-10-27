@@ -161,6 +161,16 @@ describe('the envelope of a match still being played', () =>
         expect(players.map((player) => matchPlayer.parse(player).timeouts)).toEqual([undefined, 2]);
     });
 
+    it('carries the looks a seat\'s player chose as the game started, and nothing for a seat all in Classic', () =>
+    {
+        const look = { dice: 'dice.shiraz', celebration: 'celebration.glow' };
+        const rows = rowsOf([0, 1, 2]).map((row) => (row.seat === 0 ? { ...row, look } : row.seat === 1 ? { ...row, look: {} } : row));
+        const players = envelopeOf(null, {}, rows, false, { seats: 3, variant: 'standard' });
+
+        expect(players.map((player) => Object.keys(player).includes('look'))).toEqual([true, false, false]);
+        expect(matchPlayer.parse(players[0]).look).toEqual(look);
+    });
+
     it('says how a seat went for a seat that has gone, and nothing of the kind for one that has not', () =>
     {
         const rows = rowsOf([0, 1, 2]).map((row) => (row.seat === 2 ? { ...row, result: 'abandoned' as const, exit: 'timeout' as const } : row));

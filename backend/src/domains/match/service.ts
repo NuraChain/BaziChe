@@ -33,6 +33,7 @@ import type { MatchLog } from '../../schemas.ts';
 import type { MatchHistory } from '../../schemas.ts';
 import type { Draws, Engine, ForfeitReason, Moment, TableConfig } from './engine.ts';
 import type { MatchPlay } from '../../schemas.ts';
+import type { LooksReader, TableLook } from '../shop/service.ts';
 
 /** One page of somebody's history. Big enough to be worth a request, small enough to render. */
 const HISTORY_PAGE = 20;
@@ -76,6 +77,9 @@ export interface MatchSeatRow
     exit: ForfeitReason | null;
     rating_before: number | null;
     rating_after: number | null;
+
+    /** What the seat's player had chosen for this game as it started, by kind. */
+    look: TableLook;
 }
 
 export interface MatchLoad
@@ -183,7 +187,10 @@ const isVoided = (action: Pick<MatchAction, 'seat' | 'kind'>) => action.seat ===
 export const sameTurn = (engine: Engine, before: unknown, after: unknown) =>
     engine.turnOf(before) === engine.turnOf(after) && engine.turnKey(before) === engine.turnKey(after);
 
-export function createMatchService(db: DataSource, achieve: AchieveService, engines: readonly Engine[] = ENGINES)
+/** Nobody chose anything: every seat plays in Classic. */
+const CLASSIC: LooksReader = async (_runner, _game, userIds) => new Map(userIds.map((id) => [id, {}]));
+
+export function createMatchService(db: DataSource, achieve: AchieveService, engines: readonly Engine[] = ENGINES, looksOf: LooksReader = CLASSIC)
 {
     const recorder = createRecorder(achieve);
 
@@ -273,10 +280,13 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             return null;
         }
 
+        const looks = await looksOf(tx, table.game, chairs.map((chair) => chair.userId as string));
+
         await tx.getRepository(MatchPlayer).insert(chairs.map((chair) => ({
             matchId: inserted.id,
             seat: chair.seat,
-            userId: chair.userId as string
+            userId: chair.userId as string,
+            look: looks.get(chair.userId as string) ?? {}
         })));
 
         await tx.getRepository(MatchAction).insert({
@@ -311,6 +321,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             )
             .addSelect('p.rating_before', 'rating_before')
             .addSelect('p.rating_after', 'rating_after')
+            .addSelect('p.look', 'look')
             .where('p.match_id = :matchId', { matchId })
             .orderBy('p.seat', 'ASC')
             .getRawMany<MatchSeatRow>();

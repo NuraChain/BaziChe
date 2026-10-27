@@ -20,7 +20,7 @@ import { isNotice, NOTICE_OF, type Notice } from './domains/notify/notices.ts';
 import { sendPush, type VapidKeys } from './domains/notify/push.ts';
 import { createAchieveService } from './domains/achieve/service.ts';
 import { endingOf } from './domains/match/declare.ts';
-import { createMatchService, voidedOf, type MatchLoad } from './domains/match/service.ts';
+import { ENGINES, createMatchService, voidedOf, type MatchLoad } from './domains/match/service.ts';
 import { WATCH_DELAY_MS, WATCH_TAIL } from './domains/match/turns.ts';
 import { createWatchService } from './domains/match/watch.ts';
 import { createParties, type PartyWhy } from './domains/party/parties.ts';
@@ -44,6 +44,7 @@ import { createPeopleService } from './domains/admin/people.ts';
 import { createLiveService, type Call, type Online } from './domains/admin/live.ts';
 import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play.ts';
 import { createNoticeService } from './domains/admin/notice.ts';
+import { createShopService } from './domains/shop/service.ts';
 import { createReportsService } from './domains/admin/reports.ts';
 import { createStaffService } from './domains/admin/staff.ts';
 import { createVaultAdmin } from './domains/stake/admin.ts';
@@ -90,7 +91,7 @@ export interface WriteListener
     chatSeen(conversationId: string, userId: string): void;
     socialChanged(...userIds: string[]): void;
     edgesChanged(...userIds: string[]): void;
-    selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'vault'): void;
+    selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'vault' | 'shop'): void;
     gamePushed(pushes: readonly { userId: string; match: MatchView; events: MatchEventLog[] }[]): void;
     gameWatched(tableId: string, matchId: string, afterMs: number, players: readonly string[]): void;
     tableChanged(tableId: string, people: readonly string[]): void;
@@ -172,6 +173,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const table = createTableService(db, social);
     const catalogue = createCatalogueService(db);
     const notify = createNotifyService(db, social);
+    const shop = createShopService(db);
 
     /**
      * Push, if this deployment has it.
@@ -697,7 +699,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         live?.tableChanged(row.id, [...await table.peopleAt(row.id), ...also]);
     };
 
-    const match = createMatchService(db, achieve);
+    const match = createMatchService(db, achieve, ENGINES, shop.looksAt);
     const watch = createWatchService(db, (matchId) => match.seatsOf(matchId));
 
     /**
@@ -1688,6 +1690,25 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             withdraw: (me, amount) => stakes.withdraw(me, amount),
             games: (me, cursor) => stakes.games(me, cursor),
             reclaim: (me, escrowId) => stakes.reclaim(me, escrowId)
+        },
+
+        shop: {
+            collection: (me) => shop.collection(me),
+
+            async choose(me, slot, item)
+            {
+                const chosen = await shop.choose(me, slot, item);
+
+                live?.selfChanged(me, 'shop');
+
+                // A look on the profile is drawn wherever the person is, so everybody who draws them hears of it.
+                if (slot.startsWith('profile.'))
+                {
+                    await courtesy('profile look', () => ringProfile(me));
+                }
+
+                return chosen;
+            }
         },
 
         admin: {

@@ -108,6 +108,7 @@ const BODIES = {
     '/vault/deposit': (bad) => [{ amount: bad.slice(0, 40) }],
     '/vault/withdraw': (bad) => [{ amount: bad.slice(0, 40) }],
     '/vault/reclaim': (bad) => [{ id: bad.slice(0, 36) }],
+    '/shop/chosen': (bad) => [{ slot: 'ludo.dice', item: bad.slice(0, 40) }, { slot: bad.slice(0, 32) }],
     '/admin/vault/fee': (bad) => [{ bps: bad.length }],
     '/admin/vault/game-fee': (bad) => [{ game: bad.slice(0, 32), bps: 700 }, { game: 'hokm', bps: bad.length }],
     '/admin/vault/referee': (bad) => [{ address: bad.slice(0, 64) }],

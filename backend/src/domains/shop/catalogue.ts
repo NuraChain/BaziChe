@@ -43,6 +43,8 @@ export const SHOP_SLOTS = {
 
 export type ShopSlot = keyof typeof SHOP_SLOTS;
 
+export const SLOT_IDS = Object.keys(SHOP_SLOTS) as ShopSlot[];
+
 export const PROFILE_SLOTS = ['profile.decoration', 'profile.effect', 'profile.theme', 'profile.nameplate'] as const satisfies readonly ShopSlot[];
 
 /** The slots each game's table has besides the celebration, which every table plays. */

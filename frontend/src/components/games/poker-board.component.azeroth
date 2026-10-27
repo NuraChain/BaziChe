@@ -13,6 +13,7 @@ import { seatBets, type Box } from '../../game/chip-spot.ts';
 import { aroundStadium, type Spot } from '../../game/poker-seats.ts';
 import { pokerOf } from '../../data/match.ts';
 import { burstAt, cardsOf as worn, dressCards, lean, unlean } from '../../game/looks/cards.ts';
+import { heardAt } from '../../game/looks/table.ts';
 import { coachOf, handOf, pressed, priceOf, type PokerVerb } from '../../game/helpers/poker.ts';
 import { EASE, centreOf, rectIn, type Rect } from '../../game/motion.ts';
 import { BETWEEN_CAP, BOARD_GAP, BOARD_OUT, CARD_FLY, CARD_GAP, CARD_RISE, CHIP_FLY, COLLECT, DEAL_LEAD, DISC_GAP, GATHER, GATHER_GAP, KNOCK, MUCK, MUCK_GAP, POT_FLY, POT_GAP, POT_SPAN, PUCK, RACK, TURN, WIN_AFTER, collectGap, dealGap, heldBefore, slides, spanOf, tabling } from '../../game/poker-beats.ts';
@@ -195,6 +196,15 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         const on = settings.settings().sound;
 
         untrack(() => sound?.setEnabled(on));
+    }
+
+    derived heard = heardAt(game.players.map((player) => player.look), ['face']);
+
+    effect
+    {
+        const collections = heard;
+
+        untrack(() => sound?.wear(collections));
     }
 
     let root: HTMLElement | null = null;
@@ -434,12 +444,19 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         return dressCards(node, lookAt(seat));
     };
 
-    /** Where a card in its owner's look is laid face up, that look's burst; the card's box is the flights' own. */
+    /** Where a card in its owner's look is laid face up, that look's voice and its burst; the card's box is the flights' own. */
     const sparkAt = (seat: number, card: Rect) =>
     {
         const faces = facesAt(seat);
 
-        if (faces === null || bursts === null || layer === null)
+        if (faces === null)
+        {
+            return;
+        }
+
+        sound?.play(`${ faces }.card`);
+
+        if (bursts === null || layer === null)
         {
             return;
         }
@@ -1240,6 +1257,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         const clock = runtime().clock;
         const report = (error: unknown) => console.error(error);
         sound = createSound(untrack(() => settings.settings().sound), 'poker');
+        sound.wear(untrack(() => heard));
 
         const made = createPresenter<Felt, Told>({
             stage: createStage({ clock, quiet: () => device.reducedMotion(), report }),

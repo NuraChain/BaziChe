@@ -187,6 +187,9 @@ const MIDDLE = `${ cq(50) } ${ cq(50) }`;
 
 const lastFacts = () => facts[facts.length - 1];
 
+/** What the board said in a look's voice: a voice is named `<collection>.<moment>`, and nothing else is. */
+const voiced = () => cues.filter((cue) => cue.includes('.'));
+
 beforeEach(async () =>
 {
     const animate = Element.prototype.animate;
@@ -2430,9 +2433,12 @@ describe('a ludo die in the look its thrower chose', () =>
         await elapse(plan.duration - 30);
 
         expect(engine.bursts, 'the landing played while the die was in the air').toEqual([]);
+        expect(voiced(), 'its voice was heard while the die was in the air').toEqual([]);
 
         await elapse(40);
         await vi.waitFor(() => expect(engine.bursts).toHaveLength(1));
+
+        expect(voiced(), 'its voice, once, as it lands').toEqual(['gold.die']);
 
         const [landing] = engine.bursts;
         const rest = dieRest('red');
@@ -2514,9 +2520,12 @@ describe('ludo pawns in the look their owner chose', () =>
         expect(walking!.tune.colors).toEqual(lightOf('gold'));
         expect(walking!.at(), 'a walking pawn left no trail').not.toBeNull();
         expect(engine.bursts).toEqual([]);
+        expect(voiced(), 'its voice while it was still walking').toEqual([]);
 
         await elapse(700);
         await vi.waitFor(() => expect(engine.bursts.map((one) => one.preset)).toEqual(['dust']));
+
+        expect(voiced(), 'its voice, once, where it lands').toEqual(['gold.pawn']);
 
         expect(walking!.at(), 'the trail went on after the pawn had stopped').toBeNull();
         expect(walking!.stopped).toBe(true);
@@ -2530,6 +2539,7 @@ describe('ludo pawns in the look their owner chose', () =>
         await vi.waitFor(() => expect(engine.bursts.map((one) => one.preset)).toEqual(['shockwave']));
 
         expect(engine.bursts[0]!.tune.colors).toEqual(lightOf('glow'));
+        expect(voiced(), 'leaving the yard is heard as its own moment').toEqual(['glow.spawn']);
     });
 
     it('bursts in its walker’s look where it takes a pawn, flashing the taken one in its own drawing', async () =>
@@ -2545,6 +2555,7 @@ describe('ludo pawns in the look their owner chose', () =>
 
         expect(engine.bursts.find((one) => one.preset === 'sparks')!.tune.colors).toEqual(lightOf('neon'));
         expect(flash?.getAttribute('src'), 'the taken pawn flashed in another drawing').toBe('/pawns/shiraz-yellow.svg');
+        expect(voiced(), 'the walker lands, then takes, each in its own voice, and the taken pawn says nothing').toEqual(['neon.pawn', 'neon.capture']);
     });
 
     it('plays nothing and fetches nothing for a pawn nobody chose a look for', async () =>
@@ -2555,5 +2566,7 @@ describe('ludo pawns in the look their owner chose', () =>
 
         expect(engine.made).toBe(0);
         expect(sprite('0-0')).toBe('/board/pawn-red.svg');
+        expect(voiced(), 'a voice for a look nobody wears').toEqual([]);
+        expect(cues, 'the table’s own sounds went with the voices').toContain('pawn-hit');
     });
 });

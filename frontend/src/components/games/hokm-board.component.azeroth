@@ -15,6 +15,7 @@ import { coachOf, outcomeOf } from '../../game/helpers/hokm.ts';
 import { BANNER_IN, BANNER_OUT, CARRY, COLLECT_GAP, DRAW_GAP, LIFT, NAMING, PLUS, SHUFFLE, TURN, TURN_GAP, dealGap, dealtIn, gatherOrder, holdBefore, openingPackets, restPackets, spanOf, type Packet } from '../../game/hokm-beats.ts';
 import { EMPTY, HISTORY, before, feltOf, sameAs, step, unplay, type Felt, type Laid, type Told } from '../../game/hokm-felt.ts';
 import { burstAt, cardsOf, dressCards, lean, unlean } from '../../game/looks/cards.ts';
+import { heardAt } from '../../game/looks/table.ts';
 import { EASE, TIMING, centreOf, flightFrames, outside, rectIn, type Rect } from '../../game/motion.ts';
 import { createSound, endCue, type SoundHandle } from '../../game/sound.ts';
 import { anchor, cardAt, cardNode, drawn, stackNode, turnNode } from '../../game/stage/cards.ts';
@@ -936,12 +937,19 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
         return dressCards(node, lookAt(seat));
     };
 
-    /** Where a card in its owner's look lands on the felt, that look's burst. */
+    /** Where a card in its owner's look lands on the felt, that look's voice and its burst. */
     const sparkAt = (seat: number, card: HTMLElement) =>
     {
         const worn = facesAt(seat);
 
-        if (worn === null || bursts === null)
+        if (worn === null)
+        {
+            return;
+        }
+
+        sound?.play(`${ worn }.card`);
+
+        if (bursts === null)
         {
             return;
         }
@@ -2274,6 +2282,15 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
         untrack(() => sound?.setEnabled(on));
     }
 
+    derived heard = heardAt(game.players.map((player) => player.look), ['face']);
+
+    effect
+    {
+        const collections = heard;
+
+        untrack(() => sound?.wear(collections));
+    }
+
     state cramped = false;
 
     let judging = 0;
@@ -2351,6 +2368,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
         let unwatch: () => void = () => undefined;
 
         sound = createSound(untrack(() => settings.settings().sound), 'hokm');
+        sound.wear(untrack(() => heard));
 
         if (layer !== null)
         {

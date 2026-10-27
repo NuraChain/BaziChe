@@ -30,7 +30,7 @@ import { client } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
 import { watchedBoxes } from './fake-boxes.ts';
 
-const sounds = vi.hoisted(() => ({ games: [] as string[], heard: [] as string[] }));
+const sounds = vi.hoisted(() => ({ games: [] as string[], heard: [] as string[], worn: [] as string[][] }));
 
 vi.mock('../src/game/sound.ts', async (original) =>
 {
@@ -50,6 +50,11 @@ vi.mock('../src/game/sound.ts', async (original) =>
                 {
                     sounds.heard.push(args[0]);
                     handle.play(...args);
+                },
+                wear: (...args: Parameters<typeof handle.wear>) =>
+                {
+                    sounds.worn.push([...args[0]]);
+                    handle.wear(...args);
                 }
             };
         }
@@ -1121,6 +1126,27 @@ describe('the ludo table, played from what happened', () =>
 
         expect(stageOf(container).getAttribute('data-presenting')).toBe('true');
         expect(counts.mock.calls.filter(([ms]) => ms === RESULT_WAIT), 'a game that is going on was given only so long to be shown').toHaveLength(0);
+    });
+
+    it('wears the voices of the dice and pawns its players wear, and the next game’s when it starts', async () =>
+    {
+        quiet();
+        sounds.worn.length = 0;
+
+        const dressed = (looks: Record<number, Record<string, string>>, over: Partial<MatchView> = {}) =>
+        {
+            const view = seen(standing([EMPTY, EMPTY], null, 0), 0, 1, over);
+
+            return { ...view, players: view.players.map((player) => (looks[player.seat] === undefined ? player : { ...player, look: looks[player.seat] })) } as MatchView;
+        };
+        const { move } = await live(dressed({ 0: { dice: 'dice.storm', pawns: 'pawns.jade' }, 1: { pawns: 'pawns.jade', face: 'face.neon', back: 'back.gold' } }));
+
+        expect(sounds.worn.at(-1), 'once each, and nothing a Ludo table does not draw').toEqual(['storm', 'jade']);
+
+        move(dressed({ 1: { dice: 'dice.oni' } }, { id: 'match-next' }));
+        await flush();
+
+        expect(sounds.worn.at(-1)).toEqual(['oni']);
     });
 
     it('lets the result leave when another game starts at the table, over a board already set for that game', async () =>

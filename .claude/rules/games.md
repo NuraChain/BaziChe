@@ -5341,9 +5341,17 @@ switching tables never has to unlock audio again. The spec is
   to 64 KB and refuses one missing or stray. The collection page and the look's sheet say `equip` as
   a look's burst plays (measured on the built server: 12 ms after the press, with the burst), and the
   profile header says `reveal` the moment its reveal begins and, for a profile worn whole, `strike`
-  at `struckAt`, each under the device's sound switch. `game.spec.ts`
+  at `struckAt`, each under the device's sound switch. **A table wears the voices its match's looks
+  are in** (`heardAt` in `game/looks/table.ts`: Ludo's dice and pawns, Hokm's and poker's faces;
+  a back, chips or felt has no voice), once each, and its board says each where its effect already
+  plays, never in its place: Ludo `die` as a worn die lands, `pawn` where a worn pawn's walk ends and
+  `spawn` where it leaves its yard, and `capture` with the capture's burst, laid over the table's own
+  `pawn-step` and `pawn-hit` as those already lie over each other; Hokm `card` as a card in a face
+  look lands on the felt, and poker the same for each card of a hand turned over at a showdown. A
+  game keeps its looks, so the handle wears again only when the next game starts. `game.spec.ts`
   (*a look's voice*), `look-pack.spec.ts`, `equip.spec.ts`, `aura.spec.ts`, `avatar-looks.spec.ts`,
-  `collection-page.spec.ts` and `look-sheet.spec.ts` hold it.
+  `collection-page.spec.ts`, `look-sheet.spec.ts`, `ludo-board.spec.ts`, `ludo-table.spec.ts`,
+  `hokm-cues.spec.ts` and `poker-cues.spec.ts` hold it.
 - **The end is heard as it went for whoever reads it** (`endCue` in `game/sound.ts`). A seat that
   won hears `win` (a pizzicato run that rises), one that lost or walked away `lose` (one that
   falls), a draw and somebody watching `draw` (one that settles where it began), and a game called

@@ -12,7 +12,7 @@ import { POT_FLY, POT_GAP, POT_SPAN } from '../src/game/poker-beats.ts';
 import type { MatchView } from '../src/api.ts';
 import { BLINDS, EVERYBODY, elapse, heard, match, places, pot, rows, seated, stack, told } from './poker-mounted.ts';
 
-const sounds = vi.hoisted(() => ({ heard: [] as string[], felt: [] as string[], games: [] as string[] }));
+const sounds = vi.hoisted(() => ({ heard: [] as string[], felt: [] as string[], games: [] as string[], worn: [] as string[][] }));
 
 vi.mock('../src/game/sound.ts', async (original) =>
 {
@@ -29,6 +29,11 @@ vi.mock('../src/game/sound.ts', async (original) =>
                 {
                     sounds.heard.push(cue);
                 },
+                wear: (collections: readonly string[]) =>
+                {
+                    sounds.worn.push([...collections]);
+                },
+                ready: () => Promise.resolve(),
                 setEnabled: () => undefined,
                 dispose: () => undefined
             };
@@ -282,6 +287,49 @@ describe('what a poker table sounds like', () =>
         expect(sounds.heard.slice(0, 6)).toEqual(['chip-lay', 'chips-gather', 'card-fan', 'card-fan', 'chips-stack', 'card-shuffle']);
         expect(sounds.heard, 'somebody who was not in the hand was told they had won it').not.toContain('hand-won');
         expect(sounds.felt).toEqual([]);
+    });
+
+    it('says each tabled card in its owner’s look in that look’s voice as it is turned, and wears the faces worn at the table', async () =>
+    {
+        sounds.worn.length = 0;
+
+        const dressed = (view: MatchView) => ({ ...view, players: view.players.map((player) => (player.seat === 1 ? { ...player, look: { face: 'face.oni' } } : (player.seat === 2 ? { ...player, look: { face: 'face.gold', chips: 'chips.storm' } } : player))) }) as MatchView;
+        const river = dressed(match(
+            {
+                street: 'river',
+                board: [1, 15, 29, 43, 8],
+                turn: 2,
+                pot: 250,
+                pots: [{ amount: 250, eligible: [1, 2] }],
+                hole: [],
+                seats: rows({ 0: folded, 1: { stack: 1360, bet: 60 }, 2: { stack: 1420 }, 3: { stack: 1490, ...folded }, 4: { stack: 1480, ...folded }, 5: folded })
+            },
+            { turn: 2 }
+        ));
+        const after = dressed(match(
+            { hand: 2, button: 3, turn: 1, hole: [4, 17], blinds: { small: 10, big: 20, level: 1, next: 9 }, seats: rows({ 1: { stack: 1360 }, 2: { stack: 1670 }, 3: { stack: 1490 }, 4: { stack: 1470, bet: 10 }, 5: { stack: 1480, bet: 20 } }) },
+            { rev: 8, turn: 1 }
+        ));
+        const { read } = await seated(river);
+
+        expect(sounds.worn.at(-1)).toEqual(['oni', 'gold']);
+
+        await read(after, heard(1, told(
+            8,
+            2,
+            { e: 'call', seat: 2, amount: 60 },
+            { e: 'show', seat: 1, cards: [5, 18], category: 'pair' },
+            { e: 'show', seat: 2, cards: [7, 20], category: 'two-pair' },
+            { e: 'pot', amount: 310, winners: [2] },
+            { e: 'end', hand: 1, dealt: EVERYBODY },
+            { e: 'deal', hand: 2, button: 3, small: 10, big: 20 },
+            { e: 'blind', seat: 4, amount: 10 },
+            { e: 'blind', seat: 5, amount: 20 }
+        )));
+        await elapse(LONG);
+
+        expect(sounds.heard.filter((cue) => cue.includes('.')), 'each card turned, in the order the hands were shown').toEqual(['oni.card', 'oni.card', 'gold.card', 'gold.card']);
+        expect(sounds.heard.indexOf('oni.card'), 'a voice before its hand was turned').toBeGreaterThan(sounds.heard.indexOf('card-fan'));
     });
 
     it('is heard by somebody watching, who is buzzed for nothing', async () =>

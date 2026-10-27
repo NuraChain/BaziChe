@@ -745,8 +745,8 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
     /**
      * A worn pawn's trail for as long as it moves, and where `run` brings it, a puff, or a ring for a
-     * pawn that has just left its yard. The trail ends itself the first frame the pawn stands still,
-     * because a run the stage abandons never says it is done.
+     * pawn that has just left its yard, each with its collection's voice. The trail ends itself the
+     * first frame the pawn stands still, because a run the stage abandons never says it is done.
      */
     const trail = (piece: Piece, pawn: Pawn, run: Run, entering: boolean) =>
     {
@@ -774,7 +774,11 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
             }, { colors, scale: scaleFor(TRAIL_CELLS), density: TRAIL_DENSITY });
         });
 
-        void run.done.then(() => effects.play((vfx) => vfx.burst(entering ? 'shockwave' : 'dust', pixels(piece.at), { colors, scale: scaleFor(ARRIVAL_CELLS) })));
+        void run.done.then(() =>
+        {
+            options.sound()?.play(`${ worn }.${ entering ? 'spawn' : 'pawn' }`, { pan: pan(piece.at.x) });
+            effects.play((vfx) => vfx.burst(entering ? 'shockwave' : 'dust', pixels(piece.at), { colors, scale: scaleFor(ARRIVAL_CELLS) }));
+        });
     };
 
     const travel = (piece: Piece, pawn: Pawn, from: number, to: number) =>
@@ -1105,6 +1109,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         {
             const { effect, tune } = burstOf(worn);
 
+            sound()?.play(`${ worn }.die`, { pan: pan(spot.x) });
             effects.play((vfx) => vfx.burst(effect, pixels(spot), { ...tune, scale: scaleFor(DIE_SIZE) }));
         }
 
@@ -1247,6 +1252,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
             {
                 const { effect, tune } = burstOf(worn);
 
+                options.sound()?.play(`${ worn }.capture`, { pan: pan(piece.at.x) });
                 effects.play((vfx) => vfx.burst(effect, pixels(piece.at), { ...tune, scale: scaleFor(1) }));
             }
 

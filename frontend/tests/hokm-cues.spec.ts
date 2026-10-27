@@ -12,7 +12,7 @@ import { useBoard } from '../src/stores/match.store.ts';
 import type { MatchView } from '../src/api.ts';
 import { act, card, elapse, mounted, type Hokm } from './hokm-mounted.ts';
 
-const told = vi.hoisted(() => ({ heard: [] as string[], felt: [] as string[], games: [] as string[] }));
+const told = vi.hoisted(() => ({ heard: [] as string[], felt: [] as string[], games: [] as string[], worn: [] as string[][] }));
 
 vi.mock('../src/game/sound.ts', async (original) =>
 {
@@ -29,6 +29,11 @@ vi.mock('../src/game/sound.ts', async (original) =>
                 {
                     told.heard.push(cue);
                 },
+                wear: (collections: readonly string[]) =>
+                {
+                    told.worn.push([...collections]);
+                },
+                ready: () => Promise.resolve(),
                 setEnabled: () => undefined,
                 dispose: () => undefined
             };
@@ -125,6 +130,7 @@ beforeEach(() =>
     told.heard.length = 0;
     told.felt.length = 0;
     told.games.length = 0;
+    told.worn.length = 0;
 });
 
 afterEach(() =>
@@ -155,6 +161,20 @@ describe('what a hokm table is heard to do', () =>
         expect(told.heard.lastIndexOf('card-place'), 'the trick was gathered before its last card was down').toBeLessThan(told.heard.indexOf('card-gather'));
         expect(order('card-gather', 'trick'), 'the trick was squared on its pile before it was gathered').toBe(true);
         expect(told.felt).toEqual(['select']);
+    });
+
+    it('says a card’s look in its voice as the card lands, and wears the faces worn at its table', async () =>
+    {
+        const plain = match({});
+        const { send } = await mounted({ ...plain, players: plain.players.map((player) => (player.seat === 1 ? { ...player, look: { face: 'face.neon', back: 'back.gold', dice: 'dice.oni' } } : player)) });
+
+        expect(told.worn.at(-1), 'the faces alone: a back or a die has no voice at a Hokm table').toEqual(['neon']);
+
+        send(TRICK(2));
+        await elapse(LONG, 5);
+
+        expect(told.heard.filter((cue) => cue.includes('.')), 'once, for the one card in a look').toEqual(['neon.card']);
+        expect(order('card-place', 'neon.card'), 'the voice came before its card had landed').toBe(true);
     });
 
     it('squares a trick on its pile when its cards get there, not when it is taken or while they are in the air', async () =>

@@ -20,6 +20,7 @@ import { turnChime } from './table-cues.ts';
 import { FINISHED, YARD } from '../../game/board/path.ts';
 import { CELL, FRAME_ROUND, MARGIN } from '../../game/layout.ts';
 import { HISTORY, feltOf, keyOf, type Felt, type Told } from '../../game/ludo-felt.ts';
+import { heardAt } from '../../game/looks/table.ts';
 import { createSound, endCue, type SoundHandle } from '../../game/sound.ts';
 import { createPresenter, type Sight, type Table } from '../../game/stage/presenter.ts';
 import { createStage } from '../../game/stage/stage.ts';
@@ -396,9 +397,19 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
         untrack(() => sound?.setEnabled(on));
     }
 
+    derived heard = heardAt(game.players.map((player) => player.look), ['dice', 'pawns']);
+
+    effect
+    {
+        const collections = heard;
+
+        untrack(() => sound?.wear(collections));
+    }
+
     mount
     {
         sound = createSound(untrack(() => help.sound), 'ludo');
+        sound.wear(untrack(() => heard));
         presenter.frame(root);
 
         return () =>

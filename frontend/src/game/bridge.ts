@@ -2,6 +2,7 @@ import type { Fate, Felt, Rolled, Told } from './ludo-felt.ts';
 import type { SoundHandle } from './sound.ts';
 import type { Table } from './stage/presenter.ts';
 import type { Stage } from './stage/stage.ts';
+import type { MatchPlayer } from '../data/match.ts';
 import type { Haptic } from '../lib/haptics.ts';
 
 export interface BoardToken
@@ -54,6 +55,9 @@ export interface BoardOptions
     ending: () => 'win' | 'lose' | 'draw' | null;
 
     feel: (kind: Haptic) => void;
+
+    /** What a seat's player chose for this table as the game began, asked as their things are drawn. */
+    looks?: (seat: number) => MatchPlayer['look'];
 
     onPick?: (key: string, keyed: boolean) => void;
 

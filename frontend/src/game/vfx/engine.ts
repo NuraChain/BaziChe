@@ -17,6 +17,9 @@ export interface VfxOptions
 
     /** The canvas's 2D context; a spec hands in one that counts. */
     context?: (canvas: HTMLCanvasElement) => CanvasRenderingContext2D | null;
+
+    /** Its z-index among its host's children, for a host that stacks its own layers. */
+    layer?: number;
 }
 
 export interface Vfx
@@ -71,7 +74,7 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
 
     const canvas = document.createElement('canvas');
     canvas.setAttribute('aria-hidden', 'true');
-    canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:var(--layer-burst,70)';
+    canvas.style.cssText = `position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:${ options.layer ?? 'var(--layer-burst,70)' }`;
     host.append(canvas);
 
     const context = (options.context ?? ((one) => one.getContext('2d')))(canvas);

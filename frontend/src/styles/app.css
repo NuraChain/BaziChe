@@ -4952,8 +4952,8 @@ svg.lobby-board
     inset: 0;
     translate: 0 0.15em;
     border-radius: 0.24em;
-    background: #E6D6B4;
-    box-shadow: inset 0 0 0 0.05em #2A1E5C, inset 0 -0.075em 0 0.05em #CDBB8F;
+    background: var(--die-side, #E6D6B4);
+    box-shadow: inset 0 0 0 0.05em var(--die-ink, #2A1E5C), inset 0 -0.075em 0 0.05em var(--die-shade, #CDBB8F);
     transition: opacity 90ms var(--ease-ui, ease), background-color 200ms var(--ease-ui, ease);
 }
 
@@ -4975,9 +4975,9 @@ svg.lobby-board
     border-radius: 0.24em;
     outline: 1px solid transparent;
     background:
-        radial-gradient(ellipse 34% 11% at 36% 15%, #FFFFFF 0 96%, rgb(255 255 255 / 0) 100%),
-        linear-gradient(160deg, #FFFFFF 0%, #FFFFFF 55%, #F6EFDF 100%);
-    box-shadow: inset 0 0 0 0.05em #2A1E5C, inset -0.04em -0.05em 0 0.05em #EFE4CB;
+        radial-gradient(ellipse 34% 11% at 36% 15%, var(--die-shine, #FFFFFF) 0 96%, rgb(255 255 255 / 0) 100%),
+        linear-gradient(160deg, var(--die-lit, #FFFFFF) 0%, var(--die-lit, #FFFFFF) 55%, var(--die-dark, #F6EFDF) 100%);
+    box-shadow: inset 0 0 0 0.05em var(--die-ink, #2A1E5C), inset -0.04em -0.05em 0 0.05em var(--die-mid, #EFE4CB);
     filter: none;
     transition: background-color 200ms var(--ease-ui, ease);
 }
@@ -4987,8 +4987,8 @@ svg.lobby-board
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: #E6D6B4;
-    box-shadow: inset 0 0 0 0.05em #2A1E5C;
+    background: var(--die-side, #E6D6B4);
+    box-shadow: inset 0 0 0 0.05em var(--die-ink, #2A1E5C);
     opacity: 0;
 }
 
@@ -4998,8 +4998,8 @@ svg.lobby-board
     inline-size: 68%;
     background:
         radial-gradient(ellipse 30% 20% at 36% 30%, rgb(255 255 255 / 0.9) 0 92%, rgb(255 255 255 / 0) 100%),
-        radial-gradient(circle at 50% 50%, #3A2C80 0 52%, #2A1E5C 70%);
-    box-shadow: none;
+        radial-gradient(circle at 50% 50%, var(--die-pip-lit, #3A2C80) 0 52%, var(--die-pip, #2A1E5C) 70%);
+    box-shadow: var(--die-glow, none);
 }
 
 .die3d[data-flat][data-spent] .die3d-face

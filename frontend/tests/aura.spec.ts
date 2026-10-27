@@ -13,24 +13,29 @@ interface Running
     ended: boolean;
 }
 
-const engine = vi.hoisted(() => ({ streams: [] as Running[], disposed: 0 }));
+const engine = vi.hoisted(() => ({ made: 0, streams: [] as Running[], disposed: 0 }));
 
 vi.mock('../src/game/vfx/engine.ts', () => ({
-    createVfx: (host: HTMLElement) => ({
-        stream(kind: Stream, at: () => Point | null, tune: Tune)
-        {
-            const running = { host, kind, at, tune, ended: false };
-            engine.streams.push(running);
-            return () =>
+    createVfx: (host: HTMLElement) =>
+    {
+        engine.made += 1;
+
+        return {
+            stream(kind: Stream, at: () => Point | null, tune: Tune)
             {
-                running.ended = true;
-            };
-        },
-        dispose()
-        {
-            engine.disposed += 1;
-        }
-    })
+                const running = { host, kind, at, tune, ended: false };
+                engine.streams.push(running);
+                return () =>
+                {
+                    running.ended = true;
+                };
+            },
+            dispose()
+            {
+                engine.disposed += 1;
+            }
+        };
+    }
 }));
 
 let picture: HTMLElement;
@@ -50,6 +55,7 @@ const playing = async () =>
 
 beforeEach(() =>
 {
+    engine.made = 0;
     engine.streams = [];
     engine.disposed = 0;
     width = 112;
@@ -129,7 +135,8 @@ describe('an aura round a framed picture', () =>
         early();
         await new Promise((resolve) => setTimeout(resolve, 30));
 
-        expect(engine.streams, 'a stop that came first still started an engine').toHaveLength(1);
+        expect(engine.made, 'a stop that came first still made an engine, which nothing lets go').toBe(1);
+        expect(engine.streams).toHaveLength(1);
         expect(picture.querySelector('[data-aura]')).toBeNull();
     });
 });

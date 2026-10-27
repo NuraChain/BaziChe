@@ -499,6 +499,7 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
                 haptic(kind);
             }
         },
+        looks: (seat) => untrack(() => game.players.find((player) => player.seat === seat)?.look),
         onPick: (key, byKey) =>
         {
             keyed = byKey;

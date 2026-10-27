@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import type { Haptic } from '../src/lib/haptics.ts';
-import type { LudoBoard } from '../src/data/match.ts';
+import type { LudoBoard, MatchPlayer } from '../src/data/match.ts';
+import { diceOf } from '../src/game/looks/dice.ts';
+import { PALETTES } from '../src/game/looks/palette.ts';
 import { DIE_REST_MS, DIE_SIZE, ENTER_MS, GONE_MS, HAND, HOME_MS, KNOCK_MS, LIFTED, PASS_LEAST, PASS_MS, PICKUP_MS, SLIDE_MS, STEP_LEAST, STEP_MS, WIN_LEAST, WIN_MS, createLudoBoard, dieRest } from '../src/game/board/ludo-board.ts';
 import type { BoardHandle, Facts } from '../src/game/bridge.ts';
 import { BLOCK, CELL, HOME_SCALE, MARGIN, centreOf } from '../src/game/layout.ts';
@@ -26,6 +28,31 @@ interface Drawn
     frames: Keyframe[];
     options: KeyframeAnimationOptions;
 }
+
+interface Burst
+{
+    preset: string;
+    at: { x: number; y: number };
+    tune: { colors?: readonly string[]; scale?: number };
+}
+
+const engine = vi.hoisted(() => ({ made: 0, layers: [] as (number | undefined)[], bursts: [] as Burst[], disposed: 0 }));
+
+vi.mock('../src/game/vfx/engine.ts', () => ({
+    createVfx: (_host: HTMLElement, options: { layer?: number }) =>
+    {
+        engine.made += 1;
+        engine.layers.push(options.layer);
+
+        return {
+            burst: (preset: string, at: Burst['at'], tune: Burst['tune']) => engine.bursts.push({ preset, at, tune }),
+            dispose: () =>
+            {
+                engine.disposed += 1;
+            }
+        };
+    }
+}));
 
 const C = CELL * 100;
 
@@ -103,6 +130,7 @@ let byKey: boolean[];
 let facts: Facts[];
 let passes: [number, number, string][];
 let sting: 'win' | 'lose' | 'draw' | null;
+let worn: Record<number, MatchPlayer['look']>;
 
 const elapse = async (ms: number) =>
 {
@@ -164,6 +192,11 @@ beforeEach(async () =>
     facts = [];
     passes = [];
     still = false;
+    worn = {};
+    engine.made = 0;
+    engine.layers = [];
+    engine.bursts = [];
+    engine.disposed = 0;
     host = document.createElement('div');
     document.body.append(host);
 
@@ -187,6 +220,7 @@ beforeEach(async () =>
         sound: () => sound,
         ending: () => sting,
         feel: (kind) => felt.push(kind),
+        looks: (seat) => worn[seat],
         onPick: (key, keyed) =>
         {
             picked.push(key);
@@ -2298,5 +2332,115 @@ describe('the ludo board, played from a keyboard', () =>
         expect(buttons()).toEqual(['0-1']);
         expect(hit('0-0').hasAttribute('tabindex')).toBe(false);
         expect(hit('0-1').tabIndex).toBe(0);
+    });
+});
+
+describe('a ludo die in the look its thrower chose', () =>
+{
+    const wide = (width: number) => Object.defineProperty(host.querySelector('.lb')!, 'clientWidth', { configurable: true, get: () => width });
+
+    it('is named by a worn die of a collection this build draws, and by nothing else', () =>
+    {
+        expect(diceOf('dice.gold')).toBe('gold');
+        expect(diceOf(undefined)).toBeNull();
+        expect(diceOf('pawns.gold')).toBeNull();
+        expect(diceOf('dice.')).toBeNull();
+        expect(diceOf('dice.nowhere')).toBeNull();
+        expect(diceOf('dice.toString'), 'a name every object has was taken for a collection').toBeNull();
+    });
+
+    const rolled = (seat: number, face: number) =>
+    {
+        const before = standing([[10, YARD, YARD, YARD], [5, YARD, YARD, YARD]], null, seat);
+
+        return { before, ...stepped(before, { kind: 'roll', seat, die: face }) };
+    };
+
+    it('is thrown in its thrower’s colours, then in the next thrower’s own, and plain where they wear none', async () =>
+    {
+        worn = { 0: { dice: 'dice.neon' } };
+        const first = rolled(0, 3);
+
+        table.reset(sight(first.before));
+        play([first.act], sight(first.state));
+        await flush();
+
+        expect(cube().dataset.look).toBe('neon');
+        expect(cube().style.getPropertyValue('--die-pip')).toBe(PALETTES.neon.die.pip);
+        expect(cube().style.getPropertyValue('--die-ink')).toBe(PALETTES.neon.edge);
+        expect(cube().style.getPropertyValue('--die-lit')).toBe(PALETTES.neon.die.face[0]);
+
+        await elapse(1300);
+
+        const second = rolled(1, 2);
+
+        table.reset(sight(second.before));
+        play([second.act], sight(second.state));
+        await flush();
+
+        expect(cube().hasAttribute('data-look'), 'one seat’s die was thrown in another’s look').toBe(false);
+        expect(cube().style.getPropertyValue('--die-pip')).toBe('');
+        expect(cube().style.getPropertyValue('--die-ink')).toBe('');
+    });
+
+    it('waits in the reader’s hand in the reader’s own look', () =>
+    {
+        worn = { 0: { dice: 'dice.shiraz' }, 1: { dice: 'dice.glow' } };
+        table.reset(sight(standing([[10, YARD, YARD, YARD], EMPTY], null)));
+        table.offer(0);
+
+        expect(cube().dataset.look).toBe('shiraz');
+    });
+
+    it('plays its collection’s landing where it lands, sized to it and over the die, and nothing before', async () =>
+    {
+        worn = { 0: { dice: 'dice.gold' } };
+        const { before, state, act } = rolled(0, 3);
+        const plan = thrown(act);
+
+        table.reset(sight(before));
+        wide(600);
+        play([act], sight(state));
+        await flush();
+        await vi.waitFor(() => expect(engine.made).toBe(1));
+        await elapse(plan.duration - 30);
+
+        expect(engine.bursts, 'the landing played while the die was in the air').toEqual([]);
+
+        await elapse(40);
+        await vi.waitFor(() => expect(engine.bursts).toHaveLength(1));
+
+        const [landing] = engine.bursts;
+        const rest = dieRest('red');
+
+        expect(landing!.preset).toBe('burst');
+        expect(landing!.at.x).toBeCloseTo(rest.x * 6);
+        expect(landing!.at.y).toBeCloseTo(rest.y * 6);
+        expect(landing!.tune.colors).toEqual([PALETTES.gold.edge, PALETTES.gold.glint, '#FFFFFF']);
+        expect(landing!.tune.scale).toBeCloseTo(600 * DIE_SIZE * C / 100 / 40);
+        expect(engine.layers[0]! / LAYER.burst, 'the landing was drawn under the die').toBe(Number(die().style.zIndex) / LAYER.dice);
+    });
+
+    it('never fetches the engine for a die nobody chose a look for, and lets it go with the board', async () =>
+    {
+        const plain = rolled(0, 3);
+
+        table.reset(sight(plain.before));
+        play([plain.act], sight(plain.state));
+        await elapse(1300);
+        await new Promise((resolve) => setTimeout(resolve, 30));
+
+        expect(engine.made).toBe(0);
+
+        worn = { 1: { dice: 'dice.neon' } };
+        const lit = rolled(1, 2);
+
+        table.reset(sight(lit.before));
+        play([lit.act], sight(lit.state));
+        await vi.waitFor(() => expect(engine.made).toBe(1));
+
+        table.dispose();
+
+        expect(engine.disposed).toBe(1);
     });
 });

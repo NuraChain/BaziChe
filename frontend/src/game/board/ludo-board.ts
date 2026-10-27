@@ -1,4 +1,5 @@
 import { BLOCK, CELL, GRID, HOME_SCALE, MARGIN, aimNear, stackSpot } from '../layout.ts';
+import { DIE_PROPERTIES, diceOf, dieDress, dieLanding } from '../looks/dice.ts';
 import { HISTORY, beatsOf, placeOf, sameAs, shownOf, step, type Beat, type Felt, type Pawn, type Rolled, type Shown } from '../ludo-felt.ts';
 import { celebrate } from '../stage/celebrate.ts';
 import { clamp, hashOf } from '../stage/curves.ts';
@@ -8,6 +9,7 @@ import { LAYER } from '../stage/layers.ts';
 import type { Sight } from '../stage/presenter.ts';
 import { arc, walk, type Point } from '../stage/route.ts';
 import type { Run } from '../stage/stage.ts';
+import { lazyVfx } from '../vfx/lazy.ts';
 import { FINISHED, RING_STEPS, YARD, pathBetween } from './path.ts';
 import type { BoardGoal, BoardHandle, BoardOptions } from '../bridge.ts';
 
@@ -76,6 +78,9 @@ export const LIFTED = 1.85;
 const DIE_OUT = 2.6;
 
 const DIE_LEAVE = 2.2;
+
+/** How wide a die is, in CSS pixels, that a landing played at a scale of 1 suits. */
+const LANDING_FITS = 40;
 
 const HAND_FACE = 5;
 
@@ -273,6 +278,10 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
     holder.style.zIndex = String(Z_DIE);
     die.node.style.setProperty('--die', `calc(var(--c) * ${ DIE_SIZE })`);
     holder.append(die.node);
+
+    const effects = lazyVfx(root, { layer: Z_BURST, quiet: () => stage.quiet() });
+
+    const pixels = (spot: Point) => ({ x: spot.x * root.clientWidth / 100, y: spot.y * root.clientWidth / 100 });
 
     const pawnOf = (state: Shown, key: string) => state.pawns.find((pawn) => pawn.key === key);
 
@@ -832,6 +841,33 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         die.node.dataset.key = `die-${ laid }`;
     };
 
+    const dressDie = (seat: number | null) =>
+    {
+        const worn = seat === null ? null : diceOf(options.looks?.(seat)?.dice);
+
+        for (const name of DIE_PROPERTIES)
+        {
+            die.node.style.removeProperty(name);
+        }
+
+        if (worn === null)
+        {
+            delete die.node.dataset.look;
+
+            return null;
+        }
+
+        for (const [name, value] of Object.entries(dieDress(worn)))
+        {
+            die.node.style.setProperty(name, value);
+        }
+
+        die.node.dataset.look = worn;
+        effects.warm();
+
+        return worn;
+    };
+
     const putDie = (spot: Point, scale: number) =>
     {
         holder.style.translate = at(spot);
@@ -852,6 +888,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         clearDie();
         where = 'hand';
         layDie();
+        dressDie(offered);
         die.show(HAND_FACE, HAND_SEED);
         putDie(CENTRE, HAND);
         holder.setAttribute('data-hand', '');
@@ -972,6 +1009,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         putDie(spot, 1);
         tell();
 
+        const worn = dressDie(beat.seat);
         const toss = die.toss(stage, moment.seed, beat.face, release, {
             held,
             impact: (power) => sound()?.play('die-land', { gain: 0.35 + 0.65 * power, pan: pan(spot.x) })
@@ -986,6 +1024,14 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         }
 
         where = 'board';
+
+        if (worn !== null)
+        {
+            const { preset, tune } = dieLanding(worn);
+            const scale = root.clientWidth * DIE_SIZE * C / 100 / LANDING_FITS;
+
+            effects.play((vfx) => vfx.burst(preset, pixels(spot), { ...tune, scale }));
+        }
 
         if (beat.fate === 'pending')
         {
@@ -1699,6 +1745,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
             host.removeEventListener('pointerleave', leave);
             strip();
             pieces.clear();
+            effects.dispose();
             root.remove();
         }
     };

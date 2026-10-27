@@ -20,3 +20,14 @@ export function lookIn(kind: 'decoration' | 'theme' | 'nameplate' | 'effect', lo
 
 /** The collection a worn decoration names, whose frame is drawn round its owner's picture. */
 export const frameOf = (deco: string | undefined) => lookIn('decoration', deco);
+
+/**
+ * The collection a profile wears whole, its decoration, effect, theme and nameplate all of it,
+ * worked out from what is worn and stored nowhere; null for anything less.
+ */
+export function setOf(worn: { deco?: string | undefined; effect?: string | undefined; theme?: string | undefined; nameplate?: string | undefined })
+{
+    const set = lookIn('decoration', worn.deco);
+
+    return set !== null && lookIn('effect', worn.effect) === set && lookIn('theme', worn.theme) === set && lookIn('nameplate', worn.nameplate) === set ? set : null;
+}

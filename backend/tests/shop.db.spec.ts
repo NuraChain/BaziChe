@@ -323,7 +323,7 @@ describe.skipIf(!active)('looks a person owns and chooses, against a real databa
                 view: PAGE,
                 viewed: LISTED,
                 shown: PAGE,
-                face: { deco: LISTED.deco },
+                face: LISTED,
                 all: LISTED,
                 today: LISTED
             });

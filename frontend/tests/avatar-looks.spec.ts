@@ -10,11 +10,11 @@ import UserCard from '../src/components/social/user-card.component.azeroth';
 import type { Person } from '../src/data/person.ts';
 import Avatar, { type Facade } from '../src/components/ui/avatar.component.azeroth';
 import { AURAS } from '../src/game/looks/aura.ts';
-import { FRAMES, frameOf, type Frame } from '../src/game/looks/frames.ts';
+import { FRAMES, frameOf, setOf, type Frame } from '../src/game/looks/frames.ts';
 import { personFor } from '../src/stores/account.store.ts';
 import '../src/locales/app-catalogue.ts';
 
-const aura = vi.hoisted(() => ({ started: [] as [HTMLElement, string][], areas: [] as (HTMLElement | undefined)[], stopped: 0, revealed: [] as [HTMLElement, HTMLElement, string][], unrevealed: 0 }));
+const aura = vi.hoisted(() => ({ started: [] as [HTMLElement, string][], areas: [] as (HTMLElement | undefined)[], stopped: 0, revealed: [] as [HTMLElement, HTMLElement, string][], sigils: [] as (HTMLElement | null)[], unrevealed: 0 }));
 
 vi.mock('../src/game/looks/aura.ts', async (original) => ({
     ...(await original<typeof import('../src/game/looks/aura.ts')>()),
@@ -27,9 +27,10 @@ vi.mock('../src/game/looks/aura.ts', async (original) => ({
             aura.stopped += 1;
         };
     },
-    revealAround: (head: HTMLElement, picture: HTMLElement, collection: string) =>
+    revealAround: (head: HTMLElement, picture: HTMLElement, collection: string, sigil: HTMLElement | null = null) =>
     {
         aura.revealed.push([head, picture, collection]);
+        aura.sigils.push(sigil);
         return () =>
         {
             aura.unrevealed += 1;
@@ -67,6 +68,7 @@ beforeEach(() =>
     aura.areas = [];
     aura.stopped = 0;
     aura.revealed = [];
+    aura.sigils = [];
     aura.unrevealed = 0;
     ambient.started = [];
     ambient.stopped = 0;
@@ -90,6 +92,29 @@ describe('the frames a picture can wear', () =>
         expect(frameOf('decoration.nowhere')).toBeNull();
         expect(frameOf('dice.glow')).toBeNull();
         expect(frameOf('decoration.')).toBeNull();
+    });
+});
+
+describe('a profile worn whole', () =>
+{
+    const whole = (collection: string) => ({ deco: `decoration.${ collection }`, effect: `effect.${ collection }`, theme: `theme.${ collection }`, nameplate: `nameplate.${ collection }` });
+
+    it('is the collection all four of its profile looks are in', () =>
+    {
+        for (const frame of FRAMES)
+        {
+            expect(setOf(whole(frame))).toBe(frame);
+        }
+    });
+
+    it('is nothing while any of the four is Classic, of another collection, of another kind or one this build does not draw', () =>
+    {
+        expect(setOf({ ...whole('inferno'), theme: 'theme.storm' })).toBeNull();
+        expect(setOf({ ...whole('inferno'), nameplate: undefined })).toBeNull();
+        expect(setOf({ ...whole('inferno'), deco: undefined })).toBeNull();
+        expect(setOf({ ...whole('inferno'), effect: 'decoration.inferno' })).toBeNull();
+        expect(setOf(whole('nowhere'))).toBeNull();
+        expect(setOf({})).toBeNull();
     });
 });
 
@@ -406,6 +431,91 @@ describe('a profile effect, played as the profile opens', () =>
         }
 
         expect(aura.revealed).toEqual([]);
+    });
+});
+
+describe('a profile worn whole, in its header', () =>
+{
+    const dressed = (worn: () => string | null) => renderTest(() => ProfileHeader({
+        get person()
+        {
+            const set = worn();
+            return set === null ? sara() : { ...sara(`decoration.${ set }`), nameplate: `nameplate.${ set }` };
+        },
+        presence: null,
+        stats: [],
+        get theme()
+        {
+            const set = worn();
+            return set === null ? undefined : `theme.${ set }`;
+        },
+        get effect()
+        {
+            const set = worn();
+            return set === null ? undefined : `effect.${ set }`;
+        }
+    }) as HTMLElement).container;
+
+    const box = (container: HTMLElement) => container.querySelector('section [role="img"]')!.parentElement!;
+
+    it('wears the collection’s sigil on its frame, and hands it to the reveal to strike', async () =>
+    {
+        const container = dressed(() => 'inferno');
+        await settle();
+
+        const sigil = container.querySelector<HTMLImageElement>('[data-set-sigil]');
+
+        expect(sigil?.getAttribute('src')).toBe('/sigils/inferno.svg');
+        expect(sigil?.dataset.setSigil).toBe('inferno');
+        expect(sigil?.getAttribute('alt')).toBe('');
+        expect(sigil?.parentElement, 'on the picture’s box, where the frame is').toBe(box(container));
+        expect(aura.revealed.map(([, , collection]) => collection)).toEqual(['inferno']);
+        expect(aura.sigils).toEqual([sigil]);
+    });
+
+    it('wears no sigil, and hands the reveal none, for anything less than the whole set', async () =>
+    {
+        const container = renderTest(() => ProfileHeader({
+            person: { ...sara('decoration.storm'), nameplate: 'nameplate.storm' },
+            presence: null,
+            stats: [],
+            theme: 'theme.inferno',
+            effect: 'effect.storm'
+        }) as HTMLElement).container;
+        await settle();
+
+        expect(container.querySelector('[data-set-sigil]')).toBeNull();
+        expect(aura.revealed.map(([, , collection]) => collection)).toEqual(['storm']);
+        expect(aura.sigils).toEqual([null]);
+    });
+
+    it('waits for its sigil when the profile says what it wears after opening, and plays once', async () =>
+    {
+        const [worn, setWorn] = createSignal<string | null>(null);
+        const container = dressed(worn);
+        await settle();
+
+        expect(aura.revealed).toEqual([]);
+
+        setWorn('jade');
+        await settle();
+
+        expect(aura.revealed.map(([, , collection]) => collection)).toEqual(['jade']);
+        expect(aura.sigils).toEqual([container.querySelector('[data-set-sigil]')]);
+    });
+
+    it('keeps its sigil through a read that says the same', async () =>
+    {
+        const [worn, setWorn] = createSignal<string | null>('frost');
+        const container = dressed(worn);
+        await settle();
+
+        const sigil = container.querySelector('[data-set-sigil]');
+        setWorn('frost');
+        await settle();
+
+        expect(sigil).not.toBeNull();
+        expect(container.querySelector('[data-set-sigil]')).toBe(sigil);
     });
 });
 

@@ -1279,7 +1279,10 @@ export const publicPerson = object({
         bio: string(),
         avatar: string().optional(),
         hue: number(),
-        deco: string().optional()
+
+        /** Looks somebody bought to be seen in: public by what they are, and with the page's two, all a set is worked out from. */
+        deco: string().optional(),
+        nameplate: string().optional()
     }),
     joinedAt: string(),
     theme: string().optional(),

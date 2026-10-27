@@ -1167,7 +1167,7 @@ describe('the shop', () =>
         const page = { theme: 'theme.shiraz', effect: 'effect.glow' };
         const joinedAt = '2026-10-01T00:00:00.000Z';
         const dana = { id: 'dana.w', handle: 'dana.w', displayName: 'Dana', bio: 'Plays Ludo', hue: 40, isMinor: false, ...listed };
-        const face = { handle: 'dana.w', displayName: 'Dana', bio: 'Plays Ludo', hue: 40, deco: listed.deco };
+        const face = { handle: 'dana.w', displayName: 'Dana', bio: 'Plays Ludo', hue: 40, ...listed };
         const standings = [{ handle: 'dana.w', person: { handle: 'dana.w', displayName: 'Dana', hue: 40, ...listed }, rating: 1250, played: 9, won: 3, xp: 400, rank: 1 }];
         const app = buildApp({
             db: fakeDb({ initialized: true }),
@@ -1183,7 +1183,7 @@ describe('the shop', () =>
                     directory: () => Promise.resolve([dana]),
                     names: () => Promise.resolve([dana]),
                     view: () => Promise.resolve({ person: dana, relation: 'friend', mutual: 0, joinedAt, ...page }),
-                    shown: () => Promise.resolve({ person: { ...face, nameplate: listed.nameplate, isMinor: false }, joinedAt, ...page })
+                    shown: () => Promise.resolve({ person: { ...face, isMinor: false }, joinedAt, ...page })
                 },
                 match: { leaderboard: () => Promise.resolve({ game: 'ludo', window: 'all', standings }) }
             } as unknown as Ports

@@ -2364,7 +2364,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                         bio: subject.bio,
                         ...(subject.avatar === null ? {} : { avatar: subject.avatar }),
                         hue: subject.hue,
-                        ...worn('deco', subject.deco)
+                        ...worn('deco', subject.deco),
+                        ...worn('nameplate', subject.nameplate)
                     },
                     joinedAt: subject.created_at.toISOString(),
                     ...worn('theme', subject.theme),

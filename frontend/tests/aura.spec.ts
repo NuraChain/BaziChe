@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AURAS, glowAround, REVEALS, revealAround } from '../src/game/looks/aura.ts';
+import { AURAS, glowAround, REVEALS, revealAround, struckAt } from '../src/game/looks/aura.ts';
 import { FRAMES } from '../src/game/looks/frames.ts';
 import { FAMILIES } from '../src/game/vfx/families.ts';
 import { PRESETS } from '../src/game/vfx/presets.ts';
@@ -288,5 +288,87 @@ describe('a profile effect’s reveal', () =>
 
         expect(engine.disposed).toBe(1);
         expect(head.querySelector('[data-reveal]')).toBeNull();
+    });
+
+    describe('of a profile worn whole', () =>
+    {
+        let sigil: HTMLElement;
+
+        beforeEach(() =>
+        {
+            sigil = document.createElement('img');
+            picture.append(sigil);
+            boxed(sigil, { left: 179, top: 86, width: 34, height: 34 });
+        });
+
+        it('ends by striking the set’s sigil once the reveal has bloomed: a ring and the reveal’s last layer again, smaller, from the sigil', async () =>
+        {
+            const stop = revealAround(head, picture, 'storm', sigil);
+            const { steps, tune } = await revealed();
+            const reveal: readonly Step[] = REVEALS.storm;
+            const strike = steps.slice(reveal.length);
+            const scale = tune.scale!;
+
+            expect(steps.slice(0, reveal.length)).toEqual([...reveal]);
+            expect(strike.map((one) => one.effect)).toEqual(['shockwave', 'discharge']);
+
+            for (const one of strike)
+            {
+                expect(one.after).toBe(struckAt('storm'));
+                expect(one.after).toBeGreaterThan(Math.max(...reveal.map((step) => step.after ?? 0)));
+                expect(196 + one.dx! * scale, 'from the sigil across').toBeCloseTo(196);
+                expect(166 + one.dy! * scale, 'and down').toBeCloseTo(103);
+                expect(one.tune?.scale).toBeLessThan(scale);
+            }
+
+            stop();
+        });
+
+        it('strikes with something besides a second ring, an echo of each collection’s own reveal', async () =>
+        {
+            for (const [nth, collection] of FRAMES.entries())
+            {
+                const stop = revealAround(head, picture, collection, sigil);
+                await vi.waitFor(() => expect(engine.signatures).toHaveLength(nth + 1));
+
+                const reveal: readonly Step[] = REVEALS[collection];
+                const [ring, echo] = engine.signatures[nth]!.steps.slice(reveal.length);
+
+                expect(ring?.effect, collection).toBe('shockwave');
+                expect(echo?.effect, collection).not.toBe('shockwave');
+                expect(reveal.some((step) => step.effect === echo?.effect), `${ collection }: an echo of its own reveal`).toBe(true);
+
+                stop();
+            }
+        });
+
+        it('marks the sigil struck at that moment, in the collection’s light, for the stylesheet to strike it', async () =>
+        {
+            const stop = revealAround(head, picture, 'phoenix', sigil);
+
+            expect(sigil.dataset.struck, 'struck before the reveal played').toBeUndefined();
+
+            await revealed();
+
+            expect(sigil.dataset.struck).toBe('');
+            expect(sigil.style.getPropertyValue('--struck')).toBe(`${ struckAt('phoenix') }ms`);
+            expect(sigil.style.getPropertyValue('--sigil-glow')).toBe(AURAS.phoenix.tune.colors[1]);
+
+            stop();
+        });
+
+        it('strikes nothing round a picture that has no size', async () =>
+        {
+            boxed(picture, { left: 0, top: 0, width: 0, height: 0 });
+            const stop = revealAround(head, picture, 'oni', sigil);
+
+            await vi.waitFor(() => expect(engine.made).toBe(1));
+            await Promise.resolve();
+
+            expect(engine.signatures).toEqual([]);
+            expect(sigil.dataset.struck).toBeUndefined();
+
+            stop();
+        });
     });
 });

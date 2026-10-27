@@ -6252,6 +6252,32 @@ button.chess-san:hover
 }
 
 /*
+ * A profile that wears one collection whole wears its sigil on the crown of its frame, struck as its
+ * reveal ends: the reveal sets `--struck` to that moment as it begins.
+ */
+[data-set-sigil]
+{
+    filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.55));
+}
+
+@media (prefers-reduced-motion: no-preference)
+{
+    [data-set-sigil][data-struck]
+    {
+        animation: sigil-struck 760ms cubic-bezier(0.2, 0.9, 0.3, 1.25) var(--struck, 0ms);
+    }
+}
+
+@keyframes sigil-struck
+{
+    35%
+    {
+        scale: 1.32;
+        filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.55)) drop-shadow(0 0 10px var(--sigil-glow, #FFFFFF)) brightness(1.3);
+    }
+}
+
+/*
  * A name on its owner's nameplate: the plate as its ground, in the collection's own ink, which the
  * palette holds to 4.5:1 on every stop of the surface the plate is drawn from.
  */

@@ -38,6 +38,20 @@ export const REVEALS = {
     oni: [{ effect: 'scan', dy: 9, tune: { intensity: 1.7 } }, { effect: 'glitch', after: 220, tune: { scale: 3.6, density: 2.4 } }, { effect: 'shockwave', after: 220 }, { effect: 'glitch', after: 620, tune: { scale: 3.2, density: 1.8 } }]
 } as const satisfies Record<Frame, readonly Step[]>;
 
+/** How long after its reveal's last layer begins a full set's sigil is struck, in ms. */
+const STRIKE_AFTER = 450;
+
+/** How large the strike's echo of a reveal is, as a share of the reveal. */
+const ECHO = 0.45;
+
+/** When a full set's sigil is struck, in ms from the start of its reveal: once the reveal's last layer has bloomed. */
+export function struckAt(collection: Frame)
+{
+    const steps: readonly Step[] = REVEALS[collection];
+
+    return Math.max(...steps.map((step) => step.after ?? 0)) + STRIKE_AFTER;
+}
+
 /** How far the aura's host reaches past the picture on every side, as a share of the picture. */
 const REACH = 0.4;
 
@@ -115,11 +129,30 @@ export function glowAround(picture: HTMLElement, frame: Frame, area: HTMLElement
 }
 
 /**
+ * A full set's strike, from its sigil: a ring, and the reveal's last layer that is not its ring
+ * again, smaller, at the moment the sigil is struck.
+ */
+function strike(collection: Frame, sigil: HTMLElement, face: DOMRect, scale: number): Step[]
+{
+    const steps: readonly Step[] = REVEALS[collection];
+    const mark = sigil.getBoundingClientRect();
+    const dx = (mark.left + mark.width / 2 - face.left - face.width / 2) / scale;
+    const dy = (mark.top + mark.height / 2 - face.top - face.height / 2) / scale;
+    const after = struckAt(collection);
+    const tune = { scale: scale * ECHO };
+    const last = [...steps].reverse().find((step) => step.effect !== 'shockwave') ?? steps[0]!;
+
+    return [{ effect: 'shockwave', after, dx, dy, tune }, { effect: last.effect, after, dx, dy, tune }];
+}
+
+/**
  * Plays a collection's reveal once round the picture whose box is `picture`, across the whole of
  * `head`, from an engine fetched only then; the answer lets go of it. Like the aura it is drawn
- * round the face and never over it: its host shows nothing inside the picture's circle.
+ * round the face and never over it: its host shows nothing inside the picture's circle. A profile
+ * that wears the collection whole hands its set's mark on the frame as `sigil`, struck once the
+ * reveal has played, and marked `data-struck` for the stylesheet to strike it at that moment.
  */
-export function revealAround(head: HTMLElement, picture: HTMLElement, collection: Frame)
+export function revealAround(head: HTMLElement, picture: HTMLElement, collection: Frame, sigil: HTMLElement | null = null)
 {
     const host = document.createElement('span');
     host.setAttribute('aria-hidden', 'true');
@@ -140,8 +173,16 @@ export function revealAround(head: HTMLElement, picture: HTMLElement, collection
         }
 
         const at = { x: face.left - area.left + face.width / 2, y: face.top - area.top + face.height / 2 };
+        const scale = face.width * RING / UNIT;
         host.style.setProperty('mask', `radial-gradient(circle at ${ at.x }px ${ at.y }px, transparent ${ face.width / 2 }px, #000 ${ face.width / 2 + 1 }px)`);
-        vfx.signature(REVEALS[collection], at, { colors: AURAS[collection].tune.colors, scale: face.width * RING / UNIT });
+        vfx.signature(sigil === null ? REVEALS[collection] : [...REVEALS[collection], ...strike(collection, sigil, face, scale)], at, { colors: AURAS[collection].tune.colors, scale });
+
+        if (sigil !== null)
+        {
+            sigil.style.setProperty('--struck', `${ struckAt(collection) }ms`);
+            sigil.style.setProperty('--sigil-glow', AURAS[collection].tune.colors[1]);
+            sigil.dataset.struck = '';
+        }
     });
 
     return () =>

@@ -2,7 +2,7 @@ import { Link, onCleanup, untrack, type Child } from 'azerothjs';
 
 import type { Progress } from '../../api.ts';
 import { glowAround, revealAround } from '../../game/looks/aura.ts';
-import { frameOf, lookIn } from '../../game/looks/frames.ts';
+import { frameOf, lookIn, setOf } from '../../game/looks/frames.ts';
 import { coverOf, driftOver } from '../../game/looks/themes.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { copyText } from '../../lib/clipboard.ts';
@@ -19,7 +19,7 @@ export interface ProfileStat
 }
 
 export default component ProfileHeader(props: {
-    person: Facade & { handle: string };
+    person: Facade & { handle: string; nameplate?: string | undefined };
     presence: Presence;
     stats: ProfileStat[];
     progress?: Progress | null;
@@ -58,11 +58,19 @@ export default component ProfileHeader(props: {
 
     derived revealed = lookIn('effect', props.effect);
 
+    derived set = setOf({ deco: props.person.deco, effect: props.effect, theme: props.theme, nameplate: props.person.nameplate });
+
+    derived whole = set !== null;
+
+    derived sigilFile = set === null ? '' : `/sigils/${ set }.svg`;
+
     state picture: HTMLElement | null = null;
 
     state head: HTMLElement | null = null;
 
     state band: HTMLElement | null = null;
+
+    state sigil: HTMLElement | null = null;
 
     let stopAura = () => undefined as void;
 
@@ -102,15 +110,17 @@ export default component ProfileHeader(props: {
         const collection = revealed;
         const box = picture;
         const area = head;
+        const full = whole;
+        const mark = sigil;
 
         untrack(() =>
         {
-            if (shown || collection === null || box === null || area === null)
+            if (shown || collection === null || box === null || area === null || (full && mark === null))
             {
                 return;
             }
             shown = true;
-            stopReveal = revealAround(area, box, collection);
+            stopReveal = revealAround(area, box, collection, full ? mark : null);
         });
     }
 
@@ -153,6 +163,9 @@ export default component ProfileHeader(props: {
                         >
                             <Avatar person={ { ...props.person, displayName: title } } size="2xl" presence={ props.presence } class="ring-4 ring-field @xl:h-28 @xl:w-28" />
                         </button>
+                    </Show>
+                    <Show when={ whole }>
+                        <img src={ sigilFile } alt="" width="36" height="36" decoding="async" class="pointer-events-none absolute -top-[6.25%] left-1/2 z-2 w-[30%] -translate-x-1/2 -translate-y-1/2" data-set-sigil={ set ?? '' } ref={ (element) => sigil = element } />
                     </Show>
                 </span>
             </div>

@@ -949,6 +949,9 @@ export const server =
     themes: {} as Record<string, string>,
     effects: {} as Record<string, string>,
 
+    /** The decoration and nameplate each person wears, by handle, carried on every person as the server carries them. */
+    looks: {} as Record<string, { deco?: string; nameplate?: string }>,
+
     /** When each person was last seen, by handle, as the server would send it to the reader: absent where it would not. */
     seen: {} as Record<string, string>,
 
@@ -1014,6 +1017,7 @@ export const server =
         server.refusals = {};
         server.themes = {};
         server.effects = {};
+        server.looks = {};
         server.seen = {};
         server.asked = [];
         server.sought = [];
@@ -1217,6 +1221,7 @@ const personWire = (handle: string): PersonSummary =>
         bio: '',
         hue: person?.hue ?? 0,
         isMinor: person?.isMinor ?? false,
+        ...server.looks[handle],
         ...(seen === undefined ? {} : { lastSeenAt: seen })
     };
 };
@@ -3234,7 +3239,7 @@ export const client =
             const effect = server.effects[params.handle];
 
             return {
-                person: { handle: wire.handle, displayName: wire.displayName, bio: wire.bio, hue: wire.hue, ...(wire.avatar === undefined ? {} : { avatar: wire.avatar }) },
+                person: { handle: wire.handle, displayName: wire.displayName, bio: wire.bio, hue: wire.hue, ...(wire.avatar === undefined ? {} : { avatar: wire.avatar }), ...server.looks[params.handle] },
                 joinedAt: '2026-09-01T00:00:00.000Z',
                 ...(theme === undefined ? {} : { theme }),
                 ...(effect === undefined ? {} : { effect })

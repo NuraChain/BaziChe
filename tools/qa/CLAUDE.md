@@ -989,6 +989,44 @@ in the vault, and a result card that never says the pot was paid, failed the fou
 winner's line and nothing else; a Ready that sends no signature failed the lock and everything after
 it.
 
+## The shop pass
+
+**`tools/qa/shop-pass.mjs` buys looks with NURA over the api of the built server and a local chain**:
+`PGDATABASE=<the server's database> QA_BASE=http://localhost:5300 QA_SHOP=<the shop> node
+tools/qa/shop-pass.mjs`, about a minute, 37 checks. It wants a hardhat node (`npx hardhat node --port
+8645` in the SmartContract project), the vault and the shop deployed on it (`node
+tools/qa/vault-deploy.mjs` deploys both: the shop's admin is hardhat's #8 and its seller #9, the
+vault's referee, because the server signs both with one key), a database nobody else uses given its
+schema by `sync-cli`, and the built server started on it with `NURA_RPC_URL`, `NURA_CHAIN_ID=31337`,
+`NURA_SHOP_ADDRESS` and `NURA_REFEREE_KEY` naming them. A root `.env` from before every name was
+required lacks `HOST`, `PORT`, `DATABASE_POOL_MAX` and `API_RATE_MAX`, so the command that starts the
+server and the one that syncs the schema say them too. PGDATABASE names the server's database because
+an invite is counted, a friendship made, a minor marked and a quote run out by hand.
+
+Every player is a wallet the pass keeps in memory, given NURA by `hardhat_setBalance`, with a socket
+that counts the `me`/`shop` rings. In order: the shop open with all sixty-four items and the featured
+collection; an order whose quote's digest is the one the contract itself works out (`quoteDigest`),
+signed by the contract's seller, naming the buyer, the price and the inviter whose invite counted, and
+handed back the same when asked again; the buyer's wallet paying it, the hash handed in, the worker
+delivering the look, the buyer rung, and the contract holding the sale with the inviter's cut and the
+revenue less it; a look owned not sold again; a gift to a friend held as a gift from the buyer, and
+none to a stranger; a bundle priced down for the look the buyer owns, every other look delivered; a
+minor, a wallet that cannot pay and a name that is no look refused; a payment sent while the shop is
+paused, mined by hand with automine off because a node that mines as it goes answers a reverting
+transaction with an error and no hash, read back as `failed` in the contract's word, a new order
+refused while paused, and the same order paid once the shop is open again; an order nobody pays run
+out by its deadline; the inviter told what the shop owes them, the claim composed and paid to the
+wei less the gas, and nothing left to claim; and the shop's coin exactly its revenue and what inviters
+are still owed.
+
+**It found one fault on its first run**, 36 of 37: hardhat's node answers an `eth_call` carrying
+more than its sender holds, so a wallet that could not pay was handed the purchase. The server reads
+the wallet's balance before it composes one now, whatever the node does with such a call.
+
+**Proved red** against a build broken three ways at once (a gift delivered to its giver, an inviter
+never named, no balance read), with the file put back from a saved copy: 8 of 37 failed, the six
+lines about the inviter, the gift's line and the wallet's that could not pay.
+
 ## The admin pass
 
 `tools/qa/admin-pass.mjs` runs the admin over the api of the built server: `QA_BASE=http://localhost:5310

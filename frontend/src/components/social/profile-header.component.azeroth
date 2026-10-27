@@ -49,23 +49,26 @@ export default component ProfileHeader(props: {
 
     state picture: HTMLElement | null = null;
 
+    state head: HTMLElement | null = null;
+
     let stopAura = () => undefined as void;
 
     effect
     {
         const frame = worn;
         const box = picture;
+        const area = head;
 
         untrack(() =>
         {
             stopAura();
-            stopAura = frame === null || box === null ? () => undefined : glowAround(box, frame);
+            stopAura = frame === null || box === null ? () => undefined : glowAround(box, frame, area ?? box);
         });
     }
 
     onCleanup(() => stopAura());
 
-    <section class="hero-surface relative overflow-hidden rounded-hero" aria-labelledby="profile-name">
+    <section class="hero-surface relative overflow-hidden rounded-hero" aria-labelledby="profile-name" ref={ (element) => head = element }>
         <div
             class="relative h-24 overflow-hidden @xl:h-32 [background:linear-gradient(120deg,hsl(var(--hue)_62%_42%/0.55),hsl(var(--hue)_55%_28%/0.25)_55%,transparent),radial-gradient(90%_140%_at_85%_0%,color-mix(in_oklab,var(--accent)_30%,transparent),transparent_65%)]"
             style={ `--hue: ${ props.person.hue }` }

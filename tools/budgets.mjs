@@ -112,8 +112,8 @@ const TABLE_BUDGET = 24 * KB;
 /** The chunk that holds the stage every table plays on, and what the tables share beside it. */
 const STAGE_BUDGET = 11 * KB;
 
-/** The particle engine, a chunk of its own fetched only when an effect plays. */
-const VFX_BUDGET = 8 * KB;
+/** The particle engine and its effect families, a chunk of its own fetched only when an effect plays. */
+const VFX_BUDGET = 16 * KB;
 
 const gzip = (name) => gzipSync(readFileSync(join(ASSETS, name))).length;
 

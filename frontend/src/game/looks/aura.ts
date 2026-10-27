@@ -1,3 +1,4 @@
+import type { Vfx } from '../vfx/engine.ts';
 import { lazyVfx } from '../vfx/lazy.ts';
 import { AURAS, type Frame } from './frames.ts';
 
@@ -15,12 +16,13 @@ const UNIT = 30;
 
 /**
  * Plays a frame's aura on the ring of the picture whose box is `picture` until the answer is
- * called, on an engine fetched only then.
+ * called, on an engine fetched only then, its light leaning toward a pointer anywhere over `area`
+ * and never toward a finger, which is scrolling the page.
  *
  * Its host is the box's last child at the frame's own z-index, which is what lays it over the frame
  * and under the presence dot; behind the picture, the frame covered every particle it drew.
  */
-export function glowAround(picture: HTMLElement, frame: Frame)
+export function glowAround(picture: HTMLElement, frame: Frame, area: HTMLElement = picture)
 {
     const host = document.createElement('span');
     host.setAttribute('aria-hidden', 'true');
@@ -31,9 +33,11 @@ export function glowAround(picture: HTMLElement, frame: Frame)
     const effects = lazyVfx(host);
     const { stream, tune } = AURAS[frame];
     let end = () => undefined as void;
+    let drawn: Vfx | null = null;
 
     effects.play((vfx) =>
     {
+        drawn = vfx;
         end = vfx.stream(stream, () => host.clientWidth === 0 ? null : { x: host.clientWidth / 2, y: host.clientHeight / 2 }, {
             ...tune,
             get scale()
@@ -43,8 +47,24 @@ export function glowAround(picture: HTMLElement, frame: Frame)
         });
     });
 
+    const near = (event: PointerEvent) =>
+    {
+        if (event.pointerType === 'touch')
+        {
+            return;
+        }
+        const box = host.getBoundingClientRect();
+        drawn?.lean({ x: event.clientX - box.left, y: event.clientY - box.top });
+    };
+    const away = () => drawn?.lean(null);
+
+    area.addEventListener('pointermove', near);
+    area.addEventListener('pointerleave', away);
+
     return () =>
     {
+        area.removeEventListener('pointermove', near);
+        area.removeEventListener('pointerleave', away);
         end();
         effects.dispose();
         host.remove();

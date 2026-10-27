@@ -119,8 +119,9 @@ landing's for no visible gain.
   a palette, intensity, duration, scale, density, rate, speed, direction, quality and a seed, so one
   recipe plays a little differently each time and exactly the same in a spec.
 - **Quality** follows the device: low under a coarse pointer, Save-Data or few cores (fewer
-  particles, a lower pixel ratio), high on a desktop; a cap per canvas and per page, the oldest let go
-  first. A page draws on at most two canvases at once.
+  particles, a lower pixel ratio), high on a desktop; a cap per canvas and one that every canvas of
+  a page shares, the oldest let go first, so a page with several effect hosts (the Lab) draws no more
+  than a page with one. A table or a profile is one canvas; the Lab runs only the previews on screen.
 - **Less motion**: no particles; a burst is one soft flash; a frame shows its still twin.
 - **Nothing runs unseen**: a canvas schedules frames only while something lives, stops in a hidden
   tab, and an off-screen host (an `IntersectionObserver`) draws nothing.

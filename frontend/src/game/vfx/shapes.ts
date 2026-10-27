@@ -134,8 +134,281 @@ const brightness = (particle: Particle, at: number) =>
     {
         return (1 - at ** 3) * (0.8 + 0.2 * Math.sin(particle.age * 0.09 + particle.x));
     }
+    if (particle.envelope === 'stutter')
+    {
+        return (Math.floor(particle.age / 55) % 3 === 1 ? 0.25 : 1) * (1 - at);
+    }
     return 1 - at;
 };
+
+const flames = new Map<string, HTMLCanvasElement | null>();
+
+/** A tongue of flame in one colour, white at its root, drawn once and stamped wherever one burns. */
+function flameSprite(color: string)
+{
+    if (!flames.has(color))
+    {
+        const canvas = typeof document === 'undefined' ? null : document.createElement('canvas');
+        const context = canvas?.getContext('2d') ?? null;
+
+        if (canvas === null || context === null)
+        {
+            flames.set(color, null);
+        }
+        else
+        {
+            canvas.width = 32;
+            canvas.height = 64;
+            const light = context.createRadialGradient(16, 46, 1, 16, 38, 34);
+            light.addColorStop(0, '#FFFFFF');
+            light.addColorStop(0.22, color);
+            light.addColorStop(0.7, clear(color, 0.35));
+            light.addColorStop(1, clear(color, 0));
+            context.fillStyle = light;
+            context.beginPath();
+            context.moveTo(16, 1);
+            context.bezierCurveTo(25, 18, 31, 34, 28, 47);
+            context.arc(16, 47, 12, 0, Math.PI);
+            context.bezierCurveTo(1, 34, 7, 18, 16, 1);
+            context.fill();
+            flames.set(color, canvas);
+        }
+    }
+    return flames.get(color) ?? null;
+}
+
+/** Eight runes, each a few strokes inside a square two units wide. */
+const RUNES = [
+    [[0, -1, 0, 1], [0, -0.4, 0.6, -0.9], [0, 0.1, 0.6, -0.4]],
+    [[0, -1, 0, 1], [0, -1, 0.6, -0.4, 0, 0.2]],
+    [[-0.6, -1, 0, 1, 0.6, -1]],
+    [[-0.6, 1, 0, -1, 0.6, 1], [-0.35, 0.2, 0.35, 0.2]],
+    [[0, -1, 0, 1], [-0.6, -0.5, 0.6, 0.5], [0.6, -0.5, -0.6, 0.5]],
+    [[-0.6, -1, 0.6, -1, -0.6, 1, 0.6, 1]],
+    [[0, -1, 0.6, 0, 0, 1, -0.6, 0, 0, -1]],
+    [[-0.6, -0.8, 0.6, -0.8], [0, -0.8, 0, 1], [-0.4, 0.3, 0.4, 0.3]]
+] as const;
+
+/** Strokes a path twice, a wide faint glow and a narrow bright line, the way every lit line here is drawn. */
+function lit(context: CanvasRenderingContext2D, trace: () => void, width: number, core = '')
+{
+    for (const [stroke, alpha] of [[width * 3.4, 0.22], [width, 1]] as const)
+    {
+        context.globalAlpha *= alpha;
+        context.lineWidth = stroke;
+        context.beginPath();
+        trace();
+        context.stroke();
+        context.globalAlpha /= alpha;
+    }
+    if (core !== '')
+    {
+        context.strokeStyle = core;
+        context.lineWidth = width * 0.4;
+        context.beginPath();
+        trace();
+        context.stroke();
+    }
+}
+
+/** The shapes the effect families draw, each from where the particle is and how far through its life. */
+function drawFamily(context: CanvasRenderingContext2D, particle: Particle, size: number, at: number)
+{
+    if (particle.shape === 'flame')
+    {
+        const image = flameSprite(particle.color);
+        const tall = size * 4 * (0.85 + 0.3 * Math.sin(particle.age * 0.05 + particle.x));
+        context.save();
+        context.translate(particle.x, particle.y);
+        context.rotate(Math.atan2(particle.vy, particle.vx) + Math.PI / 2);
+        if (image === null)
+        {
+            context.beginPath();
+            context.arc(0, 0, size, 0, TAU);
+            context.fill();
+        }
+        else
+        {
+            context.drawImage(image, -size, -tall * 0.75, size * 2, tall);
+        }
+        context.restore();
+        return;
+    }
+
+    if (particle.shape === 'shard')
+    {
+        context.save();
+        context.translate(particle.x, particle.y);
+        context.rotate(particle.turn);
+        context.beginPath();
+        (particle.outline ?? []).forEach((point, index) => (index === 0 ? context.moveTo(point.x, point.y) : context.lineTo(point.x, point.y)));
+        context.closePath();
+        context.globalAlpha *= 0.8;
+        context.fill();
+        context.globalCompositeOperation = 'lighter';
+        context.strokeStyle = '#FFFFFF';
+        context.lineWidth = Math.max(0.6, particle.size * 0.14);
+        context.stroke();
+        context.restore();
+        return;
+    }
+
+    if (particle.shape === 'feather')
+    {
+        context.save();
+        context.translate(particle.x, particle.y);
+        context.rotate(particle.turn);
+        context.beginPath();
+        context.moveTo(0, -size * 2);
+        context.quadraticCurveTo(size * 0.95, -size * 0.5, 0, size * 1.6);
+        context.quadraticCurveTo(-size * 0.95, -size * 0.5, 0, -size * 2);
+        context.globalAlpha *= 0.85;
+        context.fill();
+        context.strokeStyle = '#FFFFFF';
+        context.lineWidth = Math.max(0.5, size * 0.1);
+        context.beginPath();
+        context.moveTo(0, size * 2.2);
+        context.lineTo(0, -size * 1.9);
+        context.stroke();
+        context.restore();
+        return;
+    }
+
+    if (particle.shape === 'rune')
+    {
+        const glyph = RUNES[(particle.glyph ?? 0) % RUNES.length] ?? RUNES[0];
+        context.save();
+        context.translate(particle.x, particle.y);
+        context.rotate(particle.turn);
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+        lit(context, () =>
+        {
+            for (const stroke of glyph)
+            {
+                for (let index = 0; index < stroke.length; index += 2)
+                {
+                    const x = (stroke[index] ?? 0) * size;
+                    const y = (stroke[index + 1] ?? 0) * size;
+                    if (index === 0)
+                    {
+                        context.moveTo(x, y);
+                    }
+                    else
+                    {
+                        context.lineTo(x, y);
+                    }
+                }
+            }
+        }, Math.max(0.6, size * 0.16));
+        context.restore();
+        return;
+    }
+
+    if (particle.shape === 'ribbon')
+    {
+        const trail = particle.trail ?? [];
+        context.lineCap = 'round';
+        for (let index = 1; index < trail.length; index += 1)
+        {
+            const from = trail[index - 1]!;
+            const to = trail[index]!;
+            const share = index / trail.length;
+            const alpha = context.globalAlpha;
+            if (!particle.glow)
+            {
+                context.globalCompositeOperation = 'source-over';
+                context.strokeStyle = '#0A0612';
+                context.globalAlpha = alpha * Math.sqrt(share) * 0.85;
+                context.lineWidth = size * share * 2.2;
+                context.beginPath();
+                context.moveTo(from.x, from.y);
+                context.lineTo(to.x, to.y);
+                context.stroke();
+                context.globalCompositeOperation = 'lighter';
+            }
+            context.strokeStyle = particle.color;
+            context.globalAlpha = alpha * (particle.glow ? 0.3 + 0.7 * share : Math.sqrt(share));
+            context.lineWidth = size * (particle.glow ? 0.35 + 0.65 * share : share * 0.7);
+            context.beginPath();
+            context.moveTo(from.x, from.y);
+            context.lineTo(to.x, to.y);
+            context.stroke();
+            context.globalAlpha = alpha;
+        }
+        return;
+    }
+
+    if (particle.shape === 'nebula')
+    {
+        context.save();
+        context.translate(particle.x, particle.y);
+        context.rotate(particle.turn);
+        context.scale(1.4, 0.75);
+        soft(context, { ...particle, x: 0, y: 0 }, size, false);
+        context.restore();
+        return;
+    }
+
+    if (particle.shape === 'shade')
+    {
+        soft(context, particle, size, false);
+        return;
+    }
+
+    if (particle.shape === 'glitch')
+    {
+        const jump = (Math.floor(particle.age / 60) % 2 === 0 ? 1 : -1) * particle.width * 0.15;
+        context.fillRect(particle.x - particle.width / 2 + jump, particle.y - size / 2, particle.width, size);
+        return;
+    }
+
+    if (particle.shape === 'crack')
+    {
+        const outline = particle.outline ?? [];
+        const reached = Math.max(2, Math.ceil(outline.length * Math.min(1, at / 0.3)));
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+        lit(context, () => outline.slice(0, reached).forEach((point, index) => (index === 0 ? context.moveTo(particle.x + point.x, particle.y + point.y) : context.lineTo(particle.x + point.x, particle.y + point.y))), particle.width, '#FFFFFF');
+        return;
+    }
+
+    if (particle.shape === 'ray')
+    {
+        const reach = size * (0.85 + 0.15 * Math.sin(particle.age * 0.004 + particle.turn * 3));
+        const from = { x: particle.x + Math.cos(particle.turn) * reach * 0.12, y: particle.y + Math.sin(particle.turn) * reach * 0.12 };
+        const to = { x: particle.x + Math.cos(particle.turn) * reach, y: particle.y + Math.sin(particle.turn) * reach };
+        const beam = typeof context.createLinearGradient === 'function' ? context.createLinearGradient(from.x, from.y, to.x, to.y) : null;
+        beam?.addColorStop(0, particle.color);
+        beam?.addColorStop(1, clear(particle.color, 0));
+        context.strokeStyle = beam ?? particle.color;
+        context.lineCap = 'round';
+        lit(context, () =>
+        {
+            context.moveTo(from.x, from.y);
+            context.lineTo(to.x, to.y);
+        }, particle.width);
+        return;
+    }
+
+    if (particle.shape === 'slit')
+    {
+        const open = Math.sin(Math.PI * at);
+        const wide = particle.width + size * 0.55 * open;
+        const tall = size * Math.max(0.08, open);
+        context.save();
+        context.globalCompositeOperation = 'source-over';
+        context.globalAlpha = Math.min(0.85, context.globalAlpha);
+        context.fillStyle = '#05030A';
+        context.beginPath();
+        context.ellipse(particle.x, particle.y, wide, tall, 0, 0, TAU);
+        context.fill();
+        context.restore();
+        lit(context, () => context.ellipse(particle.x, particle.y, wide, tall, 0, 0, TAU), Math.max(1, particle.width * 0.4), '#FFFFFF');
+    }
+}
+
+const FAMILY_SHAPES = new Set(['flame', 'shard', 'feather', 'rune', 'ribbon', 'nebula', 'shade', 'glitch', 'crack', 'ray', 'slit']);
 
 export function drawParticle(context: CanvasRenderingContext2D, particle: Particle)
 {
@@ -151,6 +424,12 @@ export function drawParticle(context: CanvasRenderingContext2D, particle: Partic
     context.globalCompositeOperation = particle.glow ? 'lighter' : 'source-over';
     context.fillStyle = particle.color;
     context.strokeStyle = particle.color;
+
+    if (FAMILY_SHAPES.has(particle.shape))
+    {
+        drawFamily(context, particle, size, at);
+        return;
+    }
 
     if (particle.shape === 'dot' && particle.glow)
     {

@@ -13,7 +13,7 @@ interface Running
     ended: boolean;
 }
 
-const engine = vi.hoisted(() => ({ made: 0, streams: [] as Running[], disposed: 0 }));
+const engine = vi.hoisted(() => ({ made: 0, streams: [] as Running[], disposed: 0, leans: [] as (Point | null)[] }));
 
 vi.mock('../src/game/vfx/engine.ts', () => ({
     createVfx: (host: HTMLElement) =>
@@ -29,6 +29,10 @@ vi.mock('../src/game/vfx/engine.ts', () => ({
                 {
                     running.ended = true;
                 };
+            },
+            lean(at: Point | null)
+            {
+                engine.leans.push(at);
             },
             dispose()
             {
@@ -58,6 +62,7 @@ beforeEach(() =>
     engine.made = 0;
     engine.streams = [];
     engine.disposed = 0;
+    engine.leans = [];
     width = 112;
     picture = document.createElement('span');
     picture.append(document.createElement('span'));
@@ -118,6 +123,35 @@ describe('an aura round a framed picture', () =>
         expect(running.at()).toEqual({ x: 90, y: 90 });
 
         stop();
+    });
+
+    it('leans toward a pointer over the area it is given, from its own host’s corner, and lets go when the pointer leaves', async () =>
+    {
+        const area = document.createElement('section');
+        area.append(picture);
+        document.body.append(area);
+        const stop = glowAround(picture, 'gold', area);
+        const { host } = await playing();
+        host.getBoundingClientRect = () => ({ left: 30, top: 50 }) as DOMRect;
+
+        area.dispatchEvent(new PointerEvent('pointermove', { clientX: 130, clientY: 90, pointerType: 'mouse', bubbles: true }));
+
+        expect(engine.leans).toEqual([{ x: 100, y: 40 }]);
+
+        area.dispatchEvent(new PointerEvent('pointermove', { clientX: 60, clientY: 60, pointerType: 'touch', bubbles: true }));
+
+        expect(engine.leans, 'the aura leaned toward a finger scrolling the page').toHaveLength(1);
+
+        area.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
+
+        expect(engine.leans.at(-1)).toBeNull();
+
+        stop();
+        area.dispatchEvent(new PointerEvent('pointermove', { clientX: 130, clientY: 90, pointerType: 'mouse', bubbles: true }));
+
+        expect(engine.leans, 'an aura that was let go still listened to the pointer').toHaveLength(2);
+
+        area.remove();
     });
 
     it('lets the engine and its host go when stopped, and a stop that came first starts nothing', async () =>

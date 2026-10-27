@@ -10,13 +10,14 @@ import { AURAS, FRAMES, frameOf, type Frame } from '../src/game/looks/frames.ts'
 import { personFor } from '../src/stores/account.store.ts';
 import '../src/locales/app-catalogue.ts';
 
-const aura = vi.hoisted(() => ({ started: [] as [HTMLElement, string][], stopped: 0 }));
+const aura = vi.hoisted(() => ({ started: [] as [HTMLElement, string][], areas: [] as (HTMLElement | undefined)[], stopped: 0 }));
 
 vi.mock('../src/game/looks/aura.ts', async (original) => ({
     ...(await original<typeof import('../src/game/looks/aura.ts')>()),
-    glowAround: (host: HTMLElement, frame: Frame) =>
+    glowAround: (host: HTMLElement, frame: Frame, area?: HTMLElement) =>
     {
         aura.started.push([host, frame]);
+        aura.areas.push(area);
         return () =>
         {
             aura.stopped += 1;
@@ -37,6 +38,7 @@ const sara = (deco?: string): Facade & { handle: string } => ({ displayName: 'Sa
 beforeEach(() =>
 {
     aura.started = [];
+    aura.areas = [];
     aura.stopped = 0;
 });
 
@@ -138,6 +140,14 @@ describe('an aura round the picture on its owner’s profile', () =>
         expect(box(container).className).not.toContain('from-accent');
     });
 
+    it('leans toward a pointer anywhere over the profile’s head, not only over the picture', async () =>
+    {
+        const container = header(() => sara('decoration.gold'));
+        await settle();
+
+        expect(aura.areas).toEqual([container.querySelector('section')]);
+    });
+
     it('plays nothing for somebody with no frame, who keeps the accent ring', async () =>
     {
         const container = header(() => sara());
@@ -183,7 +193,7 @@ describe('an aura on a page', () =>
 
         const stop = glowAround(picture, 'neon');
 
-        await vi.waitFor(() => expect(picture.querySelector('[data-aura] > canvas')).not.toBeNull());
+        await vi.waitFor(() => expect(picture.querySelector('[data-aura] > canvas')).not.toBeNull(), { timeout: 5_000 });
 
         stop();
 

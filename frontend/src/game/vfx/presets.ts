@@ -17,11 +17,21 @@ export interface Tune
     scale?: number;
     speed?: number;
     duration?: number;
+
+    /** One seed plays an effect the same way every time; none plays it a new way each time. */
+    seed?: number;
+
+    /** Which way a throw goes, in radians clockwise from right; with none it goes every way. */
+    direction?: number;
 }
 
-export type Shape = 'dot' | 'orb' | 'puff' | 'spark' | 'star' | 'flake' | 'confetti' | 'ring' | 'bolt';
+/** How often a ribbon keeps where it is, in ms of its life, so its length never follows the frame rate. */
+export const TRAIL_EVERY = 16;
 
-export type Envelope = 'fade' | 'swell' | 'flicker';
+export type Shape = 'dot' | 'orb' | 'puff' | 'spark' | 'star' | 'flake' | 'confetti' | 'ring' | 'bolt'
+    | 'flame' | 'shard' | 'feather' | 'rune' | 'ribbon' | 'nebula' | 'glitch' | 'crack' | 'ray' | 'slit' | 'shade';
+
+export type Envelope = 'fade' | 'swell' | 'flicker' | 'stutter';
 
 export interface Particle
 {
@@ -59,23 +69,84 @@ export interface Particle
 
     points?: Point[];
     redraw?: number;
+
+    /** Pulled toward a point (pushed from it below nought), in px/s². */
+    well?: { x: number; y: number; pull: number };
+
+    /** Carried round an ellipse about a centre instead of by its velocity, `speed` in radians a second. */
+    orbit?: { x: number; y: number; rx: number; ry: number; tilt: number; angle: number; speed: number };
+
+    /** How hard a field of eddies stirs it, in px/s². */
+    swirl?: number;
+
+    /** How hard the pointer over the host draws it, in px/s². */
+    pointer?: number;
+
+    /** Where it has been, newest last, and how many places to keep: what a ribbon is drawn through. */
+    trail?: Point[];
+    tail?: number;
+
+    /** Its age when it last kept a place in `trail`. */
+    kept?: number;
+
+    /** A shard's outline about its middle, or a crack's run from where it starts. */
+    outline?: Point[];
+
+    /** Which rune of the alphabet it is. */
+    glyph?: number;
 }
 
 export type Preset = 'embers' | 'sparks' | 'smoke' | 'dust' | 'orbs' | 'stars' | 'burst' | 'frost' | 'confetti' | 'pulse' | 'shockwave';
 
 export type Stream = 'trail' | 'aura' | 'flames' | 'arcs' | 'snow';
 
-const between = (from: number, to: number) => from + Math.random() * (to - from);
+export type Random = () => number;
 
-const pick = (list: readonly string[]) => list[Math.floor(Math.random() * list.length)] ?? '#FFFFFF';
+let roll: Random = Math.random;
 
-const many = (base: number, tune: Tune) => Math.max(1, Math.round(base * (tune.density ?? 1) * Math.min(2, Math.max(0, tune.intensity ?? 1))));
+/** Runs `make` drawing every random number from `random`, so a seeded effect plays the same every time. */
+export function rolling<T>(random: Random, make: () => T)
+{
+    const before = roll;
+    roll = random;
 
-const lives = (from: number, to: number, tune: Tune) => (tune.duration ?? between(from, to)) / Math.max(0.1, tune.speed ?? 1);
+    try
+    {
+        return make();
+    }
+    finally
+    {
+        roll = before;
+    }
+}
 
-const light = (base: number, tune: Tune) => Math.min(1, base * Math.max(0.2, tune.intensity ?? 1));
+/** A stream of numbers in [0, 1) from a seed: mulberry32. */
+export function seeded(seed: number): Random
+{
+    let state = seed >>> 0;
 
-const make = (shape: Shape, at: Point, fields: Partial<Particle>): Particle => ({
+    return () =>
+    {
+        state = (state + 0x6D2B79F5) >>> 0;
+        let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+        mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+        return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+export const random = () => roll();
+
+export const between = (from: number, to: number) => from + roll() * (to - from);
+
+export const pick = (list: readonly string[]) => list[Math.floor(roll() * list.length)] ?? '#FFFFFF';
+
+export const many = (base: number, tune: Tune) => Math.max(1, Math.round(base * (tune.density ?? 1) * Math.min(2, Math.max(0, tune.intensity ?? 1))));
+
+export const lives = (from: number, to: number, tune: Tune) => (tune.duration ?? between(from, to)) / Math.max(0.1, tune.speed ?? 1);
+
+export const light = (base: number, tune: Tune) => Math.min(1, base * Math.max(0.2, tune.intensity ?? 1));
+
+export const make = (shape: Shape, at: Point, fields: Partial<Particle>): Particle => ({
     shape,
     x: at.x,
     y: at.y,
@@ -101,20 +172,23 @@ const FIRE = ['#FFE3A3', '#FFB04D', '#FF6A2B', '#E2381B'];
 const SPARK = ['#FFFFFF', '#FFE08A', '#FFB347'];
 const SMOKE = ['#9AA4B2', '#6B7280', '#4B5563'];
 const DUST = ['#FFF5D6', '#FBE7A6', '#9CC2FF'];
-const ENERGY = ['#9CC2FF', '#C7DBFF', '#FFFFFF'];
-const ICE = ['#FFFFFF', '#DFF3FF', '#9FD8FF', '#6FC3F5'];
+export const ENERGY = ['#9CC2FF', '#C7DBFF', '#FFFFFF'];
+export const ICE = ['#FFFFFF', '#DFF3FF', '#9FD8FF', '#6FC3F5'];
 const PAPER = ['#FF5A4E', '#2FC262', '#FFC72C', '#3F8CFF', '#FFFFFF'];
 const BOLT = ['#BFE8FF'];
 
-/** A radial throw: every particle leaves the point in its own direction. */
-const radial = (speed: number, tune: Tune) =>
+/** How far either side of a tune's direction a throw may stray, in radians. */
+const SPRAY = 0.9;
+
+/** A throw from the point: each particle its own way, or within `SPRAY` of the tune's direction. */
+export const radial = (speed: number, tune: Tune) =>
 {
-    const angle = Math.random() * Math.PI * 2;
+    const angle = tune.direction === undefined ? roll() * Math.PI * 2 : tune.direction + (roll() * 2 - 1) * SPRAY;
     const pace = speed * (tune.speed ?? 1) * (tune.scale ?? 1);
     return { vx: Math.cos(angle) * pace, vy: Math.sin(angle) * pace };
 };
 
-const embersAt = (at: Point, tune: Tune, count: number, spread: number) =>
+export const embersAt = (at: Point, tune: Tune, count: number, spread: number) =>
     Array.from({ length: count }, () =>
     {
         const scale = tune.scale ?? 1;
@@ -133,7 +207,7 @@ const embersAt = (at: Point, tune: Tune, count: number, spread: number) =>
         });
     });
 
-const sparksAt = (at: Point, tune: Tune, count: number) =>
+export const sparksAt = (at: Point, tune: Tune, count: number) =>
     Array.from({ length: count }, () => make('spark', at, {
         ...radial(between(150, 330), tune),
         gravity: 420 * (tune.speed ?? 1),
@@ -145,7 +219,7 @@ const sparksAt = (at: Point, tune: Tune, count: number) =>
         glow: true
     }));
 
-const ring = (at: Point, tune: Tune, from: number, to: number, width: number, life: number, wait = 0) =>
+export const ring = (at: Point, tune: Tune, from: number, to: number, width: number, life: number, wait = 0) =>
     make('ring', at, {
         age: -wait,
         life: lives(life, life, tune),
@@ -157,13 +231,13 @@ const ring = (at: Point, tune: Tune, from: number, to: number, width: number, li
         glow: true
     });
 
-const flakesAt = (at: Point, tune: Tune, count: number, reach: number) =>
+export const flakesAt = (at: Point, tune: Tune, count: number, reach: number) =>
     Array.from({ length: count }, () => make('flake', at, {
         ...radial(between(reach * 0.4, reach), tune),
         gravity: 26,
         drag: 1.3,
         spin: between(-3, 3),
-        turn: Math.random() * Math.PI,
+        turn: roll() * Math.PI,
         life: lives(900, 1500, tune),
         size: between(2.4, 4.6) * (tune.scale ?? 1),
         alpha: light(0.95, tune),
@@ -171,11 +245,11 @@ const flakesAt = (at: Point, tune: Tune, count: number, reach: number) =>
         glow: true
     }));
 
-const twinkles = (at: Point, tune: Tune, count: number, radius: number, colors: readonly string[]) =>
+export const twinkles = (at: Point, tune: Tune, count: number, radius: number, colors: readonly string[]) =>
     Array.from({ length: count }, () =>
     {
-        const angle = Math.random() * Math.PI * 2;
-        const reach = Math.sqrt(Math.random()) * radius * (tune.scale ?? 1);
+        const angle = roll() * Math.PI * 2;
+        const reach = Math.sqrt(roll()) * radius * (tune.scale ?? 1);
         return make('dot', { x: at.x + Math.cos(angle) * reach, y: at.y + Math.sin(angle) * reach }, {
             vx: between(-14, 14) * (tune.speed ?? 1),
             vy: between(-22, 6) * (tune.speed ?? 1),
@@ -260,7 +334,7 @@ export const PRESETS: Record<Preset, (at: Point, tune: Tune) => Particle[]> = {
             gravity: 520 * (tune.speed ?? 1),
             drag: 0.9,
             spin: between(-9, 9),
-            turn: Math.random() * Math.PI,
+            turn: roll() * Math.PI,
             life: lives(1400, 2200, tune),
             size: between(3, 5) * (tune.scale ?? 1),
             alpha: light(1, tune),
@@ -295,7 +369,14 @@ export const bolt = (from: Point, to: Point, tune: Tune) => [
     ...sparksAt(to, { ...tune, colors: tune.colors ?? ['#FFFFFF', ...BOLT] }, many(8, tune))
 ];
 
-export const STREAMS: Record<Stream, { rate: number; spawn: (at: Point, tune: Tune, count: number) => Particle[] }> = {
+export interface Emitter
+{
+    /** How many it emits a second at a density of 1. */
+    rate: number;
+    spawn: (at: Point, tune: Tune, count: number) => Particle[];
+}
+
+export const STREAMS: Record<Stream, Emitter> = {
     trail: {
         rate: 46,
         spawn: (at, tune, count) => Array.from({ length: count }, () => make('dot', { x: at.x + between(-2, 2), y: at.y + between(-2, 2) }, {
@@ -315,12 +396,13 @@ export const STREAMS: Record<Stream, { rate: number; spawn: (at: Point, tune: Tu
         rate: 18,
         spawn: (at, tune, count) => Array.from({ length: count }, () =>
         {
-            const angle = Math.random() * Math.PI * 2;
+            const angle = roll() * Math.PI * 2;
             const radius = 30 * (tune.scale ?? 1) * between(0.85, 1.1);
             return make('dot', { x: at.x + Math.cos(angle) * radius, y: at.y + Math.sin(angle) * radius }, {
                 vx: -Math.sin(angle) * 18 * (tune.speed ?? 1),
                 vy: Math.cos(angle) * 18 * (tune.speed ?? 1) - 14,
                 drag: 0.5,
+                pointer: 40,
                 life: lives(900, 1500, tune),
                 size: between(1, 2.2) * (tune.scale ?? 1),
                 alpha: light(0.85, tune),
@@ -341,7 +423,7 @@ export const STREAMS: Record<Stream, { rate: number; spawn: (at: Point, tune: Tu
         spawn: (at, tune, count) => Array.from({ length: count }, () =>
         {
             const radius = 30 * (tune.scale ?? 1);
-            const from = Math.random() * Math.PI * 2;
+            const from = roll() * Math.PI * 2;
             const to = from + between(0.45, 1.05);
             return make('bolt', { x: at.x + Math.cos(from) * radius, y: at.y + Math.sin(from) * radius }, {
                 to: { x: at.x + Math.cos(to) * radius, y: at.y + Math.sin(to) * radius },
@@ -360,14 +442,14 @@ export const STREAMS: Record<Stream, { rate: number; spawn: (at: Point, tune: Tu
         rate: 8,
         spawn: (at, tune, count) => Array.from({ length: count }, () =>
         {
-            const angle = Math.random() * Math.PI * 2;
+            const angle = roll() * Math.PI * 2;
             const radius = 26 * (tune.scale ?? 1) * between(0.7, 1.1);
             return make('flake', { x: at.x + Math.cos(angle) * radius, y: at.y + Math.sin(angle) * radius }, {
                 vx: between(-8, 8) * (tune.speed ?? 1),
                 vy: between(16, 34) * (tune.speed ?? 1),
                 drag: 0.3,
                 spin: between(-2, 2),
-                turn: Math.random() * Math.PI,
+                turn: roll() * Math.PI,
                 life: lives(1200, 2000, tune),
                 size: between(2.2, 3.8) * (tune.scale ?? 1),
                 alpha: light(0.9, tune),

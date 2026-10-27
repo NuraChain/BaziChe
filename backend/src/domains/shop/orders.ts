@@ -668,7 +668,7 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
          * once its deadline has passed; one the buyer sent, every pass. A chain that cannot be
          * reached ends the pass, so the next one tries again.
          */
-        async sweep(budgetMs: number): Promise<ShopSweep>
+        async sweep(budgetMs: number)
         {
             const tally: ShopSweep = { paid: 0, refunded: 0, failed: 0, expired: 0, faults: [] };
 

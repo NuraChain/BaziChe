@@ -55,7 +55,7 @@ export function createShopService(db: DataSource)
          * the slot's kind; the database holds both as well, and a look taken back in the moment
          * between the two is the same refusal.
          */
-        async choose(me: string, slot: string, item: string | null): Promise<ShopCollectionView>
+        async choose(me: string, slot: string, item: string | null)
         {
             if (!isSlot(slot) || (item !== null && !fitsSlot(slot, item)))
             {

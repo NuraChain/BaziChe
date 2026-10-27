@@ -1317,10 +1317,11 @@ describe.skipIf(!active)('a table played for NURA, against a real database', () 
             expect(message).toMatchObject({ player: getAddress(searcher.address), game: 'ludo', amount: TEN, feeBps: 500 });
 
             fake.state.terms = { ...fake.state.terms, games: { ludo: 700 } };
-            expect(JSON.parse((await ports.table.quickStake(searcher.id, 'ludo', TEN)).typedData).message.feeBps).toBe(700);
+            const third = JSON.parse((await ports.table.quickStake(searcher.id, 'ludo', TEN)).typedData).message as Record<string, string | number>;
+            expect(third.feeBps).toBe(700);
             fake.state.terms = { ...fake.state.terms, games: {} };
             expect(JSON.parse(first.typedData).message.nonce).not.toBe(message.nonce);
-            expect(await db.getRepository(StakeConsent).find({ where: { userId: searcher.id } })).toMatchObject([{ nonce: message.nonce, tableId: null, signature: null }]);
+            expect(await db.getRepository(StakeConsent).find({ where: { userId: searcher.id } })).toMatchObject([{ nonce: third.nonce, tableId: null, signature: null }]);
         });
 
         it('opens a table at that stake for the first searcher, seats the next one there, and locks both stakes', async () =>
@@ -1528,7 +1529,7 @@ describe.skipIf(!active)('a table played for NURA, against a real database', () 
 
             fake.state.ledger = { ...fake.state.ledger, gasPrice: 0n };
             const unpriced = await ports.admin.vault(owner.id);
-            expect(unpriced?.configured === true && unpriced.referee).toEqual({ address: fake.vault.referee, gas: (2n * WEI_PER_NURA).toString(), low: false, allowed: true });
+            expect(unpriced?.configured === true && unpriced.referee).toEqual({ address: fake.vault.referee, named: fake.state.ledger.chainReferee, gas: (2n * WEI_PER_NURA).toString(), low: false, allowed: true });
 
             await db.getRepository(Escrow).delete(made);
         });

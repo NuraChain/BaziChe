@@ -1017,12 +1017,14 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
     const vaultAdmin = createVaultAdmin(db, vaults, PAID_GAMES);
 
-    const orders = createOrderService(db, shopChain ?? createShopChain({
+    const looksShop = shopChain ?? createShopChain({
         rpcUrl: config.rpcUrl,
         chainId: config.chainId,
         shop: config.shopAddress,
         sellerKey: config.refereeKey
-    }), {
+    });
+
+    const orders = createOrderService(db, looksShop, {
         changed: (userIds) => userIds.forEach((userId) => live?.selfChanged(userId, 'shop')),
         gifted: (gift) => courtesy('gift notice', () => tell({
             userId: gift.recipient,
@@ -1554,6 +1556,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             joinedAt: row.created_at.toISOString(),
             address: row.address ?? undefined,
             ...(role === null ? {} : { staff: role }),
+            ...(looksShop.configured ? { shop: true as const } : {}),
             ...worn('deco', row.deco),
             ...worn('nameplate', row.nameplate),
             ...worn('theme', row.theme),

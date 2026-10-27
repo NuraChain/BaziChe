@@ -1,5 +1,6 @@
 import type { Game } from '../../data/games.ts';
 import Icon from '../../icons/icon.component.azeroth';
+import { useAccount } from '../../stores/account.store.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useLobby } from '../../stores/lobby.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -14,8 +15,11 @@ export default component GameHero(props: { game: Game; onQuickPlay: () => void }
     const locale = useLocale();
     const catalogue = useCatalogue();
     const lobby = useLobby();
+    const account = useAccount();
 
     derived known = !catalogue.loading();
+
+    derived shopOpen = account.shopOpen();
 
     derived playable = known && catalogue.playable(props.game.id);
 
@@ -64,6 +68,9 @@ export default component GameHero(props: { game: Game; onQuickPlay: () => void }
                                     <Button variant="primary" size="lg" leading="play" icon="forward" class="whitespace-nowrap" loading={ finding } onClick={ () => props.onQuickPlay() }>{ locale.t('app.nav.quickPlay') }</Button>
                                 </span>
                                 <Button variant="outline" size="lg" leading="add" class="whitespace-nowrap" to={ `/app/games/${ props.game.slug }/create` }>{ locale.t('games.create') }</Button>
+                                <Show when={ shopOpen }>
+                                    { () => <Button variant="outline" size="lg" leading="bag" class="whitespace-nowrap" to={ `/app/shop?for=${ props.game.id }` }>{ locale.t('app.nav.shop') }</Button> }
+                                </Show>
                             </div>
                         }
                     </Show>

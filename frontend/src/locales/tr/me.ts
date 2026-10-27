@@ -5,6 +5,8 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'me.edit': 'Profili düzenle',
     'me.chain.absent': 'Henüz Nura Profile üzerinde değil',
     'me.share': 'Profili paylaş',
+    'me.looks': 'Koleksiyonun',
+    'me.looksLead': 'Profilin ve masaların için görünümler',
 
     'list.separator': ', ',
     'record.title': 'Karne',

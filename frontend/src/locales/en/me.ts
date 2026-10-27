@@ -2,6 +2,8 @@ export const me = {
     'me.edit': 'Edit profile',
     'me.chain.absent': 'Not on Nura Profile yet',
     'me.share': 'Share profile',
+    'me.looks': 'Your collection',
+    'me.looksLead': 'Looks for your profile and your tables',
 
     'list.separator': ', ',
     'record.title': 'Record',

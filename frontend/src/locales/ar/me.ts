@@ -5,6 +5,8 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'me.edit': 'تعديل الملف الشخصي',
     'me.chain.absent': 'ليس على Nura Profile بعد',
     'me.share': 'شارك الملف الشخصي',
+    'me.looks': 'مجموعتك',
+    'me.looksLead': 'مظاهر لملفك الشخصي وطاولاتك',
 
     'list.separator': '، ',
     'record.title': 'السجل',

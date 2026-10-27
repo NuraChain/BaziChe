@@ -9,6 +9,7 @@ export const app = {
     'app.nav.profile': 'Profile',
     'app.nav.leaderboard': 'Leaderboard',
     'app.nav.discover': 'Discover',
+    'app.nav.shop': 'Shop',
     'app.nav.search': 'Search',
     'app.nav.notifications': 'Notifications',
     'app.nav.settings': 'Settings',

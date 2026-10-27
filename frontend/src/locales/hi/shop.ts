@@ -7,6 +7,7 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.getNura': 'NURA लो',
     'shop.inWallet': 'तुम्हारे वॉलेट में',
     'shop.yours': 'तुम्हारा कलेक्शन',
+    'shop.strip.title': '{game} के लुक',
     'shop.closed': 'दुकान यहाँ खुली नहीं है',
     'shop.closedLead': 'यह सर्वर अभी कोई लुक नहीं बेचता।',
     'shop.failed': 'दुकान लोड नहीं हो सकी।',

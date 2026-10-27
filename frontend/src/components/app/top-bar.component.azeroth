@@ -10,7 +10,7 @@ import { useAccount } from '../../stores/account.store.ts';
 import { useSettings } from '../../stores/settings.store.ts';
 import { leave, useShell } from '../../stores/shell.store.ts';
 import BrandMark from '../layout/brand-mark.component.azeroth';
-import { RAIL } from './nav-items.ts';
+import { railFor } from './nav-items.ts';
 import Avatar from '../ui/avatar.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
@@ -32,7 +32,7 @@ export default component TopBar()
 
     derived phone = device.posture() === 'phone';
 
-    derived destination = RAIL.some((item) => item.to === match()?.pathname);
+    derived destination = railFor(account.shopOpen()).some((item) => item.to === match()?.pathname);
 
     derived parent = meta.immersive === true || (!phone && destination) ? undefined : parentOf(match());
 

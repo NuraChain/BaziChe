@@ -12,6 +12,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'app.nav.profile': '个人资料',
     'app.nav.leaderboard': '排行榜',
     'app.nav.discover': '发现',
+    'app.nav.shop': '商店',
     'app.nav.search': '搜索',
     'app.nav.notifications': '通知',
     'app.nav.settings': '设置',

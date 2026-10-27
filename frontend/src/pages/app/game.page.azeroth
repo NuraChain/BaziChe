@@ -2,6 +2,7 @@ import { untrack, useHead, useParams } from 'azerothjs';
 
 import Page from '../../components/app/page.component.azeroth';
 import GameHero from '../../components/games/game-hero.component.azeroth';
+import LazyGameLooks from '../../components/games/lazy-game-looks.component.azeroth';
 import Leaderboard from '../../components/games/leaderboard.component.azeroth';
 import PersonRecord from '../../components/social/person-record.component.azeroth';
 import WatchableList from '../../components/games/watchable-list.component.azeroth';
@@ -42,6 +43,8 @@ export default component GamePage()
     derived game = catalogue.bySlug(slug) ?? null;
 
     derived me = account.user()?.handle ?? '';
+
+    derived shopOpen = account.shopOpen();
 
     derived name = game === null ? locale.t('game.notFound') : locale.t(game.nameKey);
 
@@ -89,6 +92,10 @@ export default component GamePage()
                                 </ol>
                             </section>
 
+                            <Show when={ shopOpen }>
+                                { () => <LazyGameLooks game={ game!.id } /> }
+                            </Show>
+
                             <WatchableList game={ game!.id } />
 
                             <Leaderboard game={ game!.id } seeAll />
@@ -112,6 +119,9 @@ export default component GamePage()
                             <div class="bleed-pad fixed inset-x-0 bottom-(--nav-room) z-nav flex gap-2 border-t border-line bg-void/92 py-3 backdrop-blur-md sm:hidden">
                                 <Button variant="primary" size="lg" leading="play" class="flex-1" loading={ finding } onClick={ quickPlay }>{ locale.t('app.nav.quickPlay') }</Button>
                                 <IconButton icon="add" label={ locale.t('games.create') } variant="outline" size="lg" to={ `/app/games/${ game!.slug }/create` } />
+                                <Show when={ shopOpen }>
+                                    { () => <IconButton icon="bag" label={ locale.t('app.nav.shop') } variant="outline" size="lg" to={ `/app/shop?for=${ game!.id }` } /> }
+                                </Show>
                             </div>
                         }
                     </Show>

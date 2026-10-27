@@ -1,0 +1,26 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+import type { GameId } from '../../data/games.ts';
+
+type Looks = (props: { game: GameId }) => MountNode;
+
+/** The shop's strip on a game's page, fetched after the page is drawn so the page's chunk carries none of the shop. */
+export default component LazyGameLooks(props: { game: GameId })
+{
+    let Looks: Looks | null = null;
+
+    state loaded = false;
+
+    mount
+    {
+        void import('../shop/game-looks.component.azeroth').then((module) =>
+        {
+            Looks = module.default as Looks;
+            loaded = true;
+        }, () => undefined);
+    }
+
+    <Show when={ loaded }>
+        { () => <Dynamic component={ Looks! } props={ () => ({ game: props.game }) } /> }
+    </Show>
+}

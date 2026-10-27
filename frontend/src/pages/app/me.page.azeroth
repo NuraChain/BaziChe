@@ -10,6 +10,7 @@ import ProfileSheet from '../../components/app/profile-sheet.component.azeroth';
 import EmptyState from '../../components/ui/empty-state.component.azeroth';
 import IconButton from '../../components/ui/icon-button.component.azeroth';
 import { COPY_CHIP } from '../../components/ui/variants.ts';
+import ShopChip from '../../components/shop/shop-chip.component.azeroth';
 import VaultChip from '../../components/vault/vault-chip.component.azeroth';
 import { client } from '../../api.ts';
 import Icon from '../../icons/icon.component.azeroth';
@@ -166,7 +167,10 @@ export default component MePage()
                         { () => <ChainFaceFailed onRetry={ retryChain } /> }
                     </Show>
 
-                    <VaultChip />
+                    <div class="hidden flex-wrap gap-3 has-[*]:flex">
+                        <VaultChip class="min-w-0 flex-[1_1_18rem]" />
+                        <ShopChip class="min-w-0 flex-[1_1_18rem]" />
+                    </div>
 
                     <div class="sticky top-[calc(var(--page-pad)*-1)] z-10 bleed bleed-pad -mb-2 bg-void/85 backdrop-blur-md backdrop-saturate-150">
                         <Tabs

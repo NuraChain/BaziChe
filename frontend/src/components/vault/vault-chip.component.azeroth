@@ -4,7 +4,7 @@ import { useLocale } from '../../stores/locale.store.ts';
 import { useVault } from '../../stores/vault.store.ts';
 import Panel from '../ui/panel.component.azeroth';
 
-export default component VaultChip()
+export default component VaultChip(props: { class?: string })
 {
     const locale = useLocale();
     const vaults = useVault();
@@ -18,7 +18,7 @@ export default component VaultChip()
     derived figure = locale.n(nuraOf(free ?? '0'), { maximumFractionDigits: 4 });
 
     <Show when={ shown }>
-        <Panel to="/app/me/wallet" pad="sm" class="flex items-center gap-3">
+        <Panel to="/app/me/wallet" pad="sm" class={ `flex items-center gap-3 ${ props.class ?? '' }` }>
             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent" aria-hidden="true">
                 <Icon name="coins" size={ 18 } />
             </span>

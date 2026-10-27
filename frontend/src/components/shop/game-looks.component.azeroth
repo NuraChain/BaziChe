@@ -1,0 +1,38 @@
+import { GAMES, type GameId } from '../../data/games.ts';
+import { openLook } from '../../lib/look-sheet.ts';
+import { looksForGame } from '../../lib/shop.ts';
+import '../../locales/shop-catalogue.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useShop } from '../../stores/shop.store.ts';
+import SectionHeading from '../ui/section-heading.component.azeroth';
+import LookCard from './look-card.component.azeroth';
+
+export default component GameLooks(props: { game: GameId })
+{
+    const locale = useLocale();
+    const shop = useShop();
+
+    derived held = shop.state();
+
+    derived open = held !== null && held.open;
+
+    derived looks = held !== null && held.open ? looksForGame(props.game, held.featured) : [];
+
+    derived name = locale.t(GAMES.find((game) => game.id === props.game)?.nameKey ?? 'app.nav.games');
+
+    mount
+    {
+        return shop.listen();
+    }
+
+    <Show when={ open }>
+        <section aria-labelledby="game-looks" data-game-looks={ props.game }>
+            <SectionHeading id="game-looks" title={ locale.t('shop.strip.title', { game: name }) } more={ locale.t('common.seeAll') } to={ `/app/shop?for=${ props.game }` } />
+            <ul class="grid grid-cols-2 gap-3 @xl:grid-cols-4">
+                <For each={ looks } key={ (look) => look } let={ look }>
+                    <li class="min-w-0"><LookCard item={ look } onOpen={ (item) => void openLook(item) } /></li>
+                </For>
+            </ul>
+        </section>
+    </Show>
+}

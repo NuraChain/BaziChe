@@ -7,6 +7,7 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.getNura': 'Obter NURA',
     'shop.inWallet': 'Na sua carteira',
     'shop.yours': 'Sua coleção',
+    'shop.strip.title': 'Estilos de {game}',
     'shop.closed': 'A loja não está aberta aqui',
     'shop.closedLead': 'Este servidor ainda não vende estilos.',
     'shop.failed': 'Não foi possível carregar a loja.',

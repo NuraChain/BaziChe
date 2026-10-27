@@ -5,11 +5,13 @@ import {
     GAME_SLOTS,
     LOOKS,
     PROFILE_SLOTS,
+    SHOP_COLLECTIONS,
     SHOP_KINDS,
     SHOP_SLOTS,
     CELEBRATION_SLOT,
     bundleOf,
     lookOf,
+    type LookId,
     type ShopCollection,
     type ShopGame,
     type ShopKind,
@@ -38,6 +40,21 @@ export function kindsFor(filter: ShopFilter): readonly ShopKind[]
     const wanted = kindsIn(filter === 'profile' ? PROFILE_SLOTS : [...GAME_SLOTS[filter], CELEBRATION_SLOT]);
 
     return SHOP_KINDS.filter((kind) => wanted.includes(kind));
+}
+
+export const GAME_LOOKS = 4;
+
+/**
+ * What a game's page offers of the shop: the featured collection's looks for that game, its
+ * table's and then its celebration, filled with the game's first kind from the other collections.
+ */
+export function looksForGame(game: ShopGame, featured: ShopCollection)
+{
+    const kinds = kindsIn([...GAME_SLOTS[game], CELEBRATION_SLOT]);
+    const others = SHOP_COLLECTIONS.filter((collection) => collection !== featured);
+    const looks: LookId[] = [...kinds.map((kind) => `${ kind }.${ featured }` as const), ...others.map((collection) => `${ kinds[0] }.${ collection }` as const)];
+
+    return looks.slice(0, GAME_LOOKS);
 }
 
 /** Every slot a look of `kind` may be chosen for: a card back is chosen at Hokm and at poker. */

@@ -12,6 +12,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'app.nav.profile': 'Perfil',
     'app.nav.leaderboard': 'Ranking',
     'app.nav.discover': 'Descobrir',
+    'app.nav.shop': 'Loja',
     'app.nav.search': 'Buscar',
     'app.nav.notifications': 'Notificações',
     'app.nav.settings': 'Configurações',

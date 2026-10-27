@@ -32,7 +32,7 @@ export default component LookCard(props: { item: string; onOpen: (item: string) 
 
     <button
         type="button"
-        class="look-card group flex w-full min-w-0 flex-col overflow-hidden rounded-panel border bg-field text-start transition-[border-color,transform] duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 motion-reduce:transform-none"
+        class="look-card group flex h-full w-full min-w-0 flex-col overflow-hidden rounded-panel border bg-field text-start transition-[border-color,transform] duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 motion-reduce:transform-none"
         data-tier={ tier }
         data-look={ props.item }
         onClick={ () => props.onOpen(props.item) }
@@ -40,9 +40,9 @@ export default component LookCard(props: { item: string; onOpen: (item: string) 
         <span class="relative block overflow-hidden">
             <img src={ `/looks/${ props.item }.svg` } alt="" width="160" height="120" loading="lazy" decoding="async" class="block aspect-[4/3] w-full object-cover transition-transform duration-300 group-hover:scale-[1.04] motion-reduce:transition-none" />
         </span>
-        <span class="flex min-w-0 flex-col gap-1 px-3 pb-3 pt-2.5">
-            <span class="truncate text-ui-sm font-semibold text-text">{ name }</span>
-            <span class="flex min-h-5 flex-wrap items-center gap-x-2 text-ui-xs">
+        <span class="flex min-w-0 flex-1 flex-col gap-1 px-3 pb-3 pt-2.5">
+            <span class="line-clamp-2 text-ui-sm font-semibold text-text">{ name }</span>
+            <span class="mt-auto flex min-h-5 flex-wrap items-center gap-x-2 text-ui-xs">
                 <Show when={ using }>
                     <span class="flex items-center gap-1 font-semibold text-live">
                         <Icon name="selected" size={ 13 } />

@@ -373,6 +373,17 @@ describe.skipIf(!active)('buying a look with NURA, against a real database', () 
         });
     });
 
+    describe('the account', () =>
+    {
+        it('says the shop is open here while it is, so its doors are drawn without asking, and nothing while it is not', async () =>
+        {
+            const buyer = await person();
+
+            expect((await door().ports.identity.me(buyer.id))?.shop).toBe(true);
+            expect(await door(fakeShop(false)).ports.identity.me(buyer.id)).not.toHaveProperty('shop');
+        });
+    });
+
     describe('a gift', () =>
     {
         it('goes to a friend, a friend under 18 included, and anybody else is answered in one sentence', async () =>

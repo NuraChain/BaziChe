@@ -190,6 +190,7 @@
         "match_actions.seat smallint NO -",
         "match_actions.state jsonb NO -",
         "match_actions.user_id uuid YES -",
+        "match_players.look jsonb NO '{}'::jsonb",
         "match_players.match_id uuid NO -",
         "match_players.rating_after integer YES -",
         "match_players.rating_before integer YES -",

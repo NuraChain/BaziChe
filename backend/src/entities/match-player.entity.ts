@@ -39,6 +39,10 @@ export class MatchPlayer
     @Column({ type: 'smallint', default: 0 })
     timeouts!: number;
 
+    /** Each kind of look this seat's player had chosen for this game as it started, by kind; `{}` for Classic. */
+    @Column({ type: 'jsonb', default: () => "'{}'" })
+    look!: Record<string, string>;
+
     /**
      * What this seat earned here, and the only reason a leaderboard can have a WINDOW.
      *

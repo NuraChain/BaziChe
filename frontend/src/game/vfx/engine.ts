@@ -2,7 +2,7 @@ import { runtime } from '../../lib/runtime.ts';
 import { FAMILIES, FAMILY_STREAMS, type Family, type FamilyStream } from './families.ts';
 import { move } from './motion.ts';
 import { drawParticle } from './shapes.ts';
-import { bolt as boltOf, flash, PRESETS, rolling, seeded, STREAMS, type Emitter, type Particle, type Point, type Preset, type Random, type Stream, type Tune } from './presets.ts';
+import { between, bolt as boltOf, flash, PRESETS, rolling, seeded, STREAMS, type Emitter, type Particle, type Point, type Preset, type Random, type Stream, type Tune } from './presets.ts';
 
 export type { Point, Preset, Stream, Tune } from './presets.ts';
 export type { Family, FamilyStream } from './families.ts';
@@ -185,7 +185,11 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
 
     const hidden = () => (typeof document !== 'undefined' && document.visibilityState === 'hidden') || !onScreen;
 
-    const tuned = (tune: Tune): Tune => ({ ...tune, density: (tune.density ?? 1) * quality.density });
+    /** A tune thinned for this device with its getters kept, so a stream reads a scale or an area that follows its host at every spawn. */
+    const tuned = (tune: Tune): Tune => Object.defineProperties({}, {
+        ...Object.getOwnPropertyDescriptors(tune),
+        density: { value: (tune.density ?? 1) * quality.density, enumerable: true }
+    });
 
     const add = (born: readonly Particle[]) =>
     {
@@ -213,7 +217,11 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
             running.owed -= count;
             if (count > 0)
             {
-                const spawn = () => EMITTERS[running.kind].spawn(point, running.tune, count);
+                const { spawn: give } = EMITTERS[running.kind];
+                const area = running.tune.area;
+                const spawn = () => area === undefined
+                    ? give(point, running.tune, count)
+                    : Array.from({ length: count }, () => give({ x: point.x + between(-0.5, 0.5) * area.width, y: point.y + between(-0.5, 0.5) * area.height }, running.tune, 1)).flat();
                 add(running.random === null ? spawn() : rolling(running.random, spawn));
             }
         }

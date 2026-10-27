@@ -25,6 +25,20 @@ vi.mock('../src/game/looks/aura.ts', async (original) => ({
     }
 }));
 
+const ambient = vi.hoisted(() => ({ started: [] as [HTMLElement, string][], stopped: 0 }));
+
+vi.mock('../src/game/looks/themes.ts', async (original) => ({
+    ...(await original<typeof import('../src/game/looks/themes.ts')>()),
+    driftOver: (band: HTMLElement, collection: string) =>
+    {
+        ambient.started.push([band, collection]);
+        return () =>
+        {
+            ambient.stopped += 1;
+        };
+    }
+}));
+
 const settle = async () =>
 {
     for (let turn = 0; turn < 12; turn += 1)
@@ -40,6 +54,8 @@ beforeEach(() =>
     aura.started = [];
     aura.areas = [];
     aura.stopped = 0;
+    ambient.started = [];
+    ambient.stopped = 0;
 });
 
 afterEach(() => cleanup());
@@ -180,6 +196,75 @@ describe('an aura round the picture on its owner’s profile', () =>
         cleanup();
 
         expect(aura.stopped).toBe(3);
+    });
+});
+
+describe('a profile in its theme', () =>
+{
+    const header = (theme: () => string | undefined) => renderTest(() => ProfileHeader({
+        person: sara(),
+        presence: null,
+        stats: [],
+        get theme()
+        {
+            return theme();
+        }
+    }) as HTMLElement).container;
+
+    const band = (container: HTMLElement) => container.querySelector('section > [aria-hidden="true"]') as HTMLElement;
+
+    it('lays the theme’s cover over the band, and leaves the hue’s band for Classic and for a look this build does not draw', async () =>
+    {
+        const themed = header(() => 'theme.inferno');
+        await settle();
+
+        expect(band(themed).querySelector('img[data-cover]')?.getAttribute('src')).toBe('/covers/inferno.svg');
+        expect(band(themed).querySelector('img[data-cover]')?.getAttribute('data-cover')).toBe('inferno');
+        cleanup();
+
+        for (const plain of [undefined, 'theme.nowhere', 'decoration.inferno'])
+        {
+            const container = header(() => plain);
+            await settle();
+
+            expect(band(container).querySelector('img[data-cover]'), String(plain)).toBeNull();
+            cleanup();
+        }
+    });
+
+    it('lets the collection’s ambient drift over the band while the theme is worn, and lets it go as it changes or the profile goes', async () =>
+    {
+        const [theme, setTheme] = createSignal<string | undefined>('theme.storm');
+        const container = header(theme);
+        await settle();
+
+        expect(ambient.started).toEqual([[band(container), 'storm']]);
+
+        const cover = band(container).querySelector('img[data-cover]');
+        setTheme('theme.storm');
+        await settle();
+
+        expect(band(container).querySelector('img[data-cover]'), 'the cover was drawn again for the theme it already wore').toBe(cover);
+        expect(ambient.started).toHaveLength(1);
+
+        setTheme('theme.phoenix');
+        await settle();
+
+        expect(ambient.started.map(([, collection]) => collection)).toEqual(['storm', 'phoenix']);
+        expect(ambient.stopped).toBe(1);
+        expect(band(container).querySelector('img[data-cover]')?.getAttribute('src')).toBe('/covers/phoenix.svg');
+
+        setTheme(undefined);
+        await settle();
+
+        expect(ambient.stopped).toBe(2);
+        expect(band(container).querySelector('img[data-cover]')).toBeNull();
+
+        setTheme('theme.jade');
+        await settle();
+        cleanup();
+
+        expect(ambient.stopped).toBe(3);
     });
 });
 

@@ -122,6 +122,18 @@ describe('my profile page', () =>
         expect(container.querySelector('section [role="img"]')?.getAttribute('data-deco')).toBe('shiraz');
     });
 
+    it('lays the reader’s own theme over their profile’s band', async () =>
+    {
+        signIn();
+        const themed = { ...server.account!, theme: 'theme.jade' };
+        server.account = themed;
+        useSession().establish(themed);
+
+        const container = await page();
+
+        expect(container.querySelector('section img[data-cover]')?.getAttribute('src')).toBe('/covers/jade.svg');
+    });
+
     it('puts Settings, Edit profile and Share in the corner in that order, with no Sign out, and shows the level once', async () =>
     {
         signIn();
@@ -287,6 +299,14 @@ describe('somebody else\'s profile page', () =>
         useSession().establish(account);
         usePeople().reset();
         useSocial().reset();
+    });
+
+    it('lays their theme over their profile’s band, as the server says they wear it', async () =>
+    {
+        server.themes.mina = 'theme.oni';
+        const container = visit('mina');
+
+        await vi.waitFor(() => expect(container.querySelector('section img[data-cover]')?.getAttribute('src')).toBe('/covers/oni.svg'));
     });
 
     it('keeps the person it was built for while it is being left', async () =>
@@ -525,6 +545,14 @@ describe('a profile for somebody with no wallet', () =>
         expect(server.calls).toContain('public.person sara.k');
         expect(server.calls).toContain('public.record sara.k');
         expect(server.calls.filter((call) => call.startsWith('social.') || call === 'auth.me')).toEqual([]);
+    });
+
+    it('lays their theme over the band for somebody with no wallet too', async () =>
+    {
+        server.themes['sara.k'] = 'theme.astral';
+        const container = await visit('sara.k');
+
+        await vi.waitFor(() => expect(container.querySelector('section img[data-cover]')?.getAttribute('src')).toBe('/covers/astral.svg'));
     });
 
     it('answers a minor as nobody', async () =>

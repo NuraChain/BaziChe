@@ -439,3 +439,65 @@ describe('the effect families', () =>
         expect(waiting.calls).toEqual([]);
     });
 });
+
+describe('a stream given an area', () =>
+{
+    /** Where each particle was drawn across, read from the calls that place one. */
+    const across = (recorded: Recording) => recorded.calls
+        .map((call) => /^(drawImage|arc|translate)\(([^)]*)\)/.exec(call))
+        .filter((found) => found !== null)
+        .map(([, name, args]) => Number(args!.split(',')[name === 'drawImage' ? 1 : 0]))
+        .filter((x) => Number.isFinite(x));
+
+    const run = (area?: { width: number; height: number }) =>
+    {
+        const recorded = recording();
+        const vfx = made(recorded);
+        const stop = vfx.stream('cinders', () => ({ x: 300, y: 60 }), { seed: 7, ...(area === undefined ? {} : { area }) });
+
+        clock.advance(3_000);
+        stop();
+
+        return across(recorded);
+    };
+
+    it('gives off across the area round its point, where without one it gives off from the point', () =>
+    {
+        const width = (xs: number[]) => Math.max(...xs) - Math.min(...xs);
+
+        expect(width(run())).toBeLessThan(160);
+        expect(width(run({ width: 600, height: 100 }))).toBeGreaterThan(420);
+    });
+
+    it('reads an area given as a getter at every spawn, so a stream follows a host that changes size', () =>
+    {
+        const recorded = recording();
+        const vfx = made(recorded);
+        let width = 100;
+        const stop = vfx.stream('comet', () => ({ x: 300, y: 60 }), {
+            seed: 3,
+            get area()
+            {
+                return { width, height: 20 };
+            }
+        });
+
+        clock.advance(1_000);
+        const narrow = across(recorded);
+
+        width = 600;
+        clock.advance(1_000);
+        recorded.calls.length = 0;
+        clock.advance(300);
+        const wide = across(recorded);
+        stop();
+
+        expect(Math.max(...narrow) - Math.min(...narrow)).toBeLessThan(150);
+        expect(Math.max(...wide) - Math.min(...wide), 'the area it was started with').toBeGreaterThan(400);
+    });
+
+    it('gives off across the same places with the same seed', () =>
+    {
+        expect(run({ width: 600, height: 100 })).toEqual(run({ width: 600, height: 100 }));
+    });
+});

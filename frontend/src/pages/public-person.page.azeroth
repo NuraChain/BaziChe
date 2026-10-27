@@ -133,6 +133,7 @@ export default component PublicPersonPage()
                         stats={ stats }
                         progress={ held?.progress ?? null }
                         joined={ view.data()?.joinedAt ?? '' }
+                        theme={ view.data()?.theme }
                     />
 
                     <Panel stack="sm">

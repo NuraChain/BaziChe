@@ -3,6 +3,7 @@ import { Link, onCleanup, untrack, type Child } from 'azerothjs';
 import type { Progress } from '../../api.ts';
 import { glowAround } from '../../game/looks/aura.ts';
 import { frameOf } from '../../game/looks/frames.ts';
+import { coverOf, driftOver } from '../../game/looks/themes.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { copyText } from '../../lib/clipboard.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -31,6 +32,7 @@ export default component ProfileHeader(props: {
     pictureLabel?: string;
     onPicture?: () => void;
     actions?: Child;
+    theme?: string;
 })
 {
     const locale = useLocale();
@@ -47,11 +49,21 @@ export default component ProfileHeader(props: {
 
     derived framed = worn !== null;
 
+    derived themed = coverOf(props.theme);
+
+    derived covered = themed !== null;
+
+    derived cover = themed === null ? '' : `/covers/${ themed }.svg`;
+
     state picture: HTMLElement | null = null;
 
     state head: HTMLElement | null = null;
 
+    state band: HTMLElement | null = null;
+
     let stopAura = () => undefined as void;
+
+    let stopAmbient = () => undefined as void;
 
     effect
     {
@@ -66,15 +78,35 @@ export default component ProfileHeader(props: {
         });
     }
 
-    onCleanup(() => stopAura());
+    effect
+    {
+        const collection = themed;
+        const where = band;
+
+        untrack(() =>
+        {
+            stopAmbient();
+            stopAmbient = collection === null || where === null ? () => undefined : driftOver(where, collection);
+        });
+    }
+
+    onCleanup(() =>
+    {
+        stopAura();
+        stopAmbient();
+    });
 
     <section class="hero-surface relative overflow-hidden rounded-hero" aria-labelledby="profile-name" ref={ (element) => head = element }>
         <div
             class="relative h-24 overflow-hidden @xl:h-32 [background:linear-gradient(120deg,hsl(var(--hue)_62%_42%/0.55),hsl(var(--hue)_55%_28%/0.25)_55%,transparent),radial-gradient(90%_140%_at_85%_0%,color-mix(in_oklab,var(--accent)_30%,transparent),transparent_65%)]"
             style={ `--hue: ${ props.person.hue }` }
             aria-hidden="true"
+            ref={ (element) => band = element }
         >
             <Icon name="games" size={ 260 } class="pointer-events-none absolute -end-10 -top-16 text-text opacity-[0.07] icon-flip" />
+            <Show when={ covered }>
+                <img src={ cover } alt="" decoding="async" class="absolute inset-0 h-full w-full object-cover" data-cover={ themed } />
+            </Show>
         </div>
 
         <Show when={ props.corner !== undefined }>

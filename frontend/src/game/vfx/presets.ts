@@ -23,6 +23,9 @@ export interface Tune
 
     /** Which way a throw goes, in radians clockwise from right; with none it goes every way. */
     direction?: number;
+
+    /** The region round its point a stream gives off across, in CSS pixels; with none it gives off from the point. */
+    area?: { width: number; height: number };
 }
 
 /** How often a ribbon keeps where it is, in ms of its life, so its length never follows the frame rate. */

@@ -129,6 +129,7 @@ export default component MePage()
                         stats={ stats }
                         progress={ held?.progress ?? null }
                         joined={ session.account()?.joinedAt ?? '' }
+                        theme={ session.account()?.theme }
                         pictureLabel={ locale.t('profile.pictureChange') }
                         onPicture={ editPicture }
                         mine

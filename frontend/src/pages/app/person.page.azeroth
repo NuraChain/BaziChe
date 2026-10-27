@@ -172,6 +172,7 @@ export default component PersonPage()
                     stats={ stats }
                     progress={ held?.progress ?? null }
                     joined={ view.data()?.joinedAt ?? '' }
+                    theme={ view.data()?.theme }
                     pictureLabel={ locale.t('profile.pictureView') }
                     onPicture={ (shown?.avatar ?? '') === '' ? undefined : viewPicture }
                     badges={

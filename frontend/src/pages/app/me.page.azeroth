@@ -123,7 +123,7 @@ export default component MePage()
             { () =>
                 <div class="flex flex-col gap-6">
                     <ProfileHeader
-                        person={ { displayName: shown?.displayName ?? '', hue: user!.hue, handle: user!.handle, avatar: shown?.avatar ?? '' } }
+                        person={ { ...user!, displayName: shown?.displayName ?? '', avatar: shown?.avatar ?? '' } }
                         presence={ null }
                         bio={ shown?.bio ?? '' }
                         stats={ stats }

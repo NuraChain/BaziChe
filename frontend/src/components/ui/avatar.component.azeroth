@@ -1,3 +1,4 @@
+import { frameOf } from '../../game/looks/frames.ts';
 import { AVATAR_DOT, AVATAR_SIZE, type AvatarSize } from './variants.ts';
 
 export type Presence = 'online' | 'away' | 'offline' | null;
@@ -26,6 +27,9 @@ export interface Facade
     displayName: string;
     hue: number;
     avatar?: string | undefined;
+
+    /** The decoration its owner wears, drawn round the picture wherever it is shown. */
+    deco?: string | undefined;
 }
 
 export default component Avatar(props: {
@@ -45,6 +49,8 @@ export default component Avatar(props: {
 
     derived picture = props.person?.avatar ?? '';
 
+    derived frame = frameOf(props.person?.deco) ?? undefined;
+
     state broken = '';
 
     derived dotClass = props.presence === 'online'
@@ -63,6 +69,7 @@ export default component Avatar(props: {
             props.class ?? ''
         ].filter(Boolean).join(' ') }
         style={ `--hue: ${ hue }` }
+        data-deco={ frame }
         role="img"
         aria-label={ name }
     >
@@ -87,7 +94,7 @@ export default component Avatar(props: {
             { () =>
                 <span
                     class={ () => [
-                        'absolute -bottom-0.5 -end-0.5 rounded-full',
+                        'absolute -bottom-0.5 -end-0.5 z-[2] rounded-full',
                         ringClass,
                         AVATAR_DOT[size],
                         dotClass

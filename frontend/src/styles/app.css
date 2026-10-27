@@ -5850,3 +5850,56 @@ button.chess-san:hover
 {
     border-color: color-mix(in oklab, var(--accent) 60%, var(--line));
 }
+
+[data-deco]::after
+{
+    content: '';
+    position: absolute;
+    inset: -12.5%;
+    z-index: 1;
+    pointer-events: none;
+    background: var(--deco) center / contain no-repeat;
+}
+
+[data-deco='glow']
+{
+    --deco: url('/frames/glow.svg');
+}
+
+[data-deco='shiraz']
+{
+    --deco: url('/frames/shiraz.svg');
+}
+
+[data-deco='neon']
+{
+    --deco: url('/frames/neon.svg');
+}
+
+[data-deco='gold']
+{
+    --deco: url('/frames/gold.svg');
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+    [data-deco='glow']
+    {
+        --deco: url('/frames/glow-still.svg');
+    }
+
+    [data-deco='shiraz']
+    {
+        --deco: url('/frames/shiraz-still.svg');
+    }
+
+    [data-deco='neon']
+    {
+        --deco: url('/frames/neon-still.svg');
+    }
+
+    [data-deco='gold']
+    {
+        --deco: url('/frames/gold-still.svg');
+    }
+}

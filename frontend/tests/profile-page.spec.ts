@@ -110,6 +110,18 @@ describe('my profile page', () =>
 
     const page = (): Promise<HTMLElement> => render(MePage as unknown as () => HTMLElement, '/app/me');
 
+    it('draws the reader’s own picture in the frame they chose', async () =>
+    {
+        signIn();
+        const framed = { ...server.account!, deco: 'decoration.shiraz' };
+        server.account = framed;
+        useSession().establish(framed);
+
+        const container = await page();
+
+        expect(container.querySelector('section [role="img"]')?.getAttribute('data-deco')).toBe('shiraz');
+    });
+
     it('puts Settings, Edit profile and Share in the corner in that order, with no Sign out, and shows the level once', async () =>
     {
         signIn();

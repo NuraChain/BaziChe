@@ -34,7 +34,9 @@ export function personFor(account: Account | null): Person | null
         bio: account.bio,
         ...(account.avatar === undefined ? {} : { avatar: account.avatar }),
         hue: account.hue,
-        isMinor: account.isMinor
+        isMinor: account.isMinor,
+        ...(account.deco === undefined ? {} : { deco: account.deco }),
+        ...(account.nameplate === undefined ? {} : { nameplate: account.nameplate })
     };
 }
 

@@ -1,6 +1,8 @@
-import { Link, type Child } from 'azerothjs';
+import { Link, onCleanup, untrack, type Child } from 'azerothjs';
 
 import type { Progress } from '../../api.ts';
+import { glowAround } from '../../game/looks/aura.ts';
+import { frameOf } from '../../game/looks/frames.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { copyText } from '../../lib/clipboard.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -41,6 +43,28 @@ export default component ProfileHeader(props: {
         ? 0
         : Math.min(100, Math.round((progress.into / progress.span) * 100));
 
+    derived worn = frameOf(props.person.deco);
+
+    derived framed = worn !== null;
+
+    state picture: HTMLElement | null = null;
+
+    let stopAura = () => undefined as void;
+
+    effect
+    {
+        const frame = worn;
+        const box = picture;
+
+        untrack(() =>
+        {
+            stopAura();
+            stopAura = frame === null || box === null ? () => undefined : glowAround(box, frame);
+        });
+    }
+
+    onCleanup(() => stopAura());
+
     <section class="hero-surface relative overflow-hidden rounded-hero" aria-labelledby="profile-name">
         <div
             class="relative h-24 overflow-hidden @xl:h-32 [background:linear-gradient(120deg,hsl(var(--hue)_62%_42%/0.55),hsl(var(--hue)_55%_28%/0.25)_55%,transparent),radial-gradient(90%_140%_at_85%_0%,color-mix(in_oklab,var(--accent)_30%,transparent),transparent_65%)]"
@@ -56,7 +80,7 @@ export default component ProfileHeader(props: {
 
         <div class="relative flex flex-col gap-4 px-4 pb-5 @xl:px-7 @xl:pb-7">
             <div class="-mt-12 flex items-end justify-between gap-3 @xl:-mt-14">
-                <span class="shrink-0 rounded-full bg-gradient-to-br from-accent to-accent-fill p-[3px] shadow-[0_0_28px_-6px_var(--accent)]">
+                <span class={ () => [ 'relative shrink-0 rounded-full', framed ? '' : 'bg-gradient-to-br from-accent to-accent-fill p-[3px] shadow-[0_0_28px_-6px_var(--accent)]' ].join(' ') } ref={ (element) => picture = element }>
                     <Show
                         when={ props.onPicture !== undefined }
                         fallback={ <Avatar person={ { ...props.person, displayName: title } } size="2xl" presence={ props.presence } class="ring-4 ring-field @xl:h-28 @xl:w-28" /> }

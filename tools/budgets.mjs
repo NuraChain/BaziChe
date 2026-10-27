@@ -104,6 +104,9 @@ const TABLE_BUDGET = 24 * KB;
 /** The chunk that holds the stage every table plays on, and what the tables share beside it. */
 const STAGE_BUDGET = 11 * KB;
 
+/** The particle engine, a chunk of its own fetched only when an effect plays. */
+const VFX_BUDGET = 8 * KB;
+
 const gzip = (name) => gzipSync(readFileSync(join(ASSETS, name))).length;
 
 const size = (bytes) => `${ (bytes / KB).toFixed(1) } KB`;
@@ -269,10 +272,12 @@ if (existsSync(SCENES))
 // the bundler cuts the stage kit into several chunks and folds a module with one user into it.
 const BOARDS = join(ROOT, 'frontend', 'src', 'components', 'games', 'boards.ts');
 const STAGE = 'src/game/stage/stage.ts';
+const VFX = 'src/game/vfx/engine.ts';
 
 const tableBytes = [];
 
 let stageBytes = null;
+let vfxBytes = null;
 
 if (chunkModules !== null && existsSync(BOARDS))
 {
@@ -330,6 +335,27 @@ if (chunkModules !== null && existsSync(BOARDS))
         if (stageBytes > STAGE_BUDGET)
         {
             problems.push(`${ stage } is ${ size(stageBytes) }, over the ${ size(STAGE_BUDGET) } stage budget`);
+        }
+    }
+
+    const vfx = holding(VFX);
+
+    if (vfx === undefined)
+    {
+        problems.push(`${ VFX } is in no chunk of the client build - has it moved?`);
+    }
+    else
+    {
+        vfxBytes = gzip(vfx);
+
+        if (initial.includes(vfx) || vfx === stage || tables.some((module) => holding(module) === vfx))
+        {
+            problems.push(`${ vfx } holds the particle engine beside the landing, the stage or a table: it is fetched only when an effect plays`);
+        }
+
+        if (vfxBytes > VFX_BUDGET)
+        {
+            problems.push(`${ vfx } is ${ size(vfxBytes) }, over the ${ size(VFX_BUDGET) } particle engine budget`);
         }
     }
 }
@@ -664,6 +690,7 @@ console.log(`  routes       ${ pages.length } chunks, largest ${ size(Math.max(0
 console.log(`  board        ${ boardChunk === null ? 'absent' : size(gzip(boardChunk)) } / ${ size(BOARD_BUDGET) }`);
 console.log(`  tables       ${ tableBytes.length } chunks, largest ${ size(Math.max(0, ...tableBytes)) } / ${ size(TABLE_BUDGET) }`);
 console.log(`  stage        ${ stageBytes === null ? 'absent' : size(stageBytes) } / ${ size(STAGE_BUDGET) }`);
+console.log(`  vfx          ${ vfxBytes === null ? 'absent' : size(vfxBytes) } / ${ size(VFX_BUDGET) }`);
 console.log(`  sounds       ${ sounds.length } packs, ${ size(soundTotal) } in all, none over its ceiling`);
 console.log(`  beds         ${ beds.length } ${ beds.length === 1 ? 'bed' : 'beds' }, ${ size(bedTotal) } in all, none over its ceiling`);
 console.log(`  looks        ${ lookFiles.length } drawings, ${ size(lookTotal) } in all, none over ${ size(LOOK_BUDGET) }`);

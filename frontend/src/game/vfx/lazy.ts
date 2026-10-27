@@ -26,10 +26,10 @@ export function lazyVfx(host: HTMLElement, options: VfxOptions = {})
             void engine();
         },
 
-        /** Runs `effect` once the engine is here; nothing once let go. */
+        /** Runs `effect` once the engine is here, nothing once let go; the answer settles once it has run, or once the engine could not be fetched. */
         play(effect: (vfx: Vfx) => void)
         {
-            void engine().then((one) =>
+            return engine().then((one) =>
             {
                 if (one !== null && !gone)
                 {

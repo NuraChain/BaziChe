@@ -18,6 +18,15 @@ import { socket } from './fake-realtime.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
 
+const equipped = vi.hoisted(() => [] as { look: HTMLElement; item: string }[]);
+
+vi.mock('../src/game/looks/equip.ts', () => ({
+    burstOver: (look: HTMLElement, item: string) =>
+    {
+        equipped.push({ look, item });
+    }
+}));
+
 let clock: ManualClock;
 let seq = 0;
 
@@ -55,6 +64,7 @@ beforeEach(() =>
     resetRuntime();
     clock = manualClock(Date.parse('2026-10-27T12:00:00.000Z'));
     setRuntime({ clock, seed: 3 });
+    equipped.length = 0;
     server.reset();
     socket.reset();
     useRealtime().reset();
@@ -103,6 +113,33 @@ describe('the reader\'s collection', () =>
 
         expect(server.calls).toContain('shop.choose ludo.dice dice.neon');
         expect(choices(root, 'backgammon.dice'), 'chosen for one game is chosen for that game alone').toEqual([['Classic', 'true'], ['Midnight Neon dice', 'false']]);
+    });
+
+    it('plays a look’s burst over it as it is put on, and none for Classic or for a look already worn', async () =>
+    {
+        server.shop.owned = [
+            { item: 'dice.neon', via: 'purchase', at: '2026-10-27T11:00:00.000Z' },
+            { item: 'decoration.inferno', via: 'purchase', at: '2026-10-27T11:00:00.000Z' }
+        ];
+
+        const root = await page();
+        const dice = () => root.querySelectorAll<HTMLButtonElement>('[data-slot="ludo.dice"] .look-choice');
+        const neon = dice()[1]!;
+
+        fire(neon, 'click');
+
+        expect(equipped, 'at the press, over the drawing of the look pressed').toEqual([{ look: neon.querySelector('img'), item: 'dice.neon' }]);
+
+        await settle();
+        fire(dice()[1]!, 'click');
+        fire(dice()[0]!, 'click');
+
+        expect(equipped, 'a look already worn, then Classic').toHaveLength(1);
+
+        await settle();
+        fire(root.querySelectorAll<HTMLButtonElement>('[data-slot="profile.decoration"] .look-choice')[1]!, 'click');
+
+        expect(equipped.map((one) => one.item)).toEqual(['dice.neon', 'decoration.inferno']);
     });
 
     it('lists the gifts with who sent them, and says none came yet when none did', async () =>

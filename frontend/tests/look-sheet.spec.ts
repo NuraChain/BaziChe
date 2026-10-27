@@ -20,6 +20,15 @@ import { socket } from './fake-realtime.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
 
+const equipped = vi.hoisted(() => [] as { look: HTMLElement; item: string }[]);
+
+vi.mock('../src/game/looks/equip.ts', () => ({
+    burstOver: (look: HTMLElement, item: string) =>
+    {
+        equipped.push({ look, item });
+    }
+}));
+
 const OWNER = '0x71c7656ec7ab88b098defb751b7401b5f6d8976f';
 
 let clock: ManualClock;
@@ -108,6 +117,7 @@ beforeEach(() =>
     resetRuntime();
     clock = manualClock(Date.parse('2026-10-27T12:00:00.000Z'));
     setRuntime({ clock, seed: 3 });
+    equipped.length = 0;
     server.reset();
     socket.reset();
     useRealtime().reset();
@@ -180,6 +190,26 @@ describe('the sheet about a look', () =>
         expect(server.calls).toContain('shop.choose hokm.back back.glow');
         expect(button(root, 'In use at Hokm')?.getAttribute('aria-pressed')).toBe('true');
         expect(button(root, 'Use at Poker')).toBeDefined();
+    });
+
+    it('plays the look’s burst over its drawing as it is put on somewhere, and none where it is already worn', async () =>
+    {
+        server.shop.owned = [{ item: 'back.glow', via: 'purchase', at: '2026-10-27T11:00:00.000Z' }];
+        const { root } = await sheet('back.glow');
+        const drawing = root.querySelector('img.look-large');
+
+        fire(button(root, 'Use at Hokm')!, 'click');
+
+        expect(equipped, 'at the press, over the large drawing').toEqual([{ look: drawing, item: 'back.glow' }]);
+
+        await settle();
+        fire(button(root, 'In use at Hokm')!, 'click');
+
+        expect(equipped).toHaveLength(1);
+
+        fire(button(root, 'Use at Poker')!, 'click');
+
+        expect(equipped.map((one) => one.item)).toEqual(['back.glow', 'back.glow']);
     });
 
     it('says why an account with no wallet and one under 18 cannot buy, and offers neither Buy nor a gift', async () =>

@@ -10,6 +10,7 @@ import LoadMore from '../../components/ui/load-more.component.azeroth';
 import Panel from '../../components/ui/panel.component.azeroth';
 import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import { GAMES } from '../../data/games.ts';
+import { burstOver } from '../../game/looks/equip.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { nuraOf } from '../../lib/nura.ts';
 import { itemName } from '../../lib/shop.ts';
@@ -82,8 +83,14 @@ export default component CollectionPage()
 
     const choices = (slot: ShopSlot) => (held?.owned ?? []).filter((one) => !one.item.startsWith('bundle.') && SHOP_SLOTS[slot] === one.item.split('.')[0]).map((one) => one.item);
 
-    const choose = (slot: ShopSlot, item: string | null) =>
+    const choose = (slot: ShopSlot, item: string | null, pressed?: HTMLElement) =>
     {
+        const drawing = pressed?.querySelector('img') ?? null;
+
+        if (item !== null && drawing !== null && shop.chosen(slot) !== item)
+        {
+            burstOver(drawing, item);
+        }
         void shop.choose(slot, item);
     };
 
@@ -152,7 +159,7 @@ export default component CollectionPage()
                                                     type="button"
                                                     class="look-choice flex w-24 flex-col items-center gap-1.5 rounded-tile border border-line bg-sunk p-2 text-center"
                                                     aria-pressed={ shop.chosen(slot) === item }
-                                                    onClick={ () => choose(slot, item) }
+                                                    onClick={ (event) => choose(slot, item, event.currentTarget as HTMLElement) }
                                                 >
                                                     <img src={ `/looks/${ item }.svg` } alt="" width="80" height="60" loading="lazy" decoding="async" class="block aspect-[4/3] w-full rounded-control" />
                                                     <span class="line-clamp-2 w-full text-ui-xs font-semibold leading-tight text-text [overflow-wrap:anywhere]">{ itemName(item, locale) }</span>

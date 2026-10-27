@@ -1,6 +1,7 @@
 import { bundleOf, lookOf, type ShopSlot } from '../../../../backend/src/domains/shop/catalogue.ts';
 import { NURA_CHAIN } from '../../data/chain.ts';
 import { GAMES } from '../../data/games.ts';
+import { burstOver } from '../../game/looks/equip.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { explorerTx, nuraOf } from '../../lib/nura.ts';
 import { bundleSaving, collectionName, gameOfSlot, itemName, slotsFor } from '../../lib/shop.ts';
@@ -26,6 +27,8 @@ export default component LookSheet(props: OverlayProps & { item: string })
     const shop = useShop();
     const social = useSocial();
     const people = usePeople();
+
+    let preview: HTMLElement | null = null;
 
     state giving = false;
 
@@ -174,6 +177,10 @@ export default component LookSheet(props: OverlayProps & { item: string })
 
     const useAt = (slot: ShopSlot) =>
     {
+        if (preview !== null && shop.chosen(slot) !== props.item)
+        {
+            burstOver(preview, props.item);
+        }
         void shop.choose(slot, props.item);
     };
 
@@ -245,7 +252,7 @@ export default component LookSheet(props: OverlayProps & { item: string })
         <Show when={ !giving }>
             <div class="min-block-0 overflow-y-auto overscroll-contain px-5 pb-5 [touch-action:pan-y]">
                 <div class="grid gap-5 @xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] @xl:items-start">
-                    <img src={ `/looks/${ props.item }.svg` } alt="" width="320" height="240" decoding="async" class="look-large block aspect-[4/3] w-full rounded-hero border border-line" data-tier={ look?.tier ?? 'bundle' } />
+                    <img src={ `/looks/${ props.item }.svg` } alt="" width="320" height="240" decoding="async" class="look-large block aspect-[4/3] w-full rounded-hero border border-line" data-tier={ look?.tier ?? 'bundle' } ref={ (element) => preview = element } />
 
                     <div class="flex min-w-0 flex-col gap-4">
                         <Show when={ !bundled }>

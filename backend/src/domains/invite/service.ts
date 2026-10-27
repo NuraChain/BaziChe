@@ -50,7 +50,7 @@ export function createInviteService(db: DataSource)
                 .where('invitee_id in (:...inviteeIds)', { inviteeIds })
                 .andWhere('counted_at is null')
                 .andWhere('inviter_id is not null')
-                .returning(['inviter_id', 'invitee_id'])
+                .returning(['inviterId', 'inviteeId'])
                 .execute();
 
             return (rows.raw as { inviter_id: string; invitee_id: string }[]).map((row) => ({ inviterId: row.inviter_id, inviteeId: row.invitee_id }));

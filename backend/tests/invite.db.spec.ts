@@ -34,6 +34,8 @@ const CONFIG = {
     secret: 'a-test-secret-that-is-long-enough-to-use',
     origin: 'http://localhost:1',
     env: 'test',
+    chainId: '',
+    rpcUrl: '',
     vapidPublicKey: '',
     vapidPrivateKey: '',
     vapidSubject: '',

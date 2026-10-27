@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { CELL, FRAME_ROUND, MARGIN, NEST, NEST_RADIUS, NEST_SPREAD, NEST_WELLS, RIM } from '../../frontend/src/game/layout.ts';
 import { ENTRY, HOME_CELLS, RING, RING_CELLS, RING_STEPS, SAFE, ringIndex } from '../../backend/src/domains/match/ludo/board.ts';
+import { INK, PAWN, outlined } from './pawn-shape.mjs';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'public', 'board');
 const S = 1024;
@@ -13,8 +14,6 @@ const EDGE = RIM * S;
 const FRAME_RADIUS = Math.round(FRAME_ROUND * S);
 
 const round = (value) => Math.round(value * 100) / 100;
-
-const INK = '#2A1E5C';
 
 const PAPER = '#FFF4DC';
 
@@ -233,22 +232,15 @@ ${ marks.join('\n') }
 function pawn(colour)
 {
     const paint = PAINT[colour];
-    const line = 9;
 
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-<g stroke="${ INK }" stroke-width="${ line }" stroke-linejoin="round" stroke-linecap="round">
-    <ellipse cx="128" cy="203" rx="80" ry="28" fill="${ paint.dark }"/>
-    <ellipse cx="128" cy="191" rx="80" ry="28" fill="${ paint.fill }"/>
-    <path d="M60 190C68 154 86 128 96 110H160C170 128 188 154 196 190C176 207 80 207 60 190Z" fill="${ paint.fill }"/>
-    <ellipse cx="128" cy="109" rx="44" ry="15" fill="${ paint.dark }"/>
-    <circle cx="128" cy="62" r="56" fill="${ paint.fill }"/>
-</g>
-<path d="M162 120C174 142 184 164 188 188C178 196 168 198 158 199C156 172 154 146 150 122Z" fill="${ paint.dark }" opacity="0.5"/>
-<path d="M80 184C84 160 94 140 106 124" stroke="${ paint.light }" stroke-width="11" stroke-linecap="round" fill="none"/>
-<path d="M177 35A56 56 0 0 1 152 113A52 52 0 0 0 177 35Z" fill="${ paint.dark }" opacity="0.45"/>
-<path d="M88 46A44 44 0 0 1 120 18" stroke="${ paint.light }" stroke-width="12" stroke-linecap="round" fill="none"/>
-<ellipse cx="104" cy="36" rx="12" ry="8" fill="#FFFFFF" transform="rotate(-30 104 36)"/>
-<path d="M66 196C88 209 168 209 190 196" stroke="${ paint.light }" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.8"/>
+${ outlined({ foot: paint.dark, base: paint.fill, body: paint.fill, collar: paint.dark, head: paint.fill }) }
+<path d="${ PAWN.shade }" fill="${ paint.dark }" opacity="0.5"/>
+<path d="${ PAWN.lit }" stroke="${ paint.light }" stroke-width="11" stroke-linecap="round" fill="none"/>
+<path d="${ PAWN.crown }" fill="${ paint.dark }" opacity="0.45"/>
+<path d="${ PAWN.gleam }" stroke="${ paint.light }" stroke-width="12" stroke-linecap="round" fill="none"/>
+<ellipse ${ PAWN.glint }/>
+<path d="${ PAWN.rim }" stroke="${ paint.light }" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.8"/>
 </svg>
 `;
 }

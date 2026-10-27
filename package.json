@@ -25,7 +25,7 @@
         "qa": "node tools/qa/matrix.mjs",
         "sound": "node tools/art/sound.mjs",
         "beds": "node tools/art/beds.mjs",
-        "looks": "node tools/art/looks.mjs && node tools/art/profile-looks.mjs"
+        "looks": "node tools/art/looks.mjs && node tools/art/profile-looks.mjs && node tools/art/table-looks.mjs"
     },
     "devDependencies": {
         "@azerothjs/cli": "2.1.0",

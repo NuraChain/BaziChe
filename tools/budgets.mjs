@@ -30,6 +30,7 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { BUNDLES, LOOKS, SHOP_COLLECTIONS } from '../backend/src/domains/shop/catalogue.ts';
+import { SEAT_RAMPS } from '../frontend/src/game/looks/palette.ts';
 import { POSTERS, fingerprint } from './art/poster.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -70,6 +71,11 @@ const PROFILE_LOOKS = {
     frames: { names: SHOP_COLLECTIONS.flatMap((collection) => [collection, `${ collection }-still`]), budget: 12 * KB },
     plates: { names: [...SHOP_COLLECTIONS], budget: 6 * KB },
     covers: { names: [...SHOP_COLLECTIONS], budget: 24 * KB }
+};
+
+/** What a table draws of its owner's looks: each collection in each seat's colour. */
+const TABLE_LOOKS = {
+    pawns: { names: SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => `${ collection }-${ seat }`)), budget: 4 * KB }
 };
 
 /**
@@ -597,39 +603,47 @@ for (const name of lookFiles)
     }
 }
 
-let profileCount = 0;
-let profileTotal = 0;
-
-for (const [folder, { names, budget }] of Object.entries(PROFILE_LOOKS))
+const drawnIn = (folders) =>
 {
-    const into = join(DIST, folder);
-    const present = existsSync(into) ? readdirSync(into) : [];
+    let count = 0;
+    let total = 0;
 
-    for (const name of names)
+    for (const [folder, { names, budget }] of Object.entries(folders))
     {
-        const path = join(into, `${ name }.svg`);
+        const into = join(DIST, folder);
+        const present = existsSync(into) ? readdirSync(into) : [];
 
-        if (!existsSync(path))
+        for (const name of names)
         {
-            problems.push(`${ folder }/${ name }.svg is missing - run npm run looks`);
+            const path = join(into, `${ name }.svg`);
+
+            if (!existsSync(path))
+            {
+                problems.push(`${ folder }/${ name }.svg is missing - run npm run looks`);
+            }
+            else if (statSync(path).size > budget)
+            {
+                problems.push(`${ folder }/${ name }.svg is ${ size(statSync(path).size) }, over ${ size(budget) }`);
+            }
         }
-        else if (statSync(path).size > budget)
+
+        for (const name of present)
         {
-            problems.push(`${ folder }/${ name }.svg is ${ size(statSync(path).size) }, over ${ size(budget) }`);
+            if (!names.includes(name.replace(/\.svg$/, '')))
+            {
+                problems.push(`${ folder }/${ name } is no collection's drawing`);
+            }
+            total += statSync(join(into, name)).size;
         }
+
+        count += present.length;
     }
 
-    for (const name of present)
-    {
-        if (!names.includes(name.replace(/\.svg$/, '')))
-        {
-            problems.push(`${ folder }/${ name } is no collection's drawing`);
-        }
-        profileTotal += statSync(join(into, name)).size;
-    }
+    return { count, total };
+};
 
-    profileCount += present.length;
-}
+const profile = drawnIn(PROFILE_LOOKS);
+const table = drawnIn(TABLE_LOOKS);
 
 if (readdirSync(ASSETS).some((name) => /.(mp3|ogg|wav|m4a)$/.test(name)))
 {
@@ -694,7 +708,8 @@ console.log(`  vfx          ${ vfxBytes === null ? 'absent' : size(vfxBytes) } /
 console.log(`  sounds       ${ sounds.length } packs, ${ size(soundTotal) } in all, none over its ceiling`);
 console.log(`  beds         ${ beds.length } ${ beds.length === 1 ? 'bed' : 'beds' }, ${ size(bedTotal) } in all, none over its ceiling`);
 console.log(`  looks        ${ lookFiles.length } drawings, ${ size(lookTotal) } in all, none over ${ size(LOOK_BUDGET) }`);
-console.log(`  profile      ${ profileCount } frames, plates and covers, ${ size(profileTotal) } in all, none over its folder's ceiling`);
+console.log(`  profile      ${ profile.count } frames, plates and covers, ${ size(profile.total) } in all, none over its folder's ceiling`);
+console.log(`  table looks  ${ table.count } pawns, ${ size(table.total) } in all, none over its folder's ceiling`);
 console.log(`  world        ${ size(worldBytes) } / ${ size(WORLD_BUDGET) }`);
 console.log(`  posters      ${ posterBytes.map(size).join(', ') }`);
 console.log(`  class binds  ${ classBindsRead } read, ${ problems.length === 0 ? 'every one that reads a signal effect-wrapped' : 'see below' }`);

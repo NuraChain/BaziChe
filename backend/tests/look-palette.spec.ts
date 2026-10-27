@@ -104,6 +104,32 @@ describe('what a profile wears', () =>
     });
 });
 
+describe('what a table wears', () =>
+{
+    const SEATS = Object.keys(SEAT_RAMPS) as (keyof typeof SEAT_RAMPS)[];
+
+    const shape = readFileSync(new URL('../../tools/art/pawn-shape.mjs', import.meta.url), 'utf8');
+
+    const outline = (part: string) => new RegExp(`${ part }: '([^']+)'`).exec(shape)![1]!;
+
+    it('draws a pawn of every collection in every seat’s colour, and nothing else', () =>
+    {
+        const drawn = readdirSync(new URL('../../frontend/public/pawns/', import.meta.url)).sort();
+
+        expect(drawn).toEqual(SHOP_COLLECTIONS.flatMap((collection) => SEATS.map((seat) => `${ collection }-${ seat }.svg`)).sort());
+    });
+
+    it.each(SHOP_COLLECTIONS.flatMap((collection) => SEATS.map((seat) => [collection, seat] as const)))('stands %s’s %s pawn on the board’s own pawn, in its seat’s colour', (collection, seat) =>
+    {
+        const pawn = readFileSync(new URL(`../../frontend/public/pawns/${ collection }-${ seat }.svg`, import.meta.url), 'utf8');
+
+        expect(pawn).toContain('viewBox="0 0 256 256"');
+        expect(pawn).toContain(`d="${ outline('body') }"`);
+        expect(pawn).toContain(`<circle ${ outline('head') }`);
+        expect(pawn, 'a pawn that does not say whose it is').toContain(SEAT_RAMPS[seat][1]);
+    });
+});
+
 describe('the drawings', () =>
 {
     it('draws every look and every bundle, and nothing the shop does not sell', () =>

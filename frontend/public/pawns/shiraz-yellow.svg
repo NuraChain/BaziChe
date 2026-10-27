@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+<defs>
+<linearGradient id="glaze" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE07A"/><stop offset="0.45" stop-color="#FFC72C"/><stop offset="1" stop-color="#DE9C00"/></linearGradient>
+<radialGradient id="dome" cx="0.4" cy="0.32" r="0.85"><stop offset="0" stop-color="#FFE07A"/><stop offset="0.6" stop-color="#FFC72C"/><stop offset="1" stop-color="#DE9C00"/></radialGradient>
+<linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF4D6"/><stop offset="0.5" stop-color="#E7BE63"/><stop offset="1" stop-color="#9A6B1E"/></linearGradient>
+</defs>
+<g stroke="#2A1E5C" stroke-width="9" stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="128" cy="203" rx="80" ry="28" fill="url(#gold)"/>
+    <ellipse cx="128" cy="191" rx="80" ry="28" fill="url(#gold)"/>
+    <path d="M60 190C68 154 86 128 96 110H160C170 128 188 154 196 190C176 207 80 207 60 190Z" fill="url(#glaze)"/>
+    <ellipse cx="128" cy="109" rx="44" ry="15" fill="url(#gold)"/>
+    <circle cx="128" cy="62" r="56" fill="url(#dome)"/>
+</g>
+<path d="M162 120C174 142 184 164 188 188C178 196 168 198 158 199C156 172 154 146 150 122Z" fill="#DE9C00" opacity="0.3"/>
+<path d="M80 184C84 160 94 140 106 124" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" fill="none" opacity="0.6"/>
+<path d="M177 35A56 56 0 0 1 152 113A52 52 0 0 0 177 35Z" fill="#DE9C00" opacity="0.27"/>
+<path d="M88 46A44 44 0 0 1 120 18" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.6"/>
+<ellipse cx="104" cy="36" rx="12" ry="8" fill="#FFFFFF" transform="rotate(-30 104 36)"/>
+<path d="M66 196C88 209 168 209 190 196" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.48"/>
+<path d="M145.68 177.68L110.32 177.68L110.32 142.32L145.68 142.32ZM153 160L128 185L103 160L128 135Z" fill="#18A8A0" stroke="#E7BE63" stroke-width="4" stroke-linejoin="round"/>
+<circle cx="128" cy="160" r="7.5" fill="#FFF4D6" stroke="#E7BE63" stroke-width="2.5"/>
+<path d="M150 22L156 36L170 40M156 36L152 50" stroke="#FFFFFF" stroke-opacity="0.32" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M84 74A46 46 0 0 0 108 104" stroke="#E7BE63" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.85"/>
+</svg>

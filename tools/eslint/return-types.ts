@@ -77,6 +77,12 @@ const isLiteral = (node: Tree): boolean =>
 
 const isDecorated = (node: Tree): boolean => ((node.decorators as unknown[] | undefined)?.length ?? 0) > 0;
 
+const resultsOf = (node: Tree): Tree[] =>
+    node.type in THROUGH ? THROUGH[node.type]!.flatMap((key) => resultsOf(node[key] as Tree)) : [node];
+
+const widens = (node: Tree): boolean =>
+    node.type === 'TemplateLiteral' || (isLiteral(node) && node.value !== null && typeof node.value !== 'object');
+
 const prefersInferredReturnType: Rule.RuleModule = {
     meta: {
         type: 'suggestion',
@@ -231,6 +237,13 @@ const prefersInferredReturnType: Rule.RuleModule = {
 
             const literals = returned.filter(isLiteral);
             const others = returned.filter((one) => !isLiteral(one));
+
+            // A literal in a branch is typed by the annotation it is returned into, so the branch's
+            // union can print as the annotation; with none, the literal widens to its base type.
+            if (others.flatMap(resultsOf).filter(widens).some((one) => !same(checker.getBaseTypeOfLiteralType(typeOf(one)))))
+            {
+                return false;
+            }
 
             if (others.some((one) => ((settled(one)?.flags ?? 0) & UNIT) !== 0) || !others.every((one) => same(settled(one))))
             {

@@ -14,6 +14,7 @@ import { User } from '../../entities/user.entity.ts';
 import { AVATAR_MAX_BYTES, avatarHashOf, avatarUrl, sniffAvatar } from './avatar.ts';
 import { candidatesFor, checkHandle, handleFromAddress, normalizeHandle } from './handle.ts';
 import { signInText, verifySignature } from './signature.ts';
+import { PROFILE_LOOKS, chosenIn, type ProfileLooks } from '../shop/looks.ts';
 
 /** Five minutes. A signature older than this is refused however valid it is. */
 const NONCE_TTL_MS = 5 * 60 * 1000;
@@ -43,7 +44,7 @@ interface UserRow
     is_suspended: boolean;
 }
 
-export interface ProfileRow extends UserRow
+export interface ProfileRow extends UserRow, ProfileLooks
 {
     avatar: string | null;
 
@@ -377,6 +378,10 @@ export function createIdentityService(db: DataSource, config: IdentityConfig)
                 .addSelect('u.created_at', 'created_at')
                 .addSelect('(select w.address from wallets w where w.user_id = u.id order by w.last_used_at desc nulls last limit 1)', 'address')
                 .addSelect('(select m.role from staff_members m where m.user_id = u.id)', 'staff_role')
+                .addSelect(chosenIn('u', PROFILE_LOOKS.deco), 'deco')
+                .addSelect(chosenIn('u', PROFILE_LOOKS.nameplate), 'nameplate')
+                .addSelect(chosenIn('u', PROFILE_LOOKS.theme), 'theme')
+                .addSelect(chosenIn('u', PROFILE_LOOKS.effect), 'effect')
                 .where('u.id = :userId', { userId })
                 .getRawOne<ProfileRow>();
             return row ?? null;

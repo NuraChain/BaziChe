@@ -61,6 +61,70 @@ const makeUser = async () =>
 const own = (userId: string, ...items: string[]) =>
     db.getRepository(OwnedItem).insert(items.map((itemId) => ({ userId, itemId, via: 'grant' as const })));
 
+/** A game of Ludo for two at a public table, started by `host`. */
+const startLudo = async (ports: ReturnType<typeof door>, host: User, guest: User) =>
+{
+    const table = await tables.create(host.id, {
+        game: 'ludo',
+        seats: 2,
+        mode: 'live',
+        privacy: 'public',
+        target: 0,
+        cube: false,
+        blinds: 'low',
+        chat: true,
+        voice: 'off',
+        teams: false,
+        invitees: []
+    });
+
+    await tables.claimSeat(guest.id, table.id);
+    await tables.setReady(host.id, table.id, true);
+    await tables.setReady(guest.id, table.id, true);
+
+    return await ports.match.start(host.id, table.id);
+};
+
+const LOOK_KEYS = ['deco', 'nameplate', 'theme', 'effect'] as const;
+
+/** The looks a read carries, by key, or null when the read did not find the person at all. */
+const looksOf = (read: object | null | undefined) => read === null || read === undefined
+    ? null
+    : Object.fromEntries(LOOK_KEYS.filter((key) => key in read).map((key) => [key, (read as Record<string, unknown>)[key]]));
+
+/** Every read that draws `subject` for `viewer`: the account, the lists, a profile, the public one and both boards. */
+const everyRead = async (ports: ReturnType<typeof door>, viewer: User, subject: User) =>
+{
+    const theirs = <T extends { handle: string }>(rows: readonly T[]) => rows.find((row) => row.handle === subject.handle);
+    const [account, graph, directory, found, named, view, shown, all, today] = await Promise.all([
+        ports.identity.me(subject.id),
+        ports.social.graph(viewer.id),
+        ports.social.directory(viewer.id, 60),
+        ports.social.search(viewer.id, subject.handle, 20),
+        ports.social.names([subject.handle]),
+        ports.social.view(viewer.id, subject.handle),
+        ports.social.shown(subject.handle),
+        ports.match.leaderboard('ludo', 'all'),
+        ports.match.leaderboard('ludo', 'today')
+    ]);
+
+    return {
+        account: looksOf(account),
+        friend: looksOf(theirs(graph.friends)),
+        directory: looksOf(theirs(directory)),
+        search: looksOf(theirs(found)),
+        names: looksOf(theirs(named)),
+        view: looksOf(view),
+        viewed: looksOf(view?.person),
+        shown: looksOf(shown),
+        face: looksOf(shown?.person),
+        all: looksOf(theirs(all.standings)?.person),
+        today: looksOf(theirs(today.standings)?.person)
+    };
+};
+
+const CLASSIC = { account: {}, friend: {}, directory: {}, search: {}, names: {}, view: {}, viewed: {}, shown: {}, face: {}, all: {}, today: {} };
+
 /** The word a refusal carries, or nothing when the call went through. */
 const refusal = async (call: Promise<unknown>) =>
 {
@@ -188,25 +252,7 @@ describe.skipIf(!active)('looks a person owns and chooses, against a real databa
             await ports.shop.choose(host.id, slot, item);
         }
 
-        const table = await tables.create(host.id, {
-            game: 'ludo',
-            seats: 2,
-            mode: 'live',
-            privacy: 'public',
-            target: 0,
-            cube: false,
-            blinds: 'low',
-            chat: true,
-            voice: 'off',
-            teams: false,
-            invitees: []
-        });
-
-        await tables.claimSeat(guest.id, table.id);
-        await tables.setReady(host.id, table.id, true);
-        await tables.setReady(guest.id, table.id, true);
-
-        const started = await ports.match.start(host.id, table.id);
+        const started = await startLudo(ports, host, guest);
         const hostSeat = started.players.find((player) => player.who === host.handle);
         const guestSeat = started.players.find((player) => player.who === guest.handle);
         const look = { dice: 'dice.shiraz', pawns: 'pawns.neon', celebration: 'celebration.glow' };
@@ -224,5 +270,74 @@ describe.skipIf(!active)('looks a person owns and chooses, against a real databa
         const later = await ports.match.view(guest.id, started.id);
 
         expect(later?.players.find((player) => player.who === host.handle)?.look).toEqual(look);
+    });
+
+    describe('the looks a person chose for their profile', () =>
+    {
+        const LISTED = { deco: 'decoration.gold', nameplate: 'nameplate.neon' };
+        const PAGE = { theme: 'theme.shiraz', effect: 'effect.glow' };
+
+        /**
+         * One player who wears all four profile looks and one who wears none, who played a game of
+         * Ludo today and stand on the all-time board, and a friend of both who reads them.
+         */
+        const cast = async (ports: ReturnType<typeof door>) =>
+        {
+            const wearer = await makeUser();
+            const plain = await makeUser();
+            const reader = await makeUser();
+
+            await own(wearer.id, 'decoration.gold', 'nameplate.neon', 'theme.shiraz', 'effect.glow');
+
+            for (const [slot, item] of [['profile.decoration', 'decoration.gold'], ['profile.nameplate', 'nameplate.neon'], ['profile.theme', 'theme.shiraz'], ['profile.effect', 'effect.glow']] as const)
+            {
+                await ports.shop.choose(wearer.id, slot, item);
+            }
+
+            await db.query('insert into friendships (user_id, friend_id) values ($1, $2), ($2, $1), ($1, $3), ($3, $1)', [reader.id, wearer.id, plain.id]);
+
+            const game = await startLudo(ports, wearer, plain);
+
+            await db.query(`update matches set finished_at = now(), deadline_at = null, outcome = 'won', winner_seat = 0 where id = $1`, [game.id]);
+            await db.query(`update match_players set result = case when seat = 0 then 'won' else 'lost' end, xp = 30 where match_id = $1`, [game.id]);
+            await db.query(
+                `insert into player_stats (user_id, game, rating, peak_rating, played, won, xp)
+                 select id, 'ludo', 1250, 1250, 9, 3, 400 from users where id = any($1::uuid[])`,
+                [[wearer.id, plain.id]]
+            );
+
+            return { wearer, plain, reader };
+        };
+
+        it('carries them wherever the person is drawn, the page\'s own two only with their profile, and no key for Classic', async () =>
+        {
+            const ports = door();
+            const { wearer, plain, reader } = await cast(ports);
+
+            expect(await everyRead(ports, reader, wearer)).toEqual({
+                account: { ...LISTED, ...PAGE },
+                friend: LISTED,
+                directory: LISTED,
+                search: LISTED,
+                names: LISTED,
+                view: PAGE,
+                viewed: LISTED,
+                shown: PAGE,
+                face: { deco: LISTED.deco },
+                all: LISTED,
+                today: LISTED
+            });
+            expect(await everyRead(ports, reader, plain)).toEqual(CLASSIC);
+        });
+
+        it('takes a look off every read once it is taken back', async () =>
+        {
+            const ports = door();
+            const { wearer, reader } = await cast(ports);
+
+            await db.getRepository(OwnedItem).delete({ userId: wearer.id });
+
+            expect(await everyRead(ports, reader, wearer)).toEqual(CLASSIC);
+        });
     });
 });

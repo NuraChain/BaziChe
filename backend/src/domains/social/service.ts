@@ -9,10 +9,11 @@ import { Friendship } from '../../entities/friendship.entity.ts';
 import { Mute, type MuteSubject } from '../../entities/mute.entity.ts';
 import { isNotice } from '../notify/notices.ts';
 import { folded, likeLiteral, SEARCH_FROM, searchNeedle } from './names.ts';
+import { PROFILE_LOOKS, chosenIn, profileLookColumns, type ProfileLooks } from '../shop/looks.ts';
 import { Report, type ReportCategory } from '../../entities/report.entity.ts';
 import { clampPrivacy, mayDiscover, mayMessage, maySeeOnline, maySendRequest, type Party, type Relation } from './policy.ts';
 
-export interface PersonRow
+export interface PersonRow extends ProfileLooks
 {
     id: string;
     handle: string;
@@ -42,7 +43,7 @@ const partyOf = (row: PersonRow): Party => ({
     showOnline: row.show_online
 });
 
-const PERSON_COLUMNS = 'u.id, u.handle, u.display_name, u.bio, u.avatar, u.hue, u.is_minor, u.allow_stranger_messages, u.show_online, u.last_seen_at, u.created_at';
+const PERSON_COLUMNS = `u.id, u.handle, u.display_name, u.bio, u.avatar, u.hue, u.is_minor, u.allow_stranger_messages, u.show_online, u.last_seen_at, u.created_at, ${ profileLookColumns('u') }`;
 
 /** Whether a path parameter could be an id at all. A malformed one is 22P02, which is a 500. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -129,19 +130,26 @@ export function createSocialService(db: DataSource)
         personByHandle,
         relationOf,
 
-        async namesOf(handles: readonly string[]): Promise<Pick<PersonRow, 'handle' | 'display_name' | 'bio' | 'avatar' | 'hue' | 'is_minor'>[]>
+        async namesOf(handles: readonly string[])
         {
             if (handles.length === 0)
             {
                 return [];
             }
 
-            const found = await db.getRepository(User).find({
-                select: { handle: true, displayName: true, bio: true, avatar: true, hue: true, isMinor: true },
-                where: { handle: In([...handles]), isSuspended: false }
-            });
-
-            return found.map((user) => ({ handle: user.handle, display_name: user.displayName, bio: user.bio, avatar: user.avatar, hue: user.hue, is_minor: user.isMinor }));
+            return await db.getRepository(User)
+                .createQueryBuilder('u')
+                .select('u.handle::text', 'handle')
+                .addSelect('u.display_name', 'display_name')
+                .addSelect('u.bio', 'bio')
+                .addSelect('u.avatar', 'avatar')
+                .addSelect('u.hue', 'hue')
+                .addSelect('u.is_minor', 'is_minor')
+                .addSelect(chosenIn('u', PROFILE_LOOKS.deco), 'deco')
+                .addSelect(chosenIn('u', PROFILE_LOOKS.nameplate), 'nameplate')
+                .where('u.handle in (:...handles)', { handles: [...handles] })
+                .andWhere('u.is_suspended = false')
+                .getRawMany<Pick<PersonRow, 'handle' | 'display_name' | 'bio' | 'avatar' | 'hue' | 'is_minor' | 'deco' | 'nameplate'>>();
         },
 
         async friends(me: string): Promise<PersonRow[]>

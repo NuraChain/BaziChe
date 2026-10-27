@@ -44,6 +44,7 @@ import { createPeopleService } from './domains/admin/people.ts';
 import { createLiveService, type Call, type Online } from './domains/admin/live.ts';
 import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play.ts';
 import { createNoticeService } from './domains/admin/notice.ts';
+import { worn, type ProfileLooks } from './domains/shop/looks.ts';
 import { createShopService } from './domains/shop/service.ts';
 import { createReportsService } from './domains/admin/reports.ts';
 import { createStaffService } from './domains/admin/staff.ts';
@@ -1519,7 +1520,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         address: string | null;
         created_at: Date;
         staff_role: GrantedRole | null;
-    }): Account =>
+    } & ProfileLooks): Account =>
     {
         const role = roleOf(row);
 
@@ -1533,7 +1534,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             isMinor: row.is_minor,
             joinedAt: row.created_at.toISOString(),
             address: row.address ?? undefined,
-            ...(role === null ? {} : { staff: role })
+            ...(role === null ? {} : { staff: role }),
+            ...worn('deco', row.deco),
+            ...worn('nameplate', row.nameplate),
+            ...worn('theme', row.theme),
+            ...worn('effect', row.effect)
         };
     };
 
@@ -1557,7 +1562,9 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             bio: row.bio,
             ...(row.avatar === null ? {} : { avatar: row.avatar }),
             hue: row.hue,
-            isMinor: row.is_minor
+            isMinor: row.is_minor,
+            ...worn('deco', row.deco),
+            ...worn('nameplate', row.nameplate)
         };
 
         if (row.last_seen_at !== null && maySeeOnline(social.partyOf(viewer), social.partyOf(row), relation))
@@ -2295,7 +2302,9 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     bio: row.bio,
                     ...(row.avatar === null ? {} : { avatar: row.avatar }),
                     hue: row.hue,
-                    isMinor: row.is_minor
+                    isMinor: row.is_minor,
+                    ...worn('deco', row.deco),
+                    ...worn('nameplate', row.nameplate)
                 }));
             },
 
@@ -2314,9 +2323,12 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                         displayName: subject.display_name,
                         bio: subject.bio,
                         ...(subject.avatar === null ? {} : { avatar: subject.avatar }),
-                        hue: subject.hue
+                        hue: subject.hue,
+                        ...worn('deco', subject.deco)
                     },
-                    joinedAt: subject.created_at.toISOString()
+                    joinedAt: subject.created_at.toISOString(),
+                    ...worn('theme', subject.theme),
+                    ...worn('effect', subject.effect)
                 };
             },
 
@@ -2337,7 +2349,9 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     relation,
                     mutual,
                     joinedAt: subject.created_at.toISOString(),
-                    ...(refusal === null ? {} : { refusal })
+                    ...(refusal === null ? {} : { refusal }),
+                    ...worn('theme', subject.theme),
+                    ...worn('effect', subject.effect)
                 };
             },
 

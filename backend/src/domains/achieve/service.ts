@@ -5,6 +5,7 @@ import type { AchievementFamily, AchievementLadder, AchievementSummary, EarnedAc
 import { GAME_FAMILIES, RUNGS, familiesOf } from './families.ts';
 import { measure, reached, rungId, scopeOf, type Family, type GlobalFacts, type LadderFacts, type Pace, type Rung } from './ladders.ts';
 import { levelOf } from '../match/levels.ts';
+import { PROFILE_LOOKS, chosenIn, worn, type ProfileLooks } from '../shop/looks.ts';
 
 interface Facts
 {
@@ -232,7 +233,7 @@ function summarise(facts: Facts, held: readonly HeldRow[], holders: ReadonlyMap<
     };
 }
 
-interface BoardRow
+interface BoardRow extends Pick<ProfileLooks, 'deco' | 'nameplate'>
 {
     handle: string;
     display_name: string;
@@ -256,7 +257,9 @@ const asStanding = (row: BoardRow): Standing => ({
     person: {
         handle: row.handle,
         displayName: row.display_name,
-        hue: row.hue
+        hue: row.hue,
+        ...worn('deco', row.deco),
+        ...worn('nameplate', row.nameplate)
     },
     rating: row.rating,
     played: row.played,
@@ -458,6 +461,8 @@ export function createAchieveService(db: DataSource)
                         .select('u.handle::text', 'handle')
                         .addSelect('u.display_name', 'display_name')
                         .addSelect('u.hue', 'hue')
+                        .addSelect(chosenIn('u', PROFILE_LOOKS.deco), 'deco')
+                        .addSelect(chosenIn('u', PROFILE_LOOKS.nameplate), 'nameplate')
                         .addSelect('s.rating', 'rating')
                         .addSelect('s.played', 'played')
                         .addSelect('s.won', 'won')
@@ -496,6 +501,8 @@ export function createAchieveService(db: DataSource)
                     .select('u.handle::text', 'handle')
                     .addSelect('max(u.display_name)', 'display_name')
                     .addSelect('max(u.hue)::int', 'hue')
+                    .addSelect(chosenIn('u', PROFILE_LOOKS.deco), 'deco')
+                    .addSelect(chosenIn('u', PROFILE_LOOKS.nameplate), 'nameplate')
                     .addSelect('coalesce(max(s.rating), 1200)::int', 'rating')
                     .addSelect('count(*)::int', 'played')
                     .addSelect(WON, 'won')
@@ -512,7 +519,7 @@ export function createAchieveService(db: DataSource)
                         `m.finished_at >= (date_trunc(:span, (now() at time zone 'utc')) at time zone 'utc')`,
                         { span: SPANS[window] }
                     )
-                    .groupBy('u.handle')
+                    .groupBy('u.id')
                     .having('sum(p.xp) > 0'),
                 'board')
                 .where('CAST(:after AS int) is null or board.rank > CAST(:after AS int)', { after: after ?? null })

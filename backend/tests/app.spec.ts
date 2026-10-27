@@ -1069,6 +1069,44 @@ describe('the shop', () =>
         expect(told).toEqual([]);
     });
 
+    it('keeps the looks a person wears on every read that draws them, and a public read to the face and the page', async () =>
+    {
+        const listed = { deco: 'decoration.gold', nameplate: 'nameplate.neon' };
+        const page = { theme: 'theme.shiraz', effect: 'effect.glow' };
+        const joinedAt = '2026-10-01T00:00:00.000Z';
+        const dana = { id: 'dana.w', handle: 'dana.w', displayName: 'Dana', bio: 'Plays Ludo', hue: 40, isMinor: false, ...listed };
+        const face = { handle: 'dana.w', displayName: 'Dana', bio: 'Plays Ludo', hue: 40, deco: listed.deco };
+        const standings = [{ handle: 'dana.w', person: { handle: 'dana.w', displayName: 'Dana', hue: 40, ...listed }, rating: 1250, played: 9, won: 3, xp: 400, rank: 1 }];
+        const app = buildApp({
+            db: fakeDb({ initialized: true }),
+            config,
+            log: silent,
+            ports: {
+                identity: {
+                    principal: () => Promise.resolve({ userId: 'somebody', handle: 'dana.w', isMinor: false, sessionId: 'a-session' }),
+                    me: () => Promise.resolve({ ...dana, joinedAt, ...page })
+                },
+                social: {
+                    graph: () => Promise.resolve({ friends: [dana], incoming: [], outgoing: [], blocked: [], mutes: [] }),
+                    directory: () => Promise.resolve([dana]),
+                    names: () => Promise.resolve([dana]),
+                    view: () => Promise.resolve({ person: dana, relation: 'friend', mutual: 0, joinedAt, ...page }),
+                    shown: () => Promise.resolve({ person: { ...face, nameplate: listed.nameplate, isMinor: false }, joinedAt, ...page })
+                },
+                match: { leaderboard: () => Promise.resolve({ game: 'ludo', window: 'all', standings }) }
+            } as unknown as Ports
+        });
+        const read = async (path: string) => await (await app.handle(new Request(`http://local/api${ path }`))).json();
+
+        expect(await read('/auth/me')).toEqual({ account: { ...dana, joinedAt, ...page } });
+        expect(await read('/social')).toEqual({ friends: [dana], incoming: [], outgoing: [], blocked: [], mutes: [] });
+        expect(await read('/social/people')).toEqual({ people: [dana] });
+        expect(await read('/social/names?handles=dana.w')).toEqual({ people: [dana] });
+        expect(await read('/social/people/dana.w')).toEqual({ person: dana, relation: 'friend', mutual: 0, joinedAt, ...page });
+        expect(await read('/public/people/dana.w')).toEqual({ person: face, joinedAt, ...page });
+        expect(await read('/catalogue/games/ludo/leaderboard')).toEqual({ game: 'ludo', window: 'all', standings });
+    });
+
     it('is sent garbage by the pass that sends every route garbage', () =>
     {
         const pass = readFileSync(fileURLToPath(new URL('../../tools/qa/garbage-pass.mjs', import.meta.url)), 'utf8');

@@ -303,7 +303,13 @@ export const account = object({
      * UI renders it as "no wallet linked" rather than assuming.
      */
     address: string().optional(),
-    staff: enumOf(STAFF_ROLES).optional()
+    staff: enumOf(STAFF_ROLES).optional(),
+
+    /** The reader's own profile looks, as everybody else is shown them; absent for Classic. */
+    deco: string().optional(),
+    nameplate: string().optional(),
+    theme: string().optional(),
+    effect: string().optional()
 });
 
 export type Account = Infer<typeof account>;
@@ -1002,7 +1008,11 @@ export const personSummary = object({
     avatar: string().optional(),
     hue: number(),
     isMinor: boolean(),
-    lastSeenAt: string().optional()
+    lastSeenAt: string().optional(),
+
+    /** The frame round their picture and the ground behind their name, looks they bought; absent for Classic. */
+    deco: string().optional(),
+    nameplate: string().optional()
 });
 
 export type PersonSummary = Infer<typeof personSummary>;
@@ -1034,7 +1044,11 @@ export const standing = object({
     person: object({
         handle: string(),
         displayName: string(),
-        hue: number()
+        hue: number(),
+
+        /** Looks somebody bought to be seen in: public by what they are. */
+        deco: string().optional(),
+        nameplate: string().optional()
     }),
 
     rating: number(),
@@ -1171,7 +1185,11 @@ export const personView = object({
     relation,
     mutual: number(),
     joinedAt: string().optional(),
-    refusal: messageRefusal.optional()
+    refusal: messageRefusal.optional(),
+
+    /** The cover and colours of their profile, and what plays over it as it opens; absent for Classic. */
+    theme: string().optional(),
+    effect: string().optional()
 });
 
 export type PersonView = Infer<typeof personView>;
@@ -1186,9 +1204,12 @@ export const publicPerson = object({
         displayName: string(),
         bio: string(),
         avatar: string().optional(),
-        hue: number()
+        hue: number(),
+        deco: string().optional()
     }),
-    joinedAt: string()
+    joinedAt: string(),
+    theme: string().optional(),
+    effect: string().optional()
 });
 
 export type PublicPerson = Infer<typeof publicPerson>;

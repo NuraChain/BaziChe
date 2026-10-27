@@ -4,7 +4,10 @@ import { createSignal } from 'azerothjs';
 
 import { SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
 import type { Account } from '../../backend/src/schemas.ts';
+import FriendRow from '../src/components/social/friend-row.component.azeroth';
 import ProfileHeader from '../src/components/social/profile-header.component.azeroth';
+import UserCard from '../src/components/social/user-card.component.azeroth';
+import type { Person } from '../src/data/person.ts';
 import Avatar, { type Facade } from '../src/components/ui/avatar.component.azeroth';
 import { AURAS, FRAMES, frameOf, type Frame } from '../src/game/looks/frames.ts';
 import { personFor } from '../src/stores/account.store.ts';
@@ -196,6 +199,66 @@ describe('an aura round the picture on its owner’s profile', () =>
         cleanup();
 
         expect(aura.stopped).toBe(3);
+    });
+});
+
+describe('a name on its plate', () =>
+{
+    const someone = (nameplate?: string): Person => ({ id: 'sara.k', handle: 'sara.k', displayName: 'Sara', bio: '', hue: 20, isMinor: false, ...(nameplate === undefined ? {} : { nameplate }) });
+
+    const named = (container: HTMLElement) => [...container.querySelectorAll('span[dir="auto"]')].find((one) => one.textContent === 'Sara')!;
+
+    it('is laid behind the name in a row of friends, members or a search, for the plate its owner wears', () =>
+    {
+        const container = renderTest(() => FriendRow({ person: someone('nameplate.frost') }) as HTMLElement).container;
+
+        expect(named(container).getAttribute('data-plate')).toBe('frost');
+    });
+
+    it('is laid behind the name on a card in Discover', () =>
+    {
+        const container = renderTest(() => UserCard({ person: someone('nameplate.oni'), onAdd: () => undefined }) as HTMLElement).container;
+
+        expect(named(container).getAttribute('data-plate')).toBe('oni');
+    });
+
+    it('is no plate at all for Classic, a look this build does not draw, or a look of another kind', () =>
+    {
+        for (const worn of [undefined, 'nameplate.nowhere', 'decoration.frost', 'nameplate.'])
+        {
+            const container = renderTest(() => FriendRow({ person: someone(worn) }) as HTMLElement).container;
+
+            expect(named(container).hasAttribute('data-plate'), String(worn)).toBe(false);
+            cleanup();
+        }
+    });
+
+    it('stays on the name it was laid behind when its owner is read again, and changes with the plate they wear', async () =>
+    {
+        const [person, setPerson] = createSignal(someone('nameplate.jade'));
+        const container = renderTest(() => FriendRow({
+            get person()
+            {
+                return person();
+            }
+        }) as HTMLElement).container;
+        const name = named(container);
+
+        setPerson(someone('nameplate.jade'));
+        await settle();
+
+        expect(named(container)).toBe(name);
+
+        setPerson(someone('nameplate.astral'));
+        await settle();
+
+        expect(named(container)).toBe(name);
+        expect(name.getAttribute('data-plate')).toBe('astral');
+
+        setPerson(someone());
+        await settle();
+
+        expect(name.hasAttribute('data-plate')).toBe(false);
     });
 });
 

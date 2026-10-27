@@ -1,4 +1,5 @@
 import type { Person } from '../../data/person.ts';
+import { plateOf } from '../../game/looks/plates.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { aboutPerson } from '../../lib/person-menu.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -18,6 +19,8 @@ export default component UserCard(props: { person: Person; onAdd: (id: string) =
 
     derived minor = props.person.isMinor;
 
+    derived plate = plateOf(props.person.nameplate) ?? undefined;
+
     derived stranger = relation === 'none';
 
     derived reason = (() =>
@@ -34,7 +37,7 @@ export default component UserCard(props: { person: Person; onAdd: (id: string) =
         <button type="button" class="group flex cursor-pointer flex-col items-center gap-2" aria-haspopup="dialog" onClick={ () => aboutPerson(props.person.id) }>
             <Avatar person={ props.person } size="xl" presence={ presence.dot(props.person.id) } />
             <span class="flex items-center gap-1.5">
-                <span class="max-w-[10rem] truncate text-ui-md font-semibold text-text transition-colors group-hover:text-accent" dir="auto">{ props.person.displayName }</span>
+                <span class="max-w-[10rem] truncate text-ui-md font-semibold text-text transition-colors group-hover:text-accent" dir="auto" data-plate={ plate }>{ props.person.displayName }</span>
                 <Show when={ minor }>
                     { () => <Icon name="shield" size={ 13 } class="shrink-0 text-live" /> }
                 </Show>

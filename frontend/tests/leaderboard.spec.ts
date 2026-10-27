@@ -136,6 +136,27 @@ describe('the leaderboard page', () =>
         expect(rows().map((row) => row.classList.contains('bg-accent/8'))).toEqual([false, true]);
     });
 
+    it('lays a player\'s nameplate behind their name and frames their picture, and nothing for somebody in Classic', async () =>
+    {
+        server.standings = [
+            { handle: 'sara.k', person: { handle: 'sara.k', displayName: 'Sara Kamali', hue: 340, nameplate: 'nameplate.phoenix', deco: 'decoration.storm' }, rating: 1620, played: 40, won: 24, rank: 1, xp: 5200 },
+            { handle: 'mina', person: { handle: 'mina', displayName: 'Mina Sadeghi', hue: 280 }, rating: 1480, played: 31, won: 15, rank: 2, xp: 3900 }
+        ];
+
+        const container = await show();
+        const rows = () => [...container.querySelectorAll<HTMLElement>('ol > li')];
+
+        await vi.waitFor(() => expect(rows()).toHaveLength(2), { timeout: 4000 });
+
+        const [sara, mina] = rows();
+
+        expect(sara!.querySelector('[data-plate]')?.getAttribute('data-plate')).toBe('phoenix');
+        expect(sara!.querySelector('[data-plate]')?.textContent).toBe('Sara Kamali');
+        expect(sara!.querySelector('[role="img"]')?.getAttribute('data-deco')).toBe('storm');
+        expect(mina!.querySelector('[data-plate]')).toBeNull();
+        expect(mina!.querySelector('[role="img"]')?.hasAttribute('data-deco')).toBe(false);
+    });
+
     it('says a board nobody is on yet is empty, not that it failed to load', async () =>
     {
         const container = await show();

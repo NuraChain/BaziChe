@@ -9,12 +9,18 @@ export const FRAMES = ['glow', 'shiraz', 'neon', 'gold', 'inferno', 'storm', 'as
 
 export type Frame = (typeof FRAMES)[number];
 
-/** The collection a worn decoration names, or null for Classic and for anything this build does not draw. */
-export function frameOf(deco: string | undefined)
+/**
+ * The collection a worn profile look of a kind names, or null for Classic and for anything this
+ * build does not draw: a profile's frames, covers and plates are drawn for the same collections.
+ */
+export function lookIn(kind: 'decoration' | 'theme' | 'nameplate', look: string | undefined)
 {
-    const collection = deco?.startsWith('decoration.') === true ? deco.slice('decoration.'.length) : '';
+    const collection = look?.startsWith(`${ kind }.`) === true ? look.slice(kind.length + 1) : '';
     return (FRAMES as readonly string[]).includes(collection) ? collection as Frame : null;
 }
+
+/** The collection a worn decoration names, whose frame is drawn round its owner's picture. */
+export const frameOf = (deco: string | undefined) => lookIn('decoration', deco);
 
 /** What plays round its owner's picture on their own profile, in the collection's light; a legendary collection's is one of its own streams. */
 export const AURAS = {

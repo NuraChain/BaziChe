@@ -1,4 +1,5 @@
 import type { Person } from '../../data/person.ts';
+import { plateOf } from '../../game/looks/plates.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { aboutPerson } from '../../lib/person-menu.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -20,6 +21,8 @@ export default component FriendRow(props: {
 
     derived minor = props.person.isMinor;
 
+    derived plate = plateOf(props.person.nameplate) ?? undefined;
+
     derived acting = props.actions !== undefined;
 
     derived status = props.subtitle ?? (!state.known
@@ -31,7 +34,7 @@ export default component FriendRow(props: {
             <Avatar person={ props.person } size="md" presence={ presence.dot(props.person.id) } />
             <span class="flex min-w-0 flex-1 flex-col">
                 <span class="flex items-center gap-1.5">
-                    <span class="truncate text-ui-md font-semibold text-text transition-colors group-hover:text-accent" dir="auto">{ props.person.displayName }</span>
+                    <span class="truncate text-ui-md font-semibold text-text transition-colors group-hover:text-accent" dir="auto" data-plate={ plate }>{ props.person.displayName }</span>
                     <Show when={ minor }>
                         { () => <Icon name="shield" size={ 13 } class="shrink-0 text-live" /> }
                     </Show>

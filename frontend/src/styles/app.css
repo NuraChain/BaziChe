@@ -6250,3 +6250,112 @@ button.chess-san:hover
         --deco: url('/frames/oni-still.svg');
     }
 }
+
+/*
+ * A name on its owner's nameplate: the plate as its ground, in the collection's own ink, which the
+ * palette holds to 4.5:1 on every stop of the surface the plate is drawn from.
+ */
+[data-plate]
+{
+    padding-inline: 0.5rem;
+    border-radius: 0.375rem;
+    color: var(--plate-ink);
+    background: var(--plate) center / cover no-repeat;
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--plate-ink) 22%, transparent);
+}
+
+/* A light crosses the plate now and then, and rests between. */
+@media (prefers-reduced-motion: no-preference)
+{
+    [data-plate]
+    {
+        background: linear-gradient(105deg, transparent 38%, rgb(255 255 255 / 0.18) 50%, transparent 62%) 0 0 / 250% 100% no-repeat, var(--plate) center / cover no-repeat;
+        animation: plate-sweep 7s ease-in-out infinite;
+    }
+}
+
+@keyframes plate-sweep
+{
+    from
+    {
+        background-position: 105% 0, center;
+    }
+
+    45%,
+    to
+    {
+        background-position: -5% 0, center;
+    }
+}
+
+[data-plate='glow']
+{
+    --plate: url('/plates/glow.svg');
+    --plate-ink: #F8FAFC;
+}
+
+[data-plate='shiraz']
+{
+    --plate: url('/plates/shiraz.svg');
+    --plate-ink: #FFFBEB;
+}
+
+[data-plate='neon']
+{
+    --plate: url('/plates/neon.svg');
+    --plate-ink: #F5F3FF;
+}
+
+[data-plate='gold']
+{
+    --plate: url('/plates/gold.svg');
+    --plate-ink: #F4D47A;
+}
+
+[data-plate='inferno']
+{
+    --plate: url('/plates/inferno.svg');
+    --plate-ink: #FFE2B0;
+}
+
+[data-plate='storm']
+{
+    --plate: url('/plates/storm.svg');
+    --plate-ink: #EAF6FF;
+}
+
+[data-plate='astral']
+{
+    --plate: url('/plates/astral.svg');
+    --plate-ink: #F7F2FF;
+}
+
+[data-plate='void']
+{
+    --plate: url('/plates/void.svg');
+    --plate-ink: #EFE4FF;
+}
+
+[data-plate='jade']
+{
+    --plate: url('/plates/jade.svg');
+    --plate-ink: #FFF8E1;
+}
+
+[data-plate='frost']
+{
+    --plate: url('/plates/frost.svg');
+    --plate-ink: #F2FAFF;
+}
+
+[data-plate='phoenix']
+{
+    --plate: url('/plates/phoenix.svg');
+    --plate-ink: #FFF3D0;
+}
+
+[data-plate='oni']
+{
+    --plate: url('/plates/oni.svg');
+    --plate-ink: #F5FEFF;
+}

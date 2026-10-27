@@ -1,16 +1,9 @@
 import type { Flow, Tune } from '../vfx/engine.ts';
 import { lazyVfx } from '../vfx/lazy.ts';
-import { AURAS, FRAMES, type Frame } from './frames.ts';
+import { AURAS, lookIn, type Frame } from './frames.ts';
 
-/**
- * The collection a worn theme names, whose cover (`public/covers/<collection>.svg`, drawn for every
- * collection a frame is) a profile wears, or null for Classic and for anything this build does not draw.
- */
-export function coverOf(theme: string | undefined)
-{
-    const collection = theme?.startsWith('theme.') === true ? theme.slice('theme.'.length) : '';
-    return (FRAMES as readonly string[]).includes(collection) ? collection as Frame : null;
-}
+/** The collection a worn theme names, whose cover (`public/covers/<collection>.svg`) its owner's profile wears. */
+export const coverOf = (theme: string | undefined) => lookIn('theme', theme);
 
 const ambient = (collection: Frame, stream: Flow) => ({ stream, tune: { colors: AURAS[collection].tune.colors, scale: 0.6, density: 0.5 } });
 

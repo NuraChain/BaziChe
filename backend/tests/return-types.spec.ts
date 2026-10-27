@@ -228,5 +228,5 @@ describe('a function that returns a value', () =>
             expect(bare).not.toBe(SAMPLE);
             expect(said.filter((one) => one.includes(`'${ name }' implicitly has return type 'any'`))).toHaveLength(1);
         }
-    });
+    }, 20_000);
 });

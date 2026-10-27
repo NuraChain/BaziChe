@@ -91,6 +91,16 @@ describe('where a notice leads', () =>
         expect(targetOf(notice('table-removed', { actor: 'maya.c', ref: { tableId: 't-1', game: 'ludo' } }))).toBe('/app/games');
         expect(targetOf(notice('table-removed', { actor: 'maya.c', ref: { tableId: 't-1' } }))).toBe('/app/games');
     });
+
+    it.each([['en', 'Maya sent you a gift'], ['fa', 'Maya واست یه هدیه فرستاد']] as const)('sends a gift to the collection it is in, not to whoever sent it, and names the sender in %s', (language, said) =>
+    {
+        useLocale().setLocale(language);
+
+        const gift = notice('gift', { actor: 'maya.c', ref: { item: 'dice.glow' } });
+
+        expect(targetOf(gift)).toBe('/app/shop/collection');
+        expect(sayOf(gift, 'Maya', useLocale())).toBe(said);
+    });
 });
 
 describe('what a notice says', () =>

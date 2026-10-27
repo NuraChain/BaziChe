@@ -16,7 +16,8 @@ export const CUE_KEYS: Record<NotificationKind, MessageKey> = {
     'table-removed': 'notify.tableRemoved',
     'message': 'cue.chatBody',
     'turn': 'notify.turn',
-    'invite-joined': 'notify.inviteJoined'
+    'invite-joined': 'notify.inviteJoined',
+    'gift': 'notify.gift'
 };
 
 export interface NoticeWords
@@ -53,7 +54,8 @@ export function wordsOf(lang: Locale): NoticeWords
             'table-removed': said('table-removed'),
             'message': said('message'),
             'turn': said('turn'),
-            'invite-joined': said('invite-joined')
+            'invite-joined': said('invite-joined'),
+            'gift': said('gift')
         },
         games: Object.fromEntries(GAMES.map((game) => [game.id, messageText(messageOf(lang, game.nameKey))]))
     };

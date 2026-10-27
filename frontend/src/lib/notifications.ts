@@ -12,7 +12,8 @@ export const NOTIFICATION_ICON: Record<NotificationKind, IconName> = {
     'table-removed': 'sign-out',
     'message': 'chats',
     'turn': 'dice',
-    'invite-joined': 'invite'
+    'invite-joined': 'invite',
+    'gift': 'gift'
 };
 
 const SAYS: Record<NotificationKind, MessageKey> = {
@@ -23,7 +24,8 @@ const SAYS: Record<NotificationKind, MessageKey> = {
     'table-removed': 'notify.tableRemoved',
     'turn': 'notify.turn',
     'message': 'notify.message',
-    'invite-joined': 'notify.inviteJoined'
+    'invite-joined': 'notify.inviteJoined',
+    'gift': 'notify.gift'
 };
 
 export function sayOf(item: Notification, who: string, locale: Pick<LocaleApi, 't' | 'plural'>)
@@ -52,6 +54,10 @@ export function targetOf(item: Notification): string | null
     if (item.kind === 'table-removed')
     {
         return '/app/games';
+    }
+    if (item.kind === 'gift')
+    {
+        return '/app/shop/collection';
     }
     if (item.ref.tableId !== undefined)
     {

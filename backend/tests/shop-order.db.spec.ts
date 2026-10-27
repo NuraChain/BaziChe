@@ -1,11 +1,11 @@
 import 'reflect-metadata';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { DataSource } from 'typeorm';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DataSource, In } from 'typeorm';
 import { decodeFunctionData, getAddress, toHex, zeroAddress, type Hex } from 'viem';
 
 import { SHOP_ABI, itemOf, orderIdOf } from '../src/chain/shop.ts';
-import { OwnedItem, Referral, ShopOrder, Table, User, Wallet, entities } from '../src/entities/index.ts';
+import { Notification, OwnedItem, Referral, ShopOrder, Table, User, Wallet, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import { BUNDLES, FEATURED_FIRST, LOOKS, NURA, bundleOf, bundlePriceFor, lookOf } from '../src/domains/shop/catalogue.ts';
@@ -465,6 +465,75 @@ describe.skipIf(!active)('buying a look with NURA, against a real database', () 
 
             expect(rung).toEqual(expect.arrayContaining([[buyer.id, 'shop'], [friend.id, 'shop']]));
             expect(await ports.jobs.sweepShop(10_000), 'a paid order asked about again').toEqual({ paid: 0, refunded: 0, failed: 0, expired: 0, faults: [] });
+        });
+
+        it('tells whoever a gift gave a look, once and in the name of the friend who sent it, and nobody else', async () =>
+        {
+            const { ports, fake } = door();
+            const buyer = await person();
+            const friend = await person();
+            const full = await person();
+
+            await befriend(buyer, friend);
+            await befriend(buyer, full);
+
+            const gift = (await ports.shop.order(buyer.id, 'back.gold', friend.handle)).order;
+
+            fake.sell(fake.last());
+            await ports.shop.order(buyer.id, 'chips.gold', full.handle);
+            await own(full.id, 'chips.gold');
+            fake.sell(fake.last());
+            await ports.shop.order(buyer.id, 'dice.gold', undefined);
+            fake.sell(fake.last());
+
+            const told = async () => (await db.getRepository(Notification).findBy({ kind: 'gift', userId: In([buyer.id, friend.id, full.id]) }))
+                .map((row) => ({ to: row.userId, actor: row.actorId, ref: row.ref, key: row.dedupeKey, count: row.count }));
+
+            expect((await ports.jobs.sweepShop(10_000)).paid).toBe(3);
+            expect(await told()).toEqual([{ to: friend.id, actor: buyer.id, ref: { item: 'back.gold' }, key: `gift:${ gift.id }`, count: 1 }]);
+            expect(rung).toEqual(expect.arrayContaining([[friend.id, 'notifications']]));
+            expect(rung).not.toContainEqual([full.id, 'notifications']);
+            expect(rung).not.toContainEqual([buyer.id, 'notifications']);
+
+            await ports.jobs.sweepShop(10_000);
+
+            expect(await told(), 'a sweep after the delivery').toHaveLength(1);
+        });
+
+        it('keeps a gift it delivered when the notice about it cannot be written', async () =>
+        {
+            const { ports, fake } = door();
+            const buyer = await person();
+            const friend = await person();
+            const said = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+            await befriend(buyer, friend);
+
+            const gift = (await ports.shop.order(buyer.id, 'felt.gold', friend.handle)).order;
+
+            fake.sell(fake.last());
+            await db.query(`create function shop_spec_no_bell() returns trigger language plpgsql as $$ begin raise exception 'the bell fell off'; end $$`);
+            await db.query('create trigger shop_spec_no_bell before insert on notifications for each row execute function shop_spec_no_bell()');
+
+            let swept;
+
+            try
+            {
+                swept = await ports.jobs.sweepShop(10_000);
+            }
+            finally
+            {
+                await db.query('drop trigger shop_spec_no_bell on notifications');
+                await db.query('drop function shop_spec_no_bell()');
+            }
+
+            const lines = said.mock.calls.map((call) => String(call[0]));
+
+            said.mockRestore();
+
+            expect(swept).toEqual({ paid: 1, refunded: 0, failed: 0, expired: 0, faults: [] });
+            expect(await ownedBy(friend.id)).toEqual([{ item: 'felt.gold', via: 'gift', order: gift.id, giver: buyer.id }]);
+            expect(lines.some((line) => line.startsWith('gift notice failed: the bell fell off'))).toBe(true);
         });
 
         it('gives nothing for a look the recipient came to own before it was paid, and says so', async () =>

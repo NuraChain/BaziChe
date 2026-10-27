@@ -1023,7 +1023,14 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         shop: config.shopAddress,
         sellerKey: config.refereeKey
     }), {
-        changed: (userIds) => userIds.forEach((userId) => live?.selfChanged(userId, 'shop'))
+        changed: (userIds) => userIds.forEach((userId) => live?.selfChanged(userId, 'shop')),
+        gifted: (gift) => courtesy('gift notice', () => tell({
+            userId: gift.recipient,
+            kind: 'gift',
+            actorId: gift.buyer,
+            ref: { item: gift.item },
+            dedupeKey: `gift:${ gift.order }`
+        }))
     });
 
     const team = createStaffService(db, config.adminWallet);

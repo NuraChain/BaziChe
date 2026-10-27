@@ -2453,7 +2453,10 @@ export const notificationKind = enumOf([
     'turn',
 
     /** Somebody who came in through the reader's link has finished a first game. */
-    'invite-joined'
+    'invite-joined',
+
+    /** A friend bought the reader a look, and it is theirs now. */
+    'gift'
 ]);
 
 export type NotificationKind = Infer<typeof notificationKind>;
@@ -2471,7 +2474,8 @@ export const notificationRef = object({
     groupId: string().optional(),
     requestId: string().optional(),
     personId: string().optional(),
-    game: string().optional()
+    game: string().optional(),
+    item: string().optional()
 });
 
 /**

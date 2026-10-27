@@ -81,7 +81,7 @@ interface GroupWire
 interface NotificationWire
 {
     id: string;
-    kind: 'friend-request' | 'friend-accepted' | 'group-added' | 'table-invite' | 'table-removed' | 'message' | 'turn' | 'invite-joined';
+    kind: 'friend-request' | 'friend-accepted' | 'group-added' | 'table-invite' | 'table-removed' | 'message' | 'turn' | 'invite-joined' | 'gift';
     actor?: string;
     ref: Record<string, string>;
     count: number;

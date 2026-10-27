@@ -2251,7 +2251,8 @@ describe('the worker and the page, of the same thing', () =>
         { kind: 'table-removed', actor: 'sara.k', ref: { tableId: 't-1', game: 'backgammon' } },
         { kind: 'group-added', actor: 'sara.k', ref: { groupId: 'g-1' } },
         { kind: 'friend-accepted', actor: 'sara.k', ref: {} },
-        { kind: 'turn', ref: { tableId: 't-2', game: 'hokm' } }
+        { kind: 'turn', ref: { tableId: 't-2', game: 'hokm' } },
+        { kind: 'gift', actor: 'sara.k', ref: { item: 'dice.glow' } }
     ];
 
     for (const lang of ['en', 'fa'] as const)

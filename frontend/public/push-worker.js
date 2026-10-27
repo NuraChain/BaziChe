@@ -107,6 +107,11 @@ const leadOf = (row) =>
         return '/app/games';
     }
 
+    if (row.kind === 'gift')
+    {
+        return '/app/shop/collection';
+    }
+
     if (row.ref.tableId !== undefined)
     {
         return `/app/play/${ row.ref.tableId }`;

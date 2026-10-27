@@ -38,6 +38,9 @@ export interface OrderHooks
 {
     /** Whose orders or looks changed: the buyer, and the friend a gift was for. */
     changed(userIds: readonly string[]): void;
+
+    /** A gift has given its recipient a look they lacked; told once, after the delivery commits. */
+    gifted(gift: { order: string; buyer: string; recipient: string; item: string }): Promise<void>;
 }
 
 export interface ShopSweep
@@ -359,7 +362,7 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
             {
                 await tx.getRepository(ShopOrder).update(order.id, { state: 'refunded', paidAt: () => 'now()', refundedAt: () => 'now()', delivered: false, failure: null });
 
-                return 'refunded' as const;
+                return { state: 'refunded' as const, gave: false };
             }
 
             const gift = order.buyerId !== order.recipientId;
@@ -377,17 +380,26 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
                 .returning(['itemId'])
                 .execute();
 
-            await tx.getRepository(ShopOrder).update(order.id, { state: 'paid', paidAt: () => 'now()', delivered: (added.raw as unknown[]).length > 0, failure: null });
+            const delivered = (added.raw as unknown[]).length > 0;
 
-            return 'paid' as const;
+            await tx.getRepository(ShopOrder).update(order.id, { state: 'paid', paidAt: () => 'now()', delivered, failure: null });
+
+            return { state: 'paid' as const, gave: delivered && gift };
         });
 
-        if (done !== null)
+        if (done === null)
         {
-            hooks.changed([...new Set([row.buyer_id, row.recipient_id])]);
+            return null;
         }
 
-        return done;
+        hooks.changed([...new Set([row.buyer_id, row.recipient_id])]);
+
+        if (done.gave)
+        {
+            await hooks.gifted({ order: row.id, buyer: row.buyer_id, recipient: row.recipient_id, item: row.item_id });
+        }
+
+        return done.state;
     };
 
     const expire = async (row: OrderRow) =>

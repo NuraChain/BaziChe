@@ -595,7 +595,7 @@ html:has(.site-drawer[open])
     inline-size: var(--card-w, 3.25rem);
     block-size: var(--card-h);
 
-    background-image: url('/board/deck.svg');
+    background-image: var(--deck, url('/board/deck.svg'));
     background-repeat: no-repeat;
     background-size: calc(var(--card-w, 3.25rem) * 13) calc(var(--card-h) * 4);
     background-position: calc(var(--at-rank) * var(--card-w, 3.25rem) * -1) calc(var(--at-suit) * var(--card-h) * -1);
@@ -610,9 +610,62 @@ html:has(.site-drawer[open])
     display: block;
     inline-size: var(--back-w);
     block-size: calc(var(--back-w) * 288 / 204);
-    background: url('/board/card-back.svg') center / 100% 100% no-repeat;
+    background: var(--back, url('/board/card-back.svg')) center / 100% 100% no-repeat;
     border-radius: calc(var(--back-w) * 0.08);
     box-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
+}
+
+/*
+ * A player's cards in their look. The look is a property of the box that holds them, or of the
+ * box a card flies in, so a face or a back inside either is drawn from it; `--holo-a` and
+ * `--holo-b` are the edge and the glint of its palette (`game/looks/palette.ts`).
+ */
+[data-faces='glow']
+{
+    --deck: url('/decks/glow.svg');
+    --holo-a: #9CC2FF;
+    --holo-b: #FBE7A6;
+}
+
+[data-faces='shiraz']
+{
+    --deck: url('/decks/shiraz.svg');
+    --holo-a: #E7BE63;
+    --holo-b: #FFF4D6;
+}
+
+[data-faces='neon']
+{
+    --deck: url('/decks/neon.svg');
+    --holo-a: #FF46D2;
+    --holo-b: #38E8FF;
+}
+
+[data-faces='gold']
+{
+    --deck: url('/decks/gold.svg');
+    --holo-a: #E9C565;
+    --holo-b: #FFFAE6;
+}
+
+[data-backs='glow']
+{
+    --back: url('/backs/glow.svg');
+}
+
+[data-backs='shiraz']
+{
+    --back: url('/backs/shiraz.svg');
+}
+
+[data-backs='neon']
+{
+    --back: url('/backs/neon.svg');
+}
+
+[data-backs='gold']
+{
+    --back: url('/backs/gold.svg');
 }
 
 .page-table:has(.table-stage)
@@ -2518,6 +2571,15 @@ svg.lobby-board
     rotate: var(--tilt);
 }
 
+.hokm-burst
+{
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: clip;
+    pointer-events: none;
+}
+
 .hokm-deck
 {
     --back-w: calc(var(--trick-w) * 0.8);
@@ -2561,7 +2623,6 @@ svg.lobby-board
     overflow: clip;
     pointer-events: none;
 }
-
 .board-flight > .flight
 {
     position: absolute;
@@ -2793,6 +2854,41 @@ svg.lobby-board
     .card-hold[data-legal='hidden']:hover .card-face
     {
         translate: 0 -0.9rem;
+    }
+}
+
+/*
+ * The holographic edge on the reader's own cards in a look, following the pointer (`--hx`, `--hy`,
+ * set by the board). Drawn as layers of the face's own background, because both of its
+ * pseudo-elements are taken and the hold's box does not rise with the face.
+ */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)
+{
+    .hokm-hands[data-faces] .card-hold .card-face
+    {
+        transition: translate 160ms var(--ease-ui, ease), transform 140ms var(--ease-ui, ease);
+    }
+
+    .hokm-hands[data-faces] .card-hold:hover .card-face
+    {
+        background-image:
+            radial-gradient(circle at calc(var(--hx, 0.5) * 100%) calc(var(--hy, 0.5) * 100%), rgb(255 255 255 / 0.32), transparent 40%),
+            linear-gradient(
+                115deg,
+                transparent 30%,
+                color-mix(in srgb, var(--holo-a) 38%, transparent) 42%,
+                color-mix(in srgb, var(--holo-b) 46%, transparent) 50%,
+                color-mix(in srgb, var(--holo-a) 38%, transparent) 58%,
+                transparent 70%
+            ),
+            var(--deck);
+        background-size: 100% 100%, 300% 300%, calc(var(--card-w, 3.25rem) * 13) calc(var(--card-h) * 4);
+        background-position:
+            0 0,
+            calc(100% - var(--hx, 0.5) * 100%) calc(100% - var(--hy, 0.5) * 100%),
+            calc(var(--at-rank) * var(--card-w, 3.25rem) * -1) calc(var(--at-suit) * var(--card-h) * -1);
+        box-shadow: inset 0 0 0 1.5px var(--holo-a), 0 0 0.75rem -0.125rem var(--holo-b), 0 8px 18px -6px rgb(0 0 0 / 0.6);
+        transform: perspective(40rem) rotateX(calc((0.5 - var(--hy, 0.5)) * 14deg)) rotateY(calc((var(--hx, 0.5) - 0.5) * 16deg));
     }
 }
 

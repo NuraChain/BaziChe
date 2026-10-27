@@ -14,6 +14,8 @@ import { hokmOf } from '../../data/match.ts';
 import { coachOf, outcomeOf } from '../../game/helpers/hokm.ts';
 import { BANNER_IN, BANNER_OUT, CARRY, COLLECT_GAP, DRAW_GAP, LIFT, NAMING, PLUS, SHUFFLE, TURN, TURN_GAP, dealGap, dealtIn, gatherOrder, holdBefore, openingPackets, restPackets, spanOf, type Packet } from '../../game/hokm-beats.ts';
 import { EMPTY, HISTORY, before, feltOf, sameAs, step, unplay, type Felt, type Laid, type Told } from '../../game/hokm-felt.ts';
+import { cardsOf, dressCards } from '../../game/looks/cards.ts';
+import { burstOf } from '../../game/looks/table.ts';
 import { EASE, TIMING, centreOf, flightFrames, outside, rectIn, type Rect } from '../../game/motion.ts';
 import { createSound, endCue, type SoundHandle } from '../../game/sound.ts';
 import { anchor, cardAt, cardNode, drawn, stackNode, turnNode } from '../../game/stage/cards.ts';
@@ -23,6 +25,7 @@ import type { Act } from '../../game/stage/feed.ts';
 import { launch, put, turn } from '../../game/stage/flight.ts';
 import { createPresenter, type Presenter, type Sight, type Table } from '../../game/stage/presenter.ts';
 import { createStage, type Run, type Stage } from '../../game/stage/stage.ts';
+import { lazyVfx } from '../../game/vfx/lazy.ts';
 import { haptic } from '../../lib/haptics.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { useBoard, type EventBatch } from '../../stores/match.store.ts';
@@ -36,6 +39,9 @@ import type { Rematch, Staked } from './boards.ts';
 type Side = 'bottom' | 'top' | 'left' | 'right' | 'top-left' | 'top-right';
 
 const FOUR: readonly Side[] = ['bottom', 'right', 'top', 'left'];
+
+/** How wide a card is, in CSS pixels, that a burst played at a scale of 1 suits. */
+const BURST_FITS = 40;
 
 const REACH: Record<Side, readonly [number, number]> = {
     'bottom': [0, 1],
@@ -629,7 +635,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                 return;
             }
 
-            held.clone = cardNode(held.card, held.from.width);
+            held.clone = dressed(cardNode(held.card, held.from.width), mine);
             held.clone.classList.add('hokm-carried');
             put(layer, held.clone, held.from);
             homing = held.card;
@@ -653,7 +659,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             return;
         }
 
-        const clone = cardNode(card, to.width);
+        const clone = dressed(cardNode(card, to.width), mine);
 
         homing = card;
         homeward = { clone, run: launch(stage, layer, clone, from, to, { duration: TIMING.FLY, easing: EASE.fly, landed: unhome }) };
@@ -804,7 +810,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             pledge = asked;
             presenter.predict({ rev, covers: (moves) => (moves[0]?.e === 'discard' ? 0 : null) });
             pledged = (from === null ? Promise.resolve() : fold(stage, faces, from))
-                .then(() => setDown(stage, from, cards.length, 1))
+                .then(() => setDown(stage, from, cards.length, 1, mine))
                 .then(() =>
                 {
                     sound?.play('card-place', { gain: 0.5 });
@@ -864,6 +870,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
 
     let arena: HTMLElement | null = null;
     let layer: HTMLElement | null = null;
+    let bursts: HTMLElement | null = null;
     let sound: SoundHandle | null = null;
     let presenter: Presenter<Told> | null = null;
     let resultStands = false;
@@ -897,6 +904,86 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
     };
 
     const find = (selector: string) => arena?.querySelector<HTMLElement>(selector) ?? null;
+
+    let effects: ReturnType<typeof lazyVfx> | null = null;
+
+    /**
+     * A card's burst is drawn in a layer of the felt, under the cards, so it springs out from under
+     * the one laid. The felt is drawn inside a branch, so the engine is made for the layer it is given.
+     */
+    const burstsIn = (element: HTMLElement) =>
+    {
+        bursts = element;
+        effects?.dispose();
+        effects = lazyVfx(element, { quiet: () => device.reducedMotion() });
+    };
+
+    const lookAt = (seat: number) => game.players.find((player) => player.seat === seat)?.look;
+
+    const facesAt = (seat: number | undefined) => (seat === undefined ? null : cardsOf(lookAt(seat)).faces);
+
+    const backsAt = (seat: number) => cardsOf(lookAt(seat)).backs;
+
+    /** A card in flight, in the look of whoever it belongs to; none for the house's stock and deck. */
+    const dressed = (node: HTMLElement, seat: number | undefined) =>
+    {
+        if (seat === undefined)
+        {
+            return node;
+        }
+
+        if (facesAt(seat) !== null)
+        {
+            effects?.warm();
+        }
+
+        return dressCards(node, lookAt(seat));
+    };
+
+    /** Where a card in its owner's look lands on the felt, that look's burst. */
+    const sparkAt = (seat: number, card: HTMLElement) =>
+    {
+        const worn = facesAt(seat);
+
+        if (worn === null || bursts === null)
+        {
+            return;
+        }
+
+        const { preset, tune } = burstOf(worn);
+        const box = rectIn(bursts, card);
+
+        effects?.play((vfx) => vfx.burst(preset, centreOf(box), { ...tune, scale: box.width / BURST_FITS }));
+    };
+
+    /** Leans a card of the reader's hand toward the pointer, for its holographic edge to follow. */
+    const lean = (event: PointerEvent) =>
+    {
+        const hold = event.currentTarget as HTMLElement;
+        const box = hold.getBoundingClientRect();
+
+        if (event.pointerType === 'touch' || facesAt(mine) === null || box.width === 0)
+        {
+            return;
+        }
+
+        hold.style.setProperty('--hx', ((event.clientX - box.left) / box.width).toFixed(3));
+        hold.style.setProperty('--hy', ((event.clientY - box.top) / box.height).toFixed(3));
+    };
+
+    const unlean = (event: PointerEvent) =>
+    {
+        const hold = event.currentTarget as HTMLElement;
+
+        hold.style.removeProperty('--hx');
+        hold.style.removeProperty('--hy');
+    };
+
+    const moved = (event: PointerEvent) =>
+    {
+        lean(event);
+        drag(event);
+    };
 
     const panOf = (rect: Rect | null) =>
     {
@@ -1089,19 +1176,20 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
         {
             landing = landing.filter((one) => one !== card);
             sound?.play('card-place', { gain: 0.9 });
+            sparkAt(seat, target);
         };
 
         sound?.play('card-slide', { pan: panOf(from) });
 
         return back === null
-            ? launch(stage, layer, cardNode(card, to.width), from, to, {
+            ? launch(stage, layer, dressed(cardNode(card, to.width), seat), from, to, {
                 duration: seat === mine ? TIMING.FLY : TIMING.FLY_THEIRS,
                 easing: EASE.fly,
                 toRotate: tiltOf(card),
                 fromOpacity: own === null ? 0 : 1,
                 landed
             }).done
-            : turn(stage, layer, turnNode(card, to.width), back, to, { duration: TIMING.FLY_THEIRS, easing: EASE.fly, flip: EASE.flip, toRotate: tiltOf(card), landed }).done;
+            : turn(stage, layer, dressed(turnNode(card, to.width), seat), back, to, { duration: TIMING.FLY_THEIRS, easing: EASE.fly, flip: EASE.flip, toRotate: tiltOf(card), landed }).done;
     };
 
     const tally = (stage: Stage, seat: number) =>
@@ -1164,7 +1252,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
 
             return layer === null || to === null || start === null
                 ? Promise.resolve()
-                : launch(ctx.stage, layer, cardNode(one.card, start.width), start, cardAt(to, start.width), {
+                : launch(ctx.stage, layer, dressed(cardNode(one.card, start.width), one.seat), start, cardAt(to, start.width), {
                     duration: TIMING.GATHER,
                     easing: EASE.gather,
                     delay: nth * TIMING.GATHER_GAP,
@@ -1231,7 +1319,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
         banner = null;
     };
 
-    const slide = (stage: Stage, from: Rect | null, around: Rect | null, rate: number) =>
+    const slide = (stage: Stage, from: Rect | null, around: Rect | null, rate: number, seat: number) =>
     {
         const to = around === null ? null : cardAt(around, BACK_W);
 
@@ -1239,7 +1327,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
 
         return layer === null || from === null || to === null
             ? Promise.resolve()
-            : launch(stage, layer, cardNode(null, BACK_W), from, to, { duration: TIMING.DEAL_FLY, easing: EASE.fly, toOpacity: 0, fadeFrom: 0.8, quiet: 'skip' }).done;
+            : launch(stage, layer, dressed(cardNode(null, BACK_W), seat), from, to, { duration: TIMING.DEAL_FLY, easing: EASE.fly, toOpacity: 0, fadeFrom: 0.8, quiet: 'skip' }).done;
     };
 
     const show = (cards: readonly number[]) =>
@@ -1280,7 +1368,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                 return Promise.resolve();
             }
 
-            return turn(stage, layer, turnNode(card, to.width), from, to, { duration: TURN, delay: nth * TURN_GAP, easing: EASE.snap, landed: () => show([card]) }).done;
+            return turn(stage, layer, dressed(turnNode(card, to.width), mine), from, to, { duration: TURN, delay: nth * TURN_GAP, easing: EASE.snap, landed: () => show([card]) }).done;
         }));
 
     const send = (stage: Stage, packet: Packet, cards: readonly number[] | null, rate: number) =>
@@ -1316,7 +1404,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             return opened;
         }
 
-        return launch(stage, layer, stackNode(packet.count, to.width), from, to, {
+        return launch(stage, layer, dressed(stackNode(packet.count, to.width), packet.seat), from, to, {
             duration: TIMING.DEAL_FLY,
             easing: EASE.fly,
             toOpacity: cards === null ? 0 : 1,
@@ -1339,7 +1427,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
 
     const fold = (stage: Stage, faces: readonly { card: number; at: Rect | null }[], to: Rect) => Promise.all(faces.map((one) => (layer === null || one.at === null
         ? Promise.resolve()
-        : turn(stage, layer, turnNode(one.card, to.width), one.at, to, { duration: TURN, easing: EASE.snap, down: true }).done)));
+        : turn(stage, layer, dressed(turnNode(one.card, to.width), mine), one.at, to, { duration: TURN, easing: EASE.snap, down: true }).done)));
 
     const collect = async (had: readonly number[], won: readonly number[], ctx: Ctx) =>
     {
@@ -1380,7 +1468,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                 return;
             }
 
-            await launch(ctx.stage, layer, stackNode(one.count, to.width), from, to, {
+            await launch(ctx.stage, layer, dressed(stackNode(one.count, to.width), one.seat), from, to, {
                 duration: TIMING.DEAL_FLY,
                 easing: EASE.gather,
                 quiet: 'skip',
@@ -1532,7 +1620,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
         return turn(stage, layer, turnNode(card, to.width), from, to, { duration: LIFT, easing: EASE.fly, flip: EASE.flip, toRotate: tilt, landed }).done;
     };
 
-    const setDown = (stage: Stage, from: Rect | null, count: number, rate: number) =>
+    const setDown = (stage: Stage, from: Rect | null, count: number, rate: number, seat?: number) =>
     {
         const to = spotOf(find('.hokm-down'));
 
@@ -1540,7 +1628,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
 
         return layer === null || from === null || to === null
             ? Promise.resolve()
-            : launch(stage, layer, count === 1 ? cardNode(null, to.width) : stackNode(count, to.width), from, to, { duration: TIMING.DEAL_FLY, easing: EASE.fly, toRotate: GLIMPSE_TILT, toOpacity: 0, fadeFrom: 0.8, quiet: 'skip' }).done;
+            : launch(stage, layer, dressed(count === 1 ? cardNode(null, to.width) : stackNode(count, to.width), seat), from, to, { duration: TIMING.DEAL_FLY, easing: EASE.fly, toRotate: GLIMPSE_TILT, toOpacity: 0, fadeFrom: 0.8, quiet: 'skip' }).done;
     };
 
     const slotOf = (card: number) => spotOf(find(`.card-hold[data-card="${ card }"] .card-face`));
@@ -1575,7 +1663,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
         }
 
         moreHeld(seat, -count);
-        await (done ?? setDown(ctx.stage, from, count, 1));
+        await (done ?? setDown(ctx.stage, from, count, 1, seat));
 
         if (!ctx.live())
         {
@@ -1603,7 +1691,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             lessStock();
         }
 
-        const taken = slide(ctx.stage, lying ? spotOf(find('.hokm-lift')) : stock, handOr(seat), 1).then(() => moreHeld(seat, 1));
+        const taken = slide(ctx.stage, lying ? spotOf(find('.hokm-lift')) : stock, handOr(seat), 1, seat).then(() => moreHeld(seat, 1));
 
         await ctx.stage.wait(DRAW_GAP);
 
@@ -1644,7 +1732,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             return Promise.resolve();
         }
 
-        const clone = cardNode(card, to.width);
+        const clone = dressed(cardNode(card, to.width), mine);
 
         homing = card;
         homeward = { clone, run: launch(stage, layer, clone, from, to, { duration: TIMING.FLY, easing: EASE.fly, landed: home }) };
@@ -2081,7 +2169,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
 
             const slot = find(`.card-hold[data-card="${ card }"] .card-face`);
             const to = slot === null || layer === null ? null : rectIn(layer, slot);
-            const clone = cardNode(card, to?.width ?? BACK_W);
+            const clone = dressed(cardNode(card, to?.width ?? BACK_W), mine);
             const home = () =>
             {
                 unhome();
@@ -2345,6 +2433,8 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             presenter?.dispose();
             presenter = null;
             rig = null;
+            effects?.dispose();
+            effects = null;
             steady();
             uncap();
             unhurry();
@@ -2359,6 +2449,8 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                 { () =>
                     <div class="table-fit">
                         <div class="table-surface hokm-table">
+                            <div class="hokm-burst" aria-hidden="true" ref={ burstsIn }></div>
+
                             <div class="hokm-medal" data-set={ trump === null ? undefined : 'true' } aria-hidden="true">
                                 <Show when={ trump } let={ suit } fallback={ <Icon name="crest-crown" size={ 20 } class="text-gold" /> }>
                                     <Icon name={ SUIT_ICON[suit] } size={ 20 } class={ RED_SUITS.includes(suit) ? 'text-danger-fill' : 'text-bright-ink' } />
@@ -2396,7 +2488,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                             </div>
 
                             <For each={ seated } key={ (seat) => seat } let={ seat }>
-                                <div class="hokm-seat" data-side={ plateAt(seat).side } data-seat={ seat }>
+                                <div class="hokm-seat" data-side={ plateAt(seat).side } data-seat={ seat } data-backs={ backsAt(seat) ?? undefined }>
                                     <HokmSeat
                                         side={ plateAt(seat).side }
                                         who={ whoAt(seat) }
@@ -2514,6 +2606,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                                 <div
                                     class="hokm-trick"
                                     data-card={ one.card }
+                                    data-faces={ facesAt(one.seat) ?? undefined }
                                     data-landing={ landing.includes(one.card) ? 'true' : undefined }
                                     data-took={ one.seat === laid.took ? 'true' : 'false' }
                                     style={ `--dx: ${ REACH[one.side][0] }; --dy: ${ REACH[one.side][1] }; --tilt: ${ tiltOf(one.card) }deg` }
@@ -2628,7 +2721,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                         </section>
                         <Show when={ handed }>
                             { () =>
-                                <div class="hokm-hands" data-sliding={ sliding ? 'true' : undefined } style={ `--rows: ${ roomy }` }>
+                                <div class="hokm-hands" data-sliding={ sliding ? 'true' : undefined } data-faces={ facesAt(mine) ?? undefined } style={ `--rows: ${ roomy }` }>
                                 <For each={ rows } key={ (_, index) => index } let={ row }>
                                     <ul class="hokm-hand" style={ `--n: ${ row.length }` } aria-label={ locale.t('hokm.hand') }>
                                         <For each={ row } key={ (card) => card } let={ card } index={ index }>
@@ -2647,7 +2740,8 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                                                     onFocus={ () => kept = card }
                                                     onKeyDown={ (event: KeyboardEvent) => walk(event, card) }
                                                     onPointerDown={ (event: PointerEvent) => hold(event, card) }
-                                                    onPointerMove={ drag }
+                                                    onPointerMove={ moved }
+                                                    onPointerLeave={ unlean }
                                                     onPointerUp={ letGo }
                                                     onPointerCancel={ letGo }
                                                     onClick={ (event: MouseEvent) => press(event, card) }

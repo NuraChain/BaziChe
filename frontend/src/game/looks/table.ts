@@ -4,7 +4,7 @@ import { PALETTES } from './palette.ts';
 export type Collection = keyof typeof PALETTES;
 
 /** The collection a worn look of a kind names, or null for Classic and for anything this build does not draw. */
-export function wornOf(kind: 'dice' | 'pawns', look: string | undefined)
+export function wornOf(kind: 'dice' | 'pawns' | 'face' | 'back', look: string | undefined)
 {
     const collection = look?.startsWith(`${ kind }.`) === true ? look.slice(kind.length + 1) : '';
     return Object.hasOwn(PALETTES, collection) ? collection as Collection : null;

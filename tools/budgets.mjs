@@ -29,7 +29,7 @@ import { gzipSync } from 'node:zlib';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { BUNDLES, LOOKS } from '../backend/src/domains/shop/catalogue.ts';
+import { BUNDLES, LOOKS, SHOP_COLLECTIONS } from '../backend/src/domains/shop/catalogue.ts';
 import { POSTERS, fingerprint } from './art/poster.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -64,6 +64,13 @@ const BED_SOURCES = join(PACK_SOURCES, 'beds');
 
 /** Each look's drawing in the shop: a card loads twelve of them at once on a phone. */
 const LOOK_BUDGET = 16 * KB;
+
+/** What a profile wears, a folder each: a list of friends can load a frame and a plate for every row. */
+const PROFILE_LOOKS = {
+    frames: { names: SHOP_COLLECTIONS.flatMap((collection) => [collection, `${ collection }-still`]), budget: 12 * KB },
+    plates: { names: [...SHOP_COLLECTIONS], budget: 6 * KB },
+    covers: { names: [...SHOP_COLLECTIONS], budget: 24 * KB }
+};
 
 /**
  * Modules that must NOT be in the landing page's initial set, and why.
@@ -564,6 +571,40 @@ for (const name of lookFiles)
     }
 }
 
+let profileCount = 0;
+let profileTotal = 0;
+
+for (const [folder, { names, budget }] of Object.entries(PROFILE_LOOKS))
+{
+    const into = join(DIST, folder);
+    const present = existsSync(into) ? readdirSync(into) : [];
+
+    for (const name of names)
+    {
+        const path = join(into, `${ name }.svg`);
+
+        if (!existsSync(path))
+        {
+            problems.push(`${ folder }/${ name }.svg is missing - run npm run looks`);
+        }
+        else if (statSync(path).size > budget)
+        {
+            problems.push(`${ folder }/${ name }.svg is ${ size(statSync(path).size) }, over ${ size(budget) }`);
+        }
+    }
+
+    for (const name of present)
+    {
+        if (!names.includes(name.replace(/\.svg$/, '')))
+        {
+            problems.push(`${ folder }/${ name } is no collection's drawing`);
+        }
+        profileTotal += statSync(join(into, name)).size;
+    }
+
+    profileCount += present.length;
+}
+
 if (readdirSync(ASSETS).some((name) => /.(mp3|ogg|wav|m4a)$/.test(name)))
 {
     problems.push('an audio file with a media extension reached dist/assets - a download manager grabs those and hands the page an empty 204');
@@ -626,6 +667,7 @@ console.log(`  stage        ${ stageBytes === null ? 'absent' : size(stageBytes)
 console.log(`  sounds       ${ sounds.length } packs, ${ size(soundTotal) } in all, none over its ceiling`);
 console.log(`  beds         ${ beds.length } ${ beds.length === 1 ? 'bed' : 'beds' }, ${ size(bedTotal) } in all, none over its ceiling`);
 console.log(`  looks        ${ lookFiles.length } drawings, ${ size(lookTotal) } in all, none over ${ size(LOOK_BUDGET) }`);
+console.log(`  profile      ${ profileCount } frames, plates and covers, ${ size(profileTotal) } in all, none over its folder's ceiling`);
 console.log(`  world        ${ size(worldBytes) } / ${ size(WORLD_BUDGET) }`);
 console.log(`  posters      ${ posterBytes.map(size).join(', ') }`);
 console.log(`  class binds  ${ classBindsRead } read, ${ problems.length === 0 ? 'every one that reads a signal effect-wrapped' : 'see below' }`);

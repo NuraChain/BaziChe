@@ -72,6 +72,38 @@ describe('the collections\' palettes', () =>
     });
 });
 
+describe('what a profile wears', () =>
+{
+    const read = (path: string) => readFileSync(new URL(`../../frontend/public/${ path }`, import.meta.url), 'utf8');
+
+    const FOLDERS: [string, string[]][] = [
+        ['frames', SHOP_COLLECTIONS.flatMap((collection) => [`${ collection }.svg`, `${ collection }-still.svg`])],
+        ['plates', SHOP_COLLECTIONS.map((collection) => `${ collection }.svg`)],
+        ['covers', SHOP_COLLECTIONS.map((collection) => `${ collection }.svg`)]
+    ];
+
+    it.each(FOLDERS)('draws the %s of every collection and nothing else', (folder, names) =>
+    {
+        expect(readdirSync(new URL(`../../frontend/public/${ folder }/`, import.meta.url)).sort()).toEqual([...names].sort());
+    });
+
+    it.each([...SHOP_COLLECTIONS])('lays a name on %s\'s plate over the surface whose ink is held to 4.5:1 above', (collection) =>
+    {
+        const plate = read(`plates/${ collection }.svg`);
+
+        for (const stop of PALETTES[collection].surface)
+        {
+            expect(plate).toContain(`stop-color="${ stop }"`);
+        }
+    });
+
+    it.each([...SHOP_COLLECTIONS])('moves %s\'s frame only in the drawing that moves', (collection) =>
+    {
+        expect(read(`frames/${ collection }.svg`)).toMatch(/<animate/);
+        expect(read(`frames/${ collection }-still.svg`)).not.toMatch(/<animate|<set\b/);
+    });
+});
+
 describe('the drawings', () =>
 {
     it('draws every look and every bundle, and nothing the shop does not sell', () =>

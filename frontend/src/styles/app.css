@@ -2571,7 +2571,8 @@ svg.lobby-board
     rotate: var(--tilt);
 }
 
-.hokm-burst
+.hokm-burst,
+.poker-burst
 {
     position: absolute;
     inset: 0;
@@ -2864,12 +2865,14 @@ svg.lobby-board
  */
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)
 {
-    .hokm-hands[data-faces] .card-hold .card-face
+    .hokm-hands[data-faces] .card-hold .card-face,
+    .poker-hole[data-faces] .poker-pocket .card-face
     {
         transition: translate 160ms var(--ease-ui, ease), transform 140ms var(--ease-ui, ease);
     }
 
-    .hokm-hands[data-faces] .card-hold:hover .card-face
+    .hokm-hands[data-faces] .card-hold:hover .card-face,
+    .poker-hole[data-faces] .poker-pocket:hover .card-face
     {
         background-image:
             radial-gradient(circle at calc(var(--hx, 0.5) * 100%) calc(var(--hy, 0.5) * 100%), rgb(255 255 255 / 0.32), transparent 40%),

@@ -12,6 +12,7 @@ import { FACE_KEY, rankOf, suitOf } from '../../data/cards.ts';
 import { seatBets, type Box } from '../../game/chip-spot.ts';
 import { aroundStadium, type Spot } from '../../game/poker-seats.ts';
 import { pokerOf } from '../../data/match.ts';
+import { burstAt, cardsOf as worn, dressCards, lean, unlean } from '../../game/looks/cards.ts';
 import { coachOf, handOf, pressed, priceOf, type PokerVerb } from '../../game/helpers/poker.ts';
 import { EASE, centreOf, rectIn, type Rect } from '../../game/motion.ts';
 import { BETWEEN_CAP, BOARD_GAP, BOARD_OUT, CARD_FLY, CARD_GAP, CARD_RISE, CHIP_FLY, COLLECT, DEAL_LEAD, DISC_GAP, GATHER, GATHER_GAP, KNOCK, MUCK, MUCK_GAP, POT_FLY, POT_GAP, POT_SPAN, PUCK, RACK, TURN, WIN_AFTER, collectGap, dealGap, heldBefore, slides, spanOf, tabling } from '../../game/poker-beats.ts';
@@ -24,6 +25,7 @@ import type { Ctx } from '../../game/stage/director.ts';
 import type { Act } from '../../game/stage/feed.ts';
 import { createPresenter, type Presenter, type Sight, type Table } from '../../game/stage/presenter.ts';
 import { createStage } from '../../game/stage/stage.ts';
+import { lazyVfx } from '../../game/vfx/lazy.ts';
 import { useBoard, type EventBatch } from '../../stores/match.store.ts';
 import { useDevice } from '../../stores/device.store.ts';
 import { useSettings } from '../../stores/settings.store.ts';
@@ -69,13 +71,14 @@ interface Shown
     card: number;
     box: Rect;
     tilt?: number;
+    seat?: number;
 }
 
 interface Lying
 {
     faces: readonly Shown[];
     held: readonly Shown[];
-    piles: readonly Rect[];
+    piles: readonly { box: Rect; seat: number }[];
 }
 
 export default component PokerBoard(props: { match: MatchView; events: EventBatch; starting?: boolean; onAgain?: () => void; rematch?: Rematch; stake?: Staked; speech?: Record<string, string>; turnMs?: number; onPresenting?: (busy: boolean) => void })
@@ -196,6 +199,8 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
 
     let root: HTMLElement | null = null;
     let layer: HTMLElement | null = null;
+    let bursts: HTMLElement | null = null;
+    let effects: ReturnType<typeof lazyVfx> | null = null;
     let held: Felt = EMPTY;
     let air: Air = STILL;
     let sent: { id: string; rev: number; move: Told } | null = null;
@@ -396,6 +401,63 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
 
     const plateOf = (seat: number) => find(`.poker-seat[data-seat="${ seat }"] .table-plate`);
 
+    /**
+     * A card's burst is drawn in a layer of the felt, under the cards, so it springs out from under
+     * the one laid. The felt is drawn inside a branch, so the engine is made for the layer it is given.
+     */
+    const burstsIn = (element: HTMLElement) =>
+    {
+        bursts = element;
+        effects?.dispose();
+        effects = lazyVfx(element, { quiet: () => device.reducedMotion() });
+    };
+
+    const lookAt = (seat: number) => game.players.find((player) => player.seat === seat)?.look;
+
+    const facesAt = (seat: number | undefined) => (seat === undefined ? null : worn(lookAt(seat)).faces);
+
+    const backsAt = (seat: number) => worn(lookAt(seat)).backs;
+
+    /** A card in flight, in the look of whoever it belongs to; none for the house's board and deck. */
+    const dressed = (node: HTMLElement, seat: number | undefined) =>
+    {
+        if (seat === undefined)
+        {
+            return node;
+        }
+
+        if (facesAt(seat) !== null)
+        {
+            effects?.warm();
+        }
+
+        return dressCards(node, lookAt(seat));
+    };
+
+    /** Where a card in its owner's look is laid face up, that look's burst; the card's box is the flights' own. */
+    const sparkAt = (seat: number, card: Rect) =>
+    {
+        const faces = facesAt(seat);
+
+        if (faces === null || bursts === null || layer === null)
+        {
+            return;
+        }
+
+        const felt = rectIn(layer, bursts);
+        const { preset, at, tune } = burstAt(faces, { ...card, x: card.x - felt.x, y: card.y - felt.y });
+
+        effects?.play((vfx) => vfx.burst(preset, at, tune));
+    };
+
+    const leaning = (event: PointerEvent) =>
+    {
+        if (facesAt(mine) !== null)
+        {
+            lean(event);
+        }
+    };
+
     const spotOf = (seat: number) => boxOf(find(`.poker-seat[data-seat="${ seat }"] > .poker-bet > .chip-stack`));
 
     const potSpot = () => boxOf(find('.poker-pot > .chip-stack'));
@@ -447,11 +509,11 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         return plate === null || wide <= 0 ? null : { to: cardAt(plate, wide), tilt: 0, rests: false };
     };
 
-    const facesOf = (selector: string, cards: readonly number[]) => cards.flatMap((card, at) =>
+    const facesOf = (selector: string, cards: readonly number[], seat?: number) => cards.flatMap((card, at) =>
     {
         const box = boxOf(find(`${ selector }:nth-child(${ at + 1 })`));
 
-        return box === null ? [] : [{ card, box }];
+        return box === null ? [] : [{ card, box, seat }];
     });
 
     const pileOf = (seat: number) =>
@@ -466,7 +528,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
     {
         const box = pileOf(seat);
 
-        return box === null ? [] : [box];
+        return box === null ? [] : [{ box, seat }];
     });
 
     const shownOf = (seat: number, cards: readonly number[]) => cards.flatMap((card, at) =>
@@ -474,7 +536,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         const face = find(`.poker-seat[data-seat="${ seat }"] > .poker-shown > .poker-face:nth-child(${ at + 1 })`);
         const box = boxOf(face);
 
-        return face === null || box === null ? [] : [{ card, box, tilt: parseFloat(getComputedStyle(face).rotate) || 0 }];
+        return face === null || box === null ? [] : [{ card, box, tilt: parseFloat(getComputedStyle(face).rotate) || 0, seat }];
     });
 
     const openOf = (lain: Felt) => lain.tabled
@@ -488,7 +550,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
 
         if (seat === mine)
         {
-            return { faces: [], held: facesOf('.poker-pocket', lain.hole), piles: [] };
+            return { faces: [], held: facesOf('.poker-pocket', lain.hole, mine), piles: [] };
         }
 
         const open = openOf(lain).find((one) => one.seat === seat);
@@ -502,7 +564,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         const open = openOf(lain);
 
         return {
-            faces: [...facesOf('.poker-slot', lain.board), ...facesOf('.poker-pocket', lain.hole), ...open.flatMap((one) => one.faces)],
+            faces: [...facesOf('.poker-slot', lain.board), ...facesOf('.poker-pocket', lain.hole, mine), ...open.flatMap((one) => one.faces)],
             held: [],
             piles: pilesOf(held.chairs.map((chair) => chair.seat).filter((seat) => seat !== mine && inHand(held, seat) && !open.some((one) => one.seat === seat)))
         };
@@ -631,10 +693,10 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         }).done;
 
         await Promise.all([
-            ...lying.faces.map((one, at) => away(cardNode(one.card, one.box.width), one.box, at, one.tilt)),
-            ...lying.held.map((one, at) => turn(ctx.stage, over, turnNode(one.card, one.box.width), one.box, one.box, { duration: TURN, easing: EASE.snap, down: true }).done
-                .then(() => away(cardNode(null, one.box.width), one.box, at))),
-            ...lying.piles.map((box, at) => away(stackNode(HOLE, wide), cardAt(box, wide), lying.faces.length + at))
+            ...lying.faces.map((one, at) => away(dressed(cardNode(one.card, one.box.width), one.seat), one.box, at, one.tilt)),
+            ...lying.held.map((one, at) => turn(ctx.stage, over, dressed(turnNode(one.card, one.box.width), one.seat), one.box, one.box, { duration: TURN, easing: EASE.snap, down: true }).done
+                .then(() => away(dressed(cardNode(null, one.box.width), one.seat), one.box, at))),
+            ...lying.piles.map((one, at) => away(dressed(stackNode(HOLE, wide), one.seat), cardAt(one.box, wide), lying.faces.length + at))
         ]);
     };
 
@@ -680,7 +742,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         }
 
         const rests = place.rests && (seat !== mine || card !== undefined);
-        const flown = leave(over, cardNode(null, place.to.width), from, place.to, {
+        const flown = leave(over, dressed(cardNode(null, place.to.width), seat), from, place.to, {
             duration: CARD_FLY,
             easing: EASE.fly,
             toRotate: place.tilt,
@@ -692,7 +754,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
 
         return card === undefined
             ? flown
-            : flown.then(() => turn(ctx.stage, over, turnNode(card, place.to.width), place.to, place.to, { duration: TURN, easing: EASE.snap, landed: arrive }).done);
+            : flown.then(() => turn(ctx.stage, over, dressed(turnNode(card, place.to.width), seat), place.to, place.to, { duration: TURN, easing: EASE.snap, landed: arrive }).done);
     };
 
     const dealOut = async (ctx: Ctx) =>
@@ -785,7 +847,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         {
             const to = boxOf(pocketOf(at));
 
-            return to === null ? [] : [turn(ctx.stage, over, turnNode(card, to.width), from, to, { duration: CARD_FLY, delay: at * MUCK_GAP, easing: EASE.fly, flip: EASE.flip }).done];
+            return to === null ? [] : [turn(ctx.stage, over, dressed(turnNode(card, to.width), mine), from, to, { duration: CARD_FLY, delay: at * MUCK_GAP, easing: EASE.fly, flip: EASE.flip }).done];
         }));
     };
 
@@ -817,11 +879,12 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
             {
                 air = landed(air, seat);
                 show();
+                sparkAt(seat, face.box);
             };
 
             return back === null
                 ? Promise.resolve()
-                : turn(ctx.stage, over, turnNode(face.card, face.box.width), back.to, face.box, {
+                : turn(ctx.stage, over, dressed(turnNode(face.card, face.box.width), seat), back.to, face.box, {
                     duration: TURN,
                     delay: nth * CARD_GAP,
                     easing: EASE.snap,
@@ -1231,6 +1294,8 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
             presenter = null;
             sound?.dispose();
             sound = null;
+            effects?.dispose();
+            effects = null;
         };
     }
 
@@ -1582,6 +1647,8 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                 { () =>
                     <div class="table-fit">
                         <div class="table-surface poker-table" role="group" aria-label={ locale.t('poker.table') } data-seats={ count }>
+                            <div class="poker-burst" aria-hidden="true" ref={ burstsIn }></div>
+
                             <div class="poker-centre">
                                 <ul class="poker-board" aria-label={ locale.t('poker.board') }>
                                     <For each={ slots } key={ (one) => one.slot } let={ one }>
@@ -1649,7 +1716,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                             </div>
 
                             <For each={ chairs } key={ (seat) => seat } let={ seat }>
-                                <div class="poker-seat" data-seat={ seat } data-lies={ plateAt(seat).lies } style={ placed(seat) }>
+                                <div class="poker-seat" data-seat={ seat } data-lies={ plateAt(seat).lies } data-backs={ backsAt(seat) ?? undefined } data-faces={ facesAt(seat) ?? undefined } style={ placed(seat) }>
                                     <PokerSeat
                                         who={ whoAt(seat) }
                                         name={ nameOf(seat) }
@@ -1735,9 +1802,9 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                                 { () => <p class="poker-hand-name" aria-hidden="true">{ handBrief }</p> }
                             </Show>
 
-                            <ul class="poker-hole" aria-label={ locale.t('poker.hole') }>
+                            <ul class="poker-hole" aria-label={ locale.t('poker.hole') } data-faces={ facesAt(mine) ?? undefined }>
                                 <For each={ pockets } key={ (one) => one.slot } let={ one }>
-                                    <li class="poker-pocket">
+                                    <li class="poker-pocket" onPointerMove={ leaning } onPointerLeave={ unlean }>
                                         <For each={ one.cards } key={ (card) => card } let={ card }>
                                             <span class="flex" role="img" aria-label={ cardSays(card) }>
                                                 <CardFace card={ card } />

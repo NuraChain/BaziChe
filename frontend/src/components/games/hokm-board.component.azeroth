@@ -14,8 +14,7 @@ import { hokmOf } from '../../data/match.ts';
 import { coachOf, outcomeOf } from '../../game/helpers/hokm.ts';
 import { BANNER_IN, BANNER_OUT, CARRY, COLLECT_GAP, DRAW_GAP, LIFT, NAMING, PLUS, SHUFFLE, TURN, TURN_GAP, dealGap, dealtIn, gatherOrder, holdBefore, openingPackets, restPackets, spanOf, type Packet } from '../../game/hokm-beats.ts';
 import { EMPTY, HISTORY, before, feltOf, sameAs, step, unplay, type Felt, type Laid, type Told } from '../../game/hokm-felt.ts';
-import { cardsOf, dressCards } from '../../game/looks/cards.ts';
-import { burstOf } from '../../game/looks/table.ts';
+import { burstAt, cardsOf, dressCards, lean, unlean } from '../../game/looks/cards.ts';
 import { EASE, TIMING, centreOf, flightFrames, outside, rectIn, type Rect } from '../../game/motion.ts';
 import { createSound, endCue, type SoundHandle } from '../../game/sound.ts';
 import { anchor, cardAt, cardNode, drawn, stackNode, turnNode } from '../../game/stage/cards.ts';
@@ -39,9 +38,6 @@ import type { Rematch, Staked } from './boards.ts';
 type Side = 'bottom' | 'top' | 'left' | 'right' | 'top-left' | 'top-right';
 
 const FOUR: readonly Side[] = ['bottom', 'right', 'top', 'left'];
-
-/** How wide a card is, in CSS pixels, that a burst played at a scale of 1 suits. */
-const BURST_FITS = 40;
 
 const REACH: Record<Side, readonly [number, number]> = {
     'bottom': [0, 1],
@@ -950,38 +946,18 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             return;
         }
 
-        const { preset, tune } = burstOf(worn);
-        const box = rectIn(bursts, card);
+        const { preset, at, tune } = burstAt(worn, rectIn(bursts, card));
 
-        effects?.play((vfx) => vfx.burst(preset, centreOf(box), { ...tune, scale: box.width / BURST_FITS }));
-    };
-
-    /** Leans a card of the reader's hand toward the pointer, for its holographic edge to follow. */
-    const lean = (event: PointerEvent) =>
-    {
-        const hold = event.currentTarget as HTMLElement;
-        const box = hold.getBoundingClientRect();
-
-        if (event.pointerType === 'touch' || facesAt(mine) === null || box.width === 0)
-        {
-            return;
-        }
-
-        hold.style.setProperty('--hx', ((event.clientX - box.left) / box.width).toFixed(3));
-        hold.style.setProperty('--hy', ((event.clientY - box.top) / box.height).toFixed(3));
-    };
-
-    const unlean = (event: PointerEvent) =>
-    {
-        const hold = event.currentTarget as HTMLElement;
-
-        hold.style.removeProperty('--hx');
-        hold.style.removeProperty('--hy');
+        effects?.play((vfx) => vfx.burst(preset, at, tune));
     };
 
     const moved = (event: PointerEvent) =>
     {
-        lean(event);
+        if (facesAt(mine) !== null)
+        {
+            lean(event);
+        }
+
         drag(event);
     };
 

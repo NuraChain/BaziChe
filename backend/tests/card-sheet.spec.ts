@@ -50,13 +50,15 @@ describe('cards in a look, in the stylesheet', () =>
         expect(rule(`[data-backs='${ collection }']`)).toContain(`--back: url('/backs/${ collection }.svg');`);
     });
 
-    it('bursts on the felt under the cards, and takes no press meant for them', () =>
+    it('bursts on the felt under the cards, at both card tables, and takes no press meant for them', () =>
     {
-        const bursts = rule('.hokm-burst');
+        const bursts = rule('.hokm-burst,\n.poker-burst');
 
         expect(bursts).toContain('z-index: 0;');
         expect(bursts).toContain('pointer-events: none;');
         expect(rule('.hokm-trick,\n.hokm-deck'), 'a card on the felt lies under its burst').toContain('z-index: 1;');
+        expect(rule('.poker-centre'), 'the board lies under its burst').toContain('z-index: 1;');
+        expect(rule('.poker-seat'), 'a seat\'s cards lie under its burst').toContain('z-index: 3;');
     });
 
     it('names no look the shop does not sell', () =>
@@ -75,5 +77,6 @@ describe('cards in a look, in the stylesheet', () =>
         expect(follows.length).toBeGreaterThan(0);
         expect(follows.filter((at) => at < holo![0] || at > holo![1]), 'the pointer is followed outside the block').toEqual([]);
         expect(sheet.slice(holo![0], holo![1])).toContain('.hokm-hands[data-faces] .card-hold:hover .card-face');
+        expect(sheet.slice(holo![0], holo![1])).toContain('.poker-hole[data-faces] .poker-pocket:hover .card-face');
     });
 });

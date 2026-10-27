@@ -286,7 +286,7 @@ describe('the hand a hokm reader holds', () =>
         expect(/transition|animation/.test(carried), 'a carried card that eases after the pointer lags behind the finger').toBe(false);
         expect(board).toContain('onPointerDown={ (event: PointerEvent) => hold(event, card) }');
         expect(board).toContain('onPointerMove={ moved }');
-        expect(board, 'the card is carried a move after the pointer, not on it').toContain('    const moved = (event: PointerEvent) =>\n    {\n        lean(event);\n        drag(event);\n    };');
+        expect(board, 'the card is carried a move after the pointer, not on it').toContain('    const moved = (event: PointerEvent) =>\n    {\n        if (facesAt(mine) !== null)\n        {\n            lean(event);\n        }\n\n        drag(event);\n    };');
         expect(board).toContain('onPointerUp={ letGo }');
         expect(board).toContain('onPointerCancel={ letGo }');
         expect(board, 'the click that ends a drag is taken for a press').toContain('onClick={ (event: MouseEvent) => press(event, card) }');

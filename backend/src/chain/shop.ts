@@ -132,6 +132,13 @@ export interface ShopLedger
     pauserAllowed: boolean;
 }
 
+/** What an inviter can claim from the shop now, and the share of a sale an inviter is credited. */
+export interface ShopEarned
+{
+    earnings: bigint;
+    referralBps: number;
+}
+
 export interface ShopSettings
 {
     rpcUrl: string;
@@ -154,6 +161,11 @@ export interface ShopChain
     buyCall(quote: Quote, signature: Hex): Promise<ShopAsked>;
     saleOf(order: Hex): Promise<Sale>;
     mined(hash: Hex): Promise<Mined>;
+
+    /** The NURA a wallet holds, in wei. */
+    balanceOf(address: Address): Promise<bigint>;
+    earnedBy(address: Address): Promise<ShopEarned>;
+    claimCall(address: Address): Promise<ShopAsked>;
     ledger(owner: Address): Promise<ShopLedger>;
     withdrawCall(owner: Address, to: Address, amount: bigint): Promise<ShopAsked>;
     fundCall(owner: Address, amount: bigint): Promise<ShopAsked>;
@@ -338,6 +350,17 @@ export function createShopChain(settings: ShopSettings): ShopChain
                 return await reached(Promise.reject(error));
             }
         },
+
+        balanceOf: (address) => reached(reader().getBalance({ address })),
+
+        async earnedBy(address)
+        {
+            const [earnings, referralBps] = await reached(Promise.all([read<bigint>('earnings', [address]), read<number>('referralBps')]));
+
+            return { earnings, referralBps: Number(referralBps) };
+        },
+
+        claimCall: (address) => asked(address, encodeFunctionData({ abi: SHOP_ABI, functionName: 'claim' })),
 
         async ledger(owner)
         {

@@ -1003,17 +1003,36 @@ describe('the shop', () =>
         chosen: [{ slot: 'ludo.dice', item: 'dice.shiraz' }]
     };
 
-    const shopAs = (told: unknown[][], who: unknown = { userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' }) => buildApp({
+    const ORDER = { id: 'o-1', item: 'dice.shiraz', price: '12000000000000000000', state: 'quoted', deadline: '2026-10-27T10:30:00.000Z', at: '2026-10-27T10:00:00.000Z' };
+
+    const CALL = { from: '0x00000000000000000000000000000000A11ce001', to: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512', data: '0x', value: '0xa688906bd8b00000', chainId: 1020 };
+
+    const SENT = `0x${ 'AB'.repeat(32) }`;
+
+    const ANSWERS: Record<string, unknown> = {
+        collection,
+        choose: collection,
+        state: { open: true, chainId: 1020, items: [{ id: 'dice.shiraz', price: '12000000000000000000', sale: { price: '6000000000000000000', until: '2026-10-28T00:00:00.000Z' } }], featured: 'glow', may: 'yes' },
+        balance: { address: CALL.from, wallet: '5' },
+        order: { order: ORDER, call: CALL },
+        orders: { orders: [ORDER] },
+        one: ORDER,
+        sent: { ...ORDER, state: 'sent', hash: SENT.toLowerCase() },
+        earnings: { address: CALL.from, earnings: '3', share: 1000 },
+        claim: CALL
+    };
+
+    const shopAs = (told: unknown[][], who: unknown = { userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' }, answers = ANSWERS) => buildApp({
         db: fakeDb({ initialized: true }),
         config,
         log: silent,
         ports: {
             identity: { principal: () => Promise.resolve(who) },
-            shop: Object.fromEntries(['collection', 'choose'].map((verb) => [verb, (...said: unknown[]) =>
+            shop: Object.fromEntries(Object.entries(answers).map(([verb, answer]) => [verb, (...said: unknown[]) =>
             {
                 told.push([verb, ...said]);
 
-                return Promise.resolve(collection);
+                return Promise.resolve(answer);
             }]))
         } as unknown as Ports
     });
@@ -1025,18 +1044,91 @@ describe('the shop', () =>
             body: JSON.stringify(body)
         }));
 
-    it('is a reader\'s collection and their choice of a look, for somebody signed in', async () =>
+    it('is the shop, a reader\'s collection, their orders and their earnings, for somebody signed in', async () =>
     {
         const told: unknown[][] = [];
         const app = shopAs(told, null);
         const manifest = await (await app.handle(new Request('http://local/api/_manifest'))).json() as Record<string, Record<string, { method: string; path: string }>>;
+        const routes = Object.values(manifest.shop);
 
         expect(Object.entries(manifest.shop).map(([name, route]) => `${ name } ${ route.method } ${ route.path }`).sort()).toEqual([
+            'balance GET /shop/balance',
             'choose POST /shop/chosen',
-            'collection GET /shop/collection'
+            'claim POST /shop/earnings/claim',
+            'collection GET /shop/collection',
+            'earnings GET /shop/earnings',
+            'one GET /shop/orders/:id',
+            'order POST /shop/orders',
+            'orders GET /shop/orders',
+            'sent POST /shop/orders/:id/sent',
+            'state GET /shop'
         ]);
-        expect((await app.handle(new Request('http://local/api/shop/collection'))).status).toBe(401);
-        expect((await post(app, '/shop/chosen', { slot: 'ludo.dice', item: 'dice.shiraz' })).status).toBe(401);
+
+        for (const route of routes)
+        {
+            const path = route.path.replace(':id', ORDER.id);
+            const answer = route.method === 'GET' ? await app.handle(new Request(`http://local/api${ path }`)) : await post(app, path, {});
+
+            expect(answer.status, `${ route.method } ${ path }`).toBe(401);
+        }
+
+        expect(told).toEqual([]);
+    });
+
+    it('orders a look, hands in its transaction and reads the orders, the wallet and the earnings, telling the port who asked', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = shopAs(told);
+        const read = async (path: string) => await (await app.handle(new Request(`http://local/api${ path }`))).json();
+
+        expect(await read('/shop')).toEqual(ANSWERS.state);
+        expect(await (await post(app, '/shop/orders', { item: 'dice.shiraz' })).json()).toEqual(ANSWERS.order);
+        expect((await post(app, '/shop/orders', { item: 'back.glow', for: 'mina' })).status).toBe(200);
+        expect(await (await post(app, `/shop/orders/${ ORDER.id }/sent`, { hash: SENT })).json()).toEqual(ANSWERS.sent);
+        expect(await read('/shop/orders?cursor=abc')).toEqual(ANSWERS.orders);
+        expect(await read('/shop/orders')).toEqual(ANSWERS.orders);
+        expect(await read(`/shop/orders/${ ORDER.id }`)).toEqual(ORDER);
+        expect(await read('/shop/balance')).toEqual(ANSWERS.balance);
+        expect(await read('/shop/earnings')).toEqual(ANSWERS.earnings);
+        expect(await (await post(app, '/shop/earnings/claim', {})).json()).toEqual(CALL);
+
+        expect(told).toEqual([
+            ['state', 'somebody'],
+            ['order', 'somebody', 'dice.shiraz', undefined],
+            ['order', 'somebody', 'back.glow', 'mina'],
+            ['sent', 'somebody', ORDER.id, SENT],
+            ['orders', 'somebody', 'abc'],
+            ['orders', 'somebody', null],
+            ['one', 'somebody', ORDER.id],
+            ['balance', 'somebody'],
+            ['earnings', 'somebody'],
+            ['claim', 'somebody']
+        ]);
+    });
+
+    it('says a shop that is not open here, and nothing more', async () =>
+    {
+        const app = shopAs([], undefined, { ...ANSWERS, state: { open: false, chainId: 1020, items: [] } });
+
+        expect(await (await app.handle(new Request('http://local/api/shop'))).json()).toEqual({ open: false });
+    });
+
+    it('refuses what is no order and no transaction before the port is asked', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = shopAs(told);
+        const nul = String.fromCharCode(0);
+
+        for (const body of [{}, { item: 'd'.repeat(41) }, { item: 5 }, { item: 'dice.shiraz', for: 'm'.repeat(41) }, { item: `dice.${ nul }` }])
+        {
+            expect((await post(app, '/shop/orders', body)).status, JSON.stringify(body)).toBe(422);
+        }
+
+        for (const body of [{}, { hash: 'nope' }, { hash: `0x${ 'ab'.repeat(31) }` }, { hash: `0x${ 'zz'.repeat(32) }` }, { hash: `${ SENT }ab` }])
+        {
+            expect((await post(app, `/shop/orders/${ ORDER.id }/sent`, body)).status, JSON.stringify(body)).toBe(422);
+        }
+
         expect(told).toEqual([]);
     });
 
@@ -1113,6 +1205,9 @@ describe('the shop', () =>
         const bodies = pass.slice(pass.indexOf('const BODIES ='), pass.indexOf('const WOULD_ACT ='));
 
         expect(bodies).toContain(`'/shop/chosen': (bad) => [`);
+        expect(bodies).toContain(`'/shop/orders': (bad) => [`);
+        expect(bodies).toContain(`'/shop/orders/:id/sent': (bad) => [`);
+        expect(pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='))).toContain(`'/shop/earnings/claim'`);
     });
 });
 

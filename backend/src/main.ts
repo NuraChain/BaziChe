@@ -407,6 +407,51 @@ const sweepStakes = () =>
 stakes = setTimeout(sweepStakes, STAKE_SWEEP_MS);
 stakes.unref();
 
+const SHOP_SWEEP_MS = 3_000;
+
+const SHOP_SWEEP_BUDGET_MS = 4_000;
+
+let shopping: NodeJS.Timeout | null = null;
+
+const shopTold = new Map<string, string>();
+
+const sweepShop = () =>
+{
+    void ports.jobs.sweepShop(SHOP_SWEEP_BUDGET_MS)
+        .then(({ paid, refunded, failed, expired, faults }) =>
+        {
+            if (paid + refunded + failed + expired > 0)
+            {
+                log.info('shop orders moved', { paid, refunded, failed, expired });
+            }
+
+            const now = new Map(faults.map((one) => [one.order, one.error]));
+
+            for (const [order, error] of now)
+            {
+                if (shopTold.get(order) !== error)
+                {
+                    log.warn('shop order step failed', { order, error });
+                }
+            }
+
+            shopTold.clear();
+            now.forEach((error, order) => shopTold.set(order, error));
+        })
+        .catch((error: unknown) => log.error('shop sweep failed', { error }))
+        .finally(() =>
+        {
+            if (shopping !== null)
+            {
+                shopping = setTimeout(sweepShop, SHOP_SWEEP_MS);
+                shopping.unref();
+            }
+        });
+};
+
+shopping = setTimeout(sweepShop, SHOP_SWEEP_MS);
+shopping.unref();
+
 handleShutdownSignals(served, {
     /**
      * The window where connections are still live.
@@ -439,6 +484,11 @@ handleShutdownSignals(served, {
         {
             clearTimeout(stakes);
             stakes = null;
+        }
+        if (shopping !== null)
+        {
+            clearTimeout(shopping);
+            shopping = null;
         }
 
         goingDown = true;

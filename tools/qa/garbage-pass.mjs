@@ -54,6 +54,7 @@ const QUERIES = {
     '/chat/:id/epoch': ['epoch', 'device'],
     '/chat/:id/messages': ['cursor', 'limit'],
     '/vault/games': ['cursor'],
+    '/shop/orders': ['cursor'],
     '/admin/log': ['cursor', 'staff', 'person', 'kind'],
     '/admin/people': ['q', 'list', 'cursor'],
     '/admin/people/:handle/history': ['cursor'],
@@ -109,6 +110,8 @@ const BODIES = {
     '/vault/withdraw': (bad) => [{ amount: bad.slice(0, 40) }],
     '/vault/reclaim': (bad) => [{ id: bad.slice(0, 36) }],
     '/shop/chosen': (bad) => [{ slot: 'ludo.dice', item: bad.slice(0, 40) }, { slot: bad.slice(0, 32) }],
+    '/shop/orders': (bad) => [{ item: bad.slice(0, 40) }, { item: 'dice.shiraz', for: bad.slice(0, 40) }],
+    '/shop/orders/:id/sent': (bad) => [{ hash: bad.slice(0, 66) }, { hash: `0x${ 'ab'.repeat(32) }` }],
     '/admin/vault/fee': (bad) => [{ bps: bad.length }],
     '/admin/vault/game-fee': (bad) => [{ game: bad.slice(0, 32), bps: 700 }, { game: 'hokm', bps: bad.length }],
     '/admin/vault/referee': (bad) => [{ address: bad.slice(0, 64) }],
@@ -136,7 +139,8 @@ const SPARED = new Set([
     '/tables/:id/seat', '/tables/:id/leave', '/tables/:id/close', '/tables/:id/voice', '/tables/:id/start', '/tables/:id/stake',
     '/parties/:id/accept', '/parties/:id/decline', '/parties/:id/leave',
     '/notifications/:id/read', '/notifications/read-all', '/notifications/:id/dismiss', '/devices/:id/revoke', '/devices/recovery/off',
-    '/chat/:id/read', '/chat/:id/expiry', '/chat/:id/pin', '/vault/terms', '/vault/break', '/admin/vault/pause'
+    '/chat/:id/read', '/chat/:id/expiry', '/chat/:id/pin', '/vault/terms', '/vault/break', '/admin/vault/pause',
+    '/shop/earnings/claim'
 ]);
 
 const SIGNED_OUT = new Set(['/auth/challenge', '/auth/wallet']);

@@ -12,6 +12,11 @@ export const ORDER_STATES = ['quoted', 'sent', 'paid', 'expired', 'failed', 'ref
 
 export type OrderState = (typeof ORDER_STATES)[number];
 
+/** Whether the reader may buy: yes, or the refusal a purchase would meet, asked in this order. */
+export const SHOP_MAY = ['yes', 'shop-wallet', 'shop-minor'] as const;
+
+export type ShopMay = (typeof SHOP_MAY)[number];
+
 /** How somebody came to own a look. */
 export const OWNED_VIA = ['purchase', 'gift', 'grant'] as const;
 

@@ -104,6 +104,9 @@ export function loadServerConfig()
             vaultAddress: optional('NURA_VAULT_ADDRESS'),
             refereeKey: optional('NURA_REFEREE_KEY', { secret: true }),
 
+            /** `ArcadeShop`, where looks are paid for; its seller is the key above. */
+            shopAddress: optional('NURA_SHOP_ADDRESS'),
+
             /** The explorer's Etherscan-compatible api, where a wallet's NFT transfers are read. */
             explorerApi: optional('NURA_EXPLORER_API'),
 

@@ -2,8 +2,8 @@ import { array, boolean, enumOf, literal, number, object, record, string as text
 import { ACTION_KINDS, CLEAR_PARTS, GRANTED_ROLES, MATCH_LISTS, NOTICE_HOURS, NOTICE_MAX, PEOPLE_LISTS, REPORT_LISTS, REPORT_OUTCOMES, REPORT_STATUSES, STAFF_ROLES, STUCK_KINDS, SUSPEND_CATEGORIES, SUSPEND_DAYS } from './domains/admin/roles.ts';
 import { RARITY_IDS } from './domains/achieve/rarity.ts';
 import { PARTY_ENDS, PARTY_STAGES } from './domains/party/rules.ts';
-import { SLOT_IDS } from './domains/shop/catalogue.ts';
-import { OWNED_VIA } from './domains/shop/policy.ts';
+import { SHOP_COLLECTIONS, SLOT_IDS } from './domains/shop/catalogue.ts';
+import { ORDER_STATES, OWNED_VIA, SHOP_MAY } from './domains/shop/policy.ts';
 import { VARIANTS } from './domains/match/sides.ts';
 import { BREAK_DAYS, ELIGIBILITIES, ESCROW_STATES } from './domains/stake/policy.ts';
 import { REASONS } from './domains/match/chess/state.ts';
@@ -711,6 +711,71 @@ export const shopChooseInput = object({
     slot: enumOf(SLOT_IDS),
     item: string({ max: 40 }).optional()
 });
+
+/** A look or a bundle on sale, in wei, and its sale while one runs. What the shop does not list is not for sale. */
+const shopPrice = object({
+    id: string(),
+    price: string(),
+    sale: object({ price: string(), until: string() }).optional()
+});
+
+/** The shop as the reader finds it: not open here, or what is on sale, the featured collection and whether they may buy. */
+export const shopState = union([
+    object({ open: literal(false) }),
+    object({
+        open: literal(true),
+        chainId: number(),
+        items: array(shopPrice),
+        featured: enumOf(SHOP_COLLECTIONS),
+        may: enumOf(SHOP_MAY)
+    })
+]);
+
+export type ShopState = Infer<typeof shopState>;
+
+/** A look or a bundle to buy, for the reader or, by handle, for a friend. */
+export const shopOrderInput = object({
+    item: string({ max: 40 }),
+    for: string({ max: 40 }).optional()
+});
+
+/** One order the reader placed: what, for whom when it is a gift, its price in wei, where it stands and its transaction. */
+export const shopOrder = object({
+    id: string(),
+    item: string(),
+    for: string().optional(),
+    price: string(),
+    state: enumOf(ORDER_STATES),
+    deadline: string(),
+    hash: string().optional(),
+
+    /** The word the shop refused the payment with, while the order is `failed`. */
+    failure: string().optional(),
+
+    /** Whether the sale gave anything: a look already owned by then gives nothing. */
+    delivered: boolean().optional(),
+    at: string(),
+    paidAt: string().optional()
+});
+
+export type ShopOrderView = Infer<typeof shopOrder>;
+
+/** An order, and the purchase the reader's wallet sends to pay for it. */
+export const shopPurchase = object({ order: shopOrder, call: walletCall });
+
+export type ShopPurchase = Infer<typeof shopPurchase>;
+
+export const shopSentInput = object({ hash: string({ pattern: /^0x[0-9a-fA-F]{64}$/ }) });
+
+export const shopOrders = object({ orders: array(shopOrder), cursor: string().optional() });
+
+export const shopOrdersQuery = object({ cursor: string({ max: 80 }).optional() });
+
+/** The NURA in the reader's wallet, in wei. */
+export const shopBalance = object({ address: string(), wallet: string() });
+
+/** What the shop owes the reader for the people they brought in, in wei, and the share of a sale it credits, in basis points. */
+export const shopEarnings = object({ address: string(), earnings: string(), share: number() });
 
 export const nftItem = object({
     contract: string(),

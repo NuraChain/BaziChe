@@ -223,6 +223,53 @@ describe('a sale', () =>
     });
 });
 
+describe('what a buyer holds and an inviter is owed', () =>
+{
+    it('reads the NURA in a wallet and what the shop owes an inviter, and asks the shop for a claim from the inviter', async () =>
+    {
+        const asked: { method: string; from?: string }[] = [];
+        const { url } = await fakeChain((rpc): Answer =>
+        {
+            if (rpc.method === 'eth_getBalance')
+            {
+                asked.push({ method: 'balance', from: String(rpc.params[0]) });
+                return { result: '0x2a' };
+            }
+
+            const call = rpc.params[0] as { from?: string; data: Hex };
+            const called = decodeFunctionData({ abi: SHOP_ABI, data: call.data });
+
+            asked.push({ method: called.functionName, from: call.from });
+
+            switch (called.functionName)
+            {
+                case 'earnings':
+                    expect(called.args).toEqual([INVITER]);
+                    return { result: encodeFunctionResult({ abi: SHOP_ABI, functionName: 'earnings', result: 7n }) };
+                case 'referralBps': return { result: encodeFunctionResult({ abi: SHOP_ABI, functionName: 'referralBps', result: 1500 }) };
+                case 'claim': return reverted('NothingToClaim', []);
+                default: return { error: { code: -32601, message: `no ${ called.functionName }` } };
+            }
+        });
+        const shop = shopOn(url);
+
+        await expect(shop.balanceOf(BUYER)).resolves.toBe(42n);
+        await expect(shop.earnedBy(INVITER)).resolves.toEqual({ earnings: 7n, referralBps: 1500 });
+        await expect(shop.claimCall(INVITER)).resolves.toEqual({ ok: false, refusal: { error: 'NothingToClaim' } });
+        expect(asked.find((one) => one.method === 'balance')?.from?.toLowerCase()).toBe(BUYER.toLowerCase());
+        expect(asked.find((one) => one.method === 'claim')?.from?.toLowerCase()).toBe(INVITER.toLowerCase());
+    });
+
+    it('hands the inviter\'s wallet the claim the shop would take', async () =>
+    {
+        const { url } = await fakeChain(() => ({ result: '0x' }));
+        const claimed = await shopOn(url).claimCall(INVITER);
+
+        expect(claimed).toMatchObject({ ok: true, call: { to: SHOP, value: 0n } });
+        expect(decodeFunctionData({ abi: SHOP_ABI, data: (claimed as Extract<ShopAsked, { ok: true }>).call.data })).toEqual({ functionName: 'claim' });
+    });
+});
+
 describe('the owner\'s view of the shop', () =>
 {
     it('names the roles as the contract does', () =>

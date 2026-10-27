@@ -58,11 +58,14 @@ import type {
     NftPage,
     PartyState,
     ShopCollectionView,
+    ShopOrderView,
+    ShopPurchase,
+    ShopState,
     StaffList,
     StaffLog
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
-import type { adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, staffInput, staffLogQuery } from './schemas.ts';
+import type { adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
 import type { ShopSlot } from './domains/shop/catalogue.ts';
 import type { QuickAsk } from './domains/table/quick.ts';
@@ -582,6 +585,33 @@ export interface ShopPort
 
     /** Chooses an owned look for a slot, or Classic with no look; answers the collection as it now stands. */
     choose(me: string, slot: ShopSlot, item: string | null): Promise<ShopCollectionView>;
+
+    /** Whether the shop is open here, what is on sale at what price, the featured collection and whether the reader may buy. */
+    state(me: string): Promise<ShopState>;
+
+    /** The NURA in the reader's wallet. */
+    balance(me: string): Promise<Infer<typeof shopBalance>>;
+
+    /**
+     * An order for a look or a bundle, for the reader or a friend by handle, and the purchase their
+     * wallet sends to pay it: the order they already hold for it while it has time left, or a new one.
+     */
+    order(me: string, item: string, recipient: string | undefined): Promise<ShopPurchase>;
+
+    /** The reader's orders, newest first, fifty a page. */
+    orders(me: string, cursor: string | null): Promise<Infer<typeof shopOrders>>;
+
+    /** One of the reader's orders; anything else is `shop-order`. */
+    one(me: string, id: string): Promise<ShopOrderView>;
+
+    /** The transaction the reader's wallet sent for an order. */
+    sent(me: string, id: string, hash: string): Promise<ShopOrderView>;
+
+    /** What the shop owes the reader for the people they brought in. */
+    earnings(me: string): Promise<Infer<typeof shopEarnings>>;
+
+    /** The claim of those earnings, for the reader's wallet to send. */
+    claim(me: string): Promise<WalletCall>;
 }
 
 export interface AdminPort

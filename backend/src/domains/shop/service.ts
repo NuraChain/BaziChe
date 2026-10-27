@@ -8,8 +8,8 @@ import { SHOP_SLOTS, fitsSlot, isSlot, tableSlotsOf } from './catalogue.ts';
 import type { OwnedVia } from './policy.ts';
 import { SHOP_REFUSALS, type ShopRefusal } from './refusals.ts';
 
-export const shopRefusal = (word: ShopRefusal, message: string) =>
-    new HttpError(SHOP_REFUSALS[word], message, { code: word });
+export const shopRefusal = (word: ShopRefusal, message: string, details?: Record<string, string>) =>
+    new HttpError(SHOP_REFUSALS[word], message, { code: word, ...(details === undefined ? {} : { details }) });
 
 /** What a player had chosen for a table, by kind: `{ dice: 'dice.shiraz' }`. Classic is a kind left out. */
 export type TableLook = Record<string, string>;

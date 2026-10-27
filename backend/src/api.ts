@@ -23,8 +23,17 @@ import {
     vaultBreakInput,
     vaultState,
     vaultTermsInput,
+    shopBalance,
     shopChooseInput,
     shopCollection,
+    shopEarnings,
+    shopOrder,
+    shopOrderInput,
+    shopOrders,
+    shopOrdersQuery,
+    shopPurchase,
+    shopSentInput,
+    shopState,
     walletCall,
     adminClearInput,
     adminHistoryQuery,
@@ -584,10 +593,33 @@ export function buildApi(ports: Ports)
         })),
 
         shop: feature('/shop', [session], (routes) => ({
+            state: routes.get('/', { output: shopState }, (context) => ports.shop.state(context.principal.userId)),
+
+            balance: routes.get('/balance', { output: shopBalance }, (context) => ports.shop.balance(context.principal.userId)),
+
             collection: routes.get('/collection', { output: shopCollection }, (context) => ports.shop.collection(context.principal.userId)),
 
             choose: routes.post('/chosen', { input: shopChooseInput, output: shopCollection },
-                (context) => ports.shop.choose(context.principal.userId, context.input.slot, context.input.item ?? null))
+                (context) => ports.shop.choose(context.principal.userId, context.input.slot, context.input.item ?? null)),
+
+            /**
+             * An order, and the purchase the reader's wallet sends to pay it. Nothing is delivered
+             * for the answer: the look arrives when `ArcadeShop` says the order was paid.
+             */
+            order: routes.post('/orders', { input: shopOrderInput, output: shopPurchase },
+                (context) => ports.shop.order(context.principal.userId, context.input.item, context.input.for)),
+
+            orders: routes.get('/orders', { query: shopOrdersQuery, output: shopOrders },
+                (context) => ports.shop.orders(context.principal.userId, context.query.cursor ?? null)),
+
+            one: routes.get('/orders/:id', { output: shopOrder }, (context) => ports.shop.one(context.principal.userId, context.params.id)),
+
+            sent: routes.post('/orders/:id/sent', { input: shopSentInput, output: shopOrder },
+                (context) => ports.shop.sent(context.principal.userId, context.params.id, context.input.hash)),
+
+            earnings: routes.get('/earnings', { output: shopEarnings }, (context) => ports.shop.earnings(context.principal.userId)),
+
+            claim: routes.post('/earnings/claim', { output: walletCall }, (context) => ports.shop.claim(context.principal.userId))
         })),
 
         social: feature('/social', [session], (routes) => ({

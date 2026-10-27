@@ -32,6 +32,7 @@ import { isClock } from './domains/table/clocks.ts';
 import { teamsOf } from './domains/table/teams.ts';
 import { createChainProfiles, recordValue } from './chain/profile.ts';
 import { createNftReader } from './chain/nfts.ts';
+import { createShopChain, type ShopChain } from './chain/shop.ts';
 import { createVault, type Vault } from './chain/vault.ts';
 import { GAME_SEEDS } from './db/seed-reference.ts';
 import { seatsOfMask } from './domains/stake/policy.ts';
@@ -45,6 +46,7 @@ import { createLiveService, type Call, type Online } from './domains/admin/live.
 import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play.ts';
 import { createNoticeService } from './domains/admin/notice.ts';
 import { worn, type ProfileLooks } from './domains/shop/looks.ts';
+import { createOrderService, type ShopSweep } from './domains/shop/orders.ts';
 import { createShopService } from './domains/shop/service.ts';
 import { createReportsService } from './domains/admin/reports.ts';
 import { createStaffService } from './domains/admin/staff.ts';
@@ -138,6 +140,7 @@ export interface Services extends Ports
         sweepTurns(forMs: number): Promise<TurnSweep>;
         sweepTables(): Promise<TableSweep>;
         sweepStakes(forMs: number): Promise<StakeSweep>;
+        sweepShop(forMs: number): Promise<ShopSweep>;
         waiting(): Promise<{ game: string; mode: string; players: number; tables: number; oldest: number }[]>;
         otherServers(): Promise<number>;
         tidy(): Promise<Record<string, number>>;
@@ -155,7 +158,7 @@ const WATCHABLE_MAX = 48;
 
 const WAITING_SEATS = 500;
 
-export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader): Services
+export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain): Services
 {
     const here = (userIds: readonly string[]) => presence?.present(userIds) ?? new Set(userIds);
 
@@ -1014,6 +1017,15 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
     const vaultAdmin = createVaultAdmin(db, vaults, PAID_GAMES);
 
+    const orders = createOrderService(db, shopChain ?? createShopChain({
+        rpcUrl: config.rpcUrl,
+        chainId: config.chainId,
+        shop: config.shopAddress,
+        sellerKey: config.refereeKey
+    }), {
+        changed: (userIds) => userIds.forEach((userId) => live?.selfChanged(userId, 'shop'))
+    });
+
     const team = createStaffService(db, config.adminWallet);
 
     const accounts = createPeopleService(db, config.adminWallet, config.origin);
@@ -1575,7 +1587,16 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     };
 
     return {
-        jobs: { sweepTurns, sweepTables, sweepStakes: (forMs) => stakes.sweep(forMs), waiting: () => table.waitingByGame(), otherServers, tidy, liftSuspensions: () => accounts.expireDue() },
+        jobs: {
+            sweepTurns,
+            sweepTables,
+            sweepStakes: (forMs) => stakes.sweep(forMs),
+            sweepShop: (forMs) => orders.sweep(forMs),
+            waiting: () => table.waitingByGame(),
+            otherServers,
+            tidy,
+            liftSuspensions: () => accounts.expireDue()
+        },
 
         async pulse()
         {
@@ -1715,7 +1736,16 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 }
 
                 return chosen;
-            }
+            },
+
+            state: (me) => orders.state(me),
+            balance: (me) => orders.balance(me),
+            order: (me, item, recipient) => orders.order(me, item, recipient),
+            orders: (me, cursor) => orders.orders(me, cursor),
+            one: (me, id) => orders.one(me, id),
+            sent: (me, id, hash) => orders.sent(me, id, hash),
+            earnings: (me) => orders.earnings(me),
+            claim: (me) => orders.claim(me)
         },
 
         admin: {

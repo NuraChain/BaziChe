@@ -20,7 +20,7 @@ const FRAMEWORK = [400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 499, 500, 5
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-const THROWERS = ['domains/shop/service.ts'];
+const THROWERS = ['domains/shop/service.ts', 'domains/shop/orders.ts'];
 
 const sourceOf = (path: string) => readFileSync(join(HERE, '..', 'src', path), 'utf8');
 

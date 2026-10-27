@@ -24,7 +24,8 @@
         "art": "node tools/art/chess.mjs && node tools/art/games.mjs && node tools/art/boards.mjs && node tools/art/poker.mjs && node tools/art/deck.mjs && node tools/art/raster.mjs",
         "qa": "node tools/qa/matrix.mjs",
         "sound": "node tools/art/sound.mjs",
-        "beds": "node tools/art/beds.mjs"
+        "beds": "node tools/art/beds.mjs",
+        "looks": "node tools/art/looks.mjs"
     },
     "devDependencies": {
         "@azerothjs/cli": "2.1.0",

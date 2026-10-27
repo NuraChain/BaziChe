@@ -132,6 +132,7 @@
     --danger: #EF4444;
     --danger-fill: #DC2626;
     --madder: #F43F5E;
+    --epic: #A78BFA;
 
     --scrim: color-mix(in oklab, var(--void) 70%, transparent);
 
@@ -182,4 +183,5 @@
     --color-danger: var(--danger);
     --color-danger-fill: var(--danger-fill);
     --color-madder: var(--madder);
+    --color-epic: var(--epic);
 }

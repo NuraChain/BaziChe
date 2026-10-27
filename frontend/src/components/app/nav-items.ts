@@ -23,7 +23,7 @@ const CHATS: NavItem = { tab: 'chats', lights: [], to: '/app/chats', icon: 'chat
 
 export const NAV: NavItem[] = [
     HOME,
-    { ...GAMES, lights: ['watch', 'leaderboard'] },
+    { ...GAMES, lights: ['watch', 'leaderboard', 'shop'] },
     { ...FRIENDS, lights: ['discover'] },
     CHATS,
     { tab: 'me', lights: ['settings'], to: '/app/me', icon: 'me', labelKey: 'app.nav.profile' }

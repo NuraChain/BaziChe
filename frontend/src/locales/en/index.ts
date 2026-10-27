@@ -7,6 +7,7 @@ import { me } from './me.ts';
 import { wallet } from './wallet.ts';
 import { vault } from './vault.ts';
 import { admin } from './admin.ts';
+import { shop } from './shop.ts';
 import { helpers } from './helpers.ts';
 import { helpersLudo } from './helpers-ludo.ts';
 import { helpersHokm } from './helpers-hokm.ts';
@@ -14,7 +15,7 @@ import { helpersBackgammon } from './helpers-backgammon.ts';
 import { helpersPoker } from './helpers-poker.ts';
 import { helpersChess } from './helpers-chess.ts';
 
-export const en = { ...landing, ...app, ...play, ...social, ...wallet, ...vault, ...admin, ...me, ...helpers, ...helpersLudo, ...helpersHokm, ...helpersBackgammon, ...helpersPoker, ...helpersChess };
+export const en = { ...landing, ...app, ...play, ...social, ...wallet, ...vault, ...admin, ...shop, ...me, ...helpers, ...helpersLudo, ...helpersHokm, ...helpersBackgammon, ...helpersPoker, ...helpersChess };
 
 export type MessageKey = keyof typeof en;
 

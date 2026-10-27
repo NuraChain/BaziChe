@@ -769,13 +769,19 @@ export const shopSentInput = object({ hash: string({ pattern: /^0x[0-9a-fA-F]{64
 
 export const shopOrders = object({ orders: array(shopOrder), cursor: string().optional() });
 
+export type ShopOrders = Infer<typeof shopOrders>;
+
 export const shopOrdersQuery = object({ cursor: string({ max: 80 }).optional() });
 
 /** The NURA in the reader's wallet, in wei. */
 export const shopBalance = object({ address: string(), wallet: string() });
 
+export type ShopBalance = Infer<typeof shopBalance>;
+
 /** What the shop owes the reader for the people they brought in, in wei, and the share of a sale it credits, in basis points. */
 export const shopEarnings = object({ address: string(), earnings: string(), share: number() });
+
+export type ShopEarnings = Infer<typeof shopEarnings>;
 
 export const nftItem = object({
     contract: string(),

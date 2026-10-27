@@ -1,0 +1,64 @@
+import { lookOf } from '../../../../backend/src/domains/shop/catalogue.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { nuraOf } from '../../lib/nura.ts';
+import { itemName } from '../../lib/shop.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useShop } from '../../stores/shop.store.ts';
+
+export default component LookCard(props: { item: string; onOpen: (item: string) => void })
+{
+    const locale = useLocale();
+    const shop = useShop();
+
+    derived name = itemName(props.item, locale);
+
+    derived tier = lookOf(props.item)?.tier ?? 'bundle';
+
+    derived asked = shop.priceFor(props.item);
+
+    derived owned = shop.owns(props.item);
+
+    derived using = shop.inUse(props.item);
+
+    derived kept = owned && !using;
+
+    derived priced = !owned && asked !== null;
+
+    derived price = asked === null ? '' : locale.n(nuraOf(asked.price), { maximumFractionDigits: 2 });
+
+    derived was = asked?.was === undefined ? '' : locale.n(nuraOf(asked.was), { maximumFractionDigits: 2 });
+
+    derived cut = priced && was !== '';
+
+    <button
+        type="button"
+        class="look-card group flex w-full min-w-0 flex-col overflow-hidden rounded-panel border bg-field text-start transition-[border-color,transform] duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 motion-reduce:transform-none"
+        data-tier={ tier }
+        data-look={ props.item }
+        onClick={ () => props.onOpen(props.item) }
+    >
+        <span class="relative block overflow-hidden">
+            <img src={ `/looks/${ props.item }.svg` } alt="" width="160" height="120" loading="lazy" decoding="async" class="block aspect-[4/3] w-full object-cover transition-transform duration-300 group-hover:scale-[1.04] motion-reduce:transition-none" />
+        </span>
+        <span class="flex min-w-0 flex-col gap-1 px-3 pb-3 pt-2.5">
+            <span class="truncate text-ui-sm font-semibold text-text">{ name }</span>
+            <span class="flex min-h-5 flex-wrap items-center gap-x-2 text-ui-xs">
+                <Show when={ using }>
+                    <span class="flex items-center gap-1 font-semibold text-live">
+                        <Icon name="selected" size={ 13 } />
+                        { locale.t('shop.inUse') }
+                    </span>
+                </Show>
+                <Show when={ kept }>
+                    <span class="font-semibold text-muted">{ locale.t('shop.owned') }</span>
+                </Show>
+                <Show when={ priced }>
+                    <span class="font-semibold text-text"><span class="tally">{ price }</span> NURA</span>
+                </Show>
+                <Show when={ cut }>
+                    <s class="text-faint"><span class="tally">{ was }</span></s>
+                </Show>
+            </span>
+        </span>
+    </button>
+}

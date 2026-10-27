@@ -1,0 +1,180 @@
+import { useHead } from 'azerothjs';
+
+import { BUNDLES, COLLECTION_BLURBS } from '../../../../backend/src/domains/shop/catalogue.ts';
+import Page from '../../components/app/page.component.azeroth';
+import PageHeader from '../../components/app/page-header.component.azeroth';
+import LookCard from '../../components/shop/look-card.component.azeroth';
+import Button from '../../components/ui/button.component.azeroth';
+import EmptyState from '../../components/ui/empty-state.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
+import FilterBar from '../../components/ui/filter-bar.component.azeroth';
+import SectionHeading from '../../components/ui/section-heading.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
+import { NURA_CHAIN } from '../../data/chain.ts';
+import { GAMES } from '../../data/games.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { openLook } from '../../lib/look-sheet.ts';
+import { nuraOf } from '../../lib/nura.ts';
+import { useAddress } from '../../lib/page-param.ts';
+import { SHOP_FILTERS, collectionName, isShopFilter, kindsFor, looksOf } from '../../lib/shop.ts';
+import '../../locales/shop-catalogue.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useShop } from '../../stores/shop.store.ts';
+
+export default component ShopPage()
+{
+    const locale = useLocale();
+    const shop = useShop();
+    const address = useAddress();
+
+    useHead({ title: () => locale.t('shop.title') });
+
+    derived word = address.text('for');
+
+    derived filter = isShopFilter(word) ? word : 'all';
+
+    derived kinds = [...kindsFor(filter)];
+
+    derived held = shop.state();
+
+    derived awaited = held === null && shop.loading();
+
+    derived refused = held === null && !shop.loading() && shop.failed();
+
+    derived closed = held !== null && !held.open;
+
+    derived open = held !== null && held.open;
+
+    derived featured = held !== null && held.open ? held.featured : 'glow';
+
+    derived featuredName = collectionName(featured, locale);
+
+    derived blurb = locale.text(COLLECTION_BLURBS[featured]);
+
+    derived onSale = held !== null && held.open ? held.items.filter((item) => item.sale !== undefined).map((item) => item.id) : [];
+
+    derived selling = onSale.length > 0;
+
+    derived wallet = shop.balance();
+
+    derived counted = wallet !== null;
+
+    derived inWallet = locale.n(nuraOf(wallet?.wallet ?? '0'), { maximumFractionDigits: 4 });
+
+    derived unreachedLead = shop.unreached() ? locale.t('shop.unreached') : undefined;
+
+    derived filters = SHOP_FILTERS.map((id) => ({
+        id,
+        label: id === 'all' ? locale.t('shop.for.all') : id === 'profile' ? locale.t('shop.for.profile') : locale.t(GAMES.find((game) => game.id === id)?.nameKey ?? 'shop.for.all')
+    }));
+
+    const see = async (item: string) =>
+    {
+        address.write({ item });
+        await openLook(item);
+        address.write({ item: '' });
+    };
+
+    mount
+    {
+        const asked = address.text('item');
+
+        shop.want('balance');
+
+        if (asked !== '')
+        {
+            void see(asked);
+        }
+
+        return shop.listen();
+    }
+
+    <Page label={ locale.t('shop.title') } onRefresh={ () => void shop.refresh() }>
+        <PageHeader
+            title={ locale.t('shop.title') }
+            lead={ locale.t('shop.lead') }
+            actions={
+                <div class="flex flex-wrap items-center gap-2">
+                    <Show when={ counted }>
+                        <span class="flex items-baseline gap-1.5 rounded-full border border-line bg-field px-3 py-1.5 text-ui-sm text-muted" data-shop-wallet>
+                            <span>{ locale.t('shop.inWallet') }</span>
+                            <span class="font-semibold text-text"><span class="tally">{ inWallet }</span> NURA</span>
+                        </span>
+                    </Show>
+                    <a href={ NURA_CHAIN.site } target="_blank" rel="noreferrer noopener" class="flex min-h-10 items-center gap-1 rounded-control px-3 text-ui-sm font-semibold text-accent hover:bg-raised coarse:min-h-11">
+                        { locale.t('shop.getNura') }
+                        <Icon name="forward" size={ 14 } class="icon-flip" />
+                    </a>
+                    <Button variant="outline" leading="sparkles" to="/app/shop/collection">{ locale.t('shop.yours') }</Button>
+                </div>
+            }
+        />
+
+        <Show when={ awaited }>
+            <div class="grid grid-cols-2 gap-3 @2xl:grid-cols-4" aria-hidden="true">
+                <Skeleton lines={ 4 } class="rounded-panel border border-line bg-field p-4" />
+                <Skeleton lines={ 4 } class="rounded-panel border border-line bg-field p-4" />
+                <Skeleton lines={ 4 } class="rounded-panel border border-line bg-field p-4" />
+                <Skeleton lines={ 4 } class="rounded-panel border border-line bg-field p-4" />
+            </div>
+        </Show>
+
+        <Show when={ refused }>
+            <ErrorState title={ locale.t('shop.failed') } lead={ unreachedLead } onRetry={ () => void shop.refresh() } />
+        </Show>
+
+        <Show when={ closed }>
+            <EmptyState icon="sparkles" title={ locale.t('shop.closed') } lead={ locale.t('shop.closedLead') } />
+        </Show>
+
+        <Show when={ open }>
+            <div class="flex flex-col gap-8">
+                <section class="hero-surface overflow-hidden rounded-hero" aria-labelledby="shop-featured" data-featured={ featured }>
+                    <div class="grid gap-5 p-5 @xl:grid-cols-[minmax(0,1fr)_minmax(0,15rem)] @xl:items-center @xl:p-7">
+                        <div class="flex min-w-0 flex-col gap-3">
+                            <p class="text-ui-sm font-semibold text-gold">{ locale.t('shop.featured') }</p>
+                            <h2 id="shop-featured" class="title text-ui-3xl @xl:text-ui-4xl">{ featuredName }</h2>
+                            <p class="max-w-[48ch] text-ui-md text-muted">{ blurb }</p>
+                        </div>
+                        <div class="w-full max-w-[15rem] justify-self-center @xl:justify-self-end">
+                            <LookCard item={ `bundle.${ featured }` } onOpen={ (item) => void see(item) } />
+                        </div>
+                    </div>
+                </section>
+
+                <FilterBar items={ filters } value={ filter } label={ locale.t('shop.title') } onChange={ (id) => address.write({ for: id === 'all' ? '' : id }) } />
+
+                <Show when={ selling }>
+                    <section aria-labelledby="shop-sale">
+                        <SectionHeading id="shop-sale" title={ locale.t('shop.section.sale') } />
+                        <ul class="grid grid-cols-2 gap-3 @xl:grid-cols-3 @3xl:grid-cols-4">
+                            <For each={ onSale } key={ (item) => item } let={ item }>
+                                <li class="min-w-0"><LookCard item={ item } onOpen={ (picked) => void see(picked) } /></li>
+                            </For>
+                        </ul>
+                    </section>
+                </Show>
+
+                <section aria-labelledby="shop-bundles">
+                    <SectionHeading id="shop-bundles" title={ locale.t('shop.section.bundles') } />
+                    <ul class="grid grid-cols-2 gap-3 @xl:grid-cols-3 @3xl:grid-cols-4">
+                        <For each={ [...BUNDLES] } key={ (bundle) => bundle.id } let={ bundle }>
+                            <li class="min-w-0"><LookCard item={ bundle.id } onOpen={ (picked) => void see(picked) } /></li>
+                        </For>
+                    </ul>
+                </section>
+
+                <For each={ kinds } key={ (kind) => kind } let={ kind }>
+                    <section aria-labelledby={ `shop-${ kind }` } data-kind={ kind }>
+                        <SectionHeading id={ `shop-${ kind }` } title={ locale.t(`shop.kinds.${ kind }`) } />
+                        <ul class="grid grid-cols-2 gap-3 @xl:grid-cols-3 @3xl:grid-cols-4">
+                            <For each={ looksOf(kind) } key={ (look) => look.id } let={ look }>
+                                <li class="min-w-0"><LookCard item={ look.id } onOpen={ (picked) => void see(picked) } /></li>
+                            </For>
+                        </ul>
+                    </section>
+                </For>
+            </div>
+        </Show>
+    </Page>
+}

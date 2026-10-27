@@ -35,6 +35,11 @@ import type {
     NftItem,
     PersonSummary,
     Privacy,
+    ShopBalance,
+    ShopCollectionView,
+    ShopEarnings,
+    ShopOrderView,
+    ShopState,
     Standing,
     StaffList,
     StaffLog,
@@ -44,6 +49,7 @@ import type {
     VaultState,
     WalletCall
 } from '../../backend/src/schemas.ts';
+import { BUNDLES, LOOKS, bundleOf } from '../../backend/src/domains/shop/catalogue.ts';
 import { ESCROW_STATES, STAKE_LADDER } from '../../backend/src/domains/stake/policy.ts';
 import { STAFF_REFUSALS, type StaffRefusal } from '../../backend/src/domains/admin/refusals.ts';
 import { LIVE_PAGE, LOG_PAGE, may, outranks, PEOPLE_PAGE, PLAY_PAGE, REPORTS_PAGE, type Ability, type ActionKind, type ClearPart, type GrantedRole, type PeopleList, type ReportList, type ReportOutcome, type ReportStatus, type StaffRole, type SuspendCategory, type SuspendDays } from '../../backend/src/domains/admin/roles.ts';
@@ -655,6 +661,76 @@ const nuraRefusal = () =>
     }
 };
 
+export const NURA_SHOP = '0x8A791620dd6260079BF849Dc5567aDC3F2FdC318';
+
+const SHOP_BUYER = '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
+
+const shopFresh = () => ({
+    state: { open: true, chainId: 31337, items: [...LOOKS, ...BUNDLES].map((item) => ({ id: item.id, price: item.price.toString() })), featured: 'glow', may: 'yes' } as ShopState,
+    owned: [] as ShopCollectionView['owned'],
+    chosen: [] as ShopCollectionView['chosen'],
+    orders: [] as ShopOrderView[],
+    balance: { address: SHOP_BUYER, wallet: '20000000000000000000' } as ShopBalance,
+    earnings: { address: SHOP_BUYER, earnings: '0', share: 1000 } as ShopEarnings,
+    refuse: null as { status: number; code: string; details?: Record<string, string> } | null,
+
+    /** A promise a choice waits on before it is answered, so a spec can look between the press and the answer. */
+    hold: null as Promise<void> | null,
+    seq: 0
+});
+
+const shopRefusal = () =>
+{
+    const refused = server.shop.refuse;
+
+    if (refused !== null)
+    {
+        throw new ApiError(refused.status, refused.code, refused.code, refused.details);
+    }
+};
+
+const shopOrder = (id: string) =>
+{
+    const found = server.shop.orders.find((one) => one.id === id);
+
+    if (found === undefined)
+    {
+        throw new ApiError(404, 'shop-order', 'That order is not there.', undefined);
+    }
+
+    return found;
+};
+
+/** The shop sells an order on the chain and delivers it, as the server's worker would. */
+export function sellShopOrder(id: string, delivered = true)
+{
+    const order = shopOrder(id);
+
+    order.state = 'paid';
+    order.delivered = delivered;
+    order.paidAt = '2026-10-27T12:01:00.000Z';
+
+    if (delivered && order.for === undefined)
+    {
+        for (const look of bundleOf(order.item)?.looks ?? [order.item])
+        {
+            if (!server.shop.owned.some((one) => one.item === look))
+            {
+                server.shop.owned.push({ item: look, via: 'purchase', at: '2026-10-27T12:01:00.000Z' });
+            }
+        }
+    }
+}
+
+/** The chain refuses an order's transaction in the shop's own word. */
+export function failShopOrder(id: string, word: string)
+{
+    const order = shopOrder(id);
+
+    order.state = 'failed';
+    order.failure = word;
+}
+
 export const server =
 {
     account: null as Account | null,
@@ -767,6 +843,7 @@ export const server =
      */
     vault: null as { salt: string; publicKey: string; wrapped: string; checkValue: string } | null,
     nura: nuraFresh(),
+    shop: shopFresh(),
     admin: adminFresh(),
     staff: staffFresh(),
     accounts: accountsFresh(),
@@ -944,6 +1021,7 @@ export const server =
         server.sealDevice = null;
         server.vault = null;
         server.nura = nuraFresh();
+        server.shop = shopFresh();
         server.admin = adminFresh();
         server.staff = staffFresh();
         server.accounts = accountsFresh();
@@ -1741,6 +1819,110 @@ export const client =
             });
 
             return {};
+        }
+    },
+
+    shop:
+    {
+        async state()
+        {
+            server.calls.push('shop.state');
+            shopRefusal();
+            return structuredClone(server.shop.state);
+        },
+        async balance()
+        {
+            server.calls.push('shop.balance');
+            shopRefusal();
+            return { ...server.shop.balance };
+        },
+        async collection()
+        {
+            server.calls.push('shop.collection');
+            shopRefusal();
+            return { owned: structuredClone(server.shop.owned), chosen: structuredClone(server.shop.chosen) };
+        },
+        async choose({ input }: { input: { slot: string; item?: string } })
+        {
+            server.calls.push(`shop.choose ${ input.slot } ${ input.item ?? 'classic' }`);
+            await server.shop.hold;
+            shopRefusal();
+
+            if (input.item !== undefined && !server.shop.owned.some((one) => one.item === input.item))
+            {
+                throw new ApiError(409, 'shop-not-owned', 'That look is not yours yet.', undefined);
+            }
+
+            server.shop.chosen = [
+                ...server.shop.chosen.filter((one) => one.slot !== input.slot),
+                ...(input.item === undefined ? [] : [{ slot: input.slot as ShopCollectionView['chosen'][number]['slot'], item: input.item }])
+            ];
+
+            return { owned: structuredClone(server.shop.owned), chosen: structuredClone(server.shop.chosen) };
+        },
+        async order({ input }: { input: { item: string; for?: string } })
+        {
+            server.calls.push(`shop.order ${ input.item }${ input.for === undefined ? '' : ` for ${ input.for }` }`);
+            shopRefusal();
+            server.shop.seq += 1;
+
+            const listed = server.shop.state.open ? server.shop.state.items.find((one) => one.id === input.item) : undefined;
+            const price = listed?.sale?.price ?? listed?.price ?? '0';
+            const order: ShopOrderView = {
+                id: `order-${ server.shop.seq }`,
+                item: input.item,
+                ...(input.for === undefined ? {} : { for: input.for.replace(/^@/, '') }),
+                price,
+                state: 'quoted',
+                deadline: '2026-10-27T12:30:00.000Z',
+                at: '2026-10-27T12:00:00.000Z'
+            };
+
+            server.shop.orders = [order, ...server.shop.orders];
+
+            return { order: { ...order }, call: { from: SHOP_BUYER, to: NURA_SHOP, data: '0xbuy', value: `0x${ BigInt(price).toString(16) }`, chainId: 31337 } as WalletCall };
+        },
+        async orders(input?: { query?: { cursor?: string } })
+        {
+            server.calls.push(`shop.orders ${ input?.query?.cursor ?? '' }`.trim());
+            shopRefusal();
+            return { orders: structuredClone(server.shop.orders) };
+        },
+        async one({ params }: { params: { id: string } })
+        {
+            server.calls.push(`shop.one ${ params.id }`);
+            return { ...shopOrder(params.id) };
+        },
+        async sent({ params, input }: { params: { id: string }; input: { hash: string } })
+        {
+            server.calls.push(`shop.sent ${ params.id }`);
+            const order = shopOrder(params.id);
+
+            if (order.state === 'quoted')
+            {
+                order.state = 'sent';
+                order.hash = input.hash.toLowerCase();
+            }
+
+            return { ...order };
+        },
+        async earnings()
+        {
+            server.calls.push('shop.earnings');
+            shopRefusal();
+            return { ...server.shop.earnings };
+        },
+        async claim()
+        {
+            server.calls.push('shop.claim');
+            shopRefusal();
+
+            if (BigInt(server.shop.earnings.earnings) === 0n)
+            {
+                throw new ApiError(409, 'shop-nothing', 'There is nothing to claim yet.', undefined);
+            }
+
+            return { from: SHOP_BUYER, to: NURA_SHOP, data: '0x4e71d92d', value: '0x0', chainId: 31337 } as WalletCall;
         }
     },
 

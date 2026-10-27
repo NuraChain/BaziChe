@@ -3,15 +3,13 @@ import { createResource, createSignal, createStore, untrack, type Getter } from 
 import { ApiError, client, type VaultState, type WalletCall } from '../api.ts';
 import { runtime } from '../lib/runtime.ts';
 import { whyRefused } from '../lib/open-table.ts';
-import type { WalletFailure } from '../lib/wallet.ts';
+import { REFUSAL_OF, readyToSend, type SendRefusal } from '../lib/wallet-call.ts';
 import type { MessageKey } from '../locales/en.ts';
 import { useAccount } from './account.store.ts';
 import { useRealtime } from './realtime.store.ts';
 import { useWallet } from './wallet.store.ts';
 
-export type VaultOutcome =
-    | 'rejected' | 'reverted' | 'pending' | 'unavailable' | 'wrong-chain'
-    | 'locked' | 'asking' | 'no-wallet' | 'wrong-account' | 'wallet-failed';
+export type VaultOutcome = SendRefusal | 'reverted' | 'pending';
 
 export const VAULT_COPY: Record<VaultOutcome, MessageKey> = {
     rejected: 'vault.rejected',
@@ -24,18 +22,6 @@ export const VAULT_COPY: Record<VaultOutcome, MessageKey> = {
     'no-wallet': 'vault.noWallet',
     'wrong-account': 'vault.wrongAccount',
     'wallet-failed': 'vault.walletFailed'
-};
-
-const REFUSAL: Record<WalletFailure, VaultOutcome> = {
-    'no-wallet': 'no-wallet',
-    rejected: 'rejected',
-    unauthorized: 'locked',
-    pending: 'asking',
-    chain: 'wrong-chain',
-    unavailable: 'unavailable',
-    busy: 'unavailable',
-    suspended: 'unavailable',
-    unknown: 'wallet-failed'
 };
 
 const RECEIPT_WAIT_MS = 1_500;
@@ -131,23 +117,7 @@ export const useVault = createStore((): VaultApi =>
             look();
         });
 
-    const ours = async (chainId: number): Promise<VaultOutcome | null> =>
-    {
-        const signer = wallet.address() ?? await wallet.reach();
-        const owner = account.address();
-
-        if (signer === null)
-        {
-            return REFUSAL[wallet.failure() ?? 'no-wallet'];
-        }
-
-        if (owner === null || signer.toLowerCase() !== owner.toLowerCase())
-        {
-            return 'wrong-account';
-        }
-
-        return await wallet.toChain(chainId) ? null : REFUSAL[wallet.failure() ?? 'chain'];
-    };
+    const ours = (chainId: number) => readyToSend(wallet, account.address(), chainId);
 
     const sent = async (compose: () => Promise<WalletCall>): Promise<MessageKey | null> =>
     {
@@ -175,7 +145,7 @@ export const useVault = createStore((): VaultApi =>
 
             if (hash === null)
             {
-                return VAULT_COPY[REFUSAL[wallet.failure() ?? 'unknown']];
+                return VAULT_COPY[REFUSAL_OF[wallet.failure() ?? 'unknown']];
             }
 
             const ok = await settled(hash);
@@ -220,7 +190,7 @@ export const useVault = createStore((): VaultApi =>
             const { typedData } = await terms();
             const signature = await wallet.signTyped(typedData);
 
-            return signature === null ? { said: VAULT_COPY[REFUSAL[wallet.failure() ?? 'unknown']] } : { signature };
+            return signature === null ? { said: VAULT_COPY[REFUSAL_OF[wallet.failure() ?? 'unknown']] } : { signature };
         }
         catch (error)
         {

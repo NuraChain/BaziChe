@@ -1,6 +1,6 @@
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'bare' | 'destructive' | 'destructive-ghost' | 'live';
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
-export type Tone = 'neutral' | 'accent' | 'live' | 'gold' | 'win' | 'danger' | 'madder';
+export type Tone = 'neutral' | 'accent' | 'live' | 'gold' | 'win' | 'danger' | 'madder' | 'epic';
 export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 export type BadgeVariant = 'solid' | 'soft' | 'outline';
 export type BadgeSize = 'sm' | 'md';
@@ -43,7 +43,8 @@ export const TONE_FILL: Record<Tone, string> = {
     gold: 'bg-gold text-bright-ink',
     win: 'bg-win text-bright-ink',
     danger: 'bg-danger-fill text-accent-ink',
-    madder: 'bg-madder text-bright-ink'
+    madder: 'bg-madder text-bright-ink',
+    epic: 'bg-epic text-bright-ink'
 };
 
 export const TONE_SOFT: Record<Tone, string> = {
@@ -53,7 +54,8 @@ export const TONE_SOFT: Record<Tone, string> = {
     gold: 'bg-gold/15 text-gold',
     win: 'bg-win/15 text-win',
     danger: 'bg-danger/15 text-danger',
-    madder: 'bg-madder/15 text-madder'
+    madder: 'bg-madder/15 text-madder',
+    epic: 'bg-epic/15 text-epic'
 };
 
 export const TONE_OUTLINE: Record<Tone, string> = {
@@ -63,7 +65,8 @@ export const TONE_OUTLINE: Record<Tone, string> = {
     gold: 'border border-gold/50 text-gold',
     win: 'border border-win/50 text-win',
     danger: 'border border-danger/50 text-danger',
-    madder: 'border border-madder/50 text-madder'
+    madder: 'border border-madder/50 text-madder',
+    epic: 'border border-epic/50 text-epic'
 };
 
 export const TONE_DOT: Record<Tone, string> = {
@@ -73,7 +76,8 @@ export const TONE_DOT: Record<Tone, string> = {
     gold: 'bg-gold',
     win: 'bg-win',
     danger: 'bg-danger',
-    madder: 'bg-madder'
+    madder: 'bg-madder',
+    epic: 'bg-epic'
 };
 
 export const TONE_PILL: Record<Tone, string> = {
@@ -83,7 +87,8 @@ export const TONE_PILL: Record<Tone, string> = {
     gold: 'border-gold/30 bg-gold/12 text-muted',
     win: 'border-win/30 bg-win/12 text-text',
     danger: 'border-danger/30 bg-danger/12 text-text',
-    madder: 'border-madder/30 bg-madder/12 text-text'
+    madder: 'border-madder/30 bg-madder/12 text-text',
+    epic: 'border-epic/30 bg-epic/12 text-text'
 };
 
 export const BADGE_SIZE: Record<BadgeSize, string> = {

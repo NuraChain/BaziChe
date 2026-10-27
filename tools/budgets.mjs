@@ -29,6 +29,7 @@ import { gzipSync } from 'node:zlib';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { BUNDLES, LOOKS } from '../backend/src/domains/shop/catalogue.ts';
 import { POSTERS, fingerprint } from './art/poster.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -60,6 +61,9 @@ const BED_BUDGETS = { rain: 640 * KB, birds: 640 * KB };
 const BED_BUDGET = 1024 * KB;
 
 const BED_SOURCES = join(PACK_SOURCES, 'beds');
+
+/** Each look's drawing in the shop: a card loads twelve of them at once on a phone. */
+const LOOK_BUDGET = 16 * KB;
 
 /**
  * Modules that must NOT be in the landing page's initial set, and why.
@@ -533,6 +537,33 @@ if (beds.some((name) => !bedNames.some((bed) => new RegExp(`^${ bed }-[\\w-]+\\.
     problems.push('a bed reached dist/assets that frontend/src/game/sound/beds does not hold');
 }
 
+const lookIds = [...LOOKS, ...BUNDLES].map((item) => item.id);
+const LOOK_FILES = join(DIST, 'looks');
+const lookFiles = existsSync(LOOK_FILES) ? readdirSync(LOOK_FILES) : [];
+const lookTotal = lookFiles.reduce((sum, name) => sum + statSync(join(LOOK_FILES, name)).size, 0);
+
+for (const id of lookIds)
+{
+    const path = join(LOOK_FILES, `${ id }.svg`);
+
+    if (!existsSync(path))
+    {
+        problems.push(`looks/${ id }.svg is missing - run npm run looks`);
+    }
+    else if (statSync(path).size > LOOK_BUDGET)
+    {
+        problems.push(`looks/${ id }.svg is ${ size(statSync(path).size) }, over ${ size(LOOK_BUDGET) }`);
+    }
+}
+
+for (const name of lookFiles)
+{
+    if (!lookIds.includes(name.replace(/\.svg$/, '')))
+    {
+        problems.push(`looks/${ name } is a look the shop does not sell`);
+    }
+}
+
 if (readdirSync(ASSETS).some((name) => /.(mp3|ogg|wav|m4a)$/.test(name)))
 {
     problems.push('an audio file with a media extension reached dist/assets - a download manager grabs those and hands the page an empty 204');
@@ -594,6 +625,7 @@ console.log(`  tables       ${ tableBytes.length } chunks, largest ${ size(Math.
 console.log(`  stage        ${ stageBytes === null ? 'absent' : size(stageBytes) } / ${ size(STAGE_BUDGET) }`);
 console.log(`  sounds       ${ sounds.length } packs, ${ size(soundTotal) } in all, none over its ceiling`);
 console.log(`  beds         ${ beds.length } ${ beds.length === 1 ? 'bed' : 'beds' }, ${ size(bedTotal) } in all, none over its ceiling`);
+console.log(`  looks        ${ lookFiles.length } drawings, ${ size(lookTotal) } in all, none over ${ size(LOOK_BUDGET) }`);
 console.log(`  world        ${ size(worldBytes) } / ${ size(WORLD_BUDGET) }`);
 console.log(`  posters      ${ posterBytes.map(size).join(', ') }`);
 console.log(`  class binds  ${ classBindsRead } read, ${ problems.length === 0 ? 'every one that reads a signal effect-wrapped' : 'see below' }`);

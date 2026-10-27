@@ -1,0 +1,60 @@
+import type { ShopOrderView } from '../../api.ts';
+import { explorerTx, nuraOf } from '../../lib/nura.ts';
+import { itemName } from '../../lib/shop.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import { useShop } from '../../stores/shop.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+
+const TONE = { quoted: 'neutral', sent: 'accent', paid: 'live', expired: 'neutral', failed: 'gold', refunded: 'neutral' } as const;
+
+export default component OrderRow(props: { order: ShopOrderView })
+{
+    const locale = useLocale();
+    const shop = useShop();
+    const people = usePeople();
+
+    derived item = props.order.item;
+
+    derived name = itemName(item, locale);
+
+    derived price = locale.n(nuraOf(props.order.price), { maximumFractionDigits: 4 });
+
+    derived at = locale.date(Date.parse(props.order.at), { dateStyle: 'medium' });
+
+    derived recipient = props.order.for ?? null;
+
+    derived gift = recipient !== null;
+
+    derived forWords = locale.t('shop.collection.forName', { name: recipient === null ? '' : people.byHandle(recipient)?.displayName ?? recipient });
+
+    derived state = props.order.state;
+
+    derived stateWords = locale.t(`shop.order.${ state }`);
+
+    derived held = shop.state();
+
+    derived link = props.order.hash === undefined || held === null || !held.open ? null : explorerTx(held.chainId, props.order.hash);
+
+    derived linked = link !== null;
+
+    <div class="flex items-center gap-3 py-2.5">
+        <img src={ `/looks/${ item }.svg` } alt="" width="64" height="48" loading="lazy" decoding="async" class="block aspect-[4/3] w-16 shrink-0 rounded-control" />
+        <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span class="truncate text-ui-sm font-semibold text-text">{ name }</span>
+            <span class="flex flex-wrap items-center gap-x-2 text-ui-xs text-muted">
+                <span><span class="tally">{ price }</span> NURA</span>
+                <Show when={ gift }>
+                    <span dir="auto">{ forWords }</span>
+                </Show>
+                <span>{ at }</span>
+            </span>
+        </span>
+        <span class="flex shrink-0 flex-col items-end gap-1">
+            <Badge dot text={ stateWords } tone={ TONE[state] } />
+            <Show when={ linked }>
+                <a href={ link ?? '' } target="_blank" rel="noreferrer noopener" class="text-ui-xs font-semibold text-accent">{ locale.t('shop.step.transaction') }</a>
+            </Show>
+        </span>
+    </div>
+}

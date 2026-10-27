@@ -1,6 +1,7 @@
 import type { Flow, Tune } from '../vfx/engine.ts';
 import { lazyVfx } from '../vfx/lazy.ts';
-import { AURAS, lookIn, type Frame } from './frames.ts';
+import { AURAS } from './aura.ts';
+import { lookIn, type Frame } from './frames.ts';
 
 /** The collection a worn theme names, whose cover (`public/covers/<collection>.svg`) its owner's profile wears. */
 export const coverOf = (theme: string | undefined) => lookIn('theme', theme);

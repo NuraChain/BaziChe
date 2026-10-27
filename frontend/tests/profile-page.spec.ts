@@ -122,6 +122,18 @@ describe('my profile page', () =>
         expect(container.querySelector('section [role="img"]')?.getAttribute('data-deco')).toBe('shiraz');
     });
 
+    it('opens the reader’s own profile with the reveal of the effect they wear', async () =>
+    {
+        signIn();
+        const revealing = { ...server.account!, effect: 'effect.jade' };
+        server.account = revealing;
+        useSession().establish(revealing);
+
+        const container = await page();
+
+        expect(container.querySelector('section [data-reveal]')?.getAttribute('data-reveal')).toBe('jade');
+    });
+
     it('lays the reader’s own theme over their profile’s band', async () =>
     {
         signIn();
@@ -299,6 +311,14 @@ describe('somebody else\'s profile page', () =>
         useSession().establish(account);
         usePeople().reset();
         useSocial().reset();
+    });
+
+    it('opens their profile with the reveal of the effect the server says they wear', async () =>
+    {
+        server.effects.mina = 'effect.storm';
+        const container = visit('mina');
+
+        await vi.waitFor(() => expect(container.querySelector('section [data-reveal]')?.getAttribute('data-reveal')).toBe('storm'));
     });
 
     it('lays their theme over their profile’s band, as the server says they wear it', async () =>
@@ -545,6 +565,14 @@ describe('a profile for somebody with no wallet', () =>
         expect(server.calls).toContain('public.person sara.k');
         expect(server.calls).toContain('public.record sara.k');
         expect(server.calls.filter((call) => call.startsWith('social.') || call === 'auth.me')).toEqual([]);
+    });
+
+    it('opens with the reveal of their effect for somebody with no wallet too', async () =>
+    {
+        server.effects['sara.k'] = 'effect.phoenix';
+        const container = await visit('sara.k');
+
+        await vi.waitFor(() => expect(container.querySelector('section [data-reveal]')?.getAttribute('data-reveal')).toBe('phoenix'));
     });
 
     it('lays their theme over the band for somebody with no wallet too', async () =>

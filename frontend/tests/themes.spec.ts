@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AURAS, FRAMES } from '../src/game/looks/frames.ts';
+import { AURAS } from '../src/game/looks/aura.ts';
+import { FRAMES } from '../src/game/looks/frames.ts';
 import { AMBIENTS, coverOf, driftOver } from '../src/game/looks/themes.ts';
 import type { Point, Stream, Tune } from '../src/game/vfx/engine.ts';
 

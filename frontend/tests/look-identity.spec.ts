@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { LEGENDARY_COLLECTIONS, SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
-import { AURAS } from '../src/game/looks/frames.ts';
+import { AURAS, REVEALS } from '../src/game/looks/aura.ts';
 import { burstOf } from '../src/game/looks/table.ts';
 
 describe('a legendary collection\'s motion', () =>
@@ -12,5 +12,12 @@ describe('a legendary collection\'s motion', () =>
 
         expect(others.map((one) => AURAS[one].stream)).not.toContain(AURAS[collection].stream);
         expect(others.map((one) => burstOf(one).effect)).not.toContain(burstOf(collection).effect);
+    });
+
+    it.each([...LEGENDARY_COLLECTIONS])('opens %s’s profile with a reveal of its own, whose first layer no other collection plays', (collection) =>
+    {
+        const others = SHOP_COLLECTIONS.filter((one) => one !== collection);
+
+        expect(others.map((one) => REVEALS[one][0].effect)).not.toContain(REVEALS[collection][0].effect);
     });
 });

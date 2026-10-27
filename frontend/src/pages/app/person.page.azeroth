@@ -173,6 +173,7 @@ export default component PersonPage()
                     progress={ held?.progress ?? null }
                     joined={ view.data()?.joinedAt ?? '' }
                     theme={ view.data()?.theme }
+                    effect={ view.data()?.effect }
                     pictureLabel={ locale.t('profile.pictureView') }
                     onPicture={ (shown?.avatar ?? '') === '' ? undefined : viewPicture }
                     badges={

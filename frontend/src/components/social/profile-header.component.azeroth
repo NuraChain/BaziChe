@@ -1,8 +1,8 @@
 import { Link, onCleanup, untrack, type Child } from 'azerothjs';
 
 import type { Progress } from '../../api.ts';
-import { glowAround } from '../../game/looks/aura.ts';
-import { frameOf } from '../../game/looks/frames.ts';
+import { glowAround, revealAround } from '../../game/looks/aura.ts';
+import { frameOf, lookIn } from '../../game/looks/frames.ts';
 import { coverOf, driftOver } from '../../game/looks/themes.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { copyText } from '../../lib/clipboard.ts';
@@ -33,6 +33,7 @@ export default component ProfileHeader(props: {
     onPicture?: () => void;
     actions?: Child;
     theme?: string;
+    effect?: string;
 })
 {
     const locale = useLocale();
@@ -55,6 +56,8 @@ export default component ProfileHeader(props: {
 
     derived cover = themed === null ? '' : `/covers/${ themed }.svg`;
 
+    derived revealed = lookIn('effect', props.effect);
+
     state picture: HTMLElement | null = null;
 
     state head: HTMLElement | null = null;
@@ -64,6 +67,10 @@ export default component ProfileHeader(props: {
     let stopAura = () => undefined as void;
 
     let stopAmbient = () => undefined as void;
+
+    let stopReveal = () => undefined as void;
+
+    let shown = false;
 
     effect
     {
@@ -90,10 +97,28 @@ export default component ProfileHeader(props: {
         });
     }
 
+    effect
+    {
+        const collection = revealed;
+        const box = picture;
+        const area = head;
+
+        untrack(() =>
+        {
+            if (shown || collection === null || box === null || area === null)
+            {
+                return;
+            }
+            shown = true;
+            stopReveal = revealAround(area, box, collection);
+        });
+    }
+
     onCleanup(() =>
     {
         stopAura();
         stopAmbient();
+        stopReveal();
     });
 
     <section class="hero-surface relative overflow-hidden rounded-hero" aria-labelledby="profile-name" ref={ (element) => head = element }>

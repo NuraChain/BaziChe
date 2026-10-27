@@ -9,11 +9,12 @@ import ProfileHeader from '../src/components/social/profile-header.component.aze
 import UserCard from '../src/components/social/user-card.component.azeroth';
 import type { Person } from '../src/data/person.ts';
 import Avatar, { type Facade } from '../src/components/ui/avatar.component.azeroth';
-import { AURAS, FRAMES, frameOf, type Frame } from '../src/game/looks/frames.ts';
+import { AURAS } from '../src/game/looks/aura.ts';
+import { FRAMES, frameOf, type Frame } from '../src/game/looks/frames.ts';
 import { personFor } from '../src/stores/account.store.ts';
 import '../src/locales/app-catalogue.ts';
 
-const aura = vi.hoisted(() => ({ started: [] as [HTMLElement, string][], areas: [] as (HTMLElement | undefined)[], stopped: 0 }));
+const aura = vi.hoisted(() => ({ started: [] as [HTMLElement, string][], areas: [] as (HTMLElement | undefined)[], stopped: 0, revealed: [] as [HTMLElement, HTMLElement, string][], unrevealed: 0 }));
 
 vi.mock('../src/game/looks/aura.ts', async (original) => ({
     ...(await original<typeof import('../src/game/looks/aura.ts')>()),
@@ -24,6 +25,14 @@ vi.mock('../src/game/looks/aura.ts', async (original) => ({
         return () =>
         {
             aura.stopped += 1;
+        };
+    },
+    revealAround: (head: HTMLElement, picture: HTMLElement, collection: string) =>
+    {
+        aura.revealed.push([head, picture, collection]);
+        return () =>
+        {
+            aura.unrevealed += 1;
         };
     }
 }));
@@ -57,6 +66,8 @@ beforeEach(() =>
     aura.started = [];
     aura.areas = [];
     aura.stopped = 0;
+    aura.revealed = [];
+    aura.unrevealed = 0;
     ambient.started = [];
     ambient.stopped = 0;
 });
@@ -328,6 +339,73 @@ describe('a profile in its theme', () =>
         cleanup();
 
         expect(ambient.stopped).toBe(3);
+    });
+});
+
+describe('a profile effect, played as the profile opens', () =>
+{
+    const header = (effect: () => string | undefined) => renderTest(() => ProfileHeader({
+        person: sara(),
+        presence: null,
+        stats: [],
+        get effect()
+        {
+            return effect();
+        }
+    }) as HTMLElement).container;
+
+    const box = (container: HTMLElement) => container.querySelector('section [role="img"]')!.parentElement!;
+
+    it('plays its collection’s reveal once round the picture, across the whole header', async () =>
+    {
+        const container = header(() => 'effect.phoenix');
+        await settle();
+
+        expect(aura.revealed).toEqual([[container.querySelector('section'), box(container), 'phoenix']]);
+    });
+
+    it('plays it no more when the profile is read again, and no other when the effect it wears changes', async () =>
+    {
+        const [effect, setEffect] = createSignal<string | undefined>('effect.void');
+        header(effect);
+        await settle();
+
+        setEffect('effect.void');
+        await settle();
+        setEffect('effect.frost');
+        await settle();
+
+        expect(aura.revealed.map(([, , collection]) => collection)).toEqual(['void']);
+
+        cleanup();
+
+        expect(aura.unrevealed).toBe(1);
+    });
+
+    it('plays as soon as the profile says what it wears, when it says so after opening', async () =>
+    {
+        const [effect, setEffect] = createSignal<string | undefined>(undefined);
+        header(effect);
+        await settle();
+
+        expect(aura.revealed).toEqual([]);
+
+        setEffect('effect.astral');
+        await settle();
+
+        expect(aura.revealed.map(([, , collection]) => collection)).toEqual(['astral']);
+    });
+
+    it('plays nothing for Classic, or a look this build does not draw', async () =>
+    {
+        for (const worn of [undefined, 'effect.nowhere', 'theme.inferno'])
+        {
+            header(() => worn);
+            await settle();
+            cleanup();
+        }
+
+        expect(aura.revealed).toEqual([]);
     });
 });
 

@@ -947,6 +947,7 @@ export const server =
 
     /** The profile look each person wears, by handle, carried on their profile and their public face as the server carries it. */
     themes: {} as Record<string, string>,
+    effects: {} as Record<string, string>,
 
     /** When each person was last seen, by handle, as the server would send it to the reader: absent where it would not. */
     seen: {} as Record<string, string>,
@@ -1012,6 +1013,7 @@ export const server =
         server.partyRung = [];
         server.refusals = {};
         server.themes = {};
+        server.effects = {};
         server.seen = {};
         server.asked = [];
         server.sought = [];
@@ -3229,11 +3231,13 @@ export const client =
 
             const wire = personWire(params.handle);
             const theme = server.themes[params.handle];
+            const effect = server.effects[params.handle];
 
             return {
                 person: { handle: wire.handle, displayName: wire.displayName, bio: wire.bio, hue: wire.hue, ...(wire.avatar === undefined ? {} : { avatar: wire.avatar }) },
                 joinedAt: '2026-09-01T00:00:00.000Z',
-                ...(theme === undefined ? {} : { theme })
+                ...(theme === undefined ? {} : { theme }),
+                ...(effect === undefined ? {} : { effect })
             };
         },
 
@@ -3325,8 +3329,9 @@ export const client =
                 : server.friends.includes(params.handle) ? 'friend' as const : 'none' as const;
             const refusal = server.refusals[params.handle];
             const theme = server.themes[params.handle];
+            const effect = server.effects[params.handle];
 
-            return { person: personWire(params.handle), relation, mutual: 0, ...(refusal === undefined ? {} : { refusal }), ...(theme === undefined ? {} : { theme }) };
+            return { person: personWire(params.handle), relation, mutual: 0, ...(refusal === undefined ? {} : { refusal }), ...(theme === undefined ? {} : { theme }), ...(effect === undefined ? {} : { effect }) };
         },
 
         async names({ query }: { query: { handles: string } })

@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { glowAround } from '../src/game/looks/aura.ts';
-import { AURAS } from '../src/game/looks/frames.ts';
-import type { Point, Stream, Tune } from '../src/game/vfx/engine.ts';
+import { AURAS, glowAround, REVEALS, revealAround } from '../src/game/looks/aura.ts';
+import { FRAMES } from '../src/game/looks/frames.ts';
+import { FAMILIES } from '../src/game/vfx/families.ts';
+import { PRESETS } from '../src/game/vfx/presets.ts';
+import type { Point, Step, Stream, Tune } from '../src/game/vfx/engine.ts';
 
 interface Running
 {
@@ -13,7 +15,7 @@ interface Running
     ended: boolean;
 }
 
-const engine = vi.hoisted(() => ({ made: 0, streams: [] as Running[], disposed: 0, leans: [] as (Point | null)[] }));
+const engine = vi.hoisted(() => ({ made: 0, streams: [] as Running[], disposed: 0, leans: [] as (Point | null)[], signatures: [] as { host: HTMLElement; steps: readonly Step[]; at: Point; tune: Tune }[] }));
 
 vi.mock('../src/game/vfx/engine.ts', () => ({
     createVfx: (host: HTMLElement) =>
@@ -33,6 +35,10 @@ vi.mock('../src/game/vfx/engine.ts', () => ({
             lean(at: Point | null)
             {
                 engine.leans.push(at);
+            },
+            signature(steps: readonly Step[], at: Point, tune: Tune)
+            {
+                engine.signatures.push({ host, steps, at, tune });
             },
             dispose()
             {
@@ -63,6 +69,7 @@ beforeEach(() =>
     engine.streams = [];
     engine.disposed = 0;
     engine.leans = [];
+    engine.signatures = [];
     width = 112;
     picture = document.createElement('span');
     picture.append(document.createElement('span'));
@@ -183,5 +190,103 @@ describe('an aura round a framed picture', () =>
         expect(engine.made, 'a stop that came first still made an engine, which nothing lets go').toBe(1);
         expect(engine.streams).toHaveLength(1);
         expect(picture.querySelector('[data-aura]')).toBeNull();
+    });
+});
+
+describe('a profile effect’s reveal', () =>
+{
+    const boxed = (element: HTMLElement, box: { left: number; top: number; width: number; height: number }) =>
+    {
+        element.getBoundingClientRect = () => ({ ...box, x: box.left, y: box.top, right: box.left + box.width, bottom: box.top + box.height, toJSON: () => box });
+    };
+
+    let head: HTMLElement;
+
+    beforeEach(() =>
+    {
+        head = document.createElement('section');
+        document.body.append(head);
+        boxed(head, { left: 100, top: 50, width: 640, height: 320 });
+        boxed(picture, { left: 140, top: 110, width: 112, height: 112 });
+    });
+
+    afterEach(() => head.remove());
+
+    const revealed = async () =>
+    {
+        await vi.waitFor(() => expect(engine.signatures.length).toBeGreaterThan(0));
+        return engine.signatures.at(-1)!;
+    };
+
+    it('is a reveal for every collection a frame is drawn for, a classic one of the presets and a legendary one opening with an effect family', () =>
+    {
+        expect(Object.keys(REVEALS).sort()).toEqual([...FRAMES].sort());
+
+        for (const collection of ['glow', 'shiraz', 'neon', 'gold'] as const)
+        {
+            expect(REVEALS[collection].every((one) => Object.hasOwn(PRESETS, one.effect)), collection).toBe(true);
+            expect(REVEALS[collection].length, collection).toBeGreaterThan(1);
+        }
+
+        for (const collection of FRAMES.filter((one) => !['glow', 'shiraz', 'neon', 'gold'].includes(one)))
+        {
+            expect(Object.hasOwn(FAMILIES, REVEALS[collection][0].effect), collection).toBe(true);
+        }
+
+        expect(REVEALS.inferno.map((one) => one.effect)).toEqual(['cracks', 'eruption']);
+    });
+
+    it('plays its collection’s signature once, round the middle of the picture, in the collection’s light at the frame’s size', async () =>
+    {
+        const stop = revealAround(head, picture, 'inferno');
+        const { host, steps, at, tune } = await revealed();
+
+        expect(steps).toBe(REVEALS.inferno);
+        expect(at).toEqual({ x: 96, y: 116 });
+        expect(tune.colors).toEqual(AURAS.inferno.tune.colors);
+        expect(tune.scale).toBeCloseTo(2.1);
+        expect(host.dataset.reveal).toBe('inferno');
+        expect(engine.signatures).toHaveLength(1);
+
+        stop();
+    });
+
+    it('is drawn across the whole head, over what is in it, that nothing can press, and never over the face', async () =>
+    {
+        const stop = revealAround(head, picture, 'storm');
+        const { host } = await revealed();
+
+        expect(head.lastElementChild).toBe(host);
+        expect(host.getAttribute('aria-hidden')).toBe('true');
+        expect(host.style.cssText).toContain('inset: 0');
+        expect(host.style.zIndex).toBe('1');
+        expect(host.style.pointerEvents).toBe('none');
+        expect(host.style.cssText).toContain('mask: radial-gradient(circle at 96px 116px, transparent 56px, #000 57px)');
+
+        stop();
+    });
+
+    it('plays nothing round a picture that has no size', async () =>
+    {
+        boxed(picture, { left: 0, top: 0, width: 0, height: 0 });
+        const stop = revealAround(head, picture, 'oni');
+
+        await vi.waitFor(() => expect(engine.made).toBe(1));
+        await Promise.resolve();
+
+        expect(engine.signatures).toEqual([]);
+
+        stop();
+    });
+
+    it('lets go of its engine and its host when stopped', async () =>
+    {
+        const stop = revealAround(head, picture, 'jade');
+        await revealed();
+
+        stop();
+
+        expect(engine.disposed).toBe(1);
+        expect(head.querySelector('[data-reveal]')).toBeNull();
     });
 });

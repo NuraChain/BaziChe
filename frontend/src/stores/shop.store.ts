@@ -126,7 +126,7 @@ export const useShop = createStore((): ShopApi =>
 
     const held = createResource(reader, () => client.shop.collection(), { name: 'shop.collection' });
 
-    const firstOrders = createResource(wants('orders'), () => client.shop.orders(), { name: 'shop.orders' });
+    const firstOrders = createResource(wants('orders'), () => client.shop.orders({ query: {} }), { name: 'shop.orders' });
 
     const earnings = createResource(wants('earnings'), () => client.shop.earnings(), { name: 'shop.earnings' });
 

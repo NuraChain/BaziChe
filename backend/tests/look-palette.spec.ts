@@ -1,13 +1,9 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { BUNDLES, LOOKS, SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
-import { PALETTES, SEAT_RAMPS } from '../src/game/looks/palette.ts';
-
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+import { BUNDLES, LOOKS, SHOP_COLLECTIONS } from '../src/domains/shop/catalogue.ts';
+import { PALETTES, SEAT_RAMPS } from '../../frontend/src/game/looks/palette.ts';
 
 const channel = (value: number) =>
 {
@@ -69,7 +65,7 @@ describe('the collections\' palettes', () =>
 
     it('paints pawns in the Ludo board\'s own seat colours', () =>
     {
-        const board = readFileSync(join(ROOT, '..', 'tools', 'art', 'boards.mjs'), 'utf8');
+        const board = readFileSync(new URL('../../tools/art/boards.mjs', import.meta.url), 'utf8');
         const paint = Object.fromEntries([...board.matchAll(/(\w+): \{ fill: '(#\w+)', light: '(#\w+)', dark: '(#\w+)'/g)].map(([, seat, fill, light, dark]) => [seat, [light, fill, dark]]));
 
         expect(SEAT_RAMPS).toEqual(paint);
@@ -80,7 +76,7 @@ describe('the drawings', () =>
 {
     it('draws every look and every bundle, and nothing the shop does not sell', () =>
     {
-        const drawn = readdirSync(join(ROOT, 'public', 'looks')).sort();
+        const drawn = readdirSync(new URL('../../frontend/public/looks/', import.meta.url)).sort();
 
         expect(drawn).toEqual([...LOOKS, ...BUNDLES].map((item) => `${ item.id }.svg`).sort());
     });

@@ -1,4 +1,5 @@
 import { runtime } from '../../lib/runtime.ts';
+import type { SoundHandle } from '../sound.ts';
 import type { Vfx } from '../vfx/engine.ts';
 import { lazyVfx } from '../vfx/lazy.ts';
 import { PALETTES } from './palette.ts';
@@ -22,10 +23,11 @@ export const SPENT_CHECK_MS = 250;
 /**
  * Plays the burst of the collection a look belongs to over `look`, the drawing of the look somebody
  * has just put on, on a host laid over the page above any sheet and under the toasts, let go once
- * nothing of the burst is alive, or once the engine could not be fetched. A look of no collection
- * this build draws plays nothing.
+ * nothing of the burst is alive, or once the engine could not be fetched; and, as it bursts, the
+ * collection's voice from `voices`, its pack worn at the press. A look of no collection this build
+ * draws plays nothing.
  */
-export function burstOver(look: HTMLElement, item: string)
+export function burstOver(look: HTMLElement, item: string, voices: SoundHandle | null = null)
 {
     const collection = item.slice(item.indexOf('.') + 1);
 
@@ -45,6 +47,8 @@ export function burstOver(look: HTMLElement, item: string)
     const { effect, tune } = burstOf(collection as Collection);
     let drawn: Vfx | null = null;
 
+    voices?.wear([collection as Collection]);
+
     const spent = () =>
     {
         if (drawn !== null && drawn.live() > 0)
@@ -61,5 +65,6 @@ export function burstOver(look: HTMLElement, item: string)
     {
         drawn = vfx;
         vfx.burst(effect, { x: box.width / 2 + ROOM, y: box.height / 2 + ROOM }, { ...tune, scale: Math.min(box.width / UNIT, LARGEST) });
+        voices?.play(`${ collection as Collection }.equip`);
     }).then(spent);
 }

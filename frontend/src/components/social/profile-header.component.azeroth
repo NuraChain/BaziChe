@@ -1,12 +1,14 @@
 import { Link, onCleanup, untrack, type Child } from 'azerothjs';
 
 import type { Progress } from '../../api.ts';
-import { glowAround, revealAround } from '../../game/looks/aura.ts';
+import { glowAround, revealAround, struckAt } from '../../game/looks/aura.ts';
 import { frameOf, lookIn, setOf } from '../../game/looks/frames.ts';
 import { coverOf, driftOver } from '../../game/looks/themes.ts';
+import { createVoices, type SoundHandle } from '../../game/sound.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { copyText } from '../../lib/clipboard.ts';
 import { useLocale } from '../../stores/locale.store.ts';
+import { useSettings } from '../../stores/settings.store.ts';
 import Avatar, { type Facade, type Presence } from '../ui/avatar.component.azeroth';
 import Tooltip from '../ui/tooltip.component.azeroth';
 import { COPY_CHIP } from '../ui/variants.ts';
@@ -37,6 +39,7 @@ export default component ProfileHeader(props: {
 })
 {
     const locale = useLocale();
+    const settings = useSettings();
 
     derived progress = props.progress ?? null;
 
@@ -77,6 +80,8 @@ export default component ProfileHeader(props: {
     let stopAmbient = () => undefined as void;
 
     let stopReveal = () => undefined as void;
+
+    let voices: SoundHandle | null = null;
 
     let shown = false;
 
@@ -120,12 +125,40 @@ export default component ProfileHeader(props: {
                 return;
             }
             shown = true;
-            stopReveal = revealAround(area, box, collection, full ? mark : null);
+            const heard = createVoices(settings.settings().sound);
+            voices = heard;
+            heard.wear([collection]);
+            void heard.ready().then(() =>
+            {
+                if (voices !== heard)
+                {
+                    return;
+                }
+
+                stopReveal = revealAround(area, box, collection, full ? mark : null, () =>
+                {
+                    heard.play(`${ collection }.reveal`);
+
+                    if (full)
+                    {
+                        heard.play(`${ collection }.strike`, { after: struckAt(collection) / 1000 });
+                    }
+                });
+            });
         });
+    }
+
+    effect
+    {
+        const on = settings.settings().sound;
+
+        untrack(() => voices?.setEnabled(on));
     }
 
     onCleanup(() =>
     {
+        voices?.dispose();
+        voices = null;
         stopAura();
         stopAmbient();
         stopReveal();

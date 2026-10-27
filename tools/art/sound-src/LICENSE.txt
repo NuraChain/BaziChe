@@ -38,4 +38,8 @@ From Wikimedia Commons, recorded by தகவலுழவன் (own work, 2011)
 - commons-elephant-voice-trumpeting.ogg, "Elephant voice - trumpeting":
   https://commons.wikimedia.org/wiki/File:Elephant_voice_-_trumpeting.ogg
 
+The looks' voices (frontend/src/game/sound/looks/) are not recordings: every take is drawn by
+code in tools/art/voices/ and written by tools/art/look-sounds.mjs, and they are released under
+CC0 1.0 Universal like everything here.
+
 Credit is not required by the licence and is given anyway.

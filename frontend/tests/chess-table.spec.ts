@@ -96,6 +96,8 @@ beforeEach(() =>
         {
             cues.push(cue);
         },
+        wear: () => undefined,
+        ready: () => Promise.resolve(),
         setEnabled: () => undefined,
         dispose: () => undefined
     };
@@ -716,6 +718,8 @@ describe('a chess landing, with timers that fire one at a time as a browser\'s d
             {
                 heard.push(cue);
             },
+            wear: () => undefined,
+            ready: () => Promise.resolve(),
             setEnabled: () => undefined,
             dispose: () => undefined
         };

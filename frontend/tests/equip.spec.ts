@@ -5,6 +5,7 @@ import { PALETTES } from '../src/game/looks/palette.ts';
 import { burstOf, lightOf, type Collection } from '../src/game/looks/table.ts';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
+import type { SoundHandle } from '../src/game/sound.ts';
 import type { Effect, Point, Tune, Vfx } from '../src/game/vfx/engine.ts';
 
 const engine = vi.hoisted(() => ({
@@ -201,6 +202,77 @@ describe('a look put on', () =>
 
         expect(hosts()).toHaveLength(2);
         expect(new Set(engine.bursts.map((one) => one.host)).size).toBe(2);
+    });
+});
+
+describe('a look’s voice, as it is put on', () =>
+{
+    /** A handle that says what it was asked to wear and to play, and how much of the burst was drawn when it was asked to play. */
+    const listening = () =>
+    {
+        const heard = { worn: [] as string[][], played: [] as string[], drawnFirst: [] as number[] };
+        const voices = {
+            wear: (collections: readonly string[]) =>
+            {
+                heard.worn.push([...collections]);
+            },
+            play: (cue: string) =>
+            {
+                heard.played.push(cue);
+                heard.drawnFirst.push(engine.bursts.length);
+            },
+            setEnabled: () => undefined,
+            dispose: () => undefined
+        } as unknown as SoundHandle;
+
+        return { heard, voices };
+    };
+
+    it('wears its collection’s voices at the press, and says its own as the burst is drawn', async () =>
+    {
+        const { heard, voices } = listening();
+        engine.alive = 30;
+        burstOver(look, 'decoration.inferno', voices);
+
+        expect(heard.worn, 'its pack on its way before the engine is').toEqual([['inferno']]);
+        expect(heard.played).toEqual([]);
+
+        await played();
+
+        expect(heard.played).toEqual(['inferno.equip']);
+        expect(heard.drawnFirst, 'with the burst, not before it').toEqual([1]);
+    });
+
+    it('says each collection’s own voice', async () =>
+    {
+        const { heard, voices } = listening();
+        const collections = Object.keys(PALETTES) as Collection[];
+        engine.alive = 30;
+
+        for (const collection of collections)
+        {
+            burstOver(look, `pawns.${ collection }`, voices);
+        }
+        await played(collections.length);
+
+        expect(heard.worn).toEqual(collections.map((one) => [one]));
+        expect(heard.played).toEqual(collections.map((one) => `${ one }.equip`));
+    });
+
+    it('wears nothing and says nothing for a look of no collection this build draws, nor where nothing was drawn', async () =>
+    {
+        const { heard, voices } = listening();
+        burstOver(look, 'dice.ember', voices);
+        burstOver(look, 'classic', voices);
+        await settle();
+
+        expect(heard.worn).toEqual([]);
+
+        engine.offline = true;
+        burstOver(look, 'dice.frost', voices);
+        await vi.waitFor(() => expect(engine.disposed).toHaveLength(1));
+
+        expect(heard.played, 'no burst, so no voice').toEqual([]);
     });
 });
 

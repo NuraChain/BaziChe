@@ -1,7 +1,10 @@
+import { untrack } from 'azerothjs';
+
 import { bundleOf, lookOf, type ShopSlot } from '../../../../backend/src/domains/shop/catalogue.ts';
 import { NURA_CHAIN } from '../../data/chain.ts';
 import { GAMES } from '../../data/games.ts';
 import { burstOver } from '../../game/looks/equip.ts';
+import { createVoices, type SoundHandle } from '../../game/sound.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { explorerTx, nuraOf } from '../../lib/nura.ts';
 import { bundleSaving, collectionName, gameOfSlot, itemName, slotsFor } from '../../lib/shop.ts';
@@ -10,6 +13,7 @@ import { namesOf, narrowed } from '../../services/search.service.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
+import { useSettings } from '../../stores/settings.store.ts';
 import { useShop } from '../../stores/shop.store.ts';
 import { useSocial } from '../../stores/social.store.ts';
 import Avatar from '../ui/avatar.component.azeroth';
@@ -27,8 +31,11 @@ export default component LookSheet(props: OverlayProps & { item: string })
     const shop = useShop();
     const social = useSocial();
     const people = usePeople();
+    const settings = useSettings();
 
     let preview: HTMLElement | null = null;
+
+    let voices: SoundHandle | null = null;
 
     state giving = false;
 
@@ -155,12 +162,22 @@ export default component LookSheet(props: OverlayProps & { item: string })
     mount
     {
         const unwatch = shop.watch(props.item);
+        voices = createVoices(untrack(() => settings.settings().sound));
 
         return () =>
         {
             unwatch();
             shop.forget();
+            voices?.dispose();
+            voices = null;
         };
+    }
+
+    effect
+    {
+        const on = settings.settings().sound;
+
+        untrack(() => voices?.setEnabled(on));
     }
 
     const buy = () =>
@@ -179,7 +196,7 @@ export default component LookSheet(props: OverlayProps & { item: string })
     {
         if (preview !== null && shop.chosen(slot) !== props.item)
         {
-            burstOver(preview, props.item);
+            burstOver(preview, props.item, voices);
         }
         void shop.choose(slot, props.item);
     };

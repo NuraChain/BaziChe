@@ -11,22 +11,31 @@ import { useLocale } from '../src/stores/locale.store.ts';
 import { usePeople } from '../src/stores/people.store.ts';
 import { useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
+import { useSettings } from '../src/stores/settings.store.ts';
 import { SETTLE_MS, useShop } from '../src/stores/shop.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
 import { useWallet } from '../src/stores/wallet.store.ts';
 import { sellShopOrder, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
+import { forgetVoices, voices } from './fake-voices.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
 
 const equipped = vi.hoisted(() => [] as { look: HTMLElement; item: string }[]);
+const handed = vi.hoisted(() => [] as unknown[]);
 
 vi.mock('../src/game/looks/equip.ts', () => ({
-    burstOver: (look: HTMLElement, item: string) =>
+    burstOver: (look: HTMLElement, item: string, voices: unknown = null) =>
     {
         equipped.push({ look, item });
+        handed.push(voices);
     }
+}));
+
+vi.mock('../src/game/sound.ts', async (original) => ({
+    ...(await original<typeof import('../src/game/sound.ts')>()),
+    createVoices: (await import('./fake-voices.ts')).createVoices
 }));
 
 const OWNER = '0x71c7656ec7ab88b098defb751b7401b5f6d8976f';
@@ -118,6 +127,9 @@ beforeEach(() =>
     clock = manualClock(Date.parse('2026-10-27T12:00:00.000Z'));
     setRuntime({ clock, seed: 3 });
     equipped.length = 0;
+    handed.length = 0;
+    forgetVoices();
+    useSettings().reset();
     server.reset();
     socket.reset();
     useRealtime().reset();
@@ -210,6 +222,28 @@ describe('the sheet about a look', () =>
         fire(button(root, 'Use at Poker')!, 'click');
 
         expect(equipped.map((one) => one.item)).toEqual(['back.glow', 'back.glow']);
+    });
+
+    it('hands the burst the sheet’s voices, made under the device’s sound switch, following it, and let go with the sheet', async () =>
+    {
+        server.shop.owned = [{ item: 'back.glow', via: 'purchase', at: '2026-10-27T11:00:00.000Z' }];
+        const { root } = await sheet('back.glow');
+
+        expect(voices.made.map((one) => one.on), 'one handle, on as the switch is').toEqual([true]);
+
+        fire(button(root, 'Use at Hokm')!, 'click');
+
+        expect(handed).toEqual([voices.made[0]!.handle]);
+
+        useSettings().update({ sound: false });
+        await settle();
+
+        expect(voices.made[0]!.turned.at(-1)).toBe(false);
+        expect(voices.made).toHaveLength(1);
+
+        cleanup();
+
+        expect(voices.made[0]!.disposed).toBe(true);
     });
 
     it('says why an account with no wallet and one under 18 cannot buy, and offers neither Buy nor a gift', async () =>

@@ -195,6 +195,8 @@ beforeEach(async () =>
         {
             cues.push(cue);
         },
+        wear: () => undefined,
+        ready: () => Promise.resolve(),
         setEnabled: () => undefined,
         dispose: () => undefined
     };
@@ -754,6 +756,8 @@ describe('a ludo landing, with timers that fire one at a time as a browser\'s do
             {
                 heard.push(cue);
             },
+            wear: () => undefined,
+            ready: () => Promise.resolve(),
             setEnabled: () => undefined,
             dispose: () => undefined
         };

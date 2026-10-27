@@ -290,6 +290,42 @@ describe('a profile effect’s reveal', () =>
         expect(head.querySelector('[data-reveal]')).toBeNull();
     });
 
+    it('says it has begun as its signature plays, and not before, which is when its voice is heard', async () =>
+    {
+        const begun: number[] = [];
+        const stop = revealAround(head, picture, 'astral', null, () => begun.push(engine.signatures.length));
+
+        expect(begun, 'not while the engine is on its way').toEqual([]);
+
+        await revealed();
+
+        expect(begun, 'once, with its signature drawn').toEqual([1]);
+
+        stop();
+    });
+
+    it('says nothing of a reveal that never played: round a picture with no size, or stopped before the engine came', async () =>
+    {
+        const begun: string[] = [];
+        boxed(picture, { left: 0, top: 0, width: 0, height: 0 });
+        const unsized = revealAround(head, picture, 'void', null, () => begun.push('unsized'));
+
+        await vi.waitFor(() => expect(engine.made).toBe(1));
+        await Promise.resolve();
+        unsized();
+
+        boxed(picture, { left: 140, top: 110, width: 112, height: 112 });
+        const early = revealAround(head, picture, 'frost', null, () => begun.push('early'));
+        early();
+
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(begun).toEqual([]);
+        expect(engine.signatures).toEqual([]);
+        expect(engine.made, 'no engine for a reveal stopped before it came').toBe(1);
+    });
+
     describe('of a profile worn whole', () =>
     {
         let sigil: HTMLElement;

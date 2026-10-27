@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BLOCK, CELL, GOAL_REACH, GRID, HOME_SCALE, HOME_SLOTS, MARGIN, NEST, NEST_RADIUS, RIM, STACKS, aimNear, centreOf, tokenRadius } from '../src/game/layout.ts';
 import { FINISHED, YARD, pathBetween } from '../src/game/board/path.ts';
-import { createSound, endCue, offsetOf, onBed, resetSound } from '../src/game/sound.ts';
-import { CUES, PACKS, SAMPLED, TABLE_PACKS, unpack, type Pack } from '../src/game/sound-files.ts';
+import { createSound, createVoices, endCue, offsetOf, onBed, resetSound } from '../src/game/sound.ts';
+import { CUES, PACKS, SAMPLED, TABLE_PACKS, unpack, VOICE_PACKS, type Pack } from '../src/game/sound-files.ts';
 import { ENTRY, RING_CELLS, cellAt } from '../../backend/src/domains/match/ludo/board.ts';
 import { chairsOf, ludoOf, type LudoSeat } from '../src/data/match.ts';
 import { seatsFor } from '../src/components/games/seats.ts';
@@ -164,11 +164,13 @@ describe('the sound layer', () =>
         oscillators: () => number;
         buffers: () => number;
         levels: () => number[];
+        starts: () => number[];
         last: () => FakeContext | null;
     }
 
     interface FakeContext
     {
+        currentTime: number;
         state: string;
         resumed: number;
         suspended: number;
@@ -299,9 +301,10 @@ describe('the sound layer', () =>
             {
                 const source = node();
 
-                source.start = () =>
+                source.start = (when: number) =>
                 {
                     buffers += 1;
+                    source.when = when;
                     played.push(source);
                 };
 
@@ -314,7 +317,7 @@ describe('the sound layer', () =>
             }
         });
 
-        return { made: () => made, oscillators: () => oscillators, buffers: () => buffers, levels: () => played.map(busOf), last: () => contexts.at(-1) ?? null };
+        return { made: () => made, oscillators: () => oscillators, buffers: () => buffers, levels: () => played.map(busOf), starts: () => played.map((source) => source.when as number), last: () => contexts.at(-1) ?? null };
     };
 
     const pack = (takes: Record<string, number[][]>) =>
@@ -1004,6 +1007,378 @@ describe('the sound layer', () =>
         expect(session.type).toBe('ambient');
 
         sound.dispose();
+    });
+
+    describe('a look\'s voice', () =>
+    {
+        /** The pack each address holds: a collection's voices answer with a take of each cue named, everything else with an empty pack. */
+        const voicing = (takes: Record<string, string[]> = {}, held: (url: string) => Promise<void> = () => Promise.resolve()) =>
+        {
+            const asked: string[] = [];
+
+            vi.stubGlobal('fetch', (url: string) =>
+            {
+                asked.push(url);
+                const cues = Object.entries(takes).find(([at]) => url === at)?.[1] ?? [];
+
+                return held(url).then(() => ({ ok: true, arrayBuffer: () => Promise.resolve(pack(Object.fromEntries(cues.map((cue) => [cue, [[1, 2, 3]]])))) }));
+            });
+
+            return asked;
+        };
+
+        /** A held pack lands in more turns than `flush` waits for: from its answer through its decoding to the engine hearing of it. */
+        const landed = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+        it('fetches a collection\'s pack for the place it is heard at while anything wears it, once however many do', async () =>
+        {
+            stub();
+            const asked = voicing();
+            const profile = createVoices(true);
+            const table = createSound(true, 'ludo');
+
+            profile.wear(['inferno']);
+            table.wear(['inferno', 'storm']);
+            await tap();
+            await flush();
+
+            expect(asked).toContain(VOICE_PACKS.inferno.profile);
+            expect(asked).toContain(VOICE_PACKS.inferno.table);
+            expect(asked).toContain(VOICE_PACKS.storm.table);
+            expect(asked, 'a page fetched a table\'s pack').not.toContain(VOICE_PACKS.storm.profile);
+
+            const again = createVoices(true);
+            again.wear(['inferno']);
+            await flush();
+
+            expect(asked.filter((url) => url === VOICE_PACKS.inferno.profile)).toHaveLength(1);
+
+            [profile, table, again].forEach((one) => one.dispose());
+        });
+
+        it('fetches nothing for a look worn where the sound is off, until it is turned on', async () =>
+        {
+            stub();
+            const asked = voicing();
+            const quiet = createVoices(false);
+
+            quiet.wear(['jade']);
+            await tap();
+            await flush();
+
+            expect(asked).not.toContain(VOICE_PACKS.jade.profile);
+
+            quiet.setEnabled(true);
+            await flush();
+
+            expect(asked).toContain(VOICE_PACKS.jade.profile);
+
+            quiet.dispose();
+        });
+
+        it('plays a voice from its pack as something on the table, and nothing at all for one whose pack nobody wears', async () =>
+        {
+            const fake = stub();
+            voicing({ [VOICE_PACKS.inferno.profile]: ['inferno.equip'] });
+            const voices = createVoices(true);
+
+            voices.wear(['inferno']);
+            await tap();
+            await flush();
+
+            voices.play('inferno.equip');
+
+            expect(fake.buffers()).toBe(1);
+            expect(fake.levels()).toEqual([0.9]);
+
+            voices.play('storm.equip');
+
+            expect(fake.buffers(), 'a voice nobody wears was played').toBe(1);
+            expect(fake.oscillators(), 'a voice was stood in for by a tone').toBe(0);
+
+            voices.dispose();
+        });
+
+        it('starts a take as many seconds later as it is asked, on the audio clock', async () =>
+        {
+            const fake = stub();
+            voicing({ [VOICE_PACKS.storm.profile]: ['storm.strike'] });
+            const voices = createVoices(true);
+
+            voices.wear(['storm']);
+            await tap();
+            await flush();
+
+            voices.play('storm.strike', { after: 1.21 });
+
+            expect(fake.starts()).toEqual([1 + 1.21]);
+
+            voices.dispose();
+        });
+
+        it('waits for a pack on its way, and plays the voice once it comes, as late as it waited', async () =>
+        {
+            const fake = stub();
+            let arrive = () => undefined as void;
+            voicing({ [VOICE_PACKS.phoenix.profile]: ['phoenix.reveal', 'phoenix.strike'] }, (url) => url === VOICE_PACKS.phoenix.profile ? new Promise((resolve) =>
+            {
+                arrive = () => resolve();
+            }) : Promise.resolve());
+            const voices = createVoices(true);
+
+            voices.wear(['phoenix']);
+            await tap();
+            await flush();
+
+            voices.play('phoenix.reveal');
+            voices.play('phoenix.strike', { after: 1 });
+
+            expect(fake.buffers()).toBe(0);
+
+            fake.last()!.currentTime = 1.25;
+            arrive();
+            await landed();
+
+            expect(fake.buffers()).toBe(2);
+            expect(fake.starts()[0]).toBe(1.25);
+            expect(fake.starts()[1], 'the strike as late as it waited').toBeCloseTo(1 + 1, 6);
+
+            voices.dispose();
+        });
+
+        it('waits at a table for the table’s pack, as a page waits for its own', async () =>
+        {
+            const fake = stub();
+            let arrive = () => undefined as void;
+            voicing({ [VOICE_PACKS.jade.table]: ['jade.die'] }, (url) => url === VOICE_PACKS.jade.table ? new Promise((resolve) =>
+            {
+                arrive = () => resolve();
+            }) : Promise.resolve());
+            const table = createSound(true, 'ludo');
+
+            table.wear(['jade']);
+            await tap();
+            await flush();
+
+            table.play('jade.die');
+            fake.last()!.currentTime = 1.1;
+            arrive();
+            await landed();
+
+            expect(fake.buffers()).toBe(1);
+
+            table.dispose();
+        });
+
+        it('lets go of a voice that waited longer than a moment for its pack', async () =>
+        {
+            const fake = stub();
+            let arrive = () => undefined as void;
+            voicing({ [VOICE_PACKS.oni.profile]: ['oni.equip'] }, (url) => url === VOICE_PACKS.oni.profile ? new Promise((resolve) =>
+            {
+                arrive = () => resolve();
+            }) : Promise.resolve());
+            const voices = createVoices(true);
+
+            voices.wear(['oni']);
+            await tap();
+            await flush();
+
+            voices.play('oni.equip');
+            fake.last()!.currentTime = 1.5;
+            arrive();
+            await landed();
+
+            expect(fake.buffers(), 'played half a second after it was asked for').toBe(0);
+
+            voices.play('oni.equip');
+
+            expect(fake.buffers(), 'not played once its pack was in').toBe(1);
+
+            voices.dispose();
+        });
+
+        describe('as it says when it can be heard', () =>
+        {
+            const pressed = () =>
+            {
+                const idle: (() => void)[] = [];
+
+                vi.stubGlobal('navigator', { ...navigator, userActivation: { hasBeenActive: true } });
+                vi.stubGlobal('requestIdleCallback', (callback: () => void) => idle.push(callback));
+
+                return () => idle.splice(0).forEach((run) => run());
+            };
+
+            it('is ready at once where nothing of it can be heard: its sound off, nothing worn, or a page nobody has pressed', async () =>
+            {
+                stub();
+                voicing();
+                const settled: string[] = [];
+                const off = createVoices(false);
+                const bare = createVoices(true);
+                const untouched = createVoices(true);
+
+                off.wear(['inferno']);
+                untouched.wear(['storm']);
+                void off.ready().then(() => settled.push('off'));
+                void bare.ready().then(() => settled.push('bare'));
+                void untouched.ready().then(() => settled.push('untouched'));
+                await flush();
+
+                expect(settled.sort()).toEqual(['bare', 'off', 'untouched']);
+
+                [off, bare, untouched].forEach((one) => one.dispose());
+            });
+
+            it('is ready once the packs it wears have come, and at once for one already in', async () =>
+            {
+                stub();
+                let arrive = () => undefined as void;
+                voicing({ [VOICE_PACKS.astral.profile]: ['astral.reveal'] }, (url) => url === VOICE_PACKS.astral.profile ? new Promise((resolve) =>
+                {
+                    arrive = () => resolve();
+                }) : Promise.resolve());
+                const voices = createVoices(true);
+                const settled: string[] = [];
+
+                voices.wear(['astral']);
+                await tap();
+                await flush();
+                void voices.ready().then(() => settled.push('first'));
+                await flush();
+
+                expect(settled, 'ready with its pack on its way').toEqual([]);
+
+                arrive();
+                await landed();
+
+                expect(settled).toEqual(['first']);
+
+                const again = createVoices(true);
+                again.wear(['astral']);
+                void again.ready().then(() => settled.push('again'));
+                await flush();
+
+                expect(settled, 'a pack already in waited for').toEqual(['first', 'again']);
+
+                [voices, again].forEach((one) => one.dispose());
+            });
+
+            it('is ready for a pack that could not come, and after a moment for one that does not come', async () =>
+            {
+                stub();
+                let refuse = () => undefined as void;
+                vi.stubGlobal('fetch', (url: string) => url === VOICE_PACKS.gold.profile ? new Promise((_, reject) =>
+                {
+                    refuse = () => reject(new Error('offline'));
+                }) : new Promise(() => undefined));
+                const failing = createVoices(true);
+                const stuck = createVoices(true);
+                const settled: string[] = [];
+
+                failing.wear(['gold']);
+                stuck.wear(['frost']);
+                await tap();
+                await flush();
+                void failing.ready().then(() => settled.push('failed'));
+                void stuck.ready().then(() => settled.push('stuck'));
+                await flush();
+
+                expect(settled).toEqual([]);
+
+                refuse();
+                await landed();
+
+                expect(settled).toEqual(['failed']);
+
+                await new Promise((resolve) => setTimeout(resolve, 450));
+
+                expect(settled).toEqual(['failed', 'stuck']);
+
+                void failing.ready().then(() => settled.push('again'));
+                await flush();
+
+                expect(settled, 'a pack that had already failed waited for').toEqual(['failed', 'stuck', 'again']);
+
+                [failing, stuck].forEach((one) => one.dispose());
+            });
+
+            it('waits, on a page already pressed, for its context to be made and then for its pack', async () =>
+            {
+                const fake = stub('running');
+                voicing({ [VOICE_PACKS.neon.profile]: ['neon.reveal'] });
+                const quiet = pressed();
+                const voices = createVoices(true);
+                const settled: string[] = [];
+
+                voices.wear(['neon']);
+                void voices.ready().then(() => settled.push('ready'));
+                await flush();
+
+                expect(settled, 'ready before there was a context').toEqual([]);
+
+                quiet();
+                await landed();
+
+                expect(fake.made()).toBe(1);
+                expect(settled).toEqual(['ready']);
+
+                voices.play('neon.reveal');
+
+                expect(fake.buffers(), 'not heard the moment it was ready').toBe(1);
+
+                voices.dispose();
+            });
+
+            it('starts a voice kept while its context was made as late as it was kept, so it still lands on its moment', async () =>
+            {
+                const fake = stub('running');
+                voicing({ [VOICE_PACKS.inferno.profile]: ['inferno.reveal', 'inferno.strike'] });
+                const quiet = pressed();
+                const clock = vi.spyOn(performance, 'now').mockReturnValue(10_000);
+                const voices = createVoices(true);
+
+                voices.wear(['inferno']);
+                voices.play('inferno.strike', { after: 0.8 });
+                voices.play('inferno.reveal');
+                clock.mockReturnValue(10_150);
+                quiet();
+                await landed();
+                clock.mockRestore();
+
+                const [strike, reveal] = fake.starts();
+
+                expect(fake.buffers()).toBe(2);
+                expect(strike, 'the strike as far ahead as it was asked, less the time it was kept').toBeCloseTo(1 + 0.65, 6);
+                expect(reveal).toBe(1);
+
+                voices.dispose();
+            });
+
+            it('lets go of a voice kept longer than a moment while its context was made, and keeps the table’s own cues', async () =>
+            {
+                const fake = stub('running');
+                vi.stubGlobal('fetch', (url: string) => Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(pack(url === VOICE_PACKS.oni.profile ? { 'oni.equip': [[1, 2, 3]] } : { 'chime': [[4, 5]] })) }));
+                const quiet = pressed();
+                const clock = vi.spyOn(performance, 'now').mockReturnValue(20_000);
+                const voices = createVoices(true);
+                const chimes = createSound(true);
+
+                voices.wear(['oni']);
+                voices.play('oni.equip');
+                chimes.play('chime');
+                clock.mockReturnValue(20_500);
+                quiet();
+                await landed();
+                clock.mockRestore();
+
+                expect(fake.buffers(), 'the chime alone').toBe(1);
+                expect(fake.levels(), 'on the interface bus').toEqual([0.45]);
+
+                [voices, chimes].forEach((one) => one.dispose());
+            });
+        });
     });
 
     it('plays nothing while it is turned off, and never throws in a browser with no WebAudio', async () =>

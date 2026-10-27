@@ -151,8 +151,9 @@ function strike(collection: Frame, sigil: HTMLElement, face: DOMRect, scale: num
  * round the face and never over it: its host shows nothing inside the picture's circle. A profile
  * that wears the collection whole hands its set's mark on the frame as `sigil`, struck once the
  * reveal has played, and marked `data-struck` for the stylesheet to strike it at that moment.
+ * `started` is told the moment the reveal begins, which is when its voice is heard.
  */
-export function revealAround(head: HTMLElement, picture: HTMLElement, collection: Frame, sigil: HTMLElement | null = null)
+export function revealAround(head: HTMLElement, picture: HTMLElement, collection: Frame, sigil: HTMLElement | null = null, started: () => void = () => undefined)
 {
     const host = document.createElement('span');
     host.setAttribute('aria-hidden', 'true');
@@ -183,6 +184,8 @@ export function revealAround(head: HTMLElement, picture: HTMLElement, collection
             sigil.style.setProperty('--sigil-glow', AURAS[collection].tune.colors[1]);
             sigil.dataset.struck = '';
         }
+
+        started();
     });
 
     return () =>

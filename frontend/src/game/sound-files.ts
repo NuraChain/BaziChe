@@ -1,4 +1,5 @@
 import type { GameId } from '../data/games.ts';
+import type { Frame } from './looks/frames.ts';
 
 /** A pack of recordings, and the cues each one holds: every cue is in exactly one. */
 export const CUES = {
@@ -36,11 +37,46 @@ export const PACKS: Record<Pack, string> = {
     chess: new URL('./sound/chess.cues', import.meta.url).href
 };
 
+/** What a look's voice is heard at, by where it is heard: a profile, or a table. */
+export const MOMENTS = {
+    profile: ['equip', 'reveal', 'strike'],
+    table: ['die', 'card', 'pawn', 'spawn', 'capture']
+} as const;
+
+export type Place = keyof typeof MOMENTS;
+
+export type Moment = (typeof MOMENTS)[Place][number];
+
+/** The place each moment is heard at, whose pack holds its voices. */
+export const PLACE_OF = Object.fromEntries(Object.entries(MOMENTS).flatMap(([place, moments]) => moments.map((moment) => [moment, place]))) as Record<Moment, Place>;
+
+/** A collection's voice at a moment, as its pack names it: `inferno.reveal`. */
+export type Voiced = `${ Frame }.${ Moment }`;
+
+/** Each collection's voices, a pack for a profile and one for a table, each fetched only where one of its looks is heard there. */
+export const VOICE_PACKS = {
+    glow: { profile: new URL('./sound/looks/glow-profile.cues', import.meta.url).href, table: new URL('./sound/looks/glow-table.cues', import.meta.url).href },
+    shiraz: { profile: new URL('./sound/looks/shiraz-profile.cues', import.meta.url).href, table: new URL('./sound/looks/shiraz-table.cues', import.meta.url).href },
+    neon: { profile: new URL('./sound/looks/neon-profile.cues', import.meta.url).href, table: new URL('./sound/looks/neon-table.cues', import.meta.url).href },
+    gold: { profile: new URL('./sound/looks/gold-profile.cues', import.meta.url).href, table: new URL('./sound/looks/gold-table.cues', import.meta.url).href },
+    inferno: { profile: new URL('./sound/looks/inferno-profile.cues', import.meta.url).href, table: new URL('./sound/looks/inferno-table.cues', import.meta.url).href },
+    storm: { profile: new URL('./sound/looks/storm-profile.cues', import.meta.url).href, table: new URL('./sound/looks/storm-table.cues', import.meta.url).href },
+    astral: { profile: new URL('./sound/looks/astral-profile.cues', import.meta.url).href, table: new URL('./sound/looks/astral-table.cues', import.meta.url).href },
+    void: { profile: new URL('./sound/looks/void-profile.cues', import.meta.url).href, table: new URL('./sound/looks/void-table.cues', import.meta.url).href },
+    jade: { profile: new URL('./sound/looks/jade-profile.cues', import.meta.url).href, table: new URL('./sound/looks/jade-table.cues', import.meta.url).href },
+    frost: { profile: new URL('./sound/looks/frost-profile.cues', import.meta.url).href, table: new URL('./sound/looks/frost-table.cues', import.meta.url).href },
+    phoenix: { profile: new URL('./sound/looks/phoenix-profile.cues', import.meta.url).href, table: new URL('./sound/looks/phoenix-table.cues', import.meta.url).href },
+    oni: { profile: new URL('./sound/looks/oni-profile.cues', import.meta.url).href, table: new URL('./sound/looks/oni-table.cues', import.meta.url).href }
+} as const satisfies Record<Frame, Record<Place, string>>;
+
+/** The cues a collection's pack for a place holds. */
+export const voicesOf = (collection: Frame, place: Place) => MOMENTS[place].map((moment): Voiced => `${ collection }.${ moment }`);
+
 const MAGIC = 'NCUE';
 
-export function unpack(bytes: ArrayBuffer, cues: readonly Sampled[])
+export function unpack<Name extends string>(bytes: ArrayBuffer, cues: readonly Name[])
 {
-    const found = new Map<Sampled, ArrayBuffer[]>();
+    const found = new Map<Name, ArrayBuffer[]>();
 
     if (bytes.byteLength < 8 || new TextDecoder().decode(bytes.slice(0, 4)) !== MAGIC)
     {

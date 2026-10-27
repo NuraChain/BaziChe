@@ -9,12 +9,14 @@ import ProfileHeader from '../src/components/social/profile-header.component.aze
 import UserCard from '../src/components/social/user-card.component.azeroth';
 import type { Person } from '../src/data/person.ts';
 import Avatar, { type Facade } from '../src/components/ui/avatar.component.azeroth';
-import { AURAS } from '../src/game/looks/aura.ts';
+import { AURAS, struckAt } from '../src/game/looks/aura.ts';
 import { FRAMES, frameOf, setOf, type Frame } from '../src/game/looks/frames.ts';
 import { personFor } from '../src/stores/account.store.ts';
 import '../src/locales/app-catalogue.ts';
+import { useSettings } from '../src/stores/settings.store.ts';
+import { forgetVoices, holdVoices, voices } from './fake-voices.ts';
 
-const aura = vi.hoisted(() => ({ started: [] as [HTMLElement, string][], areas: [] as (HTMLElement | undefined)[], stopped: 0, revealed: [] as [HTMLElement, HTMLElement, string][], sigils: [] as (HTMLElement | null)[], unrevealed: 0 }));
+const aura = vi.hoisted(() => ({ started: [] as [HTMLElement, string][], areas: [] as (HTMLElement | undefined)[], stopped: 0, revealed: [] as [HTMLElement, HTMLElement, string][], sigils: [] as (HTMLElement | null)[], begun: [] as (() => void)[], unrevealed: 0 }));
 
 vi.mock('../src/game/looks/aura.ts', async (original) => ({
     ...(await original<typeof import('../src/game/looks/aura.ts')>()),
@@ -27,15 +29,21 @@ vi.mock('../src/game/looks/aura.ts', async (original) => ({
             aura.stopped += 1;
         };
     },
-    revealAround: (head: HTMLElement, picture: HTMLElement, collection: string, sigil: HTMLElement | null = null) =>
+    revealAround: (head: HTMLElement, picture: HTMLElement, collection: string, sigil: HTMLElement | null = null, started: () => void = () => undefined) =>
     {
         aura.revealed.push([head, picture, collection]);
         aura.sigils.push(sigil);
+        aura.begun.push(started);
         return () =>
         {
             aura.unrevealed += 1;
         };
     }
+}));
+
+vi.mock('../src/game/sound.ts', async (original) => ({
+    ...(await original<typeof import('../src/game/sound.ts')>()),
+    createVoices: (await import('./fake-voices.ts')).createVoices
 }));
 
 const ambient = vi.hoisted(() => ({ started: [] as [HTMLElement, string][], stopped: 0 }));
@@ -69,7 +77,10 @@ beforeEach(() =>
     aura.stopped = 0;
     aura.revealed = [];
     aura.sigils = [];
+    aura.begun = [];
     aura.unrevealed = 0;
+    forgetVoices();
+    useSettings().reset();
     ambient.started = [];
     ambient.stopped = 0;
 });
@@ -516,6 +527,105 @@ describe('a profile worn whole, in its header', () =>
 
         expect(sigil).not.toBeNull();
         expect(container.querySelector('[data-set-sigil]')).toBe(sigil);
+    });
+});
+
+describe('a profile’s reveal, heard', () =>
+{
+    const header = (effect: () => string | undefined) => renderTest(() => ProfileHeader({
+        person: sara(),
+        presence: null,
+        stats: [],
+        get effect()
+        {
+            return effect();
+        }
+    }) as HTMLElement).container;
+
+    const whole = (set: string) => renderTest(() => ProfileHeader({
+        person: { ...sara(`decoration.${ set }`), nameplate: `nameplate.${ set }` },
+        presence: null,
+        stats: [],
+        theme: `theme.${ set }`,
+        effect: `effect.${ set }`
+    }) as HTMLElement).container;
+
+    it('wears its collection’s voices as the reveal is laid, and says the reveal the moment it begins', async () =>
+    {
+        header(() => 'effect.phoenix');
+        await settle();
+
+        expect(voices.made.map((one) => [one.on, one.worn]), 'on as the switch is, its pack on its way').toEqual([[true, [['phoenix']]]]);
+        expect(voices.made[0]!.played, 'nothing before the reveal begins').toEqual([]);
+
+        aura.begun[0]!();
+
+        expect(voices.made[0]!.played, 'and no strike for less than the whole set').toEqual([{ cue: 'phoenix.reveal' }]);
+    });
+
+    it('says a whole set’s strike as far into the reveal as the sigil is struck', async () =>
+    {
+        whole('inferno');
+        await settle();
+        aura.begun[0]!();
+
+        expect(voices.made[0]!.played).toEqual([{ cue: 'inferno.reveal' }, { cue: 'inferno.strike', after: struckAt('inferno') / 1000 }]);
+    });
+
+    it('is made quiet where the sound is off, follows the switch, and is let go with the profile', async () =>
+    {
+        useSettings().update({ sound: false });
+        header(() => 'effect.storm');
+        await settle();
+
+        expect(voices.made.map((one) => one.on)).toEqual([false]);
+
+        useSettings().update({ sound: true });
+        await settle();
+
+        expect(voices.made[0]!.turned.at(-1)).toBe(true);
+        expect(voices.made).toHaveLength(1);
+
+        cleanup();
+
+        expect(voices.made[0]!.disposed).toBe(true);
+    });
+
+    it('lays its reveal only once its voice can be heard with it, and none once the profile is gone', async () =>
+    {
+        let release = holdVoices();
+        header(() => 'effect.void');
+        await settle();
+
+        expect(voices.made.map((one) => one.worn), 'its pack asked for at once').toEqual([[['void']]]);
+        expect(aura.revealed, 'laid before its voice was ready').toEqual([]);
+
+        release();
+        await settle();
+
+        expect(aura.revealed.map(([, , collection]) => collection)).toEqual(['void']);
+
+        cleanup();
+        release = holdVoices();
+        header(() => 'effect.oni');
+        await settle();
+        cleanup();
+        release();
+        await settle();
+
+        expect(aura.revealed.map(([, , collection]) => collection), 'a reveal laid on a profile already gone').toEqual(['void']);
+    });
+
+    it('makes no voices where no reveal plays', async () =>
+    {
+        for (const worn of [undefined, 'effect.nowhere'])
+        {
+            header(() => worn);
+            await settle();
+            cleanup();
+        }
+
+        expect(voices.made).toEqual([]);
     });
 });
 

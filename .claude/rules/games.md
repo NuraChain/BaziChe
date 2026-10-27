@@ -5315,6 +5315,35 @@ switching tables never has to unlock audio again. The spec is
   (`INTERFACE`), the end of a game and a flourish (a six, a pawn home, a promotion) to the jingles,
   and every other recording to the foley: recorded, the turn
   would otherwise have come out twice as loud as the tone it replaced.
+- **A look has a voice of its own, drawn here, and it is fetched only where somebody wears it.**
+  Every take is synthesised offline (`tools/art/voices/`, a module a collection, written by
+  `tools/art/look-sounds.mjs`, `npm run voices`, seeded so a build writes the same bytes) into two
+  packs a collection, its profile's (`equip`, `reveal`, `strike`) and its table's (`die`, `card`,
+  `pawn`, `spawn`, `capture`), as `game/sound/looks/<collection>-<place>.cues`; a voice is named
+  `<collection>.<moment>` (`MOMENTS` and `VOICE_PACKS` in `sound-files.ts`). A handle's
+  `wear(collections)` wants those collections' packs for its own place, a table's handle the table's
+  and `createVoices(on)` a page's the profile's, counted as a table's packs are: fetched once while
+  anybody with sound on wears them, never where nobody does. A voice plays on the foley bus, and no
+  tone ever stands in for one. One asked for while its pack is on its way waits up to `VOICE_WAIT`
+  (400 ms) and then plays as late as it waited, so a strike asked for 1.2 s ahead is still heard on
+  its moment; one that waited longer is let go, and one whose pack nobody asked for is not heard.
+  `after` starts a take that many seconds later on the audio clock. A voice asked for before the
+  page's context is made is kept as any early cue is (above) and starts as late as it was kept
+  (`playKept`, on the page's own clock, there being no audio clock yet), and one kept past
+  `VOICE_WAIT` is let go. **What a voice goes with can wait for it**: `ready()` settles once the
+  handle's worn packs are in or have failed, at once where nothing of them can be heard (sound off,
+  nothing worn, a page nobody has pressed) and after `VOICE_WAIT` whatever happens, and the profile
+  header lays its reveal only then. On a fresh page the context is made at an idle moment (about
+  120 ms on Windows) and the pack is fetched after it, and the walk heard the first reveal 135 ms
+  after it had begun on screen, its strike as late, until the reveal waited. The builder levels each moment
+  3 to 6 dB under the chess click in the band a phone plays (`MADE`), a table's lying under the
+  table's own sounds, and holds every take under -1 dBFS with a soft limit; the build holds each pack
+  to 64 KB and refuses one missing or stray. The collection page and the look's sheet say `equip` as
+  a look's burst plays (measured on the built server: 12 ms after the press, with the burst), and the
+  profile header says `reveal` the moment its reveal begins and, for a profile worn whole, `strike`
+  at `struckAt`, each under the device's sound switch. `game.spec.ts`
+  (*a look's voice*), `look-pack.spec.ts`, `equip.spec.ts`, `aura.spec.ts`, `avatar-looks.spec.ts`,
+  `collection-page.spec.ts` and `look-sheet.spec.ts` hold it.
 - **The end is heard as it went for whoever reads it** (`endCue` in `game/sound.ts`). A seat that
   won hears `win` (a pizzicato run that rises), one that lost or walked away `lose` (one that
   falls), a draw and somebody watching `draw` (one that settles where it began), and a game called

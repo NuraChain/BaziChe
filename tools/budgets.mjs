@@ -56,6 +56,11 @@ const PACK_BUDGET = 96 * KB;
 
 const PACK_SOURCES = join(ROOT, 'frontend', 'src', 'game', 'sound');
 
+/** Each collection's voices, a pack for a profile and one for a table: a table fetches one for every collection worn at it. */
+const VOICE_BUDGET = 64 * KB;
+
+const VOICE_SOURCES = join(PACK_SOURCES, 'looks');
+
 /** Each bed's ceiling: a piece of music keeps more than rain or birds, which have no melody to keep whole. */
 const BED_BUDGETS = { rain: 640 * KB, birds: 640 * KB };
 
@@ -543,8 +548,37 @@ else
 }
 
 const packNames = readdirSync(PACK_SOURCES).filter((name) => name.endsWith('.cues')).map((name) => name.slice(0, -'.cues'.length));
+const voiceNames = SHOP_COLLECTIONS.flatMap((collection) => [`${ collection }-profile`, `${ collection }-table`]);
 const sounds = readdirSync(ASSETS).filter((name) => name.endsWith('.cues'));
-const soundTotal = sounds.reduce((sum, name) => sum + statSync(join(ASSETS, name)).size, 0);
+const builtOf = (pack) => sounds.filter((name) => new RegExp(`^${ pack }-[\\w-]+\\.cues$`).test(name));
+const voiceFiles = sounds.filter((name) => voiceNames.some((voice) => builtOf(voice).includes(name)));
+const soundTotal = sounds.filter((name) => !voiceFiles.includes(name)).reduce((sum, name) => sum + statSync(join(ASSETS, name)).size, 0);
+const voiceTotal = voiceFiles.reduce((sum, name) => sum + statSync(join(ASSETS, name)).size, 0);
+const voiceSources = readdirSync(VOICE_SOURCES).filter((name) => name.endsWith('.cues')).map((name) => name.slice(0, -'.cues'.length));
+
+for (const voice of voiceNames.filter((name) => !voiceSources.includes(name)))
+{
+    problems.push(`the ${ voice } voices are missing from frontend/src/game/sound/looks; npm run voices draws them`);
+}
+
+for (const stray of voiceSources.filter((name) => !voiceNames.includes(name)))
+{
+    problems.push(`frontend/src/game/sound/looks holds ${ stray }.cues, which are no collection's voices`);
+}
+
+for (const voice of voiceNames)
+{
+    const built = builtOf(voice);
+
+    if (built.length !== 1)
+    {
+        problems.push(`${ built.length } copies of the ${ voice } voices reached dist/assets, expected exactly one`);
+    }
+    else if (statSync(join(ASSETS, built[0])).size > VOICE_BUDGET)
+    {
+        problems.push(`the ${ voice } voices are ${ size(statSync(join(ASSETS, built[0])).size) }, over ${ size(VOICE_BUDGET) }`);
+    }
+}
 
 for (const pack of packNames)
 {
@@ -561,7 +595,7 @@ for (const pack of packNames)
     }
 }
 
-if (sounds.some((name) => !packNames.some((pack) => new RegExp(`^${ pack }-[\\w-]+\\.cues$`).test(name))))
+if (sounds.some((name) => !voiceFiles.includes(name) && !packNames.some((pack) => builtOf(pack).includes(name))))
 {
     problems.push('a sound pack reached dist/assets that frontend/src/game/sound does not hold');
 }
@@ -720,7 +754,8 @@ console.log(`  board        ${ boardChunk === null ? 'absent' : size(gzip(boardC
 console.log(`  tables       ${ tableBytes.length } chunks, largest ${ size(Math.max(0, ...tableBytes)) } / ${ size(TABLE_BUDGET) }`);
 console.log(`  stage        ${ stageBytes === null ? 'absent' : size(stageBytes) } / ${ size(STAGE_BUDGET) }`);
 console.log(`  vfx          ${ vfxBytes === null ? 'absent' : size(vfxBytes) } / ${ size(VFX_BUDGET) }`);
-console.log(`  sounds       ${ sounds.length } packs, ${ size(soundTotal) } in all, none over its ceiling`);
+console.log(`  sounds       ${ sounds.length - voiceFiles.length } packs, ${ size(soundTotal) } in all, none over its ceiling`);
+console.log(`  voices       ${ voiceFiles.length } packs, ${ size(voiceTotal) } in all, none over ${ size(VOICE_BUDGET) }`);
 console.log(`  beds         ${ beds.length } ${ beds.length === 1 ? 'bed' : 'beds' }, ${ size(bedTotal) } in all, none over its ceiling`);
 console.log(`  looks        ${ lookFiles.length } drawings, ${ size(lookTotal) } in all, none over ${ size(LOOK_BUDGET) }`);
 console.log(`  profile      ${ profile.count } frames, plates and covers, ${ size(profile.total) } in all, none over its folder's ceiling`);

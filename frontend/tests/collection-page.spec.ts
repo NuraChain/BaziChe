@@ -10,21 +10,30 @@ import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
+import { useSettings } from '../src/stores/settings.store.ts';
 import { useShop } from '../src/stores/shop.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
 import type { Account } from '../../backend/src/schemas.ts';
 import { server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
+import { forgetVoices, voices } from './fake-voices.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
 
 const equipped = vi.hoisted(() => [] as { look: HTMLElement; item: string }[]);
+const handed = vi.hoisted(() => [] as unknown[]);
 
 vi.mock('../src/game/looks/equip.ts', () => ({
-    burstOver: (look: HTMLElement, item: string) =>
+    burstOver: (look: HTMLElement, item: string, voices: unknown = null) =>
     {
         equipped.push({ look, item });
+        handed.push(voices);
     }
+}));
+
+vi.mock('../src/game/sound.ts', async (original) => ({
+    ...(await original<typeof import('../src/game/sound.ts')>()),
+    createVoices: (await import('./fake-voices.ts')).createVoices
 }));
 
 let clock: ManualClock;
@@ -65,6 +74,9 @@ beforeEach(() =>
     clock = manualClock(Date.parse('2026-10-27T12:00:00.000Z'));
     setRuntime({ clock, seed: 3 });
     equipped.length = 0;
+    handed.length = 0;
+    forgetVoices();
+    useSettings().reset();
     server.reset();
     socket.reset();
     useRealtime().reset();
@@ -140,6 +152,41 @@ describe('the reader\'s collection', () =>
         fire(root.querySelectorAll<HTMLButtonElement>('[data-slot="profile.decoration"] .look-choice')[1]!, 'click');
 
         expect(equipped.map((one) => one.item)).toEqual(['dice.neon', 'decoration.inferno']);
+    });
+
+    it('hands every burst the page’s voices, made under the device’s sound switch, following it, and let go with the page', async () =>
+    {
+        server.shop.owned = [
+            { item: 'dice.neon', via: 'purchase', at: '2026-10-27T11:00:00.000Z' },
+            { item: 'decoration.inferno', via: 'purchase', at: '2026-10-27T11:00:00.000Z' }
+        ];
+        useSettings().update({ sound: false });
+
+        const root = await page();
+
+        expect(voices.made.map((one) => one.on), 'one handle, quiet as the switch is').toEqual([false]);
+        expect(voices.made[0]!.worn, 'nothing worn before a press').toEqual([]);
+
+        fire(root.querySelectorAll<HTMLButtonElement>('[data-slot="ludo.dice"] .look-choice')[1]!, 'click');
+        await settle();
+        fire(root.querySelectorAll<HTMLButtonElement>('[data-slot="profile.decoration"] .look-choice')[1]!, 'click');
+
+        expect(handed).toEqual([voices.made[0]!.handle, voices.made[0]!.handle]);
+
+        useSettings().update({ sound: true });
+        await settle();
+
+        expect(voices.made[0]!.turned.at(-1)).toBe(true);
+
+        useSettings().update({ sound: false });
+        await settle();
+
+        expect(voices.made[0]!.turned.at(-1)).toBe(false);
+        expect(voices.made, 'the same handle throughout').toHaveLength(1);
+
+        cleanup();
+
+        expect(voices.made[0]!.disposed).toBe(true);
     });
 
     it('lists the gifts with who sent them, and says none came yet when none did', async () =>

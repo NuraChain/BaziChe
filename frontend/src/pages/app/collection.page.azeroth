@@ -1,4 +1,4 @@
-import { useHead } from 'azerothjs';
+import { untrack, useHead } from 'azerothjs';
 
 import { CELEBRATION_SLOT, GAME_SLOTS, PROFILE_SLOTS, SHOP_SLOTS, type ShopSlot } from '../../../../backend/src/domains/shop/catalogue.ts';
 import Page from '../../components/app/page.component.azeroth';
@@ -11,6 +11,7 @@ import Panel from '../../components/ui/panel.component.azeroth';
 import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import { GAMES } from '../../data/games.ts';
 import { burstOver } from '../../game/looks/equip.ts';
+import { createVoices, type SoundHandle } from '../../game/sound.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { nuraOf } from '../../lib/nura.ts';
 import { itemName } from '../../lib/shop.ts';
@@ -18,6 +19,7 @@ import '../../locales/shop-catalogue.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
+import { useSettings } from '../../stores/settings.store.ts';
 import { useShop } from '../../stores/shop.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
 
@@ -35,6 +37,9 @@ export default component CollectionPage()
     const shop = useShop();
     const people = usePeople();
     const toasts = useToasts();
+    const settings = useSettings();
+
+    let voices: SoundHandle | null = null;
 
     useHead({ title: () => locale.t('shop.collection.title') });
 
@@ -89,7 +94,7 @@ export default component CollectionPage()
 
         if (item !== null && drawing !== null && shop.chosen(slot) !== item)
         {
-            burstOver(drawing, item);
+            burstOver(drawing, item, voices);
         }
         void shop.choose(slot, item);
     };
@@ -107,8 +112,23 @@ export default component CollectionPage()
     {
         shop.want('orders');
         shop.want('earnings');
+        voices = createVoices(untrack(() => settings.settings().sound));
 
-        return shop.listen();
+        const unlisten = shop.listen();
+
+        return () =>
+        {
+            unlisten();
+            voices?.dispose();
+            voices = null;
+        };
+    }
+
+    effect
+    {
+        const on = settings.settings().sound;
+
+        untrack(() => voices?.setEnabled(on));
     }
 
     <Page width="narrow" label={ locale.t('shop.collection.title') } onRefresh={ () => void shop.refresh() }>

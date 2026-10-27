@@ -108,6 +108,8 @@ beforeEach(() =>
         {
             cues.push(cue);
         },
+        wear: () => undefined,
+        ready: () => Promise.resolve(),
         setEnabled: () => undefined,
         dispose: () => undefined
     };
@@ -1972,6 +1974,8 @@ describe('a backgammon landing, with timers that fire one at a time as a browser
             {
                 heard.push(cue);
             },
+            wear: () => undefined,
+            ready: () => Promise.resolve(),
             setEnabled: () => undefined,
             dispose: () => undefined
         };

@@ -1,6 +1,7 @@
 import type { MatchView } from '../api.ts';
 import type { GameId } from '../data/games.ts';
-import { CUES, PACKS, SAMPLED, TABLE_PACKS, unpack, type Pack, type Sampled } from './sound-files.ts';
+import type { Frame } from './looks/frames.ts';
+import { CUES, PACKS, PLACE_OF, SAMPLED, TABLE_PACKS, unpack, VOICE_PACKS, voicesOf, type Moment, type Pack, type Place, type Sampled, type Voiced } from './sound-files.ts';
 
 type Result = NonNullable<MatchView['players'][number]['result']>;
 
@@ -31,7 +32,7 @@ export type Tone =
     | 'promote'
     | 'win';
 
-export type Cue = Tone | Sampled;
+export type Cue = Tone | Sampled | Voiced;
 
 export interface PlayOptions
 {
@@ -39,16 +40,32 @@ export interface PlayOptions
     rate?: number;
     gain?: number;
     urgent?: boolean;
+
+    /** How many seconds from now the take starts, on the audio clock. */
+    after?: number;
 }
 
 export interface SoundHandle
 {
     play(cue: Cue, options?: PlayOptions): void;
 
+    /** The collections whose voices this handle plays: each one's pack for the handle's place is fetched while any handle wears it. */
+    wear(collections: readonly Frame[]): void;
+
+    /**
+     * Settles once the voices this handle wears can be heard on their moment: when their packs have
+     * come or could not, at once where nothing of them can be heard (its sound off, or a page nobody has
+     * pressed), and after `VOICE_WAIT` whatever happens. What waits for it plays in step with its voice.
+     */
+    ready(): Promise<void>;
+
     setEnabled(on: boolean): void;
 
     dispose(): void;
 }
+
+/** A pack the engine fetches: a table's, or a collection's voices for a place. */
+type Source = Pack | `${ Frame }-${ Place }`;
 
 interface Voice
 {
@@ -68,6 +85,14 @@ interface Take
     offset: number;
 }
 
+/** A cue asked for while there was no context to play it on, and when, on the page's clock: there is no audio clock yet. */
+interface Kept
+{
+    cue: Cue;
+    options: PlayOptions;
+    at: number;
+}
+
 /** Whoever plays the background, told each time the page's context runs, with the bus it plays into. */
 export type BedListener = (context: AudioContext, into: AudioNode) => void;
 
@@ -77,9 +102,12 @@ interface Engine
     buses: Record<Bus, GainNode> | null;
     bed: GainNode | null;
     beds: Set<BedListener>;
-    takes: Map<Sampled, Take[]>;
-    fetched: Set<Pack>;
-    wanted: Map<Pack, number>;
+    takes: Map<Cue, Take[]>;
+    fetched: Set<Source>;
+    landed: Set<Source>;
+    wanted: Map<Source, number>;
+    waiting: { cue: Voiced; options: PlayOptions; asked: number; until: number }[];
+    readying: { sources: readonly Source[]; settle: () => void }[];
     handles: number;
     listening: number;
     resuming: boolean;
@@ -87,7 +115,7 @@ interface Engine
     armed: boolean;
     waking: boolean;
     warming: boolean;
-    early: { cue: Cue; options: PlayOptions }[];
+    early: Kept[];
     turn: Map<Cue, number>;
     voices: Map<Cue, { active: number; last: number }>;
 }
@@ -207,6 +235,9 @@ const EARLY_MOST = 4;
 /** How long a cue asked for before the context was made waits for its recording before it is played as its tone. */
 const EARLY_WAIT_MS = 400;
 
+/** How long a look's voice asked for while its pack is on its way waits for it, in seconds; it has no tone to stand in for it. */
+const VOICE_WAIT = 0.4;
+
 const LOUD = 0.004;
 
 type ContextMaker = typeof AudioContext;
@@ -218,7 +249,10 @@ const fresh = (): Engine => ({
     beds: new Set(),
     takes: new Map(),
     fetched: new Set(),
+    landed: new Set(),
     wanted: new Map(),
+    waiting: [],
+    readying: [],
     handles: 0,
     listening: 0,
     resuming: false,
@@ -240,6 +274,9 @@ function maker()
     return scope.AudioContext ?? scope.webkitAudioContext ?? null;
 }
 
+/** Whether a cue is a look's voice, which its collection's pack holds: `inferno.reveal`. */
+const voiced = (cue: Cue): cue is Voiced => cue.includes('.');
+
 function busOf(cue: Cue): Bus
 {
     if (JINGLES.has(cue))
@@ -247,7 +284,33 @@ function busOf(cue: Cue): Bus
         return 'jingle';
     }
 
+    if (voiced(cue))
+    {
+        return 'foley';
+    }
+
     return INTERFACE.has(cue) || !(SAMPLED as readonly Cue[]).includes(cue) ? 'ui' : 'foley';
+}
+
+/** The pack a look's voice is in: its collection's, for the place its moment is heard at. */
+function sourceOf(cue: Voiced): Source
+{
+    const [collection, moment] = cue.split('.') as [Frame, Moment];
+
+    return `${ collection }-${ PLACE_OF[moment] }`;
+}
+
+/** Where a source's pack is fetched from, and the cues it holds. */
+function packOf(source: Source): { url: string; cues: readonly Cue[] }
+{
+    if (Object.hasOwn(PACKS, source))
+    {
+        return { url: PACKS[source as Pack], cues: CUES[source as Pack] };
+    }
+
+    const [collection, place] = source.split('-') as [Frame, Place];
+
+    return { url: VOICE_PACKS[collection][place], cues: voicesOf(collection, place) };
 }
 
 /** What the end of a game sounds like to its reader: their own result, a neutral close to somebody watching, and nothing for no contest. */
@@ -494,7 +557,7 @@ function warm()
     {
         for (const one of engine === at ? early : [])
         {
-            play(one.cue, one.options);
+            playKept(one);
         }
     });
 }
@@ -508,8 +571,21 @@ function replay()
 
     for (const one of early)
     {
-        play(one.cue, one.options);
+        playKept(one);
     }
+}
+
+/** Plays a cue that was kept as late as it was kept, so a voice meant to start later still starts on its moment; a look's voice kept longer than one may wait is let go. */
+function playKept(one: Kept)
+{
+    const late = (performance.now() - one.at) / 1000;
+
+    if (voiced(one.cue) && late > VOICE_WAIT)
+    {
+        return;
+    }
+
+    play(one.cue, one.options.after === undefined ? one.options : { ...one.options, after: Math.max(0, one.options.after - late) });
 }
 
 function woken()
@@ -608,15 +684,16 @@ function load()
     return Promise.all(fetching);
 }
 
-function fetchPack(context: AudioContext, pack: Pack)
+function fetchPack(context: AudioContext, source: Source)
 {
     const at = engine;
+    const { url, cues } = packOf(source);
 
-    at.fetched.add(pack);
+    at.fetched.add(source);
 
-    return fetch(PACKS[pack])
+    return fetch(url)
         .then((response) => response.ok ? response.arrayBuffer() : Promise.reject(new Error(String(response.status))))
-        .then((bytes) => Promise.all([...unpack(bytes, CUES[pack])].flatMap(([cue, takes]) => takes.map((take) =>
+        .then((bytes) => Promise.all([...unpack(bytes, cues)].flatMap(([cue, takes]) => takes.map((take) =>
             context.decodeAudioData(take)
                 .then((buffer) =>
                 {
@@ -625,10 +702,51 @@ function fetchPack(context: AudioContext, pack: Pack)
                     at.takes.set(cue, held);
                 })
                 .catch(() => undefined)))))
-        .then(() => undefined, () =>
+        .then(() =>
         {
-            at.fetched.delete(pack);
+            at.landed.add(source);
+            heard(at, cues);
+            arrived(at);
+        }, () =>
+        {
+            at.fetched.delete(source);
+            at.waiting = at.waiting.filter((one) => !cues.includes(one.cue));
+            arrived(at);
         });
+}
+
+/** Tells whoever was waiting for packs that every one of them has come or could not. */
+function arrived(at: Engine)
+{
+    const done = at.readying.filter(({ sources }) => sources.every((source) => at.landed.has(source) || !at.fetched.has(source)));
+
+    at.readying = at.readying.filter((one) => !done.includes(one));
+
+    for (const one of done)
+    {
+        one.settle();
+    }
+}
+
+/** Plays the voices that waited for a pack that has come, each as late as it waited, and lets go of those that waited too long. */
+function heard(at: Engine, cues: readonly Cue[])
+{
+    const context = at.context;
+
+    if (at !== engine || context === null)
+    {
+        return;
+    }
+
+    const now = context.currentTime;
+    const come = at.waiting.filter((one) => cues.includes(one.cue));
+
+    at.waiting = at.waiting.filter((one) => !cues.includes(one.cue));
+
+    for (const one of come.filter((waited) => now <= waited.until))
+    {
+        play(one.cue, { ...one.options, after: Math.max(0, (one.options.after ?? 0) - (now - one.asked)) });
+    }
 }
 
 function route(context: AudioContext, into: AudioNode, pan: number | undefined): AudioNode
@@ -645,7 +763,7 @@ function route(context: AudioContext, into: AudioNode, pan: number | undefined):
     return panner;
 }
 
-function sample(context: AudioContext, cue: Sampled, takes: Take[], into: AudioNode, options: PlayOptions, done: () => void)
+function sample(context: AudioContext, cue: Cue, takes: Take[], into: AudioNode, options: PlayOptions, done: () => void)
 {
     const turn = engine.turn.get(cue) ?? 0;
     const take = takes[turn % takes.length];
@@ -662,7 +780,7 @@ function sample(context: AudioContext, cue: Sampled, takes: Take[], into: AudioN
     source.connect(level);
     level.connect(route(context, into, options.pan));
     source.onended = done;
-    source.start(context.currentTime, take.offset);
+    source.start(context.currentTime + (options.after ?? 0), take.offset);
 
     return (take.buffer.duration - take.offset) / source.playbackRate.value;
 }
@@ -723,7 +841,7 @@ function play(cue: Cue, options: PlayOptions)
     {
         if (engine.early.length < EARLY_MOST)
         {
-            engine.early.push({ cue, options });
+            engine.early.push({ cue, options, at: performance.now() });
         }
 
         return;
@@ -733,7 +851,7 @@ function play(cue: Cue, options: PlayOptions)
     {
         if (context === null && engine.waking && engine.early.length < EARLY_MOST)
         {
-            engine.early.push({ cue, options });
+            engine.early.push({ cue, options, at: performance.now() });
         }
 
         return;
@@ -749,8 +867,21 @@ function play(cue: Cue, options: PlayOptions)
         return;
     }
 
-    const count = engine.voices.get(cue) ?? { active: 0, last: -1 };
     const now = context.currentTime;
+
+    if (voiced(cue) && !engine.takes.has(cue))
+    {
+        const source = sourceOf(cue);
+
+        if (engine.fetched.has(source) && !engine.landed.has(source) && engine.waiting.length < EARLY_MOST * 4)
+        {
+            engine.waiting.push({ cue, options, asked: now, until: now + VOICE_WAIT });
+        }
+
+        return;
+    }
+
+    const count = engine.voices.get(cue) ?? { active: 0, last: -1 };
 
     if (count.active >= MOST_AT_ONCE || (count.last >= 0 && now - count.last < APART))
     {
@@ -767,7 +898,7 @@ function play(cue: Cue, options: PlayOptions)
     };
 
     const into = buses[busOf(cue)];
-    const takes = engine.takes.get(cue as Sampled);
+    const takes = engine.takes.get(cue);
 
     try
     {
@@ -776,7 +907,7 @@ function play(cue: Cue, options: PlayOptions)
 
         if (takes !== undefined && takes.length > 0)
         {
-            seconds = sample(context, cue as Sampled, takes, into, options, done);
+            seconds = sample(context, cue, takes, into, options, done);
         }
         else if (voices !== undefined)
         {
@@ -802,19 +933,32 @@ function play(cue: Cue, options: PlayOptions)
 const ALONE: readonly Pack[] = ['common'];
 
 /** A handle for one table (its game's packs) or for anything else (the shared pack alone). */
-export function createSound(enabled: boolean, game?: GameId): SoundHandle
+export function createSound(enabled: boolean, game?: GameId)
 {
-    const packs = game === undefined ? ALONE : TABLE_PACKS[game];
+    return handle(enabled, game === undefined ? ALONE : TABLE_PACKS[game], 'table');
+}
+
+/** A handle for a page that plays nothing but the voices of the looks it shows: a profile's, or the collection's. */
+export function createVoices(enabled: boolean)
+{
+    return handle(enabled, [], 'profile');
+}
+
+function handle(enabled: boolean, packs: readonly Pack[], place: Place): SoundHandle
+{
     let on = enabled;
     let live = true;
+    let worn: readonly Source[] = [];
 
-    const want = (by: number) =>
+    const count = (sources: readonly Source[], by: number) =>
     {
-        for (const pack of packs)
+        for (const source of sources)
         {
-            engine.wanted.set(pack, Math.max(0, (engine.wanted.get(pack) ?? 0) + by));
+            engine.wanted.set(source, Math.max(0, (engine.wanted.get(source) ?? 0) + by));
         }
     };
+
+    const want = (by: number) => count([...packs, ...worn], by);
 
     engine.handles += 1;
 
@@ -855,6 +999,46 @@ export function createSound(enabled: boolean, game?: GameId): SoundHandle
             {
                 play(cue, options);
             }
+        },
+
+        wear: (collections) =>
+        {
+            const next = [...new Set(collections)].map((collection): Source => `${ collection }-${ place }`);
+
+            if (!live)
+            {
+                return;
+            }
+
+            if (on)
+            {
+                count(worn.filter((source) => !next.includes(source)), -1);
+                count(next.filter((source) => !worn.includes(source)), 1);
+            }
+
+            worn = next;
+
+            if (on)
+            {
+                void load();
+            }
+        },
+
+        ready: () =>
+        {
+            const coming = engine.context !== null || engine.warming || engine.waking;
+            const due = worn.filter((source) => !engine.landed.has(source) && (engine.context === null || engine.fetched.has(source)));
+
+            if (!live || !on || !coming || due.length === 0)
+            {
+                return Promise.resolve();
+            }
+
+            return new Promise<void>((resolve) =>
+            {
+                engine.readying.push({ sources: due, settle: resolve });
+                setTimeout(resolve, VOICE_WAIT * 1000);
+            });
         },
 
         setEnabled: (next) =>

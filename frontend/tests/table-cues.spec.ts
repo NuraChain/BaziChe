@@ -26,6 +26,8 @@ describe('the chime for a turn', () =>
             {
                 played.push(cue);
             },
+            wear: () => undefined,
+            ready: () => Promise.resolve(),
             setEnabled: () => undefined,
             dispose: () => undefined
         };

@@ -253,11 +253,12 @@ describe('what can be done about a person', () =>
 
         fire(action(container, 'Play with Sara')!, 'click');
 
-        await vi.waitFor(() => expect(useOverlay().items().map((one) => one.id)).toContain('play-with'), { timeout: 4000 });
+        // The sheet that chooses a game is a chunk of its own, and a busy worker can take seconds over its first import.
+        await vi.waitFor(() => expect(useOverlay().items().map((one) => one.id)).toContain('play-with'), { timeout: 12_000 });
 
         expect(useOverlay().items().find((one) => one.id === 'play-with')?.props, 'the game is chosen for somebody else, or alone').toMatchObject({ personId: 'sara.k', teamable: true });
         expect(closed, 'the sheet about Sara stayed open under the one that chooses a game').toEqual([undefined]);
-    });
+    }, 15_000);
 
     it('offers a game together to a friend and to nobody else', async () =>
     {

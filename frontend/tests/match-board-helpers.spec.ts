@@ -60,6 +60,17 @@ const settle = async () =>
     await new Promise((resolve) => setTimeout(resolve, 20));
 };
 
+/** The board's renderer is a chunk of its own, which a busy machine can take a second or more to import. */
+const drawn = async (container: HTMLElement) =>
+{
+    const until = performance.now() + 4000;
+
+    while (container.querySelector('.lp') === null && performance.now() < until)
+    {
+        await settle();
+    }
+};
+
 const elapse = async (ms: number) =>
 {
     const clock = runtime().clock as ManualClock;
@@ -138,10 +149,7 @@ describe('the ludo helpers, and the switch for each', () =>
         const move = vi.spyOn(useBoard(), 'move').mockResolvedValue('now');
         const lit = () => container.querySelectorAll('.lp[data-movable]').length;
 
-        for (let wait = 0; wait < 20 && container.querySelector('.lp') === null; wait += 1)
-        {
-            await settle();
-        }
+        await drawn(container);
 
         expect(container.querySelectorAll('.lp')).toHaveLength(8);
         expect(lit()).toBe(1);
@@ -197,10 +205,7 @@ describe('the ludo helpers, and the switch for each', () =>
         const container = renderTest(() => MatchBoard(props) as HTMLElement).container;
         const note = () => container.querySelector('[role="note"]')?.textContent ?? null;
 
-        for (let wait = 0; wait < 20 && container.querySelector('.lp') === null; wait += 1)
-        {
-            await settle();
-        }
+        await drawn(container);
 
         expect(container.querySelectorAll('.lp')).toHaveLength(8);
         expect(note()).toContain(locale.t('helpers.ludo.tip.six'));
@@ -242,10 +247,7 @@ describe('the ludo helpers, and the switch for each', () =>
         const match = ludo(position([-1, -1, -1, -1], [-1, -1, -1, -1], 6));
         const container = await show(match);
 
-        for (let wait = 0; wait < 20 && container.querySelector('.lp') === null; wait += 1)
-        {
-            await settle();
-        }
+        await drawn(container);
 
         const host = container.querySelector('.board-canvas') as HTMLElement;
         const last = seatsFor(ludoOf(match)!, 0).find((token) => token.key === '0-3')!;

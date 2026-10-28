@@ -126,6 +126,17 @@ const settle = async () =>
     await new Promise((resolve) => setTimeout(resolve, 20));
 };
 
+/** The board's renderer is a chunk of its own, which a busy machine can take a second or more to import. */
+const drawn = async (container: HTMLElement) =>
+{
+    const until = performance.now() + 4000;
+
+    while (container.querySelector('.lp') === null && performance.now() < until)
+    {
+        await settle();
+    }
+};
+
 const matches = client.matches as unknown as Record<string, unknown>;
 
 const show = async (match: MatchView): Promise<HTMLElement> =>
@@ -208,12 +219,12 @@ describe('the ludo table', () =>
     {
         const container = await show(ludo({}, { die: 6, moves: [0] }));
         const bar = container.querySelector('.table-bar') as HTMLElement;
-        const drawn = [...bar.children].filter((one) => !one.classList.contains('sr-only'));
+        const shown = [...bar.children].filter((one) => !one.classList.contains('sr-only'));
 
         expect(container.querySelectorAll('.table-stage button:not(.table-plate-press)'), 'a move is offered as a button').toHaveLength(0);
         expect(container.querySelector('.table-stage ul')).toBeNull();
         expect(bar.querySelector('p[aria-live="polite"]')?.classList.contains('sr-only')).toBe(true);
-        expect(drawn.map((one) => one.className), 'something is drawn at the foot of the table').toEqual([]);
+        expect(shown.map((one) => one.className), 'something is drawn at the foot of the table').toEqual([]);
     });
 
     it('draws nothing at the foot of the table: the clock is on the plate of whoever is to play, short, with the long words for a reader', async () =>
@@ -504,14 +515,6 @@ describe('the ludo table, two against two', () =>
         .map((badge) => ['--team-a', '--team-b'].map((tone) => badge.style.getPropertyValue(tone)));
 
     const stripOf = (container: HTMLElement) => container.querySelector('.table-bar p[aria-live="polite"]')?.textContent ?? null;
-
-    const drawn = async (container: HTMLElement) =>
-    {
-        for (let wait = 0; wait < 20 && container.querySelector('.lp') === null; wait += 1)
-        {
-            await settle();
-        }
-    };
 
     const quietly = () =>
     {
@@ -898,14 +901,6 @@ describe('the ludo table, played from what happened', () =>
         }
 
         await flush();
-    };
-
-    const drawn = async (container: HTMLElement) =>
-    {
-        for (let wait = 0; wait < 40 && container.querySelector('.lp') === null; wait += 1)
-        {
-            await settle();
-        }
     };
 
     const live = async (first: MatchView, wait = true, extra: { onPresenting?: (busy: boolean) => void } = {}) =>

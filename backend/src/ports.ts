@@ -1,6 +1,11 @@
 import type { Principal } from './http/auth.ts';
 import type {
     AchievementLadder,
+    DonationPaying,
+    DonationPlayers,
+    DonationView,
+    Donations,
+    DonationsState,
     AdminPeople,
     AdminPerson,
     AdminMatches,
@@ -618,6 +623,31 @@ export interface ShopPort
     claim(me: string): Promise<WalletCall>;
 }
 
+/** Somebody watching a game giving NURA to a player of it. */
+export interface DonatePort
+{
+    /** Whether donations are open here, whether the reader takes them, whether they may give, and the amounts. */
+    state(me: string): Promise<DonationsState>;
+
+    /** Whether the reader takes donations from now on. */
+    accept(me: string, on: boolean): Promise<{ accepting: boolean }>;
+
+    /** The players of a game the reader watches, and whether the reader may give to each; a game they cannot watch has none. */
+    players(me: string, matchId: string): Promise<DonationPlayers>;
+
+    /** A gift for a player of that game, and the call the reader's wallet sends to make it. */
+    prepare(me: string, input: { match: string; to: string; amount: string }): Promise<DonationPaying>;
+
+    /** One of the reader's gifts; anything else is `donate-missing`. */
+    one(me: string, id: string): Promise<DonationView>;
+
+    /** The transaction the reader's wallet sent for a gift. */
+    sent(me: string, id: string, hash: string): Promise<DonationView>;
+
+    /** What the reader gave, or was given, newest first, fifty a page. */
+    history(me: string, side: 'given' | 'received', cursor: string | null): Promise<Donations>;
+}
+
 export interface AdminPort
 {
     vault(me: string): Promise<AdminVault | null>;
@@ -706,5 +736,6 @@ export interface Ports
     chain: ChainPort;
     vault: VaultPort;
     shop: ShopPort;
+    donate: DonatePort;
     admin: AdminPort;
 }

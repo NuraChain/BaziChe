@@ -15,3 +15,8 @@ export const PRESETS_NURA = [1, 5, 10, 25, 50, 100] as const;
 export const LEAST_NURA = 1;
 
 export const MOST_NURA = 1_000;
+
+/** Whether the reader may give: yes, or the refusal a gift would meet, asked in the order the stakes ask it. */
+export const DONATE_MAY = ['yes', 'donate-wallet', 'donate-minor', 'donate-terms', 'donate-break'] as const;
+
+export type DonateMay = (typeof DONATE_MAY)[number];

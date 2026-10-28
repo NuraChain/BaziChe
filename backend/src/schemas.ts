@@ -3,6 +3,7 @@ import { ACTION_KINDS, CLEAR_PARTS, GRANTED_ROLES, MATCH_LISTS, NOTICE_HOURS, NO
 import { RARITY_IDS } from './domains/achieve/rarity.ts';
 import { PARTY_ENDS, PARTY_STAGES } from './domains/party/rules.ts';
 import { SHOP_COLLECTIONS, SLOT_IDS } from './domains/shop/catalogue.ts';
+import { DONATE_MAY, DONATION_STATES } from './domains/donate/policy.ts';
 import { ORDER_STATES, OWNED_VIA, SHOP_MAY } from './domains/shop/policy.ts';
 import { VARIANTS } from './domains/match/sides.ts';
 import { BREAK_DAYS, ELIGIBILITIES, ESCROW_STATES } from './domains/stake/policy.ts';
@@ -792,6 +793,72 @@ export type ShopBalance = Infer<typeof shopBalance>;
 export const shopEarnings = object({ address: string(), earnings: string(), share: number() });
 
 export type ShopEarnings = Infer<typeof shopEarnings>;
+
+/** Whether donations are open here, and for the reader: whether they take them, whether they may give, and the amounts, in wei. */
+export const donationsState = union([
+    object({ open: literal(false) }),
+    object({
+        open: literal(true),
+        accepting: boolean(),
+        may: enumOf(DONATE_MAY),
+        presets: array(string()),
+        least: string(),
+        most: string()
+    })
+]);
+
+export type DonationsState = Infer<typeof donationsState>;
+
+/** One gift, as its giver or its receiver reads it: `to` for a gift of theirs, `from` for one to them. */
+export const donation = object({
+    id: string(),
+    to: string().optional(),
+    from: string().optional(),
+    amount: string(),
+    state: enumOf(DONATION_STATES),
+    game: string(),
+    deadline: string(),
+    hash: string().optional(),
+
+    /** The chain's word for a gift it refused, or for what it holds in the gift's place. */
+    failure: string().optional(),
+    at: string(),
+    confirmedAt: string().optional()
+});
+
+export type DonationView = Infer<typeof donation>;
+
+/** A gift, and the call the reader's wallet sends to make it. */
+export const donationPaying = object({ donation, call: walletCall });
+
+export type DonationPaying = Infer<typeof donationPaying>;
+
+export const donationInput = object({
+    match: string({ max: 64 }),
+    to: string({ max: 64 }),
+
+    /** Wei. */
+    amount: string({ pattern: /^[0-9]{1,40}$/ })
+});
+
+export const donationSentInput = object({ hash: string({ pattern: /^0x[0-9a-fA-F]{64}$/ }) });
+
+export const donations = object({ donations: array(donation), cursor: string().optional() });
+
+export type Donations = Infer<typeof donations>;
+
+export const donationsQuery = object({ side: enumOf(['given', 'received']), cursor: string({ max: 80 }).optional() });
+
+/** The players of a game the reader watches, and whether the reader may give to each. */
+export const donationPlayers = object({ players: array(object({ who: string(), may: boolean() })) });
+
+export type DonationPlayers = Infer<typeof donationPlayers>;
+
+export const donationPlayersQuery = object({ match: string({ max: 64 }) });
+
+export const donationsAccepting = object({ accepting: boolean() });
+
+export const donationsAcceptInput = object({ on: boolean() });
 
 export const nftItem = object({
     contract: string(),
@@ -2456,7 +2523,10 @@ export const notificationKind = enumOf([
     'invite-joined',
 
     /** A friend bought the reader a look, and it is theirs now. */
-    'gift'
+    'gift',
+
+    /** Somebody watching a game the reader plays gave them NURA, and the gift is theirs now. */
+    'donation'
 ]);
 
 export type NotificationKind = Infer<typeof notificationKind>;
@@ -2475,7 +2545,10 @@ export const notificationRef = object({
     requestId: string().optional(),
     personId: string().optional(),
     game: string().optional(),
-    item: string().optional()
+    item: string().optional(),
+
+    /** Wei: what a donation gave. */
+    amount: string({ pattern: /^[0-9]{1,40}$/ }).optional()
 });
 
 /**
@@ -2538,7 +2611,13 @@ export const lineParams = object({
     tableId: string().optional(),
 
     /** A group's name, for the line that says it changed. Free text, rendered as a value. */
-    name: string().optional()
+    name: string().optional(),
+
+    /** Whom a donation went to: a handle. */
+    to: string().optional(),
+
+    /** Wei: what a donation gave. */
+    amount: string({ pattern: /^[0-9]{1,40}$/ }).optional()
 });
 
 export const line = object({ key: string(), params: lineParams });

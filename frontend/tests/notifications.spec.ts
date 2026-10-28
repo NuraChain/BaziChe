@@ -101,6 +101,21 @@ describe('where a notice leads', () =>
         expect(targetOf(gift)).toBe('/app/shop/collection');
         expect(sayOf(gift, 'Maya', useLocale())).toBe(said);
     });
+
+    it.each([
+        ['en', 'Maya sent you 5 NURA', 'Maya sent you 2.5 NURA', 'Maya sent you 1.2345 NURA'],
+        ['fa', 'Maya واست ۵ NURA فرستاد', 'Maya واست ۲٫۵ NURA فرستاد', 'Maya واست ۱٫۲۳۴۵ NURA فرستاد']
+    ] as const)('sends NURA somebody gave to the wallet it reached, and says how much in %s', (language, whole, half, fine) =>
+    {
+        useLocale().setLocale(language);
+
+        const given = (amount: string) => notice('donation', { actor: 'maya.c', ref: { amount } });
+
+        expect(targetOf(given('5000000000000000000'))).toBe('/app/wallet');
+        expect(sayOf(given('5000000000000000000'), 'Maya', useLocale())).toBe(whole);
+        expect(sayOf(given('2500000000000000000'), 'Maya', useLocale())).toBe(half);
+        expect(sayOf(given('1234567000000000000'), 'Maya', useLocale()), 'a NURA figure is cut at four places, never rounded up').toBe(fine);
+    });
 });
 
 describe('what a notice says', () =>

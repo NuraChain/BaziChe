@@ -19,6 +19,9 @@ export const vaultArtifact = (root = process.env.QA_CONTRACTS ?? '../SmartContra
 export const shopArtifact = (root = process.env.QA_CONTRACTS ?? '../SmartContract/artifacts/contracts/baziche') =>
     JSON.parse(readFileSync(`${ root }/ArcadeShop.sol/ArcadeShop.json`, 'utf8'));
 
+export const tipsArtifact = (root = process.env.QA_CONTRACTS ?? '../SmartContract/artifacts/contracts/baziche') =>
+    JSON.parse(readFileSync(`${ root }/ArcadeTips.sol/ArcadeTips.json`, 'utf8'));
+
 export async function deployVault(rpc = process.env.QA_RPC ?? 'http://127.0.0.1:8645', root = undefined)
 {
     const { abi, bytecode } = vaultArtifact(root);
@@ -59,7 +62,21 @@ export async function deployShop(rpc = process.env.QA_RPC ?? 'http://127.0.0.1:8
     return { shop: receipt.contractAddress, seller: seller.address };
 }
 
+/** `ArcadeTips`, its admin the vault's: a gift goes from whoever gives it to the player, so nothing signs for it. */
+export async function deployTips(rpc = process.env.QA_RPC ?? 'http://127.0.0.1:8645', root = undefined)
+{
+    const { abi, bytecode } = tipsArtifact(root);
+    const admin = privateKeyToAccount(VAULT_ADMIN_KEY);
+    const chain = { ...hardhat, rpcUrls: { default: { http: [rpc] } } };
+    const wallet = createWalletClient({ account: admin, chain, transport: http(rpc) });
+    const reader = createPublicClient({ chain, transport: http(rpc) });
+    const hash = await wallet.deployContract({ abi, bytecode, args: [admin.address] });
+    const receipt = await reader.waitForTransactionReceipt({ hash });
+
+    return { tips: receipt.contractAddress };
+}
+
 if (import.meta.url === `file:///${ process.argv[1].replaceAll('\\', '/') }` || import.meta.url.endsWith(process.argv[1].replaceAll('\\', '/')))
 {
-    console.log(JSON.stringify({ ...await deployVault(), ...await deployShop() }));
+    console.log(JSON.stringify({ ...await deployVault(), ...await deployShop(), ...await deployTips() }));
 }

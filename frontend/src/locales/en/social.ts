@@ -340,6 +340,7 @@ export const social = {
     'notify.groupAdded': '{who} added you to a group',
     'notify.inviteJoined': '{who} joined through your link and played a first game',
     'notify.gift': '{who} sent you a gift',
+    'notify.donation': '{who} sent you {amount} NURA',
     'notify.tableInvite': '{who} saved you a seat',
     'notify.tableRemoved': '{who} took you out of a {game} table',
     'notify.turn': 'Your turn at {game}',

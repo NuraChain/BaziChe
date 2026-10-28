@@ -453,6 +453,51 @@ const sweepShop = () =>
 shopping = setTimeout(sweepShop, SHOP_SWEEP_MS);
 shopping.unref();
 
+const DONATION_SWEEP_MS = 3_000;
+
+const DONATION_SWEEP_BUDGET_MS = 4_000;
+
+let giving: NodeJS.Timeout | null = null;
+
+const givingTold = new Map<string, string>();
+
+const sweepDonations = () =>
+{
+    void ports.jobs.sweepDonations(DONATION_SWEEP_BUDGET_MS)
+        .then(({ confirmed, reverted, expired, failed, faults }) =>
+        {
+            if (confirmed + reverted + expired + failed > 0)
+            {
+                log.info('donations moved', { confirmed, reverted, expired, failed });
+            }
+
+            const now = new Map(faults.map((one) => [one.donation, one.error]));
+
+            for (const [donation, error] of now)
+            {
+                if (givingTold.get(donation) !== error)
+                {
+                    log.warn('donation step failed', { donation, error });
+                }
+            }
+
+            givingTold.clear();
+            now.forEach((error, donation) => givingTold.set(donation, error));
+        })
+        .catch((error: unknown) => log.error('donation sweep failed', { error }))
+        .finally(() =>
+        {
+            if (giving !== null)
+            {
+                giving = setTimeout(sweepDonations, DONATION_SWEEP_MS);
+                giving.unref();
+            }
+        });
+};
+
+giving = setTimeout(sweepDonations, DONATION_SWEEP_MS);
+giving.unref();
+
 handleShutdownSignals(served, {
     /**
      * The window where connections are still live.
@@ -490,6 +535,11 @@ handleShutdownSignals(served, {
         {
             clearTimeout(shopping);
             shopping = null;
+        }
+        if (giving !== null)
+        {
+            clearTimeout(giving);
+            giving = null;
         }
 
         goingDown = true;

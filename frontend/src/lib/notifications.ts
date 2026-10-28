@@ -3,6 +3,7 @@ import { GAMES } from '../data/games.ts';
 import type { IconName } from '../icons/registry.ts';
 import type { MessageKey } from '../locales/en.ts';
 import type { LocaleApi } from '../stores/locale.store.ts';
+import { nuraOf } from './nura.ts';
 
 export const NOTIFICATION_ICON: Record<NotificationKind, IconName> = {
     'friend-request': 'friend-add',
@@ -13,7 +14,8 @@ export const NOTIFICATION_ICON: Record<NotificationKind, IconName> = {
     'message': 'chats',
     'turn': 'dice',
     'invite-joined': 'invite',
-    'gift': 'gift'
+    'gift': 'gift',
+    'donation': 'coins'
 };
 
 const SAYS: Record<NotificationKind, MessageKey> = {
@@ -25,10 +27,11 @@ const SAYS: Record<NotificationKind, MessageKey> = {
     'turn': 'notify.turn',
     'message': 'notify.message',
     'invite-joined': 'notify.inviteJoined',
-    'gift': 'notify.gift'
+    'gift': 'notify.gift',
+    'donation': 'notify.donation'
 };
 
-export function sayOf(item: Notification, who: string, locale: Pick<LocaleApi, 't' | 'plural'>)
+export function sayOf(item: Notification, who: string, locale: Pick<LocaleApi, 't' | 'plural' | 'n'>)
 {
     const game = GAMES.find((one) => one.id === item.ref.game);
 
@@ -42,7 +45,11 @@ export function sayOf(item: Notification, who: string, locale: Pick<LocaleApi, '
         return locale.t('notify.turnAnywhere');
     }
 
-    return locale.t(SAYS[item.kind], { who, game: game === undefined ? '' : locale.t(game.nameKey) });
+    return locale.t(SAYS[item.kind], {
+        who,
+        game: game === undefined ? '' : locale.t(game.nameKey),
+        amount: item.ref.amount === undefined ? '' : locale.n(nuraOf(item.ref.amount), { maximumFractionDigits: 4 })
+    });
 }
 
 export function targetOf(item: Notification): string | null
@@ -58,6 +65,10 @@ export function targetOf(item: Notification): string | null
     if (item.kind === 'gift')
     {
         return '/app/shop/collection';
+    }
+    if (item.kind === 'donation')
+    {
+        return '/app/wallet';
     }
     if (item.ref.tableId !== undefined)
     {

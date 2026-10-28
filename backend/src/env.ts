@@ -107,6 +107,9 @@ export function loadServerConfig()
             /** `ArcadeShop`, where looks are paid for; its seller is the key above. */
             shopAddress: optional('NURA_SHOP_ADDRESS'),
 
+            /** `ArcadeTips`, through which a watcher gives NURA to a player; no key of this server's is needed. */
+            tipsAddress: optional('NURA_TIPS_ADDRESS'),
+
             /** The explorer's Etherscan-compatible api, where a wallet's NFT transfers are read. */
             explorerApi: optional('NURA_EXPLORER_API'),
 

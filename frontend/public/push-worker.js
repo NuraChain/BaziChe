@@ -14,6 +14,8 @@ const PLAIN = { lang: 'en', tag: 'en-US', dir: 'ltr', general: 'Something new in
 
 const HOLE = /\{([a-zA-Z0-9_]+)\}/g;
 
+const nuraOf = (wei) => Number(BigInt(wei) / 10n ** 14n) / 10_000;
+
 const kept = async (url) =>
 {
     try
@@ -112,6 +114,11 @@ const leadOf = (row) =>
         return '/app/shop/collection';
     }
 
+    if (row.kind === 'donation')
+    {
+        return '/app/wallet';
+    }
+
     if (row.ref.tableId !== undefined)
     {
         return `/app/play/${ row.ref.tableId }`;
@@ -195,7 +202,12 @@ const pushed = async () =>
 
     for (const row of sayable)
     {
-        const vars = { who: names.get(row.actor) ?? row.actor ?? '', game: words.games[row.ref.game] ?? '', count: row.count };
+        const vars = {
+            who: names.get(row.actor) ?? row.actor ?? '',
+            game: words.games[row.ref.game] ?? '',
+            amount: row.ref.amount === undefined ? '' : new Intl.NumberFormat(words.tag, { maximumFractionDigits: 4 }).format(nuraOf(row.ref.amount)),
+            count: row.count
+        };
 
         await show(fill(words.says[row.kind], vars, words.tag), words, { tag: tagOf(row), renotify: true, data: { target: leadOf(row) } });
     }

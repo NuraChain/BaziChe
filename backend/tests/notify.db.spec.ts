@@ -246,7 +246,7 @@ describe.skipIf(!active)('notifications, against a real database', () =>
             expect(await notify.tell({ userId: reader, kind: 'message', actorId: writer, ref: {}, dedupeKey: 'chat:c-9' })).toBe(true);
         });
 
-        it('hears a gift with friend requests switched off, and says nothing of one once gifts are', async () =>
+        it('hears a gift and NURA sent with friend requests switched off, and neither once gifts are', async () =>
         {
             const reader = await makeUser();
             const friend = await makeUser();
@@ -254,10 +254,12 @@ describe.skipIf(!active)('notifications, against a real database', () =>
             await social.setMute(reader, 'notice', 'requests', true);
 
             expect(await notify.tell({ userId: reader, kind: 'gift', actorId: friend, ref: { item: 'dice.glow' }, dedupeKey: 'gift:o-1' })).toBe(true);
+            expect(await notify.tell({ userId: reader, kind: 'donation', actorId: friend, ref: { amount: '5000000000000000000' }, dedupeKey: 'donation:d-1' })).toBe(true);
 
             await social.setMute(reader, 'notice', 'gifts', true);
 
             expect(await notify.tell({ userId: reader, kind: 'gift', actorId: friend, ref: { item: 'dice.glow' }, dedupeKey: 'gift:o-2' })).toBe(false);
+            expect(await notify.tell({ userId: reader, kind: 'donation', actorId: friend, ref: { amount: '5000000000000000000' }, dedupeKey: 'donation:d-2' })).toBe(false);
         });
 
         it('switches off every kind of notice it names, and refuses one it does not know', async () =>

@@ -120,7 +120,7 @@ export const SEEN_MS = 20_000;
 
 export const VIEWED_MAX = 4;
 
-export type SelfTopic = 'notifications' | 'devices' | 'profile' | 'party' | 'vault' | 'shop';
+export type SelfTopic = 'notifications' | 'devices' | 'profile' | 'party' | 'vault' | 'shop' | 'donations';
 
 export interface Hub
 {

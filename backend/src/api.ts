@@ -35,6 +35,17 @@ import {
     shopSentInput,
     shopState,
     walletCall,
+    donation,
+    donationInput,
+    donationPaying,
+    donationPlayers,
+    donationPlayersQuery,
+    donations,
+    donationsAcceptInput,
+    donationsAccepting,
+    donationsQuery,
+    donationSentInput,
+    donationsState,
     adminClearInput,
     adminHistoryQuery,
     adminLiftInput,
@@ -621,6 +632,31 @@ export function buildApi(ports: Ports)
             earnings: routes.get('/earnings', { output: shopEarnings }, (context) => ports.shop.earnings(context.principal.userId)),
 
             claim: routes.post('/earnings/claim', { output: walletCall }, (context) => ports.shop.claim(context.principal.userId))
+        })),
+
+        donations: feature('/donations', [session], (routes) => ({
+            state: routes.get('/', { output: donationsState }, (context) => ports.donate.state(context.principal.userId)),
+
+            accept: routes.post('/accepting', { input: donationsAcceptInput, output: donationsAccepting },
+                (context) => ports.donate.accept(context.principal.userId, context.input.on)),
+
+            players: routes.get('/players', { query: donationPlayersQuery, output: donationPlayers },
+                (context) => ports.donate.players(context.principal.userId, context.query.match)),
+
+            /**
+             * A gift, and the call the reader's wallet sends to make it. Nothing is confirmed for the
+             * answer: the gift is the player's when `ArcadeTips` holds it under the giver and its id.
+             */
+            give: routes.post('/', { input: donationInput, output: donationPaying },
+                (context) => ports.donate.prepare(context.principal.userId, context.input)),
+
+            history: routes.get('/history', { query: donationsQuery, output: donations },
+                (context) => ports.donate.history(context.principal.userId, context.query.side, context.query.cursor ?? null)),
+
+            one: routes.get('/:id', { output: donation }, (context) => ports.donate.one(context.principal.userId, context.params.id)),
+
+            sent: routes.post('/:id/sent', { input: donationSentInput, output: donation },
+                (context) => ports.donate.sent(context.principal.userId, context.params.id, context.input.hash))
         })),
 
         social: feature('/social', [session], (routes) => ({

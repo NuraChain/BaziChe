@@ -32,6 +32,7 @@ import { teamsOf } from './domains/table/teams.ts';
 import { createChainProfiles, recordValue } from './chain/profile.ts';
 import { createNftReader } from './chain/nfts.ts';
 import { createShopChain, type ShopChain } from './chain/shop.ts';
+import { createTipsChain, type TipsChain } from './chain/tips.ts';
 import { createVault, type Vault } from './chain/vault.ts';
 import { GAME_SEEDS } from './db/seed-reference.ts';
 import { seatsOfMask } from './domains/stake/policy.ts';
@@ -46,6 +47,8 @@ import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play
 import { createNoticeService } from './domains/admin/notice.ts';
 import { worn, type ProfileLooks } from './domains/shop/looks.ts';
 import { createOrderService, type ShopSweep } from './domains/shop/orders.ts';
+import { donationLineOf } from './domains/donate/line.ts';
+import { createDonationService, type DonateSweep } from './domains/donate/service.ts';
 import { createShopService } from './domains/shop/service.ts';
 import { createReportsService } from './domains/admin/reports.ts';
 import { createStaffService } from './domains/admin/staff.ts';
@@ -93,7 +96,7 @@ export interface WriteListener
     chatSeen(conversationId: string, userId: string): void;
     socialChanged(...userIds: string[]): void;
     edgesChanged(...userIds: string[]): void;
-    selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'vault' | 'shop'): void;
+    selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'vault' | 'shop' | 'donations'): void;
     gamePushed(pushes: readonly { userId: string; match: MatchView; events: MatchEventLog[] }[]): void;
     gameWatched(viewers: readonly string[], match: MatchView, events: MatchEventLog[]): void;
     tableChanged(tableId: string, people: readonly string[]): void;
@@ -141,6 +144,7 @@ export interface Services extends Ports
         sweepTables(): Promise<TableSweep>;
         sweepStakes(forMs: number): Promise<StakeSweep>;
         sweepShop(forMs: number): Promise<ShopSweep>;
+        sweepDonations(forMs: number): Promise<DonateSweep>;
         waiting(): Promise<{ game: string; mode: string; players: number; tables: number; oldest: number }[]>;
         otherServers(): Promise<number>;
         tidy(): Promise<Record<string, number>>;
@@ -158,7 +162,7 @@ const WATCHABLE_MAX = 48;
 
 const WAITING_SEATS = 500;
 
-export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain): Services
+export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain, tipsChain?: TipsChain): Services
 {
     const here = (userIds: readonly string[]) => presence?.present(userIds) ?? new Set(userIds);
 
@@ -1131,6 +1135,38 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         })
     });
 
+    const tipping = tipsChain ?? createTipsChain({ rpcUrl: config.rpcUrl, chainId: config.chainId, tips: config.tipsAddress });
+
+    /** A confirmed gift's line in its game's table chat: after the gift, which it can never undo. */
+    const giftLine = async (donationId: string) =>
+    {
+        const said = await donationLineOf(db, donationId);
+
+        if (said === null)
+        {
+            return;
+        }
+
+        await chat.post(said.conversationId, 'system', { key: 'chat.line.donation', params: said.params }, null);
+        live?.chatChanged(said.conversationId);
+    };
+
+    const donations = createDonationService(db, tipping, (me) => stakes.standingOf(me), (tableId, userIds) => table.mayWatch(tableId, userIds), {
+        changed: (userIds) => userIds.forEach((userId) => live?.selfChanged(userId, 'donations')),
+
+        async confirmed(gift)
+        {
+            await courtesy('donation notice', () => tell({
+                userId: gift.receiver,
+                kind: 'donation',
+                actorId: gift.giver,
+                ref: { amount: gift.amount },
+                dedupeKey: `donation:${ gift.id }`
+            }));
+            await courtesy('donation line', () => giftLine(gift.id));
+        }
+    });
+
     const walkAway = async (me: string, tableId: string, forfeit: boolean) =>
     {
         const before = await mustTable(me, tableId);
@@ -1608,6 +1644,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             sweepTables,
             sweepStakes: (forMs) => stakes.sweep(forMs),
             sweepShop: (forMs) => orders.sweep(forMs),
+            sweepDonations: (forMs) => donations.sweep(forMs),
             waiting: () => table.waitingByGame(),
             otherServers,
             tidy,
@@ -1763,6 +1800,16 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             sent: (me, id, hash) => orders.sent(me, id, hash),
             earnings: (me) => orders.earnings(me),
             claim: (me) => orders.claim(me)
+        },
+
+        donate: {
+            state: (me) => donations.state(me),
+            accept: (me, on) => donations.accept(me, on),
+            players: (me, matchId) => donations.players(me, matchId),
+            prepare: (me, input) => donations.prepare(me, input),
+            one: (me, id) => donations.one(me, id),
+            sent: (me, id, hash) => donations.sent(me, id, hash),
+            history: (me, side, cursor) => donations.history(me, side, cursor)
         },
 
         admin: {

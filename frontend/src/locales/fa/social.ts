@@ -343,6 +343,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.groupAdded': '{who} تو رو به یه گروه اضافه کرد',
     'notify.inviteJoined': '{who} با لینک تو اومد و اولین بازیش رو کرد',
     'notify.gift': '{who} واست یه هدیه فرستاد',
+    'notify.donation': '{who} واست {amount} NURA فرستاد',
     'notify.tableInvite': '{who} یه صندلی واست نگه داشته',
     'notify.tableRemoved': '{who} تو رو از یه میز {game} بلند کرد',
     'notify.turn': 'نوبتته توی {game}',

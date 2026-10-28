@@ -1166,6 +1166,49 @@ giver as whom) failed 8 of 40: the half hour, the chat line, the call made by ha
 list of received gifts that was not empty, the minor, and the late gift taken by the chain and
 confirmed.
 
+## The market pass
+
+**`tools/qa/market-pass.mjs` backs games with NURA over the api of the built server and a local
+chain**: `QA_BASE=http://localhost:5300 QA_MARKETS=<the markets contract> node
+tools/qa/market-pass.mjs`, about four minutes, 47 checks. It wants a NEW hardhat node for every run
+(`npx hardhat node --port 8645` in the SmartContract project): hardhat gives every block a second of
+its own, so the transactions of a few runs put its clock minutes ahead of this machine's, and a
+market's ninety seconds then closed on the chain before they opened here (`MarketClosed` on the
+bettor's own transaction). Then `ArcadeMarkets` on it (`node tools/qa/vault-deploy.mjs`, its
+operator hardhat's #9, the referee, and a dispute window of a minute), a database nobody else uses
+given its schema by `sync-cli`, and the built server with `NURA_RPC_URL`, `NURA_CHAIN_ID=31337`,
+`NURA_VAULT_ADDRESS`, `NURA_REFEREE_KEY`, `NURA_MARKETS_ADDRESS`, `MARKET_REGIONS=DE` and
+`MARKET_COUNTRY_HEADER=CF-IPCountry`. Every request names its country in that header, as the proxy
+would. The node is made to mine a block a second (`evm_setIntervalMining`), as a chain with
+validators does: hardhat otherwise mines only for a transaction, and the server reads the chain's
+clock from its newest block.
+
+Every bettor is a wallet the pass keeps in memory, given NURA by `hardhat_setBalance`. In order: who
+may take a position (the disclosure and the terms asked for, nothing for no country or a country
+nobody named); four chess games at public live tables, each market a seat each and a draw by handle;
+a player of the game, an outcome the market lacks, too much and a country not named, each refused in
+its word; unequal stakes on all three outcomes from seven wallets, two at once, each read back from
+the contract as placed, the pools and the bettors counted alike by the server and the contract, and
+a bettor past a thousand NURA refused; every other market's stakes placed while its window is open,
+because the waits that follow can outlast one on a slow run; a game resigned inside its window
+called off on the chain; the close; the settled game settled on what happened, its claim time the
+chain's; one bettor alone refunded; a market settled and overturned by the owner in its window,
+which the server hears; a winner refused before the window ends and a loser refused; a stake back
+claimed at once, to the wei; every winner paid their share, read off the claim's receipt, the last
+the exact remainder and the whole pool to the wei; a claimed position not claimable again; and the
+contract solvent.
+
+**Its first run found a fault of the server's**: a quiet chain was read as a clock minutes behind,
+and every market whose game ended after its close was called off (`cde64091`, `BEHIND_MOST_MS`).
+
+**Proved red** against two builds of the compiled market service, put back from saved copies. The
+first (a game's end never weighed against the close, no country asked, claims never read off their
+receipts) failed 7 lines and died at the overturn: the two about the country and the position it let
+through, the early game's call-off, and the two markets whose stakes the early game's wait pushed out
+of their window. The overturn now fails its line instead of stopping the pass. The second (claims
+never read off their receipts, a winner's payout worked out against the whole pool) failed 5 of 47,
+every winner's line, which each fault fails alone.
+
 ## The admin pass
 
 `tools/qa/admin-pass.mjs` runs the admin over the api of the built server: `QA_BASE=http://localhost:5310

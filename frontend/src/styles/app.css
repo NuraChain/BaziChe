@@ -5329,6 +5329,333 @@ svg.lobby-board
     color: var(--nard-light);
 }
 
+/*
+ * A player's checkers in their look (`game/board/backgammon-table.ts`): the drawing their side's
+ * tone names in place of the board's own rim, face and groove, and a slab borne off painted from its
+ * material and rim. The count on a tall stack and the arrow that takes a move back lie on a plain
+ * middle of the checker's own material, so they never lie on its emblem.
+ */
+.man[data-checkers]:not([data-off])
+{
+    border: 0;
+    background: var(--checker) center / 100% 100% no-repeat;
+}
+
+.man[data-checkers]:not([data-off])::after
+{
+    display: none;
+}
+
+.man[data-checkers][data-back]
+{
+    background: radial-gradient(circle closest-side, var(--fill) 0 46%, transparent 48%), var(--checker) center / 100% 100% no-repeat;
+}
+
+.bgt-count[data-checkers]
+{
+    background: radial-gradient(circle closest-side, var(--fill) 0 46%, transparent 48%);
+}
+
+.bg-checker[data-checkers]
+{
+    background: var(--checker) center / 100% 100% no-repeat;
+    outline: 0;
+}
+
+[data-checkers='glow'][data-tone='light']
+{
+    --checker: url('/checkers/glow-light.svg');
+    --hi: #FFFFFF;
+    --fill: #E3EEFF;
+    --lo: #B8D0FA;
+    --rim: #1B3480;
+}
+
+[data-checkers='glow'][data-tone='dark']
+{
+    --checker: url('/checkers/glow-dark.svg');
+    --hi: #4A7FE8;
+    --fill: #1B3480;
+    --lo: #0B1640;
+    --rim: #9CC2FF;
+}
+
+[data-checkers='shiraz'][data-tone='light']
+{
+    --checker: url('/checkers/shiraz-light.svg');
+    --hi: #FFFFFF;
+    --fill: #EAF7F3;
+    --lo: #C6E6DF;
+    --rim: #0B4A75;
+}
+
+[data-checkers='shiraz'][data-tone='dark']
+{
+    --checker: url('/checkers/shiraz-dark.svg');
+    --hi: #1A7FAE;
+    --fill: #0B4A75;
+    --lo: #06284A;
+    --rim: #E7BE63;
+}
+
+[data-checkers='neon'][data-tone='light']
+{
+    --checker: url('/checkers/neon-light.svg');
+    --hi: #FFFFFF;
+    --fill: #ECE7FF;
+    --lo: #BDB2EE;
+    --rim: #1B1333;
+}
+
+[data-checkers='neon'][data-tone='dark']
+{
+    --checker: url('/checkers/neon-dark.svg');
+    --hi: #3A2D63;
+    --fill: #1B1333;
+    --lo: #07040F;
+    --rim: #FF46D2;
+}
+
+[data-checkers='gold'][data-tone='light']
+{
+    --checker: url('/checkers/gold-light.svg');
+    --hi: #FFF6D2;
+    --fill: #EFCB62;
+    --lo: #B88C22;
+    --rim: #1A140B;
+}
+
+[data-checkers='gold'][data-tone='dark']
+{
+    --checker: url('/checkers/gold-dark.svg');
+    --hi: #3A3020;
+    --fill: #1A140B;
+    --lo: #070503;
+    --rim: #E9C565;
+}
+
+[data-checkers='inferno'][data-tone='light']
+{
+    --checker: url('/checkers/inferno-light.svg');
+    --hi: #FFF4E2;
+    --fill: #FFDDA8;
+    --lo: #F0B46A;
+    --rim: #22100A;
+}
+
+[data-checkers='inferno'][data-tone='dark']
+{
+    --checker: url('/checkers/inferno-dark.svg');
+    --hi: #4A2418;
+    --fill: #22100A;
+    --lo: #0C0503;
+    --rim: #FFB43A;
+}
+
+[data-checkers='storm'][data-tone='light']
+{
+    --checker: url('/checkers/storm-light.svg');
+    --hi: #FFFFFF;
+    --fill: #E6EEFA;
+    --lo: #BCCBE2;
+    --rim: #1E2534;
+}
+
+[data-checkers='storm'][data-tone='dark']
+{
+    --checker: url('/checkers/storm-dark.svg');
+    --hi: #3A4458;
+    --fill: #1E2534;
+    --lo: #0B0F18;
+    --rim: #3FA9FF;
+}
+
+[data-checkers='astral'][data-tone='light']
+{
+    --checker: url('/checkers/astral-light.svg');
+    --hi: #FFFFFF;
+    --fill: #FFF6D9;
+    --lo: #E9D9A8;
+    --rim: #1C0C3E;
+}
+
+[data-checkers='astral'][data-tone='dark']
+{
+    --checker: url('/checkers/astral-dark.svg');
+    --hi: #3A1E6E;
+    --fill: #1C0C3E;
+    --lo: #0A0420;
+    --rim: #4FE3D8;
+}
+
+[data-checkers='void'][data-tone='light']
+{
+    --checker: url('/checkers/void-light.svg');
+    --hi: #F3EAFF;
+    --fill: #D9C4FA;
+    --lo: #B497E8;
+    --rim: #0E0818;
+}
+
+[data-checkers='void'][data-tone='dark']
+{
+    --checker: url('/checkers/void-dark.svg');
+    --hi: #241838;
+    --fill: #0E0818;
+    --lo: #030106;
+    --rim: #A855F7;
+}
+
+[data-checkers='jade'][data-tone='light']
+{
+    --checker: url('/checkers/jade-light.svg');
+    --hi: #F4FFF8;
+    --fill: #D2F5E2;
+    --lo: #A8E3C4;
+    --rim: #0B4A33;
+}
+
+[data-checkers='jade'][data-tone='dark']
+{
+    --checker: url('/checkers/jade-dark.svg');
+    --hi: #167A54;
+    --fill: #0B4A33;
+    --lo: #052A1C;
+    --rim: #F2C14E;
+}
+
+[data-checkers='frost'][data-tone='light']
+{
+    --checker: url('/checkers/frost-light.svg');
+    --hi: #FFFFFF;
+    --fill: #EEF8FF;
+    --lo: #CFE8FA;
+    --rim: #173A5A;
+}
+
+[data-checkers='frost'][data-tone='dark']
+{
+    --checker: url('/checkers/frost-dark.svg');
+    --hi: #2E5F86;
+    --fill: #173A5A;
+    --lo: #0A1E33;
+    --rim: #8FD3FF;
+}
+
+[data-checkers='phoenix'][data-tone='light']
+{
+    --checker: url('/checkers/phoenix-light.svg');
+    --hi: #FFFBEA;
+    --fill: #FFEBB0;
+    --lo: #F7CF70;
+    --rim: #57100E;
+}
+
+[data-checkers='phoenix'][data-tone='dark']
+{
+    --checker: url('/checkers/phoenix-dark.svg');
+    --hi: #8E1E1A;
+    --fill: #57100E;
+    --lo: #2A0606;
+    --rim: #FFC94A;
+}
+
+[data-checkers='oni'][data-tone='light']
+{
+    --checker: url('/checkers/oni-light.svg');
+    --hi: #FFFFFF;
+    --fill: #E6FBFF;
+    --lo: #A8EEF8;
+    --rim: #24060E;
+}
+
+[data-checkers='oni'][data-tone='dark']
+{
+    --checker: url('/checkers/oni-dark.svg');
+    --hi: #4A0F1E;
+    --fill: #24060E;
+    --lo: #0C0205;
+    --rim: #FF2E4D;
+}
+
+/*
+ * A player's home board in their look: the six points of their home drawn over the board's own,
+ * under every checker, mark and die. The drawing is the reader's own home, bottom right; the other
+ * player's is the same drawing turned round, as their home faces them across the board.
+ */
+.bgt-home
+{
+    position: absolute;
+    z-index: var(--layer-inlay);
+    background: var(--home) center / 100% 100% no-repeat;
+    pointer-events: none;
+}
+
+.bgt-home[data-side='far']
+{
+    rotate: 180deg;
+}
+
+.bgt-home[data-home='glow']
+{
+    --home: url('/homes/glow.svg');
+}
+
+.bgt-home[data-home='shiraz']
+{
+    --home: url('/homes/shiraz.svg');
+}
+
+.bgt-home[data-home='neon']
+{
+    --home: url('/homes/neon.svg');
+}
+
+.bgt-home[data-home='gold']
+{
+    --home: url('/homes/gold.svg');
+}
+
+.bgt-home[data-home='inferno']
+{
+    --home: url('/homes/inferno.svg');
+}
+
+.bgt-home[data-home='storm']
+{
+    --home: url('/homes/storm.svg');
+}
+
+.bgt-home[data-home='astral']
+{
+    --home: url('/homes/astral.svg');
+}
+
+.bgt-home[data-home='void']
+{
+    --home: url('/homes/void.svg');
+}
+
+.bgt-home[data-home='jade']
+{
+    --home: url('/homes/jade.svg');
+}
+
+.bgt-home[data-home='frost']
+{
+    --home: url('/homes/frost.svg');
+}
+
+.bgt-home[data-home='phoenix']
+{
+    --home: url('/homes/phoenix.svg');
+}
+
+.bgt-home[data-home='oni']
+{
+    --home: url('/homes/oni.svg');
+}
+
 .bgt-mark
 {
     position: absolute;
@@ -5620,9 +5947,11 @@ svg.lobby-board
     gap: 0.06em;
     padding: 0.13em;
     border-radius: 0.17em;
-    background: radial-gradient(circle at 30% 24%, #fffdf4, #f4ecd8 58%, #e2d6b6);
+    background:
+        radial-gradient(ellipse 34% 11% at 36% 15%, var(--die-shine, rgb(255 255 255 / 0)) 0 96%, rgb(255 255 255 / 0) 100%),
+        radial-gradient(circle at 30% 24%, var(--die-lit, #fffdf4), var(--die-mid, #f4ecd8) 58%, var(--die-side, #e2d6b6));
     backface-visibility: hidden;
-    box-shadow: inset 0 0 0 0.014em rgb(60 40 20 / 0.3), inset 0 -0.05em 0.07em rgb(0 0 0 / 0.14);
+    box-shadow: inset 0 0 0 0.014em var(--die-ink, rgb(60 40 20 / 0.3)), inset 0 -0.05em 0.07em rgb(0 0 0 / 0.14);
 }
 
 .die3d-face[data-n='2'],
@@ -5643,8 +5972,8 @@ svg.lobby-board
     inline-size: 100%;
     aspect-ratio: 1;
     border-radius: 50%;
-    background: radial-gradient(circle at 36% 30%, #4a3321, #1f140b);
-    box-shadow: inset 0 0.012em 0.025em rgb(0 0 0 / 0.5);
+    background: radial-gradient(circle at 36% 30%, var(--die-pip-lit, #4a3321), var(--die-pip, #1f140b));
+    box-shadow: var(--die-glow, inset 0 0.012em 0.025em rgb(0 0 0 / 0.5));
 }
 
 .die3d[data-flat][data-spent]

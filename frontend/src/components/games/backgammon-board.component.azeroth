@@ -20,6 +20,7 @@ import { BAR, OFF, type Hop } from '../../../../backend/src/domains/match/backga
 import { coachOf, hits, outcomeOf, reachOf } from '../../game/helpers/backgammon.ts';
 import { createBackgammonTable, HOP_MS, type BackgammonTable, type Facts, type Invite } from '../../game/board/backgammon-table.ts';
 import { feltOf, seedOf, type Felt, type Told } from '../../game/backgammon-felt.ts';
+import { heardAt, wornOf } from '../../game/looks/table.ts';
 import { createSound, type SoundHandle } from '../../game/sound.ts';
 import { clamp } from '../../game/stage/curves.ts';
 import type { Ctx } from '../../game/stage/director.ts';
@@ -624,11 +625,21 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
         untrack(() => sound?.setEnabled(on));
     }
 
+    derived heard = heardAt(game.players.map((player) => player.look), ['dice', 'checkers']);
+
+    effect
+    {
+        const collections = heard;
+
+        untrack(() => sound?.wear(collections));
+    }
+
     mount
     {
         let unwatch: () => void = () => undefined;
 
         sound = createSound(untrack(() => settings.settings().sound), 'backgammon');
+        sound.wear(untrack(() => heard));
 
         if (layer !== null)
         {
@@ -666,6 +677,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
                     facts = now;
                 },
                 result: () => untrack(() => (mine === undefined ? undefined : game.players.find((one) => one.seat === mine)?.result)),
+                looks: (seat) => untrack(() => game.players.find((one) => one.seat === seat)?.look),
                 onPass: (side, faces) =>
                 {
                     const dice = locale.list(faces.map((face) => locale.n(face)));
@@ -1273,6 +1285,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
         return {
             seat,
             tone: toneOf(seat),
+            checkers: wornOf('checkers', game.players.find((one) => one.seat === seat)?.look?.checkers) ?? undefined,
             score: facts?.score[side] ?? row?.score ?? 0,
             pips: facts?.pips[side] ?? row?.pips ?? 0,
             pegs: pegsOf(facts?.score[side] ?? row?.score ?? 0)
@@ -1393,7 +1406,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
                                         bubble={ props.speech?.[whoAt(plate.seat)] }
                                         below={ plate.seat !== viewer }
                                         anchor={ plate.seat === viewer ? 'end' : 'start' }
-                                        marker={ <span class={ () => (plate.tone === 'light' ? 'bg-checker bg-checker-light' : 'bg-checker bg-checker-dark') } aria-hidden="true"></span> }
+                                        marker={ <span class={ () => (plate.tone === 'light' ? 'bg-checker bg-checker-light' : 'bg-checker bg-checker-dark') } data-tone={ plate.tone } data-checkers={ plate.checkers } aria-hidden="true"></span> }
                                         facts={
                                             <span class="contents">
                                                 <span class="bg-score" aria-hidden="true">

@@ -4,8 +4,11 @@
  * every seat's colour (`public/pawns/<collection>-<colour>.svg`), the seat's colour kept wherever a
  * board is read for whose pawn it is; every collection's deck (`public/decks/`, the classic cards
  * in its dress, the standard indices kept) and card back (`public/backs/`); its yard
- * (`public/yards/`), laid over its owner's corner of the Ludo board; and its felt (`public/felts/`),
- * the mat in front of its owner's seat at Hokm and poker. `npm run looks` runs it.
+ * (`public/yards/`), laid over its owner's corner of the Ludo board; its felt (`public/felts/`),
+ * the mat in front of its owner's seat at Hokm and poker; its backgammon checkers for either side of
+ * a board (`public/checkers/<collection>-<light|dark>.svg`), on the board's own checker; and its
+ * home board (`public/homes/`), the six points of its owner's home on the board's own points.
+ * `npm run looks` runs it.
  */
 
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -13,6 +16,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
+import { MIDDLE, POINT_HEIGHT, POINT_WIDTH, TOP } from '../../frontend/src/game/backgammon-layout.ts';
 import { PALETTES, SEAT_RAMPS } from '../../frontend/src/game/looks/palette.ts';
 import { cardBack, HALO } from './card-back.mjs';
 import { H, W, deck } from './card-parts.mjs';
@@ -356,10 +360,229 @@ ${ studs.join('\n') }
 `;
 }
 
+/**
+ * What the collections the shop opened with draw at a backgammon table, as a legendary
+ * collection's module does (`board`): the two tones its home board's points take by turns, a
+ * checker's rim and the sign in its middle (a legendary collection's is its emblem), what runs
+ * down a point and the ornament at its tip. Each sign is the one on the collection's sigil, cut
+ * in the dark of its set under its own colours so it reads on a light checker and a dark one.
+ */
+const BOARDS = {
+    glow: {
+        sign: (palette, cx, cy, size) => ({
+            defs: [`<radialGradient id="sign-halo"><stop offset="0" stop-color="${ palette.glint }" stop-opacity="0.55"/><stop offset="1" stop-color="${ palette.glint }" stop-opacity="0"/></radialGradient>`],
+            body: [
+                `<circle cx="${ cx }" cy="${ cy }" r="${ r2(size * 0.95) }" fill="url(#sign-halo)"/>`,
+                `<path d="${ sparkle(cx, cy, size) }" fill="${ palette.glint }" stroke="${ palette.deep[1] }" stroke-width="1.4" stroke-linejoin="round"/>`,
+                `<path d="${ sparkle(cx + size * 0.9, cy - size * 0.85, size * 0.32) }" fill="#FFFFFF" stroke="${ palette.deep[1] }" stroke-width="0.8" stroke-linejoin="round"/>`,
+                `<path d="${ sparkle(cx - size * 0.8, cy + size * 0.9, size * 0.24) }" fill="${ palette.edge }"/>`
+            ]
+        }),
+        tones: [['#3A62C8', '#2448A8', '#0A1640'], ['#6A9AF0', '#4A7FE8', '#1B3480']],
+        rim: (round, light, palette) => Array.from({ length: 8 }, (_, nth) =>
+        {
+            const [x, y] = round(60.2, nth * 45);
+            return `<path d="${ sparkle(x, y, nth % 2 === 0 ? 3 : 2) }" fill="${ light ? palette.glint : '#FFFFFF' }"/>`;
+        }).join(''),
+        vein: ({ x, top, bottom }, palette) => [[0.2, 4], [0.46, 3], [0.7, 2.2]].map(([along, size], nth) =>
+            `<path d="${ sparkle(x, bottom - (bottom - top) * along, size) }" fill="${ nth === 0 ? palette.glint : '#FFFFFF' }" opacity="0.9"/>`).join(''),
+        tip: (x, y, palette) => `<path d="${ sparkle(x, y - 12, 12) }" fill="${ palette.glint }" stroke="${ BOARD_INK }" stroke-width="1.2" stroke-linejoin="round"/><path d="${ sparkle(x + 9, y - 22, 4) }" fill="#FFFFFF"/>`
+    },
+    shiraz: {
+        sign: (palette, cx, cy, size) => ({
+            defs: [],
+            body: [
+                `<path d="${ starOf(cx, cy, size, size * 0.45, 8) }" fill="${ palette.surface[2] }" stroke="${ palette.edge }" stroke-width="1.8" stroke-linejoin="round"/>`,
+                `<path d="${ octagram(cx, cy, size * 0.52) }" fill="none" stroke="${ palette.edge }" stroke-width="1.1"/>`,
+                `<circle cx="${ cx }" cy="${ cy }" r="${ r2(size * 0.17) }" fill="${ palette.glint }"/>`
+            ]
+        }),
+        tones: [['#2FC4BA', '#14A098', '#0B4F63'], ['#2A92C2', '#156E9C', '#06284A']],
+        rim: (round, light, palette) => Array.from({ length: 12 }, (_, nth) =>
+        {
+            const [x, y] = round(60.2, nth * 30);
+            return `<path d="${ octagram(x, y, 2.2) }" fill="${ light ? palette.edge : palette.deep[1] }"/>`;
+        }).join(''),
+        vein: ({ x, top, bottom }, palette) => [0.2, 0.44, 0.66].map((along, nth) =>
+            `<path d="${ octagram(x, bottom - (bottom - top) * along, 5 - nth * 1.1) }" fill="none" stroke="${ palette.edge }" stroke-width="1" stroke-linejoin="round" opacity="0.9"/>`).join(''),
+        tip: (x, y, palette) => `<path d="${ starOf(x, y - 12, 11, 5, 8) }" fill="${ palette.edge }" stroke="${ BOARD_INK }" stroke-width="1.2" stroke-linejoin="round"/><circle cx="${ r2(x) }" cy="${ r2(y - 12) }" r="2.4" fill="${ palette.glint }"/>`
+    },
+    neon: {
+        sign: (palette, cx, cy, size) => ({
+            defs: [],
+            body: [
+                `<g fill="none" filter="url(#bg-glow)" opacity="0.8"><path d="${ polygon(cx, cy, size, 4, 0) }" stroke="${ palette.edge }" stroke-width="3.4"/><path d="${ polygon(cx, cy, size * 0.6, 4, 0) }" stroke="${ palette.glint }" stroke-width="2.6"/></g>`,
+                `<path d="${ polygon(cx, cy, size, 4, 0) }" fill="${ palette.surface[1] }" stroke="${ palette.edge }" stroke-width="2.4" stroke-linejoin="round"/>`,
+                `<path d="${ polygon(cx, cy, size * 0.6, 4, 0) }" fill="none" stroke="${ palette.glint }" stroke-width="2" stroke-linejoin="round"/>`
+            ]
+        }),
+        tones: [['#32245A', '#160E2B', '#07040F'], ['#32245A', '#160E2B', '#07040F']],
+        edges: ['#FF46D2', '#38E8FF'],
+        glowing: true,
+        rim: (round, light, palette) => `<circle cx="64" cy="64" r="60.2" fill="none" stroke="${ light ? palette.glint : '#FFFFFF' }" stroke-width="${ light ? 1.4 : 1 }" opacity="0.85"/>`,
+        vein: ({ x, top, bottom, half }, palette, nth) =>
+        {
+            const colour = nth % 2 === 0 ? palette.glint : palette.edge;
+            const inset = (y) => half(y) * 0.5;
+            return `<path d="M${ r2(x - inset(bottom - 10)) } ${ r2(bottom - 10) }L${ r2(x) } ${ r2(top + 30) }L${ r2(x + inset(bottom - 10)) } ${ r2(bottom - 10) }" fill="none" stroke="${ colour }" stroke-width="1.3" stroke-linejoin="round" opacity="0.8"/>`;
+        },
+        tip: (x, y, palette, nth) => `<path d="${ polygon(x, y - 12, 8, 4, 90) }" fill="none" stroke="${ nth % 2 === 0 ? palette.edge : palette.glint }" stroke-width="3" filter="url(#bg-glow)"/><path d="${ polygon(x, y - 12, 8, 4, 90) }" fill="${ palette.surface[1] }" stroke="${ nth % 2 === 0 ? palette.edge : palette.glint }" stroke-width="1.6"/>`
+    },
+    gold: {
+        sign: (palette, cx, cy, size) =>
+        {
+            const leaf = `M${ cx } ${ r2(cy - size) }C${ r2(cx + size * 0.5) } ${ r2(cy - size * 0.5) } ${ r2(cx + size * 0.5) } ${ r2(cy + size * 0.5) } ${ cx } ${ r2(cy + size) }C${ r2(cx - size * 0.5) } ${ r2(cy + size * 0.5) } ${ r2(cx - size * 0.5) } ${ r2(cy - size * 0.5) } ${ cx } ${ r2(cy - size) }ZM${ r2(cx - size) } ${ cy }C${ r2(cx - size * 0.4) } ${ r2(cy - size * 0.35) } ${ r2(cx + size * 0.4) } ${ r2(cy - size * 0.35) } ${ r2(cx + size) } ${ cy }C${ r2(cx + size * 0.4) } ${ r2(cy + size * 0.35) } ${ r2(cx - size * 0.4) } ${ r2(cy + size * 0.35) } ${ r2(cx - size) } ${ cy }Z`;
+            const ring = `<circle cx="${ cx }" cy="${ cy }" r="${ r2(size * 0.55) }"/>`;
+            return {
+                defs: [],
+                body: [
+                    `<g fill="none" stroke="${ palette.deep[1] }" stroke-width="4" stroke-linejoin="round"><path d="${ leaf }"/>${ ring }</g>`,
+                    `<g fill="none" stroke="${ palette.edge }" stroke-width="2" stroke-linejoin="round"><path d="${ leaf }"/>${ ring }</g>`,
+                    `<circle cx="${ cx }" cy="${ cy }" r="${ r2(size * 0.2) }" fill="${ palette.glint }" stroke="${ palette.deep[1] }" stroke-width="1.2"/>`
+                ]
+            };
+        },
+        tones: [['#FFF3BF', '#D9B044', '#7C5913'], ['#3A3020', '#1A140B', '#070503']],
+        rim: (round, light, palette) => Array.from({ length: 28 }, (_, nth) =>
+        {
+            const [x, y] = round(60.2, nth * 360 / 28);
+            return `<ellipse cx="${ x }" cy="${ y }" rx="1.9" ry="0.8" fill="${ light ? palette.edge : palette.deep[2] }" opacity="0.8" transform="rotate(${ r2(nth * 360 / 28 + 45) } ${ x } ${ y })"/>`;
+        }).join(''),
+        vein: ({ x, top, bottom }, palette, nth) =>
+        {
+            const ink = nth % 2 === 0 ? palette.piece[2] : palette.edge;
+            const curl = (y, side) => `M${ r2(x) } ${ r2(y) }c${ r2(side * 6) } -3 ${ r2(side * 7) } -10 ${ r2(side * 2) } -12c${ r2(side * -3) } -1 ${ r2(side * -4) } 2 ${ r2(side * -2) } 4`;
+            return `<path d="M${ r2(x) } ${ r2(bottom - 12) }V${ r2(top + 36) }${ [0.24, 0.5].map((along, step) => curl(bottom - (bottom - top) * along, step % 2 === 0 ? 1 : -1)).join('') }" fill="none" stroke="${ ink }" stroke-width="1.2" stroke-linecap="round" opacity="0.85"/>`;
+        },
+        tip: (x, y, palette) => `<path d="M${ r2(x) } ${ r2(y - 26) }C${ r2(x + 7) } ${ r2(y - 15) } ${ r2(x + 6) } ${ r2(y - 6) } ${ r2(x) } ${ r2(y - 5) }C${ r2(x - 6) } ${ r2(y - 6) } ${ r2(x - 7) } ${ r2(y - 15) } ${ r2(x) } ${ r2(y - 26) }Z" fill="${ palette.edge }" stroke="${ BOARD_INK }" stroke-width="1.2"/><circle cx="${ r2(x) }" cy="${ r2(y - 11) }" r="2.2" fill="${ palette.surface[2] }"/>`
+    }
+};
+
+/** A collection's backgammon art: its module's, or the one drawn here. */
+const boardOf = (collection) => LEGENDARY[collection]?.board ?? BOARDS[collection];
+
+/** A point round a checker's middle, `r` out and a turn of 0 at the top, going clockwise. */
+const round = (r, turn) =>
+{
+    const angle = (turn - 90) * Math.PI / 180;
+    return [r2(64 + r * Math.cos(angle)), r2(64 + r * Math.sin(angle))];
+};
+
+/** `share` of the way from one colour to another. */
+const toward = (one, other, share) => `#${ [1, 3, 5].map((at) => Math.round(Number.parseInt(one.slice(at, at + 2), 16) * (1 - share) + Number.parseInt(other.slice(at, at + 2), 16) * share).toString(16).padStart(2, '0')).join('').toUpperCase() }`;
+
+/** A checker in a 128 square, which the board's checker fills: its rim, its face, the groove inlaid in it and its sign, as wide as a legendary emblem's `size` or a classic sign's reach. */
+const DISC = { size: 128, rim: 63.5, face: 56.5, groove: 41, emblem: 46, sign: 22 };
+
+/**
+ * A collection's checker, light or dark as its owner's side is: its face in the collection's pale or
+ * deep material under its pattern, a bevelled rim in the colour that stands out from it (the deep
+ * one round a light checker, the edge round a dark one) with the collection's own work on it, a
+ * groove inlaid round the middle, and its sign there in its own colours, lifted off the face by a
+ * soft shadow and, on a dark checker, lit from behind.
+ */
+function checker(collection, tone)
+{
+    const palette = PALETTES[collection];
+    const light = tone === 'light';
+    const ramp = light ? palette.pale : palette.deep;
+    const ring = light ? palette.deep[1] : palette.edge;
+    const style = boardOf(collection);
+    const { size, rim, face, groove } = DISC;
+    const mid = size / 2;
+    const sign = LEGENDARY[collection]?.emblem(palette, mid, mid, DISC.emblem, 'sign') ?? style.sign(palette, mid, mid, DISC.sign);
+    const circle = (r, rest) => `<circle cx="${ mid }" cy="${ mid }" r="${ r }" ${ rest }/>`;
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${ size } ${ size }" width="${ size }" height="${ size }">
+<defs>
+    ${ radial('face', ramp, [0.36, 0.3, 0.78]) }
+    <linearGradient id="rim" x1="0.15" y1="0.1" x2="0.85" y2="0.9"><stop offset="0" stop-color="${ toward(ring, '#FFFFFF', 0.42) }"/><stop offset="0.5" stop-color="${ ring }"/><stop offset="1" stop-color="${ toward(ring, '#000000', 0.45) }"/></linearGradient>
+    ${ motif('motif', palette, 0.9) }
+    ${ gloss('gloss', light ? 0.55 : 0.32, [0.32, 0.24, 0.6]) }
+    <radialGradient id="lit"><stop offset="0" stop-color="${ palette.glint }" stop-opacity="0.42"/><stop offset="1" stop-color="${ palette.glint }" stop-opacity="0"/></radialGradient>
+    <filter id="lift" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="1.2" stdDeviation="1.1" flood-color="#000000" flood-opacity="${ light ? 0.3 : 0.55 }"/></filter>
+    <filter id="bg-glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.2"/></filter>
+    ${ (style.defs?.(palette) ?? []).join('') }
+    ${ sign.defs.join('') }
+</defs>
+${ circle(rim, 'fill="url(#rim)"') }
+${ style.rim(round, light, palette) }
+${ circle(face, 'fill="url(#face)"') }
+${ circle(face, `fill="url(#motif)" opacity="${ light ? 0.22 : 0.4 }"`) }
+${ circle(face, `fill="none" stroke="${ toward(ring, '#000000', 0.55) }" stroke-width="1.4" opacity="0.7"`) }
+${ circle(rim - 0.5, `fill="none" stroke="${ toward(ring, '#000000', 0.6) }" stroke-width="1"`) }
+${ circle(groove + 1.4, 'fill="none" stroke="#FFFFFF" stroke-width="0.9" opacity="0.35"') }
+${ circle(groove, `fill="none" stroke="${ ring }" stroke-width="2.6" opacity="0.8"`) }
+${ light ? '' : circle(34, 'fill="url(#lit)"') }
+<g filter="url(#lift)">${ sign.body.join('') }</g>
+${ circle(face, 'fill="url(#gloss)"') }
+</svg>
+`;
+}
+
+/** A home board, laid over its owner's quarter of the field: six points as wide and as tall as the board's own (`game/backgammon-layout.ts`). */
+const QUARTER = { wide: POINT_WIDTH * 6, high: MIDDLE - TOP, point: POINT_HEIGHT };
+
+/** The ink a home board's lines are cut in, under the collection's edge, so they read on the board's cream field. */
+const POINT_INK = '#120A06';
+
+/**
+ * A collection's home board: the six points of its owner's home, each exactly where the board's own
+ * point lies (drawn as the owner sees it, bottom right, the 6 point by the bar), in its two tones by
+ * turns under its pattern, a bevel of light down one side and shade down the other, its work down
+ * the middle, its edge cut in the board's ink under the collection's colour, and its ornament at the
+ * tip; a band of the edge where the points stand. The field between them is the board's.
+ */
+function home(collection)
+{
+    const palette = PALETTES[collection];
+    const style = boardOf(collection);
+    const { wide, high, point } = QUARTER;
+    const tip = high - point;
+    const edges = style.edges ?? [palette.edge, palette.edge];
+    const half = (y) => (y - tip) / point * (POINT_WIDTH / 2);
+
+    const points = Array.from({ length: 6 }, (_, nth) =>
+    {
+        const left = nth * POINT_WIDTH;
+        const x = left + POINT_WIDTH / 2;
+        const shade = nth % 2;
+        const outline = `${ r2(left) },${ r2(high) } ${ r2(left + POINT_WIDTH) },${ r2(high) } ${ r2(x) },${ r2(tip) }`;
+        const edge = edges[shade];
+
+        return [
+            `<polygon points="${ outline }" fill="url(#tone-${ shade })"/>`,
+            `<polygon points="${ outline }" fill="url(#motif)" opacity="${ shade === 0 ? 0.42 : 0.32 }"/>`,
+            `<path d="M${ r2(left + 4) } ${ r2(high - 2) }L${ r2(x - 0.6) } ${ r2(tip + 16) }" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" opacity="0.22"/>`,
+            `<path d="M${ r2(left + POINT_WIDTH - 4) } ${ r2(high - 2) }L${ r2(x + 0.6) } ${ r2(tip + 16) }" stroke="#000000" stroke-width="1.8" stroke-linecap="round" opacity="0.3"/>`,
+            style.vein({ x, top: tip, bottom: high, half }, palette, nth),
+            style.glowing === true ? `<polygon points="${ outline }" fill="none" stroke="${ edge }" stroke-width="4.5" stroke-linejoin="round" filter="url(#bg-glow)" opacity="0.75"/>` : '',
+            `<polygon points="${ outline }" fill="none" stroke="${ POINT_INK }" stroke-width="4.6" stroke-linejoin="round" stroke-opacity="0.55"/>`,
+            `<polygon points="${ outline }" fill="none" stroke="${ edge }" stroke-width="2" stroke-linejoin="round"/>`,
+            style.tip(x, tip, palette, nth)
+        ].join('');
+    });
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${ r2(wide) } ${ r2(high) }" width="${ r2(wide) }" height="${ r2(high) }">
+<defs>
+    ${ style.tones.map((tone, shade) => `<linearGradient id="tone-${ shade }" x1="0" y1="0.2" x2="1" y2="0.6"><stop offset="0" stop-color="${ tone[0] }"/><stop offset="0.5" stop-color="${ tone[1] }"/><stop offset="1" stop-color="${ tone[2] }"/></linearGradient>`).join('\n    ') }
+    ${ motif('motif', palette, 1.2) }
+    <filter id="bg-glow" x="-30%" y="-10%" width="160%" height="120%"><feGaussianBlur stdDeviation="2.6"/></filter>
+    ${ (style.defs?.(palette) ?? []).join('') }
+</defs>
+${ points.join('\n') }
+<rect x="0" y="${ r2(high - 4.4) }" width="${ r2(wide) }" height="4.4" fill="${ POINT_INK }" opacity="0.5"/>
+<rect x="0" y="${ r2(high - 3.4) }" width="${ r2(wide) }" height="3.4" fill="${ edges[0] }"/>
+</svg>
+`;
+}
+
 const pawns = write('pawns', SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => [`${ collection }-${ seat }`, pawnOf(collection, seat)])));
 const decks = write('decks', SHOP_COLLECTIONS.map((collection) => [collection, deckOf(collection)]));
 const backs = write('backs', SHOP_COLLECTIONS.map((collection) => [collection, back(collection)]));
 const yards = write('yards', SHOP_COLLECTIONS.map((collection) => [collection, yard(collection)]));
 const felts = write('felts', SHOP_COLLECTIONS.map((collection) => [collection, mat(collection)]));
+const checkers = write('checkers', SHOP_COLLECTIONS.flatMap((collection) => ['light', 'dark'].map((tone) => [`${ collection }-${ tone }`, checker(collection, tone)])));
+const homes = write('homes', SHOP_COLLECTIONS.map((collection) => [collection, home(collection)]));
 
-console.log(`table looks: ${ pawns } pawns, ${ decks } decks, ${ backs } backs, ${ yards } yards, ${ felts } felts`);
+console.log(`table looks: ${ pawns } pawns, ${ decks } decks, ${ backs } backs, ${ yards } yards, ${ felts } felts, ${ checkers } checkers, ${ homes } home boards`);

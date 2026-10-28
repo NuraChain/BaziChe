@@ -1,8 +1,9 @@
 /**
  * The legendary collections' art, one module each: its pattern's tile, its emblem, the crest its
  * pawns wear, its frame with a still twin, its cover, its deck's dress and corner ornament, its
- * card back and its pawn. Adding a collection is one module here, its palette in
- * `game/looks/palette.ts` and its line in the catalogue.
+ * card back, its pawn, and at a backgammon table its checkers' rim and its home board's points
+ * (`board`). Adding a collection is one module here, its palette in `game/looks/palette.ts` and its
+ * line in the catalogue.
  */
 import * as astral from './astral.mjs';
 import * as frost from './frost.mjs';

@@ -203,6 +203,41 @@ export const back = {
     }
 };
 
+// ---------------------------------------------------------------- backgammon
+
+/** A fracture running round a checker's rim from one turn to another, a short branch breaking off its middle. */
+const rimFracture = (round, from, to) =>
+{
+    const steps = Math.round((to - from) / 6);
+    const along = Array.from({ length: steps + 1 }, (_, step) => round(60.2 + (step % 2 === 0 ? 1.3 : -1.1), from + step * 6).join(' '));
+    const middle = from + Math.floor(steps / 2) * 6;
+
+    return `M${ along.join('L') }M${ round(59.1, middle).join(' ') }L${ round(56.9, middle + 4).join(' ') }`;
+};
+
+/** A fracture down a point's middle, a branch splitting off it nearer the base (`half` is the point's half-width at a height). */
+const split = ({ x, top, bottom, half }) =>
+{
+    const on = (along, side) =>
+    {
+        const y = bottom - (bottom - top) * along;
+        return `${ r2(x + side * half(y) * 0.32) } ${ r2(y) }`;
+    };
+    return `M${ on(1, 0) }L${ on(0.78, 0.6) }L${ on(0.6, -0.7) }L${ on(0.42, 0.5) }L${ on(0.26, -0.4) }L${ on(0.1, 0.3) }M${ on(0.42, 0.5) }L${ on(0.3, 1.5) }L${ on(0.16, 1.9) }`;
+};
+
+/**
+ * Its backgammon art: points of matte black and violet-black, each split by a fracture that glows
+ * ultraviolet, a hollow shard at its tip; a checker's rim split by four fractures.
+ */
+export const board = {
+    tones: [['#2E2244', '#140C22', '#030106'], ['#45325E', '#221636', '#0A0612']],
+    rim: (round) => [[20, 62], [110, 146], [196, 244], [292, 330]].map(([from, to]) =>
+        `<path d="${ rimFracture(round, from, to) }" fill="none" stroke="${ VOID }" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/><path d="${ rimFracture(round, from, to) }" fill="none" stroke="${ ULTRA }" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/><path d="${ rimFracture(round, from, to) }" fill="none" stroke="${ LILAC }" stroke-width="0.35" stroke-linejoin="round" opacity="0.8"/>`).join(''),
+    vein: (line) => `<path d="${ split(line) }" fill="none" stroke="${ VIOLET }" stroke-width="4.4" stroke-linejoin="round" stroke-linecap="round" opacity="0.6"/><path d="${ split(line) }" fill="none" stroke="${ ULTRA }" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><path d="${ split(line) }" fill="none" stroke="${ LILAC }" stroke-width="0.6" stroke-linejoin="round" stroke-linecap="round"/>`,
+    tip: (x, y) => `<path d="M${ r2(x) } ${ r2(y - 26) }L${ r2(x + 8) } ${ r2(y - 6) }L${ r2(x - 7) } ${ r2(y - 9) }Z" fill="${ VOID }" fill-opacity="0.55" stroke="${ ULTRA }" stroke-width="1.6" stroke-linejoin="round"/><circle cx="${ r2(x) }" cy="${ r2(y - 13) }" r="1.6" fill="${ LILAC }"/>`
+};
+
 // ---------------------------------------------------------------- the pawn
 
 /** A pawn: the seat's colour in enamel over matte black cracked with ultraviolet, hooded, its eyes lit in the shadow. */

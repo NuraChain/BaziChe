@@ -5,6 +5,7 @@ import {
     CUBE,
     DICE_X,
     HEIGHT,
+    MIDDLE,
     POINT_WIDTH,
     RADIUS,
     SLAB,
@@ -49,6 +50,9 @@ import {
     type Table as Men,
     type Transfer
 } from '../backgammon-men.ts';
+import { BORNE, ENTRIES } from '../looks/backgammon.ts';
+import { dieDress } from '../looks/dice.ts';
+import { CAPTURES, CRITICALS, burstOf, lightOf, wornOf, type Collection } from '../looks/table.ts';
 import { clamp, seeded } from '../stage/curves.ts';
 import { restOf } from '../stage/dice.ts';
 import { createDie, type Die } from '../stage/die.ts';
@@ -58,6 +62,8 @@ import type { Table } from '../stage/presenter.ts';
 import { arc, walk, type Point } from '../stage/route.ts';
 import type { Run, Stage } from '../stage/stage.ts';
 import { endCue, type SoundHandle } from '../sound.ts';
+import { lazyVfx } from '../vfx/lazy.ts';
+import type { MatchPlayer } from '../../data/match.ts';
 import type { Haptic } from '../../lib/haptics.ts';
 
 export type Invite = 'throw' | 'roll' | 'done' | null;
@@ -81,6 +87,9 @@ export interface TableOptions
 
     /** The reader's own result once the board has it: the match's end is heard from it, and from the side that won only before it is in hand. */
     result?: () => Parameters<typeof endCue>[0];
+
+    /** What a seat's player chose for this table as the game began, asked as their things are drawn. */
+    looks?: (seat: number) => MatchPlayer['look'];
 }
 
 export interface Facts
@@ -206,6 +215,12 @@ const CARRIED = '1.2';
 
 const SET_DOWN = 'cubic-bezier(0.2, 0.7, 0.3, 1)';
 
+/** How wide a thing on the board is, in CSS pixels, that an effect played at a scale of 1 suits. */
+const EFFECT_FITS = 40;
+
+/** A double's critical reveal over the pair, as wide as this many dice. */
+const PAIR = 1.6;
+
 const BAR_X = BAR_LEFT + BAR_WIDTH / 2;
 
 const cq = (units: number) => `${ (units * UNIT).toFixed(3) }cqw`;
@@ -221,6 +236,10 @@ const make = (name: string, parent?: HTMLElement) =>
 
     return made;
 };
+
+const across = (units: number) => `${ (units / WIDTH * 100).toFixed(3) }%`;
+
+const down = (units: number) => `${ (units / HEIGHT * 100).toFixed(3) }%`;
 
 const cubeAt = (owner: Side | null) => `${ cq(BAR_X - CUBE / 2) } ${ cq(cubeY(owner) - CUBE / 2) }`;
 
@@ -311,6 +330,9 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
     let waiting = false;
     let carried: { key: string; x: number; y: number } | null = null;
     const returning = new Map<string, Run>();
+    const homes = new Map<Side, HTMLElement>();
+    const arrivals = new Set<string>();
+    const effects = lazyVfx(host, { layer: LAYER.glow, quiet: () => stage.quiet() });
 
     const hit = make('bgt-hit', zone);
 
@@ -347,6 +369,83 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
     const toneOf = (side: Side) => ((side === 'near') === (shown.viewer === 0) ? 'light' : 'dark');
 
+    const sideOf = (seat: number): Side => (seat === shown.viewer ? 'near' : 'far');
+
+    const lookOf = (side: Side) => options.looks?.(side === 'near' ? shown.viewer : 1 - shown.viewer);
+
+    const px = (units: number) => units * host.clientWidth / WIDTH;
+
+    const pointOf = (spot: Point) => ({ x: px(spot.x), y: px(spot.y) });
+
+    /** A checker, or the count written on its stack, in its owner's tone and look; a look its owner wears makes the moments its own, so their engine is fetched ahead of them. */
+    const dressMan = (el: HTMLElement, side: Side) =>
+    {
+        const worn = wornOf('checkers', lookOf(side)?.checkers);
+
+        el.dataset.tone = toneOf(side);
+
+        if (worn === null)
+        {
+            delete el.dataset.checkers;
+
+            return;
+        }
+
+        el.dataset.checkers = worn;
+        effects.warm();
+    };
+
+    /**
+     * Each player's home board in their look, over the six points of their home under every
+     * checker; one in Classic, or in a look this build does not draw, is the board's own. One that
+     * stays is the node it was, its look changed where it stands.
+     */
+    const dressHomes = () =>
+    {
+        for (const side of ['near', 'far'] as const)
+        {
+            const worn = wornOf('home', lookOf(side)?.home);
+            const held = homes.get(side);
+
+            if (worn === null)
+            {
+                held?.remove();
+                homes.delete(side);
+                continue;
+            }
+
+            const node = held ?? make('bgt-home', host);
+
+            node.dataset.side = side;
+            node.dataset.home = worn;
+            node.setAttribute('aria-hidden', 'true');
+            node.style.left = across(BAR_LEFT + BAR_WIDTH);
+            node.style.top = down(side === 'near' ? MIDDLE : TOP);
+            node.style.width = across(POINT_WIDTH * 6);
+            node.style.height = down(MIDDLE - TOP);
+            homes.set(side, node);
+        }
+    };
+
+    /** A die in the look of the side whose it is, or plain; it is a die of its own, so nothing of a die before it is left on it. */
+    const dressDie = (die: Die, side: Side) =>
+    {
+        const worn = wornOf('dice', lookOf(side)?.dice);
+
+        if (worn === null)
+        {
+            return;
+        }
+
+        for (const [name, value] of Object.entries(dieDress(worn)))
+        {
+            die.node.style.setProperty(name, value);
+        }
+
+        die.node.dataset.look = worn;
+        effects.warm();
+    };
+
     const ensure = (man: Man) =>
     {
         let el = els.get(man.key);
@@ -354,7 +453,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         if (el === undefined)
         {
             el = make('man', host);
-            el.dataset.tone = toneOf(man.side);
+            dressMan(el, man.side);
             el.dataset.key = man.key;
             els.set(man.key, el);
         }
@@ -432,7 +531,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
             tag.dataset.count = String(count);
             tag.textContent = options.say(count);
-            tag.dataset.tone = toneOf(side as Side);
+            dressMan(tag, side as Side);
             tag.style.translate = placed(slot.x, slot.y);
         }
     };
@@ -646,6 +745,15 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
     const manIn = (state: Men, man: Man) => state.men.find((one) => one.key === man.key) as Man;
 
+    /** A moment of a checker in a look: in its collection's light, sized to a checker. */
+    const tuneOf = (worn: Collection) => ({ colors: lightOf(worn), scale: px(RADIUS * 2) / EFFECT_FITS });
+
+    /**
+     * A checker travelling, and what its look plays on the way: its owner's capture where it meets
+     * a blot, as the two meet, and where it comes to rest its entry when it came in from the bar
+     * (on this hop, or on one it was carried through) or its short signature when it was borne off.
+     * Nothing is played for a move taken back.
+     */
     const fly = async (origin: Men, target: Men, move: Move, result: Moved, reverse: boolean, onward = false) =>
     {
         const mover = result.mover;
@@ -661,7 +769,18 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
             : setDown(mover, dropped, to, DROP_BASE, DROP_PACE, DROP_MOST));
         const length = swing?.length ?? 0;
         const impact = reverse ? 0 : length * 0.94;
+        const worn = reverse ? null : wornOf('checkers', lookOf(move.side)?.checkers);
+        const entering = move.from === BAR || arrivals.has(mover.key);
         let thrown = 0;
+
+        if (kept && entering)
+        {
+            arrivals.add(mover.key);
+        }
+        else
+        {
+            arrivals.delete(mover.key);
+        }
 
         flying.add(mover.key);
 
@@ -678,7 +797,16 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         if (swing !== null)
         {
             rest(mover, target, stage.quiet());
-            stage.after(length, () => options.sound()?.play(to.off ? 'checker-off' : 'checker', { pan: pan(to.x), rate: 0.96 + (pips % 3) * 0.04 }));
+            stage.after(length, () =>
+            {
+                options.sound()?.play(to.off ? 'checker-off' : 'checker', { pan: pan(to.x), rate: 0.96 + (pips % 3) * 0.04 });
+
+                if (worn !== null && (to.off || entering))
+                {
+                    options.sound()?.play(`${ worn }.${ to.off ? 'pawn' : 'spawn' }`, { pan: pan(to.x) });
+                    effects.play((vfx) => vfx.signature((to.off ? BORNE : ENTRIES)[worn], pointOf(to), tuneOf(worn)));
+                }
+            });
         }
 
         tally(target);
@@ -705,6 +833,12 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
                 {
                     options.sound()?.play('checker-hit', { pan: pan(hurtFrom.x) });
                     options.feel(move.side === 'near' ? 'capture' : 'hit');
+
+                    if (worn !== null)
+                    {
+                        options.sound()?.play(`${ worn }.capture`, { pan: pan(hurtFrom.x) });
+                        effects.play((vfx) => vfx.signature(CAPTURES[worn], pointOf(hurtFrom), tuneOf(worn)));
+                    }
                 });
             }
 
@@ -792,7 +926,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         count(twice && rested && dice.length > 0 ? left : 0);
     };
 
-    const lay = (face: number, index: number, count: number, seed: number) =>
+    const lay = (face: number, index: number, count: number, seed: number, side: Side) =>
     {
         const die = createDie();
         const spot = restOf(seed, index, count);
@@ -804,8 +938,40 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         die.node.style.left = `${ spot.x }em`;
         die.node.style.top = `${ spot.y }em`;
         die.show(face, seed + index * 977);
+        dressDie(die, side);
 
         return die;
+    };
+
+    const emOf = () => Number.parseFloat(getComputedStyle(zone).fontSize);
+
+    /** Where die `index` of `count` laid with `seed` rests, in CSS pixels of the board. */
+    const restAt = (seed: number, index: number, count: number) =>
+    {
+        const spot = restOf(seed, index, count);
+        const em = emOf() || 0;
+
+        return { x: px(DICE_X) + spot.x * em, y: host.clientHeight / 2 + spot.y * em };
+    };
+
+    /** A die in a look come to rest: its voice and, unless it is half of a double, its collection's landing where it lies, sized to it. */
+    const landed = (die: Die, side: Side, at: Point, double: boolean) =>
+    {
+        const worn = wornOf('dice', lookOf(side)?.dice);
+
+        if (worn === null || !alive.has(die))
+        {
+            return;
+        }
+
+        options.sound()?.play(`${ worn }.die`, { pan: pan(DICE_X) });
+
+        if (!double)
+        {
+            const { effect, tune } = burstOf(worn);
+
+            effects.play((vfx) => vfx.burst(effect, at, { ...tune, scale: (emOf() || 0) / EFFECT_FITS }));
+        }
     };
 
     const drop = (die: Die) =>
@@ -933,7 +1099,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
     const layOpener = (seat: number, face: number) =>
     {
-        const die = lay(face === UNTHROWN ? 1 : face, seat, 2, OPENING_SEED);
+        const die = lay(face === UNTHROWN ? 1 : face, seat, 2, OPENING_SEED, sideOf(seat));
 
         if (face === UNTHROWN)
         {
@@ -1007,7 +1173,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
         if (invited === 'roll' && rested && dice.length === 0)
         {
-            dice = [0, 1].map((index) => lay(1, index, 2, WAIT_SEED));
+            dice = [0, 1].map((index) => lay(1, index, 2, WAIT_SEED, 'near'));
             diceSeed = -1;
             waiting = true;
 
@@ -1021,7 +1187,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         live();
     };
 
-    const show = (faces: readonly number[], seed: number) =>
+    const show = (faces: readonly number[], seed: number, side: Side) =>
     {
         for (const die of dice)
         {
@@ -1029,7 +1195,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         }
 
         unstick();
-        dice = faces.map((face, index) => lay(face, index, faces.length, seed));
+        dice = faces.map((face, index) => lay(face, index, faces.length, seed, side));
         diceSeed = seed;
         used = [];
         rested = true;
@@ -1042,9 +1208,24 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
     const reach = () =>
     {
-        const em = Number.parseFloat(getComputedStyle(zone).fontSize);
+        const em = emOf();
 
         return em > 0 ? Math.max(REACH, host.clientHeight / 2 / em + REACH_OVER) : REACH;
+    };
+
+    /** Doubles in a look with both dice at rest: its collection's critical reveal over the pair, sized to it. */
+    const reveal = (side: Side, seed: number) =>
+    {
+        const worn = wornOf('dice', lookOf(side)?.dice);
+
+        if (worn === null)
+        {
+            return;
+        }
+
+        const [one, two] = [restAt(seed, 0, 2), restAt(seed, 1, 2)];
+
+        effects.play((vfx) => vfx.signature(CRITICALS[worn], { x: (one.x + two.x) / 2, y: (one.y + two.y) / 2 }, { colors: lightOf(worn), scale: (emOf() || 0) * PAIR / EFFECT_FITS }));
     };
 
     const cast = async (faces: readonly number[], sides: readonly Side[], seed: number) =>
@@ -1055,8 +1236,9 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
         const random = seeded(seed);
         const far = reach();
+        const double = faces.length === 2 && faces[0] === faces[1];
 
-        dice = faces.map((face, index) => lay(face, index, faces.length, seed));
+        dice = faces.map((face, index) => lay(face, index, faces.length, seed, sides[index]));
         diceSeed = seed;
         used = [];
         waiting = false;
@@ -1070,12 +1252,17 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
             return die.toss(stage, seed + index * 977, faces[index], from, {
                 impact: (power) => options.sound()?.play('dice-wood', { gain: 0.35 + 0.65 * power, pan: pan(DICE_X + spot.x * 24) })
-            }).done;
+            }).done.then(() => landed(die, sides[index], restAt(seed, index, faces.length), double));
         }));
 
         if (diceSeed !== seed)
         {
             return;
+        }
+
+        if (double)
+        {
+            reveal(sides[0], seed);
         }
 
         rested = true;
@@ -1089,7 +1276,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         options.onRoll?.(seed, [face], false);
         dropOpener(seat);
 
-        const die = lay(face, seat, 2, OPENING_SEED);
+        const die = lay(face, seat, 2, OPENING_SEED, side);
         const random = seeded(seed);
         const far = reach();
         const near = side === 'near';
@@ -1103,13 +1290,14 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
             impact: (power) => options.sound()?.play('dice-wood', { gain: 0.35 + 0.65 * power, pan: pan(DICE_X) })
         }).done;
 
+        landed(die, side, restAt(OPENING_SEED, seat, 2), false);
         options.onRoll?.(seed, [face], true);
     };
 
-    const swap = async (faces: readonly number[], seed: number) =>
+    const swap = async (faces: readonly number[], seed: number, side: Side) =>
     {
         await pick();
-        show(faces, seed);
+        show(faces, seed, side);
         await Promise.all(dice.map((die) => stage.animate(die.node, [{ opacity: 0, offset: 0 }], { duration: 160 }).done));
     };
 
@@ -1189,7 +1377,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         if (shown.dice.join() !== felt.dice.join() || (felt.dice.length > 0 && diceSeed !== felt.seed))
         {
             shown = { ...shown, dice: [...felt.dice] };
-            await swap(felt.dice, felt.seed);
+            await swap(felt.dice, felt.seed, felt.turn ?? 'near');
         }
 
         if (shown.opening.join() !== felt.opening.join())
@@ -1224,7 +1412,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         else if (beat.kind === 'start')
         {
             tell();
-            await Promise.all([pickOpeners(), swap(beat.faces, seedOf(at.id, at.rev))]);
+            await Promise.all([pickOpeners(), swap(beat.faces, seedOf(at.id, at.rev), beat.side)]);
         }
         else if (beat.kind === 'cast')
         {
@@ -1359,6 +1547,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         tags.clear();
         marks.clear();
         flying.clear();
+        arrivals.clear();
         dice = [];
         waiting = false;
         rested = true;
@@ -1391,10 +1580,11 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
             cubeEl.style.zIndex = '';
             shown = shownOf(felt, shown.men.serial);
+            dressHomes();
             redraw();
             drawCube(shown.cube);
             wanted = { spent: felt.spent, seed: felt.seed };
-            show(felt.dice, felt.seed);
+            show(felt.dice, felt.seed, felt.turn ?? 'near');
             drawOpeners();
             live();
             tell();
@@ -1604,10 +1794,18 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         dispose()
         {
             strip();
+            effects.dispose();
             hit.removeEventListener('click', pressDice);
             cubeEl.removeEventListener('click', pressCube);
             zone.remove();
             cubeEl.remove();
+
+            for (const node of homes.values())
+            {
+                node.remove();
+            }
+
+            homes.clear();
         }
     };
 }

@@ -37,7 +37,7 @@ import { useSettings } from '../src/stores/settings.store.ts';
 import type { Watched } from '../src/stores/watch.store.ts';
 import type { MatchView } from '../src/api.ts';
 
-const sounds = vi.hoisted(() => ({ games: [] as string[], heard: [] as string[] }));
+const sounds = vi.hoisted(() => ({ games: [] as string[], heard: [] as string[], worn: [] as string[][] }));
 
 vi.mock('../src/game/sound.ts', async (original) =>
 {
@@ -57,6 +57,11 @@ vi.mock('../src/game/sound.ts', async (original) =>
                 {
                     sounds.heard.push(asked[0]);
                     handle.play(...asked);
+                },
+                wear: (collections: Parameters<typeof handle.wear>[0]) =>
+                {
+                    sounds.worn.push([...collections]);
+                    handle.wear(collections);
                 }
             };
         }
@@ -215,6 +220,7 @@ beforeEach(() =>
     useSettings().reset();
     sounds.games.length = 0;
     sounds.heard.length = 0;
+    sounds.worn.length = 0;
 });
 
 afterEach(() =>
@@ -2864,5 +2870,34 @@ describe('moves made on the table itself', () =>
             expect(board(waiting.container).classList.contains('touch-manipulation')).toBe(true);
             expect(board(waiting.container).closest('[data-drags]')).toBeNull();
         });
+    });
+});
+
+describe('a backgammon board in its players’ looks', () =>
+{
+    const worn = (looks: Record<number, MatchView['players'][number]['look']>) => [0, 1].map((seat) => ({ seat, who: seat === 0 ? 'dana.w' : 'omid.k', timeouts: 0, ...(looks[seat] === undefined ? {} : { look: looks[seat] }) })) as MatchView['players'];
+
+    it('hands each seat’s look to its table: their checkers, their home board and the checker on their rail', async () =>
+    {
+        const { container } = await live(match({}, 0, { players: worn({ 0: { checkers: 'checkers.jade', dice: 'dice.storm' }, 1: { home: 'home.void' } }) }));
+        const rail = (seat: 'true' | undefined) => [...container.querySelectorAll<HTMLElement>('.bg-rail')].find((one) => one.dataset.me === seat)!.querySelector<HTMLElement>('.bg-checker')!;
+
+        expect([...men(container)].filter((man) => (man as HTMLElement).dataset.tone === 'light').every((man) => (man as HTMLElement).dataset.checkers === 'jade')).toBe(true);
+        expect([...men(container)].filter((man) => (man as HTMLElement).dataset.tone === 'dark').some((man) => (man as HTMLElement).hasAttribute('data-checkers'))).toBe(false);
+        expect([...container.querySelectorAll<HTMLElement>('.bg-layer .bgt-home')].map((home) => [home.dataset.side, home.dataset.home])).toEqual([['far', 'void']]);
+        expect([rail('true').dataset.tone, rail('true').dataset.checkers]).toEqual(['light', 'jade']);
+        expect([rail(undefined).dataset.tone, rail(undefined).hasAttribute('data-checkers')]).toEqual(['dark', false]);
+    });
+
+    it('wears the voices of the collections its players’ dice and checkers are in, once each, and those of the next game’s', async () =>
+    {
+        const board = await live(match({}, 0, { players: worn({ 0: { checkers: 'checkers.jade', dice: 'dice.storm' }, 1: { checkers: 'checkers.storm', home: 'home.void' } }) }));
+
+        expect(sounds.worn.at(-1)).toEqual(['storm', 'jade']);
+
+        board.move(match({}, 0, { id: 'match-bg-2', players: worn({ 1: { dice: 'dice.oni' } }) }));
+        await flush();
+
+        expect(sounds.worn.at(-1)).toEqual(['oni']);
     });
 });

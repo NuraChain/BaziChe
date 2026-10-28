@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<defs>
+    <radialGradient id="face" cx="0.36" cy="0.3" r="0.78"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.6" stop-color="#EAF7F3"/><stop offset="1" stop-color="#C6E6DF"/></radialGradient>
+    <linearGradient id="rim" x1="0.15" y1="0.1" x2="0.85" y2="0.9"><stop offset="0" stop-color="#7196AF"/><stop offset="0.5" stop-color="#0B4A75"/><stop offset="1" stop-color="#062940"/></linearGradient>
+    <pattern id="motif" width="28" height="28" patternUnits="userSpaceOnUse" patternTransform="scale(0.9)"><path d="M19.3 19.3L8.7 19.3L8.7 8.7L19.3 8.7ZM21.5 14L14 21.5L6.5 14L14 6.5ZM14 0V6.5M14 21.5V28M0 14H6.5M21.5 14H28M0 0L4 4M28 0L24 4M0 28L4 24M28 28L24 24" fill="none" stroke="#E7BE63" stroke-width="0.9" stroke-linejoin="round"/><circle cx="14" cy="14" r="1.6" fill="#FFF4D6"/></pattern>
+    <radialGradient id="gloss" cx="0.32" cy="0.24" r="0.6"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/><stop offset="0.7" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+    <radialGradient id="lit"><stop offset="0" stop-color="#FFF4D6" stop-opacity="0.42"/><stop offset="1" stop-color="#FFF4D6" stop-opacity="0"/></radialGradient>
+    <filter id="lift" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="1.2" stdDeviation="1.1" flood-color="#000000" flood-opacity="0.3"/></filter>
+    <filter id="bg-glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.2"/></filter>
+    
+    
+</defs>
+<circle cx="64" cy="64" r="63.5" fill="url(#rim)"/>
+<path d="M65.56 5.36L62.44 5.36L62.44 2.24L65.56 2.24ZM66.2 3.8L64 6L61.8 3.8L64 1.6Z" fill="#E7BE63"/><path d="M95.66 13.43L92.54 13.43L92.54 10.31L95.66 10.31ZM96.3 11.87L94.1 14.07L91.9 11.87L94.1 9.67Z" fill="#E7BE63"/><path d="M117.69 35.46L114.57 35.46L114.57 32.34L117.69 32.34ZM118.33 33.9L116.13 36.1L113.93 33.9L116.13 31.7Z" fill="#E7BE63"/><path d="M125.76 65.56L122.64 65.56L122.64 62.44L125.76 62.44ZM126.4 64L124.2 66.2L122 64L124.2 61.8Z" fill="#E7BE63"/><path d="M117.69 95.66L114.57 95.66L114.57 92.54L117.69 92.54ZM118.33 94.1L116.13 96.3L113.93 94.1L116.13 91.9Z" fill="#E7BE63"/><path d="M95.66 117.69L92.54 117.69L92.54 114.57L95.66 114.57ZM96.3 116.13L94.1 118.33L91.9 116.13L94.1 113.93Z" fill="#E7BE63"/><path d="M65.56 125.76L62.44 125.76L62.44 122.64L65.56 122.64ZM66.2 124.2L64 126.4L61.8 124.2L64 122Z" fill="#E7BE63"/><path d="M35.46 117.69L32.34 117.69L32.34 114.57L35.46 114.57ZM36.1 116.13L33.9 118.33L31.7 116.13L33.9 113.93Z" fill="#E7BE63"/><path d="M13.43 95.66L10.31 95.66L10.31 92.54L13.43 92.54ZM14.07 94.1L11.87 96.3L9.67 94.1L11.87 91.9Z" fill="#E7BE63"/><path d="M5.36 65.56L2.24 65.56L2.24 62.44L5.36 62.44ZM6 64L3.8 66.2L1.6 64L3.8 61.8Z" fill="#E7BE63"/><path d="M13.43 35.46L10.31 35.46L10.31 32.34L13.43 32.34ZM14.07 33.9L11.87 36.1L9.67 33.9L11.87 31.7Z" fill="#E7BE63"/><path d="M35.46 13.43L32.34 13.43L32.34 10.31L35.46 10.31ZM36.1 11.87L33.9 14.07L31.7 11.87L33.9 9.67Z" fill="#E7BE63"/>
+<circle cx="64" cy="64" r="56.5" fill="url(#face)"/>
+<circle cx="64" cy="64" r="56.5" fill="url(#motif)" opacity="0.22"/>
+<circle cx="64" cy="64" r="56.5" fill="none" stroke="#052135" stroke-width="1.4" opacity="0.7"/>
+<circle cx="64" cy="64" r="63" fill="none" stroke="#041E2F" stroke-width="1"/>
+<circle cx="64" cy="64" r="42.4" fill="none" stroke="#FFFFFF" stroke-width="0.9" opacity="0.35"/>
+<circle cx="64" cy="64" r="41" fill="none" stroke="#0B4A75" stroke-width="2.6" opacity="0.8"/>
+
+<g filter="url(#lift)"><path d="M64 42L67.79 54.85L79.56 48.44L73.15 60.21L86 64L73.15 67.79L79.56 79.56L67.79 73.15L64 86L60.21 73.15L48.44 79.56L54.85 67.79L42 64L54.85 60.21L48.44 48.44L60.21 54.85Z" fill="#08324C" stroke="#E7BE63" stroke-width="1.8" stroke-linejoin="round"/><path d="M72.09 72.09L55.91 72.09L55.91 55.91L72.09 55.91ZM75.44 64L64 75.44L52.56 64L64 52.56Z" fill="none" stroke="#E7BE63" stroke-width="1.1"/><circle cx="64" cy="64" r="3.74" fill="#FFF4D6"/></g>
+<circle cx="64" cy="64" r="56.5" fill="url(#gloss)"/>
+</svg>

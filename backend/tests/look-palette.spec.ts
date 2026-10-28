@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { BUNDLES, LOOKS, SHOP_COLLECTIONS } from '../src/domains/shop/catalogue.ts';
+import { MIDDLE, POINT_WIDTH, SPIKES, TOP, columnOf } from '../../frontend/src/game/backgammon-layout.ts';
 import { PALETTES, SEAT_RAMPS } from '../../frontend/src/game/looks/palette.ts';
 
 const channel = (value: number) =>
@@ -158,6 +159,67 @@ describe('what a table wears', () =>
     {
         expect(readFileSync(new URL(`../../frontend/public/backs/${ collection }.svg`, import.meta.url), 'utf8')).toContain('viewBox="0 0 204 288"');
     });
+
+    const TONES = ['light', 'dark'] as const;
+
+    it('draws a checker of every collection for each side of a board, and nothing else', () =>
+    {
+        const drawn = readdirSync(new URL('../../frontend/public/checkers/', import.meta.url)).sort();
+
+        expect(drawn).toEqual(SHOP_COLLECTIONS.flatMap((collection) => TONES.map((tone) => `${ collection }-${ tone }.svg`)).sort());
+    });
+
+    it.each(SHOP_COLLECTIONS.flatMap((collection) => TONES.map((tone) => [collection, tone] as const)))('fills the board’s own checker with %s’s %s one: its face from that side’s material, ringed in the colour that stands out from it', (collection, tone) =>
+    {
+        const checker = readFileSync(new URL(`../../frontend/public/checkers/${ collection }-${ tone }.svg`, import.meta.url), 'utf8');
+        const palette = PALETTES[collection];
+        const face = /<radialGradient id="face"[^>]*>(.*?)<\/radialGradient>/.exec(checker)?.[1] ?? '';
+        const rim = /<linearGradient id="rim"[^>]*>(.*?)<\/linearGradient>/.exec(checker)?.[1] ?? '';
+
+        expect(checker).toContain('viewBox="0 0 128 128"');
+        expect(checker).toContain('<circle cx="64" cy="64" r="63.5" fill="url(#rim)"/>');
+        expect([...face.matchAll(/stop-color="(#\w+)"/g)].map(([, stop]) => stop)).toEqual([...(tone === 'light' ? palette.pale : palette.deep)]);
+        expect(rim).toContain(`<stop offset="0.5" stop-color="${ tone === 'light' ? palette.deep[1] : palette.edge }"/>`);
+    });
+
+    it('keeps every light checker far from every dark one in light, the board’s own two included, so any two sets on one board read as two sides', () =>
+    {
+        const tokens = readFileSync(new URL('../../frontend/src/styles/tokens.css', import.meta.url), 'utf8');
+        const token = (name: string) => new RegExp(`--nard-${ name }: (#\\w{6});`).exec(tokens)![1]!;
+        const lights = [token('light'), ...SHOP_COLLECTIONS.map((collection) => PALETTES[collection].pale[1])];
+        const darks = [token('dark'), ...SHOP_COLLECTIONS.map((collection) => PALETTES[collection].deep[1])];
+
+        for (const light of lights)
+        {
+            for (const dark of darks)
+            {
+                expect(contrast(light, dark), `${ light } beside ${ dark }`).toBeGreaterThanOrEqual(3);
+            }
+        }
+    });
+
+    it('draws a home board of every collection and nothing else', () =>
+    {
+        const drawn = readdirSync(new URL('../../frontend/public/homes/', import.meta.url)).sort();
+
+        expect(drawn).toEqual(SHOP_COLLECTIONS.map((collection) => `${ collection }.svg`).sort());
+    });
+
+    it.each([...SHOP_COLLECTIONS])('lays %s’s home board on the board’s own six points, in its two tones by turns as the board’s own are', (collection) =>
+    {
+        const home = readFileSync(new URL(`../../frontend/public/homes/${ collection }.svg`, import.meta.url), 'utf8');
+        const left = columnOf(6).x;
+        const local = (corner: string) =>
+        {
+            const [x, y] = corner.split(',').map(Number) as [number, number];
+            return `${ Math.round((x - left) * 100) / 100 },${ Math.round((y - MIDDLE) * 100) / 100 }`;
+        };
+        const filled = [...home.matchAll(/<polygon points="([^"]+)" fill="url\(#tone-(\d)\)"\/>/g)].map(([, points, tone]) => ({ points, tone: Number(tone) }));
+        const own = SPIKES.filter((spike) => spike.point <= 6).toSorted((one, other) => other.point - one.point);
+
+        expect(home).toContain(`viewBox="0 0 ${ POINT_WIDTH * 6 } ${ MIDDLE - TOP }"`);
+        expect(filled).toEqual(own.map((spike) => ({ points: spike.path.split(' ').map(local).join(' '), tone: spike.shade === 'a' ? 0 : 1 })));
+    });
 });
 
 describe('the legendary collections\' art', () =>
@@ -208,6 +270,11 @@ describe('the legendary collections\' art', () =>
         expect(line.dress.suits.map((suit: { name: string }) => suit.name)).toEqual(['club', 'diamond', 'heart', 'spade']);
         expect(line.ornament(204, 288)).toMatch(/^</);
         expect(line.back.border).toMatch(/^#[0-9A-F]{6}$/i);
+        expect(line.board.tones).toHaveLength(2);
+        expect(line.board.tones.flat().every((stop: string) => /^#[0-9A-F]{6}$/i.test(stop))).toBe(true);
+        expect(line.board.rim((r: number, turn: number) => [64 + r * Math.sin(turn), 64 - r * Math.cos(turn)], true, palette)).toMatch(/^</);
+        expect(line.board.vein({ x: 33, top: 62, bottom: 386, half: () => 10 }, palette, 0)).toMatch(/^</);
+        expect(line.board.tip(33, 62, palette, 0)).toMatch(/^</);
     });
 });
 

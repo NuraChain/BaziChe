@@ -226,6 +226,24 @@ export const back = {
     }
 };
 
+// ---------------------------------------------------------------- backgammon
+
+/**
+ * Its backgammon art: points of carved jade and deep jade, a line of gold inlaid down each and a
+ * pearl at its tip; a checker's rim clasped in gold at four places.
+ */
+export const board = {
+    tones: [['#4BD39C', '#24A472', '#0E5A3D'], ['#1C8A60', '#0D5038', '#052A1C']],
+    defs: () => [gilt('bg-gold'), `<radialGradient id="bg-pearl" cx="0.36" cy="0.32" r="0.8"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.5" stop-color="#FFF1C4"/><stop offset="1" stop-color="${ GOLD }"/></radialGradient>`],
+    rim: (round, light) => [45, 135, 225, 315].map((turn) =>
+    {
+        const [x, y] = round(60.2, turn);
+        return `<g transform="rotate(${ turn } ${ x } ${ y })"><rect x="${ r2(x - 4.4) }" y="${ r2(y - 3.4) }" width="8.8" height="6.8" rx="2" fill="url(#bg-gold)" stroke="${ INK }" stroke-width="0.8"/><circle cx="${ x }" cy="${ y }" r="1.5" fill="${ light ? JADE : PALE }"/></g>`;
+    }).join(''),
+    vein: ({ x, top, bottom }) => `<path d="M${ r2(x) } ${ r2(bottom - 12) }V${ r2(top + 28) }" stroke="${ INK }" stroke-width="3.4" stroke-linecap="round" opacity="0.6"/><path d="M${ r2(x) } ${ r2(bottom - 12) }V${ r2(top + 28) }" stroke="url(#bg-gold)" stroke-width="1.8" stroke-linecap="round"/>${ [0.3, 0.55, 0.78].map((along) => `<circle cx="${ r2(x) }" cy="${ r2(bottom - 12 - (bottom - top - 40) * along) }" r="1.9" fill="${ PALE }" stroke="${ INK }" stroke-width="0.6"/>`).join('') }`,
+    tip: (x, y) => `<path d="M${ r2(x) } ${ r2(y - 25) }c2 2 1 3.4 0 4.6" fill="none" stroke="${ CINNABAR }" stroke-width="1.6" stroke-linecap="round"/><circle cx="${ r2(x) }" cy="${ r2(y - 12) }" r="7.4" fill="url(#bg-pearl)" stroke="${ INK }" stroke-width="1.2"/><circle cx="${ r2(x - 2.4) }" cy="${ r2(y - 14.4) }" r="2" fill="#FFFFFF" opacity="0.8"/>`
+};
+
 // ---------------------------------------------------------------- the pawn
 
 /** A pawn: the seat's colour in enamel set in carved jade with gold rims at its foot and collar, a dragon's horns, whiskers and pearl. */

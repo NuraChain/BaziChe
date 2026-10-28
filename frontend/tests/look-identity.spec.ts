@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import { LEGENDARY_COLLECTIONS, SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
 import { AURAS, REVEALS } from '../src/game/looks/aura.ts';
+import { BORNE, ENTRIES } from '../src/game/looks/backgammon.ts';
 import { playAt } from '../src/game/looks/cards.ts';
 import { LIGHTS } from '../src/game/looks/lights.ts';
-import { SIXES, TAKES, TRAILS } from '../src/game/looks/ludo.ts';
-import { burstOf, lightOf } from '../src/game/looks/table.ts';
+import { TRAILS } from '../src/game/looks/ludo.ts';
+import { CAPTURES, CRITICALS, burstOf, lightOf } from '../src/game/looks/table.ts';
 
 describe('a legendary collection\'s motion', () =>
 {
@@ -64,7 +65,23 @@ describe('a legendary collection at a Ludo table', () =>
 
     it.each([...LEGENDARY_COLLECTIONS])('throws a six of %s and takes a pawn of it with signatures whose first layers no other collection opens with', (collection) =>
     {
-        expect(others(collection).map((one) => SIXES[one][0].effect)).not.toContain(SIXES[collection][0].effect);
-        expect(others(collection).map((one) => TAKES[one][0].effect)).not.toContain(TAKES[collection][0].effect);
+        expect(others(collection).map((one) => CRITICALS[one][0].effect)).not.toContain(CRITICALS[collection][0].effect);
+        expect(others(collection).map((one) => CAPTURES[one][0].effect)).not.toContain(CAPTURES[collection][0].effect);
+    });
+});
+
+describe('a collection’s moments at a backgammon table', () =>
+{
+    const others = (collection: (typeof SHOP_COLLECTIONS)[number]) => SHOP_COLLECTIONS.filter((one) => one !== collection);
+
+    it.each([...LEGENDARY_COLLECTIONS])('brings a checker of %s in from the bar and bears one off with signatures whose first layers no other collection opens with', (collection) =>
+    {
+        expect(others(collection).map((one) => ENTRIES[one][0].effect)).not.toContain(ENTRIES[collection][0].effect);
+        expect(others(collection).map((one) => BORNE[one][0].effect)).not.toContain(BORNE[collection][0].effect);
+    });
+
+    it.each([...SHOP_COLLECTIONS])('brings a checker of %s in from the bar otherwise than it takes a blot', (collection) =>
+    {
+        expect(ENTRIES[collection].map((step) => step.effect)).not.toEqual(CAPTURES[collection].map((step) => step.effect));
     });
 });

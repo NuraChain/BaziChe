@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<defs>
+    <radialGradient id="face" cx="0.36" cy="0.3" r="0.78"><stop offset="0" stop-color="#3A2D63"/><stop offset="0.6" stop-color="#1B1333"/><stop offset="1" stop-color="#07040F"/></radialGradient>
+    <linearGradient id="rim" x1="0.15" y1="0.1" x2="0.85" y2="0.9"><stop offset="0" stop-color="#FF94E5"/><stop offset="0.5" stop-color="#FF46D2"/><stop offset="1" stop-color="#8C2774"/></linearGradient>
+    <pattern id="motif" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="scale(0.9)"><path d="M0 0.5H16M0.5 0V16" stroke="#38E8FF" stroke-width="0.7"/><circle cx="0.5" cy="0.5" r="1.1" fill="#FF46D2"/></pattern>
+    <radialGradient id="gloss" cx="0.32" cy="0.24" r="0.6"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.32"/><stop offset="0.7" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+    <radialGradient id="lit"><stop offset="0" stop-color="#38E8FF" stop-opacity="0.42"/><stop offset="1" stop-color="#38E8FF" stop-opacity="0"/></radialGradient>
+    <filter id="lift" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="1.2" stdDeviation="1.1" flood-color="#000000" flood-opacity="0.55"/></filter>
+    <filter id="bg-glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.2"/></filter>
+    
+    
+</defs>
+<circle cx="64" cy="64" r="63.5" fill="url(#rim)"/>
+<circle cx="64" cy="64" r="60.2" fill="none" stroke="#FFFFFF" stroke-width="1" opacity="0.85"/>
+<circle cx="64" cy="64" r="56.5" fill="url(#face)"/>
+<circle cx="64" cy="64" r="56.5" fill="url(#motif)" opacity="0.4"/>
+<circle cx="64" cy="64" r="56.5" fill="none" stroke="#731F5E" stroke-width="1.4" opacity="0.7"/>
+<circle cx="64" cy="64" r="63" fill="none" stroke="#661C54" stroke-width="1"/>
+<circle cx="64" cy="64" r="42.4" fill="none" stroke="#FFFFFF" stroke-width="0.9" opacity="0.35"/>
+<circle cx="64" cy="64" r="41" fill="none" stroke="#FF46D2" stroke-width="2.6" opacity="0.8"/>
+<circle cx="64" cy="64" r="34" fill="url(#lit)"/>
+<g filter="url(#lift)"><g fill="none" filter="url(#bg-glow)" opacity="0.8"><path d="M86 64L64 86L42 64L64 42Z" stroke="#FF46D2" stroke-width="3.4"/><path d="M77.2 64L64 77.2L50.8 64L64 50.8Z" stroke="#38E8FF" stroke-width="2.6"/></g><path d="M86 64L64 86L42 64L64 42Z" fill="#110B24" stroke="#FF46D2" stroke-width="2.4" stroke-linejoin="round"/><path d="M77.2 64L64 77.2L50.8 64L64 50.8Z" fill="none" stroke="#38E8FF" stroke-width="2" stroke-linejoin="round"/></g>
+<circle cx="64" cy="64" r="56.5" fill="url(#gloss)"/>
+</svg>

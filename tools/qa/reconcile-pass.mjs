@@ -9,8 +9,8 @@
  *
  * The server runs built, on a database nobody else uses, with every contract tools/qa/vault-deploy.mjs
  * deployed on a NEW node (the pass moves its clock past the vault's wait at its end), NURA_REFEREE_KEY
- * the referee, MARKET_REGIONS=DE, MARKET_COUNTRY_HEADER=CF-IPCountry and ADMIN_WALLET_ADDRESS the
- * owner's: hardhat's published #6 unless QA_OWNER_KEY names another. The reconciliation pass runs once
+ * the referee and ADMIN_WALLET_ADDRESS the owner's: hardhat's published #6 unless QA_OWNER_KEY names
+ * another. The reconciliation pass runs once
  * a minute, so each part waits up to ninety seconds for what it should see; PGDATABASE names the
  * server's database because rows are changed by hand there.
  */
@@ -45,8 +45,6 @@ const PASS_WITHIN_MS = 90_000;
 const MOVED_WITHIN_MS = 60_000;
 
 const STAKE = (10n * WEI).toString();
-
-const COUNTRY = 'DE';
 
 let checks = 0;
 let failures = 0;
@@ -103,7 +101,7 @@ const session = () =>
     {
         const response = await fetch(`${ BASE }/api${ path }`, {
             method,
-            headers: { 'content-type': 'application/json', 'cf-ipcountry': COUNTRY, ...(cookie === '' ? {} : { cookie }) },
+            headers: { 'content-type': 'application/json', ...(cookie === '' ? {} : { cookie }) },
             body: body === undefined ? undefined : JSON.stringify(body)
         });
 

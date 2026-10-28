@@ -1263,8 +1263,7 @@ moves the node's clock past the vault's wait at its end, and has it mine a block
 market pass does), every contract `vault-deploy.mjs` deploys on it, a database nobody else uses
 given its schema by `sync-cli`, and the built server started on it with `NURA_RPC_URL`,
 `NURA_CHAIN_ID=31337`, `NURA_VAULT_ADDRESS`, `NURA_REFEREE_KEY` (#9), `NURA_SHOP_ADDRESS`,
-`NURA_TIPS_ADDRESS`, `NURA_MARKETS_ADDRESS`, `MARKET_REGIONS=DE`, `MARKET_COUNTRY_HEADER=CF-IPCountry`
-and `ADMIN_WALLET_ADDRESS` set to hardhat's #6 (`QA_OWNER_KEY` names another owner's key), its output
+`NURA_TIPS_ADDRESS`, `NURA_MARKETS_ADDRESS` and `ADMIN_WALLET_ADDRESS` set to hardhat's #6 (`QA_OWNER_KEY` names another owner's key), its output
 written to the file `QA_LOG` names, where the pass reads the server's warnings. PGDATABASE names the
 server's database because rows are changed by hand. The reconciliation pass runs once a minute, so
 each part waits up to ninety seconds.

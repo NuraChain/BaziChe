@@ -1,0 +1,495 @@
+import { Link, onCleanup, untrack } from 'azerothjs';
+
+import { NURA_CHAIN } from '../../data/chain.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { choiceName, claimsOf, estimateOf, handlesOf, shareOf } from '../../lib/market.ts';
+import { amountOf, explorerTx, nuraOf } from '../../lib/nura.ts';
+import { shortAddress } from '../../lib/wallet.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useMarkets } from '../../stores/markets.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import { useRealtime } from '../../stores/realtime.store.ts';
+import Button from '../ui/button.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import Spinner from '../ui/spinner.component.azeroth';
+import MarketOutcome, { type OutcomeShown } from './market-outcome.component.azeroth';
+import MarketPositionRow from './market-position-row.component.azeroth';
+import '../../locales/market-catalogue.ts';
+
+const STATE_WORDS: Partial<Record<string, MessageKey>> = {
+    closing: 'market.state.closing',
+    refunded: 'market.state.refunded',
+    cancelled: 'market.state.cancelled',
+    expired: 'market.state.expired',
+    empty: 'market.state.empty'
+};
+
+/**
+ * The market on a game the reader watches: who it may go to and what the chain holds on each, a
+ * position placed from the reader's own wallet into `ArcadeMarkets`, and what theirs came to.
+ */
+export default component MarketSheet(props: OverlayProps & { match: string })
+{
+    const locale = useLocale();
+    const markets = useMarkets();
+    const people = usePeople();
+    const live = useRealtime();
+
+    state picked = -1;
+
+    state chosen = '';
+
+    state typed = '';
+
+    state typing = false;
+
+    const figure = (wei: string | bigint) => locale.n(nuraOf(wei), { maximumFractionDigits: 4 });
+
+    const two = (value: number) => locale.n(value, { minimumIntegerDigits: 2, useGrouping: false });
+
+    const named = (handle: string) => people.byHandle(handle);
+
+    derived market = markets.view();
+
+    derived now = markets.now();
+
+    derived known = market !== null;
+
+    derived awaited = market === null && markets.viewLoading();
+
+    derived missing = market === null && !markets.viewLoading();
+
+    derived held = markets.state();
+
+    derived terms = held !== null && held.open ? held : null;
+
+    derived may = terms?.may ?? null;
+
+    derived presets = terms?.presets ?? [];
+
+    derived least = terms?.least ?? '0';
+
+    derived most = terms?.most ?? '0';
+
+    derived closesAt = market === null ? 0 : live.toLocal(Date.parse(market.closesAt));
+
+    derived seconds = Math.max(0, Math.ceil((closesAt - now) / 1000));
+
+    derived taking = market !== null && market.state === 'open' && seconds > 0;
+
+    derived clock = `${ locale.n(Math.floor(seconds / 60)) }:${ two(seconds % 60) }`;
+
+    derived outcomes = (market?.outcomes ?? []).map((one, index): OutcomeShown => ({
+        index,
+        name: choiceName(one.choice, locale.t, named, true),
+        pool: one.pool,
+        share: shareOf(one.pool, market!.pool),
+        won: market!.state === 'settled' && market!.outcome === index
+    }));
+
+    derived whenWords = (() =>
+    {
+        if (market === null)
+        {
+            return '';
+        }
+
+        if (taking)
+        {
+            return locale.t('market.closesIn', { time: clock });
+        }
+
+        if (market.state === 'settled' && market.outcome !== undefined)
+        {
+            return locale.t('market.state.settled', { name: choiceName(market.outcomes[market.outcome].choice, locale.t, named, false) });
+        }
+
+        const word = STATE_WORDS[market.state];
+
+        return word === undefined ? locale.t('market.closed') : locale.t(word);
+    })();
+
+    derived poolWords = locale.t('market.pool', { amount: figure(market?.pool ?? '0') });
+
+    derived bettorsWords = locale.plural('market.bettors', market?.bettors ?? 0, { count: locale.n(market?.bettors ?? 0) });
+
+    derived feeWords = (market?.feeBps ?? 0) === 0
+        ? locale.t('market.fee.none')
+        : locale.t('market.fee.some', { percent: locale.n((market?.feeBps ?? 0) / 10_000, { style: 'percent', maximumFractionDigits: 2 }) });
+
+    derived pickedName = picked < 0 || market === null || market.outcomes[picked] === undefined
+        ? ''
+        : choiceName(market.outcomes[picked].choice, locale.t, named, false);
+
+    derived written = typing ? amountOf(typed, least, most) : null;
+
+    derived amount = typing ? written ?? '' : chosen;
+
+    derived ready = amount !== '' && picked >= 0;
+
+    derived badTyping = typing && typed.trim() !== '' && written === null;
+
+    derived placing = markets.placing();
+
+    derived mine = placing !== null && market !== null && placing.market === market.id;
+
+    derived step = mine ? placing!.step : null;
+
+    derived working = step === 'preparing' || step === 'wallet' || step === 'chain';
+
+    derived finished = step === 'done';
+
+    derived failed = step === 'failed';
+
+    derived elsewhere = placing !== null && !mine && (placing.step === 'preparing' || placing.step === 'wallet' || placing.step === 'chain');
+
+    derived shownAmount = mine ? placing!.amount : amount;
+
+    derived shownName = mine && market !== null && market.outcomes[placing!.outcome] !== undefined
+        ? choiceName(market.outcomes[placing!.outcome].choice, locale.t, named, false)
+        : pickedName;
+
+    derived stepWords = step === 'wallet'
+        ? locale.t('market.step.wallet', { amount: figure(shownAmount), address: shortAddress(placing?.from ?? '') })
+        : locale.t(step === 'chain' ? 'market.step.chain' : 'market.step.preparing');
+
+    derived link = !mine || placing!.hash === null || placing!.chainId === null ? null : explorerTx(placing!.chainId, placing!.hash);
+
+    derived linked = link !== null;
+
+    derived doneWords = locale.t('market.step.done', { name: shownName, amount: figure(shownAmount) });
+
+    derived short = failed && placing!.said === 'market.refused.market-funds' && placing!.held !== null;
+
+    derived shortWords = locale.t('market.short', { held: figure(placing?.held ?? '0'), amount: figure(shownAmount) });
+
+    derived plainFail = failed && !short;
+
+    derived failWords = locale.t(placing?.said ?? 'common.actionFailed', {
+        least: figure(least),
+        most: figure(most),
+        bettor: figure(terms?.perBettor ?? '0'),
+        day: figure(terms?.perDay ?? '0')
+    });
+
+    derived disclosing = taking && may === 'market-disclosure';
+
+    derived needsTerms = taking && may === 'market-terms';
+
+    derived resting = taking && may === 'market-break';
+
+    derived choosing = taking && may === 'yes' && !working && !finished && !elsewhere;
+
+    derived open = choosing;
+
+    derived placeWords = ready
+        ? locale.t('market.place', { name: pickedName, amount: figure(amount) })
+        : locale.t('market.pick');
+
+    derived estimate = ready && market !== null && market.outcomes[picked] !== undefined
+        ? estimateOf(market.pool, market.outcomes[picked].pool, amount, market.feeBps)
+        : null;
+
+    derived estimated = estimate !== null;
+
+    derived estimateWords = locale.t('market.estimate', { name: pickedName, amount: figure(estimate ?? 0n) });
+
+    derived rangeWords = locale.t('market.otherHint', { least: figure(least), most: figure(most) });
+
+    derived badWords = locale.t('market.otherBad', { least: figure(least), most: figure(most) });
+
+    derived yours = market?.mine ?? [];
+
+    derived holding = yours.length > 0;
+
+    derived claims = claimsOf(yours, (serverAt) => live.toLocal(serverAt) <= now);
+
+    derived claiming = markets.claiming();
+
+    derived claimWorking = claiming !== null && (claiming.step === 'preparing' || claiming.step === 'wallet' || claiming.step === 'chain');
+
+    derived claimDone = claiming !== null && claiming.step === 'done';
+
+    derived claimFailed = claiming !== null && claiming.step === 'failed';
+
+    derived claimable = claims.length > 0 && !claimWorking;
+
+    derived claimStepWords = locale.t(claiming?.step === 'chain' ? 'market.step.chain' : claiming?.step === 'wallet' ? 'market.claim.wallet' : 'market.step.preparing');
+
+    derived claimDoneWords = locale.t('market.claim.done', { amount: figure(claiming?.paid ?? '0') });
+
+    derived claimFailWords = locale.t(claiming?.said ?? 'common.actionFailed');
+
+    derived several = claims.length > 1;
+
+    let release: () => void = () => undefined;
+
+    effect
+    {
+        const match = props.match;
+
+        untrack(() =>
+        {
+            release();
+            release = markets.watch(match);
+        });
+    }
+
+    onCleanup(() => release());
+
+    effect
+    {
+        const handles = (market?.outcomes ?? []).flatMap((one) => handlesOf(one.choice));
+
+        if (handles.length > 0)
+        {
+            void people.want(handles);
+        }
+    }
+
+    mount
+    {
+        const unlisten = markets.listen();
+        const offered = untrack(() => presets);
+
+        if (offered.length > 1)
+        {
+            chosen = offered[1];
+        }
+
+        return () =>
+        {
+            unlisten();
+            markets.forget();
+        };
+    }
+
+    const pickAmount = (wei: string) =>
+    {
+        typing = false;
+        chosen = wei;
+    };
+
+    const place = () =>
+    {
+        if (!ready || working || market === null)
+        {
+            return;
+        }
+
+        void markets.place(market.id, picked, amount);
+    };
+
+    const claim = (ids: readonly string[]) =>
+    {
+        if (claimWorking)
+        {
+            return;
+        }
+
+        void markets.claim(ids);
+    };
+
+    const claimWords = (total: bigint, address: string) => (several
+        ? locale.t('market.claimTo', { amount: figure(total), address: shortAddress(address) })
+        : locale.t('market.claim', { amount: figure(total) }));
+
+    <div class="flex flex-col gap-4 p-4" data-market>
+        <header class="flex items-start gap-3">
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold/15 text-gold">
+                <Icon name="trophy" size={ 20 } />
+            </span>
+            <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span class="text-ui-lg font-semibold text-text">{ locale.t('market.title') }</span>
+                <span class="text-ui-xs text-muted" role="status" data-market-when>{ whenWords }</span>
+            </span>
+            <IconButton icon="close" label={ locale.t('common.close') } variant="ghost" onClick={ () => props.close() } />
+        </header>
+
+        <Show when={ awaited }>
+            <Skeleton lines={ 3 } class="rounded-panel border border-line bg-field p-4" />
+        </Show>
+
+        <Show when={ missing }>
+            <p class="rounded-tile border border-line bg-sunk p-3 text-ui-sm text-muted">{ locale.t('market.refused.market-missing') }</p>
+        </Show>
+
+        <Show when={ known }>
+            <Show when={ taking }>
+                <p class="text-ui-sm text-muted">{ locale.t('market.lead') }</p>
+            </Show>
+
+            <div role="radiogroup" aria-label={ locale.t('market.pick') } class="flex flex-col gap-2" data-outcomes>
+                <For each={ outcomes } key={ (one) => one.index } let={ one }>
+                    <div class="contents">
+                        <MarketOutcome outcome={ one } picked={ picked === one.index } open={ open } onPick={ (index) => picked = index } />
+                    </div>
+                </For>
+            </div>
+
+            <p class="facts text-ui-xs text-muted" data-market-pool>
+                <span>{ poolWords }</span>
+                <span>{ bettorsWords }</span>
+            </p>
+        </Show>
+
+        <Show when={ disclosing }>
+            <section class="flex flex-col gap-3 rounded-tile border border-line bg-sunk p-3" aria-labelledby="market-disclosure" data-disclosure>
+                <h3 id="market-disclosure" class="text-ui-md font-semibold text-text">{ locale.t('market.disclosure.title') }</h3>
+                <ul class="flex list-disc flex-col gap-1.5 ps-5 text-ui-sm text-muted">
+                    <li>{ locale.t('market.disclosure.pool') }</li>
+                    <li>{ locale.t('market.disclosure.win') }</li>
+                    <li>{ locale.t('market.disclosure.refund') }</li>
+                    <li>{ locale.t('market.disclosure.wait') }</li>
+                    <li>{ locale.t('market.disclosure.money') }</li>
+                </ul>
+                <Button variant="primary" block onClick={ () => void markets.disclose() }>{ locale.t('market.disclosure.accept') }</Button>
+            </section>
+        </Show>
+
+        <Show when={ needsTerms }>
+            <div class="flex flex-col gap-2 rounded-tile border border-line bg-sunk p-3">
+                <p class="text-ui-sm text-text">{ locale.t('market.may.terms') }</p>
+                <Link to="/app/me/wallet" class="self-start text-ui-sm font-semibold text-accent underline-offset-2 hover:underline" onClick={ () => props.close() }>{ locale.t('market.toWallet') }</Link>
+            </div>
+        </Show>
+
+        <Show when={ resting }>
+            <p class="rounded-tile border border-line bg-sunk p-3 text-ui-sm text-muted">{ locale.t('market.refused.market-break') }</p>
+        </Show>
+
+        <Show when={ choosing }>
+            <fieldset class="flex flex-col gap-3">
+                <legend class="mb-2 text-ui-sm font-semibold text-text">{ locale.t('market.amount') }</legend>
+                <ul class="grid grid-cols-3 gap-2">
+                    <For each={ presets } key={ (wei) => wei } let={ wei }>
+                        <li>
+                            <button
+                                type="button"
+                                class={ () => [
+                                    'flex min-h-11 w-full cursor-pointer items-center justify-center gap-1 rounded-control border text-ui-md font-semibold transition-colors',
+                                    !typing && chosen === wei ? 'border-accent bg-accent-fill/15 text-text' : 'border-line bg-field text-muted hover:bg-raised'
+                                ].join(' ') }
+                                aria-pressed={ !typing && chosen === wei }
+                                data-preset={ wei }
+                                onClick={ () => pickAmount(wei) }
+                            >
+                                <span class="tally">{ figure(wei) }</span> NURA
+                            </button>
+                        </li>
+                    </For>
+                </ul>
+                <button
+                    type="button"
+                    class="min-h-11 cursor-pointer self-start text-ui-sm font-semibold text-accent underline-offset-2 hover:underline"
+                    aria-pressed={ typing }
+                    data-other
+                    onClick={ () => typing = true }
+                >
+                    { locale.t('market.other') }
+                </button>
+                <Show when={ typing }>
+                    <div class="flex flex-col gap-1">
+                        <Input
+                            value={ typed }
+                            onInput={ (value) => typed = value }
+                            inputmode="decimal"
+                            autofocus
+                            label={ locale.t('market.other') }
+                            placeholder={ rangeWords }
+                            invalid={ badTyping }
+                            onEnter={ place }
+                        />
+                        <Show when={ badTyping }>
+                            <p class="text-ui-xs text-danger" data-bad-amount>{ badWords }</p>
+                        </Show>
+                    </div>
+                </Show>
+            </fieldset>
+        </Show>
+
+        <Show when={ elsewhere }>
+            <p class="text-ui-sm text-muted">{ locale.t('market.busy') }</p>
+        </Show>
+
+        <Show when={ working }>
+            <div role="status" class="flex items-start gap-3 rounded-tile border border-line bg-sunk p-3" data-place-step={ step ?? '' }>
+                <Spinner size={ 16 } />
+                <div class="flex min-w-0 flex-col gap-1">
+                    <p class="text-ui-sm text-text">{ stepWords }</p>
+                    <Show when={ linked }>
+                        <a href={ link ?? '' } target="_blank" rel="noopener noreferrer" class="text-ui-sm font-semibold text-accent underline-offset-2 hover:underline">{ locale.t('market.step.transaction') }</a>
+                    </Show>
+                </div>
+            </div>
+        </Show>
+
+        <Show when={ finished }>
+            <div role="status" class="flex items-start gap-3 rounded-tile border border-live/40 bg-live/10 p-3" data-place-step="done">
+                <Icon name="check-circle" size={ 18 } class="shrink-0 text-live" />
+                <div class="flex min-w-0 flex-col gap-1">
+                    <p class="text-ui-sm font-semibold text-text">{ doneWords }</p>
+                    <Show when={ linked }>
+                        <a href={ link ?? '' } target="_blank" rel="noopener noreferrer" class="text-ui-sm font-semibold text-accent underline-offset-2 hover:underline">{ locale.t('market.step.transaction') }</a>
+                    </Show>
+                </div>
+            </div>
+        </Show>
+
+        <Show when={ failed }>
+            <div role="alert" class="flex flex-col gap-2 rounded-tile border border-gold/40 bg-gold/10 p-3" data-place-step="failed">
+                <Show when={ plainFail }>
+                    <p class="text-ui-sm text-text">{ failWords }</p>
+                </Show>
+                <Show when={ short }>
+                    <p class="text-ui-sm text-text">{ shortWords }</p>
+                    <a href={ NURA_CHAIN.site } target="_blank" rel="noopener noreferrer" class="self-start text-ui-sm font-semibold text-accent underline-offset-2 hover:underline">{ locale.t('market.getNura') }</a>
+                </Show>
+            </div>
+        </Show>
+
+        <Show when={ choosing }>
+            <Button variant="primary" size="lg" block leading="coins" disabled={ !ready } onClick={ place }>{ placeWords }</Button>
+            <Show when={ estimated }>
+                <p class="text-ui-sm text-muted" data-estimate>{ estimateWords }</p>
+            </Show>
+            <p class="text-ui-xs text-faint">{ feeWords } { locale.t('market.money') }</p>
+        </Show>
+
+        <Show when={ holding }>
+            <section class="flex flex-col gap-2" aria-labelledby="market-yours" data-yours>
+                <h3 id="market-yours" class="text-ui-sm font-semibold text-text">{ locale.t('market.yours') }</h3>
+                <ul class="divide-y divide-line rounded-panel border border-line bg-field">
+                    <For each={ yours } key={ (one) => one.id } let={ one }>
+                        <li>
+                            <MarketPositionRow position={ one } now={ now } />
+                        </li>
+                    </For>
+                </ul>
+                <Show when={ claimable }>
+                    <For each={ claims } key={ (one) => one.address } let={ one }>
+                        <div data-claim={ one.address }>
+                            <Button variant="primary" block leading="coins" onClick={ () => claim(one.ids) }>{ claimWords(one.total, one.address) }</Button>
+                        </div>
+                    </For>
+                </Show>
+                <Show when={ claimWorking }>
+                    <div role="status" class="flex items-start gap-3 rounded-tile border border-line bg-sunk p-3" data-claim-step={ claiming?.step ?? '' }>
+                        <Spinner size={ 16 } />
+                        <p class="text-ui-sm text-text">{ claimStepWords }</p>
+                    </div>
+                </Show>
+                <Show when={ claimDone }>
+                    <p role="status" class="rounded-tile border border-live/40 bg-live/10 p-3 text-ui-sm font-semibold text-text" data-claim-step="done">{ claimDoneWords }</p>
+                </Show>
+                <Show when={ claimFailed }>
+                    <p role="alert" class="rounded-tile border border-gold/40 bg-gold/10 p-3 text-ui-sm text-text" data-claim-step="failed">{ claimFailWords }</p>
+                </Show>
+            </section>
+        </Show>
+    </div>
+}

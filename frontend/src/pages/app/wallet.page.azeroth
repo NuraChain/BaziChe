@@ -10,6 +10,7 @@ import Panel from '../../components/ui/panel.component.azeroth';
 import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import Toggle from '../../components/ui/switch.component.azeroth';
 import DonationsHistory from '../../components/donate/donations-history.component.azeroth';
+import LazyMarketPositions from '../../components/market/lazy-market-positions.component.azeroth';
 import VaultGames from '../../components/vault/vault-games.component.azeroth';
 import VaultMove, { type Deposits } from '../../components/vault/vault-move.component.azeroth';
 import { GAMES } from '../../data/games.ts';
@@ -250,5 +251,7 @@ export default component WalletPage()
         <Show when={ donating }>
             <DonationsHistory class="mt-6" />
         </Show>
+
+        <LazyMarketPositions class="mt-6" />
     </Page>
 }

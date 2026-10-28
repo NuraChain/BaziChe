@@ -272,7 +272,7 @@ const confirmed = (who, id) => until(CONFIRMED_WITHIN_MS, async () =>
     return position?.state === 'confirmed' ? position : null;
 });
 
-const marketAs = (who, match) => who.get(`/markets/matches/${ match }`).then((answer) => answer.body);
+const marketAs = (who, match) => who.get(`/markets/matches/${ match }`).then((answer) => answer.body?.market ?? null);
 
 const resolved = (who, match, state) => until(RESOLVED_WITHIN_MS, async () =>
 {

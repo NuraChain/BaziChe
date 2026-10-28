@@ -1,0 +1,98 @@
+import type { MarketPositionView } from '../../api.ts';
+import type { GameId } from '../../data/games.ts';
+import { choiceName } from '../../lib/market.ts';
+import { nuraOf } from '../../lib/nura.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import { useCatalogue } from '../../stores/catalogue.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import { useRealtime } from '../../stores/realtime.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import type { Tone } from '../ui/variants.ts';
+
+const STATE_WORD: Record<MarketPositionView['state'], MessageKey> = {
+    prepared: 'market.position.prepared',
+    sent: 'market.position.sent',
+    confirmed: 'market.position.confirmed',
+    reverted: 'market.position.reverted',
+    expired: 'market.position.expired'
+};
+
+const STATE_TONE: Record<MarketPositionView['state'], Tone> = {
+    prepared: 'neutral',
+    sent: 'accent',
+    confirmed: 'accent',
+    reverted: 'danger',
+    expired: 'neutral'
+};
+
+/** One of the reader's positions: what it backed, and where it stands or what it came to. */
+export default component MarketPositionRow(props: { position: MarketPositionView; game?: boolean; now: number })
+{
+    const locale = useLocale();
+    const people = usePeople();
+    const catalogue = useCatalogue();
+    const live = useRealtime();
+
+    const figure = (wei: string) => locale.n(nuraOf(wei), { maximumFractionDigits: 4 });
+
+    derived position = props.position;
+
+    derived words = locale.t('market.position', {
+        amount: figure(position.amount),
+        name: choiceName(position.choice, locale.t, (handle) => people.byHandle(handle), false)
+    });
+
+    derived gameShown = props.game === true;
+
+    derived gameWords = locale.t('market.list.game', {
+        game: locale.t(catalogue.byId(position.game as GameId).nameKey),
+        when: locale.date(Date.parse(position.at), { dateStyle: 'medium', timeStyle: 'short' })
+    });
+
+    derived waiting = position.result === 'won' && position.claimedAt === undefined && position.claimableAt !== undefined
+        && live.toLocal(Date.parse(position.claimableAt)) > props.now;
+
+    derived result = (() =>
+    {
+        if (position.result === 'won')
+        {
+            if (position.claimedAt !== undefined)
+            {
+                return position.paid === undefined
+                    ? locale.t('market.result.claimedNothing')
+                    : locale.t('market.result.claimed', { amount: figure(position.paid) });
+            }
+
+            return locale.t('market.result.won', { amount: figure(position.payout ?? '0') });
+        }
+
+        if (position.result === 'refund')
+        {
+            return position.claimedAt !== undefined
+                ? locale.t('market.result.claimed', { amount: figure(position.paid ?? position.amount) })
+                : locale.t('market.result.refund', { amount: figure(position.payout ?? position.amount) });
+        }
+
+        return position.result === 'lost' ? locale.t('market.result.lost') : locale.t(STATE_WORD[position.state]);
+    })();
+
+    derived tone: Tone = position.result === 'won' ? 'live' : position.result === 'lost' ? 'neutral' : position.result === 'refund' ? 'gold' : STATE_TONE[position.state];
+
+    derived claimWhen = waiting && position.claimableAt !== undefined
+        ? locale.t('market.result.claimFrom', { when: locale.relative(Math.max(live.toLocal(Date.parse(position.claimableAt)), props.now + 1000), { now: props.now }) })
+        : '';
+
+    <div class="flex min-h-14 items-center gap-3 px-4 py-3" data-position={ position.state } data-result={ position.result ?? '' }>
+        <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span class="text-ui-sm text-text" dir={ locale.dir() } data-position-words>{ words }</span>
+            <Show when={ gameShown }>
+                <span class="text-ui-xs text-faint">{ gameWords }</span>
+            </Show>
+            <Show when={ waiting }>
+                <span class="text-ui-xs text-muted" data-claim-from>{ claimWhen }</span>
+            </Show>
+        </span>
+        <Badge dot text={ result } tone={ tone } />
+    </div>
+}

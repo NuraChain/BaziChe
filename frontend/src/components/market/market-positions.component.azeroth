@@ -1,0 +1,184 @@
+import { claimsOf, handlesOf } from '../../lib/market.ts';
+import { nuraOf } from '../../lib/nura.ts';
+import { shortAddress } from '../../lib/wallet.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useMarkets } from '../../stores/markets.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import { useRealtime } from '../../stores/realtime.store.ts';
+import Button from '../ui/button.component.azeroth';
+import EmptyState from '../ui/empty-state.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import LoadMore from '../ui/load-more.component.azeroth';
+import SectionHeading from '../ui/section-heading.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import Spinner from '../ui/spinner.component.azeroth';
+import MarketPositionRow from './market-position-row.component.azeroth';
+import '../../locales/market-catalogue.ts';
+
+/** The games the reader backed while watching them, a page at a time, and the claims their wallets can make now. */
+export default component MarketPositions(props: { class?: string })
+{
+    const locale = useLocale();
+    const markets = useMarkets();
+    const people = usePeople();
+    const live = useRealtime();
+
+    state paging = false;
+
+    state pageFailed = false;
+
+    const figure = (wei: bigint) => locale.n(nuraOf(wei), { maximumFractionDigits: 4 });
+
+    derived open = markets.state()?.open === true;
+
+    derived now = markets.now();
+
+    derived rows = markets.positions();
+
+    derived awaited = markets.positionsLoading() && rows.length === 0;
+
+    derived refused = markets.positionsFailed();
+
+    derived bare = !markets.positionsLoading() && !refused && rows.length === 0;
+
+    derived listed = rows.length > 0;
+
+    derived more = markets.hasOlder();
+
+    derived claims = claimsOf(rows, (serverAt) => live.toLocal(serverAt) <= now);
+
+    derived several = claims.length > 1;
+
+    derived claiming = markets.claiming();
+
+    derived working = claiming !== null && (claiming.step === 'preparing' || claiming.step === 'wallet' || claiming.step === 'chain');
+
+    derived claimable = claims.length > 0 && !working;
+
+    derived done = claiming !== null && claiming.step === 'done';
+
+    derived failed = claiming !== null && claiming.step === 'failed';
+
+    derived stepWords = locale.t(claiming?.step === 'chain' ? 'market.step.chain' : claiming?.step === 'wallet' ? 'market.claim.wallet' : 'market.step.preparing');
+
+    derived doneWords = locale.t('market.claim.done', { amount: figure(BigInt(claiming?.paid ?? '0')) });
+
+    derived failWords = locale.t(claiming?.said ?? 'common.actionFailed');
+
+    effect
+    {
+        if (open)
+        {
+            markets.wantPositions();
+        }
+    }
+
+    effect
+    {
+        const handles = rows.flatMap((one) => handlesOf(one.choice));
+
+        if (handles.length > 0)
+        {
+            void people.want(handles);
+        }
+    }
+
+    mount
+    {
+        const unlisten = markets.listen();
+
+        return () =>
+        {
+            unlisten();
+            markets.forget();
+        };
+    }
+
+    const older = async () =>
+    {
+        if (paging)
+        {
+            return;
+        }
+
+        paging = true;
+        pageFailed = false;
+
+        try
+        {
+            await markets.older();
+        }
+        catch
+        {
+            pageFailed = true;
+        }
+        finally
+        {
+            paging = false;
+        }
+    };
+
+    const claimWords = (total: bigint, address: string) => (several
+        ? locale.t('market.claimTo', { amount: figure(total), address: shortAddress(address) })
+        : locale.t('market.claim', { amount: figure(total) }));
+
+    <Show when={ open }>
+        <section class={ () => [ 'flex flex-col gap-3', props.class ?? '' ].join(' ') } aria-labelledby="markets-title" data-markets>
+            <SectionHeading id="markets-title" title={ locale.t('market.list.title') } />
+            <p class="-mt-2 text-ui-sm text-muted">{ locale.t('market.list.lead') }</p>
+
+            <Show when={ claimable }>
+                <For each={ claims } key={ (one) => one.address } let={ one }>
+                    <div data-claim={ one.address }>
+                        <Button variant="primary" block leading="coins" onClick={ () => void markets.claim(one.ids) }>{ claimWords(one.total, one.address) }</Button>
+                    </div>
+                </For>
+            </Show>
+
+            <Show when={ working }>
+                <div role="status" class="flex items-start gap-3 rounded-tile border border-line bg-sunk p-3" data-claim-step={ claiming?.step ?? '' }>
+                    <Spinner size={ 16 } />
+                    <p class="text-ui-sm text-text">{ stepWords }</p>
+                </div>
+            </Show>
+
+            <Show when={ done }>
+                <p role="status" class="rounded-tile border border-live/40 bg-live/10 p-3 text-ui-sm font-semibold text-text" data-claim-step="done">{ doneWords }</p>
+            </Show>
+
+            <Show when={ failed }>
+                <p role="alert" class="rounded-tile border border-gold/40 bg-gold/10 p-3 text-ui-sm text-text" data-claim-step="failed">{ failWords }</p>
+            </Show>
+
+            <Show when={ awaited }>
+                <Skeleton lines={ 3 } class="rounded-panel border border-line bg-field p-4" />
+            </Show>
+
+            <Show when={ refused }>
+                <ErrorState title={ locale.t('market.list.failed') } onRetry={ () => markets.again() } />
+            </Show>
+
+            <Show when={ bare }>
+                <EmptyState icon="trophy" title={ locale.t('market.list.empty') } class="py-8" />
+            </Show>
+
+            <Show when={ listed }>
+                <ul class="divide-y divide-line rounded-panel border border-line bg-field" aria-labelledby="markets-title">
+                    <For each={ rows } key={ (one) => one.id } let={ one }>
+                        <li>
+                            <MarketPositionRow position={ one } game now={ now } />
+                        </li>
+                    </For>
+                </ul>
+            </Show>
+
+            <Show when={ pageFailed }>
+                <p class="text-center text-ui-xs text-danger" role="alert">{ locale.t('market.list.failed') }</p>
+            </Show>
+
+            <Show when={ more }>
+                <LoadMore label={ locale.t('market.list.more') } loading={ paging } onMore={ () => void older() } />
+            </Show>
+        </section>
+    </Show>
+}

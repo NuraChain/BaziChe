@@ -48,6 +48,7 @@ import {
     donationsState,
     marketClaimInput,
     marketClaimSentInput,
+    marketLook,
     marketPaying,
     marketPosition,
     marketPositionInput,
@@ -55,7 +56,6 @@ import {
     marketPositionsQuery,
     marketSentInput,
     marketsState,
-    marketView,
     adminClearInput,
     adminHistoryQuery,
     adminLiftInput,
@@ -676,8 +676,8 @@ export function buildApi(ports: Ports)
             disclose: routes.post('/disclosure', { output: marketsState }, (context) =>
                 ports.markets.disclose(context.principal.userId, (name) => context.request.headers.get(name))),
 
-            /** The market on a game the reader may watch, opened the first time anybody asks while it may take positions. */
-            game: routes.get('/matches/:match', { output: marketView }, (context) =>
+            /** The market on a game the reader may watch, opened the first time anybody asks while it may take positions; none where there is none. */
+            game: routes.get('/matches/:match', { output: marketLook }, (context) =>
                 ports.markets.view(context.principal.userId, (name) => context.request.headers.get(name), context.params.match)),
 
             /**

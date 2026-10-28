@@ -1,0 +1,68 @@
+import Icon from '../../icons/icon.component.azeroth';
+import { nuraOf } from '../../lib/nura.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+
+export interface OutcomeShown
+{
+    index: number;
+    name: string;
+
+    /** Wei the chain holds on it. */
+    pool: string;
+
+    /** Its share of the whole pool, from nought to one. */
+    share: number;
+    won: boolean;
+}
+
+/** One outcome of a market: who it is, what the chain holds on it, and the press that picks it. */
+export default component MarketOutcome(props: { outcome: OutcomeShown; picked: boolean; open: boolean; onPick: (index: number) => void })
+{
+    const locale = useLocale();
+
+    derived name = props.outcome.name;
+
+    derived poolWords = locale.t('market.pool', { amount: locale.n(nuraOf(props.outcome.pool), { maximumFractionDigits: 4 }) });
+
+    derived shareWords = locale.t('market.share', { percent: locale.n(props.outcome.share, { style: 'percent', maximumFractionDigits: 0 }) });
+
+    derived width = `${ Math.round(props.outcome.share * 1000) / 10 }%`;
+
+    derived won = props.outcome.won;
+
+    derived picked = props.picked;
+
+    derived wonWords = locale.t('market.won');
+
+    <button
+        type="button"
+        role="radio"
+        aria-checked={ picked }
+        disabled={ !props.open }
+        class={ () => [
+            'relative flex min-h-14 w-full items-center gap-3 overflow-hidden rounded-tile border px-3 py-2 text-start transition-colors',
+            picked ? 'border-accent bg-accent-fill/15' : won ? 'border-live/50 bg-live/10' : 'border-line bg-field',
+            props.open ? 'cursor-pointer hover:bg-raised' : 'cursor-default'
+        ].join(' ') }
+        data-outcome={ props.outcome.index }
+        onClick={ () => props.onPick(props.outcome.index) }
+    >
+        <span aria-hidden="true" class="pointer-events-none absolute inset-y-0 start-0 bg-accent/10" style={ () => `width: ${ width }` } />
+        <span class="relative flex min-w-0 flex-1 flex-col">
+            <span class="truncate text-ui-md font-semibold text-text" dir="auto">{ name }</span>
+            <span class="facts text-ui-xs text-muted">
+                <span>{ poolWords }</span>
+                <span>{ shareWords }</span>
+            </span>
+        </span>
+        <Show when={ won }>
+            <span class="relative flex items-center gap-1 text-ui-xs font-semibold text-live">
+                <Icon name="trophy" size={ 14 } />
+                { wonWords }
+            </span>
+        </Show>
+        <Show when={ picked }>
+            <Icon name="check-circle" size={ 18 } class="relative shrink-0 text-accent" />
+        </Show>
+    </button>
+}

@@ -2,8 +2,7 @@ import { Link, untrack } from 'azerothjs';
 
 import { NURA_CHAIN } from '../../data/chain.ts';
 import Icon from '../../icons/icon.component.azeroth';
-import { amountOf } from '../../lib/donate.ts';
-import { explorerTx, nuraOf } from '../../lib/nura.ts';
+import { amountOf, explorerTx, nuraOf } from '../../lib/nura.ts';
 import { shortAddress } from '../../lib/wallet.ts';
 import { useDonations } from '../../stores/donations.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';

@@ -899,6 +899,12 @@ export const marketPosition = object({
     game: string(),
     outcome: number(),
 
+    /** Who the outcome backed is, by handle as it is now. */
+    choice: marketChoice,
+
+    /** The reader's wallet that placed it, in lower case: its claim is sent from there. */
+    address: string(),
+
     /** Wei. */
     amount: string(),
     state: enumOf(POSITION_STATES),
@@ -949,6 +955,11 @@ export const marketView = object({
 });
 
 export type MarketView = Infer<typeof marketView>;
+
+/** The market on a game, where there is one the reader may see. */
+export const marketLook = object({ market: marketView.optional() });
+
+export type MarketLook = Infer<typeof marketLook>;
 
 /** A position, and the call the reader's wallet sends to place it. */
 export const marketPaying = object({ position: marketPosition, call: walletCall });

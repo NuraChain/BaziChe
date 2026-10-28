@@ -10,7 +10,7 @@ import type {
     MarketPositions,
     MarketPositionView,
     MarketsState,
-    MarketView,
+    MarketLook,
     AdminPeople,
     AdminPerson,
     AdminMatches,
@@ -666,7 +666,7 @@ export interface MarketPort
     disclose(me: string, header: HeaderOf): Promise<MarketsState>;
 
     /** The market on a game the reader may watch: its outcomes, the stakes held on each, and the reader's own. */
-    view(me: string, header: HeaderOf, matchId: string): Promise<MarketView>;
+    view(me: string, header: HeaderOf, matchId: string): Promise<MarketLook>;
 
     /** A position on one outcome, and the call the reader's wallet sends to place it. */
     place(me: string, header: HeaderOf, marketId: string, input: { outcome: number; amount: string }): Promise<MarketPaying>;

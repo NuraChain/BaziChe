@@ -10,7 +10,7 @@ import { MatchPlayer } from '../../entities/match-player.entity.ts';
 import { Match } from '../../entities/match.entity.ts';
 import { Table } from '../../entities/table.entity.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan } from '../../lib/keyset.ts';
-import type { MarketChoice, MarketPaying, MarketPositions, MarketPositionView, MarketsState, MarketView, WalletCall } from '../../schemas.ts';
+import type { MarketChoice, MarketLook, MarketPaying, MarketPositions, MarketPositionView, MarketsState, WalletCall } from '../../schemas.ts';
 import type { Engine } from '../match/engine.ts';
 import { voidedOf } from '../match/service.ts';
 import { eligibilityOf, WEI_PER_NURA, weiOf, type Eligibility, type Standing } from '../stake/policy.ts';
@@ -146,6 +146,10 @@ interface PositionRow extends TermsFields
     market_state: MarketState;
     market_outcome: number | null;
     claimable_at: Date | null;
+    choices: Choice[];
+
+    /** Each seat's handle, by seat. */
+    handles: Record<string, string> | null;
     lapsed: boolean;
     at_key: string;
 }
@@ -209,6 +213,8 @@ const positionQuery = (from: DataSource | EntityManager) => from.getRepository(M
     .addSelect('k.max_pool::text', 'max_pool')
     .addSelect('k.min_bettors', 'min_bettors')
     .addSelect('k.min_outcomes', 'min_outcomes')
+    .addSelect('k.choices', 'choices')
+    .addSelect('(select jsonb_object_agg(s.seat, u.handle) from match_players s join users u on u.id = s.user_id where s.match_id = k.match_id)', 'handles')
     .addSelect(`p.deadline + ${ LAPSE } < now()`, 'lapsed')
     .addSelect(keyOf('p.created_at'), 'at_key');
 
@@ -298,6 +304,8 @@ const asPosition = (row: PositionRow, pools: Pools): MarketPositionView =>
         match: row.match_id,
         game: row.game,
         outcome: row.outcome,
+        choice: choiceView(row.choices[row.outcome]!, new Map(Object.entries(row.handles ?? {}).map(([seat, handle]) => [Number(seat), handle]))),
+        address: row.address,
         amount: row.amount,
         state: row.state,
         deadline: new Date(row.deadline).toISOString(),
@@ -531,6 +539,8 @@ export function createMarketService(
     const playsIn = (me: string, matchId: string) => db.getRepository(MatchPlayer).existsBy({ matchId, userId: me });
 
     const watches = async (me: string, tableId: string) => (await mayWatch(tableId, [me])).includes(me);
+
+    const holdsIn = (me: string, marketId: string) => db.getRepository(MarketPosition).existsBy({ marketId, bettorId: me });
 
     /** Whoever may take a position, or the refusal they would meet. */
     const mustMay = async (me: string, country: string | null) =>
@@ -1099,8 +1109,12 @@ export function createMarketService(
             return await stateFor(me, country);
         },
 
-        /** The market on a game the reader may watch, opened the first time it is asked for. */
-        async view(me: string, country: string | null, matchId: string): Promise<MarketView>
+        /**
+         * The market on a game the reader may watch, opened the first time it is asked for, or the one
+         * they hold a stake in whatever became of its table. A game with none, or one the reader may
+         * not see, answers with no market: most games have none, and it is no refusal.
+         */
+        async view(me: string, country: string | null, matchId: string): Promise<MarketLook>
         {
             if (!open)
             {
@@ -1117,9 +1131,9 @@ export function createMarketService(
 
             const market = UUID.test(matchId) ? await marketOfMatch(me, matchId) : null;
 
-            if (market === null || !(await watches(me, market.table_id)))
+            if (market === null || !(await watches(me, market.table_id) || await holdsIn(me, market.id)))
             {
-                throw noMarket();
+                return {};
             }
 
             const [players, pools, bettors, held] = await Promise.all([
@@ -1147,21 +1161,23 @@ export function createMarketService(
             const pool = [...byOutcome.values()].reduce((sum, one) => sum + one, 0n);
 
             return {
-                id: market.id,
-                match: market.match_id,
-                game: market.game,
-                state: market.state,
-                closesAt: new Date(market.closes_at).toISOString(),
-                feeBps: market.fee_bps,
-                minBettors: market.min_bettors,
-                minOutcomes: market.min_outcomes,
-                outcomes: market.choices.map((choice, index) => ({ choice: choiceView(choice, handles), pool: (byOutcome.get(index) ?? 0n).toString() })),
-                pool: pool.toString(),
-                bettors: bettors?.bettors ?? 0,
-                ...(market.outcome === null || market.state === 'open' ? {} : { outcome: market.outcome }),
-                ...(market.claimable_at === null ? {} : { claimableAt: new Date(market.claimable_at).toISOString() }),
-                ...(market.tx_hash === null ? {} : { hash: market.tx_hash }),
-                mine: held.map((row) => asPosition(row, pools))
+                market: {
+                    id: market.id,
+                    match: market.match_id,
+                    game: market.game,
+                    state: market.state,
+                    closesAt: new Date(market.closes_at).toISOString(),
+                    feeBps: market.fee_bps,
+                    minBettors: market.min_bettors,
+                    minOutcomes: market.min_outcomes,
+                    outcomes: market.choices.map((choice, index) => ({ choice: choiceView(choice, handles), pool: (byOutcome.get(index) ?? 0n).toString() })),
+                    pool: pool.toString(),
+                    bettors: bettors?.bettors ?? 0,
+                    ...(market.outcome === null || market.state === 'open' ? {} : { outcome: market.outcome }),
+                    ...(market.claimable_at === null ? {} : { claimableAt: new Date(market.claimable_at).toISOString() }),
+                    ...(market.tx_hash === null ? {} : { hash: market.tx_hash }),
+                    mine: held.map((row) => asPosition(row, pools))
+                }
             };
         },
 

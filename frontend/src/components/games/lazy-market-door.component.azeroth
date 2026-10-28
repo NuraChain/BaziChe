@@ -1,0 +1,24 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+type Door = (props: { match: string }) => MountNode;
+
+/** The way to a watched game's market, fetched once the page is drawn so the play page's chunk carries none of it. */
+export default component LazyMarketDoor(props: { match: string })
+{
+    let Door: Door | null = null;
+
+    state loaded = false;
+
+    mount
+    {
+        void import('../market/market-door.component.azeroth').then((module) =>
+        {
+            Door = module.default as Door;
+            loaded = true;
+        }, () => undefined);
+    }
+
+    <Show when={ loaded }>
+        { () => <Dynamic component={ Door! } props={ () => ({ match: props.match }) } /> }
+    </Show>
+}

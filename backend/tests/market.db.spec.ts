@@ -180,7 +180,7 @@ const watched = async () =>
     const guest = await person();
     const watcher = await person();
     const game = await liveGame(ports, [host, guest]);
-    const market = await ports.markets.view(watcher.id, DE, game.matchId);
+    const market = (await ports.markets.view(watcher.id, DE, game.matchId)).market!;
 
     return { ports, fake, host, guest, watcher, game, market };
 };
@@ -285,10 +285,10 @@ describe.skipIf(!active)('markets, against a real database', () =>
             const watcher = await person();
             const other = await person();
             const game = await liveGame(ports, [host, guest]);
-            const [first, second] = await Promise.all([
+            const [first, second] = (await Promise.all([
                 ports.markets.view(watcher.id, DE, game.matchId),
                 ports.markets.view(other.id, DE, game.matchId)
-            ]);
+            ])).map((one) => one.market!);
 
             expect(first.id).toBe(second.id);
             expect(await db.getRepository(Market).countBy({ matchId: game.matchId })).toBe(1);
@@ -319,26 +319,42 @@ describe.skipIf(!active)('markets, against a real database', () =>
             const { ports } = door();
             const [a, b, c, d, e, f] = await Promise.all([person(), person(), person(), person(), person(), person()]);
             const watcher = await person();
-            const missing = { status: 404, code: 'market-missing' };
 
             const invite = await liveGame(ports, [a, b], { privacy: 'invite' });
-            expect(await refusal(ports.markets.view(watcher.id, DE, invite.matchId))).toEqual(missing);
-            expect(await refusal(ports.markets.view(a.id, DE, invite.matchId)), 'not even to somebody who sits at it').toEqual(missing);
+            expect(await ports.markets.view(watcher.id, DE, invite.matchId)).toEqual({});
+            expect(await ports.markets.view(a.id, DE, invite.matchId), 'not even to somebody who sits at it').toEqual({});
 
             const turns = await liveGame(ports, [c, d], { mode: 'turns' });
-            expect(await refusal(ports.markets.view(watcher.id, DE, turns.matchId))).toEqual(missing);
+            expect(await ports.markets.view(watcher.id, DE, turns.matchId)).toEqual({});
 
             const late = await liveGame(ports, [e, f]);
             await db.query(`update matches set started_at = now() - interval '2 minutes' where id = $1`, [late.matchId]);
-            expect(await refusal(ports.markets.view(watcher.id, DE, late.matchId))).toEqual(missing);
+            expect(await ports.markets.view(watcher.id, DE, late.matchId)).toEqual({});
 
             await ports.social.block(watcher.id, e.handle);
             await db.query(`update matches set started_at = now() where id = $1`, [late.matchId]);
-            expect(await refusal(ports.markets.view(watcher.id, DE, late.matchId)), 'a host the reader blocked').toEqual(missing);
+            expect(await ports.markets.view(watcher.id, DE, late.matchId), 'a host the reader blocked').toEqual({});
 
-            expect(await refusal(ports.markets.view(watcher.id, DE, 'not-a-uuid'))).toEqual(missing);
-            expect(await refusal(ports.markets.view(watcher.id, DE, randomUUID()))).toEqual(missing);
+            expect(await ports.markets.view(watcher.id, DE, 'not-a-uuid')).toEqual({});
+            expect(await ports.markets.view(watcher.id, DE, randomUUID())).toEqual({});
             expect(await db.getRepository(Market).count(), 'nothing written for any of them').toBe(0);
+        });
+
+        it('is still read by whoever holds a stake in it once its table has closed, and by nobody else', async () =>
+        {
+            const { ports, fake, market, game, watcher } = await watched();
+            const passer = await person();
+
+            await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (5n * NURA).toString() });
+            mined(fake);
+            await sweep(ports);
+            await db.query(`update tables set status = 'closed', closed_at = now() where id = $1`, [game.tableId]);
+
+            const held = await ports.markets.view(watcher.id, DE, game.matchId);
+
+            expect(held.market?.id, 'the bettor').toBe(market.id);
+            expect(held.market?.mine.map((one) => one.state)).toEqual(['confirmed']);
+            expect(await ports.markets.view(passer.id, DE, game.matchId), 'somebody who holds nothing there').toEqual({});
         });
 
         it('is shown nowhere markets are not offered, and to no minor', async () =>
@@ -420,7 +436,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
             const late = await person();
             const [a, b] = await Promise.all([person(), person()]);
             const other = await liveGame(ports, [a, b]);
-            const elsewhere = await ports.markets.view(late.id, DE, other.matchId);
+            const elsewhere = (await ports.markets.view(late.id, DE, other.matchId)).market!;
 
             await db.getRepository(MarketPosition).insert({ marketId: elsewhere.id, bettorId: late.id, address: late.address!.toLowerCase(), outcome: 0, amount: (1_999n * NURA).toString(), deadline: new Date(), state: 'confirmed', confirmedAt: new Date() });
             expect(await refusal(ports.markets.place(late.id, DE, market.id, { outcome: 0, amount: (2n * NURA).toString() }))).toEqual({ status: 409, code: 'market-limit', details: { limit: 'day' } });
@@ -469,7 +485,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
             expect((await sweep(ports)).placed).toBe(1);
             expect((await positionRow(paying.position.id)).state).toBe('confirmed');
 
-            const seen = await ports.markets.view(watcher.id, DE, game.matchId);
+            const seen = (await ports.markets.view(watcher.id, DE, game.matchId)).market!;
 
             expect(seen.outcomes.map((one) => one.pool)).toEqual([(10n * NURA).toString(), '0']);
             expect([seen.pool, seen.bettors]).toEqual([(10n * NURA).toString(), 1]);
@@ -722,7 +738,10 @@ describe.skipIf(!active)('markets, against a real database', () =>
             const big = (await ports.markets.positions(others[0].id, null)).positions[0];
             const small = (await ports.markets.positions(others[1].id, null)).positions[0];
 
-            expect(loser).toMatchObject({ result: 'lost' });
+            expect(loser).toMatchObject({ result: 'lost', choice: market.outcomes[0].choice });
+            expect(big.choice).toEqual(market.outcomes[1].choice);
+            expect(big.choice).toMatchObject({ kind: 'seat', who: expect.stringMatching(/.+/) });
+            expect(big.address).toBe(others[0].address!.toLowerCase());
             expect(loser.payout).toBeUndefined();
             expect(big).toMatchObject({ result: 'won', payout: (37n * NURA + NURA / 2n).toString() });
             expect(small).toMatchObject({ result: 'won', payout: (12n * NURA + NURA / 2n).toString() });

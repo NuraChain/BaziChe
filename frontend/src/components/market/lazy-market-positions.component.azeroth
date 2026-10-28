@@ -1,0 +1,24 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+type Positions = (props: { class?: string }) => MountNode;
+
+/** The wallet page's Markets, fetched after the page is drawn: a reader where markets are off is sent none of it. */
+export default component LazyMarketPositions(props: { class?: string })
+{
+    let Positions: Positions | null = null;
+
+    state loaded = false;
+
+    mount
+    {
+        void import('./market-positions.component.azeroth').then((module) =>
+        {
+            Positions = module.default as Positions;
+            loaded = true;
+        }, () => undefined);
+    }
+
+    <Show when={ loaded }>
+        { () => <Dynamic component={ Positions! } props={ () => ({ class: props.class }) } /> }
+    </Show>
+}

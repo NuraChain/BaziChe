@@ -1221,7 +1221,19 @@ describe('the shop', () =>
 
 describe('markets', () =>
 {
-    const POSITION = { id: 'p-1', market: 'k-1', match: 'm-1', game: 'ludo', outcome: 1, amount: '5000000000000000000', state: 'prepared', deadline: '2026-10-28T10:02:00.000Z', at: '2026-10-28T10:00:00.000Z' };
+    const POSITION = {
+        id: 'p-1',
+        market: 'k-1',
+        match: 'm-1',
+        game: 'ludo',
+        outcome: 1,
+        choice: { kind: 'seat', seat: 1, who: 'sara.k' },
+        address: '0x71c7656ec7ab88b098defb751b7401b5f6d8976f',
+        amount: '5000000000000000000',
+        state: 'prepared',
+        deadline: '2026-10-28T10:02:00.000Z',
+        at: '2026-10-28T10:00:00.000Z'
+    };
 
     const CALL = { from: '0x00000000000000000000000000000000A11ce001', to: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512', data: '0x', value: '0x4563918244f40000', chainId: 1020 };
 
@@ -1234,7 +1246,7 @@ describe('markets', () =>
     const ANSWERS: Record<string, unknown> = {
         state: STATE,
         disclose: STATE,
-        view: VIEW,
+        view: { market: VIEW },
         place: { position: POSITION, call: CALL },
         positions: { positions: [POSITION] },
         one: POSITION,
@@ -1302,7 +1314,7 @@ describe('markets', () =>
 
         expect(await read('/markets')).toEqual(STATE);
         expect(await (await send(app, '/markets/disclosure', {})).json()).toEqual(STATE);
-        expect(await read('/markets/matches/m-1')).toEqual(VIEW);
+        expect(await read('/markets/matches/m-1')).toEqual({ market: VIEW });
         expect(await (await send(app, '/markets/k-1/positions', { outcome: 1, amount: '5000000000000000000' })).json()).toEqual(ANSWERS.place);
         expect(await read('/markets/positions?cursor=abc')).toEqual(ANSWERS.positions);
         expect(await read('/markets/positions/p-1')).toEqual(POSITION);

@@ -32,6 +32,9 @@ import type {
     Device,
     DonationsState,
     DonationView,
+    MarketPositionView,
+    MarketsState,
+    MarketView,
     MatchHistoryEntry,
     MuteSubject,
     NftItem,
@@ -772,6 +775,82 @@ const donationOf = (id: string) =>
     return found;
 };
 
+export const NURA_MARKETS = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+
+const marketsFresh = () => ({
+    state: { open: false } as MarketsState,
+
+    /** The market on the game the specs watch, or none: a 404 as the server answers for a game with no market. */
+    view: null as MarketView | null,
+    positions: [] as MarketPositionView[],
+    refuse: null as { status: number; code: string; details?: Record<string, string> } | null,
+
+    /** A refusal for the reader's list alone, so a page can be shown and its list fail. */
+    listRefuse: null as { status: number; code: string } | null,
+
+    /** A promise the disclosure waits on before it is answered, so a spec can look between the press and the answer. */
+    hold: null as Promise<void> | null,
+    seq: 0
+});
+
+const marketsRefusal = () =>
+{
+    const refused = server.markets.refuse;
+
+    if (refused !== null)
+    {
+        throw new ApiError(refused.status, refused.code, refused.code, refused.details);
+    }
+};
+
+const positionOf = (id: string) =>
+{
+    const found = server.markets.positions.find((one) => one.id === id);
+
+    if (found === undefined)
+    {
+        throw new ApiError(404, 'market-missing', 'No position of yours by that name.', undefined);
+    }
+
+    return found;
+};
+
+/** NuraChain holds a position as it was prepared, or refused it, or it ran out, as the server's worker would find it. */
+export function settlePosition(id: string, state: 'confirmed' | 'reverted' | 'expired', failure?: string)
+{
+    const position = positionOf(id);
+
+    position.state = state;
+
+    if (state === 'confirmed')
+    {
+        position.confirmedAt = '2026-10-28T12:01:00.000Z';
+    }
+
+    if (failure !== undefined)
+    {
+        position.failure = failure;
+    }
+}
+
+/** The claim of these positions read off its receipt, as the server's worker would: each paid what it owed, or nothing for a claim that reverted. */
+export function settleClaim(ids: readonly string[], paid: boolean)
+{
+    for (const id of ids)
+    {
+        const position = positionOf(id);
+
+        delete position.claimHash;
+
+        if (paid)
+        {
+            position.claimedAt = '2026-10-28T12:10:00.000Z';
+            position.paid = position.payout ?? position.amount;
+            delete position.payout;
+        }
+    }
+}
+
 /** NuraChain holds a gift as it was prepared, or refused it, or it ran out, as the server's worker would find it. */
 export function settleDonation(id: string, state: 'confirmed' | 'reverted' | 'expired' | 'failed', failure?: string)
 {
@@ -904,6 +983,7 @@ export const server =
     nura: nuraFresh(),
     shop: shopFresh(),
     donate: donateFresh(),
+    markets: marketsFresh(),
     admin: adminFresh(),
     staff: staffFresh(),
     accounts: accountsFresh(),
@@ -1093,6 +1173,7 @@ export const server =
         server.nura = nuraFresh();
         server.shop = shopFresh();
         server.donate = donateFresh();
+        server.markets = marketsFresh();
         server.admin = adminFresh();
         server.staff = staffFresh();
         server.accounts = accountsFresh();
@@ -2087,6 +2168,121 @@ export const client =
             }
 
             return { ...gift };
+        }
+    },
+
+    markets:
+    {
+        async state()
+        {
+            server.calls.push('markets.state');
+            marketsRefusal();
+            return structuredClone(server.markets.state);
+        },
+        async disclose()
+        {
+            server.calls.push('markets.disclose');
+            await server.markets.hold;
+            marketsRefusal();
+
+            if (server.markets.state.open && server.markets.state.may === 'market-disclosure')
+            {
+                server.markets.state = { ...server.markets.state, may: 'yes' };
+            }
+
+            return structuredClone(server.markets.state);
+        },
+        async game({ params }: { params: { match: string } })
+        {
+            server.calls.push(`markets.game ${ params.match }`);
+            marketsRefusal();
+
+            const market = server.markets.view;
+
+            if (market === null || market.match !== params.match)
+            {
+                return {};
+            }
+
+            return { market: structuredClone({ ...market, mine: server.markets.positions.filter((one) => one.market === market.id) }) };
+        },
+        async place({ params, input }: { params: { id: string }; input: { outcome: number; amount: string } })
+        {
+            server.calls.push(`markets.place ${ params.id } ${ input.outcome } ${ input.amount }`);
+            marketsRefusal();
+            server.markets.seq += 1;
+
+            const market = server.markets.view;
+            const position: MarketPositionView = {
+                id: `position-${ server.markets.seq }`,
+                market: params.id,
+                match: market?.match ?? 'match-1',
+                game: market?.game ?? 'chess',
+                outcome: input.outcome,
+                choice: market?.outcomes[input.outcome]?.choice ?? { kind: 'draw' },
+                address: SHOP_BUYER.toLowerCase(),
+                amount: input.amount,
+                state: 'prepared',
+                deadline: '2026-10-28T12:02:00.000Z',
+                at: '2026-10-28T12:00:00.000Z'
+            };
+
+            server.markets.positions = [position, ...server.markets.positions];
+
+            return { position: { ...position }, call: { from: SHOP_BUYER, to: NURA_MARKETS, data: '0xplace', value: `0x${ BigInt(input.amount).toString(16) }`, chainId: 31337 } as WalletCall };
+        },
+        async positions({ query }: { query: { cursor?: string } })
+        {
+            server.calls.push(`markets.positions ${ query.cursor ?? '' }`.trim());
+            marketsRefusal();
+
+            if (server.markets.listRefuse !== null)
+            {
+                throw new ApiError(server.markets.listRefuse.status, server.markets.listRefuse.code, server.markets.listRefuse.code, undefined);
+            }
+
+            return { positions: structuredClone(server.markets.positions) };
+        },
+        async one({ params }: { params: { id: string } })
+        {
+            server.calls.push(`markets.one ${ params.id }`);
+            return structuredClone(positionOf(params.id));
+        },
+        async sent({ params, input }: { params: { id: string }; input: { hash: string } })
+        {
+            server.calls.push(`markets.sent ${ params.id }`);
+
+            const position = positionOf(params.id);
+
+            if (position.state === 'prepared')
+            {
+                position.state = 'sent';
+                position.hash = input.hash.toLowerCase();
+            }
+
+            return structuredClone(position);
+        },
+        async claim({ input }: { input: { positions: string[] } })
+        {
+            server.calls.push(`markets.claim ${ input.positions.join(',') }`);
+            marketsRefusal();
+            return { from: SHOP_BUYER, to: NURA_MARKETS, data: '0xclaim', value: '0x0', chainId: 31337 } as WalletCall;
+        },
+        async claimSent({ input }: { input: { hash: string; positions: string[] } })
+        {
+            server.calls.push(`markets.claimSent ${ input.positions.join(',') }`);
+
+            for (const id of input.positions)
+            {
+                const position = positionOf(id);
+
+                if (position.claimedAt === undefined)
+                {
+                    position.claimHash = input.hash.toLowerCase();
+                }
+            }
+
+            return { positions: structuredClone(server.markets.positions.filter((one) => input.positions.includes(one.id))) };
         }
     },
 

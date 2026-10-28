@@ -340,3 +340,50 @@ wallet page and the switch. Walked at 1280 in English and at 390 in Persian: a g
 the press, the player's wallet 10,000 then 10,005 NURA on the chain; 2.5 NURA typed in Persian
 digits, shown at the press and given 1.5 s later. `ArcadeTips` on NuraChain waits on the owner
 (section 8).
+
+**PB5 and PB6, markets.** As designed, with these differences, each a decision the work forced.
+
+- **The contract was written first** (PB-D5), because the server's tickets and positions are read
+  from it. A market keeps only its terms' hash and what settling needs; every ticket brings the terms
+  it names. Opening a market costs 253k gas, settling 112k.
+- **A dispute window** (PB-D6): a market settled with winners is claimable only `disputeWindow`
+  seconds later (900 at deploy, at most a day), and in that window the owner may `overturn` it,
+  every stake and the fee back. A leaked operator key could otherwise bet and then settle a market
+  its own way; the window is the time to see that and act. The worker asks a settled market every
+  thirty seconds until its window has passed whether it was overturned.
+- **A market is written by its first read** (MK-D12), by somebody who may watch the game while it
+  may take positions, and not by a hook in the match service: a game nobody looks at costs nothing.
+  A game with no market, or one the reader may not see, answers `{}`, not a refusal, because most
+  games have none; a bettor reads the market they hold a stake in whatever became of its table.
+  The browser walk found both: a table closed under a finished game took the bettor's market away,
+  and the 404 a game with no market answered was a console error on every watch page.
+- **When a game's end may be settled** (MK-D13): only when the game ended after NuraChain had
+  stopped taking positions, worked out from both clocks, because a ticket signed before a walkout
+  could otherwise be placed knowing the result. How far the chain's clock runs behind is read from
+  its newest block, which on a chain that mines only for a transaction is minutes old; a lag past
+  thirty seconds is read as a quiet chain (`BEHIND_MOST_MS`). The assumption, stated: a block
+  producer's clock is never more than half a minute behind this server's. The market pass found it,
+  every market refunded on a local node.
+- **Claims are read off their receipts** (MK-D14): the server learns of a claim from its hash and
+  reads the contract's `Claimed` events; a winner claimed by a call it never saw is written down as
+  claimed with no amount.
+- **Where** (MK-D15): no wildcard, a refusal for where somebody is answers 451, a minor and
+  somebody outside the regions are shown nothing, and a claim is never refused for either or for a
+  break.
+- **Limits**: 500 NURA a position, 1,000 a bettor in a market and 2,000 a bettor in a day (the last
+  the server's alone), 100,000 a pool; tickets live the sooner of two minutes and the close, none is
+  signed in a market's last five seconds or for a game that is over, and one bettor's positions are
+  written one at a time with every limit counting what may still be placed.
+- **The browser**: a way in beside the dock for somebody watching a public game played live, which
+  stays on the finished game they still see; the sheet (what a market is, read once; each outcome
+  with what the chain holds on it; an amount; what the stake would bring back if its outcome won as
+  the pool stands, said as an estimate, before the press; the steps through the reader's wallet;
+  what theirs came to and the claim); the wallet page's Markets with a claim for each wallet that
+  placed something. Ten languages; in Persian a market is «پیش‌بینی».
+
+`tools/qa/market-pass.mjs` holds it over the built server and a local chain, 47 checks, red against
+two broken builds (7 and 5 lines); `market.db.spec.ts`, `market-outcomes.spec.ts`,
+`chain-markets.spec.ts`, `market-sweep.spec.ts`, `env.spec.ts` and `app.spec.ts` the server, and
+`markets-store.spec.ts`, `market-sheet.spec.ts` and `market-doors.spec.ts` the browser.
+`ArcadeMarkets` on NuraChain, and the regions markets may be offered in, wait on the owner and on
+legal advice (section 8).

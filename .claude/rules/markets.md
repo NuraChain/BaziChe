@@ -8,6 +8,12 @@ paths:
   - "backend/tests/market*.ts"
   - "backend/tests/chain-markets.spec.ts"
   - "backend/tests/fake-markets.ts"
+  - "frontend/src/stores/markets.store.ts"
+  - "frontend/src/components/market/**"
+  - "frontend/src/lib/market.ts"
+  - "frontend/src/lib/market-sheet.ts"
+  - "frontend/src/locales/*/market.ts"
+  - "frontend/tests/market*.ts"
 ---
 
 # Markets: backing a game's outcome with NURA
@@ -125,7 +131,48 @@ saw, is written down as claimed: with its stake as what it paid for a stake back
 amount for a winner, whose share depends on who claimed before it (`market_positions.paid` is
 nullable for that reason). What a position came to is on `GET /markets/positions`: won, lost or
 refund, and its payout from the pools the chain holds (`(pool - fee) * stake / backing`, as the
-contract's `payoutOf` works it out before anybody claims).
+contract's `payoutOf` works it out before anybody claims), with who it backed (`choice`, the
+players by their handles as they are now) and the wallet that placed it (`address`, which its
+claim is sent from).
+
+## In the browser
+
+**A way in only where a market is offered.** The play page draws `LazyMarketDoor` beside the dock
+for somebody watching a public game played live (`backable`), a chunk of its own so the play route
+carries none of it. It reads `GET /markets` once an account and the game's market only where
+markets are open and the reader is not `market-region`, `market-minor` or `market-wallet`; a game
+with no market (404) is nothing, not a failure. It says how long the market takes positions ("1:12
+left", the server's time put on this device's clock by `toLocal`) and what is in it, and opens the
+sheet (`openMarket`, `lib/market-sheet.ts`).
+
+**The sheet** (`MarketSheet`) shows each outcome with what the chain holds on it and its share of
+the pool, a player by their first name (by handle where nobody described them, two partners
+together, a draw as a draw), and who is in. What a market is is read first (five sentences and "I
+understand", shown at the press); the terms or a break are said where they stand in the way. Then
+the amounts (the server's presets, or another typed in either digits with four places at most) and
+the press that backs the outcome chosen, with what the stake would bring back if that outcome won
+as the pool stands under it (`estimateOf` in `lib/market.ts`: the pool with the stake in it, less
+the fee, by the stake's share of everybody behind that outcome), always said as an estimate that
+moves as others back the game, so the payout's working is on the screen before the wallet is asked.
+The press is walked through the steps the donation sheet has (writing it, the reader's wallet,
+NuraChain, done), each refusal in its own word, a short wallet with what it holds and the way to get
+NURA, a limit saying which. Under it, what the reader holds there and what each came to, and the
+claims that can be made now, one for each wallet that placed something. A market that stopped
+taking positions says what it came to and marks the winner, and the head says nothing about a
+close while the market is being read or is not there.
+
+**The store** (`markets.store.ts`, in the market chunks only) keeps the state, the market of the
+games held (`watch` answers a release, and the newest game still held is the one read, so the door
+and the sheet each hold it and let go without taking it from the other), a position walked as a
+donation is (one at a time, its hash handed in as a nudge, read again on the reader's `markets`
+ring and every three seconds until NuraChain holds it, refused it or it ran out), and a claim, whose
+hash is handed in until the server has it, since the server learns of a claim only from that
+hash, and which is then read until every position is claimed or two minutes have passed.
+
+**The wallet page's Markets** (`LazyMarketPositions`, a chunk the page fetches once drawn) lists
+every position a page at a time with what it came to and when a winner may claim, and the claims
+that can be made now. The words are a `market` catalogue in ten languages, registered for English
+and Persian by `locales/market-catalogue.ts`.
 
 ## How it is held
 
@@ -136,4 +183,6 @@ service through the real ports with `fake-markets.ts`, which a spec steers (what
 refuses and mines, its clock, whether it can be reached); `env.spec.ts` the three names;
 `market-sweep.spec.ts` the worker's place in `main.ts`; `app.spec.ts` the routes, and
 `tools/qa/garbage-pass.mjs` sends them garbage. `tools/qa/vault-deploy.mjs` deploys the contract on
-a local node with a dispute window of a minute (`deployMarkets`).
+a local node with a dispute window of a minute (`deployMarkets`), and `tools/qa/market-pass.mjs` plays
+it end to end. In the browser, `markets-store.spec.ts`, `market-sheet.spec.ts` and
+`market-doors.spec.ts` (the door, the wallet page's list, and the pages carrying none of it).

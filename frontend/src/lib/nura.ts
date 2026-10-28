@@ -23,6 +23,17 @@ export function parseNura(text: string)
     return wei > 0n ? wei : null;
 }
 
+/** The smallest part of a NURA an amount somebody types is written in: four places, as every NURA figure here is said. */
+const PLACE = 10n ** 14n;
+
+/** A typed amount as wei, or null when it is not one: inside the range the server gave, and four places at most. */
+export function amountOf(text: string, least: string, most: string)
+{
+    const wei = parseNura(text);
+
+    return wei === null || wei % PLACE !== 0n || wei < BigInt(least) || wei > BigInt(most) ? null : wei.toString();
+}
+
 export function bpsOf(text: string)
 {
     const found = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(latin(text.trim()));

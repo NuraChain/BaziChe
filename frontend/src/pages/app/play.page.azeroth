@@ -3,6 +3,7 @@ import { Dynamic, type MountNode, onCleanup, untrack, useHead, useNavigate, useP
 import ConfirmSheet from '../../components/app/confirm-sheet.component.azeroth';
 import Page from '../../components/app/page.component.azeroth';
 import PlayHeader from '../../components/games/play-header.component.azeroth';
+import LazyMarketDoor from '../../components/games/lazy-market-door.component.azeroth';
 import TableDock from '../../components/games/table-dock.component.azeroth';
 import EmptyState from '../../components/ui/empty-state.component.azeroth';
 import ErrorState from '../../components/ui/error-state.component.azeroth';
@@ -387,6 +388,12 @@ export default component PlayPage()
     derived spectated = watch.view();
 
     derived watching = !seated && table !== null && (table.matchId !== undefined || spectated?.match.tableId === table.id);
+
+    derived backable = watching && table !== null && table.privacy === 'public' && table.mode === 'live'
+        ? table.matchId ?? (spectated?.match.tableId === table.id ? spectated.match.id : null)
+        : null;
+
+    derived marketable = backable !== null;
 
     derived standing = !seated && !showing && table !== null && table.matchId === undefined && !watching;
 
@@ -1002,6 +1009,9 @@ export default component PlayPage()
                         class={ besideSheet ? (chatWide ? 'pe-[min(30rem,85vw)]' : 'pe-[min(23rem,60vw)]') : undefined }
                         tools={
                             <span class="flex items-center gap-2">
+                                <Show when={ marketable }>
+                                    { () => <LazyMarketDoor match={ backable! } /> }
+                                </Show>
                                 <TableDock
                                     code={ shown.code }
                                     animals={ playing === 'chess' }

@@ -4,6 +4,7 @@ import { Block } from './block.entity.ts';
 import { ConversationEpoch } from './conversation-epoch.entity.ts';
 import { ConversationMember } from './conversation-member.entity.ts';
 import { Device } from './device.entity.ts';
+import { Discrepancy } from './discrepancy.entity.ts';
 import { Donation } from './donation.entity.ts';
 import { DonationsOff } from './donations-off.entity.ts';
 import { EquippedItem } from './equipped-item.entity.ts';
@@ -55,7 +56,7 @@ import { UserAchievement } from './user-achievement.entity.ts';
 import { Wallet } from './wallet.entity.ts';
 
 export {
-    Achievement, Avatar, Block, Conversation, ConversationEpoch, ConversationMember, Device, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat,
+    Achievement, Avatar, Block, Conversation, ConversationEpoch, ConversationMember, Device, Discrepancy, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat,
     EpochArchive, FriendRequest, Friendship,
     Game, GameRule, Group, GroupMember, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, Mute,
     Notice, Notification, OwnedItem, PaidAccount, PlayerStats, PushSubscription,
@@ -87,5 +88,6 @@ export const entities: Function[] = [
     StaffMember, StaffAction, Suspension, Notice,
     ShopItem, ShopCollection, ShopOrder, OwnedItem, EquippedItem,
     Donation, DonationsOff,
-    Market, MarketPosition, MarketDisclosure
+    Market, MarketPosition, MarketDisclosure,
+    Discrepancy
 ];

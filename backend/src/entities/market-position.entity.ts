@@ -20,10 +20,12 @@ import type { PositionState } from '../domains/market/policy.ts';
 @Check('market_positions_failure_when', `(state = 'reverted') = (failure is not null)`)
 @Check('market_positions_claimed_confirmed', `claimed_at is null or state = 'confirmed'`)
 @Check('market_positions_paid_claimed', `paid is null or claimed_at is not null`)
+@Check('market_positions_claim_sent_when', `(claim_hash is null) = (claim_sent_at is null)`)
 @Index('market_positions_hash', ['txHash'], { unique: true, where: 'tx_hash is not null' })
 @Index('market_positions_pending', ['state', 'createdAt'], { where: `state in ('prepared', 'sent')` })
 @Index('market_positions_of_market', ['marketId', 'state'])
 @Index('market_positions_of_bettor', ['bettorId', 'createdAt'])
+@Index('market_positions_claiming', ['claimSentAt'], { where: 'claim_hash is not null and claimed_at is null' })
 @Entity('market_positions')
 export class MarketPosition
 {
@@ -80,6 +82,10 @@ export class MarketPosition
 
     @Column({ name: 'claim_hash', type: 'varchar', length: 66, nullable: true })
     claimHash!: string | null;
+
+    /** When the claim under `claim_hash` was handed in: the age of a claim still to be read. */
+    @Column({ name: 'claim_sent_at', type: 'timestamptz', nullable: true })
+    claimSentAt!: Date | null;
 
     @ManyToOne(() => Market, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'market_id', referencedColumnName: 'id' })

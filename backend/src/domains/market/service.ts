@@ -1066,7 +1066,7 @@ export function createMarketService(
             await db.getRepository(MarketPosition)
                 .createQueryBuilder()
                 .update()
-                .set({ claimHash: null })
+                .set({ claimHash: null, claimSentAt: null })
                 .where('id = :id and claim_hash = :hash and claimed_at is null', { id, hash: claim.hash })
                 .execute();
         }
@@ -1136,7 +1136,7 @@ export function createMarketService(
                     const { affected } = await db.getRepository(MarketPosition)
                         .createQueryBuilder()
                         .update()
-                        .set(found === undefined ? { claimHash: null } : { claimedAt: () => 'now()', paid: found.amount.toString() })
+                        .set(found === undefined ? { claimHash: null, claimSentAt: null } : { claimedAt: () => 'now()', paid: found.amount.toString() })
                         .where('id = :id and claim_hash = :hash and claimed_at is null', { id, hash: claim.hash })
                         .execute();
 
@@ -1655,7 +1655,7 @@ export function createMarketService(
                 await db.getRepository(MarketPosition)
                     .createQueryBuilder()
                     .update()
-                    .set({ claimHash: hash.toLowerCase() })
+                    .set({ claimHash: hash.toLowerCase(), claimSentAt: () => 'now()' })
                     .where(`bettor_id = :me and id = any(:ids::uuid[]) and state = 'confirmed' and claimed_at is null`, { me, ids: wanted })
                     .execute();
             }

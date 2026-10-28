@@ -840,6 +840,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
             await sweep(ports);
 
             expect(await positionRow(mine), 'a transaction just sent may not have reached the node yet').toMatchObject({ claimHash: hash, claimedAt: null });
+            expect((await positionRow(mine)).claimSentAt, 'when the claim was handed in, the age of a claim still to be read').toBeInstanceOf(Date);
 
             return { ports, fake, watcher, mine, ticket };
         };
@@ -866,7 +867,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
 
             await minuteOn(ports);
 
-            expect(await positionRow(mine), 'the wallet cancelled it or dropped it').toMatchObject({ claimHash: null, claimedAt: null });
+            expect(await positionRow(mine), 'the wallet cancelled it or dropped it').toMatchObject({ claimHash: null, claimSentAt: null, claimedAt: null });
             expect((await ports.markets.claim(watcher.id, [mine])).to).toBe(FAKE_MARKETS);
         });
 

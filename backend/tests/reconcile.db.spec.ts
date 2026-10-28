@@ -281,8 +281,8 @@ const position = async (marketId: string, state: string, options: { claimed?: bo
     const bettor = await person();
     const amount = 25n * NURA;
     const [made] = await db.query(
-        `insert into market_positions (market_id, bettor_id, address, outcome, amount, deadline, state, confirmed_at, claimed_at, claim_hash, failure, created_at)
-         values ($1, $2, $3, $10, $4, now() - interval '20 minutes', $5, $6, $7, $8, $9, now() - $11::interval) returning id`,
+        `insert into market_positions (market_id, bettor_id, address, outcome, amount, deadline, state, confirmed_at, claimed_at, claim_hash, claim_sent_at, failure, created_at)
+         values ($1, $2, $3, $10, $4, now() - interval '20 minutes', $5, $6, $7, $8::varchar, case when $8::varchar is null then null else now() end, $9, now() - $11::interval) returning id`,
         [
             marketId,
             bettor.id,

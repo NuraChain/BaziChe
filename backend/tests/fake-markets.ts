@@ -32,7 +32,8 @@ export function fakeMarkets(configured = true)
         away: false,
         balance: 10n ** 24n,
         clock: null as bigint | null,
-        hashes: 0
+        hashes: 0,
+        books: { held: 0n, owed: 0n, solvent: true }
     };
 
     const reach = () =>
@@ -149,6 +150,13 @@ export function fakeMarkets(configured = true)
             reach();
 
             return Promise.resolve(state.clock ?? BigInt(Math.floor(Date.now() / 1000)));
+        },
+
+        books()
+        {
+            reach();
+
+            return Promise.resolve({ ...state.books });
         }
     };
 

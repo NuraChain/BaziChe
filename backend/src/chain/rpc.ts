@@ -10,7 +10,9 @@ import {
     http,
     HttpRequestError,
     RpcRequestError,
-    TimeoutError
+    TimeoutError,
+    type Abi,
+    type Address
 } from 'viem';
 
 const CHAIN_CALL_TIMEOUT_MS = 4_000;
@@ -70,6 +72,29 @@ export function unreached(error: unknown)
 
     return error instanceof Unanswered
         || (error instanceof Error && (FETCH_GAVE_UP.has(error.name) || (error instanceof TypeError && error.message === 'fetch failed')));
+}
+
+/** What a contract holds, what its own books say it owes, and whether its own `solvent()` says it covers that. */
+export interface Books
+{
+    held: bigint;
+    owed: bigint;
+    solvent: boolean;
+}
+
+/** A contract's books, every figure read at one block, so a payment landing between two reads cannot make them disagree. */
+export async function booksOf(rpcUrl: string, address: Address, abi: Abi, owing: readonly string[]): Promise<Books>
+{
+    const client = boundedClient(rpcUrl);
+    const blockNumber = await reached(client.getBlockNumber());
+    const read = <T>(functionName: string) => client.readContract({ address, abi, functionName, blockNumber } as never) as Promise<T>;
+    const [held, solvent, owed] = await reached(Promise.all([
+        client.getBalance({ address, blockNumber }),
+        read<boolean>('solvent'),
+        Promise.all(owing.map((functionName) => read<bigint>(functionName)))
+    ]));
+
+    return { held, owed: owed.reduce((sum, one) => sum + one, 0n), solvent };
 }
 
 export async function reached<T>(asked: Promise<T>)

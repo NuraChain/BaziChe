@@ -15,7 +15,7 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
-import { boundedClient, reached, refusedByContract, unreached } from './rpc.ts';
+import { booksOf, boundedClient, reached, refusedByContract, unreached, type Books } from './rpc.ts';
 import { gasFloorOf, vaultIdOf, type Mined } from './vault.ts';
 
 /** `ArcadeShop` (`contracts/baziche/ArcadeShop.sol` in the SmartContract project), by hand, as the vault's ABI is. */
@@ -166,6 +166,9 @@ export interface ShopChain
     balanceOf(address: Address): Promise<bigint>;
     earnedBy(address: Address): Promise<ShopEarned>;
     claimCall(address: Address): Promise<ShopAsked>;
+
+    /** What the shop holds against its revenue and every inviter's unclaimed credit. */
+    books(): Promise<Books>;
     ledger(owner: Address): Promise<ShopLedger>;
     withdrawCall(owner: Address, to: Address, amount: bigint): Promise<ShopAsked>;
     fundCall(owner: Address, amount: bigint): Promise<ShopAsked>;
@@ -361,6 +364,8 @@ export function createShopChain(settings: ShopSettings): ShopChain
         },
 
         claimCall: (address) => asked(address, encodeFunctionData({ abi: SHOP_ABI, functionName: 'claim' })),
+
+        books: () => booksOf(settings.rpcUrl, ready().shop, SHOP_ABI, ['revenue', 'totalEarnings']),
 
         async ledger(owner)
         {

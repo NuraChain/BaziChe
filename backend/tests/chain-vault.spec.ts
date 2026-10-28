@@ -2,6 +2,7 @@ import {
     decodeFunctionData,
     encodeAbiParameters,
     encodeErrorResult,
+    encodeEventTopics,
     encodeFunctionResult,
     hashTypedData,
     keccak256,
@@ -268,6 +269,34 @@ describe('the referee', () =>
         await expect(vault.mined(HASH)).resolves.toBe('success');
         answer = receipt('0x0');
         await expect(vault.mined(HASH)).resolves.toBe('reverted');
+    });
+
+    it('reads the seats a payment paid off its receipt, from the vault\'s own event about that game alone', async () =>
+    {
+        const id = vaultIdOf('3fa85f64-5717-4562-b3fc-2c963f66afa6');
+        const other = vaultIdOf('9b2c1a7e-0f3d-4c4e-8a5b-6d7e8f901234');
+        const settledLog = (address: Address, game: Hex, winners: bigint, index: number) => ({
+            address,
+            topics: encodeEventTopics({ abi: VAULT_ABI, eventName: 'Settled', args: { id: game } }),
+            data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'bytes32[]' }], [winners, 9n, 1n, []]),
+            blockHash: HASH,
+            blockNumber: '0x5',
+            logIndex: `0x${ index.toString(16) }`,
+            transactionHash: HASH,
+            transactionIndex: '0x0',
+            removed: false
+        });
+        let answer: unknown = null;
+        const { url } = await fakeChain(() => ({ result: answer }));
+        const vault = vaultOn(url);
+
+        await expect(vault.winnersIn(HASH, id), 'a receipt the node does not hold').resolves.toBeNull();
+
+        answer = { ...receipt('0x1'), logs: [settledLog(player.address, id, 1n, 0), settledLog(VAULT, other, 2n, 1)] };
+        await expect(vault.winnersIn(HASH, id), 'another contract\'s event, and the vault\'s about another game').resolves.toBeNull();
+
+        answer = { ...receipt('0x1'), logs: [settledLog(VAULT, other, 2n, 0), settledLog(VAULT, id, 5n, 1)] };
+        await expect(vault.winnersIn(HASH, id)).resolves.toBe(5n);
     });
 });
 

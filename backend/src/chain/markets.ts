@@ -20,7 +20,7 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
-import { boundedClient, boundedTransport, reached, refusedByContract, unreached } from './rpc.ts';
+import { booksOf, boundedClient, boundedTransport, reached, refusedByContract, unreached, type Books } from './rpc.ts';
 import { gasFloorOf, vaultIdOf, type Mined } from './vault.ts';
 
 /** `ArcadeMarkets` (`contracts/baziche/ArcadeMarkets.sol` in the SmartContract project), by hand, as the shop's ABI is. */
@@ -39,6 +39,9 @@ export const MARKETS_ABI = parseAbi([
     'function ticketDigest(Ticket ticket) view returns (bytes32)',
     'function disputeWindow() view returns (uint64)',
     'function paused() view returns (bool)',
+    'function owed() view returns (uint256)',
+    'function fees() view returns (uint256)',
+    'function solvent() view returns (bool)',
     'event Claimed(bytes32 indexed ticket, address indexed bettor, uint256 amount)',
     'error ZeroAddress()',
     'error ZeroAmount()',
@@ -207,6 +210,9 @@ export interface MarketsChain
 
     /** The time of the chain's newest block, in seconds: the clock a dispute window runs out by. */
     clock(): Promise<bigint>;
+
+    /** What the contract holds against every stake, share and refund it owes, and its fees. */
+    books(): Promise<Books>;
 }
 
 /** A market's or a position's id on the chain: its uuid as 32 bytes, as an order's is. */
@@ -487,6 +493,8 @@ export function createMarketsChain(settings: MarketsSettings): MarketsChain
 
         balanceOf: (address) => reached(reader().getBalance({ address })),
 
-        clock: async () => (await reached(reader().getBlock())).timestamp
+        clock: async () => (await reached(reader().getBlock())).timestamp,
+
+        books: () => booksOf(settings.rpcUrl, ready().markets, MARKETS_ABI, ['owed', 'fees'])
     };
 }

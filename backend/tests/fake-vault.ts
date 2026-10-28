@@ -22,6 +22,8 @@ export function fakeVault(configured = true)
 {
     const games = new Map<Hex, GameStatus>();
     const openedAt = new Map<Hex, bigint>();
+    const stakes = new Map<Hex, { amount: bigint; feeBps: number; players: Address[] }>();
+    const paid = new Map<Hex, { id: Hex; winners: bigint }>();
     const receipts = new Map<Hex, Mined>();
     const free = new Map<string, bigint>();
     const opened: OpenCall[] = [];
@@ -49,6 +51,7 @@ export function fakeVault(configured = true)
         refuse: null as Refusal | null,
         away: false,
         clock: null as bigint | null,
+        books: { held: 0n, owed: 0n, solvent: true },
         signs: (owner: Address, stake: Stake, signature: Hex) => signature === signatureOf(owner, stake)
     };
 
@@ -56,7 +59,7 @@ export function fakeVault(configured = true)
     {
         if (state.away)
         {
-            throw new Error('the chain could not be reached');
+            throw Object.assign(new Error('the chain could not be reached'), { status: 503 });
         }
     };
 
@@ -107,7 +110,8 @@ export function fakeVault(configured = true)
         async game(id)
         {
             reach();
-            return { status: games.get(id) ?? 'none', feeBps: 0, openedAt: openedAt.get(id) ?? 0n, amount: 0n, players: [] };
+            const held = stakes.get(id);
+            return { status: games.get(id) ?? 'none', feeBps: held?.feeBps ?? 0, openedAt: openedAt.get(id) ?? 0n, amount: held?.amount ?? 0n, players: [...held?.players ?? []] };
         },
         async clock()
         {
@@ -127,13 +131,23 @@ export function fakeVault(configured = true)
                 return { ok: false, refusal: state.refuse };
             }
 
+            if (state.mine === 'success')
+            {
+                stakes.set(id, { amount, feeBps, players: seats.map((seat) => seat.player) });
+            }
+
             return sent('open', id, 'open');
         },
         async settle(id, winners, secrets)
         {
             reach();
             settled.push({ id, winners, secrets: [...secrets] });
-            return sent('settle', id, 'settled');
+
+            const done = sent('settle', id, 'settled');
+
+            paid.set(done.hash, { id, winners });
+
+            return done;
         },
         async refund(id)
         {
@@ -146,7 +160,18 @@ export function fakeVault(configured = true)
             reach();
             return receipts.get(hash) ?? 'pending';
         },
+        async winnersIn(hash, id)
+        {
+            reach();
+            const settle = paid.get(hash);
+            return settle !== undefined && settle.id === id && receipts.get(hash) === 'success' ? settle.winners : null;
+        },
         gas: async () => 0n,
+        async books()
+        {
+            reach();
+            return { ...state.books };
+        },
         async ledger()
         {
             reach();
@@ -165,6 +190,8 @@ export function fakeVault(configured = true)
         state,
         games,
         openedAt,
+        stakes,
+        paid,
         receipts,
         free,
         opened,

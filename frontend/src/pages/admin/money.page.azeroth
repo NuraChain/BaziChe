@@ -1,7 +1,8 @@
-import { useHead } from 'azerothjs';
+import { Link, useHead } from 'azerothjs';
 
 import AdminVault from '../../components/admin/admin-vault.component.azeroth';
 import AdminHead from '../../components/admin/admin-head.component.azeroth';
+import Icon from '../../icons/icon.component.azeroth';
 import { useLocale } from '../../stores/locale.store.ts';
 
 export default component MoneyPage()
@@ -11,7 +12,15 @@ export default component MoneyPage()
     useHead({ title: () => locale.t('admin.section.money') });
 
     <div class="flex flex-col">
-        <AdminHead title={ locale.t('admin.section.money') } />
+        <AdminHead
+            title={ locale.t('admin.section.money') }
+            actions={ (
+                <Link to="/admin/money/checks" class="inline-flex min-h-11 items-center gap-1.5 text-ui-sm font-semibold text-accent hover:underline md:min-h-0" data-open-checks>
+                    <Icon name="wallet" size={ 16 } />
+                    <span>{ locale.t('admin.checks.title') }</span>
+                </Link>
+            ) }
+        />
         <AdminVault />
     </div>
 }

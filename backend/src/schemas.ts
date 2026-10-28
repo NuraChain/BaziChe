@@ -1650,6 +1650,12 @@ export const adminChecks = object({
 
 export type AdminChecks = Infer<typeof adminChecks>;
 
+export const adminCheckClose = object({ reason: said() });
+
+export const adminCheckClosed = object({ check: adminCheck, open: number() });
+
+export type AdminCheckClosed = Infer<typeof adminCheckClosed>;
+
 export const adminGameInput = object({ on: boolean(), reason: said() });
 
 export const adminVoidInput = object({ reason: said() });

@@ -1,0 +1,243 @@
+import { createResource, useHead } from 'azerothjs';
+
+import { CHECK_LISTS, type CheckList } from '../../../../backend/src/domains/reconcile/kinds.ts';
+import type { AdminCheck, AdminChecks } from '../../../../backend/src/schemas.ts';
+import { client } from '../../api.ts';
+import AdminEmpty from '../../components/admin/admin-empty.component.azeroth';
+import AdminHead from '../../components/admin/admin-head.component.azeroth';
+import CheckRow from '../../components/admin/check-row.component.azeroth';
+import ReasonSheet from '../../components/admin/reason-sheet.component.azeroth';
+import When from '../../components/admin/when.component.azeroth';
+import Button from '../../components/ui/button.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
+import FilterBar from '../../components/ui/filter-bar.component.azeroth';
+import LoadMore from '../../components/ui/load-more.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
+import { attempt } from '../../lib/attempt.ts';
+import { WATCH_WORDS } from '../../lib/check-words.ts';
+import { createGuesses } from '../../lib/guess.ts';
+import { useAddress } from '../../lib/page-param.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { whyStaffRefused } from '../../lib/staff-words.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { useSession } from '../../stores/session.store.ts';
+
+interface Tail
+{
+    from: AdminChecks;
+    rows: AdminCheck[];
+    cursor: string | undefined;
+}
+
+interface Shown
+{
+    rows: AdminCheck[];
+    open: number;
+}
+
+const LIST_WORDS: Record<CheckList, MessageKey> = {
+    open: 'admin.checks.list.open',
+    closed: 'admin.checks.list.closed',
+    all: 'admin.checks.list.all'
+};
+
+const queryOf = (list: CheckList) => (list === 'open' ? {} : { list });
+
+export default component ChecksPage()
+{
+    const locale = useLocale();
+    const address = useAddress();
+    const overlay = useOverlay();
+    const session = useSession();
+
+    useHead({ title: () => locale.t('admin.checks.title') });
+
+    derived list = CHECK_LISTS.find((one) => one === address.text('list')) ?? 'open';
+
+    state tail = null as Tail | null;
+
+    state paging = false;
+
+    const first = createResource(() => list, (asked) => client.admin.checks({ query: queryOf(asked) }), { name: 'admin.checks' });
+
+    const guesses = createGuesses<Shown>();
+
+    derived page = first.data() ?? null;
+
+    derived trouble = first.error();
+
+    derived waiting = page === null && trouble === null;
+
+    derived failed = page === null && trouble !== null;
+
+    derived continued = tail !== null && tail.from === page ? tail : null;
+
+    derived shown = page === null ? { rows: [], open: 0 } : guesses.over({ rows: [...page.rows, ...(continued?.rows ?? [])], open: page.open });
+
+    derived rows = shown.rows;
+
+    derived cursor = continued === null ? page?.cursor : continued.cursor;
+
+    derived more = cursor !== undefined;
+
+    derived watched = (page?.watching.length ?? 0) > 0;
+
+    derived off = page !== null && !watched;
+
+    derived listed = watched && rows.length > 0;
+
+    derived empty = watched && page !== null && rows.length === 0;
+
+    derived blank = locale.t(list === 'open' ? 'admin.checks.none' : 'admin.checks.noneListed');
+
+    derived blankLead = list === 'open' ? locale.t('admin.checks.noneLead') : undefined;
+
+    derived checkedAt = page?.checkedAt ?? '';
+
+    derived checked = checkedAt !== '';
+
+    derived families = locale.list((page?.watching ?? []).map((one) => locale.t(WATCH_WORDS[one])), { type: 'conjunction', style: 'long' });
+
+    derived watching = locale.t('admin.checks.watching', { families });
+
+    derived lists = CHECK_LISTS.map((one) => ({
+        id: one,
+        label: locale.t(LIST_WORDS[one]),
+        ...(one === 'open' && page !== null ? { count: shown.open } : {})
+    }));
+
+    const choose = (id: string) =>
+    {
+        address.write({ list: id === 'open' ? '' : id });
+    };
+
+    const older = async () =>
+    {
+        const from = page;
+        const after = cursor;
+        const kept = continued?.rows ?? [];
+
+        if (from === null || after === undefined || paging)
+        {
+            return;
+        }
+
+        paging = true;
+
+        await attempt((async () =>
+        {
+            const next = await client.admin.checks({ query: { ...queryOf(list), cursor: after } });
+
+            if (first.data() === from)
+            {
+                tail = { from, rows: [...kept, ...next.rows], cursor: next.cursor };
+            }
+        })());
+
+        paging = false;
+    };
+
+    const reread = async () =>
+    {
+        await first.refetch();
+
+        if (first.error() !== null)
+        {
+            throw first.error();
+        }
+
+        guesses.landed();
+    };
+
+    const close = async (row: AdminCheck) =>
+    {
+        const reason = await overlay.open(
+            ReasonSheet,
+            {
+                title: locale.t('admin.checks.ask'),
+                lead: locale.t('admin.checks.askLead'),
+                confirm: locale.t('admin.checks.confirm')
+            },
+            { label: locale.t('admin.checks.title') }
+        ).closed;
+
+        if (typeof reason !== 'string')
+        {
+            return;
+        }
+
+        const by = session.account()?.handle ?? '';
+        const at = new Date(runtime().clock.now()).toISOString();
+        const sent = guesses.during(
+            (held) => ({
+                open: Math.max(0, held.open - 1),
+                rows: list === 'open'
+                    ? held.rows.filter((one) => one.id !== row.id)
+                    : held.rows.map((one) => (one.id === row.id ? { ...one, resolvedAt: at, resolution: 'staff' as const, staff: by, reason } : one))
+            }),
+            () => client.admin.closeCheck({ params: { id: row.id }, input: { reason } }),
+            reread
+        );
+
+        if (!await attempt(sent, locale.t('admin.checks.done'), whyStaffRefused))
+        {
+            await first.refetch();
+        }
+    };
+
+    <div class="flex flex-col gap-6 @container">
+        <AdminHead
+            title={ locale.t('admin.checks.title') }
+            lead={ locale.t('admin.checks.lead') }
+            how={ locale.t('admin.checks.how') }
+            back={ { to: '/admin/money', label: locale.t('admin.section.money') } }
+            actions={ <Button variant="outline" size="sm" leading="refresh" onClick={ () => void first.refetch() }>{ locale.t('admin.checks.read') }</Button> }
+        />
+
+        <Show when={ watched }>
+            <p class="facts text-ui-sm text-muted" data-checked>
+                <Show when={ checked } fallback={ <span>{ locale.t('admin.checks.notYet') }</span> }>
+                    <span>{ locale.t('admin.checks.checked') } <When at={ checkedAt } /></span>
+                </Show>
+                <span data-watching>{ watching }</span>
+            </p>
+        </Show>
+
+        <Show when={ watched }>
+            <FilterBar items={ lists } value={ list } label={ locale.t('admin.checks.lists') } onChange={ choose } />
+        </Show>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 4 } avatar /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState title={ locale.t('admin.checks.failed') } onRetry={ () => void first.refetch() } /> }
+        </Show>
+
+        <Show when={ off }>
+            { () => <AdminEmpty icon="wallet" title={ locale.t('admin.checks.off') } lead={ locale.t('admin.checks.offLead') } /> }
+        </Show>
+
+        <Show when={ empty }>
+            { () => <AdminEmpty icon="check-circle" title={ blank } lead={ blankLead } /> }
+        </Show>
+
+        <Show when={ listed }>
+            <div class="flex flex-col">
+                <ul class="divide-y divide-line overflow-hidden rounded-panel border border-line bg-field" data-checks>
+                    <For each={ rows } key={ (one) => one.id } let={ row }>
+                        <li>
+                            <CheckRow check={ row } onClose={ () => void close(row) } />
+                        </li>
+                    </For>
+                </ul>
+                <Show when={ more }>
+                    <LoadMore label={ locale.t('admin.checks.more') } loading={ paging } onMore={ () => void older() } />
+                </Show>
+            </div>
+        </Show>
+    </div>
+}

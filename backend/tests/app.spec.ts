@@ -1371,7 +1371,7 @@ describe('the owner\'s view of the vault', () =>
             identity: {
                 principal: () => Promise.resolve({ userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' })
             },
-            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'live', 'notice', 'putNotice', 'endNotice'].map((verb) => [verb, (...said: unknown[]) =>
+            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice'].map((verb) => [verb, (...said: unknown[]) =>
             {
                 told.push([verb, ...said]);
 
@@ -1551,6 +1551,20 @@ describe('the owner\'s view of the vault', () =>
         expect(told).toEqual([['checks', 'somebody', { list: 'closed', cursor: '12|x' }]]);
         expect((await sent(app, '/checks?list=everything')).status).toBe(422);
         expect((await sent(app, `/checks?cursor=${ 'x'.repeat(81) }`)).status).toBe(422);
+    });
+
+    it('closes a disagreement only for a role that opens Money, and only with a reason', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = owned(told, null);
+        const response = await sent(app, '/checks/c1/close', { reason: 'Looked at the receipt' });
+        const body = await response.json() as { error: { code: string; message: string } };
+
+        expect([response.status, body.error.code, body.error.message]).toEqual([404, 'not-found', 'Nothing there.']);
+        expect(told).toEqual([['closeCheck', 'somebody', 'c1', { reason: 'Looked at the receipt' }]]);
+        expect((await sent(app, '/checks/c1/close', {})).status).toBe(422);
+        expect((await sent(app, '/checks/c1/close', { reason: 'no' })).status).toBe(422);
+        expect((await sent(app, '/checks/c1/close', { reason: '   ' })).status).toBe(422);
     });
 
     it('answers anybody who may not run the notice as a page that is not there, and takes one only in both languages for the hours offered', async () =>

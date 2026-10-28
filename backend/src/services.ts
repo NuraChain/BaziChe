@@ -2250,6 +2250,13 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 return await ableTo(me, 'money') === null ? null : await reconciler.list(query.list ?? 'open', query.cursor ?? null);
             },
 
+            async closeCheck(me, id, input)
+            {
+                const actor = await ableTo(me, 'money');
+
+                return actor === null ? null : await reconciler.close(actor, id, input.reason);
+            },
+
             async live(me, query)
             {
                 return await ableTo(me, 'live') === null

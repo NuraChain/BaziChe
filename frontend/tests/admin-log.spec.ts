@@ -259,6 +259,24 @@ describe('the log', () =>
         expect(lines(container)).toEqual(['mina، میز پوکر با کد P3QA رو بست.']);
     });
 
+    it('says a disagreement with NuraChain somebody closed, naming what it was about, with the closer set apart and the mark in gold', async () =>
+    {
+        staffLogged({ at: hoursAgo(3), staff: 'mina', staffRole: 'admin', kind: 'check', reason: 'The owner refunded it on purpose.', details: { check: 'c1', family: 'order', record: 'o1', kind: 'order-state' } });
+        staffLogged({ at: hoursAgo(1), staff: 'alex', staffRole: 'owner', kind: 'check', reason: 'Topping it up tonight.', details: { check: 'c2', family: 'contract', record: 'vault', kind: 'solvency' } });
+
+        const { container } = await opened('/admin/log?kind=check');
+
+        expect(lines(container)).toEqual(['alex closed a disagreement with NuraChain about a contract’s books.', 'mina closed a disagreement with NuraChain about a shop order.']);
+        expect(isolated(entry(container, 0), ':scope')).toEqual(['alex']);
+        expect(container.querySelector('[aria-pressed="true"]')?.textContent?.trim()).toBe('Checks');
+        expect(container.querySelector('[data-mark="check"]')?.className).toContain('text-gold');
+
+        useLocale().setLocale('fa');
+        await settle();
+
+        expect(lines(container)).toEqual(['alex یه ناهمخوانی با نوراچین رو درباره‌ی حساب‌وکتاب یه قرارداد بست.', 'mina یه ناهمخوانی با نوراچین رو درباره‌ی یه سفارش فروشگاه بست.']);
+    });
+
     it('says who put an announcement up and for how long, who took it down, and what it said in the reader\'s own language', async () =>
     {
         announced();
@@ -507,7 +525,7 @@ describe('the log', () =>
             'alex، mina رو از ناظر کرد ادمین.',
             'alex، mina رو ناظر کرد.'
         ]);
-        expect([...container.querySelectorAll('[aria-pressed]')].map((one) => one.textContent?.trim())).toEqual(['همه', 'اضافه شده', 'عوض شده', 'برداشته شده', 'یادداشت‌ها', 'تعلیق‌ها', 'رفع تعلیق', 'پایان تعلیق', 'پاک شده', 'خارج شده', 'گزارش‌ها', 'بازی‌ها', 'بازی‌های تموم‌شده', 'میزهای بسته‌شده', 'سن', 'اطلاعیه‌ها']);
+        expect([...container.querySelectorAll('[aria-pressed]')].map((one) => one.textContent?.trim())).toEqual(['همه', 'اضافه شده', 'عوض شده', 'برداشته شده', 'یادداشت‌ها', 'تعلیق‌ها', 'رفع تعلیق', 'پایان تعلیق', 'پاک شده', 'خارج شده', 'گزارش‌ها', 'بازی‌ها', 'بازی‌های تموم‌شده', 'میزهای بسته‌شده', 'سن', 'اطلاعیه‌ها', 'بررسی‌ها']);
         expect(isolated(entry(container, 1), ':scope')).toEqual(['alex', 'mina']);
     });
 

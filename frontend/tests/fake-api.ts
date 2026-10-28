@@ -19,6 +19,7 @@ import type {
     AdminLive,
     AdminMatches,
     AdminNotice,
+    AdminCheck,
     AdminOverview,
     AdminPlay,
     AdminTables,
@@ -57,6 +58,7 @@ import type {
 import { BUNDLES, LOOKS, bundleOf } from '../../backend/src/domains/shop/catalogue.ts';
 import { ESCROW_STATES, STAKE_LADDER } from '../../backend/src/domains/stake/policy.ts';
 import { STAFF_REFUSALS, type StaffRefusal } from '../../backend/src/domains/admin/refusals.ts';
+import { CHECKS_PAGE, type CheckFamily, type CheckList } from '../../backend/src/domains/reconcile/kinds.ts';
 import { LIVE_PAGE, LOG_PAGE, may, outranks, PEOPLE_PAGE, PLAY_PAGE, REPORTS_PAGE, type Ability, type ActionKind, type ClearPart, type GrantedRole, type PeopleList, type ReportList, type ReportOutcome, type ReportStatus, type StaffRole, type SuspendCategory, type SuspendDays } from '../../backend/src/domains/admin/roles.ts';
 import {
     FRIENDSHIP_FIXTURES,
@@ -592,6 +594,15 @@ interface FiledReport
 
 const reportsFresh = () => ({ filed: [] as FiledReport[], count: 0 });
 
+/** What the checks against NuraChain hold: every disagreement a spec writes, the families watched, when the last pass finished. */
+const checksFresh = () => ({
+    rows: [] as AdminCheck[],
+    watching: ['escrow', 'order', 'donation', 'market', 'position', 'contract'] as CheckFamily[],
+    checkedAt: undefined as string | undefined
+});
+
+const openChecks = () => server.checks.rows.filter((one) => one.resolvedAt === undefined).length;
+
 const lookoutFresh = () => ({
     overview: {
         at: '2026-10-22T09:00:00.000Z',
@@ -1004,6 +1015,7 @@ export const server =
     play: playFresh(),
     playing: playingFresh(),
     lookout: lookoutFresh(),
+    checks: checksFresh(),
 
     /** The notice everybody sees, as the staff put it up: none until a spec or a press puts one there. */
     notice: null as NoticeShown | null,
@@ -1194,6 +1206,7 @@ export const server =
         server.play = playFresh();
         server.playing = playingFresh();
         server.lookout = lookoutFresh();
+        server.checks = checksFresh();
         server.notice = null;
         server.noticeSeq = 0;
         server.archive = [];
@@ -1742,14 +1755,63 @@ export const client =
             staffGate('overview');
 
             const role = staffRoleOf(server.me);
-            const { money, health, ...seen } = structuredClone(server.lookout.overview);
+            const { money, health, checks, ...seen } = structuredClone(server.lookout.overview);
 
             return {
                 ...seen,
                 reports: waitingReports(),
                 ...(may(role, 'money') && money !== undefined ? { money } : {}),
+                ...(may(role, 'money') && checks !== undefined ? { checks } : {}),
                 ...(may(role, 'health') && health !== undefined ? { health } : {})
             };
+        },
+
+        async checks({ query }: { query: { list?: CheckList; cursor?: string } })
+        {
+            server.calls.push(`admin.checks ${ JSON.stringify(query) }`);
+            staffGate('money');
+
+            const list = query.list ?? 'open';
+            const rows = [...server.checks.rows]
+                .filter((one) => list === 'all' || (list === 'open') === (one.resolvedAt === undefined))
+                .sort((a, b) => b.firstSeen.localeCompare(a.firstSeen) || b.id.localeCompare(a.id));
+            const from = query.cursor === undefined ? 0 : rows.findIndex((one) => one.id === query.cursor) + 1;
+            const page = rows.slice(from, from + CHECKS_PAGE);
+            const last = page[page.length - 1];
+
+            return {
+                rows: structuredClone(page),
+                ...(rows.length > from + CHECKS_PAGE && last !== undefined ? { cursor: last.id } : {}),
+                open: openChecks(),
+                watching: [...server.checks.watching],
+                ...(server.checks.checkedAt === undefined ? {} : { checkedAt: server.checks.checkedAt })
+            };
+        },
+
+        async closeCheck({ params, input }: { params: { id: string }; input: { reason: string } })
+        {
+            server.calls.push(`admin.closeCheck ${ params.id } ${ input.reason }`);
+            staffGate('money');
+
+            const held = server.checks.rows.find((one) => one.id === params.id);
+
+            if (held === undefined)
+            {
+                throw new ApiError(404, 'not-found', 'Nothing there.', undefined);
+            }
+
+            if (held.resolvedAt !== undefined)
+            {
+                throw staffRefused('staff-check-closed', 'That disagreement has already been closed.');
+            }
+
+            const at = new Date(runtime().clock.now()).toISOString();
+            const actor = staffRoleOf(server.me);
+
+            Object.assign(held, { resolvedAt: at, resolution: 'staff', staff: server.me, reason: input.reason });
+            staffLogged({ at, staff: server.me, ...(actor === null ? {} : { staffRole: actor }), kind: 'check', reason: input.reason, details: { check: held.id, family: held.family, record: held.record, kind: held.kind } });
+
+            return { check: structuredClone(held), open: openChecks() };
         },
 
         async live({ query }: { query: { cursor?: string } })

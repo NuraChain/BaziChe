@@ -3,6 +3,10 @@ paths:
   - "backend/src/domains/reconcile/**"
   - "backend/src/entities/discrepancy.entity.ts"
   - "backend/tests/reconcile*.ts"
+  - "frontend/src/pages/admin/checks.page.azeroth"
+  - "frontend/src/components/admin/check-row.component.azeroth"
+  - "frontend/src/lib/check-words.ts"
+  - "frontend/tests/admin-checks.spec.ts"
 ---
 
 # Operations: the database and NuraChain, checked against each other
@@ -92,19 +96,33 @@ seen, and resolved when and how. A partial unique index keeps one open row per r
 it lasts each pass that meets it moves `last_seen` and keeps what the two sides say now. Nothing is
 ever deleted.
 
-**Resolved**: `agreed`, when a pass compares the record and no longer finds that kind; `put-right`,
-written in the pass that found it (a row is written even then, found and resolved at once, so every
-money record the pass changed is on record). A disagreement a person closed (`staff`) stays closed for
-as long as the two sides say exactly what they said when it was closed (compared with the keys
-sorted); if either moves, the next pass opens a new row.
+**Resolved three ways**: `agreed`, when a pass compares the record and no longer finds that kind;
+`put-right`, written in the pass that found it (a row is written even then, found and resolved at once,
+so every money record the pass changed is on record); and `staff`, when an admin or the owner closes
+it with a reason (`POST /admin/checks/:id/close`, `{ reason }`, `money`), which writes the staff
+action `check` (`{ check, family, record, kind }`) in the same transaction, the row locked
+(`pessimistic_write`), so two closing one at once close it once. One already closed is
+`staff-check-closed` (409); an id that is not a uuid, or names nothing, is the page that is not there.
+Closing one tells nobody and changes nothing on either side: it says a person looked. A disagreement
+a person closed stays closed for as long as the two sides say exactly what they said when it was
+closed (compared with the keys sorted); if either moves, the next pass opens a new row.
 
 **Raised**: a `warn` line in the server's log when one is found (`chain and database disagree`, with
-what each side says) and when one is resolved (`chain and database agree again`, with how), through
-the ports' `note` at `warn` (`Note` takes a level; everything else still says `info`). The overview
-carries `checks`, the open ones, for a role that opens Money where this server watches anything, and
-`GET /admin/checks?list=&cursor=` (`money`) lists them newest first by first sighting, fifty a page
-by the microsecond keyset: `open` (the default), `closed` or `all`, with how many are open, the
-families this server watches and when its last pass finished.
+what each side says), when one is resolved (`chain and database agree again`, with how), and when a
+person closes one (`chain and database disagreement closed`, with who: closing one is not the two
+agreeing), through the ports' `note` at `warn` (`Note` takes a level; everything else still says
+`info`). The overview carries `checks`, the open ones, for a role that opens Money where this server
+watches anything, and `GET /admin/checks?list=&cursor=` (`money`) lists them newest first by first
+sighting, fifty a page by the microsecond keyset: `open` (the default), `closed` or `all`, with how
+many are open, the families this server watches and when its last pass finished.
+
+## The page
+
+**`/admin/money/checks`**, for a role that opens Money, reached from Money's head and from the
+overview's "Needs you", which counts the open ones ("3 disagreements with NuraChain") for that role
+alone. What it draws is written with the rest of the admin's pages, in `.claude/rules/admin.md`
+(*The checks against NuraChain*). The log says "mina closed a disagreement with NuraChain about a
+shop order.", the family in the reader's words, under the chip "Checks".
 
 ## Calm
 
@@ -120,7 +138,9 @@ but the one row a worker's own write takes, and nothing it does is in a request'
 `reconcile-verdicts.spec.ts` every cell with no Postgres; `reconcile.db.spec.ts` every kind of
 disagreement and every resolution against a real database and the four fakes (what is put right and
 through which write, what is a person's, a row kept while it lasts, the week, the re-read of an old
-one, paging fifty a pass, a chain out of reach, a fault, a family not kept, one pass at a time, and
-who reads the list and the count); `reconcile-sweep.spec.ts` the pass's place in `main.ts`;
-`chain-books.spec.ts` and `chain-vault.spec.ts` the books and the winners off a receipt; `app.spec.ts`
-the route.
+one, paging fifty a pass, a chain out of reach, a fault, a family not kept, one pass at a time, who
+reads the list and the count, and the staff's close: logged, said, refused a second time, one of two
+at once, and closed until either side moves); `reconcile-sweep.spec.ts` the pass's place in
+`main.ts`; `chain-books.spec.ts` and `chain-vault.spec.ts` the books and the winners off a receipt;
+`app.spec.ts` the routes; `admin-checks.spec.ts`, `admin-overview.spec.ts` and `admin-log.spec.ts`
+the page, "Needs you" and the log's sentence.

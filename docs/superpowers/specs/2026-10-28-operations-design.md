@@ -122,9 +122,10 @@ and how. One open row per record and kind; while it lasts, each pass that meets 
 `last_seen` and keeps what the two sides say now. A disagreement put right is a row too, found and
 resolved in one pass, so every money record this pass changed is written down.
 
-**Raised**: a `warn` line when one is found and when one is resolved; the admin overview's "Needs
-you" counts the open ones for a role that opens Money and leads to `/admin/money/checks`, which
-lists them (what each side says, first and last seen) and the closed ones.
+**Raised**: a `warn` line when one is found, when one is resolved, and when a person closes one (a
+line of its own, because a person closing one is not the two sides agreeing); the admin overview's
+"Needs you" counts the open ones for a role that opens Money and leads to `/admin/money/checks`,
+which lists them (what each side says, first and last seen) and the closed ones.
 
 **Resolved** three ways: `agreed`, when a pass finds the two sides agree (the staff ended the game,
 the owner funded the contract, the row was mended); `put-right`, when this pass wrote it through a

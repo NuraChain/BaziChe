@@ -139,7 +139,8 @@ const BODIES = {
     '/admin/play/matches/:id/void': (bad) => [{ reason: bad.slice(0, 500).padEnd(3, 'x') }, { reason: bad }],
     '/admin/play/tables/:id/close': (bad) => [{ reason: bad.slice(0, 500).padEnd(3, 'x') }, { reason: bad }],
     '/admin/notice': (bad) => [{ en: bad.slice(0, 200).padEnd(3, 'x'), fa: bad.slice(0, 200).padEnd(3, 'x'), hours: 6, reason: bad.slice(0, 500).padEnd(3, 'x') }, { en: bad, fa: bad, hours: bad.length, reason: 'garbage' }],
-    '/admin/notice/end': (bad) => [{ id: bad.slice(0, 36), reason: bad.slice(0, 500).padEnd(3, 'x') }, { id: bad, reason: bad }]
+    '/admin/notice/end': (bad) => [{ id: bad.slice(0, 36), reason: bad.slice(0, 500).padEnd(3, 'x') }, { id: bad, reason: bad }],
+    '/admin/checks/:id/close': (bad) => [{ reason: bad.slice(0, 500).padEnd(3, 'x') }, { reason: bad }]
 };
 
 const WOULD_ACT = new Set(['/auth/handle']);

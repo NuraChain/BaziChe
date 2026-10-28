@@ -57,6 +57,11 @@ const listener: WriteListener = {
     seen: () => undefined
 };
 
+const waitingOnLocks = async () =>
+    (await db.query(
+        `select count(*)::int as count from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`
+    ) as { count: number }[])[0].count;
+
 const note: Note = (event, fields, level) =>
 {
     said.push({ event, fields, level });
@@ -1000,6 +1005,128 @@ describe.skipIf(!active)('the database and NuraChain, checked against each other
             expect(second?.cursor).toBeUndefined();
             expect(new Set(seen).size).toBe(61);
             expect(nonsense?.rows.map((row) => row.id)).toEqual(first?.rows.map((row) => row.id));
+        });
+    });
+
+    describe('closed by a person', () =>
+    {
+        const owned = async () =>
+        {
+            const owner = await person(OWNER_WALLET);
+            const admin = await person();
+            const moderator = await person();
+
+            await ports.admin.setStaff(owner.id, { handle: admin.handle, role: 'admin', reason: 'Keeps the books' });
+            await ports.admin.setStaff(owner.id, { handle: moderator.handle, role: 'moderator', reason: 'Watches the tables' });
+
+            return { owner, admin, moderator };
+        };
+
+        it('is closed by a role that opens Money with a reason, written to the staff\'s log in the same breath, and said', async () =>
+        {
+            const { admin } = await owned();
+            const refunded = await order('paid');
+
+            shopSold(refunded, { refunded: true });
+            await pass();
+
+            const [found] = await rowsAbout(refunded.id);
+            const done = await ports.admin.closeCheck(admin.id, found.id, { reason: 'The owner refunded it on purpose' });
+
+            expect(done?.open).toBe(0);
+            expect(done?.check).toMatchObject({ id: found.id, resolution: 'staff', staff: admin.handle, reason: 'The owner refunded it on purpose' });
+            expect(done?.check.resolvedAt).toBeDefined();
+            expect((await ports.admin.log(admin.id, { kind: 'check' }))?.rows).toMatchObject([{
+                kind: 'check',
+                staff: admin.handle,
+                staffRole: 'admin',
+                reason: 'The owner refunded it on purpose',
+                details: { check: found.id, family: 'order', record: refunded.id, kind: 'order-state' }
+            }]);
+            expect(warned('chain and database disagreement closed', refunded.id).map((one) => one.fields)).toEqual([{ family: 'order', record: refunded.id, kind: 'order-state', by: admin.handle }]);
+            expect(warned('chain and database agree again', refunded.id), 'a person closing it is not the two agreeing').toEqual([]);
+        });
+
+        it('stays closed while the two sides say what they said, and opens again once either moves', async () =>
+        {
+            const { owner } = await owned();
+            const short = (held: bigint) => ({ held, owed: 100n, solvent: false });
+
+            vault.state.books = short(90n);
+            await pass();
+
+            const [found] = await rowsAbout('vault');
+
+            await ports.admin.closeCheck(owner.id, found.id, { reason: 'Topping it up tonight' });
+            await pass();
+            await pass();
+
+            expect(await rowsAbout('vault'), 'the same words, still closed').toMatchObject([{ id: found.id, resolution: 'staff' }]);
+
+            vault.state.books = short(80n);
+            await pass();
+
+            const rows = await rowsAbout('vault');
+
+            expect(rows).toHaveLength(2);
+            expect(rows[1]).toMatchObject({ resolution: null, chain: { held: '80', owed: '100' } });
+        });
+
+        it('refuses one already closed in its own word, and answers a moderator, a player and an id that names nothing as nothing', async () =>
+        {
+            const { owner, moderator } = await owned();
+            const player = await person();
+            const unpaid = await order('paid');
+
+            await pass();
+
+            const [found] = await rowsAbout(unpaid.id);
+
+            expect(await ports.admin.closeCheck(moderator.id, found.id, { reason: 'Not mine to close' })).toBeNull();
+            expect(await ports.admin.closeCheck(player.id, found.id, { reason: 'Not mine to close' })).toBeNull();
+            expect(await ports.admin.closeCheck(owner.id, 'no-such-id', { reason: 'Looked at it' })).toBeNull();
+            expect(await ports.admin.closeCheck(owner.id, '00000000-0000-4000-8000-000000000000', { reason: 'Looked at it' })).toBeNull();
+
+            await ports.admin.closeCheck(owner.id, found.id, { reason: 'Looked at it' });
+
+            await expect(ports.admin.closeCheck(owner.id, found.id, { reason: 'Again' })).rejects.toMatchObject({ status: 409, code: 'staff-check-closed' });
+            expect((await rowsAbout(unpaid.id))[0]).toMatchObject({ resolution: 'staff', reason: 'Looked at it' });
+        });
+
+        it('lets one close at a time: two closing one disagreement at once close it once', async () =>
+        {
+            const { owner, admin } = await owned();
+            const unpaid = await order('paid');
+
+            await pass();
+
+            const [found] = await rowsAbout(unpaid.id);
+            const gate = db.createQueryRunner();
+
+            await gate.connect();
+            await gate.startTransaction();
+            await gate.query(`select id from discrepancies where id = $1 for update`, [found.id]);
+
+            const closing = Promise.allSettled([
+                ports.admin.closeCheck(owner.id, found.id, { reason: 'Mine to close' }),
+                ports.admin.closeCheck(admin.id, found.id, { reason: 'Mine to close too' })
+            ]);
+            const deadline = Date.now() + 5000;
+
+            while (await waitingOnLocks() < 2 && Date.now() < deadline)
+            {
+                await new Promise((resolve) => setTimeout(resolve, 5));
+            }
+
+            expect(await waitingOnLocks(), 'both parked on the row').toBe(2);
+
+            await gate.commitTransaction();
+            await gate.release();
+
+            const both = await closing;
+
+            expect(both.map((one) => one.status).sort()).toEqual(['fulfilled', 'rejected']);
+            expect((await ports.admin.log(owner.id, { kind: 'check' }))?.rows).toHaveLength(1);
         });
     });
 });

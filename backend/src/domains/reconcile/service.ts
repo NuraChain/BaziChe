@@ -4,6 +4,7 @@ import type { Books } from '../../chain/rpc.ts';
 import { Discrepancy } from '../../entities/discrepancy.entity.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import type { AdminCheck, AdminChecks } from '../../schemas.ts';
+import { record, staffRefusal, type Actor } from '../admin/staff.ts';
 import { AUDIT_PAGE, type Audit, type Auditor, type Finding, type Words } from './audit.ts';
 import { CHECKS_PAGE, type CheckFamily, type CheckKind, type CheckList, type CheckResolution, type Holder } from './kinds.ts';
 
@@ -36,6 +37,8 @@ interface CheckRow extends Keyed
     staff_handle: string | null;
     reason: string | null;
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const canonical = (words: Words) => JSON.stringify(Object.keys(words).sort().map((key) => [key, words[key]]));
 
@@ -97,8 +100,8 @@ export function createReconciler(
         .addSelect('d.reason', 'reason')
         .addSelect(keyOf('d.first_seen'), 'at_key');
 
-    const resolved = (family: CheckFamily, row: { record: string; kind: CheckKind }, how: CheckResolution, by?: string) =>
-        hooks.said('chain and database agree again', { family, record: row.record, kind: row.kind, how, ...(by === undefined ? {} : { by }) });
+    const resolved = (family: CheckFamily, row: { record: string; kind: CheckKind }, how: Exclude<CheckResolution, 'staff'>) =>
+        hooks.said('chain and database agree again', { family, record: row.record, kind: row.kind, how });
 
     const keep = async (family: CheckFamily, finding: Finding, tally: ReconcileSweep) =>
     {
@@ -297,6 +300,46 @@ export function createReconciler(
                 watching,
                 ...(checkedAt === null ? {} : { checkedAt: checkedAt.toISOString() })
             };
+        },
+
+        /** Closed by somebody on the staff with a reason, written to their log in the same transaction. */
+        async close(actor: Actor, id: string, reason: string)
+        {
+            if (!UUID.test(id))
+            {
+                return null;
+            }
+
+            const closed = await db.transaction(async (tx) =>
+            {
+                const held = await tx.getRepository(Discrepancy).findOne({ where: { id }, lock: { mode: 'pessimistic_write' } });
+
+                if (held === null)
+                {
+                    return null;
+                }
+
+                if (held.resolvedAt !== null)
+                {
+                    throw staffRefusal('staff-check-closed', 'That disagreement has already been closed.');
+                }
+
+                await tx.getRepository(Discrepancy).update(id, { resolvedAt: () => 'now()', resolution: 'staff', staffId: actor.id, staffHandle: actor.handle, reason });
+                await record(tx, actor, { kind: 'check', reason, details: { check: id, family: held.family, record: held.record, kind: held.kind } });
+
+                return held;
+            });
+
+            if (closed === null)
+            {
+                return null;
+            }
+
+            hooks.said('chain and database disagreement closed', { family: closed.family, record: closed.record, kind: closed.kind, by: actor.handle });
+
+            const [row, open] = await Promise.all([checkQuery().where('d.id = :id', { id }).getRawOne<CheckRow>(), openCount()]);
+
+            return { check: wire(row!), open };
         }
     };
 }

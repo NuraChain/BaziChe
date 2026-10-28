@@ -6,9 +6,10 @@
  * in its dress, the standard indices kept) and card back (`public/backs/`); its yard
  * (`public/yards/`), laid over its owner's corner of the Ludo board; its felt (`public/felts/`),
  * the mat in front of its owner's seat at Hokm and poker; its backgammon checkers for either side of
- * a board (`public/checkers/<collection>-<light|dark>.svg`), on the board's own checker; and its
- * home board (`public/homes/`), the six points of its owner's home on the board's own points.
- * `npm run looks` runs it.
+ * a board (`public/checkers/<collection>-<light|dark>.svg`), on the board's own checker; its
+ * home board (`public/homes/`), the six points of its owner's home on the board's own points; and
+ * its chess set (`public/pieces/<collection>-<w|b><kind>.svg`, drawn by `chess-looks.mjs`) on the
+ * classic set's footprint. `npm run looks` runs it.
  */
 
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -20,6 +21,7 @@ import { MIDDLE, POINT_HEIGHT, POINT_WIDTH, TOP } from '../../frontend/src/game/
 import { PALETTES, SEAT_RAMPS } from '../../frontend/src/game/looks/palette.ts';
 import { cardBack, HALO } from './card-back.mjs';
 import { H, W, deck } from './card-parts.mjs';
+import { KINDS, piece } from './chess-looks.mjs';
 import { LEGENDARY } from './legendary/index.mjs';
 import { clothOf, gloss, motif, octagram, polygon, r2, radial, sparkle, starOf } from './look-parts.mjs';
 import { PAWN, outlined } from './pawn-shape.mjs';
@@ -584,5 +586,6 @@ const yards = write('yards', SHOP_COLLECTIONS.map((collection) => [collection, y
 const felts = write('felts', SHOP_COLLECTIONS.map((collection) => [collection, mat(collection)]));
 const checkers = write('checkers', SHOP_COLLECTIONS.flatMap((collection) => ['light', 'dark'].map((tone) => [`${ collection }-${ tone }`, checker(collection, tone)])));
 const homes = write('homes', SHOP_COLLECTIONS.map((collection) => [collection, home(collection)]));
+const pieces = write('pieces', SHOP_COLLECTIONS.flatMap((collection) => ['w', 'b'].flatMap((colour) => KINDS.map((kind) => [`${ collection }-${ colour }${ kind }`, piece(collection, colour, kind)]))));
 
-console.log(`table looks: ${ pawns } pawns, ${ decks } decks, ${ backs } backs, ${ yards } yards, ${ felts } felts, ${ checkers } checkers, ${ homes } home boards`);
+console.log(`table looks: ${ pawns } pawns, ${ decks } decks, ${ backs } backs, ${ yards } yards, ${ felts } felts, ${ checkers } checkers, ${ homes } home boards, ${ pieces } chess pieces`);

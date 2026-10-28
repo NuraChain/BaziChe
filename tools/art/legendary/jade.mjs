@@ -2,7 +2,7 @@
  * Jade Dragon Dynasty: carved translucent jade inlaid with imperial gold, cloud scrolls, and a
  * dragon's coil round everything it frames. Serene and sinuous.
  */
-import { at, C, linear, r2, RING, seeded } from '../svg-parts.mjs';
+import { at, C, linear, r2, RING, seeded, turned } from '../svg-parts.mjs';
 
 /** The palette's pattern this collection's art is drawn for (`game/looks/palette.ts`). */
 export const pattern = 'scales';
@@ -266,3 +266,29 @@ export function pawn(seat, kit)
         ...dragon.body
     ]);
 }
+
+// ---------------------------------------------------------------- the chess set
+
+/**
+ * What the collection's chess set is crowned with (`chess-looks.mjs`): the dragon's pearl on
+ * (x, y) in a gilt cradle, a cinnabar flame rising from it, and gold for the king's cross and every
+ * trim.
+ */
+export const chess = {
+    metal: ['#FFF1C4', '#F2C14E', '#9A6E12'],
+    accent: (palette, x, y, size, turn, id) =>
+    {
+        const cradle = `M${ r2(x - size * 0.95) } ${ r2(y + size * 0.15) }Q${ r2(x) } ${ r2(y + size * 1.25) } ${ r2(x + size * 0.95) } ${ r2(y + size * 0.15) }`;
+
+        return {
+            defs: [gilt(`${ id }-gold`), `<radialGradient id="${ id }-pearl" cx="0.36" cy="0.32" r="0.8"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.5" stop-color="#FFF1C4"/><stop offset="1" stop-color="${ GOLD }"/></radialGradient>`],
+            body: turned([
+                `<path d="${ cradle }" fill="none" stroke="${ INK }" stroke-width="${ r2(size * 0.5) }" stroke-linecap="round"/>`,
+                `<path d="${ cradle }" fill="none" stroke="url(#${ id }-gold)" stroke-width="${ r2(size * 0.28) }" stroke-linecap="round"/>`,
+                `<circle cx="${ r2(x) }" cy="${ r2(y) }" r="${ r2(size * 0.72) }" fill="url(#${ id }-pearl)" stroke="${ INK }" stroke-width="${ r2(size * 0.14) }"/>`,
+                `<circle cx="${ r2(x - size * 0.24) }" cy="${ r2(y - size * 0.24) }" r="${ r2(size * 0.2) }" fill="#FFFFFF"/>`,
+                `<path d="M${ r2(x) } ${ r2(y - size * 0.82) }c${ r2(size * 0.4) } ${ r2(-size * 0.36) } ${ r2(size * 0.16) } ${ r2(-size * 0.8) } ${ r2(-size * 0.1) } ${ r2(-size * 1.05) }" fill="none" stroke="${ CINNABAR }" stroke-width="${ r2(size * 0.22) }" stroke-linecap="round"/>`
+            ].join(''), x, y, turn)
+        };
+    }
+};

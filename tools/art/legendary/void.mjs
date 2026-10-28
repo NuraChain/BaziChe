@@ -2,7 +2,7 @@
  * Void Emperor: matte black split by violet fractures, hollow shards and negative space, tendrils
  * that curl inward and spectral wisps let go. It takes the light in, then gives it back.
  */
-import { about, at, C, linear, r2, RING, seeded } from '../svg-parts.mjs';
+import { about, at, C, linear, r2, RING, seeded, turned } from '../svg-parts.mjs';
 
 /** The palette's pattern this collection's art is drawn for (`game/looks/palette.ts`). */
 export const pattern = 'fractures';
@@ -261,3 +261,33 @@ export function pawn(seat, kit)
         ...hood.body
     ]);
 }
+
+// ---------------------------------------------------------------- the chess set
+
+/** A wisp let go: a spectral flame standing on (x, y), `tall` high and `wide` across, its tip curling over. */
+const wisp = (x, y, tall, wide) => `M${ r2(x - wide / 2) } ${ r2(y) }C${ r2(x - wide * 0.72) } ${ r2(y - tall * 0.5) } ${ r2(x - wide * 0.05) } ${ r2(y - tall * 0.72) } ${ r2(x + wide * 0.3) } ${ r2(y - tall) }C${ r2(x + wide * 0.08) } ${ r2(y - tall * 0.7) } ${ r2(x + wide * 0.78) } ${ r2(y - tall * 0.42) } ${ r2(x + wide / 2) } ${ r2(y) }Z`;
+
+/**
+ * What the collection's chess set is crowned with (`chess-looks.mjs`): a wisp on (x, y),
+ * ultraviolet round a white heart in a haze of its light, and ultraviolet for the king's cross and
+ * every trim.
+ */
+export const chess = {
+    metal: ['#E9D5FF', '#A855F7', '#3B0F7A'],
+    accent: (palette, x, y, size, turn, id) =>
+    {
+        const base = y + size * 0.8;
+
+        return {
+            defs: [
+                `<linearGradient id="${ id }" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="${ VIOLET }"/><stop offset="0.55" stop-color="${ ULTRA }"/><stop offset="1" stop-color="${ LILAC }"/></linearGradient>`,
+                `<filter id="${ id }-glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="${ r2(size * 0.32) }"/></filter>`
+            ],
+            body: turned([
+                `<path d="${ wisp(x, base, size * 2.5, size * 1.3) }" fill="${ ULTRA }" filter="url(#${ id }-glow)" opacity="0.7"/>`,
+                `<path d="${ wisp(x, base, size * 2.5, size * 1.3) }" fill="url(#${ id })" stroke="${ VOID }" stroke-width="${ r2(size * 0.18) }" stroke-linejoin="round"/>`,
+                `<path d="${ wisp(x + size * 0.04, base - size * 0.12, size * 1.3, size * 0.55) }" fill="#FFFFFF" opacity="0.85"/>`
+            ].join(''), x, y, turn)
+        };
+    }
+};

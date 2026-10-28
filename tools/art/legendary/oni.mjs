@@ -2,7 +2,7 @@
  * Neon Oni: holographic film over black chrome, circuit traces and a hex grid, and the horned mask.
  * Digital: it stutters, glitches and is crossed by scanlines.
  */
-import { at, C, linear, r2, RING, seeded } from '../svg-parts.mjs';
+import { at, C, linear, r2, RING, seeded, turned } from '../svg-parts.mjs';
 
 /** The palette's pattern this collection's art is drawn for (`game/looks/palette.ts`). */
 export const pattern = 'circuits';
@@ -261,3 +261,27 @@ export function pawn(seat, kit)
         ...horns.body
     ]);
 }
+
+// ---------------------------------------------------------------- the chess set
+
+/**
+ * What the collection's chess set is crowned with (`chess-looks.mjs`): an oni's horn of chrome
+ * rising from (x, y), edged in crimson neon with a cyan stud at its root, and crimson for the king's
+ * cross and every trim.
+ */
+export const chess = {
+    metal: ['#FFC2CC', '#FF2E4D', '#6A0A18'],
+    accent: (palette, x, y, size, turn, id) =>
+    {
+        const horn = `M${ r2(x - size * 0.6) } ${ r2(y + size * 0.8) }C${ r2(x - size * 0.55) } ${ r2(y - size * 0.25) } ${ r2(x + size * 0.05) } ${ r2(y - size * 1.05) } ${ r2(x + size * 0.7) } ${ r2(y - size * 1.75) }C${ r2(x + size * 0.42) } ${ r2(y - size * 0.75) } ${ r2(x + size * 0.58) } ${ r2(y + size * 0.05) } ${ r2(x + size * 0.6) } ${ r2(y + size * 0.8) }Z`;
+
+        return {
+            defs: [`<linearGradient id="${ id }" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3A3F52"/><stop offset="0.6" stop-color="#11131C"/><stop offset="1" stop-color="${ CHROME }"/></linearGradient>`],
+            body: turned([
+                `<path d="${ horn }" fill="url(#${ id })" stroke="${ CHROME }" stroke-width="${ r2(size * 0.26) }" stroke-linejoin="round"/>`,
+                neon(horn, CRIMSON, size * 0.16),
+                `<circle cx="${ r2(x) }" cy="${ r2(y + size * 0.42) }" r="${ r2(size * 0.18) }" fill="${ CYAN }"/>`
+            ].join(''), x, y, turn)
+        };
+    }
+};

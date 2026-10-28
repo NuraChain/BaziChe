@@ -2,7 +2,7 @@
  * Frost Revenant: faceted translucent ice, six-fold crystals and icicles. Brittle stillness, crystals
  * that grow, and a glint that runs over the ice.
  */
-import { about, at, C, linear, r2, RING, seeded } from '../svg-parts.mjs';
+import { about, at, C, linear, r2, RING, seeded, turned } from '../svg-parts.mjs';
 
 /** The palette's pattern this collection's art is drawn for (`game/looks/palette.ts`). */
 export const pattern = 'crystals';
@@ -252,3 +252,17 @@ export function pawn(seat, kit)
         ...crown.body
     ]);
 }
+
+// ---------------------------------------------------------------- the chess set
+
+/**
+ * What the collection's chess set is crowned with (`chess-looks.mjs`): a shard of ice standing on
+ * (x, y), its two faces shaded apart, and glacier ice for the king's cross and every trim.
+ */
+export const chess = {
+    metal: ['#FFFFFF', '#8FD3FF', '#1E5B8C'],
+    accent: (palette, x, y, size, turn, id) => ({
+        defs: ices(id),
+        body: turned(`<g stroke="${ NIGHT }" stroke-width="${ r2(size * 0.2) }" stroke-linejoin="round">${ shard(id, x, y + size * 0.85, size * 2.5, size * 1.2).replace(/<path /g, '<path paint-order="stroke" ') }</g>`, x, y, turn)
+    })
+};

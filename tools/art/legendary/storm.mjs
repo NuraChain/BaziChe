@@ -2,7 +2,7 @@
  * Stormforged Monarch: charged forged steel, riveted bands, chevrons and pylons, and the storm in
  * it: electric blue and violet arcs that gather, crawl and strike.
  */
-import { at, C, linear, r2, RING, seeded } from '../svg-parts.mjs';
+import { at, C, linear, r2, RING, seeded, turned } from '../svg-parts.mjs';
 
 /** The palette's pattern this collection's art is drawn for (`game/looks/palette.ts`). */
 export const pattern = 'bolts';
@@ -264,3 +264,28 @@ export function pawn(seat, kit)
         ...spire.body
     ]);
 }
+
+// ---------------------------------------------------------------- the chess set
+
+/**
+ * What the collection's chess set is crowned with (`chess-looks.mjs`): a pylon of forged steel
+ * standing on (x, y), a ball of charge at its tip, and blue steel for the king's cross and every
+ * trim.
+ */
+export const chess = {
+    metal: ['#EAF6FF', '#7FB8F0', '#24467A'],
+    accent: (palette, x, y, size, turn, id) =>
+    {
+        const top = y + size * 0.9 - size * 2.1;
+
+        return {
+            defs: [steel(id, palette)],
+            body: turned([
+                `<path d="${ pylon(x, y + size * 0.9, size * 2.1, size * 1.3) }" fill="url(#${ id })" stroke="${ IRON }" stroke-width="${ r2(size * 0.2) }" stroke-linejoin="round"/>`,
+                `<circle cx="${ r2(x) }" cy="${ r2(top) }" r="${ r2(size * 0.66) }" fill="${ CYAN }" opacity="0.35"/>`,
+                `<circle cx="${ r2(x) }" cy="${ r2(top) }" r="${ r2(size * 0.42) }" fill="${ CYAN }" stroke="${ IRON }" stroke-width="${ r2(size * 0.14) }"/>`,
+                `<circle cx="${ r2(x - size * 0.13) }" cy="${ r2(top - size * 0.13) }" r="${ r2(size * 0.14) }" fill="#FFFFFF"/>`
+            ].join(''), x, y, turn)
+        };
+    }
+};

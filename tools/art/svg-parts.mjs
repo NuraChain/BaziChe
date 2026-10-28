@@ -61,5 +61,8 @@ export const seeded = (seed) =>
     };
 };
 
+/** `content` turned `turn` degrees clockwise about (x, y), or left as it is. */
+export const turned = (content, x, y, turn) => (turn === 0 ? content : `<g transform="rotate(${ r2(turn) } ${ r2(x) } ${ r2(y) })">${ content }</g>`);
+
 /** `content` scaled about (x, y) by `scale`, an animateTransform of type scale or nothing. */
 export const about = (x, y, scale, content) => `<g transform="translate(${ x } ${ y })"><g>${ scale }<g transform="translate(${ -x } ${ -y })">${ content }</g></g></g>`;

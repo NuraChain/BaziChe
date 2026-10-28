@@ -2,7 +2,7 @@
  * Solar Phoenix: gilded feathers and burnished bronze, sunburst rays and plumes. Soaring and
  * radiant: wings sweep up round what it frames to a sun that rises at the top.
  */
-import { about, at, C, linear, r2, RING, seeded } from '../svg-parts.mjs';
+import { about, at, C, linear, r2, RING, seeded, turned } from '../svg-parts.mjs';
 
 /** The palette's pattern this collection's art is drawn for (`game/looks/palette.ts`). */
 export const pattern = 'feathers';
@@ -255,3 +255,18 @@ export function pawn(seat, kit)
         ...plume.body
     ]);
 }
+
+// ---------------------------------------------------------------- the chess set
+
+/**
+ * What the collection's chess set is crowned with (`chess-looks.mjs`): a feather rising from
+ * (x, y), its vane burning from crimson to gold, and burnished gold for the king's cross and every
+ * trim.
+ */
+export const chess = {
+    metal: ['#FFF6D6', '#FFC94A', '#A8561A'],
+    accent: (palette, x, y, size, turn, id) => ({
+        defs: [plumage(id, x, y + size, x, y - size * 1.7)],
+        body: turned(drawn(id, x, y + size * 0.95, -Math.PI / 2, size * 2.7, size * 0.95, ` stroke="${ UMBER }" stroke-width="${ r2(size * 0.18) }" stroke-linejoin="round"`), x, y, turn)
+    })
+};

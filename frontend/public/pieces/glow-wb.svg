@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<defs>
+<linearGradient id="body" x1="0.18" y1="0" x2="0.82" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.55" stop-color="#E3EEFF"/><stop offset="1" stop-color="#B8D0FA"/></linearGradient>
+<linearGradient id="metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.5" stop-color="#FBE7A6"/><stop offset="1" stop-color="#C9A24A"/></linearGradient>
+<linearGradient id="shade" x1="0" y1="0" x2="1" y2="0"><stop offset="0.35" stop-color="#000000" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="0.32"/></linearGradient>
+<radialGradient id="gloss" cx="0.32" cy="0.22" r="0.62"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.6"/><stop offset="0.7" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+<pattern id="pattern" width="22" height="22" patternUnits="userSpaceOnUse" patternTransform="scale(0.42)"><path d="M11 7.6Q11 11 14.4 11Q11 11 11 14.4Q11 11 7.6 11Q11 11 11 7.6Z" fill="#FBE7A6"/><circle cx="3.5" cy="4" r="0.8" fill="#9CC2FF"/><circle cx="18" cy="18.5" r="0.55" fill="#FBE7A6"/><path d="M19 2.7Q19 4 20.3 4Q19 4 19 5.3Q19 4 17.7 4Q19 4 19 2.7Z" fill="#9CC2FF"/></pattern>
+<clipPath id="shape"><path d="M19 92 C19 85.5 23 83.2 30 82.8 L70 82.8 C77 83.2 81 85.5 81 92 Z" /><path d="M26 83.2 C26.8 78.6 30.5 76.6 35.5 76.4 L64.5 76.4 C69.5 76.6 73.2 78.6 74 83.2 Z" /><path d="M36.6 76.6 C38.6 67.2 43.6 61.4 45 55.6 L55 55.6 C56.4 61.4 61.4 67.2 63.4 76.6 Z" /><ellipse cx="50" cy="54.8" rx="12" ry="3.6" /><path d="M50 21.6 C59.6 28.4 63.6 38.6 59.6 47.4 C57.6 51.2 54.2 52.6 50 52.6 C45.8 52.6 42.4 51.2 40.4 47.4 C36.4 38.6 40.4 28.4 50 21.6 Z" /></clipPath>
+<filter id="rim" x="-5%" y="-5%" width="110%" height="110%"><feMorphology in="SourceAlpha" operator="erode" radius="1.1" result="outer"/><feMorphology in="SourceAlpha" operator="erode" radius="2.5" result="core"/><feComposite in="outer" in2="core" operator="out" result="band"/><feFlood flood-color="#FFFFFF"/><feComposite in2="band" operator="in"/><feGaussianBlur stdDeviation="0.35"/></filter>
+<linearGradient id="rim-side" x1="0" y1="0" x2="1" y2="1"><stop offset="0.15" stop-color="#FFFFFF"/><stop offset="0.62" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
+<mask id="lit" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"><rect x="0" y="0" width="100" height="100" fill="url(#rim-side)"/></mask>
+<radialGradient id="a0-halo"><stop offset="0" stop-color="#FBE7A6" stop-opacity="0.6"/><stop offset="1" stop-color="#FBE7A6" stop-opacity="0"/></radialGradient>
+</defs>
+<g transform="translate(50 52) scale(1.08) translate(-50 -52)">
+
+
+<g fill="url(#body)" stroke="#0B1640" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"><path d="M19 92 C19 85.5 23 83.2 30 82.8 L70 82.8 C77 83.2 81 85.5 81 92 Z" /><path d="M26 83.2 C26.8 78.6 30.5 76.6 35.5 76.4 L64.5 76.4 C69.5 76.6 73.2 78.6 74 83.2 Z" /><path d="M36.6 76.6 C38.6 67.2 43.6 61.4 45 55.6 L55 55.6 C56.4 61.4 61.4 67.2 63.4 76.6 Z" /><ellipse cx="50" cy="54.8" rx="12" ry="3.6" /><path d="M50 21.6 C59.6 28.4 63.6 38.6 59.6 47.4 C57.6 51.2 54.2 52.6 50 52.6 C45.8 52.6 42.4 51.2 40.4 47.4 C36.4 38.6 40.4 28.4 50 21.6 Z" /></g>
+<g clip-path="url(#shape)">
+<rect x="0" y="0" width="100" height="100" fill="url(#pattern)" opacity="0.26"/>
+<rect x="0" y="0" width="100" height="100" fill="url(#shade)"/>
+</g>
+<g fill="#000000" filter="url(#rim)" mask="url(#lit)" opacity="0.8"><path d="M19 92 C19 85.5 23 83.2 30 82.8 L70 82.8 C77 83.2 81 85.5 81 92 Z" /><path d="M26 83.2 C26.8 78.6 30.5 76.6 35.5 76.4 L64.5 76.4 C69.5 76.6 73.2 78.6 74 83.2 Z" /><path d="M36.6 76.6 C38.6 67.2 43.6 61.4 45 55.6 L55 55.6 C56.4 61.4 61.4 67.2 63.4 76.6 Z" /><ellipse cx="50" cy="54.8" rx="12" ry="3.6" /><path d="M50 21.6 C59.6 28.4 63.6 38.6 59.6 47.4 C57.6 51.2 54.2 52.6 50 52.6 C45.8 52.6 42.4 51.2 40.4 47.4 C36.4 38.6 40.4 28.4 50 21.6 Z" /></g>
+<g fill="none" stroke="url(#metal)" stroke-width="1.5" stroke-linecap="round"><path d="M28.4 80.2C38.4 78.9 61.6 78.9 71.6 80.2"/><path d="M38 54.8A12 3.6 0 0 0 62 54.8"/></g>
+<path d="M55.6 31.6 L46.4 42.6" fill="none" stroke="#0B1640" stroke-width="3" stroke-linecap="round" opacity="0.75"/><path d="M55.6 31.6 L46.4 42.6" fill="none" stroke="url(#metal)" stroke-width="1.5" stroke-linecap="round"/>
+<g fill="url(#gloss)"><path d="M19 92 C19 85.5 23 83.2 30 82.8 L70 82.8 C77 83.2 81 85.5 81 92 Z" /><path d="M26 83.2 C26.8 78.6 30.5 76.6 35.5 76.4 L64.5 76.4 C69.5 76.6 73.2 78.6 74 83.2 Z" /><path d="M36.6 76.6 C38.6 67.2 43.6 61.4 45 55.6 L55 55.6 C56.4 61.4 61.4 67.2 63.4 76.6 Z" /><ellipse cx="50" cy="54.8" rx="12" ry="3.6" /><path d="M50 21.6 C59.6 28.4 63.6 38.6 59.6 47.4 C57.6 51.2 54.2 52.6 50 52.6 C45.8 52.6 42.4 51.2 40.4 47.4 C36.4 38.6 40.4 28.4 50 21.6 Z" /></g>
+<circle cx="50" cy="17.4" r="6.32" fill="url(#a0-halo)"/><path d="M50 11.58Q50 17.4 55.82 17.4Q50 17.4 50 23.22Q50 17.4 44.18 17.4Q50 17.4 50 11.58Z" fill="#FBE7A6" stroke="#1B3480" stroke-width="0.81" stroke-linejoin="round"/><path d="M50 15.12Q50 17.4 52.28 17.4Q50 17.4 50 19.68Q50 17.4 47.72 17.4Q50 17.4 50 15.12Z" fill="#FFFFFF"/>
+</g>
+</svg>

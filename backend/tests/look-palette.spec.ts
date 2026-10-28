@@ -220,6 +220,79 @@ describe('what a table wears', () =>
         expect(home).toContain(`viewBox="0 0 ${ POINT_WIDTH * 6 } ${ MIDDLE - TOP }"`);
         expect(filled).toEqual(own.map((spike) => ({ points: spike.path.split(' ').map(local).join(' '), tone: spike.shade === 'a' ? 0 : 1 })));
     });
+
+    const COLOURS = ['w', 'b'] as const;
+
+    const KINDS = ['k', 'q', 'r', 'b', 'n', 'p'] as const;
+
+    const set = async () => await import(new URL('../../tools/art/chess-looks.mjs', import.meta.url).href) as { sideOf: (collection: string, colour: string) => { body: readonly string[]; line: string } };
+
+    const pieceOf = (collection: string, name: string) => readFileSync(new URL(`../../frontend/public/pieces/${ collection }-${ name }.svg`, import.meta.url), 'utf8');
+
+    /** The board's two woods as the classic board draws them, each a pair of stops. */
+    const woods = () =>
+    {
+        const board = readFileSync(new URL('../../frontend/public/board/chess/board.svg', import.meta.url), 'utf8');
+        const stops = (id: string) => [...(new RegExp(`<linearGradient id="${ id }"[^>]*>(.*?)</linearGradient>`).exec(board)?.[1] ?? '').matchAll(/stop-color="(#\w+)"/g)].map(([, stop]) => stop!);
+        return { maple: stops('maple'), walnut: stops('walnut') };
+    };
+
+    it('draws a chess set of every collection, the twelve pieces of each, and nothing else', () =>
+    {
+        const drawn = readdirSync(new URL('../../frontend/public/pieces/', import.meta.url)).sort();
+
+        expect(drawn).toEqual(SHOP_COLLECTIONS.flatMap((collection) => COLOURS.flatMap((colour) => KINDS.map((kind) => `${ collection }-${ colour }${ kind }.svg`))).sort());
+    });
+
+    it.each(SHOP_COLLECTIONS.flatMap((collection) => COLOURS.map((colour) => [collection, colour] as const)))('makes %s’s %s pieces of that side’s material on the classic set’s footprint, outlined in that side’s ink', async (collection, colour) =>
+    {
+        const { sideOf } = await set();
+        const side = sideOf(collection, colour);
+        const palette = PALETTES[collection];
+
+        expect(side.body).toEqual(colour === 'w' ? palette.pale : palette.deep);
+        for (const kind of KINDS)
+        {
+            const piece = pieceOf(collection, `${ colour }${ kind }`);
+            const body = /<linearGradient id="body"[^>]*>(.*?)<\/linearGradient>/.exec(piece)?.[1] ?? '';
+
+            expect(piece).toContain('viewBox="0 0 100 100"');
+            expect(piece).toContain('<g transform="translate(50 52) scale(1.08) translate(-50 -52)">');
+            expect(piece).toContain('<path d="M19 92 C19 85.5 23 83.2 30 82.8 L70 82.8 C77 83.2 81 85.5 81 92 Z"');
+            expect([...body.matchAll(/stop-color="(#\w+)"/g)].map(([, stop]) => stop)).toEqual([...side.body]);
+            expect(piece).toContain(`<g fill="url(#body)" stroke="${ side.line }" stroke-width="2.4"`);
+        }
+    });
+
+    it('keeps every light piece far from every dark one in light, the classic set’s two included, so any two sets on one board read as two sides', () =>
+    {
+        const classic = (name: string) => /<stop offset="0.55" stop-color="(#\w+)"\/>/.exec(readFileSync(new URL(`../../frontend/public/board/chess/${ name }.svg`, import.meta.url), 'utf8'))![1]!;
+        const lights = [classic('wk'), ...SHOP_COLLECTIONS.map((collection) => PALETTES[collection].pale[1])];
+        const darks = [classic('bk'), ...SHOP_COLLECTIONS.map((collection) => PALETTES[collection].deep[1])];
+
+        for (const light of lights)
+        {
+            for (const dark of darks)
+            {
+                expect(contrast(light, dark), `${ light } beside ${ dark }`).toBeGreaterThanOrEqual(3);
+            }
+        }
+    });
+
+    it.each(SHOP_COLLECTIONS.flatMap((collection) => COLOURS.map((colour) => [collection, colour] as const)))('stands %s’s %s pieces out from both woods of the board, by their body or by their ink, at 3:1 or more', async (collection, colour) =>
+    {
+        const { sideOf } = await set();
+        const side = sideOf(collection, colour);
+
+        for (const [wood, stops] of Object.entries(woods()))
+        {
+            expect(stops, wood).toHaveLength(2);
+            for (const stop of stops)
+            {
+                expect(Math.max(contrast(side.body[1]!, stop), contrast(side.line, stop)), `${ wood } ${ stop }`).toBeGreaterThanOrEqual(3);
+            }
+        }
+    });
 });
 
 describe('the legendary collections\' art', () =>
@@ -275,6 +348,13 @@ describe('the legendary collections\' art', () =>
         expect(line.board.rim((r: number, turn: number) => [64 + r * Math.sin(turn), 64 - r * Math.cos(turn)], true, palette)).toMatch(/^</);
         expect(line.board.vein({ x: 33, top: 62, bottom: 386, half: () => 10 }, palette, 0)).toMatch(/^</);
         expect(line.board.tip(33, 62, palette, 0)).toMatch(/^</);
+        expect(line.chess.metal).toHaveLength(3);
+        expect(line.chess.metal.every((stop: string) => /^#[0-9A-F]{6}$/i.test(stop))).toBe(true);
+        const upright = line.chess.accent(palette, 50, 20, 3.4, 0, 'tip');
+
+        expect(upright.defs).toBeInstanceOf(Array);
+        expect(upright.body).toMatch(/^<(path|circle|g)\b/);
+        expect(line.chess.accent(palette, 50, 20, 3.4, 40, 'tip').body).toBe(`<g transform="rotate(40 50 20)">${ upright.body }</g>`);
     });
 });
 

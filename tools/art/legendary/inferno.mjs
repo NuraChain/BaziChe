@@ -3,7 +3,7 @@
  * crown, smouldering until it erupts. Every part of the collection's art is drawn here from its
  * palette and the lava it burns with.
  */
-import { about, at, C, linear, r2, RING, seeded } from '../svg-parts.mjs';
+import { about, at, C, linear, r2, RING, seeded, turned } from '../svg-parts.mjs';
 
 /** The palette's pattern this collection's art is drawn for (`game/looks/palette.ts`). */
 export const pattern = 'magma';
@@ -290,3 +290,18 @@ export function pawn(seat, kit)
         ...crown.body
     ]);
 }
+
+// ---------------------------------------------------------------- the chess set
+
+/**
+ * What the collection's chess set is crowned with (`chess-looks.mjs`): a tongue of flame burning
+ * from lava to a white-hot heart, standing on (x, y) and leaning as its crown turns it, and molten
+ * gold for the king's cross and every trim.
+ */
+export const chess = {
+    metal: ['#FFE7A1', '#FFB43A', '#9A4A12'],
+    accent: (palette, x, y, size, turn, id) => ({
+        defs: flames(id, palette),
+        body: turned(fire(id, x, y + size * 0.75, size * 2.5, size * 1.35, 0, ` stroke="${ CHAR }" stroke-width="${ r2(size * 0.2) }" stroke-linejoin="round"`), x, y, turn)
+    })
+};

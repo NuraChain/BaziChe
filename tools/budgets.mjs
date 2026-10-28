@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 
 import { BUNDLES, LOOKS, SHOP_COLLECTIONS } from '../backend/src/domains/shop/catalogue.ts';
 import { SEAT_RAMPS } from '../frontend/src/game/looks/palette.ts';
+import { KINDS } from './art/chess-set.mjs';
 import { POSTERS, fingerprint } from './art/poster.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -86,8 +87,8 @@ const PROFILE_LOOKS = {
  * What a table draws of its owner's looks: pawns in each seat's colour, each collection's deck
  * and back, its yard, laid over its owner's corner of the Ludo board, its felt, the mat in front
  * of its owner's seat at Hokm and poker, its backgammon checkers for either side of a board and
- * its home board, the six points of its owner's home. A legendary pawn wears its collection's
- * crest, a legendary back and checker its emblem.
+ * its home board, the six points of its owner's home, and its chess set, twelve pieces. A
+ * legendary pawn wears its collection's crest, a legendary back and checker its emblem.
  */
 const TABLE_LOOKS = {
     pawns: { names: SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => `${ collection }-${ seat }`)), budget: 6 * KB },
@@ -96,7 +97,8 @@ const TABLE_LOOKS = {
     yards: { names: [...SHOP_COLLECTIONS], budget: 12 * KB },
     felts: { names: [...SHOP_COLLECTIONS], budget: 8 * KB },
     checkers: { names: SHOP_COLLECTIONS.flatMap((collection) => [`${ collection }-light`, `${ collection }-dark`]), budget: 12 * KB },
-    homes: { names: [...SHOP_COLLECTIONS], budget: 16 * KB }
+    homes: { names: [...SHOP_COLLECTIONS], budget: 16 * KB },
+    pieces: { names: SHOP_COLLECTIONS.flatMap((collection) => ['w', 'b'].flatMap((colour) => KINDS.map((kind) => `${ collection }-${ colour }${ kind }`))), budget: 12 * KB }
 };
 
 /** Each collection's sigil, beside its name in the shop and on its bundle: every page of the shop loads a dozen. */
@@ -766,7 +768,7 @@ console.log(`  voices       ${ voiceFiles.length } packs, ${ size(voiceTotal) } 
 console.log(`  beds         ${ beds.length } ${ beds.length === 1 ? 'bed' : 'beds' }, ${ size(bedTotal) } in all, none over its ceiling`);
 console.log(`  looks        ${ lookFiles.length } drawings, ${ size(lookTotal) } in all, none over ${ size(LOOK_BUDGET) }`);
 console.log(`  profile      ${ profile.count } frames, plates and covers, ${ size(profile.total) } in all, none over its folder's ceiling`);
-console.log(`  table looks  ${ table.count } pawns, decks, backs, yards, felts, checkers and home boards, ${ size(table.total) } in all, none over its folder's ceiling`);
+console.log(`  table looks  ${ table.count } pawns, decks, backs, yards, felts, checkers, home boards and chess pieces, ${ size(table.total) } in all, none over its folder's ceiling`);
 console.log(`  sigils       ${ marks.count } sigils, ${ size(marks.total) } in all, none over ${ size(SHOP_MARKS.sigils.budget) }`);
 console.log(`  world        ${ size(worldBytes) } / ${ size(WORLD_BUDGET) }`);
 console.log(`  posters      ${ posterBytes.map(size).join(', ') }`);

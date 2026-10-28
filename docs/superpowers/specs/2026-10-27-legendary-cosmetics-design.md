@@ -91,7 +91,7 @@ generators:
   each collection's pack and the cue for each moment.
 
 The drawings are files under `frontend/public/` (`frames/`, `plates/`, `covers/`, `pawns/`,
-`decks/`, `backs/`, `felts/`, `yards/`, `chips/`, `checkers/`, `homes/`, `pieces/<collection>/`,
+`decks/`, `backs/`, `felts/`, `yards/`, `chips/`, `checkers/`, `homes/`, `pieces/`,
 `looks/`, `sigils/`), written by `tools/art/*.mjs` from the palette and each collection's motif
 module, and refused by the build when missing, stray or over their folder's ceiling.
 `docs/looks.md` is the guide to all of it.
@@ -218,6 +218,9 @@ files, credited as made for this project and given to the public domain like the
 | LG-D15 | Where a backgammon moment is drawn (LG8) | Under every checker and die (`LAYER.glow`), so nothing covers a piece | Over the board, as Ludo's die lands |
 | LG-D16 | A backgammon home board (LG8) | The six points alone over the board's own, a band at their foot, the field, frame, bar and tray the house's; the other player's the same drawing turned round, so nothing at a point's tip says up or down | The quarter's whole ground recoloured, which put dark checkers on a dark field |
 | LG-D17 | The shop's own drawings of checkers and home boards (LG8) | Left as they are: the classic four's stay byte for byte, and the Lab (LG11) shows the table's art | Redrawn from the table's art now, which a pair of legendary checkers takes past the 16 KB a shop drawing may weigh |
+| LG-D18 | What makes a chess set its collection's (LG9) | The classic Staunton body of every kind on its own footprint, in the collection's two sides under its pattern, a rim of light and its metal; the king's cross cast in that metal with a stone, the queen's points and the bishop's tipped with its motif, the pawn wearing the crest its Ludo pawn wears, the rook its emblem as a cameo, the knight its motif down his mane | A silhouette of every kind per collection, which a player would have to learn again for every set they meet |
+| LG-D19 | Where a chess set's drawings live (LG9) | `public/pieces/<collection>-<colour><kind>.svg` (`inferno-wk.svg`), flat as every other table look's folder, held by the build's folder rule as the rest are | `pieces/<collection>/`, which that rule cannot read without one of its own |
+| LG-D20 | The shop's own drawing of a chess set (LG9) | Left as it is, a king and a knight in the collection's two sides, as LG-D17 left the checkers': the Lab (LG11) shows the table's pieces | Redrawn from the table's pieces now |
 
 ## 12. The order of work
 

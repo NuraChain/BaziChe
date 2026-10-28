@@ -67,7 +67,10 @@ const PIECES = {
 
 export const KINDS = Object.keys(PIECES);
 
-const shapeOf = (shape, paint) =>
+/** The plinth every piece stands on and each kind's own shapes, for a set drawn on this one's footprint. */
+export const FOOTPRINT = { base: BASE, pieces: PIECES };
+
+export const shapeOf = (shape, paint) =>
 {
     if (shape.kind === 'circle')
     {

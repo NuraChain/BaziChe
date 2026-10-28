@@ -2,7 +2,7 @@
  * Astral Rift: dark glass full of stars, the rings of an orrery and a rift of light that opens in
  * the night and seals again. Slow, gravitational, every part of it in orbit.
  */
-import { about, at, C, linear, r2, RING, seeded, sparkle } from '../svg-parts.mjs';
+import { about, at, C, linear, r2, RING, seeded, sparkle, turned } from '../svg-parts.mjs';
 
 /** The palette's pattern this collection's art is drawn for (`game/looks/palette.ts`). */
 export const pattern = 'stars';
@@ -236,3 +236,28 @@ export function pawn(seat, kit)
         ...ring.body
     ]);
 }
+
+// ---------------------------------------------------------------- the chess set
+
+/**
+ * What the collection's chess set is crowned with (`chess-looks.mjs`): a ringed orb on (x, y) with
+ * a star beside it, and star gold for the king's cross and every trim.
+ */
+export const chess = {
+    metal: ['#FFFFFF', '#FFE58A', '#A8782A'],
+    accent: (palette, x, y, size, turn, id) =>
+    {
+        const world = planet(id, x, y, size * 0.6, palette);
+
+        return {
+            defs: world.defs,
+            body: turned([
+                world.back,
+                `<circle cx="${ r2(x) }" cy="${ r2(y) }" r="${ r2(size * 0.6) }" fill="none" stroke="#140A30" stroke-width="${ r2(size * 0.24) }"/>`,
+                world.ball,
+                world.front,
+                `<path d="${ sparkle(x + size * 0.85, y - size * 0.95, size * 0.45) }" fill="${ palette.glint }" stroke="#140A30" stroke-width="${ r2(size * 0.06) }"/>`
+            ].join(''), x, y, turn)
+        };
+    }
+};

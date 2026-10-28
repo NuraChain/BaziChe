@@ -136,6 +136,7 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.notifications.messages': 'Mesajlar',
     'settings.notifications.groups': 'Bir gruba eklenmek',
     'settings.notifications.turns': 'Oyunlar: sıranın gelmesi ve oyunun başlaması',
+    'settings.notifications.gifts': 'Sana gönderilen hediyeler ve NURA',
     'settings.notifications.haptics': 'Titreşim',
     'settings.notifications.hapticsHint': 'Masa hazır olduğunda, bir el kazanıldığında ya da bir hareket yerine oturduğunda kısa bir titreşim.',
 

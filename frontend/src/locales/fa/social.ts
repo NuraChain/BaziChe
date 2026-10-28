@@ -329,6 +329,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notifications.kind.messages': 'پیام‌ها',
     'notifications.kind.groups': 'گروه‌ها',
     'notifications.kind.turns': 'نوبت‌ها',
+    'notifications.kind.gifts': 'هدیه‌ها',
     'notifications.emptyKind': 'از این نوع چیزی نیست.',
     'notifications.markAll': 'همه رو خوندم',
     'notifications.empty': 'خبر جدیدی نیست.',

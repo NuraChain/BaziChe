@@ -246,6 +246,20 @@ describe.skipIf(!active)('notifications, against a real database', () =>
             expect(await notify.tell({ userId: reader, kind: 'message', actorId: writer, ref: {}, dedupeKey: 'chat:c-9' })).toBe(true);
         });
 
+        it('hears a gift with friend requests switched off, and says nothing of one once gifts are', async () =>
+        {
+            const reader = await makeUser();
+            const friend = await makeUser();
+
+            await social.setMute(reader, 'notice', 'requests', true);
+
+            expect(await notify.tell({ userId: reader, kind: 'gift', actorId: friend, ref: { item: 'dice.glow' }, dedupeKey: 'gift:o-1' })).toBe(true);
+
+            await social.setMute(reader, 'notice', 'gifts', true);
+
+            expect(await notify.tell({ userId: reader, kind: 'gift', actorId: friend, ref: { item: 'dice.glow' }, dedupeKey: 'gift:o-2' })).toBe(false);
+        });
+
         it('switches off every kind of notice it names, and refuses one it does not know', async () =>
         {
             const reader = await makeUser();

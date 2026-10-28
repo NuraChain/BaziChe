@@ -166,6 +166,22 @@ describe('the notification switches', () =>
         expect(switchFor('Messages').querySelector('[aria-hidden]')?.className).toContain('bg-line');
     });
 
+    it('silence gifts and NURA sent to the reader with a switch of their own, and leave friend requests as they were', async () =>
+    {
+        useSession().establish(establishAccount());
+        const container = await show(SettingsPage as unknown as () => HTMLElement, '/app/me/settings');
+        const switchFor = (label: string) =>
+            [...container.querySelectorAll<HTMLElement>('[role="switch"]')].find((one) => one.querySelector('span span')?.textContent === label)!;
+
+        switchFor('Gifts and NURA sent to you').click();
+        await settle();
+
+        expect(server.mutes).toContainEqual({ kind: 'notice', id: 'gifts' });
+        expect(server.mutes).not.toContainEqual({ kind: 'notice', id: 'requests' });
+        expect(switchFor('Gifts and NURA sent to you').getAttribute('aria-checked')).toBe('false');
+        expect(switchFor('Friend requests').getAttribute('aria-checked')).toBe('true');
+    });
+
     it('keep chess\'s horse and elephant on this device, under the sound at the table in a section of their own, in both languages', async () =>
     {
         useSettings().reset();

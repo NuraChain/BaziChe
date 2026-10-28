@@ -326,6 +326,7 @@ export const social = {
     'notifications.kind.messages': 'Messages',
     'notifications.kind.groups': 'Groups',
     'notifications.kind.turns': 'Turns',
+    'notifications.kind.gifts': 'Gifts',
     'notifications.emptyKind': 'Nothing of this kind.',
     'notifications.markAll': 'Mark all read',
     'notifications.empty': 'Nothing new.',

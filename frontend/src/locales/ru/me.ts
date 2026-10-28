@@ -136,6 +136,7 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.notifications.messages': 'Сообщения',
     'settings.notifications.groups': 'Добавление в группу',
     'settings.notifications.turns': 'Игры: твой ход и начало игры',
+    'settings.notifications.gifts': 'Подарки и NURA, которые тебе присылают',
     'settings.notifications.haptics': 'Вибрация',
     'settings.notifications.hapticsHint': 'Короткая вибрация, когда стол готов, раздача выиграна или жест сработал.',
 

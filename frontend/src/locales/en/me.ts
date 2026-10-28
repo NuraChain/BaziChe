@@ -133,6 +133,7 @@ export const me = {
     'settings.notifications.messages': 'Messages',
     'settings.notifications.groups': 'Being added to a group',
     'settings.notifications.turns': 'Games: your turn, and a game starting',
+    'settings.notifications.gifts': 'Gifts and NURA sent to you',
     'settings.notifications.haptics': 'Vibration',
     'settings.notifications.hapticsHint': 'A short buzz when a table is ready, a hand is won, or a gesture lands.',
 

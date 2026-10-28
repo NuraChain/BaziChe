@@ -11,7 +11,7 @@ export type MuteSubject = 'person' | 'conversation' | 'game' | 'notice';
  * three separate lists for the same idea and every feature had to remember all three.
  */
 @Check('mutes_kind_known', `subject_kind in ('person', 'conversation', 'game', 'notice')`)
-@Check('mutes_notice_known', `subject_kind <> 'notice' or subject_id in ('invites', 'requests', 'messages', 'groups', 'turns')`)
+@Check('mutes_notice_known', `subject_kind <> 'notice' or subject_id in ('invites', 'requests', 'messages', 'groups', 'turns', 'gifts')`)
 @Entity('mutes')
 export class Mute
 {

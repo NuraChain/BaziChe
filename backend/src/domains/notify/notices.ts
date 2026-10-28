@@ -1,4 +1,4 @@
-export const NOTICES = ['invites', 'requests', 'messages', 'groups', 'turns'] as const;
+export const NOTICES = ['invites', 'requests', 'messages', 'groups', 'turns', 'gifts'] as const;
 
 export type Notice = typeof NOTICES[number];
 
@@ -11,7 +11,8 @@ export const NOTICE_OF: Readonly<Record<string, Notice>> = {
     'message': 'messages',
     'turn': 'turns',
     'invite-joined': 'requests',
-    'gift': 'requests'
+    'gift': 'gifts',
+    'donation': 'gifts'
 };
 
 export const isNotice = (value: string): value is Notice => (NOTICES as readonly string[]).includes(value);

@@ -1,4 +1,5 @@
 import type { Effect } from '../vfx/engine.ts';
+import { LIGHTS } from './lights.ts';
 import { PALETTES } from './palette.ts';
 
 export type Collection = keyof typeof PALETTES;
@@ -21,12 +22,10 @@ export function heardAt(looks: readonly (Partial<Record<TableKind, string>> | un
     return [...new Set(heard)];
 }
 
-/** The colours a collection's effects play in: its edge, its glint and white. */
+/** The colours a collection's effects play in at a table: its light. */
 export function lightOf(collection: Collection)
 {
-    const { edge, glint } = PALETTES[collection];
-
-    return [edge, glint, '#FFFFFF'];
+    return LIGHTS[collection];
 }
 
 /**

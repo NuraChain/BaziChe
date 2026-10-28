@@ -2446,7 +2446,7 @@ describe('a ludo die in the look its thrower chose', () =>
         expect(landing!.preset).toBe('burst');
         expect(landing!.at.x).toBeCloseTo(rest.x * 6);
         expect(landing!.at.y).toBeCloseTo(rest.y * 6);
-        expect(landing!.tune.colors).toEqual([PALETTES.gold.edge, PALETTES.gold.glint, '#FFFFFF']);
+        expect(landing!.tune.colors).toEqual(lightOf('gold'));
         expect(landing!.tune.scale).toBeCloseTo(600 * DIE_SIZE * C / 100 / 40);
         expect(engine.layers[0]! / LAYER.burst, 'the landing was drawn under the die').toBe(Number(die().style.zIndex) / LAYER.dice);
     });

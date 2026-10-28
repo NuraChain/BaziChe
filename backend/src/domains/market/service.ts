@@ -440,7 +440,7 @@ export function createMarketService(
     };
 
     /** Each market's stakes the chain holds, by outcome. */
-    const poolsOf = async (marketIds: readonly string[]): Promise<Pools> =>
+    const poolsOf = async (marketIds: readonly string[]) =>
     {
         const pools: Pools = new Map();
 
@@ -1316,7 +1316,7 @@ export function createMarketService(
          * all placed from one wallet. Never refused for where the reader is or a break: what a claim
          * pays is theirs. One the contract says was claimed already is written down as claimed.
          */
-        async claim(me: string, ids: readonly string[]): Promise<WalletCall>
+        async claim(me: string, ids: readonly string[])
         {
             if (!chain.configured)
             {

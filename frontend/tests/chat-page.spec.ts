@@ -1345,6 +1345,25 @@ describe('the head of a thread with one other person, and when they were last se
         await vi.waitFor(() => expect(line(container)).toBe('۵ دقیقه پیش آنلاین بود'), { timeout: 4000 });
     });
 
+    it('keeps the room on a phone’s narrow head for when they were seen, and never cuts it off', async () =>
+    {
+        const { thread, other } = direct();
+
+        server.seen[other] = new Date(NOW - 5 * MINUTE).toISOString();
+        here();
+
+        const container = opened(thread.id, 'phone');
+
+        await vi.waitFor(() => expect(line(container)).toBe('Last seen 5 minutes ago'), { timeout: 4000 });
+
+        const about = container.querySelector(`header button[aria-label="${ useLocale().t('actions.about', { name: container.querySelector('header h1')?.textContent ?? '' }) }"]`);
+
+        expect(about?.closest('[data-head-more]')?.getAttribute('class')?.split(' '), 'the button about them folds on a narrow head, where their picture opens the same sheet').toEqual(['hidden', '@md:contents']);
+        expect(container.querySelector('header button[aria-haspopup="dialog"]'), 'their picture is that way in').not.toBeNull();
+        expect(container.querySelector('header h1 + span')?.getAttribute('class')?.split(' '), 'the line takes a second line where it would otherwise lose its end').toEqual(expect.arrayContaining(['line-clamp-2', 'break-words', 'text-balance']));
+        expect(container.querySelector('header h1 + span')?.getAttribute('class')).not.toContain('truncate');
+    });
+
     it('never says it of a group, which counts who is here instead', async () =>
     {
         const group = server.conversations.find((row) => row.kind === 'group')!;

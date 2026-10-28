@@ -450,7 +450,15 @@ way. `stick.spec.ts`, `chat-page.spec.ts` (*a thread searched for its words*) an
 **A narrow head keeps what a phone reaches for.** With the search beside them, four buttons left a
 phone's title 78px ("Omid Kari…" at 390). Under a medium head the mute folds away (`hidden
 @md:contents` on a wrapper), as a messenger keeps it out of a phone's chat header: it is in the
-conversation's own sheet, a held row in the list. The game stays, because the composer's own game
+conversation's own sheet, a held row in the list. So does "More about {name}" (`data-head-more`):
+their picture beside the name opens the same sheet, as a messenger's header does. The owner could
+not see when somebody was last seen on a phone: the line under the name had 114px at 390, and every
+"Last seen" that says a time or a date needs more in English (122px for a date, up to about 180
+with a twelve-hour time) and up to 134 in Persian, so what was cut was exactly the when. With the
+button folded the line has 164px at 390, which holds every Persian form and every English one but
+yesterday or a weekday at a time; where it is too little the line takes a second, balanced line
+(`line-clamp-2 text-balance`, "Last seen yesterday" over "at 9:30 PM") rather than losing its end.
+Measured on the built server at 360, 390 and 412 in both languages; nothing is cut at any of them. The game stays, because the composer's own game
 button is disabled where the room cannot be sealed and a game is still open to anybody there. Its
 `hidden @md:inline-flex` never hid it: `hidden` and the button's own `inline-flex` sat on one element,
 where the stylesheet's order and not the class list decides. A display that changes with the head

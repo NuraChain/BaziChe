@@ -897,7 +897,7 @@ export default component ChatPage()
                                 </Show>
                                 <span class="flex min-w-0 flex-1 flex-col">
                                     <h1 class="truncate text-ui-md font-semibold text-text" dir="auto">{ title }</h1>
-                                    <span class={ () => [ 'truncate text-ui-xs', typing.length > 0 ? 'text-live' : 'text-muted' ].join(' ') } dir="auto">{ subtitle }</span>
+                                    <span class={ () => [ 'line-clamp-2 break-words text-balance text-ui-xs', typing.length > 0 ? 'text-live' : 'text-muted' ].join(' ') } dir="auto">{ subtitle }</span>
                                 </span>
                                 <span ref={ (element) => opener = element } class="contents">
                                     <IconButton
@@ -918,14 +918,16 @@ export default component ChatPage()
                                         onClick={ () => void attempt(social.toggleMute('conversation', id), { kind: 'info', text: locale.t(muted ? 'chat.unmutedDone' : 'chat.mutedDone') }) }
                                     />
                                 </span>
-                                <Show when={ other } let={ peer }>
-                                    <IconButton
-                                        icon="more"
-                                        label={ locale.t('actions.about', { name: peer.displayName }) }
-                                        variant="ghost"
-                                        onClick={ () => about(peer.id) }
-                                    />
-                                </Show>
+                                <span class="hidden @md:contents" data-head-more>
+                                    <Show when={ other } let={ peer }>
+                                        <IconButton
+                                            icon="more"
+                                            label={ locale.t('actions.about', { name: peer.displayName }) }
+                                            variant="ghost"
+                                            onClick={ () => about(peer.id) }
+                                        />
+                                    </Show>
+                                </span>
                             </header>
 
                             <Show when={ searching }>

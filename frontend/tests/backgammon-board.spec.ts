@@ -2866,3 +2866,20 @@ describe('moves made on the table itself', () =>
         });
     });
 });
+
+describe('a backgammon board in its players’ looks', () =>
+{
+    const worn = (looks: Record<number, MatchView['players'][number]['look']>) => [0, 1].map((seat) => ({ seat, who: seat === 0 ? 'dana.w' : 'omid.k', timeouts: 0, ...(looks[seat] === undefined ? {} : { look: looks[seat] }) })) as MatchView['players'];
+
+    it('hands each seat’s look to its table: their checkers, their home board and the checker on their rail', async () =>
+    {
+        const { container } = await live(match({}, 0, { players: worn({ 0: { checkers: 'checkers.jade', dice: 'dice.storm' }, 1: { home: 'home.void' } }) }));
+        const rail = (seat: 'true' | undefined) => [...container.querySelectorAll<HTMLElement>('.bg-rail')].find((one) => one.dataset.me === seat)!.querySelector<HTMLElement>('.bg-checker')!;
+
+        expect([...men(container)].filter((man) => (man as HTMLElement).dataset.tone === 'light').every((man) => (man as HTMLElement).dataset.checkers === 'jade')).toBe(true);
+        expect([...men(container)].filter((man) => (man as HTMLElement).dataset.tone === 'dark').some((man) => (man as HTMLElement).hasAttribute('data-checkers'))).toBe(false);
+        expect([...container.querySelectorAll<HTMLElement>('.bg-layer .bgt-home')].map((home) => [home.dataset.side, home.dataset.home])).toEqual([['far', 'void']]);
+        expect([rail('true').dataset.tone, rail('true').dataset.checkers]).toEqual(['light', 'jade']);
+        expect([rail(undefined).dataset.tone, rail(undefined).hasAttribute('data-checkers')]).toEqual(['dark', false]);
+    });
+});

@@ -1,4 +1,5 @@
 export const LAYER = {
+    inlay: 1,
     piece: 10,
     count: 20,
     mark: 22,

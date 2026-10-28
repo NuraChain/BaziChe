@@ -5,6 +5,7 @@ import {
     CUBE,
     DICE_X,
     HEIGHT,
+    MIDDLE,
     POINT_WIDTH,
     RADIUS,
     SLAB,
@@ -49,6 +50,8 @@ import {
     type Table as Men,
     type Transfer
 } from '../backgammon-men.ts';
+import { dieDress } from '../looks/dice.ts';
+import { wornOf } from '../looks/table.ts';
 import { clamp, seeded } from '../stage/curves.ts';
 import { restOf } from '../stage/dice.ts';
 import { createDie, type Die } from '../stage/die.ts';
@@ -58,6 +61,7 @@ import type { Table } from '../stage/presenter.ts';
 import { arc, walk, type Point } from '../stage/route.ts';
 import type { Run, Stage } from '../stage/stage.ts';
 import { endCue, type SoundHandle } from '../sound.ts';
+import type { MatchPlayer } from '../../data/match.ts';
 import type { Haptic } from '../../lib/haptics.ts';
 
 export type Invite = 'throw' | 'roll' | 'done' | null;
@@ -81,6 +85,9 @@ export interface TableOptions
 
     /** The reader's own result once the board has it: the match's end is heard from it, and from the side that won only before it is in hand. */
     result?: () => Parameters<typeof endCue>[0];
+
+    /** What a seat's player chose for this table as the game began, asked as their things are drawn. */
+    looks?: (seat: number) => MatchPlayer['look'];
 }
 
 export interface Facts
@@ -222,6 +229,10 @@ const make = (name: string, parent?: HTMLElement) =>
     return made;
 };
 
+const across = (units: number) => `${ (units / WIDTH * 100).toFixed(3) }%`;
+
+const down = (units: number) => `${ (units / HEIGHT * 100).toFixed(3) }%`;
+
 const cubeAt = (owner: Side | null) => `${ cq(BAR_X - CUBE / 2) } ${ cq(cubeY(owner) - CUBE / 2) }`;
 
 const trackY = (point: number) => (columnOf(point).row === 'top' ? TOP + RADIUS : BOTTOM - RADIUS);
@@ -311,6 +322,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
     let waiting = false;
     let carried: { key: string; x: number; y: number } | null = null;
     const returning = new Map<string, Run>();
+    const homes = new Map<Side, HTMLElement>();
 
     const hit = make('bgt-hit', zone);
 
@@ -347,6 +359,77 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
     const toneOf = (side: Side) => ((side === 'near') === (shown.viewer === 0) ? 'light' : 'dark');
 
+    const sideOf = (seat: number): Side => (seat === shown.viewer ? 'near' : 'far');
+
+    const lookOf = (side: Side) => options.looks?.(side === 'near' ? shown.viewer : 1 - shown.viewer);
+
+    /** A checker, or the count written on its stack, in its owner's tone and look. */
+    const dressMan = (el: HTMLElement, side: Side) =>
+    {
+        const worn = wornOf('checkers', lookOf(side)?.checkers);
+
+        el.dataset.tone = toneOf(side);
+
+        if (worn === null)
+        {
+            delete el.dataset.checkers;
+
+            return;
+        }
+
+        el.dataset.checkers = worn;
+    };
+
+    /**
+     * Each player's home board in their look, over the six points of their home under every
+     * checker; one in Classic, or in a look this build does not draw, is the board's own. One that
+     * stays is the node it was, its look changed where it stands.
+     */
+    const dressHomes = () =>
+    {
+        for (const side of ['near', 'far'] as const)
+        {
+            const worn = wornOf('home', lookOf(side)?.home);
+            const held = homes.get(side);
+
+            if (worn === null)
+            {
+                held?.remove();
+                homes.delete(side);
+                continue;
+            }
+
+            const node = held ?? make('bgt-home', host);
+
+            node.dataset.side = side;
+            node.dataset.home = worn;
+            node.setAttribute('aria-hidden', 'true');
+            node.style.left = across(BAR_LEFT + BAR_WIDTH);
+            node.style.top = down(side === 'near' ? MIDDLE : TOP);
+            node.style.width = across(POINT_WIDTH * 6);
+            node.style.height = down(MIDDLE - TOP);
+            homes.set(side, node);
+        }
+    };
+
+    /** A die in the look of the side whose it is, or plain; it is a die of its own, so nothing of a die before it is left on it. */
+    const dressDie = (die: Die, side: Side) =>
+    {
+        const worn = wornOf('dice', lookOf(side)?.dice);
+
+        if (worn === null)
+        {
+            return;
+        }
+
+        for (const [name, value] of Object.entries(dieDress(worn)))
+        {
+            die.node.style.setProperty(name, value);
+        }
+
+        die.node.dataset.look = worn;
+    };
+
     const ensure = (man: Man) =>
     {
         let el = els.get(man.key);
@@ -354,7 +437,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         if (el === undefined)
         {
             el = make('man', host);
-            el.dataset.tone = toneOf(man.side);
+            dressMan(el, man.side);
             el.dataset.key = man.key;
             els.set(man.key, el);
         }
@@ -432,7 +515,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
             tag.dataset.count = String(count);
             tag.textContent = options.say(count);
-            tag.dataset.tone = toneOf(side as Side);
+            dressMan(tag, side as Side);
             tag.style.translate = placed(slot.x, slot.y);
         }
     };
@@ -792,7 +875,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         count(twice && rested && dice.length > 0 ? left : 0);
     };
 
-    const lay = (face: number, index: number, count: number, seed: number) =>
+    const lay = (face: number, index: number, count: number, seed: number, side: Side) =>
     {
         const die = createDie();
         const spot = restOf(seed, index, count);
@@ -804,6 +887,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         die.node.style.left = `${ spot.x }em`;
         die.node.style.top = `${ spot.y }em`;
         die.show(face, seed + index * 977);
+        dressDie(die, side);
 
         return die;
     };
@@ -933,7 +1017,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
     const layOpener = (seat: number, face: number) =>
     {
-        const die = lay(face === UNTHROWN ? 1 : face, seat, 2, OPENING_SEED);
+        const die = lay(face === UNTHROWN ? 1 : face, seat, 2, OPENING_SEED, sideOf(seat));
 
         if (face === UNTHROWN)
         {
@@ -1007,7 +1091,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
         if (invited === 'roll' && rested && dice.length === 0)
         {
-            dice = [0, 1].map((index) => lay(1, index, 2, WAIT_SEED));
+            dice = [0, 1].map((index) => lay(1, index, 2, WAIT_SEED, 'near'));
             diceSeed = -1;
             waiting = true;
 
@@ -1021,7 +1105,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         live();
     };
 
-    const show = (faces: readonly number[], seed: number) =>
+    const show = (faces: readonly number[], seed: number, side: Side) =>
     {
         for (const die of dice)
         {
@@ -1029,7 +1113,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         }
 
         unstick();
-        dice = faces.map((face, index) => lay(face, index, faces.length, seed));
+        dice = faces.map((face, index) => lay(face, index, faces.length, seed, side));
         diceSeed = seed;
         used = [];
         rested = true;
@@ -1056,7 +1140,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         const random = seeded(seed);
         const far = reach();
 
-        dice = faces.map((face, index) => lay(face, index, faces.length, seed));
+        dice = faces.map((face, index) => lay(face, index, faces.length, seed, sides[index]));
         diceSeed = seed;
         used = [];
         waiting = false;
@@ -1089,7 +1173,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         options.onRoll?.(seed, [face], false);
         dropOpener(seat);
 
-        const die = lay(face, seat, 2, OPENING_SEED);
+        const die = lay(face, seat, 2, OPENING_SEED, side);
         const random = seeded(seed);
         const far = reach();
         const near = side === 'near';
@@ -1106,10 +1190,10 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         options.onRoll?.(seed, [face], true);
     };
 
-    const swap = async (faces: readonly number[], seed: number) =>
+    const swap = async (faces: readonly number[], seed: number, side: Side) =>
     {
         await pick();
-        show(faces, seed);
+        show(faces, seed, side);
         await Promise.all(dice.map((die) => stage.animate(die.node, [{ opacity: 0, offset: 0 }], { duration: 160 }).done));
     };
 
@@ -1189,7 +1273,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         if (shown.dice.join() !== felt.dice.join() || (felt.dice.length > 0 && diceSeed !== felt.seed))
         {
             shown = { ...shown, dice: [...felt.dice] };
-            await swap(felt.dice, felt.seed);
+            await swap(felt.dice, felt.seed, felt.turn ?? 'near');
         }
 
         if (shown.opening.join() !== felt.opening.join())
@@ -1224,7 +1308,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         else if (beat.kind === 'start')
         {
             tell();
-            await Promise.all([pickOpeners(), swap(beat.faces, seedOf(at.id, at.rev))]);
+            await Promise.all([pickOpeners(), swap(beat.faces, seedOf(at.id, at.rev), beat.side)]);
         }
         else if (beat.kind === 'cast')
         {
@@ -1391,10 +1475,11 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
             cubeEl.style.zIndex = '';
             shown = shownOf(felt, shown.men.serial);
+            dressHomes();
             redraw();
             drawCube(shown.cube);
             wanted = { spent: felt.spent, seed: felt.seed };
-            show(felt.dice, felt.seed);
+            show(felt.dice, felt.seed, felt.turn ?? 'near');
             drawOpeners();
             live();
             tell();
@@ -1608,6 +1693,13 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
             cubeEl.removeEventListener('click', pressCube);
             zone.remove();
             cubeEl.remove();
+
+            for (const node of homes.values())
+            {
+                node.remove();
+            }
+
+            homes.clear();
         }
     };
 }

@@ -3772,6 +3772,34 @@ api, answering doubles both ways, and asserts at every turn that both players re
 (nothing is hidden), fifteen checkers a side and never two colours on one point, and that the winner
 really reached the target.
 
+**Each player's things are drawn in the looks their match began with** (LG8; `match_players.look`,
+which the board hands its table as `looks`, nothing taken from a client), and the board itself, its
+frame, field, bar and tray, and the cube stay the house's:
+
+- **Their fifteen checkers**, light or dark as their seat is, are their collection's drawing of that
+  side (`public/checkers/<collection>-<tone>.svg`, `data-checkers` beside `data-tone`, the rule a
+  collection and tone in the sheet): its face in the collection's pale or deep material, a rim in
+  the colour that stands out from it (the deep one round a light checker, the edge round a dark
+  one) and its sign in the middle in its own colours. Any light checker stands at 3:1 or more from
+  any dark one, the house's included, so two sets on one board still read as two sides. The count
+  on a tall stack and the arrow that takes a move back lie on a plain middle of the checker's own
+  material, never on its sign, in the house's inks. One borne off is a slab of its material and rim,
+  and the checker on its owner's rail is the drawing too.
+- **The six points of their home board** (`public/homes/<collection>.svg`, a `.bgt-home` with
+  `data-home`) lie exactly over the board's own, on `LAYER.inlay` under every checker, mark and die:
+  the reader's home bottom right, the other player's the same drawing turned round, as their home
+  faces them. Nothing at a point's tip may say up or down for that reason: Inferno ends its points
+  in a bead of molten gold, because a flame would burn downward on the other side.
+- **The dice are whoever's throw them.** Each opening die is in its own thrower's look; the pair an
+  opening lays, a roll, and a roll drawn from nothing are in the look of whoever is to move, because
+  once that move has begun nothing in the board says which opening die was whose, and a reload must
+  draw what the live table drew; the blank dice the reader taps to roll are in the reader's own. The
+  board's die is a cube of six drawn faces, and it reads the die look's dress (`dieDress`) with the
+  house die's colours where none is set, so a plain die draws as it always did.
+
+`backgammon-looks.spec.ts`, `backgammon-board.spec.ts` (*a backgammon board in its players' looks*),
+`checker-sheet.spec.ts`, `die-sheet.spec.ts` and `look-palette.spec.ts` hold it.
+
 ## Poker
 
 The fourth engine: No-Limit Texas Hold'em played as a Sit & Go, at 2, 6 or 9 seats, everybody on 1,500

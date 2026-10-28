@@ -19,6 +19,9 @@ import { GameRule } from './game-rule.entity.ts';
 import { GroupMember } from './group-member.entity.ts';
 import { Group } from './group.entity.ts';
 import { Game } from './game.entity.ts';
+import { MarketDisclosure } from './market-disclosure.entity.ts';
+import { MarketPosition } from './market-position.entity.ts';
+import { Market } from './market.entity.ts';
 import { MatchAction } from './match-action.entity.ts';
 import { MatchPlayer } from './match-player.entity.ts';
 import { Match } from './match.entity.ts';
@@ -54,7 +57,7 @@ import { Wallet } from './wallet.entity.ts';
 export {
     Achievement, Avatar, Block, Conversation, ConversationEpoch, ConversationMember, Device, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat,
     EpochArchive, FriendRequest, Friendship,
-    Game, GameRule, Group, GroupMember, Match, MatchAction, MatchPlayer, Message, Mute,
+    Game, GameRule, Group, GroupMember, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, Mute,
     Notice, Notification, OwnedItem, PaidAccount, PlayerStats, PushSubscription,
     QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, Session, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
     UserAchievement, Wallet
@@ -83,5 +86,6 @@ export const entities: Function[] = [
     PaidAccount, TableStake, StakeConsent, Escrow, EscrowSeat,
     StaffMember, StaffAction, Suspension, Notice,
     ShopItem, ShopCollection, ShopOrder, OwnedItem, EquippedItem,
-    Donation, DonationsOff
+    Donation, DonationsOff,
+    Market, MarketPosition, MarketDisclosure
 ];

@@ -868,6 +868,58 @@ in again; each sign-in still adds a device, as a browser's would. One address op
 so the handshake ceiling (`HANDSHAKES_A_MINUTE`, 300 a minute) bounds how many new sockets a level
 can open.
 
+**`tools/qa/crowd-pass.mjs` is a crowd on the realtime socket, three thousand clients and past
+them**: `QA_BASE=http://localhost:5300 QA_PID=<the server's pid> QA_RESTART="<starts the server>"
+node tools/qa/crowd-pass.mjs`, against the built server in production with the limiter raised and
+a database nobody else uses (it signs in thousands of accounts), about ten minutes. Every client is
+an account of its own from an address of its own (`X-Forwarded-For`, which a production server
+trusts), so neither the handshake ceiling nor the sign-in budget of one address stands in for a
+crowd. The clients live in four processes of their own (`crowd-client.mjs`, `QA_CHILDREN`), each
+reporting its own event loop, so the generator is never the limit; every frame's ordinal is checked
+for a gap or a repeat, every `watch` frame is stamped on the clock the machine's processes share,
+the server's memory is read by its pid, and its own health (the event loop's busy share and longest
+stall, the pool, sockets, the hour's failures) from the admin's overview as `QA_ADMIN` (`dana.w`,
+given the admin role in that database by hand). `QA_PARTS` names the parts:
+
+- *ramp*: `QA_LEVELS` sockets (100, 500, 1,000, 2,000, 3,000), opened a hundred at a time; every
+  one connected and still open after `QA_HOLD` seconds, nothing lost or handed twice. When the last
+  level is the process's ceiling (`SOCKETS_MOST`), `QA_OVER` more are turned away and nobody already
+  held is dropped.
+- *games*: twenty games of Ludo at once (`QA_GAMES`), ten watching each (`QA_WATCHERS`), thirty
+  moves a game; every move reaches every watcher of its game once.
+- *crowd*: one game and everybody else watching it, the same.
+- *slow*: fifty sockets that stop reading after their handshake, watching the crowd's game; the
+  server lets go of each, and nobody else misses a move or waits for them.
+- *storm*: the server killed and started again (`QA_RESTART`, a command `cmd.exe` runs) under every
+  socket; each comes back by itself on the browser's own backoff, read from `realtime.store.ts`, and
+  is timed from the stop to its first greeting.
+- *soak*: the twenty games for `QA_SOAK` seconds (120), the server's memory every ten.
+
+A watcher opens the table's page as a browser does: it reads the table (which is what makes the
+server count it as looking) and says it shows the two players (`see`), so it is told when either
+comes, goes or looks away.
+
+**This machine's own ports are the first thing a crowd runs out of**, and the pass is shaped round
+it. Its ephemeral range is 1024 to 15000, the clients and the server share it, and a port stays
+taken for two minutes after its connection closes (`TIME_WAIT`, held by whichever side closed
+first). Its first full run asked for 3,000 table reads in one instant on top of 3,000 open sockets
+and 6,000 sign-ins, and 1,135 of the reads failed before they reached the server, which then never
+counted those watchers; and its storm had the clients close their own sockets and open new ones at
+once, which needs twice the ports, and 1,001 came back refused. Neither was the server. So watchers
+open the page thirty-two at a time a process over connections kept alive (`READERS`), which is
+people arriving over two seconds, and the storm is the server going away, which is also what a
+deploy does to every player at once. Every failure keeps its cause (`causeOf`): a refused port and
+a server that said no must never be counted as one thing again.
+
+What it measured on this machine (2026-10-28, the build of `3472b6c5` with the ceiling at 4,000):
+hello p95 under 90 ms at every level to 3,000, the server 6 MB larger at 3,000 than at none; twenty
+watched games p95 13 ms from the move's request to each watcher's frame; one game watched by 2,998,
+p95 225 ms, and the last watcher of each move p95 280 ms; the slow sockets let go 25 seconds after
+they stopped (the ping and its pong's deadline) and nobody else delayed; the restart answering again
+3.4 s after the stop, and every socket greeted again by p95 4.4 s and at most 7.5 s, 2,895 of them at
+their second try; the soak with no growth. The audit with every number and what limited it is
+`docs/superpowers/specs/2026-10-28-socket-audit.md`.
+
 ## The quick play passes
 
 Three passes hold quick play from the press to the board, each against the BUILT server with the

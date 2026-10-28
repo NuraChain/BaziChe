@@ -6,6 +6,7 @@ import { SHOP_COLLECTIONS, SLOT_IDS } from './domains/shop/catalogue.ts';
 import { DONATE_MAY, DONATION_STATES } from './domains/donate/policy.ts';
 import { MARKET_MAY, MARKET_STATES, POSITION_STATES } from './domains/market/policy.ts';
 import { ORDER_STATES, OWNED_VIA, SHOP_MAY } from './domains/shop/policy.ts';
+import { CHECK_FAMILIES, CHECK_KINDS, CHECK_LISTS, CHECK_RESOLUTIONS } from './domains/reconcile/kinds.ts';
 import { VARIANTS } from './domains/match/sides.ts';
 import { BREAK_DAYS, ELIGIBILITIES, ESCROW_STATES } from './domains/stake/policy.ts';
 import { REASONS } from './domains/match/chess/state.ts';
@@ -1592,6 +1593,9 @@ export const adminOverview = object({
     stuck: number(),
     reports: number(),
     money: object({ playing: number(), inPlay: string(), stuck: number() }).optional(),
+
+    /** The disagreements with NuraChain still open, for a role that opens Money where this server checks any. */
+    checks: number().optional(),
     health: object({
         uptime: number(),
         rss: number(),
@@ -1606,6 +1610,45 @@ export const adminOverview = object({
 });
 
 export type AdminOverview = Infer<typeof adminOverview>;
+
+export const adminChecksQuery = object({ list: enumOf(CHECK_LISTS).optional(), cursor: string({ max: 80 }).optional() });
+
+/**
+ * One disagreement between a money record and what NuraChain holds for it. `db` and `chain` are
+ * what each side said when it was last seen, `about` what the page says about the record, each a
+ * few words the admin translates (`domains/reconcile/`).
+ */
+export const adminCheck = object({
+    id: string(),
+    family: enumOf(CHECK_FAMILIES),
+    record: string(),
+    kind: enumOf(CHECK_KINDS),
+    db: record(string()),
+    chain: record(string()),
+    about: record(string()),
+    firstSeen: string(),
+    lastSeen: string(),
+    resolvedAt: string().optional(),
+    resolution: enumOf(CHECK_RESOLUTIONS).optional(),
+    staff: string().optional(),
+    reason: string().optional()
+});
+
+export type AdminCheck = Infer<typeof adminCheck>;
+
+export const adminChecks = object({
+    rows: array(adminCheck),
+    cursor: string().optional(),
+    open: number(),
+
+    /** The families this server checks: the ones whose contract it keeps. */
+    watching: array(enumOf(CHECK_FAMILIES)),
+
+    /** When this server last finished a pass, while it has finished one. */
+    checkedAt: string().optional()
+});
+
+export type AdminChecks = Infer<typeof adminChecks>;
 
 export const adminGameInput = object({ on: boolean(), reason: said() });
 

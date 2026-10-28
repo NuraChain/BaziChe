@@ -11,6 +11,7 @@ import type {
     MarketPositionView,
     MarketsState,
     MarketLook,
+    AdminChecks,
     AdminPeople,
     AdminPerson,
     AdminMatches,
@@ -76,7 +77,7 @@ import type {
     StaffLog
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
-import type { adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
+import type { adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
 import type { ShopSlot } from './domains/shop/catalogue.ts';
 import type { QuickAsk } from './domains/table/quick.ts';
@@ -748,6 +749,9 @@ export interface AdminPort
     closeTable(me: string, id: string, input: Infer<typeof adminCloseInput>): Promise<AdminPlay | null>;
 
     overview(me: string): Promise<AdminOverview | null>;
+
+    /** What NuraChain and the database disagree about, newest first, fifty a page, for a role that opens Money. */
+    checks(me: string, query: Infer<typeof adminChecksQuery>): Promise<AdminChecks | null>;
 
     live(me: string, query: Infer<typeof adminLiveQuery>): Promise<AdminLive | null>;
 

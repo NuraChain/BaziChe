@@ -203,4 +203,6 @@ Loaded only when a session touches the matching code:
   may take a position, the tickets, the worker that settles or calls a market off, and the claims.
 - `.claude/rules/admin.md` - running the platform: the staff and their roles, and the log every
   change writes.
+- `.claude/rules/operations.md` - the database and NuraChain checked against each other: what the
+  pass compares, what it puts right through a worker, and what it keeps for a person.
 - `tools/blender/CLAUDE.md` and `tools/qa/CLAUDE.md` - the 3D asset kit and the browser passes.

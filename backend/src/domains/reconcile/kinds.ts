@@ -27,6 +27,12 @@ export const CHECK_RESOLUTIONS = ['agreed', 'put-right', 'staff'] as const;
 
 export type CheckResolution = (typeof CHECK_RESOLUTIONS)[number];
 
+export const CHECK_LISTS = ['open', 'closed', 'all'] as const;
+
+export type CheckList = (typeof CHECK_LISTS)[number];
+
+export const CHECKS_PAGE = 50;
+
 /** The contracts whose books are read: the gifts contract holds nothing, so it keeps none. */
 export const HOLDERS = ['vault', 'shop', 'markets'] as const;
 

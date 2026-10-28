@@ -51,6 +51,10 @@ import { createOrderService, type ShopSweep } from './domains/shop/orders.ts';
 import { donationLineOf } from './domains/donate/line.ts';
 import { createDonationService, type DonateSweep } from './domains/donate/service.ts';
 import { createMarketService, type MarketSweep } from './domains/market/service.ts';
+import type { Auditor } from './domains/reconcile/audit.ts';
+import type { CheckFamily, Holder } from './domains/reconcile/kinds.ts';
+import { createReconciler, type ReconcileSweep } from './domains/reconcile/service.ts';
+import type { Books } from './chain/rpc.ts';
 import { createShopService } from './domains/shop/service.ts';
 import { createReportsService } from './domains/admin/reports.ts';
 import { createStaffService } from './domains/admin/staff.ts';
@@ -137,7 +141,8 @@ export interface TableSweep
     failed: { tableId: string; reason: string }[];
 }
 
-export type Note = (event: string, fields: Record<string, unknown>) => void;
+/** A line for the server's log: said at `info` unless it is a warning somebody should act on. */
+export type Note = (event: string, fields: Record<string, unknown>, level?: 'info' | 'warn') => void;
 
 export interface Services extends Ports
 {
@@ -148,6 +153,7 @@ export interface Services extends Ports
         sweepShop(forMs: number): Promise<ShopSweep>;
         sweepDonations(forMs: number): Promise<DonateSweep>;
         sweepMarkets(forMs: number): Promise<MarketSweep>;
+        reconcile(forMs: number): Promise<ReconcileSweep>;
         waiting(): Promise<{ game: string; mode: string; players: number; tables: number; oldest: number }[]>;
         otherServers(): Promise<number>;
         tidy(): Promise<Record<string, number>>;
@@ -1170,9 +1176,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         }
     });
 
+    const forecasts = marketsChain ?? createMarketsChain({ rpcUrl: config.rpcUrl, chainId: config.chainId, markets: config.marketsAddress, operatorKey: config.refereeKey });
+
     const markets = createMarketService(
         db,
-        marketsChain ?? createMarketsChain({ rpcUrl: config.rpcUrl, chainId: config.chainId, markets: config.marketsAddress, operatorKey: config.refereeKey }),
+        forecasts,
         ENGINES,
         new Set(config.marketCountries),
         (me) => stakes.standingOf(me),
@@ -1190,6 +1198,35 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
     /** Where the reader is, by the header the proxy writes, asked only where markets are offered at all. */
     const countryOf = (header: HeaderOf) => (markets.open ? header(config.marketCountryHeader) : null);
+
+    const auditors = new Map<Exclude<CheckFamily, 'contract'>, Auditor>();
+    const holders = new Map<Holder, () => Promise<Books>>();
+
+    if (vaults.configured)
+    {
+        auditors.set('escrow', (ask) => stakes.audit(ask));
+        holders.set('vault', () => vaults.books());
+    }
+
+    if (looksShop.configured)
+    {
+        auditors.set('order', (ask) => orders.audit(ask));
+        holders.set('shop', () => looksShop.books());
+    }
+
+    if (tipping.configured)
+    {
+        auditors.set('donation', (ask) => donations.audit(ask));
+    }
+
+    if (forecasts.configured)
+    {
+        auditors.set('market', (ask) => markets.auditMarkets(ask));
+        auditors.set('position', (ask) => markets.auditPositions(ask));
+        holders.set('markets', () => forecasts.books());
+    }
+
+    const reconciler = createReconciler(db, auditors, holders, { said: (event, fields) => note?.(event, fields, 'warn') });
 
     const walkAway = async (me: string, tableId: string, forfeit: boolean) =>
     {
@@ -1670,6 +1707,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             sweepShop: (forMs) => orders.sweep(forMs),
             sweepDonations: (forMs) => donations.sweep(forMs),
             sweepMarkets: (forMs) => markets.sweep(forMs),
+            reconcile: (forMs) => reconciler.sweep(forMs),
             waiting: () => table.waitingByGame(),
             otherServers,
             tidy,
@@ -2185,12 +2223,13 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     return null;
                 }
 
-                const [people, games, reports, stuck, money] = await Promise.all([
+                const [people, games, reports, stuck, money, checks] = await Promise.all([
                     accounts.counts(),
                     plays.games(),
                     desk.waiting(),
                     stuckNow(),
-                    may(actor.role, 'money') && vaults.configured ? vaultAdmin.counts() : null
+                    may(actor.role, 'money') && vaults.configured ? vaultAdmin.counts() : null,
+                    may(actor.role, 'money') && reconciler.watching.length > 0 ? reconciler.openCount() : null
                 ]);
 
                 return {
@@ -2201,8 +2240,14 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     stuck: stuck.size,
                     reports,
                     ...(money === null ? {} : { money }),
+                    ...(checks === null ? {} : { checks }),
                     ...(may(actor.role, 'health') && ops !== undefined ? { health: { ...ops.health(), pool: poolOf(), sockets: presence?.sockets?.() ?? 0 } } : {})
                 };
+            },
+
+            async checks(me, query)
+            {
+                return await ableTo(me, 'money') === null ? null : await reconciler.list(query.list ?? 'open', query.cursor ?? null);
             },
 
             async live(me, query)

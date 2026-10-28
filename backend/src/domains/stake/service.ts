@@ -14,6 +14,8 @@ import { Table } from '../../entities/table.entity.ts';
 import { User } from '../../entities/user.entity.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import type { VaultState } from '../../schemas.ts';
+import { audited, AUDIT_PAGE, nothing, RECENT, type AuditAsk, type Finding } from '../reconcile/audit.ts';
+import { escrowVerdict } from '../reconcile/verdicts.ts';
 import { gameOff, gameOn, lockTable, lockingAt, stillLocking, tableRefusal } from '../table/service.ts';
 import { CONSENT_MS, eligibilityOf, feeFor, onLadder, potOf, seatsOfMask, shareOf, STAKE_LADDER, weiOf, type BreakDays, type Eligibility, type EscrowState } from './policy.ts';
 
@@ -121,6 +123,18 @@ interface PlayedRow extends Keyed
     seats: number;
 }
 
+interface AuditRow extends Keyed
+{
+    game: string;
+    amount: string;
+    fee_bps: number;
+    state: EscrowState;
+    winners: number | null;
+    open_tx: string | null;
+    close_tx: string | null;
+    addresses: string[] | null;
+    handles: string[] | null;
+}
 
 export const wireCall = (from: Address, call: VaultCall) => ({
     from,
@@ -299,6 +313,66 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
     });
 
     const playersOf = async (escrowId: string) => (await seatsOf(escrowId)).map((seat) => seat.userId);
+
+    const auditQuery = () => db.getRepository(Escrow).createQueryBuilder('e')
+        .select('e.id', 'id')
+        .addSelect('e.game', 'game')
+        .addSelect('e.amount::text', 'amount')
+        .addSelect('e.fee_bps', 'fee_bps')
+        .addSelect('e.state', 'state')
+        .addSelect('e.winners', 'winners')
+        .addSelect('e.open_tx', 'open_tx')
+        .addSelect('e.close_tx', 'close_tx')
+        .addSelect('(select array_agg(s.address order by s.seat) from escrow_seats s where s.escrow_id = e.id)', 'addresses')
+        .addSelect('(select array_agg(u.handle::text order by s.seat) from escrow_seats s join users u on u.id = s.user_id where s.escrow_id = e.id)', 'handles')
+        .addSelect(keyOf('e.created_at'), 'at_key');
+
+    /** One paid game against the vault's `gameOf`: its state, and where the vault holds it, its stake, fee, players and the seats paid. */
+    const compared = async (row: AuditRow) =>
+    {
+        if (row.state === 'locking')
+        {
+            return null;
+        }
+
+        const id = vaultIdOf(row.id);
+        const there = await vault.game(id);
+        const tx = row.close_tx ?? row.open_tx;
+        const handles = row.handles ?? [];
+        const about = { game: row.game, amount: row.amount, who: handles.join(', '), ...(tx === null ? {} : { tx }) };
+        const seated = (row.addresses ?? []).join(',');
+        const players = there.players.map((player) => player.toLowerCase()).join(',');
+        const found: Finding[] = [];
+
+        if (escrowVerdict(row.state, there.status) === 'person')
+        {
+            found.push({ record: row.id, kind: 'escrow-state', db: { state: row.state }, chain: { state: there.status }, about });
+        }
+
+        if (there.status !== 'none' && (there.amount !== BigInt(row.amount) || there.feeBps !== row.fee_bps || players !== seated))
+        {
+            found.push({
+                record: row.id,
+                kind: 'escrow-stakes',
+                db: { amount: row.amount, fee: String(row.fee_bps), players: seated },
+                chain: { amount: there.amount.toString(), fee: String(there.feeBps), players },
+                about
+            });
+        }
+
+        if (row.state === 'settled' && there.status === 'settled' && row.close_tx !== null && row.winners !== null)
+        {
+            const paid = await vault.winnersIn(row.close_tx as Hex, id);
+            const named = (mask: number) => ({ seats: seatsOfMask(mask).join(','), winners: seatsOfMask(mask).map((seat) => handles[seat] ?? '').join(', ') });
+
+            if (paid !== null && paid !== BigInt(row.winners))
+            {
+                found.push({ record: row.id, kind: 'escrow-winners', db: named(row.winners), chain: named(Number(paid)), about });
+            }
+        }
+
+        return found;
+    };
 
     let running: Promise<StakeSweep> | null = null;
     let again = false;
@@ -752,6 +826,34 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
         sweep,
 
         kick,
+
+        /**
+         * Every paid game no worker is moving, against what the vault holds: one being played or being
+         * paid whatever its age, any other made in the last week, and those with a disagreement open.
+         */
+        async audit({ ids, after, deadline }: AuditAsk)
+        {
+            if (!vault.configured)
+            {
+                return nothing();
+            }
+
+            const known = ids.filter((id) => UUID.test(id));
+            const again = known.length === 0 ? [] : await auditQuery().where('e.id = any(:ids::uuid[])', { ids: known }).getRawMany<AuditRow>();
+            const from = keysetAfter(after);
+            const page = auditQuery()
+                .where(`e.state <> 'locking'`)
+                .andWhere(`(e.state in ('open', 'settling', 'refunding') or e.created_at > now() - ${ RECENT })`);
+
+            if (from !== null)
+            {
+                page.andWhere(olderThan('e.created_at', 'e.id'), from);
+            }
+
+            const rows = await page.orderBy('e.created_at', 'DESC').addOrderBy('e.id', 'DESC').limit(AUDIT_PAGE + 1).getRawMany<AuditRow>();
+
+            return await audited({ again, page: rows, after }, deadline, compared);
+        },
 
         async state(me: string): Promise<VaultState>
         {

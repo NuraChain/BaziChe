@@ -75,6 +75,8 @@ import {
     adminTables,
     adminTablesQuery,
     adminOverview,
+    adminChecks,
+    adminChecksQuery,
     adminNotice,
     adminNoticeEnd,
     adminNoticeInput,
@@ -577,6 +579,9 @@ export function buildApi(ports: Ports)
 
             overview: routes.get('/overview', { output: adminOverview },
                 async (context) => onlyAdmin(await ports.admin.overview(context.principal.userId))),
+
+            checks: routes.get('/checks', { query: adminChecksQuery, output: adminChecks },
+                async (context) => onlyAdmin(await ports.admin.checks(context.principal.userId, context.query))),
 
             live: routes.get('/live', { query: adminLiveQuery, output: adminLive },
                 async (context) => onlyAdmin(await ports.admin.live(context.principal.userId, context.query))),

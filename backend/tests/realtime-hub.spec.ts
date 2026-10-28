@@ -81,6 +81,8 @@ interface World
     asked: number;
     held: Promise<Pulse> | null;
     failing: boolean;
+    sessionsAsked: string[] | null;
+    sessionsHeld: Promise<void> | null;
 }
 
 let world: World;
@@ -103,7 +105,9 @@ function build()
         pulse: { games: [], watching: '' },
         asked: 0,
         held: null,
-        failing: false
+        failing: false,
+        sessionsAsked: null,
+        sessionsHeld: null
     };
 
     state.hub = createHub({
@@ -121,7 +125,15 @@ function build()
             } satisfies Edges;
         },
         recipientsOf: async (conversationId) => state.recipients.get(conversationId) ?? [],
-        aliveSessions: async (ids) => new Set(ids.filter((id) => state.alive.has(id))),
+        aliveSessions: async (ids) =>
+        {
+            const alive = new Set(ids.filter((id) => state.alive.has(id)));
+
+            state.sessionsAsked = [...ids];
+            await state.sessionsHeld;
+
+            return alive;
+        },
         touchSeen: (ids) => state.touched.push(...ids),
         leaving: (ids) => state.left.push(...ids),
         report: (_error, where) => state.errors.push(where),
@@ -927,6 +939,31 @@ describe('sessions', () =>
 
         expect(alex.wire.closed).toEqual({ code: 4401, reason: 'Session ended' });
         expect(sara.wire.closed).toBeNull();
+    });
+
+    /**
+     * A browser takes a 4401 as final and stops reconnecting, so a socket wrongly ended here is a
+     * tab with no realtime until it is reloaded. The crowd pass found eight of five hundred sockets
+     * ended this way as they connected.
+     */
+    it('leaves alone a socket that connected while the sweep was asking about the others', async () =>
+    {
+        const alex = await connect('alex');
+        let answer = (): void => undefined;
+
+        world.sessionsHeld = new Promise<void>((resolve) => answer = resolve);
+
+        const sweeping = world.hub.sweep();
+
+        await vi.waitFor(() => expect(world.sessionsAsked).toEqual(['s-alex']));
+
+        const late = await connect('reza.t');
+
+        answer();
+        await sweeping;
+
+        expect(late.wire.closed, 'a session nobody asked about was taken for one that ended').toBeNull();
+        expect(alex.wire.closed).toBeNull();
     });
 });
 

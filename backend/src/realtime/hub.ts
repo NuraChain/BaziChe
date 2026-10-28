@@ -1221,12 +1221,14 @@ export function createHub(deps: HubDeps): Hub
                 return;
             }
 
+            // Only a session that was asked about can be answered dead: a socket that bound while the
+            // database was being asked holds a session the answer never saw.
             const alive = await deps.aliveSessions([...sessions]);
             for (const sockets of [...byUser.values()])
             {
                 for (const connection of [...sockets])
                 {
-                    if (!alive.has(connection.sessionId))
+                    if (sessions.has(connection.sessionId) && !alive.has(connection.sessionId))
                     {
                         connection.alive = false;
                         connection.wire.close(4401, 'Session ended');

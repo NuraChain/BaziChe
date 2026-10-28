@@ -25,7 +25,7 @@ const FIVE = (5n * NURA).toString();
 
 const OPEN = {
     open: true as const,
-    may: 'yes' as 'yes' | 'market-region' | 'market-wallet' | 'market-minor' | 'market-terms' | 'market-break' | 'market-disclosure',
+    may: 'yes' as 'yes' | 'market-wallet' | 'market-minor' | 'market-terms' | 'market-break' | 'market-disclosure',
     presets: [1n, 5n, 10n, 25n, 50n, 100n].map((one) => (one * NURA).toString()),
     least: NURA.toString(),
     most: (500n * NURA).toString(),
@@ -193,7 +193,7 @@ describe('markets, as the browser holds them', () =>
         expect(useMarkets().state()).toEqual(OPEN);
         expect(useMarkets().offered()).toBe(true);
 
-        for (const may of ['market-region', 'market-minor', 'market-wallet'] as const)
+        for (const may of ['market-minor', 'market-wallet'] as const)
         {
             server.markets.state = { ...OPEN, may };
             useMarkets().reset();
@@ -280,7 +280,7 @@ describe('markets, as the browser holds them', () =>
 
     it('asks nothing about a game for a reader markets are not offered to', async () =>
     {
-        server.markets.state = { ...OPEN, may: 'market-region' };
+        server.markets.state = { ...OPEN, may: 'market-minor' };
         await signIn(walletAt(OWNER));
 
         useMarkets().watch('match-1');

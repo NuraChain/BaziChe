@@ -80,7 +80,6 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.list.game': '{game}, {when}',
     'market.unreached': 'Ahora mismo no se pudo llegar a NuraChain. Vuelve a intentarlo en un momento.',
     'market.refused.market-off': 'Aquí no hay pronósticos.',
-    'market.refused.market-region': 'Los pronósticos no están disponibles donde estás.',
     'market.refused.market-wallet': 'Para elegir ganador necesitas una cuenta con cartera.',
     'market.refused.market-minor': 'Los pronósticos son solo para adultos.',
     'market.refused.market-terms': 'Antes acepta las condiciones de jugar por NURA en la página de tu cartera.',

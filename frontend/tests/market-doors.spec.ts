@@ -36,7 +36,7 @@ const NURA = 10n ** 18n;
 
 const OPEN = {
     open: true as const,
-    may: 'yes' as 'yes' | 'market-region' | 'market-wallet' | 'market-minor' | 'market-terms' | 'market-break' | 'market-disclosure',
+    may: 'yes' as 'yes' | 'market-wallet' | 'market-minor' | 'market-terms' | 'market-break' | 'market-disclosure',
     presets: [1n, 5n, 10n].map((one) => (one * NURA).toString()),
     least: NURA.toString(),
     most: (500n * NURA).toString(),
@@ -225,7 +225,7 @@ describe('the way to a watched game\'s market', () =>
 
     it('is drawn for nobody markets are not offered to, and for no game without a market', async () =>
     {
-        server.markets.state = { ...OPEN, may: 'market-region' };
+        server.markets.state = { ...OPEN, may: 'market-minor' };
         let root = await door();
 
         expect(root.querySelector('[data-market-door]')).toBeNull();

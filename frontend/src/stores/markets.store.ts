@@ -21,7 +21,7 @@ const LAPSE_MS = 5 * 60_000;
 export const CLAIM_WAIT_MS = 2 * 60_000;
 
 /** Where a market is not offered to the reader at all, so no way to one is drawn. */
-const UNOFFERED: ReadonlySet<string> = new Set(['market-region', 'market-minor', 'market-wallet']);
+const UNOFFERED: ReadonlySet<string> = new Set(['market-minor', 'market-wallet']);
 
 const SEND_COPY: Record<SendRefusal, MessageKey> = {
     rejected: 'market.wallet.rejected',

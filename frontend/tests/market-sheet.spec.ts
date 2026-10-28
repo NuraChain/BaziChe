@@ -27,7 +27,7 @@ const NURA = 10n ** 18n;
 
 const OPEN = {
     open: true as const,
-    may: 'yes' as 'yes' | 'market-region' | 'market-wallet' | 'market-minor' | 'market-terms' | 'market-break' | 'market-disclosure',
+    may: 'yes' as 'yes' | 'market-wallet' | 'market-minor' | 'market-terms' | 'market-break' | 'market-disclosure',
     presets: [1n, 5n, 10n, 25n, 50n, 100n].map((one) => (one * NURA).toString()),
     least: NURA.toString(),
     most: (500n * NURA).toString(),

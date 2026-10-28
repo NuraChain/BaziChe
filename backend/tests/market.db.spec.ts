@@ -601,6 +601,20 @@ describe.skipIf(!active)('markets, against a real database', () =>
             expect(fake.sent).toEqual([`cancel ${ marketIdOf(market.id) }`]);
         });
 
+        it('settles a game that ended well after the close on a quiet chain, whose newest block is minutes old', async () =>
+        {
+            const { ports, fake, market, guest, game, watcher } = await watched();
+
+            await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (5n * NURA).toString() });
+            mined(fake);
+            await closeIn(market.id, -40);
+            fake.state.clock = BigInt(Math.floor(Date.now() / 1000) - 300);
+            await ports.match.resign(guest.id, game.matchId, { key: randomUUID() });
+            await sweep(ports);
+
+            expect(fake.sent).toEqual([`settle ${ marketIdOf(market.id) } 0`]);
+        });
+
         it('waits for the chain\'s own clock to reach the close, and sends again once it has', async () =>
         {
             const { ports, fake, market } = await backed();

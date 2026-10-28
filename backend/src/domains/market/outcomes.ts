@@ -57,16 +57,23 @@ export interface Ended
 }
 
 /**
+ * The most a block producer's clock is taken to run behind this server's. The newest block is
+ * behind the chain's clock by however long nothing has been mined, which on a quiet chain that
+ * mines only for a transaction is minutes; a lag longer than this is a quiet chain, not a clock.
+ */
+export const BEHIND_MOST_MS = 30_000;
+
+/**
  * Whether a market is settled, and on which outcome, or called off. Settled only when its game
  * ended after NuraChain had stopped taking positions in it: a ticket signed before the end can be
  * placed until the chain's own clock reaches the close, and the chain's clock can run behind this
  * server's, so a game that ended earlier by the chain's clock would pay whoever placed one knowing
- * the result. The chain's clock at the end is worked out from both clocks read now (`chainNow`
- * from its newest block, which can only be behind it, so the doubt falls toward calling off).
+ * the result. How far behind is read from both clocks now (`chainNow` from its newest block, which
+ * can only be behind it, so the doubt falls toward calling off), up to `BEHIND_MOST_MS`.
  */
 export function verdictOf(choices: readonly Choice[], closesAt: number, ended: Ended, chainNow: number, serverNow: number)
 {
-    if (ended.voided || ended.finishedAt + (chainNow - serverNow) < closesAt)
+    if (ended.voided || ended.finishedAt - Math.min(serverNow - chainNow, BEHIND_MOST_MS) < closesAt)
     {
         return null;
     }

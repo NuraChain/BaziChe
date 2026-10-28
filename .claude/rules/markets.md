@@ -92,7 +92,12 @@ believes nothing it is told about the chain:
   clocks read now (the newest block's time, which can only be behind, so the doubt falls toward
   calling off) and settles only a game that ended after it. The adversarial read of the contract is
   where this came from: a walkout inside the window would otherwise have paid whoever placed a
-  ticket knowing the result.
+  ticket knowing the result. **A lag past half a minute is a quiet chain, not a clock**
+  (`BEHIND_MOST_MS` in `outcomes.ts`): the newest block is as old as the last thing mined, and on a
+  chain that mines only for a transaction that is minutes, which read as a clock called off every
+  market whose game ended after its close. The market pass found it on a local node, every market
+  refunded. What is assumed instead, and stated: a block producer's clock is never more than thirty
+  seconds behind this server's.
 - **Then it is sent**: `settle(outcome)` or `cancel` with the operator's key, asked of the chain
   first, so a market the chain already resolved is written down and nothing is sent twice. A
   transaction that is waiting is waited for, one that reverted is sent again, and a refusal is

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Engine } from '../src/domains/match/engine.ts';
 import { ENGINES } from '../src/domains/match/service.ts';
 import type { Variant } from '../src/domains/match/sides.ts';
-import { choicesOf, outcomeOf, verdictOf, type Ended } from '../src/domains/market/outcomes.ts';
+import { BEHIND_MOST_MS, choicesOf, outcomeOf, verdictOf, type Ended } from '../src/domains/market/outcomes.ts';
 
 const engineOf = (game: string) => ENGINES.find((one) => one.id === game) as Engine;
 
@@ -90,6 +90,15 @@ describe('whether a market is settled from its game', () =>
     it('reads the chain\'s clock as it is, so a chain ahead of this one closed earlier', () =>
     {
         expect(verdictOf(choices, CLOSE, won(95_000), 210_000, 200_000)).toBe(1);
+    });
+
+    it('reads a newest block minutes old as a quiet chain, its clock at most half a minute behind', () =>
+    {
+        expect(BEHIND_MOST_MS).toBe(30_000);
+        expect(verdictOf(choices, CLOSE, won(CLOSE + BEHIND_MOST_MS), 20_000, 200_000)).toBe(1);
+        expect(verdictOf(choices, CLOSE, won(CLOSE + BEHIND_MOST_MS - 1), 20_000, 200_000)).toBeNull();
+        expect(verdictOf(choices, CLOSE, won(CLOSE + 20_000), 180_000, 200_000), 'twenty seconds behind is a clock').toBe(1);
+        expect(verdictOf(choices, CLOSE, won(CLOSE + 19_999), 180_000, 200_000)).toBeNull();
     });
 
     it('calls off a game the staff ended as no contest, and one with no outcome', () =>

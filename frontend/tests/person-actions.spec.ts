@@ -503,12 +503,16 @@ describe('sending NURA to a player, from the sheet about them', () =>
 
     it('offers nothing for a player the server says cannot be given NURA, a game that is over, a reader who cannot give, or donations that are closed', async () =>
     {
+        const answering = (state: typeof server.donate.state) => () =>
+        {
+            server.donate.state = state;
+        };
         const cases: [string, () => void, string][] = [
             ['a player who may not be given', () => undefined, 'reza.t'],
             ['a game that is over', () => watching(false), 'sara.k'],
-            ['a reader without a wallet', () => { server.donate.state = { ...OPEN, may: 'donate-wallet' }; }, 'sara.k'],
-            ['a reader under 18', () => { server.donate.state = { ...OPEN, may: 'donate-minor' }; }, 'sara.k'],
-            ['donations closed', () => { server.donate.state = { open: false }; }, 'sara.k']
+            ['a reader without a wallet', answering({ ...OPEN, may: 'donate-wallet' }), 'sara.k'],
+            ['a reader under 18', answering({ ...OPEN, may: 'donate-minor' }), 'sara.k'],
+            ['donations closed', answering({ open: false }), 'sara.k']
         ];
 
         for (const [what, arrange, who] of cases)

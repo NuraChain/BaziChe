@@ -55,6 +55,13 @@ database says so in its log.
    }
    ```
 
+   Every player holds one realtime connection, which is two for the proxy (the player's, and its
+   own to the server), so nginx's default `worker_connections` (512, or 768 in Debian's
+   `nginx.conf`) carries only a few hundred players for each worker. For thousands, raise it in the
+   `events` block (`worker_connections 8192;`) with the files a worker may hold open
+   (`worker_rlimit_nofile 16384;` at the top level). The server itself takes up to 4,000 realtime
+   connections and turns the next one away.
+
 To update: `git pull`, `npm ci`, `npm run build`, `pg_dump` the database, `npm run schema:sync`,
 then restart the server.
 

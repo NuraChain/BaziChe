@@ -28,30 +28,20 @@ contract's own rules, its tests and its reference are in the SmartContract proje
 
 ## Where markets are offered at all
 
-**Nowhere unless three names say where.** `NURA_MARKETS_ADDRESS` (the contract), `MARKET_REGIONS`
-(ISO 3166 two-letter codes separated by commas, from legal advice and nowhere else) and
-`MARKET_COUNTRY_HEADER` (the header the proxy writes the reader's country into, overwriting any a
-client sent) go together: `loadServerConfig` refuses to start with one or two of them written
-(`marketsRefused` in `env.ts`, in either mode), with a code that is not two letters, or a header
-name a request cannot carry. Written all three empty, markets are off, and markets are open only
-when the chain is configured as well (`createMarketsChain(...).configured`: the rpc, the chain id
-and `NURA_REFEREE_KEY`, which is the contract's operator). There is no wildcard: a country nobody
-named is offered nothing, and a request that arrives without the header is offered nothing.
-`env.spec.ts` holds it.
-
-**The country is asked only of a request, through the port** (`HeaderOf` in `ports.ts`): `api.ts`
-hands each market port a way to read a header and never learns which header it is, and
-`services.ts` reads `MARKET_COUNTRY_HEADER` with it only while markets are open.
+**Wherever the chain is configured for them.** `NURA_MARKETS_ADDRESS` names the contract, and
+markets are open when `createMarketsChain(...).configured` says so: that address, the rpc, the chain
+id and `NURA_REFEREE_KEY`, which is the contract's operator. Written empty, markets are off. Where a
+reader is is asked nowhere: the owner took the country gate out, `MARKET_REGIONS` and
+`MARKET_COUNTRY_HEADER` with it (2026-10-28).
 
 ## Who may take a position
 
-**Asked in this order** (`MARKET_MAY` in `domains/market/policy.ts`, each no a refusal word): where
-the reader is (`market-region`, 451, the status of a refusal made for a legal reason), then the
+**Asked in this order** (`MARKET_MAY` in `domains/market/policy.ts`, each no a refusal word): the
 rules of paid play as they stand (`market-wallet`, `market-minor`, `market-terms`, `market-break`,
 by `eligibilityOf`), then whether they read what a market is (`market-disclosure`:
 `POST /markets/disclosure`, a row of `market_disclosures`, once). A player of the game is
-`market-playing`. A minor and somebody outside the regions are not shown a market at all; a claim
-is never refused for where somebody is or a break, because what it pays is theirs.
+`market-playing`. A minor is not shown a market at all; a claim is never refused for a break,
+because what it pays is theirs.
 
 ## A market
 
@@ -146,7 +136,7 @@ claim is sent from).
 **A way in only where a market is offered.** The play page draws `LazyMarketDoor` beside the dock
 for somebody watching a public game played live (`backable`), a chunk of its own so the play route
 carries none of it. It reads `GET /markets` once an account and the game's market only where
-markets are open and the reader is not `market-region`, `market-minor` or `market-wallet`; a game
+markets are open and the reader is not `market-minor` or `market-wallet`; a game
 with no market (404) is nothing, not a failure. It says how long the market takes positions ("1:12
 left", the server's time put on this device's clock by `toLocal`) and what is in it, and opens the
 sheet (`openMarket`, `lib/market-sheet.ts`).
@@ -188,7 +178,7 @@ and Persian by `locales/market-catalogue.ts`.
 the contract's module against a fake rpc (the two type strings word for word, the digest built by
 hand, the operator's signature, every call and read, a claim's receipt); `market.db.spec.ts` the
 service through the real ports with `fake-markets.ts`, which a spec steers (what the contract holds,
-refuses and mines, its clock, whether it can be reached); `env.spec.ts` the three names;
+refuses and mines, its clock, whether it can be reached); `env.spec.ts` the name;
 `market-sweep.spec.ts` the worker's place in `main.ts`; `app.spec.ts` the routes, and
 `tools/qa/garbage-pass.mjs` sends them garbage. `tools/qa/vault-deploy.mjs` deploys the contract on
 a local node with a dispute window of a minute (`deployMarkets`), and `tools/qa/market-pass.mjs` plays

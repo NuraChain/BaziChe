@@ -8,7 +8,7 @@
  *
  * The server runs built, on a database nobody else uses, with NURA_RPC_URL, NURA_CHAIN_ID=31337,
  * NURA_VAULT_ADDRESS and NURA_REFEREE_KEY (the referee `vault-deploy.mjs` made the markets'
- * operator), NURA_MARKETS_ADDRESS, MARKET_REGIONS=DE and MARKET_COUNTRY_HEADER=CF-IPCountry. QA_RPC
+ * operator) and NURA_MARKETS_ADDRESS. QA_RPC
  * is the node, and a new one each run: hardhat gives every block a second of its own, so a few runs
  * put its clock ahead of this machine's by more than a market's window. Four chess games are opened
  * together, so the ninety seconds each market takes positions for, and the minute of its dispute
@@ -90,19 +90,18 @@ const refusedAs = (label, answer, word) =>
 /** A position's or a market's id as the contract keys it: its uuid as 32 bytes. */
 const idOf = (uuid) => `0x${ uuid.replaceAll('-', '').toLowerCase().padStart(64, '0') }`;
 
-/** Somebody's requests, from the country the proxy would say they are in. */
-const session = (country) =>
+/** Somebody's requests, with their session's cookie. */
+const session = () =>
 {
     let cookie = '';
 
-    const call = async (method, path, body, where = country) =>
+    const call = async (method, path, body) =>
     {
         const response = await fetch(`${ BASE }/api${ path }`, {
             method,
             headers: {
                 'content-type': 'application/json',
-                ...(cookie === '' ? {} : { cookie }),
-                ...(where === null ? {} : { 'cf-ipcountry': where })
+                ...(cookie === '' ? {} : { cookie })
             },
             body: body === undefined ? undefined : JSON.stringify(body)
         });
@@ -131,8 +130,8 @@ const session = (country) =>
     };
 
     return {
-        get: (path, where) => call('GET', path, undefined, where),
-        post: (path, body, where) => call('POST', path, body, where)
+        get: (path) => call('GET', path),
+        post: (path, body) => call('POST', path, body)
     };
 };
 
@@ -163,7 +162,7 @@ const balance = (address) => reader.getBalance({ address });
 /** Somebody with a wallet the pass keeps, NURA in it, the terms of paid play and what a market is read, unless asked otherwise. */
 const person = async (name, options = {}) =>
 {
-    const who = session(options.country === undefined ? 'DE' : options.country);
+    const who = session();
     const account = privateKeyToAccount(generatePrivateKey());
 
     who.name = `${ name } ${ tag() }`;
@@ -328,8 +327,6 @@ async function main()
     ok('markets are open, with their limits in wei', (await fresh.get('/markets')).body?.open === true);
     ok('somebody who has not read what a market is is asked to', (await fresh.get('/markets')).body?.may === 'market-disclosure');
     ok('somebody without the terms of paid play is asked for them', (await untermed.get('/markets')).body?.may === 'market-terms');
-    ok('a request the proxy said no country for is offered nothing', (await fresh.get('/markets', null)).body?.may === 'market-region');
-    ok('nor one from a country not named', (await fresh.get('/markets', 'US')).body?.may === 'market-region');
     ok('read once, the disclosure lets them', (await fresh.post('/markets/disclosure')).body?.may === 'yes');
 
     console.log('\n[2] four games, and a market on each');
@@ -365,7 +362,6 @@ async function main()
     refusedAs('a player of the game', await settledGame.white.post(`/markets/${ market.id }/positions`, { outcome: 0, amount: WEI.toString() }), 'market-playing');
     refusedAs('an outcome the market does not have', await ana.post(`/markets/${ market.id }/positions`, { outcome: 3, amount: WEI.toString() }), 'market-outcome');
     refusedAs('more than a position may be', await ana.post(`/markets/${ market.id }/positions`, { outcome: 0, amount: (501n * WEI).toString() }), 'market-amount');
-    refusedAs('from a country not named', await ana.post(`/markets/${ market.id }/positions`, { outcome: 0, amount: WEI.toString() }, 'US'), 'market-region');
 
     console.log('\n[4] unequal stakes on every outcome, placed from the bettors\' own wallets');
 

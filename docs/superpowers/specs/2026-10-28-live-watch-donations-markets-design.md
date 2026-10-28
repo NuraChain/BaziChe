@@ -224,12 +224,11 @@ by the operator being unable to move a stake anywhere but to the market's own be
 ### 5.5 Who may bet, and the law
 
 **MK-D7 Markets are off unless the operator turns them on**: `NURA_MARKETS_ADDRESS` (the contract)
-and `MARKET_REGIONS` (country codes where they are allowed) in the root `.env`, both empty by
-default. Wagering on game outcomes is gambling under most legal systems, prohibited outright in some
-(Iran among them) and licensed in others; **only qualified legal advice for the countries of launch
-can decide where it may be offered**, and nothing here decides it. The server reads the country
-from a header the proxy sets (`MARKET_COUNTRY_HEADER`, for example `cf-ipcountry`) and refuses
-anybody whose country it cannot read or is not listed. A bettor must also be: an adult, a wallet
+in the root `.env`, empty by default. Wagering on game outcomes is gambling under most legal
+systems, prohibited outright in some (Iran among them) and licensed in others. The design first
+gated markets by country (`MARKET_REGIONS`, read from a header the proxy set,
+`MARKET_COUNTRY_HEADER`); the owner took that gate out on 2026-10-28, so where markets may be
+offered is the operator's decision when they write the address. A bettor must be: an adult, a wallet
 account, past the terms of paid play and a market disclosure, not on a break (the existing
 self-exclusion, a day, a week or a month), and not seated at the table of the game (nobody bets on a
 game they play). Limits per position, market and day (MK-D4); every position, ticket and settlement
@@ -266,7 +265,7 @@ unreachable (workers wait and catch up; nothing is lost because everything is re
 
 A funded deployer key and the decision to deploy `ArcadeTips` and `ArcadeMarkets` on NuraChain (as
 for `ArcadeShop`); the production referee key's address as the operator; legal advice before
-`MARKET_REGIONS` is written anywhere; and the fee, if any, markets should take.
+`NURA_MARKETS_ADDRESS` is written anywhere; and the fee, if any, markets should take.
 
 ## 9. As built
 

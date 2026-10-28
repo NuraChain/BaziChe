@@ -1,6 +1,6 @@
-import { BLOCK, CELL, GRID, HOME_SCALE, MARGIN, aimNear, stackSpot } from '../layout.ts';
+import { BLOCK, CELL, GRID, HOME_SCALE, MARGIN, YARD_AT, YARD_SIZE, aimNear, stackSpot } from '../layout.ts';
 import { DIE_PROPERTIES, dieDress } from '../looks/dice.ts';
-import { burstOf, lightOf, wornOf } from '../looks/table.ts';
+import { burstOf, lightOf, wornOf, type Collection } from '../looks/table.ts';
 import { HISTORY, beatsOf, placeOf, sameAs, shownOf, step, type Beat, type Felt, type Pawn, type Rolled, type Shown } from '../ludo-felt.ts';
 import { celebrate } from '../stage/celebrate.ts';
 import { clamp, hashOf } from '../stage/curves.ts';
@@ -253,6 +253,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
     const flying = new Set<string>();
     const transient = new Set<HTMLElement>();
     const marks = new Map<string, Mark>();
+    const yards = new Map<string, HTMLElement>();
     const threatened = new Set<string>();
 
     let shown: Shown = NOBODY;
@@ -295,6 +296,49 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
     const scaleFor = (cells: number) => root.clientWidth * cells * C / 100 / EFFECT_FITS;
 
     const pawnsWorn = (pawn: Pawn) => wornOf('pawns', options.looks?.(pawn.owner)?.pawns);
+
+    /**
+     * Each player's yard in their look, laid over the corner of their colour under every mark and
+     * pawn; a yard in Classic, or in a look this build does not draw, is the board's own. A yard
+     * that stays is the node it was, its look changed where it stands.
+     */
+    const dressYards = () =>
+    {
+        const worn = new Map<string, Collection>();
+
+        for (const pawn of shown.pawns)
+        {
+            const collection = wornOf('yard', options.looks?.(pawn.owner)?.yard);
+
+            if (collection !== null)
+            {
+                worn.set(pawn.colour, collection);
+            }
+        }
+
+        for (const [colour, node] of [...yards])
+        {
+            if (!worn.has(colour))
+            {
+                node.remove();
+                yards.delete(colour);
+            }
+        }
+
+        for (const [colour, collection] of worn)
+        {
+            const [left, top] = YARD_AT[colour] ?? [0, 0];
+            const node = yards.get(colour) ?? element('div', 'lb-yard', root);
+
+            node.dataset.colour = colour;
+            node.dataset.yard = collection;
+            node.style.left = `${ left * 100 }%`;
+            node.style.top = `${ top * 100 }%`;
+            node.style.width = `${ YARD_SIZE * 100 }%`;
+            node.style.height = `${ YARD_SIZE * 100 }%`;
+            yards.set(colour, node);
+        }
+    };
 
     const spriteOf = (pawn: Pawn) =>
     {
@@ -1650,6 +1694,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
             shown = shownOf(sight.view);
             forget(shown);
+            dressYards();
             celebrated = sight.view.winners.join();
             ended = false;
 

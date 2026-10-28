@@ -21,6 +21,17 @@ export const MARGIN = RIM + FIELD * (16 / 992);
 
 export const CELL = FIELD * (960 / 992) / GRID;
 
+/** Each colour's yard in the board's drawing (`ludo-board.svg`, 1024 across): where its square begins, as a share of the board. */
+export const YARD_AT: Record<string, readonly [number, number]> = {
+    red: [72.76 / 1024, 72.76 / 1024],
+    green: [617.27 / 1024, 72.76 / 1024],
+    yellow: [617.27 / 1024, 617.27 / 1024],
+    blue: [72.76 / 1024, 617.27 / 1024]
+};
+
+/** How wide a yard's square is, as a share of the board. */
+export const YARD_SIZE = 333.97 / 1024;
+
 export const NEST_RADIUS = 1.72;
 
 export const NEST_SPREAD = 0.8;

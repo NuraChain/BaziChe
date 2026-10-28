@@ -815,6 +815,116 @@ html:has(.site-drawer[open])
     }
 }
 
+/*
+ * A player's yard in their look, over the corner of their colour (`game/board/ludo-board.ts`): the
+ * collection's drawing on the seat's colour, which shows through it, and its glint (`--shine`)
+ * breathing slowly round its edge on a board that moves: round it rather than across it as a card
+ * back's does, because the cream nest and the pawns that fill its middle hide a band.
+ */
+.lb-yard
+{
+    position: absolute;
+    z-index: 1;
+    background: var(--yard) center / 100% 100% no-repeat;
+    border-radius: 9.96%;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+[data-yard='glow']
+{
+    --yard: url('/yards/glow.svg');
+    --shine: #FBE7A6;
+}
+
+[data-yard='shiraz']
+{
+    --yard: url('/yards/shiraz.svg');
+    --shine: #FFF4D6;
+}
+
+[data-yard='neon']
+{
+    --yard: url('/yards/neon.svg');
+    --shine: #38E8FF;
+}
+
+[data-yard='gold']
+{
+    --yard: url('/yards/gold.svg');
+    --shine: #FFFAE6;
+}
+
+[data-yard='inferno']
+{
+    --yard: url('/yards/inferno.svg');
+    --shine: #FFE7A1;
+}
+
+[data-yard='storm']
+{
+    --yard: url('/yards/storm.svg');
+    --shine: #EAF6FF;
+}
+
+[data-yard='astral']
+{
+    --yard: url('/yards/astral.svg');
+    --shine: #FFE58A;
+}
+
+[data-yard='void']
+{
+    --yard: url('/yards/void.svg');
+    --shine: #E9D5FF;
+}
+
+[data-yard='jade']
+{
+    --yard: url('/yards/jade.svg');
+    --shine: #FFF1C4;
+}
+
+[data-yard='frost']
+{
+    --yard: url('/yards/frost.svg');
+    --shine: #F2FBFF;
+}
+
+[data-yard='phoenix']
+{
+    --yard: url('/yards/phoenix.svg');
+    --shine: #FFF6D6;
+}
+
+[data-yard='oni']
+{
+    --yard: url('/yards/oni.svg');
+    --shine: #20E6FF;
+}
+
+@media (prefers-reduced-motion: no-preference)
+{
+    .lb:not([data-still]) .lb-yard::after
+    {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        box-shadow: inset 0 0 calc(var(--c) * 0.9) calc(var(--c) * 0.12) color-mix(in srgb, var(--shine) 75%, transparent);
+        opacity: 0.2;
+        animation: yard-glint 4.8s ease-in-out infinite alternate;
+    }
+}
+
+@keyframes yard-glint
+{
+    to
+    {
+        opacity: 0.9;
+    }
+}
+
 @keyframes back-shine
 {
     0%,

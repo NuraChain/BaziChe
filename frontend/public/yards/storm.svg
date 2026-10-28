@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 334 334" width="334" height="334">
+<defs>
+    <pattern id="motif" width="30" height="30" patternUnits="userSpaceOnUse" patternTransform="scale(2.1)"><path d="M0 0.5H30M0.5 0V30" stroke="#5A6884" stroke-width="1" opacity="0.8"/><path d="M6 19L15 13L24 19" fill="none" stroke="#3FA9FF" stroke-width="1.2" stroke-linejoin="round"/><path d="M15 3L12.6 8.4H16L13.6 13" fill="none" stroke="#7DF0FF" stroke-width="0.8" stroke-linejoin="round"/><circle cx="3" cy="3" r="1.1" fill="#C9D4E6"/><circle cx="27" cy="27" r="1.1" fill="#C9D4E6"/></pattern>
+    <radialGradient id="vignette" cx="0.5" cy="0.5" r="0.72"><stop offset="0.55" stop-color="#0D1424" stop-opacity="0"/><stop offset="1" stop-color="#0D1424" stop-opacity="0.34"/></radialGradient>
+    <mask id="ground"><rect width="334" height="334" fill="#FFFFFF"/><circle cx="167" cy="167" r="113" fill="#000000"/></mask>
+    <clipPath id="square"><rect width="334" height="334" rx="33.28"/></clipPath>
+    <linearGradient id="yard-sign-steel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F2F6FC"/><stop offset="0.3" stop-color="#C9D4E6"/><stop offset="0.7" stop-color="#5A6884"/><stop offset="1" stop-color="#0D1424"/></linearGradient>
+</defs>
+<g clip-path="url(#square)">
+    <rect width="334" height="334" fill="url(#vignette)" mask="url(#ground)"/>
+    <rect width="334" height="334" fill="url(#motif)" opacity="0.9" mask="url(#ground)"/>
+    <rect x="12" y="12" width="310" height="310" rx="23.68" fill="none" stroke="#2A1E5C" stroke-width="6" stroke-opacity="0.35"/>
+    <rect x="12" y="12" width="310" height="310" rx="23.68" fill="none" stroke="#3FA9FF" stroke-width="3" stroke-opacity="0.95"/>
+    <rect x="20" y="20" width="294" height="294" rx="17.28" fill="none" stroke="#3FA9FF" stroke-width="1.4" stroke-opacity="0.55"/>
+</g>
+<circle cx="167" cy="167" r="110" fill="none" stroke="#2A1E5C" stroke-width="6" stroke-opacity="0.45"/>
+<circle cx="167" cy="167" r="110" fill="none" stroke="#3FA9FF" stroke-width="3.5"/>
+<path d="M140.48 183.32L144.64 153.4L148.56 153.4L152.72 183.32Z" fill="url(#yard-sign-steel)" stroke="#060A14" stroke-width="1.5" stroke-linejoin="round"/><circle cx="146.6" cy="153.4" r="3.54" fill="#7DF0FF" stroke="#060A14" stroke-width="1.09"/><path d="M159.52 183.32L164.61 137.08L169.39 137.08L174.48 183.32Z" fill="url(#yard-sign-steel)" stroke="#060A14" stroke-width="1.5" stroke-linejoin="round"/><circle cx="167" cy="137.08" r="3.54" fill="#7DF0FF" stroke="#060A14" stroke-width="1.09"/><path d="M181.28 183.32L185.44 153.4L189.36 153.4L193.52 183.32Z" fill="url(#yard-sign-steel)" stroke="#060A14" stroke-width="1.5" stroke-linejoin="round"/><circle cx="187.4" cy="153.4" r="3.54" fill="#7DF0FF" stroke="#060A14" stroke-width="1.09"/><rect x="134.36" y="183.32" width="65.28" height="12.24" rx="2.72" fill="url(#yard-sign-steel)" stroke="#060A14" stroke-width="1.5"/><circle cx="143.88" cy="189.44" r="1.77" fill="#0D1424"/><circle cx="158.84" cy="189.44" r="1.77" fill="#0D1424"/><circle cx="175.16" cy="189.44" r="1.77" fill="#0D1424"/><circle cx="190.12" cy="189.44" r="1.77" fill="#0D1424"/><path d="M172.44 131.64L165.5 140.86L173.91 153.15L161.75 161.33L164.28 172.44" fill="none" stroke="#8B5CFF" stroke-width="5.66" stroke-linejoin="round" stroke-linecap="round" opacity="0.35"/><path d="M172.44 131.64L165.5 140.86L173.91 153.15L161.75 161.33L164.28 172.44" fill="none" stroke="#3FA9FF" stroke-width="2.83" stroke-linejoin="round" stroke-linecap="round"/><path d="M172.44 131.64L165.5 140.86L173.91 153.15L161.75 161.33L164.28 172.44" fill="none" stroke="#EAF6FF" stroke-width="1.06" stroke-linejoin="round" stroke-linecap="round"/><circle cx="167" cy="137.08" r="6.8" fill="#7DF0FF" opacity="0.35"/>
+</svg>

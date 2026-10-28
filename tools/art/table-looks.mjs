@@ -2,9 +2,9 @@
  * Draws what a table shows of its owner's looks, from each collection's palette, on the board's own
  * pieces so a look stands exactly where the classic one does: a ludo pawn in every collection for
  * every seat's colour (`public/pawns/<collection>-<colour>.svg`), the seat's colour kept wherever a
- * board is read for whose pawn it is; and every collection's deck (`public/decks/`, the classic
- * cards in its dress, the standard indices kept) and card back (`public/backs/`). `npm run looks`
- * runs it.
+ * board is read for whose pawn it is; every collection's deck (`public/decks/`, the classic cards
+ * in its dress, the standard indices kept) and card back (`public/backs/`); and its yard
+ * (`public/yards/`), laid over its owner's corner of the Ludo board. `npm run looks` runs it.
  */
 
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -16,7 +16,7 @@ import { PALETTES, SEAT_RAMPS } from '../../frontend/src/game/looks/palette.ts';
 import { cardBack, HALO } from './card-back.mjs';
 import { H, W, deck } from './card-parts.mjs';
 import { LEGENDARY } from './legendary/index.mjs';
-import { gloss, octagram, radial, sparkle, starOf } from './look-parts.mjs';
+import { gloss, motif, octagram, polygon, radial, sparkle, starOf } from './look-parts.mjs';
 import { PAWN, outlined } from './pawn-shape.mjs';
 
 const PUBLIC = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'public');
@@ -249,8 +249,60 @@ const deckOf = (collection) =>
         : deck(line.dress, { ornament: '<use href="#ornament"/>', defs: `<g id="ornament">${ line.ornament(W, H) }</g>` });
 };
 
+/** A yard's square on the board (`public/board/ludo-board.svg`): this many across, its corners this round, its nest this far out from its middle. */
+const YARD = { size: 334, round: 33.28, nest: 104 };
+
+/** The ink every line of the board is drawn in, under a yard's own lines so they read on any seat's colour. */
+const BOARD_INK = '#2A1E5C';
+
+/** The sign a classic collection's yard wears in its nest, as the shop's drawing of it does. */
+const SIGNS = {
+    glow: (palette, mid) => `<path d="${ sparkle(mid, mid, 24) }" fill="${ palette.glint }" stroke="${ BOARD_INK }" stroke-width="2.5" stroke-linejoin="round"/><path d="${ sparkle(mid + 20, mid - 18, 7) }" fill="${ palette.edge }"/>`,
+    shiraz: (palette, mid) => `<path d="${ starOf(mid, mid, 25, 11, 8) }" fill="${ palette.edge }" stroke="${ BOARD_INK }" stroke-width="2.5" stroke-linejoin="round"/><circle cx="${ mid }" cy="${ mid }" r="5" fill="${ palette.glint }"/>`,
+    neon: (palette, mid) => `<path d="${ polygon(mid, mid, 22, 4, 0) }" fill="${ palette.surface[1] }" stroke="${ palette.glint }" stroke-width="4" stroke-linejoin="round"/><path d="${ polygon(mid, mid, 11, 4, 0) }" fill="none" stroke="${ palette.edge }" stroke-width="3"/>`,
+    gold: (palette, mid) => `<circle cx="${ mid }" cy="${ mid }" r="20" fill="none" stroke="${ BOARD_INK }" stroke-width="6"/><circle cx="${ mid }" cy="${ mid }" r="20" fill="none" stroke="${ palette.edge }" stroke-width="3.5"/><circle cx="${ mid }" cy="${ mid }" r="8" fill="${ palette.edge }" stroke="${ BOARD_INK }" stroke-width="2"/>`
+};
+
+/**
+ * A collection's yard, laid over its owner's corner of the board: its motif over the seat's colour,
+ * which shows through, a frame inside the yard's edge and a ring round the nest, each drawn in the
+ * board's ink under the collection's edge so it reads on red, green, yellow and blue alike, and its
+ * sign in the nest's middle, where no pawn stands. The nest and its four wells are left as the
+ * board draws them.
+ */
+function yard(collection)
+{
+    const palette = PALETTES[collection];
+    const { size, round, nest } = YARD;
+    const mid = size / 2;
+    const sign = LEGENDARY[collection]?.emblem(palette, mid, mid, 68, 'yard-sign') ?? { defs: [], body: [SIGNS[collection](palette, mid)] };
+    const frame = (inset, width, colour, opacity) => `<rect x="${ inset }" y="${ inset }" width="${ size - inset * 2 }" height="${ size - inset * 2 }" rx="${ round - inset * 0.8 }" fill="none" stroke="${ colour }" stroke-width="${ width }" stroke-opacity="${ opacity }"/>`;
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${ size } ${ size }" width="${ size }" height="${ size }">
+<defs>
+    ${ motif('motif', palette, 2.1) }
+    <radialGradient id="vignette" cx="0.5" cy="0.5" r="0.72"><stop offset="0.55" stop-color="${ palette.surface[2] }" stop-opacity="0"/><stop offset="1" stop-color="${ palette.surface[2] }" stop-opacity="0.34"/></radialGradient>
+    <mask id="ground"><rect width="${ size }" height="${ size }" fill="#FFFFFF"/><circle cx="${ mid }" cy="${ mid }" r="${ nest + 9 }" fill="#000000"/></mask>
+    <clipPath id="square"><rect width="${ size }" height="${ size }" rx="${ round }"/></clipPath>
+    ${ sign.defs.join('') }
+</defs>
+<g clip-path="url(#square)">
+    <rect width="${ size }" height="${ size }" fill="url(#vignette)" mask="url(#ground)"/>
+    <rect width="${ size }" height="${ size }" fill="url(#motif)" opacity="0.9" mask="url(#ground)"/>
+    ${ frame(12, 6, BOARD_INK, 0.35) }
+    ${ frame(12, 3, palette.edge, 0.95) }
+    ${ frame(20, 1.4, palette.edge, 0.55) }
+</g>
+<circle cx="${ mid }" cy="${ mid }" r="${ nest + 6 }" fill="none" stroke="${ BOARD_INK }" stroke-width="6" stroke-opacity="0.45"/>
+<circle cx="${ mid }" cy="${ mid }" r="${ nest + 6 }" fill="none" stroke="${ palette.edge }" stroke-width="3.5"/>
+${ sign.body.join('') }
+</svg>
+`;
+}
+
 const pawns = write('pawns', SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => [`${ collection }-${ seat }`, pawnOf(collection, seat)])));
 const decks = write('decks', SHOP_COLLECTIONS.map((collection) => [collection, deckOf(collection)]));
 const backs = write('backs', SHOP_COLLECTIONS.map((collection) => [collection, back(collection)]));
+const yards = write('yards', SHOP_COLLECTIONS.map((collection) => [collection, yard(collection)]));
 
-console.log(`table looks: ${ pawns } pawns, ${ decks } decks, ${ backs } backs`);
+console.log(`table looks: ${ pawns } pawns, ${ decks } decks, ${ backs } backs, ${ yards } yards`);

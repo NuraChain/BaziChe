@@ -7,7 +7,7 @@ import { PALETTES } from '../src/game/looks/palette.ts';
 import { lightOf, wornOf } from '../src/game/looks/table.ts';
 import { DIE_REST_MS, DIE_SIZE, ENTER_MS, GONE_MS, HAND, HOME_MS, KNOCK_MS, LIFTED, PASS_LEAST, PASS_MS, PICKUP_MS, SLIDE_MS, STEP_LEAST, STEP_MS, WIN_LEAST, WIN_MS, createLudoBoard, dieRest } from '../src/game/board/ludo-board.ts';
 import type { BoardHandle, Facts } from '../src/game/bridge.ts';
-import { BLOCK, CELL, HOME_SCALE, MARGIN, centreOf } from '../src/game/layout.ts';
+import { BLOCK, CELL, HOME_SCALE, MARGIN, YARD_AT, YARD_SIZE, centreOf } from '../src/game/layout.ts';
 import { HISTORY, feltOf, homeAt, nestAt, type Felt, type Told } from '../src/game/ludo-felt.ts';
 import { hashOf } from '../src/game/stage/curves.ts';
 import { planThrow } from '../src/game/stage/dice.ts';
@@ -2358,6 +2358,56 @@ describe('the ludo board, played from a keyboard', () =>
         expect(buttons()).toEqual(['0-1']);
         expect(hit('0-0').hasAttribute('tabindex')).toBe(false);
         expect(hit('0-1').tabIndex).toBe(0);
+    });
+});
+
+describe('a ludo yard in the look its owner chose', () =>
+{
+    const yard = (colour: string) => host.querySelector<HTMLElement>(`.lb-yard[data-colour="${ colour }"]`);
+
+    const placed = (node: HTMLElement | null) => [node?.style.left, node?.style.top, node?.style.width, node?.style.height];
+
+    const corner = (colour: string) => [`${ YARD_AT[colour]![0] * 100 }%`, `${ YARD_AT[colour]![1] * 100 }%`, `${ YARD_SIZE * 100 }%`, `${ YARD_SIZE * 100 }%`];
+
+    it('lays each player’s yard over the corner of their own colour, and nothing for Classic or a look nothing draws', () =>
+    {
+        worn = { 0: { yard: 'yard.inferno' }, 1: { yard: 'yard.jade' } };
+        table.reset(sight(standing([[10, YARD, YARD, YARD], [5, YARD, YARD, YARD]], null)));
+
+        expect(yard('red')?.dataset.yard).toBe('inferno');
+        expect(placed(yard('red'))).toEqual(corner('red'));
+        expect(yard('yellow')?.dataset.yard).toBe('jade');
+        expect(placed(yard('yellow')), 'a yard laid in another colour’s corner').toEqual(corner('yellow'));
+
+        worn = { 0: { yard: 'yard.ember' } };
+        table.reset(sight(standing([[10, YARD, YARD, YARD], [5, YARD, YARD, YARD]], null), 0, 'next'));
+
+        expect(host.querySelectorAll('.lb-yard'), 'a yard in a look this build does not draw, or in Classic').toHaveLength(0);
+    });
+
+    it('is the node it was through a re-read and a new game, its look changed where it stands, and goes with its look', () =>
+    {
+        const board = standing([[10, YARD, YARD, YARD], [5, YARD, YARD, YARD]], null);
+
+        worn = { 0: { yard: 'yard.storm' } };
+        table.reset(sight(board));
+
+        const first = yard('red');
+
+        table.reset(sight(board));
+
+        expect(yard('red'), 'a re-read drew the yard again').toBe(first);
+
+        worn = { 0: { yard: 'yard.frost' } };
+        table.reset(sight(board, 0, 'next'));
+
+        expect(yard('red')).toBe(first);
+        expect(first?.dataset.yard).toBe('frost');
+
+        worn = {};
+        table.reset(sight(board, 0, 'after'));
+
+        expect(first?.isConnected, 'a yard stayed after its look was taken off').toBe(false);
     });
 });
 

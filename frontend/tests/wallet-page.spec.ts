@@ -771,11 +771,14 @@ describe('the NURA people sent the reader, and the NURA they sent', () =>
     {
         useLocale().setLocale('fa');
         server.donate.state = { ...OPEN };
-        server.donate.received = [gift('r-1', { from: 'sara.k' })];
+        server.donate.received = [gift('r-1', { from: 'sara.k' }), gift('r-2', { from: '0x15d3…6a65' })];
         signIn();
 
         const container = await page();
+        const words = [...container.querySelectorAll('[data-donation-words]')];
 
         expect(container.querySelector('[data-donation]')?.textContent).toContain('Sara Kamali سر بازی حکم واست ۵ NURA فرستاد');
+        expect(words[1]?.textContent).toBe('0x15d3…6a65 سر بازی حکم واست ۵ NURA فرستاد');
+        expect(words.map((one) => one.getAttribute('dir')), 'a Persian line that opens with a name in Latin letters is still read right to left').toEqual(['rtl', 'rtl']);
     });
 });

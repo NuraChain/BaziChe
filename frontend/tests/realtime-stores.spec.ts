@@ -280,7 +280,7 @@ describe('whom the page shows, told to the server', () =>
 
     it('forgets whom the page drew when the stores are reset', async () =>
     {
-        showing('reza.t');
+        const before = showing('reza.t');
         await settle();
 
         usePresence().reset();
@@ -297,6 +297,7 @@ describe('whom the page shows, told to the server', () =>
         expect(sees()).toEqual([{ t: 'see', who: ['sara.k'] }]);
 
         stop();
+        before();
     });
 
     it('tells a page drawn again after a reset, and what was drawn before it lets go of nothing', async () =>

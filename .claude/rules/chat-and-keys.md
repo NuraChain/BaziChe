@@ -1299,6 +1299,15 @@ the id, and that is the only doorbell the notifications store answers. It used t
 nudge of every scope - a request per move per player in a live game - while a mark-all-read in one
 tab never reached the other, because nothing about reading rang at all.
 
+**Reading a conversation reads its bell.** The owner read a chat and then found its notification
+still waiting in the bell: the row under `chat:<conversationId>` was read only by pressing it.
+Marking a conversation read now reads that `message` row too (`notify.readUpTo`, through
+`courtesy`, after the watermark moves) and rings the reader's `notifications`, but only when the
+row was not counted up after the instant the watermark moved to: `chat.markRead` answers that
+instant in microseconds (`at`), and a line that came after it leaves the bell unread, as it leaves
+the conversation. Only the reader's own row is read, of that conversation, of that kind.
+`chat-read.db.spec.ts` (*the bell about a conversation, once it is read there*) holds it.
+
 **A notification that changes KIND under one dedupe key takes the new kind and counts from one.**
 `friend:<id>` carries both a request and an acceptance, and the upsert used to keep the old kind - so
 somebody who was unfriended and then asked again was told they had been accepted.

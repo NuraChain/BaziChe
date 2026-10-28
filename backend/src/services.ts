@@ -3680,14 +3680,22 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
             async markRead(me, conversationId)
             {
-                const passed = await chat.markRead(me, conversationId);
+                const read = await chat.markRead(me, conversationId);
 
                 live?.chatSeen(conversationId, me);
 
-                for (const sender of passed)
+                for (const sender of read.passed)
                 {
                     live?.chatSeen(conversationId, sender);
                 }
+
+                await courtesy('message notice read', async () =>
+                {
+                    if (await notify.readUpTo(me, 'message', `chat:${ conversationId }`, read.at))
+                    {
+                        live?.selfChanged(me, 'notifications');
+                    }
+                });
             },
 
             async setPinned(me, conversationId, pinned)

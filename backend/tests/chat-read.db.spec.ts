@@ -8,6 +8,7 @@ import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import { createFranking } from '../src/domains/chat/franking.ts';
 import { createChatService } from '../src/domains/chat/service.ts';
+import { createNotifyService } from '../src/domains/notify/service.ts';
 import { createSocialService } from '../src/domains/social/service.ts';
 import { buildPorts, type Services, type WriteListener } from '../src/services.ts';
 
@@ -28,6 +29,8 @@ let seq = 0;
 
 const rung: string[] = [];
 
+const selves: string[] = [];
+
 const listener: WriteListener = {
     chatChanged: () => undefined,
     chatSeen: (conversationId, userId) =>
@@ -36,7 +39,10 @@ const listener: WriteListener = {
     },
     socialChanged: () => undefined,
     edgesChanged: () => undefined,
-    selfChanged: () => undefined,
+    selfChanged: (userId, what) =>
+    {
+        selves.push(`${ userId }:${ what }`);
+    },
     gamePushed: () => undefined,
     gameWatched: () => undefined,
     tableChanged: () => undefined,
@@ -154,6 +160,7 @@ describe.skipIf(!active)('whether a line was read, against a real database', () 
         seqOf.clear();
         minted.clear();
         rung.length = 0;
+        selves.length = 0;
         chat = createChatService(db, createSocialService(db), createFranking(CONFIG.secret));
         ports = buildPorts(db, CONFIG, listener);
     });
@@ -235,5 +242,83 @@ describe.skipIf(!active)('whether a line was read, against a real database', () 
 
         expect(await readOf(a, room)).toEqual({ 'to everybody': true });
         expect(rung).toContain(`${ room }:${ a }`);
+    });
+
+    describe('the bell about a conversation, once it is read there', () =>
+    {
+        const told = async (to: string, from: string, conversationId: string) =>
+        {
+            await createNotifyService(db, createSocialService(db)).tellAll([to], {
+                kind: 'message',
+                actorId: from,
+                ref: { conversationId },
+                dedupeKey: `chat:${ conversationId }`
+            });
+        };
+
+        const unreadOf = async (userId: string) =>
+            (await db.query('select dedupe_key, kind from notifications where user_id = $1 and read_at is null', [userId]) as { dedupe_key: string; kind: string }[])
+                .map((row) => `${ row.kind }:${ row.dedupe_key }`)
+                .sort();
+
+        it('reads the notification of a conversation the reader has read, and rings their bell', async () =>
+        {
+            const [a, b] = [await makeUser(), await makeUser()];
+            const conversation = await chat.openDirect(a, b);
+
+            await say(a, conversation, 'hello');
+            await told(b, a, conversation);
+
+            expect(await unreadOf(b)).toEqual([`message:chat:${ conversation }`]);
+
+            await ports.chat.markRead(b, conversation);
+
+            expect(await unreadOf(b), 'read where it happened, so the bell has nothing left to say').toEqual([]);
+            expect(selves).toContain(`${ b }:notifications`);
+        });
+
+        it('leaves it unread when a line came after what was read, and rings nobody for nothing', async () =>
+        {
+            const [a, b] = [await makeUser(), await makeUser()];
+            const conversation = await chat.openDirect(a, b);
+
+            await ports.chat.markRead(b, conversation);
+            await say(a, conversation, 'later');
+            await told(b, a, conversation);
+
+            expect(await unreadOf(b)).toEqual([`message:chat:${ conversation }`]);
+
+            await db.query(
+                "update notifications set created_at = now() + interval '1 minute' where user_id = $1",
+                [b]
+            );
+            selves.length = 0;
+            await ports.chat.markRead(b, conversation);
+
+            expect(await unreadOf(b), 'told after the moment read up to: news the reader has not seen').toEqual([`message:chat:${ conversation }`]);
+            expect(selves, 'nothing read, nobody rung').not.toContain(`${ b }:notifications`);
+        });
+
+        it('reads only that conversation’s notification, and only the reader’s', async () =>
+        {
+            const [a, b, c] = [await makeUser(), await makeUser(), await makeUser()];
+            const read = await chat.openDirect(a, b);
+            const other = await chat.openDirect(c, b);
+            const theirs = await chat.openDirect(a, c);
+
+            await told(b, a, read);
+            await told(b, c, other);
+            await told(c, a, theirs);
+            await told(a, b, read);
+            await createNotifyService(db, createSocialService(db)).tell({ userId: b, kind: 'friend-request', actorId: c, ref: {}, dedupeKey: `chat:${ read }` });
+
+            await ports.chat.markRead(b, read);
+
+            expect(await unreadOf(b), 'another conversation stays unread, and so does another kind under the same key').toEqual(
+                [`friend-request:chat:${ read }`, `message:chat:${ other }`].sort()
+            );
+            expect(await unreadOf(c), 'another reader’s bell is theirs').toEqual([`message:chat:${ theirs }`]);
+            expect(await unreadOf(a), 'and so is the other side’s, about the same conversation').toEqual([`message:chat:${ read }`]);
+        });
     });
 });

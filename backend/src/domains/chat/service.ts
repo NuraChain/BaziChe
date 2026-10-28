@@ -883,20 +883,23 @@ export function createChatService(db: DataSource, social: SocialService, frankin
         },
 
         /**
-         * Moves my watermark to now, and answers whose lines it has just passed.
+         * Moves my watermark to now, and answers whose lines it has just passed and the watermark
+         * itself, in whole microseconds (`at`), so whatever was told about lines up to it can be
+         * read with them and nothing told after.
          *
-         * Those are the people whose ticks change, so they are the ones to ring. A line of theirs
-         * stored after my old watermark is one I had not read; one stored before it they already
-         * saw as read.
+         * Those whose lines it passed are the people whose ticks change, so they are the ones to
+         * ring. A line of theirs stored after my old watermark is one I had not read; one stored
+         * before it they already saw as read.
          */
-        async markRead(me: string, conversationId: string): Promise<string[]>
+        async markRead(me: string, conversationId: string)
         {
             const held = await mustBeMember(me, conversationId);
 
-            await db.query(
-                'update conversation_members set last_read_at = now() where conversation_id = $1 and user_id = $2',
+            const moved = firstRow<{ at: string }>(await db.query(
+                `update conversation_members set last_read_at = now() where conversation_id = $1 and user_id = $2
+                 returning ${ keyOf('last_read_at') } as at`,
                 [conversationId, me]
-            );
+            ));
 
             const senders = await db.getRepository(Message)
                 .createQueryBuilder('x')
@@ -909,7 +912,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 .andWhere('x.created_at > :before', { before: held.last_read_at })
                 .getRawMany<{ sender: string }>();
 
-            return senders.map((row) => row.sender);
+            return { passed: senders.map((row) => row.sender), at: moved!.at };
         },
 
         async setPinned(me: string, conversationId: string, pinned: boolean)

@@ -1,7 +1,7 @@
 import { IsNull, type DataSource } from 'typeorm';
 
 import type { NotificationKind } from '../../entities/notification.entity.ts';
-import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
+import { cursorOf, instantOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import { rowsOf } from '../../lib/rows.ts';
 import { Mute } from '../../entities/mute.entity.ts';
 import { NOTICE_OF } from './notices.ts';
@@ -130,6 +130,24 @@ export function createNotifyService(db: DataSource, social: SocialService)
             const gone = await db.getRepository(Notification).delete({ userId, kind, dedupeKey });
 
             return (gone.affected ?? 0) > 0;
+        },
+
+        /**
+         * Reads a notification whose news the reader has already read where it happened, as long
+         * as nothing was told under it after `micros` (the instant read up to, in microseconds): a
+         * line that came later counts it up again and leaves it unread. Answers whether one was.
+         */
+        async readUpTo(userId: string, kind: NotificationKind, dedupeKey: string, micros: string)
+        {
+            const { affected } = await db.getRepository(Notification)
+                .createQueryBuilder()
+                .update()
+                .set({ readAt: () => 'now()' })
+                .where('user_id = :userId and kind = :kind and dedupe_key = :dedupeKey and read_at is null', { userId, kind, dedupeKey })
+                .andWhere(`created_at <= ${ instantOf(':micros') }`, { micros })
+                .execute();
+
+            return (affected ?? 0) > 0;
         },
 
         /**

@@ -727,41 +727,106 @@ html:has(.site-drawer[open])
 [data-backs='inferno']
 {
     --back: url('/backs/inferno.svg');
+    --shine: #FFE7A1;
 }
 
 [data-backs='storm']
 {
     --back: url('/backs/storm.svg');
+    --shine: #EAF6FF;
 }
 
 [data-backs='astral']
 {
     --back: url('/backs/astral.svg');
+    --shine: #FFE58A;
 }
 
 [data-backs='void']
 {
     --back: url('/backs/void.svg');
+    --shine: #E9D5FF;
 }
 
 [data-backs='jade']
 {
     --back: url('/backs/jade.svg');
+    --shine: #FFF1C4;
 }
 
 [data-backs='frost']
 {
     --back: url('/backs/frost.svg');
+    --shine: #F2FBFF;
 }
 
 [data-backs='phoenix']
 {
     --back: url('/backs/phoenix.svg');
+    --shine: #FFF6D6;
 }
 
 [data-backs='oni']
 {
     --back: url('/backs/oni.svg');
+    --shine: #20E6FF;
+}
+
+/*
+ * A back of the legendary line catches the light now and then: a band of its collection's glint
+ * (`--shine`) sweeps across it every few seconds, the second card of a pair a beat after the
+ * first. It moves by transform alone, so the compositor draws it, and a back of the four first
+ * collections stays still. The back is the band's containing block only where nothing else places
+ * it (`:where`), so a pile's or a flight's own placing wins.
+ */
+@media (prefers-reduced-motion: no-preference)
+{
+    :is([data-backs='inferno'], [data-backs='storm'], [data-backs='astral'], [data-backs='void'], [data-backs='jade'], [data-backs='frost'], [data-backs='phoenix'], [data-backs='oni']) .card-back
+    {
+        overflow: hidden;
+    }
+
+    :where(:is([data-backs='inferno'], [data-backs='storm'], [data-backs='astral'], [data-backs='void'], [data-backs='jade'], [data-backs='frost'], [data-backs='phoenix'], [data-backs='oni']) .card-back)
+    {
+        position: relative;
+    }
+
+    :is([data-backs='inferno'], [data-backs='storm'], [data-backs='astral'], [data-backs='void'], [data-backs='jade'], [data-backs='frost'], [data-backs='phoenix'], [data-backs='oni']) .card-back::after
+    {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+            105deg,
+            transparent 32%,
+            color-mix(in srgb, var(--shine) 45%, transparent) 45%,
+            rgb(255 255 255 / 0.55) 50%,
+            color-mix(in srgb, var(--shine) 45%, transparent) 55%,
+            transparent 68%
+        );
+        translate: -130% 0;
+        animation: back-shine 5.6s var(--ease-ui, ease) infinite;
+        pointer-events: none;
+    }
+
+    :is([data-backs='inferno'], [data-backs='storm'], [data-backs='astral'], [data-backs='void'], [data-backs='jade'], [data-backs='frost'], [data-backs='phoenix'], [data-backs='oni']) .card-back + .card-back::after
+    {
+        animation-delay: 0.22s;
+    }
+}
+
+@keyframes back-shine
+{
+    0%,
+    76%
+    {
+        translate: -130% 0;
+    }
+
+    100%
+    {
+        translate: 130% 0;
+    }
 }
 
 .page-table:has(.table-stage)
@@ -3005,6 +3070,12 @@ svg.lobby-board
 {
     box-shadow: 0 0 0 3px var(--gold), 0 14px 26px -8px rgb(0 0 0 / 0.75);
     opacity: 1;
+}
+
+/* A card lifted from a hand in a look keeps the gold ring that says "again to play", in the look's light. */
+.hokm-hands[data-faces] .card-hold[data-picked='true'] .card-face::after
+{
+    box-shadow: 0 0 0 3px var(--gold), 0 0 1.1rem 0.2rem color-mix(in srgb, var(--holo-a) 65%, transparent), 0 14px 26px -8px rgb(0 0 0 / 0.75);
 }
 
 .card-hold[data-go]::before

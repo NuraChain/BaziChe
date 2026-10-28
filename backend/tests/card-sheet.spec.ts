@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { SHOP_COLLECTIONS } from '../src/domains/shop/catalogue.ts';
+import { LEGENDARY_COLLECTIONS, SHOP_COLLECTIONS } from '../src/domains/shop/catalogue.ts';
 import { PALETTES } from '../../frontend/src/game/looks/palette.ts';
 
 const sheet = readFileSync(new URL('../../frontend/src/styles/app.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
@@ -31,6 +31,31 @@ const block = (header: string) =>
 };
 
 const HOLO = '@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)';
+
+/** The block of this header the sheet's text at `index` lies inside, if any. */
+const around = (header: string, index: number) =>
+{
+    for (let from = sheet.indexOf(`\n${ header }\n{`); from >= 0; from = sheet.indexOf(`\n${ header }\n{`, from + 1))
+    {
+        let depth = 0;
+
+        for (let at = sheet.indexOf('{', from); at < sheet.length; at += 1)
+        {
+            depth += sheet[at] === '{' ? 1 : sheet[at] === '}' ? -1 : 0;
+
+            if (depth === 0)
+            {
+                if (index > from && index < at)
+                {
+                    return [from, at] as const;
+                }
+                break;
+            }
+        }
+    }
+
+    return null;
+};
 
 describe('cards in a look, in the stylesheet', () =>
 {
@@ -78,5 +103,31 @@ describe('cards in a look, in the stylesheet', () =>
         expect(follows.filter((at) => at < holo![0] || at > holo![1]), 'the pointer is followed outside the block').toEqual([]);
         expect(sheet.slice(holo![0], holo![1])).toContain('.hokm-hands[data-faces] .card-hold:hover .card-face');
         expect(sheet.slice(holo![0], holo![1])).toContain('.poker-hole[data-faces] .poker-pocket:hover .card-face');
+    });
+
+    it.each([...LEGENDARY_COLLECTIONS])('lets %s’s back catch its own glint', (collection) =>
+    {
+        expect(rule(`[data-backs='${ collection }']`)).toContain(`--shine: ${ PALETTES[collection].glint };`);
+    });
+
+    it('sweeps a band across a back of the legendary line and no other, by transform, for somebody who asked for no less motion', () =>
+    {
+        const band = /:is\(([^)]*)\) \.card-back::after\n *\{([^}]*)\}/.exec(sheet);
+        const named = [...(band?.[1] ?? '').matchAll(/\[data-backs='([^']+)'\]/g)].map(([, collection]) => collection);
+        const sweep = /@keyframes back-shine\n\{([\s\S]*?)\n\}/.exec(sheet)?.[1] ?? '';
+
+        expect(new Set(named)).toEqual(new Set(LEGENDARY_COLLECTIONS));
+        expect(band?.[2]).toContain('animation: back-shine');
+        expect(around('@media (prefers-reduced-motion: no-preference)', band?.index ?? -1), 'the band sweeps for somebody who asked for less motion').not.toBeNull();
+        expect([...sweep.matchAll(/^ *([a-z-]+):/gm)].map(([, property]) => property), 'the sweep moves something the compositor cannot').toEqual(['translate', 'translate']);
+        expect(sheet, 'a back placed by its pile or its flight is placed again for the band').toMatch(/:where\(:is\(\[data-backs=[^)]*\) \.card-back\)\n *\{\n *position: relative;/);
+    });
+
+    it('keeps the gold ring on a card lifted from a hand in a look, in the look\'s light', () =>
+    {
+        const lifted = rule('.hokm-hands[data-faces] .card-hold[data-picked=\'true\'] .card-face::after');
+
+        expect(lifted).toContain('0 0 0 3px var(--gold)');
+        expect(lifted).toContain('var(--holo-a)');
     });
 });

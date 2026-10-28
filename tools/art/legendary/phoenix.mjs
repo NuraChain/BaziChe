@@ -205,6 +205,34 @@ export const back = {
     }
 };
 
+// ---------------------------------------------------------------- backgammon
+
+/**
+ * Its backgammon art: points of crimson and flame bronze, each a feather with its quill and barbs
+ * and a plume at its tip; a checker's rim notched with feather tips.
+ */
+export const board = {
+    tones: [['#C8402A', '#90201A', '#2A0606'], ['#DC7A2E', '#9A4414', '#3A1406']],
+    defs: () => [plumage('bg-plume', 0, 0, 0, -26)],
+    rim: (round, light) => Array.from({ length: 16 }, (_, nth) =>
+    {
+        const turn = nth * 22.5;
+        const [a, b, c] = [round(57.4, turn - 4), round(62.6, turn), round(57.4, turn + 4)];
+        return `<path d="M${ a.join(' ') }L${ b.join(' ') }L${ c.join(' ') }" fill="none" stroke="${ light ? GOLD : UMBER }" stroke-width="1" stroke-linejoin="round" opacity="0.85"/>`;
+    }).join(''),
+    vein: ({ x, top, bottom, half }) =>
+    {
+        const barbs = Array.from({ length: 7 }, (_, nth) =>
+        {
+            const y = bottom - 20 - (bottom - top - 50) * nth / 6;
+            const reach = half(y) * 0.62;
+            return `M${ r2(x - reach) } ${ r2(y + reach * 0.7) }L${ r2(x) } ${ r2(y) }L${ r2(x + reach) } ${ r2(y + reach * 0.7) }`;
+        }).join('');
+        return `<path d="${ barbs }" fill="none" stroke="${ GOLD }" stroke-width="1" stroke-linejoin="round" opacity="0.55"/><path d="M${ r2(x) } ${ r2(bottom - 10) }V${ r2(top + 26) }" stroke="${ RADIANT }" stroke-width="1.5" stroke-linecap="round" opacity="0.85"/>`;
+    },
+    tip: (x, y) => `<g transform="translate(${ r2(x) } ${ r2(y + 2) })">${ drawn('bg-plume', 0, 0, -Math.PI / 2, 26, 7.4, ` stroke="${ UMBER }" stroke-width="0.8"`) }</g>`
+};
+
 // ---------------------------------------------------------------- the pawn
 
 /** A pawn: the seat's colour in enamel set in burnished bronze at its foot and collar, feathers at its foot, a plume on its head. */

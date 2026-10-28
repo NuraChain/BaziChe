@@ -212,6 +212,8 @@ files, credited as made for this project and given to the public domain like the
 | LG-D7 | Emotes | Not in this work: a sent reaction is a realtime message needing limits and moderation of its own | Emotes now |
 | LG-D8 | Sets | A flourish worked out from what is worn | Stored combinations |
 | LG-D9 | Budget | The effects chunk to 16 KB; every drawing folder keeps a per-file ceiling | No ceiling |
+| LG-D16 | A backgammon home board (LG8) | The six points alone over the board's own, a band at their foot, the field, frame, bar and tray the house's; the other player's the same drawing turned round, so nothing at a point's tip says up or down | The quarter's whole ground recoloured, which put dark checkers on a dark field |
+| LG-D17 | The shop's own drawings of checkers and home boards (LG8) | Left as they are: the classic four's stay byte for byte, and the Lab (LG11) shows the table's art | Redrawn from the table's art now, which a pair of legendary checkers takes past the 16 KB a shop drawing may weigh |
 
 ## 12. The order of work
 

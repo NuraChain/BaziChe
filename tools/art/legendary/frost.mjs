@@ -212,6 +212,24 @@ export const back = {
     }
 };
 
+// ---------------------------------------------------------------- backgammon
+
+/**
+ * Its backgammon art: points of deep frost and glacier blue, each cut into the two facets of an ice
+ * shard with a crystal at its tip; a checker's rim faceted round.
+ */
+export const board = {
+    tones: [['#3A7AAE', '#1E5B8C', '#0A1E33'], ['#78BCE6', '#3A86BC', '#173A58']],
+    rim: (round) => Array.from({ length: 6 }, (_, nth) =>
+    {
+        const from = nth * 60;
+        const [a, b, c, d] = [round(56.8, from), round(63.4, from), round(63.4, from + 30), round(56.8, from + 30)];
+        return `<path d="M${ a.join(' ') }L${ b.join(' ') }A63.4 63.4 0 0 1 ${ c.join(' ') }L${ d.join(' ') }A56.8 56.8 0 0 0 ${ a.join(' ') }Z" fill="#FFFFFF" opacity="0.26"/>`;
+    }).join(''),
+    vein: ({ x, top, bottom, half }) => `<path d="M${ r2(x) } ${ r2(top + 18) }L${ r2(x + half(bottom) * 0.62) } ${ r2(bottom - 6) }H${ r2(x) }Z" fill="#FFFFFF" opacity="0.13"/><path d="M${ r2(x) } ${ r2(top + 18) }V${ r2(bottom - 6) }" stroke="${ GLACIER }" stroke-width="1.1" opacity="0.7"/>`,
+    tip: (x, y) => `<path d="${ flake(x, y - 13, 11) }" fill="none" stroke="${ NIGHT }" stroke-width="3.4" stroke-linecap="round"/><path d="${ flake(x, y - 13, 11) }" fill="none" stroke="${ GLACIER }" stroke-width="1.6" stroke-linecap="round"/><circle cx="${ r2(x) }" cy="${ r2(y - 13) }" r="1.6" fill="#FFFFFF"/>`
+};
+
 // ---------------------------------------------------------------- the pawn
 
 /** A pawn: the seat's colour in enamel set in clear ice at its foot and collar, frost at its foot, a crown of ice shards. */

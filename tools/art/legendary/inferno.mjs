@@ -236,6 +236,33 @@ export const back = {
     }
 };
 
+// ---------------------------------------------------------------- backgammon
+
+/** A molten seam running round a checker's rim from one turn to another, jagged as cooled lava splits. */
+const seam = (round, from, to) => `M${ Array.from({ length: Math.round((to - from) / 5) + 1 }, (_, step) => round(60.2 + (step % 2 === 0 ? -1 : 1) * (0.6 + (step % 3) * 0.45), from + step * 5).join(' ')).join('L') }`;
+
+/** A jagged crack down a point's middle, from its base to near its tip, kinking less as the point narrows (`half` is its half-width at a height). */
+const vent = ({ x, top, bottom, half }) => `M${ Array.from({ length: 9 }, (_, step) =>
+{
+    const y = bottom - (bottom - top) * step / 8;
+    return `${ r2(x + (step % 2 === 0 ? -1 : 1) * (step === 0 || step === 8 ? 0 : half(y) * (0.22 + (step % 3) * 0.06))) } ${ r2(y) }`;
+}).join('L') }`;
+
+/**
+ * Its backgammon art: obsidian points, every other one glowing as embers do, each split by a lava
+ * crack ending in a bead of molten gold past its tip (a bead and not a flame, because the opponent's
+ * home board is the same drawing turned round, and fire does not burn downward); a checker's rim
+ * split by three molten seams.
+ */
+export const board = {
+    tones: [['#4A3630', '#1A0D09', '#050201'], ['#7A3218', '#3E160A', '#120807']],
+    defs: (palette) => [`<radialGradient id="bg-bead" cx="0.42" cy="0.38" r="0.62"><stop offset="0" stop-color="${ WHITE_HOT }"/><stop offset="0.35" stop-color="${ palette.edge }"/><stop offset="0.75" stop-color="${ EMBER }"/><stop offset="1" stop-color="${ LAVA }"/></radialGradient>`],
+    rim: (round) => [[12, 74], [132, 194], [252, 314]].map(([from, to]) =>
+        `<path d="${ seam(round, from, to) }" fill="none" stroke="${ LAVA }" stroke-width="2.6" stroke-linejoin="round" opacity="0.75"/><path d="${ seam(round, from, to) }" fill="none" stroke="${ EMBER }" stroke-width="1.1" stroke-linejoin="round"/><path d="${ seam(round, from, to) }" fill="none" stroke="${ WHITE_HOT }" stroke-width="0.35" stroke-linejoin="round" opacity="0.8"/>`).join(''),
+    vein: (line, palette) => `<path d="${ vent(line) }" fill="none" stroke="${ LAVA }" stroke-width="5" stroke-linejoin="round" opacity="0.5"/><path d="${ vent(line) }" fill="none" stroke="${ EMBER }" stroke-width="2" stroke-linejoin="round"/><path d="${ vent(line) }" fill="none" stroke="${ palette.glint }" stroke-width="0.7" stroke-linejoin="round"/>`,
+    tip: (x, y) => `<circle cx="${ r2(x) }" cy="${ r2(y - 11) }" r="11" fill="${ LAVA }" opacity="0.3"/><circle cx="${ r2(x) }" cy="${ r2(y - 11) }" r="6.4" fill="url(#bg-bead)" stroke="${ CHAR }" stroke-width="1.4"/>`
+};
+
 // ---------------------------------------------------------------- the pawn
 
 /**

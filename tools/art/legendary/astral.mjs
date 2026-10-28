@@ -191,6 +191,27 @@ export const back = {
     }
 };
 
+// ---------------------------------------------------------------- backgammon
+
+/**
+ * Its backgammon art: points of nebula glass and deep space with stars falling down their middles
+ * toward a star at each tip; a checker's rim an orbit with stars on it.
+ */
+export const board = {
+    tones: [['#8A52DC', '#4E2290', '#1A0A3A'], ['#33196A', '#190B3C', '#080318']],
+    rim: (round, light, palette) => [
+        `<circle cx="64" cy="64" r="60.2" fill="none" stroke="${ light ? palette.edge : '#FFFFFF' }" stroke-width="0.9" stroke-dasharray="2.2 3.4" opacity="0.85"/>`,
+        ...[[30, 2.6], [104, 1.8], [172, 2.4], [236, 1.6], [300, 2.2]].map(([turn, size]) =>
+        {
+            const [x, y] = round(60.2, turn);
+            return `<path d="${ sparkle(x, y, size) }" fill="${ palette.glint }"/>`;
+        })
+    ].join(''),
+    vein: ({ x, top, bottom }, palette) => [[0.18, 4.2], [0.42, 3.2], [0.64, 2.4], [0.84, 1.7]].map(([along, size], nth) =>
+        `<path d="${ sparkle(x + (nth % 2 === 0 ? -1.2 : 1.2), bottom - (bottom - top) * along, size) }" fill="${ nth === 0 ? palette.glint : '#FFFFFF' }" opacity="${ r2(0.95 - nth * 0.12) }"/>`).join(''),
+    tip: (x, y, palette) => `<circle cx="${ r2(x) }" cy="${ r2(y - 12) }" r="9" fill="${ NEBULA }" opacity="0.3"/><path d="${ sparkle(x, y - 12, 12) }" fill="${ palette.glint }" stroke="${ SPACE }" stroke-width="1" stroke-linejoin="round"/><circle cx="${ r2(x + 9) }" cy="${ r2(y - 22) }" r="2" fill="${ PINK }"/>`
+};
+
 // ---------------------------------------------------------------- the pawn
 
 /** A pawn: the seat's colour in star-glass, set in night glass at its foot and collar, a ringed world on its head. */

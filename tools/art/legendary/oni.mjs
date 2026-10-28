@@ -203,6 +203,42 @@ export const back = {
     }
 };
 
+// ---------------------------------------------------------------- backgammon
+
+/**
+ * Its backgammon art: points of black chrome edged in crimson and cyan neon by turns, a circuit
+ * traced down each to a node at its tip; a checker's rim ticked round like a dial.
+ */
+export const board = {
+    tones: [['#34394C', '#14161F', '#07080D'], ['#2E2A44', '#121020', '#07080D']],
+    edges: [CRIMSON, CYAN],
+    glowing: true,
+    rim: (round, light) => Array.from({ length: 12 }, (_, nth) =>
+    {
+        const turn = nth * 30 + 15;
+        const [a, b] = [round(57.6, turn), round(62.4, turn)];
+        return `<path d="M${ a.join(' ') }L${ b.join(' ') }" stroke="${ nth % 3 === 0 ? CRIMSON : (light ? '#0E7C8C' : CYAN) }" stroke-width="${ nth % 3 === 0 ? 1.8 : 1.1 }" stroke-linecap="round"/>`;
+    }).join(''),
+    vein: ({ x, top, bottom, half }, palette, nth) =>
+    {
+        const colour = nth % 2 === 0 ? CYAN : CRIMSON;
+        const jog = (y) => half(y) * 0.36;
+        const low = bottom - (bottom - top) * 0.34;
+        const high = bottom - (bottom - top) * 0.7;
+        const path = `M${ r2(x - jog(bottom - 14)) } ${ r2(bottom - 14) }V${ r2(low + 8) }L${ r2(x) } ${ r2(low) }V${ r2(high + 6) }L${ r2(x + jog(high)) } ${ r2(high) }V${ r2(top + 30) }`;
+        return `${ neon(path, colour, 1.1) }<circle cx="${ r2(x) }" cy="${ r2(low) }" r="2.2" fill="none" stroke="${ colour }" stroke-width="1"/>`;
+    },
+    tip: (x, y, palette, nth) =>
+    {
+        const hex = Array.from({ length: 6 }, (_, side) =>
+        {
+            const angle = side * Math.PI / 3 + Math.PI / 6;
+            return `${ r2(x + Math.cos(angle) * 8) } ${ r2(y - 13 + Math.sin(angle) * 8) }`;
+        }).join('L');
+        return `<path d="M${ hex }Z" fill="${ CHROME }" stroke="${ nth % 2 === 0 ? CRIMSON : CYAN }" stroke-width="1.5" stroke-linejoin="round"/><circle cx="${ r2(x) }" cy="${ r2(y - 13) }" r="2.4" fill="${ nth % 2 === 0 ? CYAN : CRIMSON }"/>`;
+    }
+};
+
 // ---------------------------------------------------------------- the pawn
 
 /** A pawn: the seat's colour in enamel set in black chrome traced with neon at its foot and collar, horned, with a visor. */

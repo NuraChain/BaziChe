@@ -221,6 +221,27 @@ export const back = {
     }
 };
 
+// ---------------------------------------------------------------- backgammon
+
+/**
+ * Its backgammon art: points of forged steel and dark iron, each struck down its middle by a bolt
+ * and sparking at its tip; a checker's rim riveted eight times round.
+ */
+export const board = {
+    tones: [['#8A97B2', '#4A566E', '#121A2C'], ['#2A3858', '#151F38', '#0B0F18']],
+    rim: (round, light, palette) => Array.from({ length: 8 }, (_, nth) =>
+    {
+        const [x, y] = round(60.2, nth * 45 + 22.5);
+        return `<circle cx="${ x }" cy="${ y }" r="2.4" fill="${ light ? palette.piece[0] : '#EAF6FF' }" stroke="${ IRON }" stroke-width="0.9"/><circle cx="${ r2(x - 0.7) }" cy="${ r2(y - 0.7) }" r="0.8" fill="#FFFFFF" opacity="0.9"/>`;
+    }).join(''),
+    vein: ({ x, top, bottom, half }) => lit(`M${ Array.from({ length: 8 }, (_, step) =>
+    {
+        const y = bottom - (bottom - top) * step / 7;
+        return `${ r2(x + (step === 0 || step === 7 ? 0 : (step % 2 === 0 ? -1 : 1) * half(y) * 0.3)) } ${ r2(y) }`;
+    }).join('L') }`, 1.3),
+    tip: (x, y) => `<circle cx="${ r2(x) }" cy="${ r2(y - 9) }" r="10" fill="${ CYAN }" opacity="0.25"/><path d="M${ r2(x) } ${ r2(y - 22) }L${ r2(x + 2.6) } ${ r2(y - 11.6) }L${ r2(x + 11) } ${ r2(y - 9) }L${ r2(x + 2.6) } ${ r2(y - 6.4) }L${ r2(x) } ${ r2(y + 4) }L${ r2(x - 2.6) } ${ r2(y - 6.4) }L${ r2(x - 11) } ${ r2(y - 9) }L${ r2(x - 2.6) } ${ r2(y - 11.6) }Z" fill="#EAF6FF" stroke="#3FA9FF" stroke-width="1.2" stroke-linejoin="round"/>`
+};
+
 // ---------------------------------------------------------------- the pawn
 
 /** A pawn: the seat's colour in enamel set in forged steel at its foot and collar, riveted, a storm spire on its head. */

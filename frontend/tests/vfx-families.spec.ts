@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
+import { BORNE, ENTRIES } from '../src/game/looks/backgammon.ts';
 import { playAt } from '../src/game/looks/cards.ts';
 import { LIGHTS } from '../src/game/looks/lights.ts';
-import { SIXES, TAKES } from '../src/game/looks/ludo.ts';
+import { CAPTURES, CRITICALS } from '../src/game/looks/table.ts';
 import { createVfx, PAGE_CEILING, qualityOf, type Quality, type Vfx, type VfxOptions } from '../src/game/vfx/engine.ts';
 import { FAMILIES, FAMILY_STREAMS, type Family, type FamilyStream } from '../src/game/vfx/families.ts';
 import { make, radial, rolling, seeded, TRAIL_EVERY, type Shape } from '../src/game/vfx/presets.ts';
@@ -537,7 +538,7 @@ describe('a Ludo moment\'s signature, as the board plays it', () =>
 
     it.each([...SHOP_COLLECTIONS])('throws a six of %s and takes a pawn of it with signatures that are spent within three seconds, whatever their roll', (collection) =>
     {
-        for (const steps of [SIXES[collection], TAKES[collection]])
+        for (const steps of [CRITICALS[collection], CAPTURES[collection]])
         {
             for (let seed = 1; seed <= 6; seed += 1)
             {
@@ -548,6 +549,33 @@ describe('a Ludo moment\'s signature, as the board plays it', () =>
                 expect(vfx.live()).toBeGreaterThan(0);
 
                 clock.advance(SPENT_MS);
+
+                expect(vfx.live(), `seed ${ seed } was still drawing`).toBe(0);
+            }
+        }
+    });
+});
+
+describe('a backgammon moment\'s signature, as the table plays it', () =>
+{
+    /** Longer than a checker's entry lasts to its faintest tail at a scale of one; a bear-off, fifteen of them a game and up to four in a turn, is over within a second. */
+    const ENTRY_MS = 2_500;
+
+    const BORNE_MS = 1_000;
+
+    it.each([...SHOP_COLLECTIONS])('brings a checker of %s in from the bar within two and a half seconds and bears one off within a second, whatever their roll', (collection) =>
+    {
+        for (const [steps, spent] of [[ENTRIES[collection], ENTRY_MS], [BORNE[collection], BORNE_MS]] as const)
+        {
+            for (let seed = 1; seed <= 6; seed += 1)
+            {
+                const vfx = made(recording());
+
+                vfx.signature(steps, AT, { colors: LIGHTS[collection], scale: 1, seed });
+
+                expect(vfx.live()).toBeGreaterThan(0);
+
+                clock.advance(spent);
 
                 expect(vfx.live(), `seed ${ seed } was still drawing`).toBe(0);
             }

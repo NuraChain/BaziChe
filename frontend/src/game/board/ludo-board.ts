@@ -1,7 +1,7 @@
 import { BLOCK, CELL, GRID, HOME_SCALE, MARGIN, YARD_AT, YARD_SIZE, aimNear, stackSpot } from '../layout.ts';
 import { DIE_PROPERTIES, dieDress } from '../looks/dice.ts';
-import { SIXES, TAKES, TRAILS } from '../looks/ludo.ts';
-import { burstOf, lightOf, wornOf, type Collection } from '../looks/table.ts';
+import { TRAILS } from '../looks/ludo.ts';
+import { CAPTURES, CRITICALS, burstOf, lightOf, wornOf, type Collection } from '../looks/table.ts';
 import { HISTORY, beatsOf, placeOf, sameAs, shownOf, step, type Beat, type Felt, type Pawn, type Rolled, type Shown } from '../ludo-felt.ts';
 import { celebrate } from '../stage/celebrate.ts';
 import { clamp, hashOf } from '../stage/curves.ts';
@@ -1160,7 +1160,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
             const sized = { ...tune, scale: scaleFor(DIE_SIZE) };
 
             sound()?.play(`${ worn }.die`, { pan: pan(spot.x) });
-            effects.play((vfx) => (beat.face === 6 && beat.fate === 'pending' ? vfx.signature(SIXES[worn], pixels(spot), sized) : vfx.burst(effect, pixels(spot), sized)));
+            effects.play((vfx) => (beat.face === 6 && beat.fate === 'pending' ? vfx.signature(CRITICALS[worn], pixels(spot), sized) : vfx.burst(effect, pixels(spot), sized)));
         }
 
         if (beat.fate === 'pending')
@@ -1301,7 +1301,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
             if (worn !== null)
             {
                 options.sound()?.play(`${ worn }.capture`, { pan: pan(piece.at.x) });
-                effects.play((vfx) => vfx.signature(TAKES[worn], pixels(piece.at), { colors: lightOf(worn), scale: scaleFor(1) }));
+                effects.play((vfx) => vfx.signature(CAPTURES[worn], pixels(piece.at), { colors: lightOf(worn), scale: scaleFor(1) }));
             }
 
             if (reader)

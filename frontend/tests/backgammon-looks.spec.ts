@@ -2,16 +2,60 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import type { MatchPlayer } from '../src/data/match.ts';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
-import { BAR_LEFT, BAR_WIDTH, HEIGHT, MIDDLE, POINT_WIDTH, TOP, WIDTH } from '../src/game/backgammon-layout.ts';
+import { BAR_LEFT, BAR_WIDTH, BOTTOM, DICE_X, HEIGHT, MIDDLE, POINT_WIDTH, RADIUS, TOP, WIDTH, columnOf } from '../src/game/backgammon-layout.ts';
 import { seedOf, spentBy, type Felt, type Told } from '../src/game/backgammon-felt.ts';
-import { PICK_MS, THROW_MS, WALK_MOST, createBackgammonTable, type BackgammonTable } from '../src/game/board/backgammon-table.ts';
+import { OFF, slotAt } from '../src/game/backgammon-men.ts';
+import { KNOCK_MS, PICK_MS, THROW_MS, WALK_MOST, createBackgammonTable, type BackgammonTable } from '../src/game/board/backgammon-table.ts';
+import { BORNE, ENTRIES } from '../src/game/looks/backgammon.ts';
 import { DIE_PROPERTIES, dieDress } from '../src/game/looks/dice.ts';
+import { CAPTURES, CRITICALS, burstOf, lightOf } from '../src/game/looks/table.ts';
+import { restOf } from '../src/game/stage/dice.ts';
 import { createDirector, type Director } from '../src/game/stage/director.ts';
 import type { Act } from '../src/game/stage/feed.ts';
+import { LAYER } from '../src/game/stage/layers.ts';
 import type { Sight } from '../src/game/stage/presenter.ts';
 import { createStage, type Stage } from '../src/game/stage/stage.ts';
-import type { SoundHandle } from '../src/game/sound.ts';
+import type { Cue, SoundHandle } from '../src/game/sound.ts';
 import { START } from '../../backend/src/domains/match/backgammon/board.ts';
+
+interface Drawn
+{
+    el: Element;
+    options: KeyframeAnimationOptions;
+    at: number;
+}
+
+interface Burst
+{
+    preset: string;
+    at: { x: number; y: number };
+    tune: { colors?: readonly string[]; scale?: number };
+    when: number;
+
+    /** A signature's layers; its first names it in `preset`. */
+    steps?: readonly { effect: string }[];
+}
+
+const engine = vi.hoisted(() => ({ made: 0, layers: [] as (number | undefined)[], quiet: [] as (() => boolean)[], bursts: [] as Omit<Burst, 'when'>[], disposed: 0, now: (): number => 0 }));
+
+vi.mock('../src/game/vfx/engine.ts', () => ({
+    createVfx: (_host: HTMLElement, options: { layer?: number; quiet?: () => boolean }) =>
+    {
+        engine.made += 1;
+        engine.layers.push(options.layer);
+        engine.quiet.push(options.quiet ?? (() => false));
+
+        return {
+            burst: (preset: string, at: Burst['at'], tune: Burst['tune']) => engine.bursts.push({ preset, at, tune, when: engine.now() } as Burst),
+            signature: (steps: readonly { effect: string }[], at: Burst['at'], tune: Burst['tune']) => engine.bursts.push({ preset: steps[0]!.effect, steps, at, tune, when: engine.now() } as Burst),
+            stream: () => () => undefined,
+            dispose: () =>
+            {
+                engine.disposed += 1;
+            }
+        };
+    }
+}));
 
 type Look = NonNullable<MatchPlayer['look']>;
 
@@ -44,11 +88,19 @@ const flush = async () =>
     }
 };
 
+/** How far apart in CSS pixels the board's units lie: the host is sized so that one unit is one pixel. */
+const EM = 40;
+
+const FITS = 40;
+
 let clock: ManualClock;
 let host: HTMLElement;
 let stage: Stage;
 let director: Director;
 let table: BackgammonTable;
+let cues: Cue[];
+let heard: { cue: Cue; at: number }[];
+let drawn: Drawn[];
 let still: boolean;
 let broke: unknown[];
 let worn: Record<number, Look>;
@@ -72,10 +124,31 @@ const dice = () => [...host.querySelectorAll<HTMLElement>('.bgt-dice > .die3d')]
 
 const homes = () => [...host.querySelectorAll<HTMLElement>('.bgt-home')];
 
+const bursts = () => engine.bursts as Burst[];
+
+/** What the table said in a look's voice: a voice is named `<collection>.<moment>`, and nothing else is. */
+const voiced = () => cues.filter((cue) => cue.includes('.'));
+
+/** When each die thrown so far comes to rest: the moment its toss began and how long it runs. */
+const landings = () => drawn.filter((one) => one.el.classList.contains('die3d-body')).map((one) => one.at + Number(one.options.duration));
+
+const dieAt = (seed: number, index: number, count: number) =>
+{
+    const spot = restOf(seed, index, count);
+
+    return { x: DICE_X + spot.x * EM, y: 820 / 2 + spot.y * EM };
+};
+
 beforeEach(() =>
 {
+    const animate = Element.prototype.animate;
+    const real = window.getComputedStyle.bind(window);
     const sound: SoundHandle = {
-        play: () => undefined,
+        play: (cue) =>
+        {
+            cues.push(cue);
+            heard.push({ cue, at: clock.now() });
+        },
         wear: () => undefined,
         ready: () => Promise.resolve(),
         setEnabled: () => undefined,
@@ -83,12 +156,31 @@ beforeEach(() =>
     };
 
     clock = manualClock(1000);
+    cues = [];
+    heard = [];
+    drawn = [];
     broke = [];
     still = false;
     worn = {};
+    engine.made = 0;
+    engine.layers = [];
+    engine.quiet = [];
+    engine.bursts = [];
+    engine.disposed = 0;
+    engine.now = () => clock.now();
     host = document.createElement('div');
     host.className = 'bg-layer';
+    Object.defineProperty(host, 'clientWidth', { configurable: true, get: () => WIDTH });
+    Object.defineProperty(host, 'clientHeight', { configurable: true, get: () => 820 });
     document.body.append(host);
+
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el, pseudo) => (el instanceof HTMLElement && el.classList.contains('bgt-dice') ? { fontSize: `${ EM }px` } as CSSStyleDeclaration : real(el, pseudo)));
+    vi.spyOn(Element.prototype, 'animate').mockImplementation(function (this: Element, frames, options)
+    {
+        drawn.push({ el: this, options: options as KeyframeAnimationOptions, at: clock.now() });
+
+        return animate.call(this, frames, options);
+    });
 
     stage = createStage({ clock, quiet: () => still, report: (error) => broke.push(error) });
     director = createDirector(stage, clock, (error) => broke.push(error));
@@ -300,5 +392,229 @@ describe('backgammon dice in the look of whoever throws them', () =>
         table.reset(sight(felt({ dice: [6, 1], turn: 'far' })));
 
         expect(dice().map((die) => die.dataset.look)).toEqual(['astral', 'astral']);
+    });
+});
+
+describe('the moments of a backgammon table, in their players’ looks', () =>
+{
+    const checker = RADIUS * 2 / FITS;
+
+    it('plays each die’s landing where it comes to rest, in its thrower’s collection and sized to it, and nothing while it flies', async () =>
+    {
+        worn = { 0: { dice: 'dice.gold' } };
+        table.reset(sight(felt()));
+        play([act(6, 0, [{ e: 'roll', seat: 0, dice: [5, 2] }])], sight(felt({ dice: [5, 2], seed: seedOf('m', 6) }), 6));
+        await elapse(PICK_MS + 200);
+
+        expect(bursts(), 'a landing played while the dice were in the air').toEqual([]);
+        expect(voiced()).toEqual([]);
+
+        await elapse(THROW_MS + 600);
+
+        const landed = landings();
+        const seed = seedOf('m', 6);
+
+        expect(bursts()).toHaveLength(2);
+        expect(voiced()).toEqual(['gold.die', 'gold.die']);
+
+        for (const [index, burst] of bursts().entries())
+        {
+            expect(burst.preset).toBe(burstOf('gold').effect);
+            expect(burst.at.x).toBeCloseTo(dieAt(seed, index, 2).x);
+            expect(burst.at.y).toBeCloseTo(dieAt(seed, index, 2).y);
+            expect(burst.tune.colors).toEqual(lightOf('gold'));
+            expect(burst.tune.scale).toBeCloseTo(EM / FITS);
+            expect(burst.when, 'a die’s landing played before it landed').toBeGreaterThanOrEqual(landed[index]!);
+            expect(burst.when - landed[index]!, 'a die’s landing played long after it landed').toBeLessThanOrEqual(10);
+        }
+    });
+
+    it('plays doubles as its thrower’s critical reveal over the pair once both have landed, and no landing of their own', async () =>
+    {
+        worn = { 0: { dice: 'dice.storm' } };
+        table.reset(sight(felt()));
+        play([act(6, 0, [{ e: 'roll', seat: 0, dice: [4, 4] }])], sight(felt({ dice: [4, 4], seed: seedOf('m', 6) }), 6));
+        await elapse(PICK_MS + THROW_MS + 600);
+
+        const seed = seedOf('m', 6);
+        const [one, two] = [dieAt(seed, 0, 2), dieAt(seed, 1, 2)];
+        const [reveal] = bursts();
+
+        expect(bursts()).toHaveLength(1);
+        expect(reveal!.steps).toBe(CRITICALS.storm);
+        expect(reveal!.at.x).toBeCloseTo((one.x + two.x) / 2);
+        expect(reveal!.at.y).toBeCloseTo((one.y + two.y) / 2);
+        expect(reveal!.tune.colors).toEqual(lightOf('storm'));
+        expect(reveal!.tune.scale).toBeGreaterThan(EM / FITS);
+        expect(reveal!.when).toBeGreaterThanOrEqual(Math.max(...landings()));
+        expect(voiced()).toEqual(['storm.die', 'storm.die']);
+    });
+
+    it('plays a hit as its hitter’s capture where the blot stood, at the moment the two meet, with its voice', async () =>
+    {
+        worn = { 0: { checkers: 'checkers.inferno' }, 1: { checkers: 'checkers.frost' } };
+        table.reset(sight(felt({ near: row({ 13: 1, 6: 14 }), far: row({ 17: 1, 12: 14 }), dice: [5, 3] })));
+        play([act(6, 0, [{ e: 'move', seat: 0, from: 13, to: 8, die: 5, hit: true }])], sight(felt({ near: row({ 8: 1, 6: 14 }), far: row({ 25: 1, 12: 14 }) }), 6));
+        await flush();
+
+        const knock = drawn.find((one) => one.options.delay !== undefined && Number(one.options.delay) > 0)!;
+        const contact = knock.at + Number(knock.options.delay);
+
+        await elapse(contact - clock.now() - 10);
+
+        expect(bursts(), 'the capture played before the two met').toEqual([]);
+        expect(voiced()).toEqual([]);
+
+        await elapse(WALK_MOST + KNOCK_MS);
+
+        const [taken] = bursts();
+
+        expect(bursts()).toHaveLength(1);
+        expect(taken!.steps).toBe(CAPTURES.inferno);
+        expect(taken!.at.x).toBeCloseTo(columnOf(8).x + POINT_WIDTH / 2);
+        expect(taken!.at.y).toBeCloseTo(BOTTOM - RADIUS);
+        expect(taken!.tune.colors).toEqual(lightOf('inferno'));
+        expect(taken!.tune.scale).toBeCloseTo(checker);
+        expect(taken!.when - contact).toBeLessThanOrEqual(5);
+        expect(heard.filter((one) => one.cue.includes('.'))).toEqual([{ cue: 'inferno.capture', at: taken!.when }]);
+    });
+
+    it('plays a checker coming in from the bar as its owner’s entry where it lands, with its voice', async () =>
+    {
+        worn = { 0: { checkers: 'checkers.void' } };
+        table.reset(sight(felt({ near: row({ 25: 1, 6: 14 }), far: row({ 12: 15 }), dice: [6, 3] })));
+        play([act(6, 0, [{ e: 'move', seat: 0, from: 25, to: 19, die: 6, hit: false }])], sight(felt({ near: row({ 19: 1, 6: 14 }), far: row({ 12: 15 }) }), 6));
+        await flush();
+
+        const lift = drawn.find((one) => one.el.classList.contains('man'))!;
+        const landing = lift.at + Number(lift.options.duration);
+
+        await elapse(landing - clock.now() - 10);
+
+        expect(bursts()).toEqual([]);
+
+        await elapse(200);
+
+        const [entry] = bursts();
+
+        expect(bursts()).toHaveLength(1);
+        expect(entry!.steps).toBe(ENTRIES.void);
+        expect(entry!.at.x).toBeCloseTo(columnOf(19).x + POINT_WIDTH / 2);
+        expect(entry!.at.y).toBeCloseTo(TOP + RADIUS);
+        expect(entry!.tune.scale).toBeCloseTo(checker);
+        expect(entry!.when - landing).toBeLessThanOrEqual(5);
+        expect(voiced()).toEqual(['void.spawn']);
+    });
+
+    it('plays a checker borne off as its owner’s short signature where it lies in the tray, with its voice', async () =>
+    {
+        worn = { 0: { checkers: 'checkers.phoenix' } };
+        table.reset(sight(felt({ near: row({ 3: 2, 0: 13 }), far: row({ 12: 15 }), dice: [3, 1] })));
+        play([act(6, 0, [{ e: 'move', seat: 0, from: 3, to: 0, die: 3, hit: false }])], sight(felt({ near: row({ 3: 1, 0: 14 }), far: row({ 12: 15 }), dice: [3, 1] }), 6));
+        await elapse(WALK_MOST + 200);
+
+        const tray = slotAt('near', OFF, 13);
+        const [borne] = bursts();
+
+        expect(bursts()).toHaveLength(1);
+        expect(borne!.steps).toBe(BORNE.phoenix);
+        expect(borne!.at.x).toBeCloseTo(tray.x);
+        expect(borne!.at.y).toBeCloseTo(tray.y);
+        expect(borne!.tune.colors).toEqual(lightOf('phoenix'));
+        expect(voiced()).toEqual(['phoenix.pawn']);
+    });
+
+    it('plays the reader’s own hit as they make it, and nothing as they take it back', async () =>
+    {
+        worn = { 0: { checkers: 'checkers.oni' } };
+        table.reset(sight(felt({ near: row({ 13: 1, 6: 14 }), far: row({ 18: 1, 12: 14 }), dice: [6, 3] })));
+
+        void table.hop({ side: 'near', from: 13, to: 7, hit: true });
+        await elapse(WALK_MOST + KNOCK_MS);
+
+        expect(bursts().map((one) => one.steps)).toEqual([CAPTURES.oni]);
+
+        void table.unhop({ side: 'near', from: 13, to: 7, hit: true });
+        await elapse(WALK_MOST + KNOCK_MS);
+
+        expect(bursts(), 'taking a hit back played it again').toHaveLength(1);
+        expect(voiced()).toEqual(['oni.capture']);
+    });
+
+    it('plays nothing as the reader takes back a checker they brought in from the bar', async () =>
+    {
+        worn = { 0: { checkers: 'checkers.storm' } };
+        table.reset(sight(felt({ near: row({ 25: 1, 6: 14 }), far: row({ 12: 15 }), dice: [6, 3] })));
+
+        void table.hop({ side: 'near', from: 25, to: 19, hit: false });
+        await elapse(WALK_MOST + 200);
+
+        expect(bursts().map((one) => one.steps)).toEqual([ENTRIES.storm]);
+
+        void table.unhop({ side: 'near', from: 25, to: 19, hit: false });
+        await elapse(WALK_MOST + 200);
+
+        expect(bursts(), 'taking an entry back played it again').toHaveLength(1);
+        expect(voiced()).toEqual(['storm.spawn']);
+    });
+
+    it('plays a checker carried in from the bar past its first point as an entry where it is set down', async () =>
+    {
+        worn = { 0: { checkers: 'checkers.jade' } };
+        table.reset(sight(felt({ near: row({ 25: 1, 6: 14 }), far: row({ 12: 15 }), dice: [6, 3] })));
+        table.grab(25);
+        table.drag(columnOf(16).x, TOP + RADIUS);
+        void table.hop({ side: 'near', from: 25, to: 19, hit: false }, true);
+        void table.hop({ side: 'near', from: 19, to: 16, hit: false });
+        await elapse(WALK_MOST + 200);
+
+        expect(bursts().map((one) => [one.steps, one.at.x])).toEqual([[ENTRIES.jade, columnOf(16).x + POINT_WIDTH / 2]]);
+        expect(voiced()).toEqual(['jade.spawn']);
+    });
+
+    it('draws every moment under the checkers and the dice, and lets it go to one fade for somebody who asked for less motion', async () =>
+    {
+        worn = { 0: { dice: 'dice.void' } };
+        table.reset(sight(felt()));
+        play([act(6, 0, [{ e: 'roll', seat: 0, dice: [3, 1] }])], sight(felt({ dice: [3, 1], seed: seedOf('m', 6) }), 6));
+        await elapse(PICK_MS + THROW_MS + 600);
+
+        expect(engine.made).toBe(1);
+        expect(engine.layers[0]).toBe(LAYER.glow);
+        expect(LAYER.glow).toBeLessThan(LAYER.piece);
+        expect(LAYER.glow).toBeLessThan(LAYER.dice);
+        expect(engine.quiet[0]!()).toBe(false);
+
+        still = true;
+
+        expect(engine.quiet[0]!(), 'the effects did not ask the table whether to move').toBe(true);
+    });
+
+    it('fetches the engine as soon as a checker in a look is drawn, so its first moment plays on time', async () =>
+    {
+        worn = { 1: { checkers: 'checkers.gold' } };
+        table.reset(sight(felt()));
+
+        await vi.waitFor(() => expect(engine.made).toBe(1));
+    });
+
+    it('plays nothing and fetches nothing for a table where nobody chose a look, and lets the engine go with the table', async () =>
+    {
+        worn = { 0: { home: 'home.gold' } };
+        table.reset(sight(felt({ near: row({ 13: 1, 6: 14 }), far: row({ 17: 1, 12: 14 }), dice: [5, 3] })));
+        play([act(6, 0, [{ e: 'move', seat: 0, from: 13, to: 8, die: 5, hit: true }, { e: 'roll', seat: 1, dice: [2, 2] }])], sight(felt({ near: row({ 8: 1, 6: 14 }), far: row({ 25: 1, 12: 14 }), dice: [2, 2], seed: seedOf('m', 6), turn: 'far' }), 6));
+        await elapse(WALK_MOST + KNOCK_MS + PICK_MS + THROW_MS + 600);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+
+        expect(engine.made, 'the engine was fetched for a table whose only look has no moment').toBe(0);
+        expect(voiced()).toEqual([]);
+
+        worn = { 1: { dice: 'dice.frost' } };
+        table.reset(sight(felt({ dice: [5, 5], turn: 'far' }), 7, 0, 'n'));
+        await vi.waitFor(() => expect(engine.made).toBe(1));
+
+        table.dispose();
+
+        expect(engine.disposed).toBe(1);
     });
 });

@@ -1,5 +1,6 @@
 export const LAYER = {
     inlay: 1,
+    glow: 5,
     piece: 10,
     count: 20,
     mark: 22,

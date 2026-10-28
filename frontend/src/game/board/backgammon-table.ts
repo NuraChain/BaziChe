@@ -50,8 +50,9 @@ import {
     type Table as Men,
     type Transfer
 } from '../backgammon-men.ts';
+import { BORNE, ENTRIES } from '../looks/backgammon.ts';
 import { dieDress } from '../looks/dice.ts';
-import { wornOf } from '../looks/table.ts';
+import { CAPTURES, CRITICALS, burstOf, lightOf, wornOf, type Collection } from '../looks/table.ts';
 import { clamp, seeded } from '../stage/curves.ts';
 import { restOf } from '../stage/dice.ts';
 import { createDie, type Die } from '../stage/die.ts';
@@ -61,6 +62,7 @@ import type { Table } from '../stage/presenter.ts';
 import { arc, walk, type Point } from '../stage/route.ts';
 import type { Run, Stage } from '../stage/stage.ts';
 import { endCue, type SoundHandle } from '../sound.ts';
+import { lazyVfx } from '../vfx/lazy.ts';
 import type { MatchPlayer } from '../../data/match.ts';
 import type { Haptic } from '../../lib/haptics.ts';
 
@@ -213,6 +215,12 @@ const CARRIED = '1.2';
 
 const SET_DOWN = 'cubic-bezier(0.2, 0.7, 0.3, 1)';
 
+/** How wide a thing on the board is, in CSS pixels, that an effect played at a scale of 1 suits. */
+const EFFECT_FITS = 40;
+
+/** A double's critical reveal over the pair, as wide as this many dice. */
+const PAIR = 1.6;
+
 const BAR_X = BAR_LEFT + BAR_WIDTH / 2;
 
 const cq = (units: number) => `${ (units * UNIT).toFixed(3) }cqw`;
@@ -323,6 +331,8 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
     let carried: { key: string; x: number; y: number } | null = null;
     const returning = new Map<string, Run>();
     const homes = new Map<Side, HTMLElement>();
+    const arrivals = new Set<string>();
+    const effects = lazyVfx(host, { layer: LAYER.glow, quiet: () => stage.quiet() });
 
     const hit = make('bgt-hit', zone);
 
@@ -363,7 +373,11 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
     const lookOf = (side: Side) => options.looks?.(side === 'near' ? shown.viewer : 1 - shown.viewer);
 
-    /** A checker, or the count written on its stack, in its owner's tone and look. */
+    const px = (units: number) => units * host.clientWidth / WIDTH;
+
+    const pointOf = (spot: Point) => ({ x: px(spot.x), y: px(spot.y) });
+
+    /** A checker, or the count written on its stack, in its owner's tone and look; a look its owner wears makes the moments its own, so their engine is fetched ahead of them. */
     const dressMan = (el: HTMLElement, side: Side) =>
     {
         const worn = wornOf('checkers', lookOf(side)?.checkers);
@@ -378,6 +392,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         }
 
         el.dataset.checkers = worn;
+        effects.warm();
     };
 
     /**
@@ -428,6 +443,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         }
 
         die.node.dataset.look = worn;
+        effects.warm();
     };
 
     const ensure = (man: Man) =>
@@ -729,6 +745,15 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
     const manIn = (state: Men, man: Man) => state.men.find((one) => one.key === man.key) as Man;
 
+    /** A moment of a checker in a look: in its collection's light, sized to a checker. */
+    const tuneOf = (worn: Collection) => ({ colors: lightOf(worn), scale: px(RADIUS * 2) / EFFECT_FITS });
+
+    /**
+     * A checker travelling, and what its look plays on the way: its owner's capture where it meets
+     * a blot, as the two meet, and where it comes to rest its entry when it came in from the bar
+     * (on this hop, or on one it was carried through) or its short signature when it was borne off.
+     * Nothing is played for a move taken back.
+     */
     const fly = async (origin: Men, target: Men, move: Move, result: Moved, reverse: boolean, onward = false) =>
     {
         const mover = result.mover;
@@ -744,7 +769,18 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
             : setDown(mover, dropped, to, DROP_BASE, DROP_PACE, DROP_MOST));
         const length = swing?.length ?? 0;
         const impact = reverse ? 0 : length * 0.94;
+        const worn = reverse ? null : wornOf('checkers', lookOf(move.side)?.checkers);
+        const entering = move.from === BAR || arrivals.has(mover.key);
         let thrown = 0;
+
+        if (kept && entering)
+        {
+            arrivals.add(mover.key);
+        }
+        else
+        {
+            arrivals.delete(mover.key);
+        }
 
         flying.add(mover.key);
 
@@ -761,7 +797,16 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         if (swing !== null)
         {
             rest(mover, target, stage.quiet());
-            stage.after(length, () => options.sound()?.play(to.off ? 'checker-off' : 'checker', { pan: pan(to.x), rate: 0.96 + (pips % 3) * 0.04 }));
+            stage.after(length, () =>
+            {
+                options.sound()?.play(to.off ? 'checker-off' : 'checker', { pan: pan(to.x), rate: 0.96 + (pips % 3) * 0.04 });
+
+                if (worn !== null && (to.off || entering))
+                {
+                    options.sound()?.play(`${ worn }.${ to.off ? 'pawn' : 'spawn' }`, { pan: pan(to.x) });
+                    effects.play((vfx) => vfx.signature((to.off ? BORNE : ENTRIES)[worn], pointOf(to), tuneOf(worn)));
+                }
+            });
         }
 
         tally(target);
@@ -788,6 +833,12 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
                 {
                     options.sound()?.play('checker-hit', { pan: pan(hurtFrom.x) });
                     options.feel(move.side === 'near' ? 'capture' : 'hit');
+
+                    if (worn !== null)
+                    {
+                        options.sound()?.play(`${ worn }.capture`, { pan: pan(hurtFrom.x) });
+                        effects.play((vfx) => vfx.signature(CAPTURES[worn], pointOf(hurtFrom), tuneOf(worn)));
+                    }
                 });
             }
 
@@ -890,6 +941,37 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         dressDie(die, side);
 
         return die;
+    };
+
+    const emOf = () => Number.parseFloat(getComputedStyle(zone).fontSize);
+
+    /** Where die `index` of `count` laid with `seed` rests, in CSS pixels of the board. */
+    const restAt = (seed: number, index: number, count: number) =>
+    {
+        const spot = restOf(seed, index, count);
+        const em = emOf() || 0;
+
+        return { x: px(DICE_X) + spot.x * em, y: host.clientHeight / 2 + spot.y * em };
+    };
+
+    /** A die in a look come to rest: its voice and, unless it is half of a double, its collection's landing where it lies, sized to it. */
+    const landed = (die: Die, side: Side, at: Point, double: boolean) =>
+    {
+        const worn = wornOf('dice', lookOf(side)?.dice);
+
+        if (worn === null || !alive.has(die))
+        {
+            return;
+        }
+
+        options.sound()?.play(`${ worn }.die`, { pan: pan(DICE_X) });
+
+        if (!double)
+        {
+            const { effect, tune } = burstOf(worn);
+
+            effects.play((vfx) => vfx.burst(effect, at, { ...tune, scale: (emOf() || 0) / EFFECT_FITS }));
+        }
     };
 
     const drop = (die: Die) =>
@@ -1126,9 +1208,24 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
     const reach = () =>
     {
-        const em = Number.parseFloat(getComputedStyle(zone).fontSize);
+        const em = emOf();
 
         return em > 0 ? Math.max(REACH, host.clientHeight / 2 / em + REACH_OVER) : REACH;
+    };
+
+    /** Doubles in a look with both dice at rest: its collection's critical reveal over the pair, sized to it. */
+    const reveal = (side: Side, seed: number) =>
+    {
+        const worn = wornOf('dice', lookOf(side)?.dice);
+
+        if (worn === null)
+        {
+            return;
+        }
+
+        const [one, two] = [restAt(seed, 0, 2), restAt(seed, 1, 2)];
+
+        effects.play((vfx) => vfx.signature(CRITICALS[worn], { x: (one.x + two.x) / 2, y: (one.y + two.y) / 2 }, { colors: lightOf(worn), scale: (emOf() || 0) * PAIR / EFFECT_FITS }));
     };
 
     const cast = async (faces: readonly number[], sides: readonly Side[], seed: number) =>
@@ -1139,6 +1236,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
         const random = seeded(seed);
         const far = reach();
+        const double = faces.length === 2 && faces[0] === faces[1];
 
         dice = faces.map((face, index) => lay(face, index, faces.length, seed, sides[index]));
         diceSeed = seed;
@@ -1154,12 +1252,17 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
             return die.toss(stage, seed + index * 977, faces[index], from, {
                 impact: (power) => options.sound()?.play('dice-wood', { gain: 0.35 + 0.65 * power, pan: pan(DICE_X + spot.x * 24) })
-            }).done;
+            }).done.then(() => landed(die, sides[index], restAt(seed, index, faces.length), double));
         }));
 
         if (diceSeed !== seed)
         {
             return;
+        }
+
+        if (double)
+        {
+            reveal(sides[0], seed);
         }
 
         rested = true;
@@ -1187,6 +1290,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
             impact: (power) => options.sound()?.play('dice-wood', { gain: 0.35 + 0.65 * power, pan: pan(DICE_X) })
         }).done;
 
+        landed(die, side, restAt(OPENING_SEED, seat, 2), false);
         options.onRoll?.(seed, [face], true);
     };
 
@@ -1443,6 +1547,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         tags.clear();
         marks.clear();
         flying.clear();
+        arrivals.clear();
         dice = [];
         waiting = false;
         rested = true;
@@ -1689,6 +1794,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         dispose()
         {
             strip();
+            effects.dispose();
             hit.removeEventListener('click', pressDice);
             cubeEl.removeEventListener('click', pressCube);
             zone.remove();

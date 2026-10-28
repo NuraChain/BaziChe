@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import type { Haptic } from '../src/lib/haptics.ts';
 import type { LudoBoard, MatchPlayer } from '../src/data/match.ts';
-import { SIXES, TAKES, TRAILS } from '../src/game/looks/ludo.ts';
+import { TRAILS } from '../src/game/looks/ludo.ts';
 import { PALETTES } from '../src/game/looks/palette.ts';
-import { lightOf, wornOf } from '../src/game/looks/table.ts';
+import { CAPTURES, CRITICALS, lightOf, wornOf } from '../src/game/looks/table.ts';
 import { DIE_REST_MS, DIE_SIZE, ENTER_MS, GONE_MS, HAND, HOME_MS, KNOCK_MS, LIFTED, PASS_LEAST, PASS_MS, PICKUP_MS, SLIDE_MS, STEP_LEAST, STEP_MS, WIN_LEAST, WIN_MS, createLudoBoard, dieRest } from '../src/game/board/ludo-board.ts';
 import type { BoardHandle, Facts } from '../src/game/bridge.ts';
 import { BLOCK, CELL, HOME_SCALE, MARGIN, YARD_AT, YARD_SIZE, centreOf } from '../src/game/layout.ts';
@@ -2489,7 +2489,7 @@ describe('a ludo die in the look its thrower chose', () =>
         const [revealed] = engine.bursts;
         const rest = dieRest('red');
 
-        expect(revealed!.steps, 'a six played the landing any face plays').toBe(SIXES.storm);
+        expect(revealed!.steps, 'a six played the landing any face plays').toBe(CRITICALS.storm);
         expect(revealed!.at.x).toBeCloseTo(rest.x * 6);
         expect(revealed!.tune.colors).toEqual(lightOf('storm'));
         expect(revealed!.tune.scale).toBeCloseTo(600 * DIE_SIZE * C / 100 / 40);
@@ -2671,7 +2671,7 @@ describe('ludo pawns in the look their owner chose', () =>
 
         const flash = drawn.map((one) => one.el).find((el) => el instanceof HTMLImageElement && el.className.includes('invert(1)'));
 
-        expect(engine.bursts.find((one) => one.preset === 'sparks')!.steps, 'a capture played no signature of its walker’s collection').toBe(TAKES.neon);
+        expect(engine.bursts.find((one) => one.preset === 'sparks')!.steps, 'a capture played no signature of its walker’s collection').toBe(CAPTURES.neon);
         expect(engine.bursts.find((one) => one.preset === 'sparks')!.tune.colors).toEqual(lightOf('neon'));
         expect(flash?.getAttribute('src'), 'the taken pawn flashed in another drawing').toBe('/pawns/shiraz-yellow.svg');
         expect(voiced(), 'the walker lands, then takes, each in its own voice, and the taken pawn says nothing').toEqual(['neon.pawn', 'neon.capture']);

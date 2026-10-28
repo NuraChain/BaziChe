@@ -3797,8 +3797,20 @@ frame, field, bar and tray, and the cube stay the house's:
   board's die is a cube of six drawn faces, and it reads the die look's dress (`dieDress`) with the
   house die's colours where none is set, so a plain die draws as it always did.
 
+**Its moments are each on a real event and never over a checker or a die**: the engine's canvas lies
+on `LAYER.glow`, under the pieces, and it is fetched only once somebody's dice or checkers are in a
+look (a home board has no moment). A die lands with its collection's burst where it comes to rest,
+sized to it, and doubles with the collection's critical reveal over the pair once both have landed
+(`CRITICALS`, a six's at Ludo, and no landing of their own); a hit is the hitter's capture where the
+blot stood, as the two meet (`CAPTURES`, Ludo's too); a checker coming in from the bar plays its
+entry where it lands (`ENTRIES` in `game/looks/backgammon.ts`), also when it was carried in past its
+first point and set down further on; and one borne off its short signature in the tray (`BORNE`, over
+within a second, since a side bears fifteen off a game). Each says its voice with it, from the table
+pack of its collection: `die`, `capture`, `spawn` and `pawn`. Nothing plays for a move taken back.
+
 `backgammon-looks.spec.ts`, `backgammon-board.spec.ts` (*a backgammon board in its players' looks*),
-`checker-sheet.spec.ts`, `die-sheet.spec.ts` and `look-palette.spec.ts` hold it.
+`checker-sheet.spec.ts`, `die-sheet.spec.ts`, `look-palette.spec.ts`, `look-identity.spec.ts` and
+`vfx-families.spec.ts` hold it.
 
 ## Poker
 
@@ -5339,16 +5351,20 @@ switching tables never has to unlock audio again. The spec is
   a look's burst plays (measured on the built server: 12 ms after the press, with the burst), and the
   profile header says `reveal` the moment its reveal begins and, for a profile worn whole, `strike`
   at `struckAt`, each under the device's sound switch. **A table wears the voices its match's looks
-  are in** (`heardAt` in `game/looks/table.ts`: Ludo's dice and pawns, Hokm's and poker's faces;
-  a back, chips or felt has no voice), once each, and its board says each where its effect already
-  plays, never in its place: Ludo `die` as a worn die lands, `pawn` where a worn pawn's walk ends and
-  `spawn` where it leaves its yard, and `capture` with the capture's burst, laid over the table's own
-  `pawn-step` and `pawn-hit` as those already lie over each other; Hokm `card` as a card in a face
-  look lands on the felt, and poker the same for each card of a hand turned over at a showdown. A
-  game keeps its looks, so the handle wears again only when the next game starts. `game.spec.ts`
+  are in** (`heardAt` in `game/looks/table.ts`: Ludo's dice and pawns, Hokm's and poker's faces,
+  backgammon's dice and checkers; a back, chips, felt, yard or home board has no voice), once each,
+  and its board says each where its effect already plays, never in its place: Ludo `die` as a worn
+  die lands, `pawn` where a worn pawn's walk ends and `spawn` where it leaves its yard, and `capture`
+  with the capture's burst, laid over the table's own `pawn-step` and `pawn-hit` as those already lie
+  over each other; Hokm `card` as a card in a face look lands on the felt, and poker the same for
+  each card of a hand turned over at a showdown; backgammon `die` as each worn die comes to rest,
+  `capture` as a worn checker meets a blot, `spawn` where one in from the bar lands and `pawn` where
+  one borne off lies in the tray, over the board's own `dice-wood`, `checker-hit` and `checker-off`.
+  A game keeps its looks, so the handle wears again only when the next game starts. `game.spec.ts`
   (*a look's voice*), `look-pack.spec.ts`, `equip.spec.ts`, `aura.spec.ts`, `avatar-looks.spec.ts`,
   `collection-page.spec.ts`, `look-sheet.spec.ts`, `ludo-board.spec.ts`, `ludo-table.spec.ts`,
-  `hokm-cues.spec.ts` and `poker-cues.spec.ts` hold it.
+  `hokm-cues.spec.ts`, `poker-cues.spec.ts`, `backgammon-looks.spec.ts` and
+  `backgammon-board.spec.ts` hold it.
 - **The end is heard as it went for whoever reads it** (`endCue` in `game/sound.ts`). A seat that
   won hears `win` (a pizzicato run that rises), one that lost or walked away `lose` (one that
   falls), a draw and somebody watching `draw` (one that settles where it began), and a game called

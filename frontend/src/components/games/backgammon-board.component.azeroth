@@ -20,7 +20,7 @@ import { BAR, OFF, type Hop } from '../../../../backend/src/domains/match/backga
 import { coachOf, hits, outcomeOf, reachOf } from '../../game/helpers/backgammon.ts';
 import { createBackgammonTable, HOP_MS, type BackgammonTable, type Facts, type Invite } from '../../game/board/backgammon-table.ts';
 import { feltOf, seedOf, type Felt, type Told } from '../../game/backgammon-felt.ts';
-import { wornOf } from '../../game/looks/table.ts';
+import { heardAt, wornOf } from '../../game/looks/table.ts';
 import { createSound, type SoundHandle } from '../../game/sound.ts';
 import { clamp } from '../../game/stage/curves.ts';
 import type { Ctx } from '../../game/stage/director.ts';
@@ -625,11 +625,21 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
         untrack(() => sound?.setEnabled(on));
     }
 
+    derived heard = heardAt(game.players.map((player) => player.look), ['dice', 'checkers']);
+
+    effect
+    {
+        const collections = heard;
+
+        untrack(() => sound?.wear(collections));
+    }
+
     mount
     {
         let unwatch: () => void = () => undefined;
 
         sound = createSound(untrack(() => settings.settings().sound), 'backgammon');
+        sound.wear(untrack(() => heard));
 
         if (layer !== null)
         {

@@ -270,14 +270,14 @@ const market = async (state: string, options: { outcome?: number | null; claimab
 
 const claimTime = (id: string) => db.getRepository(Market).findOneByOrFail({ id }).then((row) => BigInt(Math.floor((row.claimableAt?.getTime() ?? 0) / 1000)));
 
-/** A position written by hand in `state` on the market's first outcome. */
-const position = async (marketId: string, state: string, options: { claimed?: boolean; claimHash?: string | null; failure?: string } = {}) =>
+/** A position written by hand in `state`, on the market's first outcome unless told another. */
+const position = async (marketId: string, state: string, options: { claimed?: boolean; claimHash?: string | null; failure?: string; outcome?: number; created?: string } = {}) =>
 {
     const bettor = await person();
     const amount = 25n * NURA;
     const [made] = await db.query(
-        `insert into market_positions (market_id, bettor_id, address, outcome, amount, deadline, state, confirmed_at, claimed_at, claim_hash, failure)
-         values ($1, $2, $3, 0, $4, now() - interval '20 minutes', $5, $6, $7, $8, $9) returning id`,
+        `insert into market_positions (market_id, bettor_id, address, outcome, amount, deadline, state, confirmed_at, claimed_at, claim_hash, failure, created_at)
+         values ($1, $2, $3, $10, $4, now() - interval '20 minutes', $5, $6, $7, $8, $9, now() - $11::interval) returning id`,
         [
             marketId,
             bettor.id,
@@ -287,7 +287,9 @@ const position = async (marketId: string, state: string, options: { claimed?: bo
             state === 'confirmed' ? new Date() : null,
             options.claimed === true ? new Date() : null,
             options.claimHash ?? null,
-            state === 'reverted' ? options.failure ?? 'MarketClosed' : null
+            state === 'reverted' ? options.failure ?? 'MarketClosed' : null,
+            options.outcome ?? 0,
+            options.created ?? '1 minute'
         ]
     ) as { id: string }[];
 
@@ -725,6 +727,33 @@ describe.skipIf(!active)('the database and NuraChain, checked against each other
             await pass();
 
             expect((await rowsAbout(claimed.id))[0]).toMatchObject({ kind: 'position-claim', db: { state: 'claimed' }, chain: { state: 'unclaimed' }, resolution: null });
+        });
+
+        it('compares a position that can still be claimed however old it is, and leaves a loser past the dispute window to the week', async () =>
+        {
+            const settled = await market('settled');
+            const cancelled = await market('cancelled');
+            const loser = await position(settled.id, 'confirmed', { outcome: 1, created: '30 days' });
+            const winner = await position(settled.id, 'confirmed', { outcome: 0, created: '30 days' });
+            const refund = await position(cancelled.id, 'confirmed', { outcome: 1, created: '30 days' });
+
+            markets.resolve(marketIdOf(settled.id), 'settled', 0, await claimTime(settled.id));
+            markets.resolve(marketIdOf(cancelled.id), 'cancelled');
+            await pass();
+
+            expect(await rowsAbout(loser.id), 'a loser past the window can never be claimed').toEqual([]);
+            expect(await kindsOf(winner.id), 'an old winner not yet claimed').toEqual(['position-state open']);
+            expect(await kindsOf(refund.id), 'an old stake back not yet claimed').toEqual(['position-state open']);
+        });
+
+        it('compares an old loser while its market is inside the dispute window, which the owner may still overturn', async () =>
+        {
+            const disputed = await market('settled', { claimableAt: new Date(Date.now() + 60_000).toISOString() });
+            const loser = await position(disputed.id, 'confirmed', { outcome: 1, created: '30 days' });
+
+            await pass();
+
+            expect(await kindsOf(loser.id)).toEqual(['position-state open']);
         });
     });
 

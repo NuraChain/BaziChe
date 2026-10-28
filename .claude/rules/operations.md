@@ -26,11 +26,14 @@ writes; `domains/reconcile/service.ts` keeps what they find. A family whose cont
 not keep compares nothing, and is not listed as watched.
 
 **What is compared**: every record no worker is moving that can still change on the chain (a game
-being played or paid out, a paid order the owner could still refund, a confirmed position not yet
-claimed), whatever its age, and every other record made in the last week (`RECENT`); fifty a family a
-pass (`AUDIT_PAGE`), newest first by keyset over `(created_at, id)`, the next fifty the pass after,
-starting again at the newest once a family's list runs out. The cursor is memory, so a restart starts
-at the newest. Every open disagreement's record is read again each pass (fifty a family, the longest
+being played or paid out, a paid order the owner could still refund, a confirmed position that
+can still be claimed: one in a market that is not settled, a winner's, or any in a settled market
+the owner may still overturn, `CLAIMS_YET`; a loser past the dispute window never can, and is left
+to the week), whatever its age, and every other record made in the last week (`RECENT`); fifty a
+family a pass (`AUDIT_PAGE`), newest first by keyset over `(created_at, id)`, the next fifty the pass
+after, starting again at the newest once a family's list runs out, so a list that grew with all of
+history would make a fresh disagreement wait longer to be found. The cursor is memory, so a restart
+starts at the newest. Every open disagreement's record is read again each pass (fifty a family, the longest
 unseen first), however old it is, so a record that has left the week is still found to agree.
 
 **What no worker is moving.** A record its worker still holds is never compared, because the worker

@@ -86,6 +86,14 @@ const PAID_UNSEEN = `case when (select k.state from markets k where k.id = marke
 const CLAIMABLE = `p.state = 'confirmed' and p.claimed_at is null
     and ((k.state = 'settled' and p.outcome = k.outcome and k.claimable_at <= now()) or k.state in ('refunded', 'cancelled', 'expired'))`;
 
+/**
+ * A position that can still be claimed, now or later: one in a market that is not settled (a stake
+ * back, or a market not resolved yet), a winner's, or any in a settled market the owner may still
+ * overturn. A loser past the dispute window never can.
+ */
+const CLAIMS_YET = `p.state = 'confirmed' and p.claimed_at is null
+    and (k.state <> 'settled' or p.outcome = k.outcome or k.claimable_at + ${ LAPSE } > now())`;
+
 export interface MarketHooks
 {
     /** A market moved: whoever looks at its table hears it, and these people besides. */
@@ -1687,7 +1695,11 @@ export function createMarketService(
             return await audited({ again, page: rows, after }, deadline, comparedMarket);
         },
 
-        /** Every position no worker is moving, against what the contract holds: one not yet claimed whatever its age, any other made in the last week, and those with a disagreement open. */
+        /**
+         * Every position no worker is moving, against what the contract holds: one that can still be
+         * claimed whatever its age, any other made in the last week, and those with a disagreement open.
+         * A loser in a market settled past its dispute window can never be claimed, and is left to the week.
+         */
         async auditPositions({ ids, after, deadline }: AuditAsk)
         {
             if (!chain.configured)
@@ -1701,7 +1713,7 @@ export function createMarketService(
             const page = auditPositionQuery()
                 .where(`p.state not in ('prepared', 'sent')`)
                 .andWhere('not (p.claim_hash is not null and p.claimed_at is null)')
-                .andWhere(`((p.state = 'confirmed' and p.claimed_at is null) or p.created_at > now() - ${ RECENT })`);
+                .andWhere(`(p.created_at > now() - ${ RECENT } or (${ CLAIMS_YET }))`);
 
             if (from !== null)
             {

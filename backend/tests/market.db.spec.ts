@@ -809,7 +809,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
         const claimGone = async () =>
         {
             const { ports, fake, market, game, watcher, guest } = await watched();
-            const mine = (await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (10n * NURA).toString() })).position.id;
+            const mine = (await ports.markets.place(watcher.id, market.id, { outcome: 0, amount: (10n * NURA).toString() })).position.id;
             const ticket = fake.placed.at(-1)!.ticket;
 
             fake.take(ticket);

@@ -597,7 +597,8 @@ and the stepping that could not begin.
 ## The sound pass
 
 `tools/qa/sound-pass.mjs` holds what a table sounds like, in real browsers on the built server:
-`QA_BASE=http://localhost:5300 node tools/qa/sound-pass.mjs`, about two minutes, 50 checks.
+`PGDATABASE=<the server's database> QA_BASE=http://localhost:5300 node tools/qa/sound-pass.mjs`, about
+six minutes, 72 checks.
 `dana.w` is a desk in English and `mina` a phone in Persian, in a Chromium with a fake microphone.
 Every page carries a probe that names each recording it starts by its decoded samples, against the
 takes of the packs that page fetched (`ludo:die-land`), calls a synthesised voice `tone` and a
@@ -617,6 +618,22 @@ recording no pack holds `unknown`, and logs the media elements a bed plays on.
   it go, and a page that is no table fetches no bed; a call at the table, joined by itself as a
   reader's would be, brings the bed under it, and leaving the call brings it back up; birds and rain
   chosen in Settings are what the next table plays.
+- **The looks' voices**, last, because the first part is also what holds that a table where nobody
+  wears a look fetches no voice. The pass gives dana.w a look in every place a voice is said, by
+  hand in the server's database (`PGDATABASE` names it, as for the shop pass): Astral dice and
+  Phoenix pawns at Ludo, Void faces at Hokm and poker, the Frost profile set, and Glow backs owned
+  to put on. The profile, opened by a press, is heard saying its reveal within 50 ms of the moment
+  the reveal begins on the page (a `MutationObserver` stamps `data-struck`) and its strike as far
+  ahead as the sigil's own `--struck`, and fetches `frost-profile` and no table's voices; the back
+  put on in the collection is heard within 300 ms of the press. Ludo, Hokm and poker are played
+  over the api until the voices have been said: each table fetches its game's packs and the table
+  voices of the looks played there and nothing else, both browsers hear dana.w's voices (at poker
+  the other one, which is shown dana.w's hand turned over at a showdown), and nothing heard is
+  unknown, a tone, or a look nobody there wears. The probe keeps when each take was started and how
+  far ahead of the audio clock, and decodes each pack once. Both players' looks are taken off before
+  the first part and after the last, so a run that died leaves the next one plain tables: its first
+  run after the grant failed the first part's packs at three tables, and pressed a back it had
+  already put on, which plays nothing.
 - Both consoles say nothing.
 
 Three things worth knowing before changing it:
@@ -638,6 +655,15 @@ backgammon's, a loader that never lets go of its bed) failed 4: the die heard as
 tone, because a Ludo table holds no backgammon pack, the bed that was heard let go after 37 ms,
 and a copy still playing after the tables were left. The sources were put back from saved copies,
 never from git.
+
+The looks' voices were proved red the same way, against a build whose Ludo board wore no
+collection, whose profile header laid its reveal without waiting for its voice, and whose poker
+board laid a card without saying it: 6 of 72 failed. The board that wore nothing failed four lines
+in both browsers (no voice heard, and no look's pack fetched), and poker failed the other player's
+line. The header failed only the strike's line, started 21 ms late against a tolerance of 20: on
+this machine the pack lands within a few tens of milliseconds of the press, so that line is a weak
+witness, and `avatar-looks.spec.ts` (*lays its reveal only once its voice can be heard*) is the
+firm one.
 
 ## The notifications pass
 

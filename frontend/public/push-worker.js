@@ -116,7 +116,7 @@ const leadOf = (row) =>
 
     if (row.kind === 'donation')
     {
-        return '/app/wallet';
+        return '/app/me/wallet';
     }
 
     if (row.ref.tableId !== undefined)

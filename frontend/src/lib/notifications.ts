@@ -68,7 +68,7 @@ export function targetOf(item: Notification): string | null
     }
     if (item.kind === 'donation')
     {
-        return '/app/wallet';
+        return '/app/me/wallet';
     }
     if (item.ref.tableId !== undefined)
     {

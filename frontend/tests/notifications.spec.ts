@@ -3,10 +3,11 @@ import { cleanup, renderTest } from '@azerothjs/testing';
 
 import type { Notification } from '../src/api.ts';
 import NotificationRow from '../src/components/social/notification-row.component.azeroth';
-import { sayOf, targetOf } from '../src/lib/notifications.ts';
+import { NOTIFICATION_ICON, sayOf, targetOf } from '../src/lib/notifications.ts';
 import { manualClock } from '../src/lib/clock.ts';
 import { decodeKey } from '../src/lib/push.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
+import { routes } from '../src/routes.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useNotifications } from '../src/stores/notifications.store.ts';
 import { usePeople } from '../src/stores/people.store.ts';
@@ -70,6 +71,25 @@ describe('where a notice leads', () =>
         ...extra
     });
 
+    it('leads every kind of notice to a page this app has', () =>
+    {
+        const app = routes.find((one) => one.path === '/app')?.children ?? [];
+        const pages = app.map((one) => new RegExp(`^/app${ one.path === '' ? '' : `/${ one.path.replace(/:[^/]+/g, '[^/]+') }` }$`));
+
+        expect(pages.length, 'the app routes were not found').toBeGreaterThan(10);
+
+        for (const kind of Object.keys(NOTIFICATION_ICON) as Notification['kind'][])
+        {
+            for (const ref of [{}, { tableId: 't-1' }, { groupId: 'g-1' }, { conversationId: 'c-1' }])
+            {
+                const target = targetOf(notice(kind, { actor: 'maya.c', ref }));
+                const path = (target ?? '/app').split('?')[0];
+
+                expect(pages.some((page) => page.test(path)), `a ${ kind } leads to ${ target ?? 'nowhere' }`).toBe(true);
+            }
+        }
+    });
+
     it('sends a friend request to the tab it is answered on, not to the sender’s profile', () =>
     {
         expect(targetOf(notice('friend-request', { actor: 'maya.c' }))).toBe('/app/friends?tab=requests');
@@ -111,7 +131,7 @@ describe('where a notice leads', () =>
 
         const given = (amount: string) => notice('donation', { actor: 'maya.c', ref: { amount } });
 
-        expect(targetOf(given('5000000000000000000'))).toBe('/app/wallet');
+        expect(targetOf(given('5000000000000000000'))).toBe('/app/me/wallet');
         expect(sayOf(given('5000000000000000000'), 'Maya', useLocale())).toBe(whole);
         expect(sayOf(given('2500000000000000000'), 'Maya', useLocale())).toBe(half);
         expect(sayOf(given('1234567000000000000'), 'Maya', useLocale()), 'a NURA figure is cut at four places, never rounded up').toBe(fine);

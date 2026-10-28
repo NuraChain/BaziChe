@@ -644,8 +644,15 @@ describe('a chess piece in the reader\'s hand', () =>
         table.drag(450, 560);
 
         const pawn = pieces().find((el) => el.hasAttribute('data-carried'))!;
+        let landed: boolean | 'late' = 'late';
 
-        expect(await Promise.race([table.advance(move('e2', 'e4', 'P')), elapse(400).then(() => 'late')])).toBe(true);
+        void table.advance(move('e2', 'e4', 'P')).then((answer) =>
+        {
+            landed = answer;
+        });
+        await elapse(400);
+
+        expect(landed).toBe(true);
         expect(of(pawn).at(-1)?.frames[0].translate).toBe(`${ cq(450 - SQUARE / 2) } ${ cq(560 - SQUARE / 2) }`);
         expect(on(sq('e4'))).toEqual([pawn]);
     });

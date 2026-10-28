@@ -115,8 +115,11 @@ beforeEach(() =>
     useLobby().reset();
 });
 
-afterEach(() =>
+afterEach(async () =>
 {
+    // The page's own chunks (the table's chat among them) may still be importing on a busy worker, and a
+    // module that lands once the file's environment is torn down is an unhandled error that fails the run.
+    await vi.dynamicImportSettled();
     tables.view = view;
     server.me = 'alex';
     cleanup();

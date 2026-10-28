@@ -1110,6 +1110,62 @@ the wallet's balance before it composes one now, whatever the node does with suc
 never named, no balance read), with the file put back from a saved copy: 8 of 37 failed, the six
 lines about the inviter, the gift's line and the wallet's that could not pay.
 
+## The donate pass
+
+**`tools/qa/donate-pass.mjs` gives NURA to a player over the api of the built server and a local
+chain**: `PGDATABASE=<the server's database> QA_BASE=http://localhost:5300 QA_TIPS=<the gifts
+contract> node tools/qa/donate-pass.mjs`, about a minute and a half, 40 checks. It wants a fresh
+hardhat node (`npx hardhat node --port 8645` in the SmartContract project), `ArcadeTips` deployed on
+it (`node tools/qa/vault-deploy.mjs` deploys it beside the vault and the shop, its admin hardhat's #8,
+who may pause it), a database nobody else uses given its schema by `sync-cli`, and the built server
+started on it with `NURA_RPC_URL`, `NURA_CHAIN_ID=31337` and `NURA_TIPS_ADDRESS`. Nothing on the
+server signs for a gift, so donations need no key. PGDATABASE names the server's database because a
+minor is marked and a gift run out by hand. The pass moves the node's clock half an hour on at its
+end, so the next run wants a new node. The refusals' statuses and the amounts are read from the
+server's own `refusals.ts` and `policy.ts`, which import nothing.
+
+Three wallets made for the run, each with a socket that counts the `me`/`donations` rings: two who
+play Ludo at a move a day, so no clock plays for anybody or ends the game while the pass works, and
+one who watches. In order: donations open with the amounts the sheet offers; a watcher who has not
+confirmed the terms of playing for NURA refused `donate-terms`, and let give once they have; both
+players offered to the watcher, nobody offered to a player of the game, and a gift from one refused
+`donate-playing`; a game nobody plays, and an amount under the least or over the most, refused; a
+gift written with its call (`tip(id, to, deadline)` from the watcher's wallet to the contract, the
+id the donation's uuid as 32 bytes, half an hour to send it), handed back the same when asked again
+by the handle in any case; the watcher's wallet sending it, the hash handed in, the worker believing
+it once the contract holds it, the player's own wallet five NURA fuller, the player rung and told
+once who sent how much, the gift in both lists and the table's chat saying who gave whom; a call
+made by hand under another gift's id to another player, found by the worker though nobody said it
+was sent, failed as `mismatch` and believed of nobody; a player who turns donations off offered to
+nobody, a gift for them answered as nobody's, and on again; a watcher marked under 18 refused
+`donate-minor`, and a player marked under 18 offered to nobody; a wallet that holds less than the
+gift told so, with what it holds, before its wallet is asked; the contract paused and giving closed
+(`donate-closed`); a refused gift leaving no row; a gift nobody sent let go of once its deadline is
+well past; and the node's clock moved past a gift's deadline, the call mined by hand with automine
+off, refused by the chain and said in the contract's word, `TipExpired`.
+
+**A gift nobody said they sent is asked about every thirty seconds** (the wallet may have sent it
+after its tab closed), so the line about the call made by hand waits up to forty-five seconds for
+the worker; a gift handed in is asked about at every sweep, three seconds apart.
+
+**`npm run schema:sync` builds the server before it syncs**, so a fault put into `.dist-backend/`
+goes in after the database is made and before the server starts. The first red run broke the build,
+then remade the database, and passed 40 of 40 against a server it had rebuilt clean.
+
+**Its first run failed one line with the product right**: a line the server writes into a chat is a
+message's `payload` on the wire, and the pass read a field called `line`.
+
+**Proved red** against two builds of the compiled donation service, each broken five ways and put
+back from saved copies. The first (a gift under its id believed whoever it went to, no balance read
+before the call, the player not rung, donations turned off ignored, the contract's word replaced by
+`reverted`) failed 10 of 40: the ring, the call made by hand confirmed and told to the player it was
+prepared for, both lines about turning donations off, the two about a short wallet and the row it
+left, and the late gift's word. The second (a gift good for three hours, every gift listed as
+received, a minor offered, a gift nobody said they sent never asked about, the chat line naming the
+giver as whom) failed 8 of 40: the half hour, the chat line, the call made by hand never found, a
+list of received gifts that was not empty, the minor, and the late gift taken by the chain and
+confirmed.
+
 ## The admin pass
 
 `tools/qa/admin-pass.mjs` runs the admin over the api of the built server: `QA_BASE=http://localhost:5310

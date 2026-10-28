@@ -7,6 +7,7 @@ paths:
   - "frontend/src/components/admin/check-row.component.azeroth"
   - "frontend/src/lib/check-words.ts"
   - "frontend/tests/admin-checks.spec.ts"
+  - "tools/qa/reconcile-pass.mjs"
 ---
 
 # Operations: the database and NuraChain, checked against each other
@@ -143,4 +144,5 @@ reads the list and the count, and the staff's close: logged, said, refused a sec
 at once, and closed until either side moves); `reconcile-sweep.spec.ts` the pass's place in
 `main.ts`; `chain-books.spec.ts` and `chain-vault.spec.ts` the books and the winners off a receipt;
 `app.spec.ts` the routes; `admin-checks.spec.ts`, `admin-overview.spec.ts` and `admin-log.spec.ts`
-the page, "Needs you" and the log's sentence.
+the page, "Needs you" and the log's sentence; `tools/qa/reconcile-pass.mjs` all of it over the built
+server and a local chain (`tools/qa/CLAUDE.md`, *The reconcile pass*).

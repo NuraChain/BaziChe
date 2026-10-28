@@ -580,6 +580,26 @@ describe('what the monitor says', () =>
         expect(said(calm, '[data-failing="none"]')).toBe('Every worker is moving.');
     });
 
+    it('lets each tile of the money on its way grow to fill its row, however many of them this server runs', async () =>
+    {
+        watching();
+        as('admin');
+
+        for (const payouts of [server.lookout.overview!.payouts, { failedLocks: 0, failing: [], reachable: true }, { stuck: 0, failedLocks: 0, failing: [], reachable: true, checks: { open: 0 } }])
+        {
+            server.lookout.overview = { ...server.lookout.overview, payouts };
+            const container = await opened();
+            const list = container.querySelector('[data-locks]')!.closest('dl')!;
+            const tiles = [...list.children] as HTMLElement[];
+
+            expect(list.className).toContain('flex-wrap');
+            expect(list.className).not.toMatch(/grid-cols-/);
+            expect(tiles.slice(0, -1).every((tile) => tile.classList.contains('grow') && tile.classList.contains('basis-48'))).toBe(true);
+            expect(tiles.at(-1)?.classList.contains('basis-full')).toBe(true);
+            cleanup();
+        }
+    });
+
     it('says it in Persian', async () =>
     {
         useLocale().setLocale('fa');
@@ -587,8 +607,8 @@ describe('what the monitor says', () =>
         const container = await opened();
 
         expect(all(container, '[data-alert-said]')).toEqual(['سفارش‌های فروشگاه که توی راهن: قدیمی‌ترینش ۱۱ دقیقه منتظر مونده']);
-        expect(said(container, '[data-sockets-hour]')).toBe('۴ باز شد · ۴ بسته شد · ۱ رد شد');
+        expect(said(container, '[data-sockets-hour]')).toBe('۴ تا باز شد · ۴ تا بسته شد · ۱ تا رد شد');
         expect(said(container, '[data-chain]')).toBe('دو بار آخر وصل نشد');
-        expect(all(container, '[data-worker]')).toEqual(['بازی‌های پولی رکورد ۱ · ۲ دقیقه هست']);
+        expect(all(container, '[data-worker]')).toEqual(['بازی‌های پولی ۱ رکورد · ۲ دقیقه هست که گیر کرده']);
     });
 });

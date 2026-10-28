@@ -595,36 +595,36 @@ export default component OverviewPage()
                                 <h2 id="overview-payouts" tabindex="-1" class="text-ui-md font-semibold text-text">{ locale.t('admin.overview.payouts') }</h2>
                                 <Link to="/admin/money" class={ LINK }>{ locale.t('admin.overview.openMoney') }</Link>
                             </div>
-                            <dl class="grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-3">
+                            <dl class="flex flex-wrap gap-px bg-line">
                                 <Show when={ payStuckShown }>
-                                    <div class="flex flex-col gap-1 bg-field px-4 py-3">
+                                    <div class="flex grow basis-48 flex-col gap-1 bg-field px-4 py-3">
                                         <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.payouts.stuck') }</dt>
                                         <dd class={ () => `tally text-ui-xl font-bold ${ payStuckTone }` } data-pay-stuck>{ payStuck }</dd>
                                     </div>
                                 </Show>
                                 <Show when={ marketsShown }>
-                                    <div class="flex flex-col gap-1 bg-field px-4 py-3">
+                                    <div class="flex grow basis-48 flex-col gap-1 bg-field px-4 py-3">
                                         <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.payouts.markets') }</dt>
                                         <dd class={ () => `tally text-ui-xl font-bold ${ marketsTone }` } data-markets-due>{ marketsCount }</dd>
                                         <dd class="text-ui-xs text-faint" data-markets-oldest>{ marketsOldest }</dd>
                                     </div>
                                 </Show>
-                                <div class="flex flex-col gap-1 bg-field px-4 py-3">
+                                <div class="flex grow basis-48 flex-col gap-1 bg-field px-4 py-3">
                                     <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.payouts.locks') }</dt>
                                     <dd class={ () => `tally text-ui-xl font-bold ${ locksTone }` } data-locks>{ locks }</dd>
                                 </div>
-                                <div class="flex flex-col gap-1 bg-field px-4 py-3">
+                                <div class="flex grow basis-48 flex-col gap-1 bg-field px-4 py-3">
                                     <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.payouts.chain') }</dt>
                                     <dd class={ () => `text-ui-base font-semibold ${ chainTone }` } data-chain>{ chainSaid }</dd>
                                 </div>
                                 <Show when={ checksShown }>
-                                    <div class="flex flex-col gap-1 bg-field px-4 py-3">
+                                    <div class="flex grow basis-48 flex-col gap-1 bg-field px-4 py-3">
                                         <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.payouts.checks') }</dt>
                                         <dd class={ () => `tally text-ui-xl font-bold ${ checksTone }` } data-checks-open>{ checksCount }</dd>
                                         <dd class="text-ui-xs text-faint" data-checks-oldest>{ checksOldest }</dd>
                                     </div>
                                 </Show>
-                                <div class="flex flex-col gap-1.5 bg-field px-4 py-3 sm:col-span-2 xl:col-span-3">
+                                <div class="flex basis-full flex-col gap-1.5 bg-field px-4 py-3">
                                     <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.payouts.failing') }</dt>
                                     <Show when={ stalled } fallback={ <dd class="text-ui-base text-muted" data-failing="none">{ locale.t('admin.overview.payouts.failingNone') }</dd> }>
                                         <dd>

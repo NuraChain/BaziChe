@@ -4514,6 +4514,23 @@ faults put in one at a time, every one caught but a guard the board already appl
 `backend/tests/chess-table-art.spec.ts` its sheet, `lobby-table-art.spec.ts` the waiting room, and
 `engine-contract.spec.ts` and `ladders.spec.ts` the engine among the others.
 
+**Each side's pieces are drawn in the set its player's match began with** (LG9; `match_players.look`,
+`pieces`), White's by whoever the server dealt White and Black's by the other, wherever the reader
+sits; the board, its coordinates and its marks stay the house's. A set is the custom properties
+`--piece-<colour><kind>` on the board's root, one a piece (`dressOf` in `game/looks/chess.ts`, from
+`public/pieces/<collection>-<colour><kind>.svg`), and every rule that draws a piece reads its own with
+the house's drawing behind it (`var(--piece-wk, url('/board/chess/wk.svg'))`). So a piece of a side in
+a set is drawn in it wherever the board draws one: on a square, in the tray of whoever took it (a piece
+taken keeps its side's set), in the promotion chooser, and as the king that marks a player's side on
+their rail; a side in Classic sets nothing and is the board's own, and the figures of the Moves tab,
+which is notation and lies outside the board, are always the ivory set. It is a property on the root
+and not a rule a collection, as the decks and checkers are, because a set is twelve drawings: a rule
+a collection and side would have been 144 declarations every page's stylesheet carries.
+`chess-looks.spec.ts` holds both sides by seat wherever the reader sits, Classic, a look of another
+kind, the root kept through a re-read and following the next game, and the trays and the chooser
+inside it; `piece-sheet.spec.ts` (server suite) every rule reading its side's property and every
+property naming a drawing the build ships.
+
 ## Drawing the board
 
 The Ludo board and its pieces are **vector art drawn from the rules' own geometry**, all of it by

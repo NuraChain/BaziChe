@@ -6212,62 +6212,62 @@ svg.lobby-board
 
 :is(.cp, .chess-promote-piece, .chess-taken > i, .chess-figure)[data-piece='wk']
 {
-    background-image: url('/board/chess/wk.svg');
+    background-image: var(--piece-wk, url('/board/chess/wk.svg'));
 }
 
 :is(.cp, .chess-promote-piece, .chess-taken > i, .chess-figure)[data-piece='bk']
 {
-    background-image: url('/board/chess/bk.svg');
+    background-image: var(--piece-bk, url('/board/chess/bk.svg'));
 }
 
 :is(.cp, .chess-promote-piece, .chess-taken > i, .chess-figure)[data-piece='wq']
 {
-    background-image: url('/board/chess/wq.svg');
+    background-image: var(--piece-wq, url('/board/chess/wq.svg'));
 }
 
 :is(.cp, .chess-promote-piece, .chess-taken > i, .chess-figure)[data-piece='bq']
 {
-    background-image: url('/board/chess/bq.svg');
+    background-image: var(--piece-bq, url('/board/chess/bq.svg'));
 }
 
 :is(.cp, .chess-promote-piece, .chess-taken > i, .chess-figure)[data-piece='wr']
 {
-    background-image: url('/board/chess/wr.svg');
+    background-image: var(--piece-wr, url('/board/chess/wr.svg'));
 }
 
 :is(.cp, .chess-promote-piece, .chess-taken > i, .chess-figure)[data-piece='br']
 {
-    background-image: url('/board/chess/br.svg');
+    background-image: var(--piece-br, url('/board/chess/br.svg'));
 }
 
 :is(.cp, .chess-promote-piece, .chess-taken > i, .chess-figure)[data-piece='wb']
 {
-    background-image: url('/board/chess/wb.svg');
+    background-image: var(--piece-wb, url('/board/chess/wb.svg'));
 }
 
 :is(.cp, .chess-promote-piece, .chess-taken > i, .chess-figure)[data-piece='bb']
 {
-    background-image: url('/board/chess/bb.svg');
+    background-image: var(--piece-bb, url('/board/chess/bb.svg'));
 }
 
 :is(.cp, .chess-promote-piece, .chess-taken > i, .chess-figure)[data-piece='wn']
 {
-    background-image: url('/board/chess/wn.svg');
+    background-image: var(--piece-wn, url('/board/chess/wn.svg'));
 }
 
 :is(.cp, .chess-promote-piece, .chess-taken > i, .chess-figure)[data-piece='bn']
 {
-    background-image: url('/board/chess/bn.svg');
+    background-image: var(--piece-bn, url('/board/chess/bn.svg'));
 }
 
 :is(.cp, .chess-promote-piece, .chess-taken > i, .chess-figure)[data-piece='wp']
 {
-    background-image: url('/board/chess/wp.svg');
+    background-image: var(--piece-wp, url('/board/chess/wp.svg'));
 }
 
 :is(.cp, .chess-promote-piece, .chess-taken > i, .chess-figure)[data-piece='bp']
 {
-    background-image: url('/board/chess/bp.svg');
+    background-image: var(--piece-bp, url('/board/chess/bp.svg'));
 }
 
 .cp[data-held]
@@ -6525,12 +6525,12 @@ svg.lobby-board
 
 .chess-side[data-side='w']
 {
-    background-image: url('/board/chess/wk.svg');
+    background-image: var(--piece-wk, url('/board/chess/wk.svg'));
 }
 
 .chess-side[data-side='b']
 {
-    background-image: url('/board/chess/bk.svg');
+    background-image: var(--piece-bk, url('/board/chess/bk.svg'));
 }
 
 .chess-tray

@@ -23,6 +23,8 @@ import { replayOf, type Replayed } from '../../game/chess-replay.ts';
 import { costOf, createChessTable, type ChessFacts, type ChessTable, type Lay } from '../../game/board/chess-table.ts';
 import { SIZE, boxOf, cellOf, placeOf, squareAt, type Foot } from '../../game/chess-layout.ts';
 import { createSound, type SoundHandle } from '../../game/sound.ts';
+import { dressOf } from '../../game/looks/chess.ts';
+import { wornOf } from '../../game/looks/table.ts';
 import type { Ctx } from '../../game/stage/director.ts';
 import { createPresenter, type Presenter, type Sight } from '../../game/stage/presenter.ts';
 import { createStage } from '../../game/stage/stage.ts';
@@ -249,6 +251,10 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
     derived offerable = live && mine !== undefined && offer === null && view !== null && movesBy(mine) > 0 && (view.offered[mine] ?? -1) < movesBy(mine);
 
     derived whoAt = (seat: number) => game.players.find((one) => one.seat === seat)?.who ?? '';
+
+    derived setAt = (seat: number) => wornOf('pieces', game.players.find((one) => one.seat === seat)?.look?.pieces);
+
+    derived dress = dressOf({ w: setAt(whiteSeat), b: setAt(1 - whiteSeat) });
 
     derived nameOf = (seat: number) =>
     {
@@ -1075,7 +1081,7 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
         return locale.t('match.turn.theirs', { name: nameOf(view.turn === 'w' ? whiteSeat : 1 - whiteSeat) });
     })();
 
-    <div data-rev={ props.match.rev } data-presenting={ presenting ? 'true' : undefined } class="table-stage chess-stage" ref={ (element) => root = element }>
+    <div data-rev={ props.match.rev } data-presenting={ presenting ? 'true' : undefined } style={ dress } class="table-stage chess-stage" ref={ (element) => root = element }>
         <div class="table-grid chess-grid">
             <Show when={ ready }>
                 { () =>

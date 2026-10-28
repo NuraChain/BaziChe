@@ -172,7 +172,7 @@ export const useDonations = createStore((): DonationsApi =>
     const settled = (id: string, deadline: string, era: number) =>
         new Promise<DonationView | null>((resolve) =>
         {
-            const until = Date.parse(deadline) + LAPSE_MS;
+            const until = useRealtime().toLocal(Date.parse(deadline)) + LAPSE_MS;
             let asking = false;
             let cancel: (() => void) | null = null;
 

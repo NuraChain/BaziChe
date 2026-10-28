@@ -311,6 +311,28 @@ describe('giving NURA', () =>
         expect(server.calls.filter((call) => call.startsWith('donations.sent'))).toEqual([]);
     });
 
+    it('waits for a gift until its deadline by the server\'s clock, however far ahead the device\'s runs', async () =>
+    {
+        await signIn(walletAt(OWNER));
+        useRealtime().start();
+        socket.accept();
+        socket.deliver({ v: 1, t: 'hello', n: 1, rt: 'nura-rt/v1', self: 'giver', at: clock.now() - 10 * 60_000 });
+
+        const { giving } = await sending();
+
+        for (let minute = 0; minute < 36; minute += 1)
+        {
+            clock.advance(60_000);
+            await settle();
+        }
+
+        settleDonation('gift-1', 'confirmed');
+        await tick();
+        await giving;
+
+        expect(useDonations().giving(), 'thirty-six minutes on, the server\'s clock is still short of the deadline').toMatchObject({ step: 'done' });
+    });
+
     it('says a gift that ran out, one the chain refused and one held as something else, each in its own words', async () =>
     {
         await signIn(walletAt(OWNER));

@@ -16,6 +16,8 @@ export const chessEngine: Engine<ChessState, ChessAction> = {
 
     formats: SEATS.map((seats) => ({ seats, variant: 'standard' })),
 
+    drawable: true,
+
     /** The colours are drawn for every game, as a die is, so at a table played for NURA they come from the fair seed. */
     create: (_seats: readonly number[], draws: Draws, table: TableConfig) => create(draws.die(2) - 1, table.clock ?? null),
 

@@ -120,6 +120,9 @@ export interface Engine<S = unknown, A = unknown>
 
     readonly formats: readonly Format[];
 
+    /** Set by an engine whose game can end level, so a market on one of its games offers a draw. */
+    readonly drawable?: true;
+
     create(seats: readonly number[], draws: Draws, table: TableConfig): Opened<S>;
 
     /**

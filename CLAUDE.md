@@ -199,6 +199,8 @@ Loaded only when a session touches the matching code:
 - `.claude/rules/identity-and-profile.md` - signing in, the Nura Profile, NFTs.
 - `.claude/rules/stakes.md` - playing for NURA: the vault, who may play, the signed Ready, the lock
   and the payout.
+- `.claude/rules/markets.md` - backing a game's outcome with NURA: where markets are offered, who
+  may take a position, the tickets, the worker that settles or calls a market off, and the claims.
 - `.claude/rules/admin.md` - running the platform: the staff and their roles, and the log every
   change writes.
 - `tools/blender/CLAUDE.md` and `tools/qa/CLAUDE.md` - the 3D asset kit and the browser passes.

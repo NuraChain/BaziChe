@@ -4,6 +4,7 @@ import { RARITY_IDS } from './domains/achieve/rarity.ts';
 import { PARTY_ENDS, PARTY_STAGES } from './domains/party/rules.ts';
 import { SHOP_COLLECTIONS, SLOT_IDS } from './domains/shop/catalogue.ts';
 import { DONATE_MAY, DONATION_STATES } from './domains/donate/policy.ts';
+import { MARKET_MAY, MARKET_STATES, POSITION_STATES } from './domains/market/policy.ts';
 import { ORDER_STATES, OWNED_VIA, SHOP_MAY } from './domains/shop/policy.ts';
 import { VARIANTS } from './domains/match/sides.ts';
 import { BREAK_DAYS, ELIGIBILITIES, ESCROW_STATES } from './domains/stake/policy.ts';
@@ -859,6 +860,122 @@ export const donationPlayersQuery = object({ match: string({ max: 64 }) });
 export const donationsAccepting = object({ accepting: boolean() });
 
 export const donationsAcceptInput = object({ on: boolean() });
+
+/** Whether markets are open here, and for the reader: whether they may take a position, and the limits, in wei. */
+export const marketsState = union([
+    object({ open: literal(false) }),
+    object({
+        open: literal(true),
+        may: enumOf(MARKET_MAY),
+        presets: array(string()),
+        least: string(),
+        most: string(),
+        perBettor: string(),
+        perDay: string(),
+        pool: string(),
+        feeBps: number(),
+
+        /** Seconds a market takes positions for once its game has started. */
+        window: number()
+    })
+]);
+
+export type MarketsState = Infer<typeof marketsState>;
+
+/** One outcome of a market: a seat and who sits in it, a side and who plays on it, or a draw. */
+export const marketChoice = union([
+    object({ kind: literal('seat'), seat: number(), who: string() }),
+    object({ kind: literal('side'), seats: array(number()), who: array(string()) }),
+    object({ kind: literal('draw') })
+]);
+
+export type MarketChoice = Infer<typeof marketChoice>;
+
+/** One of the reader's positions as it stands, and what it came to once its market was resolved. */
+export const marketPosition = object({
+    id: string(),
+    market: string(),
+    match: string(),
+    game: string(),
+    outcome: number(),
+
+    /** Wei. */
+    amount: string(),
+    state: enumOf(POSITION_STATES),
+    deadline: string(),
+    hash: string().optional(),
+
+    /** The chain's word for a placement it refused. */
+    failure: string().optional(),
+    at: string(),
+    confirmedAt: string().optional(),
+
+    /** Once its market is resolved and the chain held it: its outcome happened, it did not, or every stake went back. */
+    result: enumOf(['won', 'lost', 'refund']).optional(),
+
+    /** Wei: what claiming it pays, from the pools the chain holds. */
+    payout: string().optional(),
+    claimableAt: string().optional(),
+    claimedAt: string().optional(),
+
+    /** Wei: what its claim paid, read off the claim's receipt. */
+    paid: string().optional(),
+    claimHash: string().optional()
+});
+
+export type MarketPositionView = Infer<typeof marketPosition>;
+
+/** A market on one game: its outcomes and the stakes held on each, its state, and the reader's own positions. */
+export const marketView = object({
+    id: string(),
+    match: string(),
+    game: string(),
+    state: enumOf(MARKET_STATES),
+    closesAt: string(),
+    feeBps: number(),
+    minBettors: number(),
+    minOutcomes: number(),
+
+    /** Each outcome with the stakes the chain holds on it, in wei. */
+    outcomes: array(object({ choice: marketChoice, pool: string() })),
+    pool: string(),
+    bettors: number(),
+
+    /** The outcome that happened, once the game is over and the market was not called off. */
+    outcome: number().optional(),
+    claimableAt: string().optional(),
+    hash: string().optional(),
+    mine: array(marketPosition)
+});
+
+export type MarketView = Infer<typeof marketView>;
+
+/** A position, and the call the reader's wallet sends to place it. */
+export const marketPaying = object({ position: marketPosition, call: walletCall });
+
+export type MarketPaying = Infer<typeof marketPaying>;
+
+export const marketPositionInput = object({
+    outcome: number({ int: true, min: 0, max: 15 }),
+
+    /** Wei. */
+    amount: string({ pattern: /^[0-9]{1,40}$/ })
+});
+
+export const marketSentInput = object({ hash: string({ pattern: /^0x[0-9a-fA-F]{64}$/ }) });
+
+export const marketPositions = object({ positions: array(marketPosition), cursor: string().optional() });
+
+export type MarketPositions = Infer<typeof marketPositions>;
+
+export const marketPositionsQuery = object({ cursor: string({ max: 80 }).optional() });
+
+export const marketClaimInput = object({ positions: array(string({ max: 64 }), { min: 1, max: 50 }) });
+
+export const marketClaimSentInput = object({
+    hash: string({ pattern: /^0x[0-9a-fA-F]{64}$/ }),
+    positions: array(string({ max: 64 }), { min: 1, max: 50 })
+});
 
 export const nftItem = object({
     contract: string(),

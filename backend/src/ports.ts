@@ -6,6 +6,11 @@ import type {
     DonationView,
     Donations,
     DonationsState,
+    MarketPaying,
+    MarketPositions,
+    MarketPositionView,
+    MarketsState,
+    MarketView,
     AdminPeople,
     AdminPerson,
     AdminMatches,
@@ -648,6 +653,40 @@ export interface DonatePort
     history(me: string, side: 'given' | 'received', cursor: string | null): Promise<Donations>;
 }
 
+/** A header of the request, by name: the reader's country is the one the proxy writes. */
+export type HeaderOf = (name: string) => string | null;
+
+/** People watching a game backing one of its outcomes with NURA, in a pool the winners share. */
+export interface MarketPort
+{
+    /** Whether markets are open here, whether the reader may take a position where they are, and the limits. */
+    state(me: string, header: HeaderOf): Promise<MarketsState>;
+
+    /** That the reader read what a market is; answers the state as it now is. */
+    disclose(me: string, header: HeaderOf): Promise<MarketsState>;
+
+    /** The market on a game the reader may watch: its outcomes, the stakes held on each, and the reader's own. */
+    view(me: string, header: HeaderOf, matchId: string): Promise<MarketView>;
+
+    /** A position on one outcome, and the call the reader's wallet sends to place it. */
+    place(me: string, header: HeaderOf, marketId: string, input: { outcome: number; amount: string }): Promise<MarketPaying>;
+
+    /** One of the reader's positions; anything else is `market-missing`. */
+    one(me: string, id: string): Promise<MarketPositionView>;
+
+    /** The transaction the reader's wallet sent for a position. */
+    sent(me: string, id: string, hash: string): Promise<MarketPositionView>;
+
+    /** The reader's positions, newest first, fifty a page. */
+    positions(me: string, cursor: string | null): Promise<MarketPositions>;
+
+    /** The claim of the positions named that the contract would pay now, for the reader's wallet to send. */
+    claim(me: string, ids: readonly string[]): Promise<WalletCall>;
+
+    /** The claim the reader's wallet sent; what it paid is read off its receipt. */
+    claimSent(me: string, hash: string, ids: readonly string[]): Promise<MarketPositions>;
+}
+
 export interface AdminPort
 {
     vault(me: string): Promise<AdminVault | null>;
@@ -737,5 +776,6 @@ export interface Ports
     vault: VaultPort;
     shop: ShopPort;
     donate: DonatePort;
+    markets: MarketPort;
     admin: AdminPort;
 }

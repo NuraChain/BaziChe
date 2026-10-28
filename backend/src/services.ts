@@ -32,6 +32,7 @@ import { teamsOf } from './domains/table/teams.ts';
 import { createChainProfiles, recordValue } from './chain/profile.ts';
 import { createNftReader } from './chain/nfts.ts';
 import { createShopChain, type ShopChain } from './chain/shop.ts';
+import { createMarketsChain, type MarketsChain } from './chain/markets.ts';
 import { createTipsChain, type TipsChain } from './chain/tips.ts';
 import { createVault, type Vault } from './chain/vault.ts';
 import { GAME_SEEDS } from './db/seed-reference.ts';
@@ -49,6 +50,7 @@ import { worn, type ProfileLooks } from './domains/shop/looks.ts';
 import { createOrderService, type ShopSweep } from './domains/shop/orders.ts';
 import { donationLineOf } from './domains/donate/line.ts';
 import { createDonationService, type DonateSweep } from './domains/donate/service.ts';
+import { createMarketService, type MarketSweep } from './domains/market/service.ts';
 import { createShopService } from './domains/shop/service.ts';
 import { createReportsService } from './domains/admin/reports.ts';
 import { createStaffService } from './domains/admin/staff.ts';
@@ -59,7 +61,7 @@ import { createSocialService, type PersonRow } from './domains/social/service.ts
 import type { ServerConfig } from './env.ts';
 import { readSessionToken, SESSION_TTL_SECONDS } from './http/auth.ts';
 import type { OpsReader } from './http/ops.ts';
-import type { MatchEventLog, Ports } from './ports.ts';
+import type { HeaderOf, MatchEventLog, Ports } from './ports.ts';
 import type {
     Account,
     ChatMessage,
@@ -96,7 +98,7 @@ export interface WriteListener
     chatSeen(conversationId: string, userId: string): void;
     socialChanged(...userIds: string[]): void;
     edgesChanged(...userIds: string[]): void;
-    selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'vault' | 'shop' | 'donations'): void;
+    selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'vault' | 'shop' | 'donations' | 'markets'): void;
     gamePushed(pushes: readonly { userId: string; match: MatchView; events: MatchEventLog[] }[]): void;
     gameWatched(viewers: readonly string[], match: MatchView, events: MatchEventLog[]): void;
     tableChanged(tableId: string, people: readonly string[]): void;
@@ -145,6 +147,7 @@ export interface Services extends Ports
         sweepStakes(forMs: number): Promise<StakeSweep>;
         sweepShop(forMs: number): Promise<ShopSweep>;
         sweepDonations(forMs: number): Promise<DonateSweep>;
+        sweepMarkets(forMs: number): Promise<MarketSweep>;
         waiting(): Promise<{ game: string; mode: string; players: number; tables: number; oldest: number }[]>;
         otherServers(): Promise<number>;
         tidy(): Promise<Record<string, number>>;
@@ -162,7 +165,7 @@ const WATCHABLE_MAX = 48;
 
 const WAITING_SEATS = 500;
 
-export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain, tipsChain?: TipsChain): Services
+export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain, tipsChain?: TipsChain, marketsChain?: MarketsChain): Services
 {
     const here = (userIds: readonly string[]) => presence?.present(userIds) ?? new Set(userIds);
 
@@ -1167,6 +1170,27 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         }
     });
 
+    const markets = createMarketService(
+        db,
+        marketsChain ?? createMarketsChain({ rpcUrl: config.rpcUrl, chainId: config.chainId, markets: config.marketsAddress, operatorKey: config.refereeKey }),
+        ENGINES,
+        new Set(config.marketCountries),
+        (me) => stakes.standingOf(me),
+        (tableId, userIds) => table.mayWatch(tableId, userIds),
+        {
+            changed(tableId, userIds)
+            {
+                for (const userId of new Set([...(tableId === null ? [] : presence?.looking?.(tableId) ?? []), ...userIds]))
+                {
+                    live?.selfChanged(userId, 'markets');
+                }
+            }
+        }
+    );
+
+    /** Where the reader is, by the header the proxy writes, asked only where markets are offered at all. */
+    const countryOf = (header: HeaderOf) => (markets.open ? header(config.marketCountryHeader) : null);
+
     const walkAway = async (me: string, tableId: string, forfeit: boolean) =>
     {
         const before = await mustTable(me, tableId);
@@ -1645,6 +1669,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             sweepStakes: (forMs) => stakes.sweep(forMs),
             sweepShop: (forMs) => orders.sweep(forMs),
             sweepDonations: (forMs) => donations.sweep(forMs),
+            sweepMarkets: (forMs) => markets.sweep(forMs),
             waiting: () => table.waitingByGame(),
             otherServers,
             tidy,
@@ -1810,6 +1835,18 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             one: (me, id) => donations.one(me, id),
             sent: (me, id, hash) => donations.sent(me, id, hash),
             history: (me, side, cursor) => donations.history(me, side, cursor)
+        },
+
+        markets: {
+            state: (me, header) => markets.state(me, countryOf(header)),
+            disclose: (me, header) => markets.disclose(me, countryOf(header)),
+            view: (me, header, matchId) => markets.view(me, countryOf(header), matchId),
+            place: (me, header, marketId, input) => markets.place(me, countryOf(header), marketId, input),
+            one: (me, id) => markets.one(me, id),
+            sent: (me, id, hash) => markets.sent(me, id, hash),
+            positions: (me, cursor) => markets.positions(me, cursor),
+            claim: (me, ids) => markets.claim(me, ids),
+            claimSent: (me, hash, ids) => markets.claimSent(me, hash, ids)
         },
 
         admin: {

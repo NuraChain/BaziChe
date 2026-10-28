@@ -22,6 +22,12 @@ export const shopArtifact = (root = process.env.QA_CONTRACTS ?? '../SmartContrac
 export const tipsArtifact = (root = process.env.QA_CONTRACTS ?? '../SmartContract/artifacts/contracts/baziche') =>
     JSON.parse(readFileSync(`${ root }/ArcadeTips.sol/ArcadeTips.json`, 'utf8'));
 
+export const marketsArtifact = (root = process.env.QA_CONTRACTS ?? '../SmartContract/artifacts/contracts/baziche') =>
+    JSON.parse(readFileSync(`${ root }/ArcadeMarkets.sol/ArcadeMarkets.json`, 'utf8'));
+
+/** A minute, where a deployment waits fifteen: long enough to overturn a market by hand, short enough for a pass to wait out. */
+export const MARKETS_DISPUTE = 60n;
+
 export async function deployVault(rpc = process.env.QA_RPC ?? 'http://127.0.0.1:8645', root = undefined)
 {
     const { abi, bytecode } = vaultArtifact(root);
@@ -76,7 +82,22 @@ export async function deployTips(rpc = process.env.QA_RPC ?? 'http://127.0.0.1:8
     return { tips: receipt.contractAddress };
 }
 
+/** `ArcadeMarkets`, its admin the vault's and its operator the vault's referee: the server signs tickets and settles with one key. */
+export async function deployMarkets(rpc = process.env.QA_RPC ?? 'http://127.0.0.1:8645', root = undefined)
+{
+    const { abi, bytecode } = marketsArtifact(root);
+    const admin = privateKeyToAccount(VAULT_ADMIN_KEY);
+    const operator = privateKeyToAccount(VAULT_REFEREE_KEY);
+    const chain = { ...hardhat, rpcUrls: { default: { http: [rpc] } } };
+    const wallet = createWalletClient({ account: admin, chain, transport: http(rpc) });
+    const reader = createPublicClient({ chain, transport: http(rpc) });
+    const hash = await wallet.deployContract({ abi, bytecode, args: [admin.address, operator.address, MARKETS_DISPUTE] });
+    const receipt = await reader.waitForTransactionReceipt({ hash });
+
+    return { markets: receipt.contractAddress, operator: operator.address };
+}
+
 if (import.meta.url === `file:///${ process.argv[1].replaceAll('\\', '/') }` || import.meta.url.endsWith(process.argv[1].replaceAll('\\', '/')))
 {
-    console.log(JSON.stringify({ ...await deployVault(), ...await deployShop(), ...await deployTips() }));
+    console.log(JSON.stringify({ ...await deployVault(), ...await deployShop(), ...await deployTips(), ...await deployMarkets() }));
 }

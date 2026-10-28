@@ -498,6 +498,51 @@ const sweepDonations = () =>
 giving = setTimeout(sweepDonations, DONATION_SWEEP_MS);
 giving.unref();
 
+const MARKET_SWEEP_MS = 3_000;
+
+const MARKET_SWEEP_BUDGET_MS = 4_000;
+
+let marketing: NodeJS.Timeout | null = null;
+
+const marketsTold = new Map<string, string>();
+
+const sweepMarkets = () =>
+{
+    void ports.jobs.sweepMarkets(MARKET_SWEEP_BUDGET_MS)
+        .then(({ faults, ...moved }) =>
+        {
+            if (Object.values(moved).some((count) => count > 0))
+            {
+                log.info('markets moved', moved);
+            }
+
+            const now = new Map(faults.map((one) => [one.market, one.error]));
+
+            for (const [market, error] of now)
+            {
+                if (marketsTold.get(market) !== error)
+                {
+                    log.warn('market step failed', { market, error });
+                }
+            }
+
+            marketsTold.clear();
+            now.forEach((error, market) => marketsTold.set(market, error));
+        })
+        .catch((error: unknown) => log.error('market sweep failed', { error }))
+        .finally(() =>
+        {
+            if (marketing !== null)
+            {
+                marketing = setTimeout(sweepMarkets, MARKET_SWEEP_MS);
+                marketing.unref();
+            }
+        });
+};
+
+marketing = setTimeout(sweepMarkets, MARKET_SWEEP_MS);
+marketing.unref();
+
 handleShutdownSignals(served, {
     /**
      * The window where connections are still live.
@@ -540,6 +585,11 @@ handleShutdownSignals(served, {
         {
             clearTimeout(giving);
             giving = null;
+        }
+        if (marketing !== null)
+        {
+            clearTimeout(marketing);
+            marketing = null;
         }
 
         goingDown = true;

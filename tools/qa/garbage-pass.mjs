@@ -57,6 +57,7 @@ const QUERIES = {
     '/shop/orders': ['cursor'],
     '/donations/history': ['side', 'cursor'],
     '/donations/players': ['match'],
+    '/markets/positions': ['cursor'],
     '/admin/log': ['cursor', 'staff', 'person', 'kind'],
     '/admin/people': ['q', 'list', 'cursor'],
     '/admin/people/:handle/history': ['cursor'],
@@ -116,6 +117,10 @@ const BODIES = {
     '/shop/orders/:id/sent': (bad) => [{ hash: bad.slice(0, 66) }, { hash: `0x${ 'ab'.repeat(32) }` }],
     '/donations': (bad) => [{ match: bad.slice(0, 64), to: bad.slice(0, 64), amount: '5000000000000000000' }, { match: bad.slice(0, 36), to: 'dana.w', amount: bad.slice(0, 40) }],
     '/donations/:id/sent': (bad) => [{ hash: bad.slice(0, 66) }, { hash: `0x${ 'ab'.repeat(32) }` }],
+    '/markets/:id/positions': (bad) => [{ outcome: 0, amount: bad.slice(0, 40) }, { outcome: bad.length % 16, amount: '1000000000000000000' }],
+    '/markets/positions/:id/sent': (bad) => [{ hash: bad.slice(0, 66) }, { hash: `0x${ 'ab'.repeat(32) }` }],
+    '/markets/claims': (bad) => [{ positions: [bad.slice(0, 64)] }, { positions: [bad.slice(0, 36), bad.slice(0, 64)] }],
+    '/markets/claims/sent': (bad) => [{ hash: `0x${ 'ab'.repeat(32) }`, positions: [bad.slice(0, 64)] }, { hash: bad.slice(0, 66), positions: [bad.slice(0, 36)] }],
     '/admin/vault/fee': (bad) => [{ bps: bad.length }],
     '/admin/vault/game-fee': (bad) => [{ game: bad.slice(0, 32), bps: 700 }, { game: 'hokm', bps: bad.length }],
     '/admin/vault/referee': (bad) => [{ address: bad.slice(0, 64) }],
@@ -144,7 +149,7 @@ const SPARED = new Set([
     '/parties/:id/accept', '/parties/:id/decline', '/parties/:id/leave',
     '/notifications/:id/read', '/notifications/read-all', '/notifications/:id/dismiss', '/devices/:id/revoke', '/devices/recovery/off',
     '/chat/:id/read', '/chat/:id/expiry', '/chat/:id/pin', '/vault/terms', '/vault/break', '/admin/vault/pause',
-    '/shop/earnings/claim', '/donations/accepting'
+    '/shop/earnings/claim', '/donations/accepting', '/markets/disclosure'
 ]);
 
 const SIGNED_OUT = new Set(['/auth/challenge', '/auth/wallet']);

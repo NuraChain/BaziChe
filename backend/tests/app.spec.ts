@@ -1219,6 +1219,136 @@ describe('the shop', () =>
     });
 });
 
+describe('markets', () =>
+{
+    const POSITION = { id: 'p-1', market: 'k-1', match: 'm-1', game: 'ludo', outcome: 1, amount: '5000000000000000000', state: 'prepared', deadline: '2026-10-28T10:02:00.000Z', at: '2026-10-28T10:00:00.000Z' };
+
+    const CALL = { from: '0x00000000000000000000000000000000A11ce001', to: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512', data: '0x', value: '0x4563918244f40000', chainId: 1020 };
+
+    const STATE = { open: true, may: 'yes', presets: ['1000000000000000000'], least: '1000000000000000000', most: '500000000000000000000', perBettor: '1', perDay: '2', pool: '3', feeBps: 0, window: 90 };
+
+    const VIEW = { id: 'k-1', match: 'm-1', game: 'ludo', state: 'open', closesAt: '2026-10-28T10:01:30.000Z', feeBps: 0, minBettors: 2, minOutcomes: 2, outcomes: [{ choice: { kind: 'draw' }, pool: '0' }], pool: '0', bettors: 0, mine: [] };
+
+    const SENT = `0x${ 'AB'.repeat(32) }`;
+
+    const ANSWERS: Record<string, unknown> = {
+        state: STATE,
+        disclose: STATE,
+        view: VIEW,
+        place: { position: POSITION, call: CALL },
+        positions: { positions: [POSITION] },
+        one: POSITION,
+        sent: { ...POSITION, state: 'sent', hash: SENT.toLowerCase() },
+        claim: CALL,
+        claimSent: { positions: [POSITION] }
+    };
+
+    /** Every verb told the port with what it was handed; a header the port is handed is asked for the country there and then. */
+    const marketsAs = (told: unknown[][], who: unknown = { userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' }) => buildApp({
+        db: fakeDb({ initialized: true }),
+        config,
+        log: silent,
+        ports: {
+            identity: { principal: () => Promise.resolve(who) },
+            markets: Object.fromEntries(Object.entries(ANSWERS).map(([verb, answer]) => [verb, (...said: unknown[]) =>
+            {
+                told.push([verb, ...said.map((one) => (typeof one === 'function' ? `country ${ String((one as (name: string) => string | null)('cf-ipcountry')) }` : one))]);
+
+                return Promise.resolve(answer);
+            }]))
+        } as unknown as Ports
+    });
+
+    const send = (app: ReturnType<typeof buildApp>, path: string, body?: unknown) =>
+        app.handle(new Request(`http://local/api${ path }`, {
+            ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }),
+            headers: { 'content-type': 'application/json', 'cf-ipcountry': 'DE' }
+        }));
+
+    it('is markets, a game\'s market, positions and their claims, for somebody signed in', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = marketsAs(told, null);
+        const manifest = await (await app.handle(new Request('http://local/api/_manifest'))).json() as Record<string, Record<string, { method: string; path: string }>>;
+
+        expect(Object.entries(manifest.markets).map(([name, route]) => `${ name } ${ route.method } ${ route.path }`).sort()).toEqual([
+            'claim POST /markets/claims',
+            'claimSent POST /markets/claims/sent',
+            'disclose POST /markets/disclosure',
+            'game GET /markets/matches/:match',
+            'one GET /markets/positions/:id',
+            'place POST /markets/:id/positions',
+            'positions GET /markets/positions',
+            'sent POST /markets/positions/:id/sent',
+            'state GET /markets'
+        ]);
+
+        for (const route of Object.values(manifest.markets))
+        {
+            const path = route.path.replace(':id', 'k-1').replace(':match', 'm-1');
+            const answer = route.method === 'GET' ? await app.handle(new Request(`http://local/api${ path }`)) : await send(app, path, {});
+
+            expect(answer.status, `${ route.method } ${ path }`).toBe(401);
+        }
+
+        expect(told).toEqual([]);
+    });
+
+    it('tells the port who asked and the header the country is read from, and hands on what it answers', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = marketsAs(told);
+        const read = async (path: string) => await (await send(app, path)).json();
+
+        expect(await read('/markets')).toEqual(STATE);
+        expect(await (await send(app, '/markets/disclosure', {})).json()).toEqual(STATE);
+        expect(await read('/markets/matches/m-1')).toEqual(VIEW);
+        expect(await (await send(app, '/markets/k-1/positions', { outcome: 1, amount: '5000000000000000000' })).json()).toEqual(ANSWERS.place);
+        expect(await read('/markets/positions?cursor=abc')).toEqual(ANSWERS.positions);
+        expect(await read('/markets/positions/p-1')).toEqual(POSITION);
+        expect(await (await send(app, '/markets/positions/p-1/sent', { hash: SENT })).json()).toEqual(ANSWERS.sent);
+        expect(await (await send(app, '/markets/claims', { positions: ['p-1'] })).json()).toEqual(CALL);
+        expect(await (await send(app, '/markets/claims/sent', { hash: SENT, positions: ['p-1'] })).json()).toEqual(ANSWERS.claimSent);
+
+        expect(told).toEqual([
+            ['state', 'somebody', 'country DE'],
+            ['disclose', 'somebody', 'country DE'],
+            ['view', 'somebody', 'country DE', 'm-1'],
+            ['place', 'somebody', 'country DE', 'k-1', { outcome: 1, amount: '5000000000000000000' }],
+            ['positions', 'somebody', 'abc'],
+            ['one', 'somebody', 'p-1'],
+            ['sent', 'somebody', 'p-1', SENT],
+            ['claim', 'somebody', ['p-1']],
+            ['claimSent', 'somebody', SENT, ['p-1']]
+        ]);
+    });
+
+    it('refuses an outcome, an amount, a transaction or a list of positions that cannot be one before the port is asked', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = marketsAs(told);
+        const many = Array.from({ length: 51 }, (_, index) => `p-${ index }`);
+
+        for (const body of [{}, { outcome: 16, amount: '1' }, { outcome: -1, amount: '1' }, { outcome: 1.5, amount: '1' }, { outcome: 0, amount: '1.5' }, { outcome: 0, amount: '9'.repeat(41) }, { outcome: 0 }])
+        {
+            expect((await send(app, '/markets/k-1/positions', body)).status, JSON.stringify(body)).toBe(422);
+        }
+
+        for (const body of [{}, { hash: 'nope' }, { hash: `0x${ 'ab'.repeat(31) }` }])
+        {
+            expect((await send(app, '/markets/positions/p-1/sent', body)).status, JSON.stringify(body)).toBe(422);
+        }
+
+        for (const body of [{}, { positions: [] }, { positions: many }, { positions: ['x'.repeat(65)] }])
+        {
+            expect((await send(app, '/markets/claims', body)).status, JSON.stringify(body).slice(0, 60)).toBe(422);
+            expect((await send(app, '/markets/claims/sent', { hash: SENT, ...body })).status, JSON.stringify(body).slice(0, 60)).toBe(422);
+        }
+
+        expect(told).toEqual([]);
+    });
+});
+
 describe('the owner\'s view of the vault', () =>
 {
     const owned = (told: unknown[][], answer: unknown) => buildApp({

@@ -46,6 +46,16 @@ import {
     donationsQuery,
     donationSentInput,
     donationsState,
+    marketClaimInput,
+    marketClaimSentInput,
+    marketPaying,
+    marketPosition,
+    marketPositionInput,
+    marketPositions,
+    marketPositionsQuery,
+    marketSentInput,
+    marketsState,
+    marketView,
     adminClearInput,
     adminHistoryQuery,
     adminLiftInput,
@@ -657,6 +667,39 @@ export function buildApi(ports: Ports)
 
             sent: routes.post('/:id/sent', { input: donationSentInput, output: donation },
                 (context) => ports.donate.sent(context.principal.userId, context.params.id, context.input.hash))
+        })),
+
+        markets: feature('/markets', [session], (routes) => ({
+            state: routes.get('/', { output: marketsState }, (context) =>
+                ports.markets.state(context.principal.userId, (name) => context.request.headers.get(name))),
+
+            disclose: routes.post('/disclosure', { output: marketsState }, (context) =>
+                ports.markets.disclose(context.principal.userId, (name) => context.request.headers.get(name))),
+
+            /** The market on a game the reader may watch, opened the first time anybody asks while it may take positions. */
+            game: routes.get('/matches/:match', { output: marketView }, (context) =>
+                ports.markets.view(context.principal.userId, (name) => context.request.headers.get(name), context.params.match)),
+
+            /**
+             * A position, and the call the reader's wallet sends to place it. Nothing is held for the
+             * answer: the position counts once `ArcadeMarkets` holds it under its ticket.
+             */
+            place: routes.post('/:id/positions', { input: marketPositionInput, output: marketPaying }, (context) =>
+                ports.markets.place(context.principal.userId, (name) => context.request.headers.get(name), context.params.id, context.input)),
+
+            positions: routes.get('/positions', { query: marketPositionsQuery, output: marketPositions },
+                (context) => ports.markets.positions(context.principal.userId, context.query.cursor ?? null)),
+
+            one: routes.get('/positions/:id', { output: marketPosition }, (context) => ports.markets.one(context.principal.userId, context.params.id)),
+
+            sent: routes.post('/positions/:id/sent', { input: marketSentInput, output: marketPosition },
+                (context) => ports.markets.sent(context.principal.userId, context.params.id, context.input.hash)),
+
+            claim: routes.post('/claims', { input: marketClaimInput, output: walletCall },
+                (context) => ports.markets.claim(context.principal.userId, context.input.positions)),
+
+            claimSent: routes.post('/claims/sent', { input: marketClaimSentInput, output: marketPositions },
+                (context) => ports.markets.claimSent(context.principal.userId, context.input.hash, context.input.positions))
         })),
 
         social: feature('/social', [session], (routes) => ({

@@ -14,7 +14,7 @@ import { hokmOf } from '../../data/match.ts';
 import { coachOf, outcomeOf } from '../../game/helpers/hokm.ts';
 import { BANNER_IN, BANNER_OUT, CARRY, COLLECT_GAP, DRAW_GAP, LIFT, NAMING, PLUS, SHUFFLE, TURN, TURN_GAP, dealGap, dealtIn, gatherOrder, holdBefore, openingPackets, restPackets, spanOf, type Packet } from '../../game/hokm-beats.ts';
 import { EMPTY, HISTORY, before, feltOf, sameAs, step, unplay, type Felt, type Laid, type Told } from '../../game/hokm-felt.ts';
-import { burstAt, cardsOf, dressCards, lean, unlean } from '../../game/looks/cards.ts';
+import { cardsOf, dressCards, lean, playAt, unlean } from '../../game/looks/cards.ts';
 import { heardAt } from '../../game/looks/table.ts';
 import { EASE, TIMING, centreOf, flightFrames, outside, rectIn, type Rect } from '../../game/motion.ts';
 import { createSound, endCue, type SoundHandle } from '../../game/sound.ts';
@@ -937,7 +937,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
         return dressCards(node, lookAt(seat));
     };
 
-    /** Where a card in its owner's look lands on the felt, that look's voice and its burst. */
+    /** Where a card in its owner's look lands on the felt, that look's voice and its signature. */
     const sparkAt = (seat: number, card: HTMLElement) =>
     {
         const worn = facesAt(seat);
@@ -954,9 +954,9 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             return;
         }
 
-        const { effect, at, tune } = burstAt(worn, rectIn(bursts, card));
+        const { steps, at, tune } = playAt(worn, rectIn(bursts, card));
 
-        effects?.play((vfx) => vfx.burst(effect, at, tune));
+        effects?.play((vfx) => vfx.signature(steps, at, tune));
     };
 
     const moved = (event: PointerEvent) =>

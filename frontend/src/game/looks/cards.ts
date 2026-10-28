@@ -1,6 +1,7 @@
 import type { MatchPlayer } from '../../data/match.ts';
 import { centreOf, type Rect } from '../motion.ts';
-import { burstOf, wornOf, type Collection } from './table.ts';
+import type { Step } from '../vfx/engine.ts';
+import { lightOf, wornOf, type Collection } from './table.ts';
 
 /** The collections a player's cards wear: their faces' and their backs', each null for Classic. */
 export function cardsOf(look: MatchPlayer['look'])
@@ -31,15 +32,34 @@ export function dressCards<Node extends HTMLElement>(node: Node, look: MatchPlay
     return node;
 }
 
-/** How many of a burst's own unit fit across the card it plays round. */
-const BURST_FITS = 40;
+/** How many of a signature's own unit fit across the card it plays round. */
+const PLAY_FITS = 40;
 
-/** The burst a card in a look plays where it lands: its collection's, round the card's middle and sized to it. */
-export function burstAt(collection: Collection, card: Rect)
+/**
+ * What a card in a look plays under itself where it is laid: its collection's signature, its
+ * layers at their moments, all of it over within about a second, before the next card lands.
+ * Storm cracks twice, as its motion does, and Frost's shatter is cut short so its shards stay
+ * round the card rather than cross the felt.
+ */
+const PLAYS = {
+    glow: [{ effect: 'pulse', tune: { intensity: 0.6 } }, { effect: 'stars', after: 40 }],
+    shiraz: [{ effect: 'shockwave', tune: { intensity: 0.5 } }, { effect: 'dust', after: 60, tune: { density: 1.6 } }],
+    neon: [{ effect: 'sparks' }, { effect: 'pulse', after: 30 }],
+    gold: [{ effect: 'burst' }],
+    inferno: [{ effect: 'cracks' }, { effect: 'embers', after: 200 }],
+    storm: [{ effect: 'discharge' }, { effect: 'pulse', after: 40 }, { effect: 'discharge', after: 150, tune: { intensity: 0.6 } }],
+    astral: [{ effect: 'starburst' }, { effect: 'shockwave', after: 60 }],
+    void: [{ effect: 'implosion' }, { effect: 'release', after: 240 }],
+    jade: [{ effect: 'sigil' }, { effect: 'dust', after: 220, tune: { density: 1.4 } }],
+    frost: [{ effect: 'crystals' }, { effect: 'shatter', after: 320, tune: { duration: 460, density: 0.7 } }],
+    phoenix: [{ effect: 'flare' }, { effect: 'embers', after: 100 }],
+    oni: [{ effect: 'glitch' }, { effect: 'scan', after: 60 }]
+} as const satisfies Record<Collection, readonly Step[]>;
+
+/** The signature a card in a look plays where it lands: its collection's, round the card's middle, sized to it and in its light. */
+export function playAt(collection: Collection, card: Rect)
 {
-    const { effect, tune } = burstOf(collection);
-
-    return { effect, at: centreOf(card), tune: { ...tune, scale: card.width / BURST_FITS } };
+    return { steps: PLAYS[collection], at: centreOf(card), tune: { colors: lightOf(collection), scale: card.width / PLAY_FITS } };
 }
 
 /** Leans a card toward the pointer over it, by `--hx` and `--hy` on the element listening, for its holographic edge to follow; a finger leans nothing. */

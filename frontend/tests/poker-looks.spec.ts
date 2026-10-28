@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fire } from '@azerothjs/testing';
 
+import { playAt } from '../src/game/looks/cards.ts';
 import { lightOf } from '../src/game/looks/table.ts';
 import { CARD_FLY, CARD_GAP, CHIP_FLY, DISC_GAP, GATHER, GATHER_GAP, MUCK, MUCK_GAP, TURN } from '../src/game/poker-beats.ts';
 import { manualClock } from '../src/lib/clock.ts';
@@ -18,6 +19,9 @@ interface Burst
     preset: string;
     at: { x: number; y: number };
     tune: { colors?: readonly string[]; scale?: number };
+
+    /** A signature's layers; its first names it in `preset`. */
+    steps?: readonly { effect: string }[];
 }
 
 const engine = vi.hoisted(() => ({ made: 0, hosts: [] as HTMLElement[], quiet: [] as (() => boolean)[], bursts: [] as Burst[], disposed: 0 }));
@@ -31,6 +35,7 @@ vi.mock('../src/game/vfx/engine.ts', () => ({
 
         return {
             burst: (preset: string, at: Burst['at'], tune: Burst['tune']) => engine.bursts.push({ preset, at, tune }),
+            signature: (steps: readonly { effect: string }[], at: Burst['at'], tune: Burst['tune']) => engine.bursts.push({ preset: steps[0]!.effect, steps, at, tune }),
             stream: () => () => undefined,
             dispose: () =>
             {
@@ -233,7 +238,7 @@ describe('a hand in a look shown at the end', () =>
         await elapse(TURN + CARD_GAP);
         await vi.waitFor(() => expect(engine.bursts).toHaveLength(2));
 
-        expect(engine.bursts.map((one) => one.preset)).toEqual(['sparks', 'sparks']);
+        expect(engine.bursts.map((one) => one.steps), 'a card laid did not play its collection\'s signature').toEqual([0, 1].map(() => playAt('neon', { x: 0, y: 0, width: 20, height: 28 }).steps));
         expect(engine.bursts.map((one) => one.at), 'a card burst away from where it was laid on the felt').toEqual([{ x: 86, y: 544 }, { x: 100, y: 544 }]);
         expect(engine.bursts[0]!.tune.colors).toEqual(lightOf('neon'));
         expect(engine.bursts[0]!.tune.scale).toBeCloseTo(20 / 40);

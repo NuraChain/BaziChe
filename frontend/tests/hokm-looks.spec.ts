@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fire } from '@azerothjs/testing';
 
+import { playAt } from '../src/game/looks/cards.ts';
 import { lightOf } from '../src/game/looks/table.ts';
 import { TIMING } from '../src/game/motion.ts';
 import { manualClock } from '../src/lib/clock.ts';
@@ -17,6 +18,9 @@ interface Burst
     preset: string;
     at: { x: number; y: number };
     tune: { colors?: readonly string[]; scale?: number };
+
+    /** A signature's layers; its first names it in `preset`. */
+    steps?: readonly { effect: string }[];
 }
 
 const engine = vi.hoisted(() => ({ made: 0, hosts: [] as HTMLElement[], quiet: [] as (() => boolean)[], bursts: [] as Burst[], disposed: 0 }));
@@ -30,6 +34,7 @@ vi.mock('../src/game/vfx/engine.ts', () => ({
 
         return {
             burst: (preset: string, at: Burst['at'], tune: Burst['tune']) => engine.bursts.push({ preset, at, tune }),
+            signature: (steps: readonly { effect: string }[], at: Burst['at'], tune: Burst['tune']) => engine.bursts.push({ preset: steps[0]!.effect, steps, at, tune }),
             stream: () => () => undefined,
             dispose: () =>
             {
@@ -236,11 +241,11 @@ describe('a hokm card flying in its owner\'s look', () =>
     });
 });
 
-describe('the burst where a hokm card in a look is laid', () =>
+describe('the signature where a hokm card in a look is laid', () =>
 {
     const trick = () => boxes((element) => (element.classList.contains('hokm-trick') ? at(200, 200, 60, 85) : null));
 
-    it('plays its faces\' collection where it lands, sized to the card, and nothing while it is in the air', async () =>
+    it('plays its faces\' collection\'s signature where it lands, sized to the card, and nothing while it is in the air', async () =>
     {
         trick();
 
@@ -258,7 +263,7 @@ describe('the burst where a hokm card in a look is laid', () =>
 
         const [landing] = engine.bursts;
 
-        expect(landing!.preset).toBe('sparks');
+        expect(landing!.steps, 'the card did not play its collection\'s signature').toBe(playAt('neon', at(0, 0, 60, 85)).steps);
         expect(landing!.at).toEqual({ x: 230, y: 242.5 });
         expect(landing!.tune.colors).toEqual(lightOf('neon'));
         expect(landing!.tune.scale).toBeCloseTo(60 / 40);
@@ -273,9 +278,24 @@ describe('the burst where a hokm card in a look is laid', () =>
 
         fire(container.querySelector<HTMLButtonElement>('.card-hold[data-card="40"]')!, 'click');
         await elapse(TIMING.FLY + 10);
-        await vi.waitFor(() => expect(engine.bursts.map((one) => one.preset)).toEqual(['stars']));
+        await vi.waitFor(() => expect(engine.bursts.map((one) => one.preset)).toEqual(['pulse']));
 
+        expect(engine.bursts[0]!.steps).toBe(playAt('glow', at(0, 0, 60, 85)).steps);
         expect(engine.bursts[0]!.tune.colors).toEqual(lightOf('glow'));
+    });
+
+    it('plays a legendary collection\'s own signature, in its own light', async () =>
+    {
+        trick();
+
+        const { send } = await mounted(table({}, 0, { 1: { face: 'face.void' } }));
+
+        send([card(4, 1, 12)]);
+        await elapse(TIMING.FLY_THEIRS);
+        await vi.waitFor(() => expect(engine.bursts.map((one) => one.preset)).toEqual(['implosion']));
+
+        expect(engine.bursts[0]!.steps!.map((one) => one.effect)).toEqual(['implosion', 'release']);
+        expect(engine.bursts[0]!.tune.colors).toEqual(lightOf('void'));
     });
 
     it('fetches nothing and plays nothing for a card in Classic or in a look nothing draws', async () =>

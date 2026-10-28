@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
+import { playAt } from '../src/game/looks/cards.ts';
 import { createVfx, PAGE_CEILING, qualityOf, type Quality, type Vfx, type VfxOptions } from '../src/game/vfx/engine.ts';
 import { FAMILIES, FAMILY_STREAMS, type Family, type FamilyStream } from '../src/game/vfx/families.ts';
 import { make, radial, rolling, seeded, TRAIL_EVERY, type Shape } from '../src/game/vfx/presets.ts';
@@ -499,5 +501,29 @@ describe('a stream given an area', () =>
     it('gives off across the same places with the same seed', () =>
     {
         expect(run({ width: 600, height: 100 })).toEqual(run({ width: 600, height: 100 }));
+    });
+});
+
+describe('a card\'s signature, as a table plays it', () =>
+{
+    /** Longer than any card's signature lasts to its faintest tail, so one that lingers or streams is caught. */
+    const SPENT_MS = 2_500;
+
+    it.each([...SHOP_COLLECTIONS])('lays a card of %s with a signature that is spent within two and a half seconds, whatever its roll', (collection) =>
+    {
+        const { steps, at, tune } = playAt(collection, { x: 90, y: 60, width: 60, height: 85 });
+
+        for (let seed = 1; seed <= 6; seed += 1)
+        {
+            const vfx = made(recording());
+
+            vfx.signature(steps, at, { ...tune, seed });
+
+            expect(vfx.live()).toBeGreaterThan(0);
+
+            clock.advance(SPENT_MS);
+
+            expect(vfx.live(), `seed ${ seed } was still drawing`).toBe(0);
+        }
     });
 });

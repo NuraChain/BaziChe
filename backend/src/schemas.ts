@@ -2359,33 +2359,14 @@ export const matchPlayInput = object({
 });
 
 /**
- * A game as a spectator sees it: the board, and how far behind it is.
- *
- * `behind` travels, and the screen says it. A delay somebody is not told about is a product that
- * looks broken - a watcher sees a move land three turns after the room reacted to it - and saying
- * it plainly is also the honest thing, because the reason for it is that a live board in a
- * stranger's hands is a coaching channel.
+ * A game as a spectator sees it: the board as it stands, which is the engine's view for no seat.
  *
  * The board inside is an ordinary `matchView` with no `mine` and no `moves`, so it draws through
  * the same renderer a player uses. A watcher has no chair and no legal moves, and a view that
- * cannot name one cannot offer one.
+ * cannot name one cannot offer one; nor a hand, a hole card or anything else a seat keeps to itself.
  */
 export const matchWatch = object({
     match: matchView,
-
-    /** Seconds behind the live game. Zero once it has finished, when there is nothing left to leak. */
-    behind: number(),
-
-    /**
-     * The RULE, in seconds, as distinct from the measurement above.
-     *
-     * They come apart the moment nobody moves: a table idle for twelve minutes serves a board
-     * twelve minutes old, and a screen that reported only `behind` said "twelve minutes behind" -
-     * which reads as the delay being twelve minutes rather than as nothing having happened. The
-     * policy is what a watcher needs to understand why they are behind; the measurement is what
-     * tells them the game has gone quiet.
-     */
-    delay: number(),
 
     /** Whether the game is still being played. */
     live: boolean(),

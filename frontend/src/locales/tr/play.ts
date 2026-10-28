@@ -234,19 +234,7 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'watch.gone': 'Bu oyunun dışındasın.',
     'watch.finished': 'Bu oyun bitti',
     'watch.back': 'Masaya dön',
-    'watch.behind': {
-        one: 'Gördüğün tahta, oynadıkları tahtanın en az {count} dakika gerisinde.',
-        other: 'Gördüğün tahta, oynadıkları tahtanın en az {count} dakika gerisinde.'
-    },
-    'watch.behind.seconds': {
-        one: 'Gördüğün tahta, oynadıkları tahtanın en az {count} saniye gerisinde.',
-        other: 'Gördüğün tahta, oynadıkları tahtanın en az {count} saniye gerisinde.'
-    },
-    'watch.quiet': {
-        one: 'Bu masada {count} dakikadır hiçbir şey olmadı.',
-        other: 'Bu masada {count} dakikadır hiçbir şey olmadı.'
-    },
-    'watch.why': 'İzleyen herkes aynı süre geriden izler, böylece kimse kenardan akıl veremez.',
+    'watch.why': 'Oyunu canlı izlersin; yalnızca oyuncunun gördüğünü, örneğin elindeki kartları, asla görmezsin.',
     'watch.refused': 'Burada izleyebileceğin bir şey yok. Oyun az önce bitmiş olabilir ya da sana açık değil.',
     'watch.live': 'Süren oyunlar',
     'watch.join': 'İzle',

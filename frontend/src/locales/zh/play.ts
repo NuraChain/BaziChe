@@ -234,16 +234,7 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'watch.gone': '你已不在这局中。',
     'watch.finished': '这局已经结束',
     'watch.back': '回到桌子',
-    'watch.behind': {
-        other: '你看到的棋盘比他们正在下的至少慢 {count} 分钟。'
-    },
-    'watch.behind.seconds': {
-        other: '你看到的棋盘比他们正在下的至少慢 {count} 秒。'
-    },
-    'watch.quiet': {
-        other: '这张桌子已经 {count} 分钟没有动静了。'
-    },
-    'watch.why': '所有观众都延迟同样的时间，所以没人能在场外指点。',
+    'watch.why': '你看到的是实时的对局，但永远看不到只有玩家自己能看到的内容，比如他手里的牌。',
     'watch.refused': '这里没有你能看的。对局可能刚结束，或者不对你开放。',
     'watch.live': '进行中的对局',
     'watch.join': '观战',

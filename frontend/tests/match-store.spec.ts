@@ -327,6 +327,36 @@ describe('playing over the socket', () =>
     });
 });
 
+describe('a seat that gave up while the others play on', () =>
+{
+    const watched = (n: number, id: string, rev: number): ServerFrame =>
+        ({ v: 1, t: 'watch', n, at: 400_000, match: board(rev, { id, mine: undefined }), events: [rolled(rev)] });
+
+    it('reads its own board when the game it sits out moves, and keeps its seat', async () =>
+    {
+        const since = vi.fn(async () => ({ match: board(3, { players: [{ seat: 0, who: 'alex', timeouts: 0, result: 'abandoned' }, { seat: 1, who: 'sara.k', timeouts: 0 }] as MatchView['players'] }), events: [rolled(2), rolled(3)] }));
+
+        matches.since = since;
+        socket.deliver(watched(3, 'match-1', 3));
+        await vi.waitFor(() => expect(useBoard().match()?.rev).toBe(3), { timeout: 2000 });
+
+        expect(since).toHaveBeenCalledTimes(1);
+        expect(useBoard().match()?.mine, 'the board pushed to the watchers was taken for this seat\'s own').toBe(0);
+    });
+
+    it('asks nothing for a game it is not looking at', async () =>
+    {
+        const since = vi.fn(async () => ({ match: board(3), events: [] }));
+
+        matches.since = since;
+        socket.deliver(watched(3, 'match-2', 3));
+        await settle();
+
+        expect(since).not.toHaveBeenCalled();
+        expect(useBoard().match()?.rev).toBe(1);
+    });
+});
+
 describe('what a board is told of a move', () =>
 {
     const pushed = (n: number, rev: number, events: MatchEvent[]): ServerFrame =>

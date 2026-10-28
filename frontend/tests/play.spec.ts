@@ -1667,17 +1667,16 @@ describe('PlayPage', () =>
         });
 
         it.each([
-            ['en', 'You are out of this game.', 'The board you see is at least 30 seconds behind the one they are playing on.'],
-            ['fa', 'از این بازی اومدی بیرون.', 'صفحه‌ای که می‌بینی دست‌کم ۳۰ ثانیه از بازی اصلی عقب‌تر']
-        ] as const)('tells somebody who gave up that they are watching the rest from behind, in %s', async (language, out, behind) =>
+            ['en', 'You are out of this game.'],
+            ['fa', 'از این بازی اومدی بیرون.']
+        ] as const)('tells somebody who gave up that they are out, and never that they watch from behind, in %s', async (language, out) =>
         {
             useLocale().setLocale(language);
 
             const { container } = await resignedAt();
             const told = container.querySelector('[data-gone]');
 
-            expect(told?.textContent).toContain(out);
-            expect(told?.textContent).toContain(behind);
+            expect(told?.textContent, 'the board was said to be behind').toBe(out);
             expect(told?.getAttribute('role')).toBe('status');
         });
 
@@ -1704,7 +1703,7 @@ describe('PlayPage', () =>
             expect(container.querySelectorAll('.table-stage')).toHaveLength(1);
             expect(container.querySelector('[data-gone]')).not.toBeNull();
 
-            server.watches[held.matchId!] = { match: watched, behind: 30, delay: 30, live: true };
+            server.watches[held.matchId!] = { match: watched, live: true };
 
             try
             {
@@ -1799,7 +1798,7 @@ describe('PlayPage', () =>
                 expect(control(container, 'play.lobby.leave')).toBeDefined();
             });
 
-            it('is not told it is watching from behind, which only somebody who walked away is', async () =>
+            it('is not told it is out, which only somebody who walked away is', async () =>
             {
                 const { container } = await bustedAt();
 
@@ -2023,7 +2022,7 @@ describe('PlayPage', () =>
             }
         });
 
-        it('draws the board somebody is watching, a while behind, once the page has fetched it', async () =>
+        it('draws the board somebody is watching once the page has fetched it', async () =>
         {
             const { container, lobby, held } = await opened('omid.k');
 
@@ -2047,8 +2046,6 @@ describe('PlayPage', () =>
                         seats: colours.map((colour, seat) => ({ seat, colour, tokens: [0, 1, 2, 3].map((piece) => ({ piece, at: -1 })), home: 0, out: false, side: seat }))
                     }
                 },
-                behind: 30,
-                delay: 30,
                 live: true
             };
             held.matchId = 'match-9';
@@ -2085,8 +2082,6 @@ describe('PlayPage', () =>
                         seats: colours.map((colour, seat) => ({ seat, colour, tokens: [0, 1, 2, 3].map((piece) => ({ piece, at: -1 })), home: 0, out: false, side: seat }))
                     }
                 },
-                behind: 30,
-                delay: 30,
                 live: true
             };
 
@@ -2106,24 +2101,11 @@ describe('PlayPage', () =>
             const marked = [frame, ...frame.querySelectorAll('*')];
             const before = reads();
 
-            expect(frame.textContent).not.toContain(useLocale().plural('watch.quiet', 3));
-
             watch.retry();
             await vi.waitFor(() => expect(reads()).toBeGreaterThan(before), { timeout: 4000 });
             await settle();
 
             expect(marked.filter((node) => !container.contains(node)).length, 'the watched board was drawn again').toBe(0);
-
-            seen.behind = 180;
-
-            const again = reads();
-
-            watch.retry();
-            await vi.waitFor(() => expect(reads()).toBeGreaterThan(again), { timeout: 4000 });
-            await settle();
-
-            expect(container.contains(frame), 'the watched board was drawn again').toBe(true);
-            expect(frame.textContent).toContain(useLocale().plural('watch.quiet', 3));
         });
 
         it('keeps the game somebody is watching through its end, reads the end once, and gives the table back when they ask', async () =>
@@ -2150,8 +2132,6 @@ describe('PlayPage', () =>
                         seats: colours.map((colour, seat) => ({ seat, colour, tokens: [0, 1, 2, 3].map((piece) => ({ piece, at: -1 })), home: 0, out: false, side: seat }))
                     }
                 },
-                behind: 30,
-                delay: 30,
                 live: true
             };
 
@@ -2169,7 +2149,6 @@ describe('PlayPage', () =>
             expect(back(), 'the way back was offered over a game still being played').toBeUndefined();
 
             seen.live = false;
-            seen.behind = 0;
             seen.match.rev = 5;
             delete held.matchId;
             await lobby.refresh();
@@ -2210,8 +2189,6 @@ describe('PlayPage', () =>
                     startedAt: new Date(400_000).toISOString(),
                     view: { kind: 'ludo', moves: [], controls: 0, seats: [] }
                 },
-                behind: live ? 30 : 0,
-                delay: 30,
                 live
             });
 
@@ -3437,8 +3414,6 @@ describe('PlayPage', () =>
                 startedAt: new Date(400_000).toISOString(),
                 view: { kind: 'ludo', moves: [], controls: 0, seats: [] }
             },
-            behind: 30,
-            delay: 30,
             live: true
         } as Watched);
 
@@ -3463,8 +3438,6 @@ describe('PlayPage', () =>
                 startedAt: new Date(400_000).toISOString(),
                 view: { kind: 'ludo', moves: [], controls: 0, seats: [] }
             },
-            behind: 30,
-            delay: 30,
             live: true
         } as Watched);
 

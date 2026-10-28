@@ -1,7 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
-import { WATCH_DELAY_MS } from '../../backend/src/domains/match/turns.ts';
 import { armPress, hideTab, judge, keyframesOf, pressOf, seriesOf, watchKeyframes } from './motion.mjs';
 import { BASE, clearTables, launch, pressable, recorder, seat, waitFor, walletSeat } from './seats.mjs';
 import { tableBody } from './tables.mjs';
@@ -800,7 +799,7 @@ try
         }
     }
 
-    console.log('\n[6] somebody watching is shown a bet with its chips in the air, and no sooner than the delay');
+    console.log('\n[6] somebody watching is shown a bet with its chips in the air, the moment it is made');
     {
         await watcher.page.goto(`${ BASE }/app/play/${ tableId }`, { waitUntil: 'networkidle' });
         record('somebody who is not at the table is shown it', await waitFor(async () => await watcher.page.locator('main .poker-stage').count() > 0, 15000));
@@ -815,22 +814,16 @@ try
         {
             const told = watched.current.rev + 1;
             const revOf = async () => Number(await watcher.page.locator('main .table-stage').getAttribute('data-rev'));
-            const sentAt = Date.now();
 
+            record('the watcher\'s table is the live one', await level(watcher, watched.current.rev), `revision ${ await revOf() } of ${ watched.current.rev }`);
             await watchAir(watcher.page);
+
+            const asked = Date.now();
+
             await post(watched.actor, watched.current, { kind: 'poker', verb: 'call' });
-            await watcher.page.waitForTimeout(20000);
-            record('twenty seconds after a bet the watcher has not been shown it', await revOf() < told, `revision ${ await revOf() } of ${ told }`);
 
-            const next = await turnOf();
-
-            if (next.actor !== undefined && next.current.finishedAt === undefined)
-            {
-                await post(next.actor, next.current, along(next.current.view));
-            }
-
-            const reached = await waitFor(async () => await revOf() >= told, 20000);
-            const waited = Date.now() - sentAt;
+            const reached = await waitFor(async () => await revOf() >= told, 5000);
+            const waited = Date.now() - asked;
 
             await watcher.page.waitForTimeout(700);
 
@@ -839,7 +832,7 @@ try
             const flying = arrived !== -1 && frames.slice(arrived, arrived + 45).some((frame) => Object.values(frame.kinds).includes('disc'));
 
             record('the bet reaches the watcher by itself, with no reload', reached, `revision ${ await revOf() } of ${ told }`);
-            record('no sooner than the delay', waited >= WATCH_DELAY_MS - 1500, `${ (waited / 1000).toFixed(1) }s after it was made`);
+            record('within two seconds of it being sent', reached && waited <= 2000, `${ (waited / 1000).toFixed(2) }s after it was sent`);
             record('and its chips are seen in the air', flying, `the table was at revision ${ told } from frame ${ arrived }`);
         }
     }

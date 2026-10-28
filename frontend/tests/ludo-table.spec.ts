@@ -2187,7 +2187,7 @@ describe('the ludo table, played from what happened', () =>
         vi.spyOn(usePeople(), 'want').mockImplementation(async () => undefined);
 
         const { before, after } = closing();
-        const [watch, setWatch] = createSignal<Watched>({ match: seen(before, null, 1), behind: 30, delay: 30, live: true });
+        const [watch, setWatch] = createSignal<Watched>({ match: seen(before, null, 1), live: true });
         const [told, setTold] = createSignal<EventBatch>(NO_EVENTS);
         const { container } = renderTest(() => WatchBoard({
             get watch()
@@ -2208,7 +2208,7 @@ describe('the ludo table, played from what happened', () =>
 
         batch(() =>
         {
-            setWatch({ match: wonBy(after.state, null, 2), behind: 0, delay: 30, live: false });
+            setWatch({ match: wonBy(after.state, null, 2), live: false });
             setTold({ seq: 1, id: 'match-9', events: [happened(2, 1, after.moves)], live: true, jump: false });
         });
         await flush();

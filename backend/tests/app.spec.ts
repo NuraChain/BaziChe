@@ -1627,8 +1627,6 @@ describe('watching a game', () =>
             view: ludoEngine.view(ludoEngine.create([0, 1], { die: () => 1 }, { target: 0, cube: false, blinds: 'low', variant: 'standard' }).state, null),
             startedAt: '2026-10-12T00:00:00.000Z'
         },
-        behind: 31,
-        delay: 30,
         live: true,
         events: [{ rev: 3, seat: 0, at: '2026-10-12T00:00:31.000Z', log: { kind: 'ludo', moves: [{ e: 'roll', seat: 0, die: 4 }] } }]
     };
@@ -1681,7 +1679,7 @@ describe('watching a game', () =>
         const body = await (await call(watchedAs([], answer), '/api/matches/a-match/watch?rev=0')).json() as Record<string, unknown>;
 
         expect(body.events).toEqual(shown.events);
-        expect(Object.keys(body).sort()).toEqual(['behind', 'delay', 'events', 'live', 'match']);
+        expect(Object.keys(body).sort()).toEqual(['events', 'live', 'match']);
     });
 
     it('answers nothing to watch in one sentence, whatever revision was asked from', async () =>

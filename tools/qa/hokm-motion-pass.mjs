@@ -1,4 +1,3 @@
-import { WATCH_DELAY_MS } from '../../backend/src/domains/match/turns.ts';
 import { armPress, hideTab, judge, keyframesOf, pressOf, seriesOf, watchKeyframes } from './motion.mjs';
 import { BASE, clearTables, launch, recorder, seat, waitFor } from './seats.mjs';
 import { tableBody } from './tables.mjs';
@@ -647,7 +646,7 @@ try
         }
     }
 
-    console.log('\n[5] somebody watching sees the card fly, and no sooner than the delay');
+    console.log('\n[5] somebody watching sees the card fly, the moment it is played');
     {
         const watched = await forward((current) => current.view.phase === 'tricks' && current.view.trick.length < 3);
 
@@ -657,40 +656,30 @@ try
         }
         else
         {
-            await reza.page.waitForTimeout(WATCH_DELAY_MS + 3000);
-            record('once the table has been quiet for the delay, the watcher\'s table is the live one', await level(reza, watched.current.rev), `revision ${ watched.current.rev }`);
-            await watchCards(reza.page);
+            record('the watcher\'s table is the live one', await level(reza, watched.current.rev), `revision ${ watched.current.rev }`);
 
             const card = watched.current.view.plays[0];
-            const sentAt = Date.now();
-
-            await post(watched.actor, watched.current, { kind: 'hokm', verb: 'card', card });
-
-            const moved = await stateFor(dana);
-
-            await reza.page.waitForTimeout(25000);
-
-            const early = flightsOf(await cardsOf(reza.page));
-            const revision = await reza.page.locator('main .table-stage').getAttribute('data-rev');
-
-            record('for twenty-five seconds after a card is played nothing on the watcher\'s table moves', early.length === 0 && Number(revision) === watched.current.rev, `${ early.length } flights, revision ${ revision } of ${ moved.rev }`);
-
             const from = await seatSpot(reza.page, watched.current.view.turn);
 
             await watchCards(reza.page);
 
-            const restarted = Date.now();
+            const sampling = Date.now();
+            const asked = Date.now();
+
+            await post(watched.actor, watched.current, { kind: 'hokm', verb: 'card', card });
+
+            const moved = await stateFor(dana);
 
             record('the card reaches the watcher by itself, with no reload', await level(reza, moved.rev), `revision ${ await reza.page.locator('main .table-stage').getAttribute('data-rev') } of ${ moved.rev }`);
             await reza.page.waitForTimeout(300);
 
             const late = await cardsOf(reza.page);
             const flight = flightsOf(late).find((one) => one.kind === `turn ${ card }`);
-            const waited = flight === undefined ? 0 : restarted + flight.first.at - sentAt;
+            const waited = flight === undefined ? null : sampling + flight.first.at - asked;
 
             record('the watcher sees it leave as a back and turn over', flight !== undefined && flight.sides === 'down>up', flight === undefined ? flightsOf(late).map((one) => one.kind).join() : flight.sides);
             flown('from that seat\'s cards to the felt', late, flight, from, await spot(reza.page, `.hokm-trick[data-card="${ card }"] .card-face`));
-            record('and no sooner than the delay', waited >= WATCH_DELAY_MS - 1500, `${ (waited / 1000).toFixed(1) }s after it was played`);
+            record('and within two seconds of it being sent', waited !== null && waited <= 2000, waited === null ? 'it never flew' : `${ (waited / 1000).toFixed(2) }s after it was sent`);
         }
     }
 

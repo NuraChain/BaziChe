@@ -231,19 +231,7 @@ export const play = {
     'watch.gone': 'You are out of this game.',
     'watch.finished': 'This game is over',
     'watch.back': 'Back to the table',
-    'watch.behind': {
-        one: 'The board you see is at least {count} minute behind the one they are playing on.',
-        other: 'The board you see is at least {count} minutes behind the one they are playing on.'
-    },
-    'watch.behind.seconds': {
-        one: 'The board you see is at least {count} second behind the one they are playing on.',
-        other: 'The board you see is at least {count} seconds behind the one they are playing on.'
-    },
-    'watch.quiet': {
-        one: 'Nothing has happened at this table for {count} minute.',
-        other: 'Nothing has happened at this table for {count} minutes.'
-    },
-    'watch.why': 'Everyone watching is behind by the same amount, so nobody can be coached from the sidelines.',
+    'watch.why': 'You watch it live, and you never see what only a player sees, such as the cards in their hand.',
     'watch.refused': 'There is nothing here for you to watch. The game may have just ended, or it is not open to you.',
     'watch.live': 'Games in progress',
     'watch.join': 'Watch',

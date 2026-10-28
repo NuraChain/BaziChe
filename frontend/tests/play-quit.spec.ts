@@ -114,7 +114,7 @@ describe('a chair given up from somewhere else, at a board that is on the page',
 
             const { mine: _theirs, ...watched } = walkedOut(id);
 
-            server.watches[held.matchId] = { match: watched, behind: 30, delay: 30, live: true };
+            server.watches[held.matchId] = { match: watched, live: true };
             delete held.chairs[0].who;
             await useLobby().refresh();
 

@@ -5,7 +5,7 @@ import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import { OPENING_MS, useBoard, type MatchEvent } from '../src/stores/match.store.ts';
 import { NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.store.ts';
-import { WATCH_POLL_MS, useWatch } from '../src/stores/watch.store.ts';
+import { useWatch } from '../src/stores/watch.store.ts';
 import { WATCH_TAIL } from '../../backend/src/domains/match/turns.ts';
 import type { MatchView, MatchWatch } from '../src/api.ts';
 import { ApiError, client } from './fake-api.ts';
@@ -65,8 +65,6 @@ const answerOf = (id: string, rev: string): MatchWatch =>
 
     return {
         match: board(id, game.rev),
-        behind: game.live ? 30 : 0,
-        delay: 30,
         live: game.live,
         events: game.rev - from > WATCH_TAIL ? [] : game.ledger.filter((event) => event.rev > from && event.rev <= game.rev)
     };
@@ -149,7 +147,7 @@ describe('watching a game', () =>
         useWatch().open('match-1');
         await settle();
 
-        expect(Object.keys(useWatch().view()!).sort()).toEqual(['behind', 'delay', 'live', 'match']);
+        expect(Object.keys(useWatch().view()!).sort()).toEqual(['live', 'match']);
         expect(useWatch().events()).toMatchObject({ id: 'match-1', live: true, jump: false });
     });
 
@@ -423,26 +421,17 @@ describe('what makes a watcher look again', () =>
         expect(asked.length, 'a ring of everything, which is all a browser with no socket ever hears').toBe(before + 2);
     });
 
-    it('is the half minute going by, while the tab is on show', async () =>
+    it('is never the clock: a game nothing happens in is not asked about again', async () =>
     {
         useWatch().open('match-1');
         await settle();
 
         const before = asked.length;
 
-        clock.advance(WATCH_POLL_MS);
+        clock.advance(120_000);
         await settle();
 
-        expect(asked.length).toBe(before + 1);
-
-        const state = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
-
-        clock.advance(WATCH_POLL_MS);
-        await settle();
-
-        expect(asked.length, 'a hidden tab went on asking').toBe(before + 1);
-
-        state.mockRestore();
+        expect(asked.length, 'the watch was read on a timer').toBe(before);
     });
 
     it('stops once the game is over: the end is read, played, and nothing is asked again', async () =>
@@ -456,13 +445,12 @@ describe('what makes a watcher look again', () =>
         useWatch().settle();
         await settle();
 
-        expect(useWatch().view()).toMatchObject({ live: false, behind: 0 });
+        expect(useWatch().view()).toMatchObject({ live: false });
         expect(revs(), 'the last moves were not handed to the board').toEqual([4, 5]);
 
         const before = asked.length;
 
         useWatch().settle();
-        clock.advance(WATCH_POLL_MS * 2);
         ring('match-1');
         ring();
         await settle();
@@ -473,6 +461,95 @@ describe('what makes a watcher look again', () =>
         await settle();
 
         expect(asked.length, 'somebody who presses Try again is still answered').toBe(before + 1);
+    });
+});
+
+/** A move of the game being watched, as the socket pushes it to somebody watching: the board for no seat and the move's events. */
+const pushed = (id: string, rev: number, events: MatchEvent[], live = true) =>
+    socket.deliver({ v: 1, t: 'watch', n: 4, at: 0, match: { ...board(id, rev), ...(live ? {} : { finishedAt: new Date(500_000).toISOString() }) }, events });
+
+describe('a move pushed to somebody watching', () =>
+{
+    it('is shown the moment it comes, with its events, and asks the server nothing', async () =>
+    {
+        games['match-1'].rev = 3;
+        played('match-1', 3);
+        useWatch().open('match-1');
+        await settle();
+
+        const before = asked.length;
+
+        pushed('match-1', 4, [told(4)]);
+        await settle();
+
+        expect(useWatch().view()?.match.rev).toBe(4);
+        expect(revs(), 'the move was not handed to the board').toEqual([4]);
+        expect(asked.length, 'a pushed move was read back over http').toBe(before);
+
+        pushed('match-1', 6, [told(5, 1), told(6)]);
+        await settle();
+
+        expect(useWatch().view()?.match.rev).toBe(6);
+        expect(revs()).toEqual([5, 6]);
+        expect(asked.length).toBe(before);
+    });
+
+    it('reads back what it missed when a move does not follow the board it holds, and takes no push twice', async () =>
+    {
+        games['match-1'].rev = 3;
+        played('match-1', 3);
+        useWatch().open('match-1');
+        await settle();
+
+        games['match-1'].rev = 6;
+        played('match-1', 6);
+
+        const before = asked.length;
+
+        pushed('match-1', 6, [told(6)]);
+        await settle();
+
+        expect(asked.at(-1), 'the gap was not read back from the board held').toEqual({ id: 'match-1', rev: '3' });
+        expect(asked.length).toBe(before + 1);
+        expect(revs(), 'the moves it missed were not played in order').toEqual([4, 5, 6]);
+
+        const seen = useWatch().events().seq;
+
+        pushed('match-1', 6, [told(6)]);
+        await settle();
+
+        expect(useWatch().events().seq, 'a move it already holds was played again').toBe(seen);
+        expect(asked.length).toBe(before + 1);
+    });
+
+    it('is nothing for another game, for a game it stopped watching, or for one that is over', async () =>
+    {
+        useWatch().open('match-1');
+        await settle();
+
+        const before = asked.length;
+        const seq = useWatch().events().seq;
+
+        pushed('match-2', 2, [told(2)]);
+        await settle();
+
+        expect([useWatch().view()?.match.rev, useWatch().events().seq, asked.length]).toEqual([1, seq, before]);
+
+        pushed('match-1', 2, [told(2)], false);
+        await settle();
+
+        expect(useWatch().view()).toMatchObject({ live: false });
+
+        pushed('match-1', 3, [told(3)]);
+        await settle();
+
+        expect(useWatch().view()?.match.rev, 'a game that is over took another move').toBe(2);
+
+        useWatch().close();
+        pushed('match-1', 4, [told(4)]);
+        await settle();
+
+        expect(useWatch().view()).toBeNull();
     });
 });
 

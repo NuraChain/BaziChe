@@ -863,7 +863,7 @@ describe('the backgammon table on the page', () =>
                 { seat: 1, who: 'omid.k', timeouts: 0, result: 'won' }
             ] as MatchView['players']
         });
-        const [watch, setWatch] = createSignal<Watched>({ match: ending, behind: 30, delay: 30, live: true });
+        const [watch, setWatch] = createSignal<Watched>({ match: ending, live: true });
         const [told, setTold] = createSignal<EventBatch>(NO_EVENTS);
         const { container } = renderTest(() => WatchBoard({
             get watch()
@@ -884,7 +884,7 @@ describe('the backgammon table on the page', () =>
 
         batch(() =>
         {
-            setWatch({ match: ended, behind: 0, delay: 30, live: false });
+            setWatch({ match: ended, live: false });
             setTold({
                 seq: 1,
                 id: ended.id,

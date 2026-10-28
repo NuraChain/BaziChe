@@ -3,7 +3,6 @@ import { mkdirSync } from 'node:fs';
 import { CHECKERS, OFF } from '../../backend/src/domains/match/backgammon/board.ts';
 import { settle, stage, turns } from '../../backend/src/domains/match/backgammon/moves.ts';
 import { VALUE, kindOf } from '../../backend/src/domains/match/backgammon/scoring.ts';
-import { WATCH_DELAY_MS } from '../../backend/src/domains/match/turns.ts';
 import { BAR_LEFT, BAR_WIDTH, HEIGHT, POINT_WIDTH, TRAY, TRAY_LEFT, WIDTH, columnOf } from '../../frontend/src/game/backgammon-layout.ts';
 import { countsOf, differs, expectedOf, menOf, planOf, tonesOf } from './backgammon-routes.mjs';
 import { armPress, bystanders, diceOf, faceOf, hideTab, judge, keyframesOf, leavingFindings, leavingOf, pressOf, seriesOf, smooth, stopWatching, travelOf, unkeyedIn, watch, watchKeyframes, watchLeaving } from './motion.mjs';
@@ -626,7 +625,7 @@ try
         await diceTold('after a reload', gone, back.view);
     }
 
-    console.log('\n[7] somebody watching, half a minute behind');
+    console.log('\n[7] somebody watching, live');
 
     await omid.page.goto(`${ BASE }/app/play/${ tableId }`, { waitUntil: 'networkidle' });
 
@@ -644,34 +643,23 @@ try
         const before = watchedTurn.current;
         const side = before.turn === 0 ? 'near' : 'far';
 
-        await omid.page.waitForTimeout(WATCH_DELAY_MS + 3000);
-        record('once the table has been quiet for the delay, the watcher\'s board is the live one', await level(omid, before.rev), `revision ${ before.rev }`);
+        record('the watcher\'s board is the live one', await level(omid, before.rev), `revision ${ before.rev }`);
         await rested('watching', omid, before.view);
         await stamp(omid);
 
         const restWatched = await menOf(omid.page);
 
         await watch(omid.page, MEN);
+
+        const sampling = Date.now();
+
         await omid.page.waitForTimeout(80);
 
-        const started = Date.now();
+        const asked = Date.now();
 
         await post(before, { kind: 'backgammon', verb: 'move', hops: watchedTurn.found.map((hop) => ({ from: hop.from, to: hop.to })) });
 
-        const made = Date.now();
         const moved = await state();
-
-        await omid.page.waitForTimeout(25000);
-
-        const early = await omid.page.locator('.table-stage').getAttribute('data-rev');
-        const stirred = bystanders(await stopWatching(omid.page), []);
-
-        record('for twenty-five seconds after a move nothing on the watcher\'s board moves', stirred.length === 0 && Number(early) === before.rev,
-            `${ stirred.slice(0, 3).join('; ') } revision ${ early } of ${ moved.rev }`);
-
-        await watch(omid.page, MEN);
-
-        const restarted = Date.now();
 
         record('the move reaches the watcher by itself, with no reload', await level(omid, moved.rev), `revision ${ await omid.page.locator('.table-stage').getAttribute('data-rev') } of ${ moved.rev }`);
         await omid.page.waitForTimeout(300);
@@ -679,10 +667,10 @@ try
         const late = await stopWatching(omid.page);
         const plan = planOf(restWatched.men, countsOf(before.view, 0), watchedTurn.found.map((hop) => ({ side, ...hop })), tonesOf(0), (key) => travelOf(late, key).moved > 3);
         const stirs = plan === null ? [] : [...plan.routes.keys()].map((key) => firstStir(late, key)).filter((at) => at !== null);
-        const waited = stirs.length === 0 ? 0 : restarted + Math.min(...stirs) - made;
+        const waited = stirs.length === 0 ? null : sampling + Math.min(...stirs) - asked;
 
         judged(`the watcher sees ${ watchedTurn.found.map((hop) => `${ hop.from } to ${ hop.to }`).join(', ') }`, late, plan, late.some((frame) => frame.presenting));
-        record('and sees it no sooner than the delay', waited >= WATCH_DELAY_MS - 1500, `${ (waited / 1000).toFixed(1) }s after it was made (the sampler started ${ ((restarted - started) / 1000).toFixed(1) }s in)`);
+        record('and sees it start within two seconds of the move being sent', waited !== null && waited <= 2000, waited === null ? 'nothing moved' : `${ (waited / 1000).toFixed(2) }s after it was sent`);
         record('on the board it was already looking at: no node of it was made again', await unstamped(omid) === 0, `${ await unstamped(omid) } new nodes`);
         await rested('watching, afterwards', omid, moved.view);
     }
@@ -712,7 +700,6 @@ try
     {
         const side = last.current.turn === 0 ? 'near' : 'far';
 
-        await omid.page.waitForTimeout(WATCH_DELAY_MS + 3000);
         record('before the last move the watcher\'s board is the live one', await level(omid, last.current.rev), `revision ${ last.current.rev }`);
         await rested('watching, before the last move', omid, last.current.view);
 

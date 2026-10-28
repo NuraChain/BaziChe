@@ -326,30 +326,41 @@ describe('a game push', () =>
 
 describe('a game somebody is watching', () =>
 {
-    it('rings the people looking at the table once the move is old enough to show them, and not the players', async () =>
+    it('pushes each move to the people it is handed, at once, and to nobody else', async () =>
     {
-        vi.useFakeTimers();
+        const player = await connect('alex');
+        const watcher = await connect('sara.k');
+        const elsewhere = await connect('reza.t');
+        const board = { id: 'm-1', rev: 5 } as unknown as Parameters<typeof world.hub.gameWatched>[1];
+        const events = [{ rev: 5, seat: 0 }] as unknown as Parameters<typeof world.hub.gameWatched>[2];
 
-        try
+        world.hub.gameWatched(['sara.k'], board, events);
+
+        expect(watcher.wire.framesOf('watch')).toMatchObject([{ match: { id: 'm-1', rev: 5 }, events: [{ rev: 5, seat: 0 }] }]);
+        expect(player.wire.framesOf('watch'), 'somebody not handed over was pushed the board').toEqual([]);
+        expect(elsewhere.wire.framesOf('watch')).toEqual([]);
+        expect(watcher.wire.framesOf('nudge'), 'somebody watching was rung to read what they were pushed').toEqual([]);
+    });
+
+    it('says who is looking at a table: whoever read it among the last tables they read, while they are here', async () =>
+    {
+        await connect('alex');
+        await connect('sara.k');
+
+        world.hub.tableViewed('alex', 't-1');
+        world.hub.tableViewed('sara.k', 't-1');
+        world.hub.tableViewed('sara.k', 't-2');
+
+        expect(world.hub.looking('t-1').sort()).toEqual(['alex', 'sara.k']);
+        expect(world.hub.looking('t-2')).toEqual(['sara.k']);
+        expect(world.hub.looking('t-3')).toEqual([]);
+
+        for (const table of ['t-3', 't-4', 't-5', 't-6'])
         {
-            const player = await connect('alex');
-            const watcher = await connect('sara.k');
-
-            world.hub.tableViewed('alex', 't-1');
-            world.hub.tableViewed('sara.k', 't-1');
-            world.hub.gameWatched('t-1', 'm-1', 31_000, ['alex']);
-
-            vi.advanceTimersByTime(30_000);
-            expect(watcher.wire.framesOf('nudge')).toEqual([]);
-
-            vi.advanceTimersByTime(1_000);
-            expect(watcher.wire.framesOf('nudge')).toMatchObject([{ scope: 'game', id: 'm-1' }]);
-            expect(player.wire.framesOf('nudge')).toEqual([]);
+            world.hub.tableViewed('sara.k', table);
         }
-        finally
-        {
-            vi.useRealTimers();
-        }
+
+        expect(world.hub.looking('t-1'), 'a table read longer ago than the last few was still being looked at').toEqual(['alex']);
     });
 });
 

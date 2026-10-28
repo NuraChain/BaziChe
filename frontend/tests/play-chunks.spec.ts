@@ -148,8 +148,6 @@ describe('a watcher\'s board, fetched when somebody is watching', () =>
                 startedAt: new Date(400_000).toISOString(),
                 view: { kind: 'ludo', moves: [], controls: 0, seats: [] }
             },
-            behind: 30,
-            delay: 30,
             live: true
         };
         table.matchId = 'match-9';

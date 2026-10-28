@@ -59,8 +59,23 @@ const delayed = (port, oneWay) => new Promise((resolve) =>
 const INSTRUMENT = () =>
 {
     const stamp = () => performance.timeOrigin + performance.now();
-    window.__lat = { press: [], acks: [], syncs: [], revs: [] };
+    window.__lat = { press: [], acks: [], syncs: [], revs: [], watched: [] };
     window.addEventListener('pointerdown', () => window.__lat.press.push(stamp()), true);
+    const Socket = window.WebSocket;
+    window.WebSocket = class extends Socket
+    {
+        constructor(...args)
+        {
+            super(...args);
+            this.addEventListener('message', (event) =>
+            {
+                if (typeof event.data === 'string' && event.data.includes('"t":"watch"'))
+                {
+                    window.__lat.watched.push(stamp());
+                }
+            });
+        }
+    };
     window.addEventListener('keydown', () => window.__lat.press.push(stamp()), true);
     const original = window.fetch;
     window.fetch = async (...args) =>
@@ -109,9 +124,10 @@ try
 {
     const reza = await seat(browser, 'reza.t');
     const leila = await seat(browser, 'leila.a');
+    const omid = await seat(browser, 'omid.k');
     const players = [reza, leila];
 
-    for (const player of players)
+    for (const player of [...players, omid])
     {
         await player.context.addInitScript(INSTRUMENT);
         if (CPU > 1)
@@ -121,7 +137,7 @@ try
         }
     }
 
-    for (const player of players)
+    for (const player of [...players, omid])
     {
         const mine = await player.api('GET', '/tables/mine');
         for (const one of mine.body?.tables ?? [])
@@ -150,8 +166,8 @@ try
             proxies.push(await delayed(profile.port, profile.oneWay));
         }
 
-        const requests = { reza: [], leila: [] };
-        for (const [name, player] of [['reza', reza], ['leila', leila]])
+        const requests = { reza: [], leila: [], omid: [] };
+        for (const [name, player] of [['reza', reza], ['leila', leila], ['omid', omid]])
         {
             player.page.removeAllListeners('request');
             player.page.on('request', (request) =>
@@ -167,9 +183,12 @@ try
         await reza.page.waitForTimeout(1500);
         requests.reza.length = 0;
         requests.leila.length = 0;
+        requests.omid.length = 0;
 
         const own = [];
         const other = [];
+        const pushed = [];
+        const shown = [];
         const misses = [];
 
         for (let sample = 0; sample < SAMPLES; sample += 1)
@@ -215,27 +234,34 @@ try
             const settled = Date.now() + 12_000;
             let ownAt = null;
             let otherAt = null;
+            let pushedAt = null;
+            let shownAt = null;
 
-            while ((ownAt === null || otherAt === null) && Date.now() < settled)
+            while ((ownAt === null || otherAt === null || pushedAt === null || shownAt === null) && Date.now() < settled)
             {
                 const mine = await mover.page.evaluate(() => window.__lat);
                 const theirs = await watcher.page.evaluate(() => window.__lat);
+                const looking = await omid.page.evaluate(() => window.__lat);
                 ownAt = firstAfter(mine.revs.length > 0 ? mine.revs : mine.acks, pressAt);
                 otherAt = firstAfter(theirs.revs.length > 0 ? theirs.revs : theirs.syncs, pressAt);
-                if (ownAt === null || otherAt === null)
+                pushedAt = firstAfter(looking.watched, pressAt);
+                shownAt = firstAfter(looking.revs, pressAt);
+                if (ownAt === null || otherAt === null || pushedAt === null || shownAt === null)
                 {
                     await reza.page.waitForTimeout(25);
                 }
             }
 
-            if (pressAt === null || ownAt === null || otherAt === null)
+            if (pressAt === null || ownAt === null || otherAt === null || pushedAt === null || shownAt === null)
             {
-                misses.push(`sample ${ sample }: own ${ ownAt === null ? 'never' : 'ok' }, other ${ otherAt === null ? 'never' : 'ok' }`);
+                misses.push(`sample ${ sample }: own ${ ownAt === null ? 'never' : 'ok' }, other ${ otherAt === null ? 'never' : 'ok' }, spectator ${ pushedAt === null ? 'never pushed' : shownAt === null ? 'never shown' : 'ok' }`);
                 continue;
             }
 
             own.push(ownAt - pressAt);
             other.push(otherAt - pressAt);
+            pushed.push(pushedAt - pressAt);
+            shown.push(shownAt - pressAt);
             await reza.page.waitForTimeout(900);
         }
 
@@ -245,22 +271,31 @@ try
             return counts;
         }, {});
 
+        const spread = (list) => ({ p50: quantile(list, 0.5), p95: quantile(list, 0.95), p99: quantile(list, 0.99), most: quantile(list, 1) });
         const row = {
             profile: profile.name,
             rtt: profile.oneWay * 2,
             samples: own.length,
-            own: { p50: quantile(own, 0.5), p95: quantile(own, 0.95) },
-            other: { p50: quantile(other, 0.5), p95: quantile(other, 0.95) },
-            requests: { reza: tally(requests.reza), leila: tally(requests.leila) },
+            own: spread(own),
+            other: spread(other),
+            spectatorFrame: spread(pushed),
+            spectatorBoard: spread(shown),
+            requests: { reza: tally(requests.reza), leila: tally(requests.leila), omid: tally(requests.omid) },
             misses
         };
         report.profiles.push(row);
 
+        const said = (one) => `p50 ${ one.p50 } ms   p95 ${ one.p95 } ms   p99 ${ one.p99 } ms   most ${ one.most } ms`;
+
         console.log(`\n  ${ profile.name } (rtt ${ row.rtt } ms, ${ row.samples } presses)`);
-        console.log(`    press -> own board      p50 ${ row.own.p50 } ms   p95 ${ row.own.p95 } ms`);
-        console.log(`    press -> opponent board p50 ${ row.other.p50 } ms   p95 ${ row.other.p95 } ms`);
-        console.log(`    api requests during play: ${ requests.reza.length + requests.leila.length }`);
-        record(`${ profile.name }: every press was measured on both sides`, misses.length === 0, misses.join('; '));
+        console.log(`    press -> own board        ${ said(row.own) }`);
+        console.log(`    press -> opponent board   ${ said(row.other) }`);
+        console.log(`    press -> spectator frame  ${ said(row.spectatorFrame) }`);
+        console.log(`    press -> spectator board  ${ said(row.spectatorBoard) }`);
+        console.log(`    api requests during play: players ${ requests.reza.length + requests.leila.length }, spectator ${ requests.omid.length }`);
+        record(`${ profile.name }: every press was measured on both sides and by the spectator`, misses.length === 0, misses.join('; '));
+        record(`${ profile.name }: the spectator is pushed each move about as soon as the opponent sees it`, row.spectatorFrame.p95 !== null && row.spectatorFrame.p95 <= (row.other.p95 ?? 0) + 250,
+            `spectator frame p95 ${ row.spectatorFrame.p95 } ms against the opponent's board at ${ row.other.p95 } ms`);
     }
 
     for (const player of players)

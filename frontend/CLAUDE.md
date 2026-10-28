@@ -793,9 +793,8 @@ the group page's lesson again: a row set to the object it already holds is told 
 
 The table page had it once more, where it costs the most: the board somebody is WATCHING. Its
 branch asked `watchReady && watch.view() !== null` around a thunk, the watch is a new object after
-every doorbell and every thirty-second poll, and so the whole watched board - its stage, whatever
-was in flight on it, its sound handle - was taken down and built again on every answer, a poll that
-brought nothing included. A board built a moment ago has no previous position to move anything
+every answer, and so the whole watched board - its stage, whatever was in flight on it, its sound
+handle - was taken down and built again on every answer, one that brought nothing included. A board built a moment ago has no previous position to move anything
 from, which is half of why a watcher's board jumped. It takes the watch through `let=` now, and
 `WatchBoard`'s own two branches read derived booleans where they read `props.watch.live` straight
 off a prop that is new each time. `play.spec.ts` (*a table that is read again*) marks every node of

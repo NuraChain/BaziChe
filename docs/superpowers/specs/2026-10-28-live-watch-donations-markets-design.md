@@ -267,3 +267,35 @@ unreachable (workers wait and catch up; nothing is lost because everything is re
 A funded deployer key and the decision to deploy `ArcadeTips` and `ArcadeMarkets` on NuraChain (as
 for `ArcadeShop`); the production referee key's address as the operator; legal advice before
 `MARKET_REGIONS` is written anywhere; and the fee, if any, markets should take.
+
+## 9. As built
+
+**PB2, live watching.** As designed, with three differences and one addition.
+
+- **No poll is kept.** A watcher reads the watch route only for a gap (a pushed move whose events do
+  not follow the board it holds) and when everything is rung, which is all a browser with no socket
+  hears (the lifeline rings every scope every eight seconds). A game nothing happens in is not asked
+  about again.
+- **A push reaches only who may still watch.** Watchers used to be rung with nothing in the frame
+  and to read through the route, which asked who may see the table at every read. A pushed board
+  carries the game, so the push asks the same rule (`mayWatch` in the table service, one query over
+  everybody looking at the table, from the hub's `looking`): a block with the host, a room left or
+  a table closed for friends stops it.
+- **A seat that gave up follows the game live**, from its own seat, which the delay held back with
+  the watchers (D31): its board reads `since` when the watchers are pushed a move.
+- **One snapshot.** A push and a watch read take the match row, its seats and its events in one
+  REPEATABLE READ transaction: one after another, a finish could land between the row and its
+  seats (ratings beside a board still live) and a move between the row and its events (events past
+  the board).
+
+Measured with `tools/qa/latency-pass.mjs` on the built server, from the press to the spectator's
+pushed frame and to its board, against the opponent's board:
+
+| line | presses | spectator frame p50 / p95 / p99 | spectator board p50 / p95 / p99 | opponent board p95 |
+|---|---|---|---|---|
+| loopback | 100 | 11 / 28 / 34 ms | 13 / 29 / 38 ms | 29 ms |
+| 150 ms round trip | 40 | 174 / 197 / 197 ms | 175 / 200 / 200 ms | 200 ms |
+| 400 ms round trip | 40 | 420 / 432 / 437 ms | 423 / 434 / 438 ms | 435 ms |
+
+The spectator made no api request while it watched. In a browser at 1280 and at 390, each move
+reached the watched board 8 to 18 ms after it was sent.

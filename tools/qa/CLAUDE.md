@@ -335,17 +335,15 @@ browsers), a turn that begins with a hit, less motion, a hidden tab and a reload
 begins by bearing off, and Play again. About two hundred and forty checks: a turn is two hops
 or four.
 
-**The watcher is a third account that opens the table's page with no chair.** The pass lets the
-table lie quiet for the delay, so the watcher's board is the live one, makes one turn over the
-api and holds everything still. For twenty-five seconds nothing on the watcher's board may move
-and its revision may not change; then the move has to arrive by itself, travel its route like
-any other, no sooner than the delay after it was made, on the nodes that were already there.
+**The watcher is a third account that opens the table's page with no chair.** Its board is the
+live one; the pass makes one turn over the api, and the move has to arrive by itself, travel its
+route like any other and start within two seconds of the request that made it, on the nodes that
+were already there.
 
 **The match ends in front of the watcher.** The pass plays on until one move would end the
-match (the engine's own test: the mover's last checkers off, and the points that makes), lets
-the table lie quiet for the delay again and makes that move with a recorder in the watcher's
-page that reads, every frame, what the page says. A finished game is not delayed, so the move
-arrives at once: it has to travel its route, the game has to be called on the board before the
+match (the engine's own test: the mover's last checkers off, and the points that makes) and
+makes that move with a recorder in the watcher's page that reads, every frame, what the page
+says. The move arrives at once: it has to travel its route, the game has to be called on the board before the
 result card, and on no frame may the page say "This game is over" or offer the way back while
 the board is still playing. The watcher is then shown the finished game with its result and the
 way back, no chair and no Play again, and is taken on to the next game when the players start
@@ -367,7 +365,7 @@ out of its yard:
 - before and after, every pawn rests in its place (at 320 wide too).
 
 Then less motion (no keyframe moves anything, and the roll that follows lies on its face having
-never been in the air), a hidden tab and a reload, the watcher half a minute behind, the last
+never been in the air), a hidden tab and a reload, the watcher shown a move live, the last
 pawn home in front of the watcher (the confetti before the result, and no word that the game is
 over while the board is still playing it), and Play again. What chance will not give in bounded
 time is the lab's: a capture, a pair, a home that is not the last, each fate of the die.
@@ -401,7 +399,7 @@ packet, or a card that turns (and which side of it is up).
 - A card is carried to the felt with the pointer and flies from where it was let go, and one
   let go short of the table goes back to its place.
 - A trick is gathered and a hand ends on the table; a reload, a hidden tab, less motion; the
-  watcher half a minute behind.
+  watcher shown a card the moment it is played.
 - At a table for two, at a phone's size and at a desktop's: the cards put down at the press,
   the card on offer lifted, a keep and its second card, another seat's draw in its two backs,
   a pass and the card taken instead, and the number on the stock for the reader who can see
@@ -442,8 +440,8 @@ anything, and how many cards lie face up and where.
   measured at every size**: it lasts two seconds and cannot be opened at rest, so the fit
   pass has no cell for it. Then the clock runs again: the pot is pushed after the whole board
   is up, and the winner's stack counts it when its chips have landed and not while they fly.
-- A reload, a hidden tab, less motion; the watcher half a minute behind, shown a bet with its
-  chips in the air.
+- A reload, a hidden tab, less motion; the watcher shown a bet with its chips in the air, the
+  moment it is made.
 - A table for nine, three of its chairs taken by more people made for the run: two seats all
   in again, and the table held at six sizes, the phones' among them. It is the tightest table
   a shown hand and its name have to lie on, and the one that found a hand lying on the pot's
@@ -490,11 +488,6 @@ Eleven things worth knowing before changing any of them:
   for another.
   `pauseAt` wants a time a little ahead (400 ms): one already past throws AND leaves the clock
   stopped, and only `resume()` starts it again.
-- **A live turn is thirty seconds, and so is the watcher's delay.** The seat on turn would be
-  folded by the server while the pass waited for the watcher, so the pass acts for it at twenty
-  seconds and asks only that the bet it is waiting for comes no sooner than the delay. A
-  watcher of a live game is never the live table: something always happens within thirty
-  seconds.
 - **The hand that is shown down is one the reader is the big blind of.** They fold, are the
   small blind of the next hand, and so are not the one to act. A reader who is to act next is
   asked at the cap and the table then catches up at four times its pace, which leaves a
@@ -838,6 +831,18 @@ its own, which is what a person does, and straight after.
 Every part asks, for both browsers, that the table only ever moved forward and that the board at
 rest is the server's, pawn by pawn. `QA_JITTER=wifi|mobile` puts the second browser behind the
 ordered jitter proxy the voice quality pass uses (`QA_PROXY_PORT`, 5310).
+
+**`tools/qa/latency-pass.mjs` times a move from the press to every screen that shows it**: the
+mover's own board, the opponent's, and a spectator's (`omid.k`, at the same public table with no
+chair, behind the same line: loopback, and 4g and 3g through a proxy that holds every chunk
+`oneWay` milliseconds each way). Every page stamps what it is handed on one clock, as the sync
+pass's do, and the spectator's also stamps each `watch` frame its socket hands it (a `WebSocket`
+wrapped by the init script), so a press gives four times: the mover's board, the opponent's, the
+spectator's frame and the spectator's board, each reported as p50, p95, p99 and the most, beside
+the api requests each browser made. `QA_SAMPLES` is the presses a profile (24; a hundred make the
+99th percentile mean something) and `QA_PROFILES` the lines. It fails when a press is not seen
+by all three, or when the spectator's frame comes more than a quarter second after the
+opponent's board at the 95th percentile.
 
 **`tools/qa/load-pass.mjs` is many live games at once with no browser**: two accounts a table,
 each with a real socket, the seat on turn playing over its socket as a browser does, every play

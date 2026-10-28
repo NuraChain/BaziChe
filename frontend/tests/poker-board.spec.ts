@@ -1399,7 +1399,7 @@ describe('a table that shows what has happened on it', () =>
             },
             { mine: undefined, rev: 8, turn: undefined, finishedAt: new Date(401_000).toISOString() }
         );
-        const [watch, setWatch] = createSignal<Watched>({ match: ending, behind: 30, delay: 30, live: true });
+        const [watch, setWatch] = createSignal<Watched>({ match: ending, live: true });
         const [events, setEvents] = createSignal<EventBatch>(NO_EVENTS);
         const { container } = renderTest(() => WatchBoard({
             get watch()
@@ -1421,7 +1421,7 @@ describe('a table that shows what has happened on it', () =>
 
         batch(() =>
         {
-            setWatch({ match: ended, behind: 0, delay: 30, live: false });
+            setWatch({ match: ended, live: false });
             setEvents(heard(1, told(
                 8,
                 1,

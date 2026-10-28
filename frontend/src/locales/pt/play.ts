@@ -234,22 +234,7 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'watch.gone': 'Você está fora desta partida.',
     'watch.finished': 'Esta partida acabou',
     'watch.back': 'Voltar para a mesa',
-    'watch.behind': {
-        one: 'O tabuleiro que você vê está pelo menos {count} minuto atrás do que eles estão jogando.',
-        many: 'O tabuleiro que você vê está pelo menos {count} minutos atrás do que eles estão jogando.',
-        other: 'O tabuleiro que você vê está pelo menos {count} minutos atrás do que eles estão jogando.'
-    },
-    'watch.behind.seconds': {
-        one: 'O tabuleiro que você vê está pelo menos {count} segundo atrás do que eles estão jogando.',
-        many: 'O tabuleiro que você vê está pelo menos {count} segundos atrás do que eles estão jogando.',
-        other: 'O tabuleiro que você vê está pelo menos {count} segundos atrás do que eles estão jogando.'
-    },
-    'watch.quiet': {
-        one: 'Nada aconteceu nesta mesa há {count} minuto.',
-        many: 'Nada aconteceu nesta mesa há {count} minutos.',
-        other: 'Nada aconteceu nesta mesa há {count} minutos.'
-    },
-    'watch.why': 'Todo mundo que assiste está atrasado na mesma medida, então ninguém pode ser orientado de fora.',
+    'watch.why': 'Você assiste ao vivo e nunca vê o que só um jogador vê, como as cartas da mão dele.',
     'watch.refused': 'Não tem nada aqui para você assistir. A partida pode ter acabado agora, ou ela não está aberta para você.',
     'watch.live': 'Partidas em andamento',
     'watch.join': 'Assistir',

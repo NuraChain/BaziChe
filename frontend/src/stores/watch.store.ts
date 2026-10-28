@@ -7,8 +7,6 @@ import { NO_EVENTS, OPENING_MS, type EventBatch } from './match.store.ts';
 import { useRealtime } from './realtime.store.ts';
 import type { MatchWatch } from '../api.ts';
 
-export const WATCH_POLL_MS = 30_000;
-
 export type Watched = Omit<MatchWatch, 'events'>;
 
 export interface WatchApi
@@ -226,14 +224,22 @@ export const useWatch = createStore((): WatchApi =>
         {
             if (stop === null)
             {
-                const cancel = runtime().clock.every(WATCH_POLL_MS, () =>
+                const offWatch = useRealtime().onWatch((frame) =>
                 {
-                    const away = typeof document !== 'undefined' && (document.visibilityState === 'hidden' || navigator.onLine === false);
+                    const id = untrack(matchId);
 
-                    if (live() && !away)
+                    if (id !== frame.match.id || !live())
                     {
-                        void read();
+                        return;
                     }
+
+                    if (held >= 0 && runOf(frame.events, held, frame.match.rev).whole)
+                    {
+                        fold(id, { match: frame.match, live: frame.match.finishedAt === undefined, events: frame.events });
+                        return;
+                    }
+
+                    void read();
                 });
 
                 const offNudge = useRealtime().onNudge((scope, id) =>
@@ -246,7 +252,7 @@ export const useWatch = createStore((): WatchApi =>
 
                 stop = () =>
                 {
-                    cancel();
+                    offWatch();
                     offNudge();
                     stop = null;
                 };

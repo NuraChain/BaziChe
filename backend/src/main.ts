@@ -148,7 +148,8 @@ const ports = buildPorts(dataSource, config, hub, {
     present: (userIds) => goingDown ? new Set(userIds) : hub.present(userIds),
     online: () => hub.online(),
     calls: () => hub.calls(),
-    sockets: () => hub.size()
+    sockets: () => hub.size(),
+    looking: (tableId) => hub.looking(tableId)
 }, (event, fields) => log.info(event, fields), undefined, ops);
 
 const serving = config.servePages;

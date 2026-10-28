@@ -1,5 +1,5 @@
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@azerothjs/http';
-import { Between, IsNull, MoreThan, type DataSource, type EntityManager } from 'typeorm';
+import { Between, IsNull, type DataSource, type EntityManager } from 'typeorm';
 
 import { EscrowSeat } from '../../entities/escrow-seat.entity.ts';
 import { Escrow } from '../../entities/escrow.entity.ts';
@@ -28,7 +28,6 @@ import { pokerEngine } from './engines/poker.ts';
 import { REFUSALS, isRefusal, type RefusalWord } from './refusals.ts';
 import { variantOf } from './sides.ts';
 import { nextMissForfeits, turnMs } from './turns.ts';
-import { boardShown } from './watch.ts';
 import type { MatchLog } from '../../schemas.ts';
 import type { MatchHistory } from '../../schemas.ts';
 import type { Draws, Engine, ForfeitReason, Moment, TableConfig } from './engine.ts';
@@ -326,6 +325,22 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             .orderBy('p.seat', 'ASC')
             .getRawMany<MatchSeatRow>();
 
+    /**
+     * The match row, its seats and its events as one moment of the game.
+     *
+     * Read one after another they were three: a finish committed between the row and its seats
+     * handed a live board with a winner and ratings beside it, and a move committed between the row
+     * and its events handed events past the board. In a snapshot every read sees what the first saw.
+     */
+    const atOnce = async <T>(look: (tx: EntityManager) => Promise<T>) => await db.transaction('REPEATABLE READ', look);
+
+    const gameAt = async (tx: EntityManager, matchId: string) =>
+    {
+        const found = await tx.getRepository(Match).findOne({ where: { id: matchId } });
+
+        return found === null ? null : { match: found, state: stateOf(found), players: await seatsOf(tx, matchId), mine: -1 };
+    };
+
     const read = async (me: string, matchId: string): Promise<MatchLoad | null> =>
     {
         if (!UUID.test(matchId))
@@ -351,30 +366,6 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
         }
 
         return { match, state: stateOf(match), players: await seatsOf(db, matchId), mine: seat.seat };
-    };
-
-    const shownTo = async (load: MatchLoad): Promise<MatchLoad> =>
-    {
-        const mine = load.players.find((player) => player.seat === load.mine);
-
-        if (load.match.finishedAt !== null || mine === undefined || mine.result === null)
-        {
-            return load;
-        }
-
-        const left = await db.getRepository(MatchAction).findOne({
-            select: { rev: true },
-            where: { matchId: load.match.id, kind: 'forfeit', seat: load.mine },
-            order: { rev: 'DESC' }
-        });
-        const shown = await boardShown(db, load.match, load.players, left?.rev ?? -1);
-
-        if (shown === null)
-        {
-            throw new NotFoundError('No game there.');
-        }
-
-        return { ...shown.load, mine: load.mine };
     };
 
     const told = async (load: MatchLoad, rev: number): Promise<ActionLog[]> =>
@@ -507,14 +498,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
     };
 
     return {
-        async view(me: string, matchId: string)
-        {
-            const load = await read(me, matchId);
-
-            return load === null ? null : await shownTo(load);
-        },
-
-        shownTo,
+        view: async (me: string, matchId: string) => await read(me, matchId),
 
         /**
          * A person's own finished games, newest first, by keyset over `(finished_at, id)`.
@@ -565,24 +549,24 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             };
         },
 
-        feed: async (matchId: string, rev: number): Promise<{ load: MatchLoad; events: (seat: number | null) => ActionLog[] } | null> =>
+        feed: async (matchId: string, rev: number): Promise<{ load: MatchLoad; events: (seat: number | null) => ActionLog[] } | null> => await atOnce(async (tx) =>
         {
-            const found = await db.getRepository(Match).findOne({ where: { id: matchId } });
-            const engine = found === null ? null : engineFor(found.game);
+            const load = await gameAt(tx, matchId);
+            const engine = load === null ? null : engineFor(load.match.game);
 
-            if (found === null || engine === null)
+            if (load === null || engine === null)
             {
                 return null;
             }
 
-            const rows = await db.getRepository(MatchAction).find({
+            const rows = await tx.getRepository(MatchAction).find({
                 select: { rev: true, seat: true, createdAt: true, events: true },
-                where: { matchId, rev: MoreThan(rev) },
+                where: { matchId, rev: Between(rev + 1, load.match.rev) },
                 order: { rev: 'ASC' }
             });
 
             return {
-                load: { match: found, state: stateOf(found), players: await seatsOf(db, matchId), mine: -1 },
+                load,
                 events: (seat) => rows.map((row) => ({
                     rev: row.rev,
                     seat: row.seat,
@@ -590,7 +574,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                     log: engine.log((row.events ?? []) as unknown[], seat)
                 }))
             };
-        },
+        }),
 
         since: async (me: string, matchId: string, rev: number): Promise<{ load: MatchLoad; events: ActionLog[] } | null> =>
         {
@@ -606,9 +590,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                 return null;
             }
 
-            const load = await shownTo(dealt);
-
-            return { load, events: await told(load, rev) };
+            return { load: dealt, events: await told(dealt, rev) };
         },
 
         told,
@@ -1029,16 +1011,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
          * seat belonging to whoever happened to trigger the tick.
          */
         peek: async (matchId: string): Promise<MatchLoad | null> =>
-        {
-            const found = await db.getRepository(Match).findOne({ where: { id: matchId } });
-
-            return found === null
-                ? null
-                : { match: found, state: stateOf(found), players: await seatsOf(db, matchId), mine: -1 };
-        },
-
-        /** Who sat where, for callers outside this module that need it without a viewer. */
-        seatsOf: async (matchId: string) => await seatsOf(db, matchId),
+            UUID.test(matchId) ? await atOnce(async (tx) => await gameAt(tx, matchId)) : null,
 
         voidIn: async (tx: EntityManager, matchId: string) =>
         {

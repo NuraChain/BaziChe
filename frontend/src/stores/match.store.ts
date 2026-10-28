@@ -607,6 +607,18 @@ export const useBoard = createStore((): BoardApi =>
                 }
             });
 
+            /**
+             * A seat that gave up while the others play on is pushed what the watchers are pushed,
+             * the board for nobody's seat, and reads its own seat's board in answer to it.
+             */
+            const offWatch = live.onWatch((frame) =>
+            {
+                if (frame.match.id === untrack(openId))
+                {
+                    void catchUp().catch(() => undefined);
+                }
+            });
+
             const offReply = live.onReply((frame) => waiting.get(frame.key)?.(frame));
 
             let cancel: (() => void) | null = null;
@@ -634,6 +646,7 @@ export const useBoard = createStore((): BoardApi =>
                 cancel?.();
                 offNudge();
                 offGame();
+                offWatch();
                 offReply();
             };
         },

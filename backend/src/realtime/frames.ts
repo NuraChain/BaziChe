@@ -49,6 +49,7 @@ export type ServerFrame =
     | { v: 1; t: 'signal'; n: number; table: string; from: string; join: string; kind: SignalKind; data: string }
     | { v: 1; t: 'sound'; n: number; table: string; join: string; codec: Codec; at: number; data: string }
     | { v: 1; t: 'game'; n: number; at: number; match: MatchView; events: MatchEvent[] }
+    | { v: 1; t: 'watch'; n: number; at: number; match: MatchView; events: MatchEvent[] }
     | { v: 1; t: 'ack'; n: number; key: string; match: MatchView; applied: Applied; events: MatchEvent[] }
     | { v: 1; t: 'refused'; n: number; key: string; match: string; status: number; code: string; message: string }
     | { v: 1; t: 'pulse'; n: number; games: Pulse['games']; watching: string; notice?: Pulse['notice'] }
@@ -117,6 +118,10 @@ export const sound = (n: number, table: string, join: string, codec: Codec, at: 
 
 export const game = (n: number, at: number, match: MatchView, events: MatchEvent[]): ServerFrame =>
     ({ v: 1, t: 'game', n, at, match, events });
+
+/** A move as somebody watching the table is shown it: the board for no seat and the events no seat keeps to itself. */
+export const watched = (n: number, at: number, match: MatchView, events: MatchEvent[]): ServerFrame =>
+    ({ v: 1, t: 'watch', n, at, match, events });
 
 export const ack = (n: number, key: string, match: MatchView, applied: Applied, events: MatchEvent[]): ServerFrame =>
     ({ v: 1, t: 'ack', n, key, match, applied, events });

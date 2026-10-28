@@ -67,19 +67,9 @@ export default component WatchBoard(props: { watch: Watched; events: EventBatch;
 
     const reload = () => void reloadPage();
 
-    const MINUTE = 60;
-
-    derived behindSays = props.watch.delay < 90
-        ? locale.plural('watch.behind.seconds', props.watch.delay)
-        : locale.plural('watch.behind', Math.round(props.watch.delay / MINUTE));
-
-    derived quietSays = locale.plural('watch.quiet', Math.round(props.watch.behind / MINUTE));
-
     derived over = !props.watch.live && !busy;
 
     derived live = !over;
-
-    derived quiet = props.watch.live && props.watch.behind > props.watch.delay * 2;
 
     derived leavable = over && props.onDone !== undefined;
 
@@ -95,12 +85,6 @@ export default component WatchBoard(props: { watch: Watched; events: EventBatch;
         <p class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-ui-xs text-muted">
             <Icon name={ over ? 'trophy' : 'activity' } size={ 14 } class="shrink-0 text-accent" />
             <span class="font-semibold text-text">{ locale.t(over ? 'watch.finished' : 'watch.title') }</span>
-            <Show when={ live }>
-                { () => <span>{ behindSays }</span> }
-            </Show>
-            <Show when={ quiet }>
-                { () => <span>{ quietSays }</span> }
-            </Show>
             <Show when={ live }>
                 { () => <span class="sr-only">{ locale.t('watch.why') }</span> }
             </Show>

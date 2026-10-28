@@ -16,6 +16,8 @@ export type NudgeScope = Extract<ServerFrame, { t: 'nudge' }>['scope'];
 
 export type GameFrame = Extract<ServerFrame, { t: 'game' }>;
 
+export type WatchFrame = Extract<ServerFrame, { t: 'watch' }>;
+
 export type ReplyFrame = Extract<ServerFrame, { t: 'ack' | 'refused' }>;
 
 export type PulseFrame = Extract<ServerFrame, { t: 'pulse' }>;
@@ -125,6 +127,8 @@ export interface RealtimeApi
 
     onGame(listener: (frame: GameFrame) => void): () => void;
 
+    onWatch(listener: (frame: WatchFrame) => void): () => void;
+
     onReply(listener: (frame: ReplyFrame) => void): () => void;
 
     onPulse(listener: (frame: PulseFrame) => void): () => void;
@@ -200,6 +204,7 @@ export const useRealtime = createStore((): RealtimeApi =>
     const signals = new Set<(frame: SignalFrame) => void>();
     const sounds = new Set<(frame: SoundFrame) => void>();
     const games = new Set<(frame: GameFrame) => void>();
+    const watches = new Set<(frame: WatchFrame) => void>();
     const replies = new Set<(frame: ReplyFrame) => void>();
     const pulses = new Set<(frame: PulseFrame) => void>();
     const samples: { rtt: number; offset: number }[] = [];
@@ -412,6 +417,15 @@ export const useRealtime = createStore((): RealtimeApi =>
         if (frame.t === 'game')
         {
             for (const listener of games)
+            {
+                listener(frame);
+            }
+            return;
+        }
+
+        if (frame.t === 'watch')
+        {
+            for (const listener of watches)
             {
                 listener(frame);
             }
@@ -760,6 +774,12 @@ export const useRealtime = createStore((): RealtimeApi =>
         {
             games.add(listener);
             return () => games.delete(listener);
+        },
+
+        onWatch(listener)
+        {
+            watches.add(listener);
+            return () => watches.delete(listener);
         },
 
         onReply(listener)

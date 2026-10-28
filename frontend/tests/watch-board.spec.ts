@@ -46,8 +46,6 @@ const watching = (rev: number, live = true) => ({
         startedAt: new Date(400_000).toISOString(),
         view: { kind: 'ludo', moves: [], controls: 0, seats: [] }
     },
-    behind: live ? 30 : 0,
-    delay: 30,
     live
 } as Watched);
 
@@ -182,7 +180,7 @@ describe('the board of somebody watching', () =>
         await Promise.resolve();
 
         expect(container.textContent).toContain(useLocale().t('watch.finished'));
-        expect(container.textContent, 'a finished game was still explained as a delayed one').not.toContain(useLocale().t('watch.why'));
+        expect(container.textContent, 'a finished game was still explained as one being played').not.toContain(useLocale().t('watch.why'));
         expect(back(container)).toBeDefined();
     });
 

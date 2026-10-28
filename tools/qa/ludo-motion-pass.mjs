@@ -1,6 +1,5 @@
 import { mkdirSync } from 'node:fs';
 
-import { WATCH_DELAY_MS } from '../../backend/src/domains/match/turns.ts';
 import { dieRest } from '../../frontend/src/game/board/ludo-board.ts';
 import { dieOf, differs, endingIn, inside, leadIn, pawnsOf, plainEntryIn, plainWalkIn, planOf, stateOf } from './ludo-routes.mjs';
 import { armPress, bystanders, faceOf, hideTab, hopsOf, judge, keyframesOf, leavingFindings, leavingOf, pressOf, seriesOf, smooth, stopWatching, travelOf, unkeyedIn, watch, watchKeyframes, watchLeaving } from './motion.mjs';
@@ -529,7 +528,7 @@ try
         await rested('after a reload', gone, back.view);
     }
 
-    console.log('\n[7] somebody watching, half a minute behind');
+    console.log('\n[7] somebody watching, live');
 
     await omid.page.goto(`${ BASE }/app/play/${ tableId }`, { waitUntil: 'networkidle' });
 
@@ -546,34 +545,23 @@ try
     {
         const before = watched.current;
 
-        await omid.page.waitForTimeout(WATCH_DELAY_MS + 3000);
-        record('once the table has been quiet for the delay, the watcher\'s board is the live one', await level(omid, before.rev), `revision ${ before.rev }`);
+        record('the watcher\'s board is the live one', await level(omid, before.rev), `revision ${ before.rev }`);
         await rested('watching', omid, before.view);
         await stamp(omid);
 
         const restWatched = await pawnsOf(omid.page);
 
         await watch(omid.page, PAWNS);
+
+        const sampling = Date.now();
+
         await omid.page.waitForTimeout(80);
 
-        const started = Date.now();
+        const asked = Date.now();
 
         await post(watched.actor, before, { kind: 'ludo', verb: 'move', piece: watched.found.piece });
 
-        const sentAt = Date.now();
         const moved = await state();
-
-        await omid.page.waitForTimeout(25000);
-
-        const early = await omid.page.locator('.table-stage').getAttribute('data-rev');
-        const stirred = bystanders(await stopWatching(omid.page, 'pawns'), []);
-
-        record('for twenty-five seconds after a move nothing on the watcher\'s board moves', stirred.length === 0 && Number(early) === before.rev,
-            `${ stirred.slice(0, 3).join('; ') } revision ${ early } of ${ moved.rev }`);
-
-        await watch(omid.page, PAWNS);
-
-        const restarted = Date.now();
 
         record('the move reaches the watcher by itself, with no reload', await level(omid, moved.rev), `revision ${ await omid.page.locator('.table-stage').getAttribute('data-rev') } of ${ moved.rev }`);
         await omid.page.waitForTimeout(300);
@@ -581,11 +569,11 @@ try
         const late = await stopWatching(omid.page, 'pawns');
         const plan = planOf(stateOf(before.view), watched.found.events, restWatched, await pawnsOf(omid.page));
         const stirs = [...plan.routes.keys()].map((key) => firstStir(late, key)).filter((at) => at !== null);
-        const waited = stirs.length === 0 ? 0 : restarted + Math.min(...stirs) - sentAt;
+        const waited = stirs.length === 0 ? null : sampling + Math.min(...stirs) - asked;
 
         judged('the watcher sees the pawn walk', late, plan, late.some((frame) => frame.presenting));
         hopped('the watcher sees it leave the board once for each square', late, watched.found.key, watched.found.hops);
-        record('and sees it no sooner than the delay', waited >= WATCH_DELAY_MS - 1500, `${ (waited / 1000).toFixed(1) }s after it was made (the sampler started ${ ((restarted - started) / 1000).toFixed(1) }s in)`);
+        record('and sees it start within two seconds of the move being sent', waited !== null && waited <= 2000, waited === null ? 'nothing moved' : `${ (waited / 1000).toFixed(2) }s after it was sent`);
         record('on the board it was already looking at: no node of it was made again', await unstamped(omid) === 0, `${ await unstamped(omid) } new nodes`);
         await rested('watching, afterwards', omid, moved.view);
     }
@@ -600,7 +588,6 @@ try
     }
     else
     {
-        await omid.page.waitForTimeout(WATCH_DELAY_MS + 3000);
         record('before the last move the watcher\'s board is the live one', await level(omid, last.current.rev), `revision ${ last.current.rev }`);
         await rested('watching, before the last move', omid, last.current.view);
 

@@ -36,15 +36,15 @@ const read = (name: string) => readFileSync(join(HERE, '..', 'src', name), 'utf8
     .replace(/\/\/.*$/gm, '');
 
 /**
- * The three files a match passes through that must not know which game it is.
+ * The files a match passes through that must not know which game it is.
  *
- * `services.ts` composes the payload, `watch.ts` reads the delayed board, `record.ts` writes what
- * the match did to everybody record. Each one used to name ludo - a grid cell, a cast to
- * `LudoState`, an event name counted in SQL - and each is one place a second engine would have had
- * to be added to rather than plugged in. `service.ts` is deliberately absent: it names
+ * `services.ts` composes the payload, a watcher's included, `record.ts` writes what the match did
+ * to everybody's record, and `judge.ts` decides it. Each one used to name ludo - a grid cell, a
+ * cast to `LudoState`, an event name counted in SQL - and each is one place a second engine would
+ * have had to be added to rather than plugged in. `service.ts` is deliberately absent: it names
  * `ludoEngine` once, as the default engine list, which is composition rather than coupling.
  */
-const SHARED = ['services.ts', 'domains/match/watch.ts', 'domains/match/record.ts', 'domains/match/judge.ts'];
+const SHARED = ['services.ts', 'domains/match/record.ts', 'domains/match/judge.ts'];
 
 const importsOf = (name: string) => [...read(name).matchAll(/from '([^']+)'/g)].map(([, specifier]) => specifier);
 
@@ -120,6 +120,20 @@ describe('the projector', () =>
         expect(source).toContain('load.mine < 0 ? null : load.mine');
     });
 
+    /**
+     * No engine's log reads its reader today, so a push composed for a seat would pass every spec
+     * that plays a real game. The text is what can be held.
+     */
+    it('pushes somebody watching the board and the log composed for no seat', () =>
+    {
+        const from = source.indexOf('live.gameWatched(');
+        const push = source.slice(from, source.indexOf(';', from));
+
+        expect(from).toBeGreaterThan(-1);
+        expect(push).toContain('asMatch({ ...found.load, mine: -1 })');
+        expect(push).toContain('found.events(null)');
+    });
+
     it('tells somebody watching through the reader that is bounded by the board they are shown, after asking whether they may watch', () =>
     {
         const from = source.indexOf('async watch(me, matchId, rev)');
@@ -128,7 +142,7 @@ describe('the projector', () =>
         expect(from).toBeGreaterThan(-1);
         expect(port, 'the watch read took the feed, which is bounded by nothing').not.toContain('.feed(');
         expect(port, 'the watch read named the live game\'s own events').not.toContain('.since(');
-        expect(port).toContain('match.told(found.load, from)');
+        expect(port).toContain('match.told(load, from)');
         expect(port.indexOf('table.watchableTable('), 'the events were read before the reader was asked about').toBeLessThan(port.indexOf('match.told('));
         expect(port.indexOf('table.watchableTable(')).toBeGreaterThan(-1);
     });
@@ -206,7 +220,7 @@ describe('what a player asked for', () =>
 {
     it('is written to the ledger and read back for its verb alone, so the cards put face down stay there', () =>
     {
-        const readers = ['domains/match/service.ts', 'domains/match/watch.ts', 'domains/match/record.ts', 'domains/match/levels.ts', 'domains/achieve/service.ts', 'db/schema.ts'];
+        const readers = ['domains/match/service.ts', 'domains/match/record.ts', 'domains/match/levels.ts', 'domains/achieve/service.ts', 'db/schema.ts'];
 
         for (const name of readers)
         {

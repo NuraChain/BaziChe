@@ -21,8 +21,7 @@ import { sendPush, type VapidKeys } from './domains/notify/push.ts';
 import { createAchieveService } from './domains/achieve/service.ts';
 import { endingOf } from './domains/match/declare.ts';
 import { ENGINES, createMatchService, voidedOf, type MatchLoad } from './domains/match/service.ts';
-import { WATCH_DELAY_MS, WATCH_TAIL } from './domains/match/turns.ts';
-import { createWatchService } from './domains/match/watch.ts';
+import { WATCH_TAIL } from './domains/match/turns.ts';
 import { createParties, type PartyWhy } from './domains/party/parties.ts';
 import { partyRefused } from './domains/party/refusal.ts';
 import { createRegistry } from './domains/party/registry.ts';
@@ -96,7 +95,7 @@ export interface WriteListener
     edgesChanged(...userIds: string[]): void;
     selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'vault' | 'shop'): void;
     gamePushed(pushes: readonly { userId: string; match: MatchView; events: MatchEventLog[] }[]): void;
-    gameWatched(tableId: string, matchId: string, afterMs: number, players: readonly string[]): void;
+    gameWatched(viewers: readonly string[], match: MatchView, events: MatchEventLog[]): void;
     tableChanged(tableId: string, people: readonly string[]): void;
     tableViewed(userId: string, tableId: string): void;
     catalogueChanged(): void;
@@ -110,6 +109,7 @@ export interface PresenceReader
     online?(): readonly Online[];
     calls?(): readonly Call[];
     sockets?(): number;
+    looking?(tableId: string): readonly string[];
 }
 
 /**
@@ -704,7 +704,6 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     };
 
     const match = createMatchService(db, achieve, ENGINES, shop.looksAt);
-    const watch = createWatchService(db, (matchId) => match.seatsOf(matchId));
 
     /**
      * The board as a client is allowed to see it.
@@ -820,7 +819,14 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             events: logged(found.events(row.seat))
         })));
 
-        live.gameWatched(found.load.match.tableId, matchId, WATCH_DELAY_MS + 1000, playing.map((row) => row.user_id));
+        const players = new Set(playing.map((row) => row.user_id));
+        const looking = (presence?.looking?.(found.load.match.tableId) ?? []).filter((userId) => !players.has(userId));
+        const viewers = await table.mayWatch(found.load.match.tableId, looking);
+
+        if (viewers.length > 0)
+        {
+            live.gameWatched(viewers, shipped(asMatch({ ...found.load, mine: -1 })), logged(found.events(null)));
+        }
     };
 
     /**
@@ -1240,7 +1246,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
         const since = want.rev === undefined ? null : await match.since(me, matchId, want.rev);
 
-        return { match: asMatch(await match.shownTo(answer.load)), applied: answer.applied, events: since === null ? [] : logged(since.events) };
+        return { match: asMatch(answer.load), applied: answer.applied, events: since === null ? [] : logged(since.events) };
     };
 
     const TIDY: Record<string, string> = {
@@ -3150,7 +3156,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
                 await courtesy('turn notice', () => nudgeTurn(load, me));
 
-                return asMatch(await match.shownTo(load));
+                return asMatch(load);
             },
 
             play: async (me, matchId, input) =>
@@ -3165,11 +3171,18 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
             leaderboard: (game, window, after) => achieve.leaderboardOf(game, window, after),
 
+            /**
+             * The game as it stands, for nobody's seat. What a watcher may see is the engine's view
+             * and log for no seat, never a matter of when they look: a live board tells a watcher
+             * strictly less than it tells any player, and anybody who wanted to coach a player could
+             * watch that player's own screen, so the thirty seconds watchers were held back protected
+             * nothing (`docs/superpowers/specs/2026-10-28-live-watch-donations-markets-design.md`).
+             */
             async watch(me, matchId, rev)
             {
-                const found = await watch.delayed(matchId);
+                const load = await match.peek(matchId);
 
-                if (found === null)
+                if (load === null)
                 {
                     return null;
                 }
@@ -3183,16 +3196,16 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                  * private room table they were never in - the players, the positions and who won.
                  * A game being over does not make the room it was played in public.
                  */
-                if (!await table.watchableTable(me, found.load.match.tableId))
+                if (!await table.watchableTable(me, load.match.tableId))
                 {
                     return null;
                 }
 
-                const shown = found.load.match.rev;
+                const shown = load.match.rev;
                 const from = rev === null || !Number.isFinite(rev) ? shown : Math.min(Math.max(Math.trunc(rev), 0), shown);
-                const events = shown - from > WATCH_TAIL ? [] : await match.told(found.load, from);
+                const events = shown - from > WATCH_TAIL ? [] : await match.told(load, from);
 
-                return { match: asMatch(found.load), behind: found.behind, delay: WATCH_DELAY_MS / 1000, live: found.live, events: logged(events) };
+                return { match: asMatch(load), live: load.match.finishedAt === null, events: logged(events) };
             },
 
             async proof(me, matchId)

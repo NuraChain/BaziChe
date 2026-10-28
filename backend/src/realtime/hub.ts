@@ -4,7 +4,7 @@ import { maySeeOnline, type Party, type Relation } from '../domains/social/polic
 import type { Principal } from '../http/auth.ts';
 import { keyedQueue } from '../lib/keyed-queue.ts';
 import type { MatchEvent, MatchView, Pulse } from '../schemas.ts';
-import { game, hello, nudge, presence, pulse, signal, sound, typing, voice, type Codec, type PresenceEntry, type PresenceState, type ServerFrame, type SignalKind, type VoicePeer } from './frames.ts';
+import { game, hello, nudge, presence, pulse, signal, sound, typing, voice, watched, type Codec, type PresenceEntry, type PresenceState, type ServerFrame, type SignalKind, type VoicePeer } from './frames.ts';
 
 /**
  * What the hub needs from a socket.
@@ -128,7 +128,7 @@ export interface Hub
     edgesChanged(...userIds: string[]): void;
     selfChanged(userId: string, what: SelfTopic): void;
     gamePushed(pushes: readonly GamePush[]): void;
-    gameWatched(tableId: string, matchId: string, afterMs: number, players: readonly string[]): void;
+    gameWatched(viewers: readonly string[], match: MatchView, events: MatchEvent[]): void;
     reply(connection: Connection, build: (n: number) => ServerFrame): void;
     tableChanged(tableId: string, people: readonly string[]): void;
     tableViewed(userId: string, tableId: string): void;
@@ -151,6 +151,7 @@ export interface Hub
     present(userIds: readonly string[]): ReadonlySet<string>;
     online(): { userId: string; state: PresenceState; since: number }[];
     calls(): { tableId: string; people: string[] }[];
+    looking(tableId: string): string[];
     size(): number;
     /**
      * Sends a close frame with a code to every connection, and answers how many it sent.
@@ -932,18 +933,11 @@ export function createHub(deps: HubDeps): Hub
             }
         },
 
-        gameWatched(tableId, matchId, afterMs, players)
+        gameWatched(viewers, match, events)
         {
-            const skip = new Set(players);
-            const ring = setTimeout(() =>
-            {
-                later.delete(ring);
-                const looking = [...(watchers.get(tableId) ?? [])].filter((userId) => !skip.has(userId));
-                publish(looking, (n) => nudge(n, 'game', deps.now(), matchId));
-            }, afterMs);
+            const at = deps.now();
 
-            ring.unref?.();
-            later.add(ring);
+            publish(viewers, (n) => watched(n, at, match, events));
         },
 
         reply(connection, build)
@@ -1130,6 +1124,11 @@ export function createHub(deps: HubDeps): Hub
 
                 sounded(target.socket, (n) => sound(n, target.table, sender.join, codec, at, data));
             }
+        },
+
+        looking(tableId)
+        {
+            return [...(watchers.get(tableId) ?? [])];
         },
 
         voiceOf(tableId)

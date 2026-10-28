@@ -3,14 +3,13 @@ import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { DataSource, MoreThan } from 'typeorm';
+import { DataSource } from 'typeorm';
 
-import { Conversation, Match, MatchAction, Table, User, entities } from '../src/entities/index.ts';
+import { Block, Conversation, Match, Table, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
-import { WATCH_DELAY_MS } from '../src/domains/match/turns.ts';
 import { buildPorts, type Services, type WriteListener } from '../src/services.ts';
-import type { MatchView } from '../src/schemas.ts';
+import type { MatchEvent, MatchView } from '../src/schemas.ts';
 
 const url = process.env.TEST_DATABASE_URL;
 
@@ -23,7 +22,10 @@ let seq = 0;
 
 const pushed: { userId: string; match: MatchView }[] = [];
 
-const rung: { matchId: string; players: string[] }[] = [];
+const rung: { match: MatchView; viewers: string[]; events: MatchEvent[] }[] = [];
+
+/** Whoever the hub would say is looking at the table: in a browser, everybody who read it lately. */
+const lookers = new Set<string>();
 
 const listener: WriteListener = {
     chatChanged: () => undefined,
@@ -35,9 +37,9 @@ const listener: WriteListener = {
     {
         pushed.push(...pushes);
     },
-    gameWatched: (_tableId, matchId, _afterMs, players) =>
+    gameWatched: (viewers, match, events) =>
     {
-        rung.push({ matchId, players: [...players] });
+        rung.push({ match, viewers: [...viewers], events });
     },
     tableChanged: () => undefined,
     tableViewed: () => undefined,
@@ -119,15 +121,7 @@ const step = async (matchId: string, players: readonly string[]) =>
     return (await live(matchId)).rev;
 };
 
-const aged = async (matchId: string, after: number) =>
-{
-    await db.getRepository(MatchAction)
-        .createQueryBuilder()
-        .update()
-        .set({ createdAt: () => `created_at - make_interval(secs => ${ WATCH_DELAY_MS / 1000 + 1 })` })
-        .where({ matchId, rev: MoreThan(after) })
-        .execute();
-};
+const after = (from: number, to: number) => Array.from({ length: to - from }, (_, index) => from + index + 1);
 
 describe.skipIf(!active)('a seat that has quit a game still being played, against a real database', () =>
 {
@@ -144,7 +138,7 @@ describe.skipIf(!active)('a seat that has quit a game still being played, agains
             vapidPublicKey: '',
             vapidPrivateKey: '',
             vapidSubject: ''
-        } as Parameters<typeof buildPorts>[1], listener);
+        } as Parameters<typeof buildPorts>[1], listener, { present: (userIds) => new Set(userIds), looking: () => [...lookers] });
     }, 60_000);
 
     afterAll(async () =>
@@ -162,6 +156,7 @@ describe.skipIf(!active)('a seat that has quit a game still being played, agains
         await db.getRepository(User).createQueryBuilder().delete().execute();
         pushed.length = 0;
         rung.length = 0;
+        lookers.clear();
     });
 
     it('is answered with the board as its own leaving left it', async () =>
@@ -176,7 +171,7 @@ describe.skipIf(!active)('a seat that has quit a game still being played, agains
         expect(gone.match.players.find((player) => player.seat === 2)?.result).toBe('abandoned');
     });
 
-    it('goes on seeing that board, not the moves made since, on every route it can ask', async () =>
+    it('goes on following the game live from its own seat, on every route it can ask', async () =>
     {
         const { players, tableId, match } = await started();
 
@@ -187,23 +182,22 @@ describe.skipIf(!active)('a seat that has quit a game still being played, agains
 
         expect(now).toBeGreaterThan(left);
         expect((await ports.match.view(players[0], match.id))?.rev, 'somebody still playing sees it live').toBe(now);
-        expect((await ports.match.view(players[2], match.id))?.rev).toBe(left);
+        expect((await ports.match.view(players[2], match.id))?.rev, 'a seat that gave up was held back from the game it sits out').toBe(now);
         expect((await ports.match.view(players[2], match.id))?.mine).toBe(2);
 
         const since = await ports.match.since(players[2], match.id, left);
 
-        expect(since?.match.rev).toBe(left);
-        expect(since?.events).toEqual([]);
+        expect(since?.match.rev).toBe(now);
+        expect(since?.events.map((event) => event.rev)).toEqual(after(left, now));
 
         const again = await ports.match.resign(players[2], match.id, { key: 'gives-up' });
 
         expect(again.applied).toBe('already');
-        expect(again.match.rev, 'asking again with the same key is not a way to look').toBe(left);
-
-        expect((await ports.match.start(players[2], tableId)).rev, 'nor is pressing Start at a table with a game on').toBe(left);
+        expect(again.match.rev).toBe(now);
+        expect((await ports.match.start(players[2], tableId)).rev, 'pressing Start at a table with a game on answers that game').toBe(now);
     });
 
-    it('is shown a move once it is as old as a watcher would have to wait, the same board the watcher is shown', async () =>
+    it('is shown each move as it is made, the board somebody watching is shown', async () =>
     {
         const { players, match } = await started();
         const watcher = await makeUser();
@@ -211,31 +205,25 @@ describe.skipIf(!active)('a seat that has quit a game still being played, agains
         await ports.match.resign(players[2], match.id, { key: 'gives-up' });
 
         const left = (await live(match.id)).rev;
-        const first = await step(match.id, players);
-
-        await aged(match.id, left);
-
-        const second = await step(match.id, players);
+        const now = await step(match.id, players);
         const mine = await ports.match.view(players[2], match.id);
         const theirs = await ports.match.watch(watcher, match.id, left);
         const since = await ports.match.since(players[2], match.id, left);
 
-        expect(second).toBeGreaterThan(first);
-        expect(mine?.rev).toBe(first);
-        expect(theirs?.match.rev).toBe(first);
+        expect(mine?.rev).toBe(now);
+        expect(theirs?.match.rev).toBe(now);
         expect(mine?.view).toEqual(theirs?.match.view);
-        expect(mine?.remainingMs, 'a clock for a turn that is thirty seconds gone would be a lie').toBeUndefined();
-        expect(since?.match.rev).toBe(first);
-        expect(since?.events.map((event) => event.rev)).toEqual(expect.arrayContaining([first]));
-        expect(since?.events.every((event) => event.rev <= first)).toBe(true);
-        expect(theirs?.events.length, 'a watcher was told nothing of the move its board shows').toBeGreaterThan(0);
-        expect(theirs?.events, 'a watcher and a seat that quit are told the same things').toEqual(since?.events);
+        expect(mine?.remainingMs, 'the clock of the turn being played').toBeGreaterThan(0);
+        expect(theirs?.match.remainingMs, 'somebody watching is shown the same clock').toBeGreaterThan(0);
+        expect(theirs?.events.map((event) => event.rev)).toEqual(after(left, now));
+        expect(theirs?.events, 'somebody watching and a seat that gave up are told the same things').toEqual(since?.events);
     });
 
-    it('is sent no move as it is made, and is rung with the watchers instead', async () =>
+    it('is pushed what the watchers are pushed, and never a player\'s move', async () =>
     {
         const { players, match } = await started();
 
+        players.forEach((player) => lookers.add(player));
         pushed.length = 0;
         rung.length = 0;
         await ports.match.resign(players[2], match.id, { key: 'gives-up' });
@@ -248,7 +236,9 @@ describe.skipIf(!active)('a seat that has quit a game still being played, agains
 
         expect(pushed.map((push) => push.userId).sort()).toEqual([players[0], players[1]].sort());
         expect(rung).toHaveLength(1);
-        expect(rung[0].players.sort(), 'whoever is named here is NOT rung as a watcher').toEqual([players[0], players[1]].sort());
+        expect(rung[0].viewers, 'a seat still playing was pushed the watchers\' board beside its own').toEqual([players[2]]);
+        expect(rung[0].match.rev, 'the watchers were pushed a board behind the move').toBe((await live(match.id)).rev);
+        expect(rung[0].match.mine, 'the watchers were pushed somebody\'s seat').toBeUndefined();
     });
 
     it('is told the end with everybody, and reads the finished game whole', async () =>
@@ -268,6 +258,65 @@ describe.skipIf(!active)('a seat that has quit a game still being played, agains
         expect((await ports.match.view(players[2], match.id))?.finishedAt).toBeDefined();
     });
 
+    it('pushes the watchers what the watch read answers, at a game whose seats hold what nobody else may see', async () =>
+    {
+        const players = [await makeUser(), await makeUser()];
+        const stranger = await makeUser();
+        const table = await ports.table.create(players[0], {
+            game: 'hokm', seats: 2, mode: 'live', privacy: 'public', target: 7, cube: false, blinds: 'low', chat: true, voice: 'off', teams: false, invitees: []
+        });
+
+        await ports.table.claim(players[1], table.id);
+
+        for (const player of players)
+        {
+            await ports.table.setReady(player, table.id, true);
+        }
+
+        rung.length = 0;
+        [...players, stranger].forEach((one) => lookers.add(one));
+
+        const match = await ports.match.start(players[0], table.id);
+        const pushed = rung.at(-1);
+        const read = await ports.match.watch(stranger, match.id, match.rev - 1);
+        const seated = await ports.match.view(players[0], match.id);
+
+        expect(pushed?.viewers, 'the watchers were pushed nothing as the game began').toEqual([stranger]);
+        expect(pushed!.match.view).toEqual(read!.match.view);
+        expect(pushed!.events).toEqual(read!.events);
+        expect(pushed!.match.view, 'a seat\'s own board is not what anybody watching is shown').not.toEqual(seated!.view);
+    });
+
+    it('pushes somebody looking at the table only while they may still watch it', async () =>
+    {
+        const { players, tableId, match } = await started();
+        const stranger = await makeUser();
+        const reached = async () =>
+        {
+            rung.length = 0;
+            await step(match.id, players);
+
+            return rung.flatMap((one) => one.viewers);
+        };
+
+        [...players, stranger].forEach((one) => lookers.add(one));
+
+        expect(await reached()).toEqual([stranger]);
+
+        await db.getRepository(Block).insert({ userId: players[0], blockedId: stranger });
+
+        expect(await reached(), 'the host blocked somebody and the game went on reaching them').toEqual([]);
+
+        await db.getRepository(Block).delete({ userId: players[0], blockedId: stranger });
+        await db.getRepository(Table).update({ id: tableId }, { privacy: 'friends' });
+
+        expect(await reached(), 'a table closed to somebody went on showing them its game').toEqual([]);
+
+        await ports.match.resign(players[2], match.id, { key: 'gives-up' });
+
+        expect(await reached(), 'a seat that gave up stopped being shown the game at its own table').toEqual([players[2]]);
+    });
+
     it('holds for somebody who walked away from the table as it does for somebody who gave up in their chair', async () =>
     {
         const { players, tableId, match } = await started();
@@ -279,8 +328,8 @@ describe.skipIf(!active)('a seat that has quit a game still being played, agains
 
         expect((await live(match.id)).finishedAt).toBeNull();
         expect(now).toBeGreaterThan(left);
-        expect((await ports.match.view(players[2], match.id))?.rev).toBe(left);
-        expect((await ports.match.since(players[2], match.id, left))?.events).toEqual([]);
+        expect((await ports.match.view(players[2], match.id))?.rev).toBe(now);
+        expect((await ports.match.since(players[2], match.id, left))?.events.map((event) => event.rev)).toEqual(after(left, now));
     });
 
     it('changes nothing for a game of two, which a leaving ends', async () =>
@@ -354,7 +403,7 @@ describe.skipIf(!active)('a seat that has quit a game still being played, agains
             expect(exitOf(now, 2)).toBe('timeout');
         });
 
-        it('says it to a watcher only once the board the watcher is shown has it', async () =>
+        it('says it to somebody watching the moment the board they are shown has it', async () =>
         {
             const { players, match } = await started();
             const watcher = await makeUser();
@@ -365,15 +414,7 @@ describe.skipIf(!active)('a seat that has quit a game still being played, agains
             const forfeits = (seen: Awaited<ReturnType<typeof ports.match.watch>>) =>
                 (seen?.events ?? []).flatMap((event) => (event.log.kind === 'ludo' ? event.log.moves : [])).filter((move) => move.e === 'forfeit');
 
-            const young = await ports.match.watch(watcher, match.id, 0);
-
-            expect(young?.match.rev).toBeLessThanOrEqual(before);
-            expect(exitOf(young?.match, 2)).toBeUndefined();
-            expect(forfeits(young), 'a watcher was told a seat had gone before its board showed it').toEqual([]);
-
-            await aged(match.id, before);
-
-            const shown = await ports.match.watch(watcher, match.id, young!.match.rev);
+            const shown = await ports.match.watch(watcher, match.id, before);
 
             expect(shown?.match.players.find((player) => player.seat === 2)?.result).toBe('abandoned');
             expect(exitOf(shown?.match, 2)).toBe('resign');

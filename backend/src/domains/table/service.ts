@@ -314,6 +314,12 @@ const visibleTo = (viewer: string) => `(
                                          where cm.conversation_id = t.room_id and cm.user_id = ${ viewer }))
 )`;
 
+/** Who may watch the game at table `t`: the table is open, they may see it, and neither they nor its host blocked the other. */
+const watchable = (viewer: string) => `t.status <> 'closed' and ${ visibleTo(viewer) }
+     and not exists (select 1 from blocks b
+                      where (b.user_id = ${ viewer } and b.blocked_id = t.host_id)
+                         or (b.user_id = t.host_id and b.blocked_id = ${ viewer }))`;
+
 const ON_SHOW = `t.status <> 'closed' and t.privacy = 'public'`;
 
 export const SEATED_MAX = 50;
@@ -901,15 +907,31 @@ export function createTableService(db: DataSource, social: SocialService)
             return await db.getRepository(Table)
                 .createQueryBuilder('t')
                 .where('t.id = :tableId', { tableId })
-                .andWhere(`t.status <> 'closed'`)
-                .andWhere(visibleTo(':me'), { me })
-                .andWhere(
-                    `not exists (select 1 from blocks b
-                                  where (b.user_id = :me and b.blocked_id = t.host_id)
-                                     or (b.user_id = t.host_id and b.blocked_id = :me))`,
-                    { me }
-                )
+                .andWhere(watchable(':me'), { me })
                 .getExists();
+        },
+
+        /**
+         * Of the people looking at a table, those who may still watch its game, asked as the watch
+         * route asks one of them. A move is pushed to them with its board, and somebody can stop
+         * being allowed between opening the table and its next move: a block with its host, a room
+         * they left, a table closed for friends.
+         */
+        async mayWatch(tableId: string, userIds: readonly string[])
+        {
+            if (userIds.length === 0)
+            {
+                return [];
+            }
+
+            const rows = await db.getRepository(User)
+                .createQueryBuilder('w')
+                .select('w.id', 'id')
+                .where('w.id = any(:userIds::uuid[])', { userIds })
+                .andWhere(`exists (select 1 from tables t where t.id = :tableId and ${ watchable('w.id') })`, { tableId })
+                .getRawMany<{ id: string }>();
+
+            return rows.map((row) => row.id);
         },
 
         /** The tables this account is sitting at right now. */

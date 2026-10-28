@@ -1195,7 +1195,7 @@ no go to be had there.
 
 The play page's header lists the reader's OTHER tables as links, green where one is waiting on
 them, and the Games item in every navigation counts the tables waiting. The lobby store reads the
-list again on a `game` doorbell (all a watcher or a browser with no socket hears), and for a `game`
+list again on a `game` doorbell (all a browser with no socket hears), and for a `game`
 frame about a game it has not heard of or one that has ended.
 
 **Whose turn it is at a table the reader sits at is told by the game frame itself.** Every move
@@ -2512,8 +2512,8 @@ beats had no deal to draw.
 copy of it: `start` wrote the state there beside the `open` row, `commit` wrote it again whenever it
 found the column null, and the sweep's fold carried `opening ?? state` from one step to the next - two
 fallbacks for a column `start` always filled, so neither could run. Its one reader was the watch, for
-a game with no row old enough to show, and the watch takes the `open` row for that now (*A watcher is
-shown one revision*). The column is gone and both fallbacks with it. `match.db.spec.ts` (*the
+a game with no row old enough to show under the delay watchers were once held to. The column is gone
+and both fallbacks with it. `match.db.spec.ts` (*the
 opening*) holds the `open` row to the state the game was dealt, read after a move has changed the
 match's own, and the match to having no column for it.
 
@@ -2522,7 +2522,7 @@ match's own, and the match to having no column for it.
 plan. `match_players.colour` went with it: its docblock said it was what the table is joined
 on to draw a board, which stopped being true the moment the board became the engine's to compose, and
 nothing had read it since. `tests/engine-seam.spec.ts` covers the whole shared path now -
-`services.ts`, `watch.ts`, `record.ts`, `judge.ts` - and fails if any of them imports anything under
+`services.ts`, `record.ts`, `judge.ts` - and fails if any of them imports anything under
 `ludo/`; `judge.ts` may import `rating.ts` and nothing else, and `rating.ts` nothing at all.
 
 **A finished match names nobody on turn.** Every engine's `turnOf` answers null once its game is
@@ -2635,11 +2635,15 @@ wait a press over a dead socket costs), and the idempotency ledger makes the sec
 `already`. A late ack also asks the socket for an answer (`check`), so a dead one is replaced four
 seconds later instead of at the next probe. The API passes play hundreds of turns through them. A browser whose socket
 keeps failing polls `since` every three seconds while a match is open, so a table does not freeze behind
-a proxy that refuses WebSockets. A spectator is never pushed a board - the delay is the point of watching -
-but is RUNG once a move is old enough to show them (`WATCH_DELAY_MS` and a second, `gameWatched` in the
-hub, players excluded), and re-reads through the watch route, which answers what happened since the
-revision the watcher holds; its poll is a thirty-second safety net rather than the only way a
-watcher's board moved.
+a proxy that refuses WebSockets. Somebody watching is pushed every move the moment it commits as well:
+a `watch` frame, the board and the events composed for no seat (`gameWatched` in the hub). It goes to
+whoever is looking at the table (read it among the last tables they read, `looking` in the hub) and
+is not playing in the game, and only to those who may still watch it: the watch route's own rule,
+asked of the whole list in one query (`mayWatch` in the table service). When watchers were only
+rung, the route asked the rule at every read; a pushed board carries the game itself, so a block
+with the host, a room left or a table closed for friends since they opened it has to stop the push
+as it stops the route. A watcher whose frame does not follow the board it holds reads the watch
+route from its own revision, and nothing reads on a timer.
 
 **Every board answers the press before the server does, and only with what the press decides.** A
 hokm card leaves the hand and flies to the felt at once, and the server's echo of that same card is
@@ -2754,58 +2758,42 @@ second per process, against the two a second a fixed batch of thirty-two every f
 log.** `matches.state` is the authority and nothing replays those rows to reconstruct a board. A
 fixed rule would change the fold, and a finished game would stop being a fact.
 
-**A watcher is shown one revision, and the seats beside the board are that revision's too.** The
-delay exists to stop coaching, and it only works because the SERVER holds the board back: a client
-handed the live position and told to wait is not delayed, it is asking nicely, and the request is
-right there in the network tab. So `watch.ts` never sends the current state of a live game. It picks
-R - the newest `match_actions` row older than `WATCH_DELAY_MS`, or the `open` row every ledger begins
-with, so a game younger than the delay is shown its opening rather than nothing - in one query on
-Postgres `now()`, and `behind` is the age of that row on the same clock. It was the Node clock
-against the match's start for a young game. The delay matters in ludo though ludo hides nothing: a
-spectator with a live board can say which token to move, and coaching is cheating in a rated game
-whether or not the board is secret. A finished game has no delay, because nothing is left to leak,
-and that is also what makes watching a game back possible.
+**A watcher is shown the game as it stands, and only what no seat keeps to itself** (LW-D1, the
+owner's production brief of 2026-10-28; `docs/superpowers/specs/2026-10-28-live-watch-donations-markets-design.md`).
+Watchers were held thirty seconds behind, on the reasoning that a live board lets somebody on the
+sidelines coach a player. It protected nothing: a watcher is shown strictly less than any player
+(no hand, no hole cards, no glimpse: the engine's view and log for no seat), and anybody who wants
+to coach a player can watch that player's own screen. It cost every honest watcher the game. So:
 
-The delay is one turn of a live table, thirty seconds (`WATCH_DELAY_MS` in `match/turns.ts`), and
-it is the weaker of the two settings that were considered: at one turn a spectator's board is one
-move stale, so advice from the sidelines is about a position that has just changed rather than
-one that changed three turns ago. It stops somebody reading a board over a shoulder in real time;
-it does not stop a determined pair who accept that what they know is a move old. A small multiple
-of the turn timer is the change to make if that ever matters more than watching feeling live.
-
-The board was always R's and the seats were not (LUDO-14). `match_players` was read as it stands NOW,
-and two of its columns move while a game goes on. `result` becomes `abandoned` the moment a forfeit
-commits, though ludo plays on at three and four seats and poker at three or more, so for thirty
-seconds a watcher read "Left the game" on a plate whose tokens were still on the ring. The sweep bumps
-`timeouts` the moment it plays a turn, so "missed a turn" told a coach that somebody had gone quiet
-thirty seconds before the board showed the turn played. And a finish could commit between the read of
-the match and the read of its seats, which put the final results and the rating swing beside a board
-still called live.
-
-For a live game, then, nothing is read off `match_players` but who sits where. A seat is `abandoned`
-only if the ledger holds a forfeit for it at or before R - the ledger is append-only, so that answer
-is the same however the reads interleave - a rating is never sent, and neither is `timeouts`:
-`matchPlayer.timeouts` is optional and absent for a watcher of a live game, the rule `remainingMs`
-already follows, because a count of misses is what the live clock did rather than what the board
-shows. The match copy that carries R's state carries no deadline, winner or outcome, so `asMatch` has
-nothing to send and the port stopped deleting a field on the way out. `plateTag` and `YardBadge` read
-a missing count as none; the ludo badge compared it with zero, so every plate of a watched game would
-have worn "Waiting" or "Their go" as its tag. A finished game is sent whole, counts included.
+- **The board is the match's own revision, and the seats beside it are read in the same moment.**
+  `match.peek` reads the match row and its seats in one REPEATABLE READ transaction (`atOnce` in
+  `match/service.ts`); read one after the other, a finish committed between them put a winner and
+  a rating swing beside a board still called live. The push reads the same way (`feed`: the row,
+  its seats and its events in one snapshot, the events bounded by the board's revision), so a move
+  committed during a push never sends events past its board.
+- **The seats are what the players are told**: a seat that gave up is `abandoned` the moment it
+  does, with how it went (`exit`), missed turns are counted (`timeouts`), and the clock
+  (`remainingMs`) is the one on the table. A rating is written only by the finish, in the
+  transaction that finishes, so a live game read in one snapshot has none to send.
+- **A finished game is sent whole**, as it always was.
+- **A push reaches only who may still watch** (above, with the push). `match-quit.db.spec.ts`
+  (*pushes somebody looking at the table only while they may still watch it*) has a stranger looking
+  at a three-seat Ludo game, the host block them, the table closed for friends, and the seat that
+  gave up still pushed at its own table; `engine-seam.spec.ts` holds the push to a board and a log
+  composed for no seat.
 
 `/matches/:id/watch` is its own route rather than `view` with a flag: `view` answers a player and
-refuses anybody without a seat, and one route serving both would be one place to get the delay wrong.
-A match that is not there, an id that is no id at all and a table the reader may not watch are one
-answer, 404, in the same words: the port answers each with nothing, and the route has one sentence
-for nothing. `delayed` asks whether the id is a uuid before it asks Postgres, as `read`, `start` and
-`act` do; it was the one match read a route parameter reaches that did not, so a mistyped link was a
-22P02 and a 500. `match.db.spec.ts` (*watching*) holds this through the port a watcher is answered
-by: a three-seat resignation that shows nothing until its row is thirty-one seconds old, a swept turn
-whose count never arrives while the game is live and is there once it is over, a finish forged onto
-`match_players` under a live match, a young game shown its opening and told it is as far behind as
-that row is old, no clock, winner or outcome while live, and nothing to watch at an id nobody holds,
-at one that is no uuid, or at a table that stopped being public under its game - live and finished
-alike, while somebody in a chair there is still shown it. `envelope.spec.ts` holds the missing count
-with no Postgres, and `table-plate.spec.ts` and `ludo-table.spec.ts` hold the plates.
+refuses anybody without a seat. A match that is not there, an id that is no id at all and a table the
+reader may not watch are one answer, 404, in the same words: the port answers each with nothing, and
+the route has one sentence for nothing. `peek` asks whether the id is a uuid before it asks Postgres,
+as `read`, `start` and `act` do. `match.db.spec.ts` (*watching*) holds it through the port a watcher
+is answered by: the opening before anybody moves, each move the moment it is made on the board a
+player is shown, a three-seat resignation shown as out at once, a swept turn counted as the players
+are told it, a finish committed while a watch read and a push are each parked between the row and
+its seats (behind a lock on `match_players` the finishing transaction holds) seen whole or not at
+all, the clock while live and how it ended once over, and nothing to watch at an id nobody holds, at
+one that is no uuid, or at a table that stopped being public under its game. `envelope.spec.ts`
+holds a missing count with no Postgres, and `table-plate.spec.ts` and `ludo-table.spec.ts` the plates.
 
 **A watcher is told what happened, up to the board they are shown and no further.** The watch
 read carried a board and nothing else, so a watcher's board could only be slid from one position
@@ -2815,12 +2803,12 @@ and a re-render. `GET /matches/:id/watch?rev=N` answers `events` beside the boar
 
 - **One reader, bounded by the load it is handed.** `match.told(load, rev)` clamps the revision to
   the load's own, reads the rows between, and composes them for the load's reader: nobody, for a
-  load with no seat. A player's `since` calls it after `shownTo` has chosen the load, and the watch
-  port calls it with the DELAYED load, so "no event past the board beside it" is one line for a
-  player, a seat that quit and a watcher alike. Two shapes that already existed would each have
-  handed over the whole thirty seconds and are not used: `match.feed`, which reads every row after
-  a revision against the LIVE game (it stays the push's reader), and the live row that is in
-  scope inside the delayed read. `engine-seam.spec.ts` reads the port for both.
+  load with no seat. A player's `since` calls it with the player's own load and the watch port with
+  the load it read, so "no event past the board beside it" is one line for a player, a seat that
+  quit and a watcher alike. `match.feed` is the push's reader, bounded by its own board in the same
+  snapshot, and `engine-seam.spec.ts` reads the port to hold that the watch read takes neither the
+  feed nor `since`, and that the watchers' push is composed for no seat: no engine's log reads its
+  reader today, so a push composed for a seat would pass every spec that plays a real game.
 - **What `rev` means.** Absent, or anything that is not a whole number of at most fifteen digits:
   the board and no events, because read as zero it would be the most expensive answer there is,
   the whole game. Zero: the rows from the beginning, which for a game nobody has moved in is the
@@ -2828,8 +2816,8 @@ and a re-render. `GET /matches/:id/watch?rev=N` answers `events` beside the boar
   nothing is read when N is R, which is every idle read. More than `WATCH_TAIL`, twelve, behind:
   the board alone. A tail that long is more than a board will play, and a caller who asks from far
   back would otherwise be handed every earlier showdown and every action's time in one request.
-- **The events are read after the reader has been asked about.** The port's order is the delayed
-  read, then `watchableTable`, then `told`. Read sooner, a refused reader would make the server
+- **The events are read after the reader has been asked about.** The port's order is the read,
+  then `watchableTable`, then `told`. Read sooner, a refused reader would make the server
   read a ledger for a revision they chose, and how long a 404 took would tell a private game from
   a missing id.
 - **A watcher's log holds nothing a seat's log hides.** With the real engines that proves
@@ -2853,17 +2841,20 @@ zero on the first read of a game, the revision it holds after that.
 - **The opening is thrown for a watcher who arrives while the board is still the opening**: the
   first answer is exactly the row that began the game, at the board's revision, and the batch
   carries the same once-only `opens` the board store's does.
-- **It looks again** when it is rung about its game, when everything is rung (all a browser with
-  no socket ever hears: the half-minute poll was otherwise the only thing that moved such a
-  watcher's board, thirty seconds of play at a time), and every half minute while the tab is on
-  show. A game that is over is not asked about again.
-- **`view()` hands out the game, how far behind it is, the rule and whether it is live; the batch
+- **A pushed move is folded where it stands.** A `watch` frame for the game in hand whose events
+  run on from the revision the store holds to the frame's board (`whole`) is folded as an answer
+  would be, with nothing asked; one that does not (a frame missed while the socket was down, a game
+  opened in its middle) is read from the revision in hand. The store reads too when everything is
+  rung, all a browser with no socket hears, and never on a timer: a game nothing happens in is not
+  asked about again, and neither is one that is over. `watch-store.spec.ts` (*a move pushed to
+  somebody watching*) holds the fold, the gap, a frame for another game and one after the end.
+- **`view()` hands out the game and whether it is live; the batch
   has a getter of its own**, so the raw events never ride on the view into something that could
   read them unfolded. `WatchBoard` takes both and hands them to the board it draws.
 
 **A watcher stays through the end.** The page closed the watch the moment the table let go of
-its game, which is the LIVE finish: the board was taken down with up to thirty seconds of play
-unseen and a panel offering a chair took its place. When the table lets go of the game the watch
+its game, which is the finish: the board was taken down in the middle of its last moves and a
+panel offering a chair took its place. When the table lets go of the game the watch
 holds, the page asks the store to `settle`: it reads the same game once more, and a finished game
 is answered whole, so the last moves arrive as events when they are inside the cap and as the
 board alone when they are not. The board plays them and then shows the result, with nothing to
@@ -2882,61 +2873,39 @@ board on the stage now tells whoever drew it when it is playing: `onPresenting` 
 which the backgammon board calls from the presenter's `watch` and once more, with false, when it
 is taken down, so a frame is never left waiting on a board that has gone. `WatchBoard` calls a
 game over when it is finished AND its board is still, and the sentence a screen reader is given
-about why the board is behind is said only until then: a finished game is not behind, and "This
-game is over. Everyone watching is behind by the same amount" was what every watcher's reader
-heard at the end of every game once the end was something a watcher stayed for. A board that is
+about what a watcher sees (`watch.why`: everything but what only a player sees, such as the cards
+in a hand) is said only until then; it was once said over every finished game as well. A board that is
 not on the stage yet says nothing and its frame follows the view, as before; each one takes this
 on in the commit that puts it on the stage. `watch-board.spec.ts` holds the frame waiting.
 `backgammon-board.spec.ts` holds the board telling, and the real board in the real frame handed
 the end and its events in one write: at no step of the clock is the game called over under a
 table still showing it.
 
-`match.db.spec.ts` (*watching*) holds the read against Postgres: three actions of which two are
-old enough, asked from the beginning, and exactly those revisions back; the opening row of a
-young game; the revisions after the one asked from, once and in order; nothing for nobody who
-asked from nowhere; the board alone past the cap; a finished game's rest; and a stranger at a
-friends' table answered nothing whatever revision they name, live and finished.
-`match-quit.db.spec.ts` holds a watcher and a seat that quit to the same events, and a forfeit to
-arriving with the plate that shows it. `well-formed.db.spec.ts` sends the revisions `since` is
+`match.db.spec.ts` (*watching*) holds the read against Postgres: the opening row of a game nobody
+has moved in; the revisions after the one asked from, once and in order; nothing for somebody who
+asked from nowhere; the board alone past the cap; everything after the opening of a finished game;
+and a stranger at a friends' table answered nothing whatever revision they name, live and finished.
+`match-quit.db.spec.ts` holds a watcher and a seat that quit to the same board and events, a
+forfeit arriving with the plate that shows it, and what the watchers are pushed at a Hokm table to
+what the watch read answers. `well-formed.db.spec.ts` sends the revisions `since` is
 sent. `app.spec.ts` (*watching a game*) holds the route. `watch-store.spec.ts` holds the fold,
 `watch-board.spec.ts` what the board is handed, and `backgammon-motion-pass.mjs` a third,
 watching browser.
 
-One thing it costs, stated. A watcher learns that a game has ended when it ends, as before, and
-is then shown its last half minute at once, at double speed when there is much of it: the delay
-protects a game that is being played, and a finished one has nothing left to protect.
+**A seat that quit a game still being played follows it live, from its own seat.** Ludo plays on
+at three and four seats and poker at three or more. A seat that gave up, walked away or was timed
+out of one was held thirty seconds behind with the watchers once (D31, 2026-10-05: a live board was
+a door left open beside the watchers' delay). With no delay there is nothing to hold it to: it reads
+the game as a player does, its own seat (`mine`) and its own seat's view and log, from `view`,
+`since`, the answer to a resignation asked again and the answer to `start`.
 
-**A seat that quit a game still being played is a watcher from the move it quit on** (D31, the
-owner, 2026-10-05). Ludo plays on at three and four seats and poker at three or more, and whoever
-gave up, walked away or was timed out of one kept its `match_players` row - so it was still pushed
-every board as it was made, and `view` and `since` still answered it live. That is the watcher's
-delay with a door left open beside it, and the door did not even need the page: `since` is a GET.
-Now:
-
-- **Which seats.** One whose `match_players.result` is set while `matches.finished_at` is not. Only
-  a forfeit writes a result before the finish (`commit`), so that is exactly the seats with a
-  forfeit row. A poker seat that is out of chips has none and is untouched; a game of two, a
-  Hokm game and a Ludo team game end on a forfeit, so nothing about them changes.
-- **What it is shown.** `match.shownTo(load)`: the newest row at least `WATCH_DELAY_MS` old, or the
-  opening, OR any row up to its own forfeit - `boardShown(db, match, players, seenUpTo)`, the
-  composition the watch route already used, with one more clause. Without that clause the answer
-  to "Give up" was a board from before the giving up, with the Give up button back on it; the
-  seat watched the game live until the move it left on, and that is where its board starts. It
-  keeps `mine`, so the page still knows which plate is the reader's, and gets a watcher's seats:
-  no clock, no counts of misses, no rating.
-- **Every answer a seat can get** goes through it, and there are five: `view`, `since` (whose
-  events stop at the revision shown), the answer to a play or a resignation, the answer to
-  `start`, and the push. The third matters because a resignation is idempotent: asked again with
-  the same key it answers `already` WITH A BOARD, which was the live one - a quitter could have
-  polled its own resignation. The fourth because `start` at a table with a game on answers that
-  game. `read` itself stays live, because `act` and the turn notice reason from it.
-- **The push.** `pushMatch` sends to the seats still playing and names only those as players to
-  `gameWatched`, so a seat that quit is rung with the watchers, a delay and a second later, if it
-  is looking at the table, and its page reads `since` like any other doorbell. The finishing push
-  goes to everybody.
-- **The page says so.** Above the board: "You are out of this game." and the watcher's own
-  sentence about being thirty seconds behind. And it no longer offers "Give up" to somebody who
-  already has, which it did, to be refused.
+- **The push.** `pushMatch` pushes `game` frames to the seats still playing and names only those to
+  `gameWatched`, so a seat that quit is pushed the watchers' `watch` frame while it is looking at
+  the table, and its board reads `since` for its own seat in answer (`onWatch` in `match.store.ts`).
+  The finishing push goes to everybody. A seat that walked away has no chair, and its page watches
+  as anybody's does.
+- **The page says so.** Above the board: "You are out of this game." And it does not offer "Give
+  up" to somebody who already has.
 - **A chair given up from somewhere else makes a watcher of the page that is still open.** The
   page kept the board of a game for as long as the game belonged to the table, seated or not,
   which is what keeps a finished game's result in front of somebody. A walkout takes the chair
@@ -2961,10 +2930,10 @@ Now:
   page and asks that the page still stands and draws the game once, which is the check that
   fails on the crash.
 
-`WATCH_DELAY_MS` moved to `match/turns.ts`, which imports nothing, so the page can say the number
-the server keeps. `match-quit.db.spec.ts` holds each of the five answers at a three-seat Ludo
-table, a walkout as well as a resignation, the end told to everybody, and a game of two
-unchanged; `play.spec.ts` the sentence in both languages and the button that is gone.
+`match-quit.db.spec.ts` holds each answer at a three-seat Ludo table, a walkout as well as a
+resignation, the end told to everybody, and a game of two unchanged; `match-store.spec.ts` (*a seat
+that gave up while the others play on*) the read; `play.spec.ts` the sentence in both languages and
+the button that is gone.
 
 **How a seat went is on the wire, because "Left the game" was said of three different things.**
 Somebody who pressed Give up, somebody who walked away from the table and somebody the clock ran
@@ -6681,8 +6650,8 @@ mount it bare, with `shown={ result }`, and it decides for itself how it goes:
 taken away before it had finished arriving was drawn at full strength for a frame and then
 faded: a keyframe starts from the value the sheet gives the element, not from where the element
 has got to. Seen on the production build with a press 93 ms after the card arrived. Nobody
-presses that fast, but somebody watching is half a minute behind and is taken on to the next
-game whenever the watch says so, which can be inside that quarter second. A transition turns
+presses that fast, but somebody watching is taken on to the next game whenever the watch says
+so, which can be inside that quarter second. A transition turns
 back from wherever it is. What does NOT work, tried in Chromium: keeping the keyframe for the
 way in and writing `animation: none; opacity: 0` with a transition for the way out. No
 transition starts from a value an animation was holding, and the card vanished at once.

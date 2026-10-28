@@ -1,10 +1,10 @@
-# Operations, part 1: the database and NuraChain, checked against each other
+# Operations: the database and NuraChain checked against each other, and the server watched
 
 The owner's production brief of 2026-10-28 (`linked-humming-stroustrup-production-brief.md`, §8):
 "If on-chain state and backend state temporarily diverge, implement reconciliation and operational
 alerting instead of silently assuming one side succeeded", with "persistent, auditable records".
-This is that half of PB7. Monitoring, security tests, recovery and the deployment documents are the
-parts after it.
+Sections 1 and 2 are that, PB7's first part; section 3 is its second, monitoring and alerts (§9).
+Security tests, recovery and the deployment documents are the parts after them.
 
 ## 1. What exists
 
@@ -150,3 +150,119 @@ two sides say exactly what they said when it was closed; if either moves, it is 
 one receipt a settled game, and three contracts' books at one block: a few hundred reads a minute
 at the most, through the same bounded client as every other read (four seconds a call), and nothing
 a request waits for. A row per disagreement, kept for good.
+
+## 3. Part 2: the server watched, and alerts a person can act on
+
+The brief's §9: "Add monitoring for WebSocket health, spectator delivery latency, error rates, event
+backlog, market transitions, failed deposits, settlement delays, payout failures, and reconciliation
+problems. Provide appropriate dashboards, metrics, structured logs, and actionable alerts, using the
+project's existing observability stack where possible." And §8: the sockets are not the source of
+truth, and a restart or an outage must not corrupt state.
+
+### 3.1 What exists, and what is built on it
+
+The JSON log (`main.ts`, every request through `app.ts`'s request log, each worker's info, warn and
+error lines, part 1's `chain and database disagree`); `http/ops.ts`, the requests and failures of
+the last hour in a ring of sixty minutes and the last fifty failures; the overview's "This server"
+for a role that opens `health` (uptime, memory, the event loop, the pool, the sockets open, the
+hour's requests and failures); the vault panel's payments stuck on the way (`STUCK_MINUTES`, ten);
+part 1's open disagreements, counted in "Needs you". Part 2 grows these, never beside them: the
+request ring learns route families, "This server" learns the new measures, "Needs you" lists the
+alerts, and the stuck payments and the disagreements become alerts of their own, raised and cleared
+in the log, keeping the rows "Needs you" already draws for them.
+
+### 3.2 What is measured, from what, kept how
+
+Every measure is taken from the event itself, in this process's memory, bounded by its shape; what
+only the database knows is read from it once every thirty seconds (`SAMPLE_MS`), by indexed queries
+over the rows still in flight. Nothing is estimated and nothing is written.
+
+| Measure | Taken from | Kept |
+|---|---|---|
+| Sockets open | `hub.size()` | now |
+| Sockets opened, and closed by code | the gateway's `onConnection` and `onClose(code)`; a code is one of 1000, 1001, 1005, 1006 (a missed pong among them), 1011, 4400, 4401, 4413, 4429, or `other` | a ring of sixty minutes, and totals since the process began |
+| Upgrades refused, by why | the gate counts its own refusals (`origin`: none, or not ours; `budget`: the handshake budget; `cookie`: no session); one at the ceiling (`SOCKETS_MOST`, answered 503 by the package before the gate) is an upgrade on `/ws` the gate never saw, counted by a listener of our own beside the package's | the same |
+| The deepest outbox | every socket's waiting frames, read at the sample | now |
+| Spectator delivery | each `watch` frame for each watcher: from the move's commit (stamped as the move is pushed) to the frame handed to that socket | five minutes, a minute at a time, as counts per whole millisecond under a second and per ten above (at most sixty seconds): p50, p95 and p99 by nearest rank, exact to that grain |
+| Requests and failures by family | the request observer: the first segment after `/api/` when it names one of the api's eighteen features, `other` for any other `/api` path, `pages` for the rest; a failure is a 5xx | the hour's ring, by family, and totals |
+| The workers' backlog | the database: positions to confirm (`sent`), claims to read (handed in, not read), orders on their way (`sent`), gifts on their way (`sent`), paid games locking, paid games paying (`settling`, `refunding`), markets to settle (`open` or `closing` with their game over and their close passed) | each queue's count and the age of its oldest, at the sample |
+| Market transitions | the market worker's tally at each pass (settled, refunded, cancelled, expired, empty; positions placed, refused, lapsed, claimed) | the hour's ring, and totals |
+| Failed locks | the stake worker's tally (`failed`) | the hour's ring, and totals |
+| Workers failing | each worker's faults at each pass, by record: a record leaves the set at the first pass it does not fail | the records failing now and since when, and how many faults since the process began |
+| Payments stuck | the vault panel's own rule: a paid game locking or paying for ten minutes, or with an error | the count, at the sample |
+| Disagreements | part 1: those open, and the oldest one's first sighting | at the sample |
+| NuraChain out of reach | part 1's pass: the families it could not reach (503) | the last two passes |
+
+A claim's age needs when it was handed in, which no column held: `market_positions.claim_sent_at`,
+written with the claim's hash. A deposit is the player's own transaction to the vault, which this
+server never sees; what it sees is a lock that cannot take a seat's stake because the deposit no
+longer covers it, and that is the failed lock counted here.
+
+### 3.3 The alerts, their thresholds, and what to do
+
+Each alert is judged at every sample by one pure function (`ops/measures.ts`, which imports nothing
+and both halves read), against the numbers below. Thresholds are constants in that file, never
+`.env` names: the house holds the `.env` to what only the operator can know.
+
+| Alert | Crosses when | Level | For | Why that number | What the operator does |
+|---|---|---|---|---|---|
+| `sockets-full` | an upgrade refused at the ceiling in the last 10 minutes | warn | health | `SOCKETS_MOST` (4,000) is a third over the brief's 3,000 and was measured clean; one refusal is somebody turned away | One server per database is the design: see who holds the sockets; raise the ceiling only after a load run on that machine |
+| `sockets-behind` | 10 or more sockets closed for falling behind (4413) in 10 minutes | warn | health | a socket 256 frames behind is one phone on a bad line, and one now and then is that; ten in ten minutes is the server, or a crowd on one game | Spectator delivery and the event loop beside it |
+| `watch-slow` | spectator delivery p95 at or over 1,000 ms over 5 minutes, from at least 50 frames | warn | health | measured p95: 13 ms with twenty games watched, 225 ms with 2,998 watching one game; a second is over four times the worst measured, a board visibly behind its players | The event loop and the audience; one game with thousands watching |
+| `errors`, by family | 10 or more 5xx in a family in 10 minutes, or 5% or more of at least 20 requests | warn | health | a 5xx is always ours: one may be a client hanging up mid-request, one in twenty is not | The last failures, the server's error lines, the pool |
+| `backlog`, by queue (positions, claims, orders, gifts) | the oldest waiting 10 minutes or more | warn | health | a transaction the chain has taken is read back within one pass, two or three seconds; ten minutes is two hundred passes: a chain not mining, or a worker not moving | Is NuraChain reachable and mining; is the worker running (its own warn lines); the referee's gas |
+| `payments-stuck` | one or more paid games stuck by the vault panel's rule | error | money | the vault panel's own ten minutes: a lock or a payout is one transaction | Money: the referee's gas, a paused vault; the stake worker's warn lines |
+| `markets-late` | a market due and not settled for 10 minutes or more | error | money | a settlement is one transaction the worker sends within a pass | Money: the referee's gas; the market worker's warn lines |
+| `locks-failed` | 3 or more stakes failing to lock in an hour | warn | money | one is a player who withdrew between Ready and the lock; three in an hour is a paused vault, a referee short of gas, or a fee changed under signed Readies | Money: paused, gas, fees |
+| `workers-failing`, by worker (stakes, markets, shop, gifts) | a record whose step has failed at every pass for 2 minutes | error for stakes and markets, warn for shop and gifts | money | a refusal the chain clears passes at the next pass, two or three seconds later; two minutes is forty passes | The worker's own warn line names the record and the error |
+| `chain-down` | NuraChain could not be reached at two reconciliation passes in a row | error | money | one pass out of reach is a blip a retry absorbs; two is two minutes in which nothing settles | The RPC (`NURA_RPC_URL`), the network |
+| `checks-open` | one or more disagreements with NuraChain open | error | money | every one is a money record the chain disagrees with; there is no harmless number | Money › Checks against NuraChain |
+
+**Raised and cleared.** When an alert crosses, one structured line at its level, `alert raised`, with
+the alert, what it is about (a family, a queue, a worker), the value and the limit; when it clears,
+one line, `alert cleared`, at the same level, so a filter on the level sees both. Nothing is said
+per request or per pass: the monitor holds the alerts standing, with since when, and compares each
+sample's judgement with them. A restart forgets them, and the first sample after it raises again
+what still holds, one line each.
+
+**Never the source of truth.** The monitor reads; it writes nothing anywhere, holds no lock and
+sends no transaction. A restart, an outage of NuraChain or of the database, or sockets lost cost it
+its memory and nothing else, and every measure is again what it was within a minute of the first
+sample (the hour's counts start again).
+
+### 3.4 Shown
+
+**"This server"** (`health`) grows: the sockets of the last hour (opened, closed by code, refused by
+why) and the deepest outbox; spectator delivery (p50, p95 and p99 of the last five minutes, and how
+many frames); requests and failures by family over the hour; the queues, each with its count and
+its oldest; the market transitions of the hour. **Money's own measures** (`money`): the stuck
+payments, the markets late, the failed locks of the hour, the workers failing, NuraChain's reach and
+the disagreements with their oldest. A measure that crosses its threshold is drawn in danger.
+**"Needs you"** lists every alert standing that the reader's role opens, in the reader's words, each
+leading to where it is dealt with; the stuck payments and the disagreements keep the rows they
+already had. Every word in ten languages.
+
+**The machine endpoint**, `GET /api/metrics`, answers the Prometheus text format (0.0.4) to a caller
+that sends `Authorization: Bearer` and the token the operator names in `METRICS_TOKEN`: a name in
+`.env.example`, written as every name is and required like them, empty meaning the endpoint is off;
+`loadServerConfig` refuses one under 32 characters in any mode. Anybody else, and everybody while
+it is off, is answered as a page that is not there, the same bytes, the token compared in constant
+time. It reads the monitor's memory and the latest sample and never the database, so a scraper
+costs a request. Gauges for what is now, counters since the process began for what is counted, and
+one series a standing alert.
+
+### 3.5 Decisions
+
+| | Decision | Taken | Not chosen |
+|---|---|---|---|
+| OP-D9 | Where measures are kept | this process's memory, bounded by shape (an hour of minutes, five minutes of delays, the records failing now); the database read every thirty seconds for what only it knows | a metrics library for what a few hundred lines do; writing measures to the database |
+| OP-D10 | Percentiles | exact by nearest rank from counts per millisecond (per ten above a second) over five minutes | a sample of the frames; buckets too coarse to say 225 ms |
+| OP-D11 | Thresholds | constants in one pure file both halves read, each with its reason | `.env` names an operator would tune on one machine |
+| OP-D12 | Alerts | judged at each sample, one line when raised and one when cleared, at warn or error, held in memory | a line per request or per pass; alerts written to the database |
+| OP-D13 | The endpoint | Prometheus text behind one bearer token the operator names, off while empty, refused under 32 characters, everybody else answered as a missing page | an address allowlist (the proxy's job); the admin's session (a monitor holds no wallet) |
+| OP-D14 | Who sees what | the server's measures and alerts for `health`, the money's for `money`; "Needs you" the alerts the reader's role opens | everything for every member of the staff |
+| OP-D15 | A failed deposit | the lock that cannot take a seat's stake, which is what this server sees of a deposit | asking the chain about deposits it never handled |
+| OP-D16 | A claim's age | `claim_sent_at`, written with the claim's hash | the position's own creation, which says nothing about the claim |
+
+**What it costs**: a sample is nine indexed queries every thirty seconds; the rings are a few thousand
+numbers; a frame's delivery is one map increment; the endpoint and the overview read memory.

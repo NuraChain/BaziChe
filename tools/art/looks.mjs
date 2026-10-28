@@ -18,7 +18,7 @@ import { H as CARD_H, W as CARD_W } from './card-parts.mjs';
 import { pieceShapes } from './chess-set.mjs';
 import { lineOf } from './legendary/index.mjs';
 import { SUIT_PATH } from './suits.mjs';
-import { gloss, linear, motif, neon, octagram, polygon, r2, radial, sparkle, starOf } from './look-parts.mjs';
+import { clothOf, gloss, linear, motif, neon, octagram, polygon, r2, radial, sparkle, starOf } from './look-parts.mjs';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'public', 'looks');
 
@@ -381,7 +381,7 @@ function faces(palette)
 
 function felt(palette)
 {
-    const cloth = neon(palette) ? palette.surface : palette.pattern === 'filigree' ? ['#1E3B2C', '#10261B', '#07140E'] : palette.pattern === 'girih' ? palette.piece : palette.surface;
+    const cloth = clothOf(palette);
     const defs = [
         radial('f-cloth', [cloth[0], cloth[1], cloth[2]], [0.5, 0.38, 0.75]),
         motif('f-motif', palette, 1.1),

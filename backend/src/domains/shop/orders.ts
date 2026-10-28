@@ -10,7 +10,7 @@ import { ShopItem } from '../../entities/shop-item.entity.ts';
 import { ShopOrder } from '../../entities/shop-order.entity.ts';
 import { User } from '../../entities/user.entity.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan } from '../../lib/keyset.ts';
-import type { ShopOrderView, ShopPurchase, ShopState } from '../../schemas.ts';
+import type { ShopOrderView, ShopPaying, ShopPurchase, ShopState } from '../../schemas.ts';
 import { FEATURED_FIRST, SHOP_COLLECTIONS, bundleOf, bundlePriceFor, isItemId } from './catalogue.ts';
 import type { OrderState, ShopItemStatus, ShopMay } from './policy.ts';
 import { shopRefusal } from './service.ts';
@@ -144,6 +144,11 @@ const ownedAlready = () => shopRefusal('shop-owned', 'That look is already their
 const pending = () => shopRefusal('shop-pending', 'An order for that look is already on its way.');
 const noFriend = () => shopRefusal('shop-friend', 'You can give a look only to a friend.');
 const noOrder = () => shopRefusal('shop-order', 'No order of yours by that name.');
+
+/** The one wallet whose own looks cost it nothing: each is given at Buy as a grant, with no order and nothing asked of the chain. */
+const FREE_BUYER = '0x6c1bd367efcc5f57f2812b404d83480c2af77987';
+
+const freeFor = (address: string | null) => address?.toLowerCase() === FREE_BUYER;
 
 /** What the shop's refusal of a purchase means to whoever asked for it. */
 const refusalOf = (error: string, price: string) =>
@@ -332,6 +337,40 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
 
     const forget = (id: string) => db.getRepository(ShopOrder).delete({ id, state: 'quoted' });
 
+    /**
+     * A look given to the free buyer, or every look of a bundle they lack, under the lock their
+     * orders are placed under; refused as a purchase is when it is not for sale, already theirs, or
+     * held by an order of theirs that could still be paid.
+     */
+    const giveFree = async (me: string, item: string) =>
+    {
+        await db.transaction(async (tx) =>
+        {
+            // No repository can take an advisory lock.
+            await tx.query(`select pg_advisory_xact_lock(hashtext('shop:recipient'), hashtext($1))`, [me]);
+
+            const open = await orderQuery(tx)
+                .where('o.recipient_id = :me', { me })
+                .andWhere(`(o.state in ('quoted', 'sent') or (o.state = 'failed' and o.deadline > now()))`)
+                .getRawMany<OrderRow>();
+
+            if (open.some((one) => overlaps(one.item_id, item)))
+            {
+                throw pending();
+            }
+
+            await priceFor(tx, item, me);
+            await tx.getRepository(OwnedItem)
+                .createQueryBuilder()
+                .insert()
+                .values(looksIn(item).map((itemId) => ({ userId: me, itemId, via: 'grant' as const, orderId: null, giverId: null })))
+                .orIgnore()
+                .execute();
+        });
+
+        hooks.changed([me]);
+    };
+
     const one = async (me: string, id: string) =>
     {
         const row = UUID.test(id)
@@ -477,6 +516,54 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
         return row.lapsed && row.state !== 'failed' ? await expire(row) : null;
     };
 
+    /** An order for a look or a bundle, for the buyer or a friend by handle, and the call their wallet sends to pay it. */
+    const orderAs = async (me: string, buyer: Address, item: string, recipient: string | undefined): Promise<ShopPaying> =>
+    {
+        if (!isItemId(item))
+        {
+            throw noItem();
+        }
+
+        const recipientId = recipient === undefined ? me : await friendOf(me, recipient);
+        const placed = await place(me, buyer, item, recipientId);
+        const quote = quoteOf(placed.row);
+        let asked: ShopAsked;
+
+        try
+        {
+            // Asked of the wallet itself: not every node refuses a call that carries more than its sender holds.
+            if (await shop.balanceOf(buyer) < quote.price)
+            {
+                throw refusalOf('InsufficientFunds', placed.row.price);
+            }
+
+            asked = await shop.buyCall(quote, await shop.sign(quote));
+        }
+        catch (error)
+        {
+            if (placed.fresh)
+            {
+                await forget(placed.row.id);
+            }
+
+            throw error;
+        }
+
+        if (!asked.ok)
+        {
+            if (placed.fresh)
+            {
+                await forget(placed.row.id);
+            }
+
+            throw refusalOf(asked.refusal.error, placed.row.price);
+        }
+
+        hooks.changed([me]);
+
+        return { order: asOrder(placed.row), call: wireOf(buyer, asked.call) };
+    };
+
     return {
         async state(me: string): Promise<ShopState>
         {
@@ -517,7 +604,8 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
                         : {})
                 })),
                 featured: SHOP_COLLECTIONS.find((collection) => collection === featured?.id) ?? FEATURED_FIRST,
-                may: buyer.may
+                may: buyer.may,
+                ...(buyer.may === 'yes' && freeFor(buyer.address) ? { free: true as const } : {})
             };
         },
 
@@ -528,53 +616,26 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
             return { address, wallet: (await shop.balanceOf(address)).toString() };
         },
 
-        async order(me: string, item: string, recipient: string | undefined): Promise<ShopPurchase>
+        order: async (me: string, item: string, recipient: string | undefined) => await orderAs(me, await mustBuy(me), item, recipient),
+
+        /** What Buy does: the free buyer's own look given at once, anybody else's purchase an order to pay. */
+        async purchase(me: string, item: string, recipient: string | undefined): Promise<ShopPurchase>
         {
             const buyer = await mustBuy(me);
+
+            if (recipient !== undefined || !freeFor(buyer))
+            {
+                return await orderAs(me, buyer, item, recipient);
+            }
 
             if (!isItemId(item))
             {
                 throw noItem();
             }
 
-            const recipientId = recipient === undefined ? me : await friendOf(me, recipient);
-            const placed = await place(me, buyer, item, recipientId);
-            const quote = quoteOf(placed.row);
-            let asked: ShopAsked;
+            await giveFree(me, item);
 
-            try
-            {
-                // Asked of the wallet itself: not every node refuses a call that carries more than its sender holds.
-                if (await shop.balanceOf(buyer) < quote.price)
-                {
-                    throw refusalOf('InsufficientFunds', placed.row.price);
-                }
-
-                asked = await shop.buyCall(quote, await shop.sign(quote));
-            }
-            catch (error)
-            {
-                if (placed.fresh)
-                {
-                    await forget(placed.row.id);
-                }
-
-                throw error;
-            }
-
-            if (!asked.ok)
-            {
-                if (placed.fresh)
-                {
-                    await forget(placed.row.id);
-                }
-
-                throw refusalOf(asked.refusal.error, placed.row.price);
-            }
-
-            hooks.changed([me]);
-
-            return { order: asOrder(placed.row), call: wireOf(buyer, asked.call) };
+            return { given: true };
         },
 
         async orders(me: string, cursor: string | null)

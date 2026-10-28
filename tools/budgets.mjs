@@ -84,14 +84,16 @@ const PROFILE_LOOKS = {
 
 /**
  * What a table draws of its owner's looks: pawns in each seat's colour, each collection's deck
- * and back, and its yard, laid over its owner's corner of the Ludo board. A legendary pawn wears its
- * collection's crest and a legendary back its emblem.
+ * and back, its yard, laid over its owner's corner of the Ludo board, and its felt, the mat in front
+ * of its owner's seat at Hokm and poker. A legendary pawn wears its collection's crest and a
+ * legendary back its emblem.
  */
 const TABLE_LOOKS = {
     pawns: { names: SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => `${ collection }-${ seat }`)), budget: 6 * KB },
     decks: { names: [...SHOP_COLLECTIONS], budget: 96 * KB },
     backs: { names: [...SHOP_COLLECTIONS], budget: 8 * KB },
-    yards: { names: [...SHOP_COLLECTIONS], budget: 12 * KB }
+    yards: { names: [...SHOP_COLLECTIONS], budget: 12 * KB },
+    felts: { names: [...SHOP_COLLECTIONS], budget: 8 * KB }
 };
 
 /** Each collection's sigil, beside its name in the shop and on its bundle: every page of the shop loads a dozen. */
@@ -761,7 +763,7 @@ console.log(`  voices       ${ voiceFiles.length } packs, ${ size(voiceTotal) } 
 console.log(`  beds         ${ beds.length } ${ beds.length === 1 ? 'bed' : 'beds' }, ${ size(bedTotal) } in all, none over its ceiling`);
 console.log(`  looks        ${ lookFiles.length } drawings, ${ size(lookTotal) } in all, none over ${ size(LOOK_BUDGET) }`);
 console.log(`  profile      ${ profile.count } frames, plates and covers, ${ size(profile.total) } in all, none over its folder's ceiling`);
-console.log(`  table looks  ${ table.count } pawns, decks, backs and yards, ${ size(table.total) } in all, none over its folder's ceiling`);
+console.log(`  table looks  ${ table.count } pawns, decks, backs, yards and felts, ${ size(table.total) } in all, none over its folder's ceiling`);
 console.log(`  sigils       ${ marks.count } sigils, ${ size(marks.total) } in all, none over ${ size(SHOP_MARKS.sigils.budget) }`);
 console.log(`  world        ${ size(worldBytes) } / ${ size(WORLD_BUDGET) }`);
 console.log(`  posters      ${ posterBytes.map(size).join(', ') }`);

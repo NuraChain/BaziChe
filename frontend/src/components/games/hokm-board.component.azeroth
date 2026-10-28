@@ -15,7 +15,7 @@ import { coachOf, outcomeOf } from '../../game/helpers/hokm.ts';
 import { BANNER_IN, BANNER_OUT, CARRY, COLLECT_GAP, DRAW_GAP, LIFT, NAMING, PLUS, SHUFFLE, TURN, TURN_GAP, dealGap, dealtIn, gatherOrder, holdBefore, openingPackets, restPackets, spanOf, type Packet } from '../../game/hokm-beats.ts';
 import { EMPTY, HISTORY, before, feltOf, sameAs, step, unplay, type Felt, type Laid, type Told } from '../../game/hokm-felt.ts';
 import { cardsOf, dressCards, lean, playAt, unlean } from '../../game/looks/cards.ts';
-import { heardAt } from '../../game/looks/table.ts';
+import { heardAt, wornOf } from '../../game/looks/table.ts';
 import { EASE, TIMING, centreOf, flightFrames, outside, rectIn, type Rect } from '../../game/motion.ts';
 import { createSound, endCue, type SoundHandle } from '../../game/sound.ts';
 import { anchor, cardAt, cardNode, drawn, stackNode, turnNode } from '../../game/stage/cards.ts';
@@ -920,6 +920,11 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
     const facesAt = (seat: number | undefined) => (seat === undefined ? null : cardsOf(lookAt(seat)).faces);
 
     const backsAt = (seat: number) => cardsOf(lookAt(seat)).backs;
+
+    /** The collection of the mat in front of a seat, or null for Classic. */
+    const matAt = (seat: number) => wornOf('felt', lookAt(seat)?.felt);
+
+    derived matted = seated.filter((seat) => matAt(seat) !== null);
 
     /** A card in flight, in the look of whoever it belongs to; none for the house's stock and deck. */
     const dressed = (node: HTMLElement, seat: number | undefined) =>
@@ -2443,6 +2448,11 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                 { () =>
                     <div class="table-fit">
                         <div class="table-surface hokm-table">
+                            <div class="felt-mats" aria-hidden="true">
+                                <For each={ matted } key={ (seat) => seat } let={ seat }>
+                                    <span class="felt-mat" data-seat={ seat } data-side={ plateAt(seat).side } data-mat={ matAt(seat) ?? undefined } data-turn={ seat === turnAt ? 'true' : undefined }></span>
+                                </For>
+                            </div>
                             <div class="hokm-burst" aria-hidden="true" ref={ burstsIn }></div>
 
                             <div class="hokm-medal" data-set={ trump === null ? undefined : 'true' } aria-hidden="true">

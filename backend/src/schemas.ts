@@ -722,7 +722,7 @@ const shopPrice = object({
     sale: object({ price: string(), until: string() }).optional()
 });
 
-/** The shop as the reader finds it: not open here, or what is on sale, the featured collection and whether they may buy. */
+/** The shop as the reader finds it: not open here, or what is on sale, the featured collection, whether they may buy, and whether their own looks cost them nothing. */
 export const shopState = union([
     object({ open: literal(false) }),
     object({
@@ -730,7 +730,8 @@ export const shopState = union([
         chainId: number(),
         items: array(shopPrice),
         featured: enumOf(SHOP_COLLECTIONS),
-        may: enumOf(SHOP_MAY)
+        may: enumOf(SHOP_MAY),
+        free: literal(true).optional()
     })
 ]);
 
@@ -764,7 +765,13 @@ export const shopOrder = object({
 export type ShopOrderView = Infer<typeof shopOrder>;
 
 /** An order, and the purchase the reader's wallet sends to pay for it. */
-export const shopPurchase = object({ order: shopOrder, call: walletCall });
+/** An order and the call the buyer's wallet sends to pay it. */
+export const shopPaying = object({ order: shopOrder, call: walletCall });
+
+export type ShopPaying = Infer<typeof shopPaying>;
+
+/** What Buy is answered with: an order to pay, or a look the reader is given at once and pays nothing for. */
+export const shopPurchase = union([shopPaying, object({ given: literal(true) })]);
 
 export type ShopPurchase = Infer<typeof shopPurchase>;
 

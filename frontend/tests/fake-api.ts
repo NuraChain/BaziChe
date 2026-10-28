@@ -1875,6 +1875,20 @@ export const client =
         {
             server.calls.push(`shop.order ${ input.item }${ input.for === undefined ? '' : ` for ${ input.for }` }`);
             shopRefusal();
+
+            if (server.shop.state.open && server.shop.state.free === true && input.for === undefined)
+            {
+                for (const look of bundleOf(input.item)?.looks ?? [input.item])
+                {
+                    if (!server.shop.owned.some((one) => one.item === look))
+                    {
+                        server.shop.owned.push({ item: look, via: 'grant', at: '2026-10-27T12:01:00.000Z' });
+                    }
+                }
+
+                return { given: true as const };
+            }
+
             server.shop.seq += 1;
 
             const listed = server.shop.state.open ? server.shop.state.items.find((one) => one.id === input.item) : undefined;

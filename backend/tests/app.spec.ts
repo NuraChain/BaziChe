@@ -1014,7 +1014,7 @@ describe('the shop', () =>
         choose: collection,
         state: { open: true, chainId: 1020, items: [{ id: 'dice.shiraz', price: '12000000000000000000', sale: { price: '6000000000000000000', until: '2026-10-28T00:00:00.000Z' } }], featured: 'glow', may: 'yes' },
         balance: { address: CALL.from, wallet: '5' },
-        order: { order: ORDER, call: CALL },
+        purchase: { order: ORDER, call: CALL },
         orders: { orders: [ORDER] },
         one: ORDER,
         sent: { ...ORDER, state: 'sent', hash: SENT.toLowerCase() },
@@ -1082,7 +1082,7 @@ describe('the shop', () =>
         const read = async (path: string) => await (await app.handle(new Request(`http://local/api${ path }`))).json();
 
         expect(await read('/shop')).toEqual(ANSWERS.state);
-        expect(await (await post(app, '/shop/orders', { item: 'dice.shiraz' })).json()).toEqual(ANSWERS.order);
+        expect(await (await post(app, '/shop/orders', { item: 'dice.shiraz' })).json()).toEqual(ANSWERS.purchase);
         expect((await post(app, '/shop/orders', { item: 'back.glow', for: 'mina' })).status).toBe(200);
         expect(await (await post(app, `/shop/orders/${ ORDER.id }/sent`, { hash: SENT })).json()).toEqual(ANSWERS.sent);
         expect(await read('/shop/orders?cursor=abc')).toEqual(ANSWERS.orders);
@@ -1094,8 +1094,8 @@ describe('the shop', () =>
 
         expect(told).toEqual([
             ['state', 'somebody'],
-            ['order', 'somebody', 'dice.shiraz', undefined],
-            ['order', 'somebody', 'back.glow', 'mina'],
+            ['purchase', 'somebody', 'dice.shiraz', undefined],
+            ['purchase', 'somebody', 'back.glow', 'mina'],
             ['sent', 'somebody', ORDER.id, SENT],
             ['orders', 'somebody', 'abc'],
             ['orders', 'somebody', null],
@@ -1104,6 +1104,14 @@ describe('the shop', () =>
             ['earnings', 'somebody'],
             ['claim', 'somebody']
         ]);
+    });
+
+    it('hands on a look given at Buy, and a shop that says the reader pays nothing for their own looks, as they came', async () =>
+    {
+        const app = shopAs([], undefined, { ...ANSWERS, state: { ...(ANSWERS.state as object), free: true }, purchase: { given: true } });
+
+        expect(await (await post(app, '/shop/orders', { item: 'dice.shiraz' })).json()).toEqual({ given: true });
+        expect(await (await app.handle(new Request('http://local/api/shop'))).json()).toEqual({ ...(ANSWERS.state as object), free: true });
     });
 
     it('says a shop that is not open here, and nothing more', async () =>

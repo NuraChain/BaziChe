@@ -77,6 +77,7 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.owned': 'Есть',
     'shop.inUse': 'Используется',
     'shop.buy': 'Купить за {price} NURA',
+    'shop.free': 'Получить бесплатно',
     'shop.give': 'Подарить',
     'shop.use': 'Использовать',
     'shop.useAt': 'Использовать в {game}',

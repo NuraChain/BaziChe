@@ -277,7 +277,8 @@ describe('a hand in a look shown at the end', () =>
 
         expect(host!.classList.contains('poker-burst')).toBe(true);
         expect(host!.parentElement?.classList.contains('poker-table'), 'the bursts are not drawn on the felt').toBe(true);
-        expect(host!.parentElement?.firstElementChild, 'something on the felt lies under the bursts').toBe(host);
+        expect(host!.previousElementSibling?.classList.contains('felt-mats'), 'something on the felt but the mats lies under the bursts').toBe(true);
+        expect(host!.parentElement?.firstElementChild?.classList.contains('felt-mats'), 'something on the felt lies under the mats').toBe(true);
         expect(container.contains(host!)).toBe(true);
 
         const reduced = vi.spyOn(useDevice(), 'reducedMotion').mockReturnValue(true);
@@ -338,5 +339,73 @@ describe('the reader\'s two cards leaning toward the pointer', () =>
         pointer(pocket(plain.container), 'pointermove', 130, 414, 'mouse');
 
         expect(leaning(plain.container)).toEqual(['', '']);
+    });
+});
+
+describe('the felt in front of each poker seat', () =>
+{
+    const FELTS: Record<number, Look> = { 1: { felt: 'felt.jade' }, 2: { felt: 'felt.ember' }, 4: { felt: 'felt.storm', face: 'face.neon' } };
+
+    const mats = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('.felt-mats > .felt-mat')];
+
+    const worn = (container: HTMLElement) => mats(container).map((mat) => [mat.dataset.seat, mat.dataset.mat]);
+
+    it('lays a mat where the plate of each seat that wears a felt is placed, and none for Classic or a look this build does not draw', async () =>
+    {
+        const { container } = await seated(looked({}, {}, FELTS));
+
+        expect(worn(container)).toEqual([['1', 'jade'], ['4', 'storm']]);
+
+        for (const mat of mats(container))
+        {
+            const seat = container.querySelector<HTMLElement>(`.poker-seat[data-seat="${ mat.dataset.seat }"]`);
+
+            expect(mat.style.getPropertyValue('--x'), 'a mat lay away from its seat').toBe(seat?.style.getPropertyValue('--x'));
+            expect(mat.style.getPropertyValue('--y'), 'a mat lay away from its seat').toBe(seat?.style.getPropertyValue('--y'));
+        }
+
+        expect(container.querySelector('.felt-mats')?.getAttribute('aria-hidden')).toBe('true');
+        expect(container.querySelector('.felt-mats')?.nextElementSibling?.classList.contains('poker-burst'), 'the mats are not under the bursts').toBe(true);
+    });
+
+    it('lights the mat of the seat on turn, and none once the game is over', async () =>
+    {
+        const lit = (container: HTMLElement) => mats(container).filter((mat) => mat.dataset.turn === 'true').map((mat) => mat.dataset.seat);
+        const playing = await seated(looked({ turn: 4 }, { turn: 4 }, FELTS));
+
+        expect(lit(playing.container)).toEqual(['4']);
+
+        cleanup();
+
+        const another = await seated(looked({ turn: 2 }, { turn: 2 }, FELTS));
+
+        expect(lit(another.container), 'a mat was lit for a seat whose turn it is not').toEqual([]);
+
+        cleanup();
+
+        const over = await seated(looked({ turn: 4 }, { turn: 4, finishedAt: new Date(500_000).toISOString() }, FELTS));
+
+        expect(lit(over.container), 'a mat was lit after the game ended').toEqual([]);
+    });
+
+    it('keeps each mat through a read that changes nothing, and lays a new game\'s in its own felts', async () =>
+    {
+        const { container, read } = await seated(looked({}, {}, FELTS));
+        const [first] = mats(container);
+
+        await read(looked({}, {}, FELTS));
+
+        expect(mats(container)[0], 'a mat was drawn again for a read that changed nothing').toBe(first);
+
+        await read({ ...looked({}, {}, { 2: { felt: 'felt.gold' }, 4: { felt: 'felt.oni' } }), id: 'match-2' });
+
+        expect(worn(container), 'a seat kept the felt of the game before').toEqual([['2', 'gold'], ['4', 'oni']]);
+    });
+
+    it('lays every player\'s mat for somebody watching', async () =>
+    {
+        const { container } = await seated({ ...looked({}, {}, FELTS), mine: undefined });
+
+        expect(worn(container)).toEqual([['1', 'jade'], ['4', 'storm']]);
     });
 });

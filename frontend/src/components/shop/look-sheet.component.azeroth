@@ -69,6 +69,8 @@ export default component LookSheet(props: OverlayProps & { item: string })
 
     derived may = held !== null && held.open ? held.may : null;
 
+    derived free = held !== null && held.open && held.free === true;
+
     derived asked = shop.priceFor(props.item);
 
     derived owned = shop.owns(props.item);
@@ -367,7 +369,7 @@ export default component LookSheet(props: OverlayProps & { item: string })
 
                         <div class="flex flex-col gap-2">
                             <Show when={ buyable }>
-                                <Button variant="primary" size="lg" block leading="coins" onClick={ buy }>{ locale.t('shop.buy', { price }) }</Button>
+                                <Button variant="primary" size="lg" block leading="coins" onClick={ buy }>{ free ? locale.t('shop.free') : locale.t('shop.buy', { price }) }</Button>
                             </Show>
                             <Show when={ givable }>
                                 <Button variant="outline" size="lg" block leading="gift" onClick={ () => giving = true }>{ locale.t('shop.give') }</Button>

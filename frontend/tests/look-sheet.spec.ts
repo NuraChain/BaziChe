@@ -302,6 +302,30 @@ describe('the sheet about a look', () =>
         expect(useToasts().items(), 'the sheet says it; no toast as well').toEqual([]);
     });
 
+    it('offers the wallet whose own looks are free the look for nothing, and gives it at the press with no wallet asked', async () =>
+    {
+        walletWith();
+
+        if (server.shop.state.open)
+        {
+            server.shop.state = { ...server.shop.state, free: true };
+        }
+
+        const { root } = await sheet('dice.glow');
+
+        expect(button(root, 'Buy for 12 NURA'), 'the free wallet was offered a price').toBeUndefined();
+
+        fire(button(root, 'Get it free')!, 'click');
+        await settle();
+        await settle();
+
+        expect(root.querySelector('[data-buy-step]')?.getAttribute('data-buy-step')).toBe('done');
+        expect(root.textContent).toContain('It’s yours.');
+        expect(button(root, 'Use at Ludo')).toBeDefined();
+        expect(server.calls).toContain('shop.order dice.glow');
+        expect(server.shop.orders, 'a free look left an order').toEqual([]);
+    });
+
     it('says a no in the wallet in its own words, and offers Buy again', async () =>
     {
         walletWith(['eth_sendTransaction']);

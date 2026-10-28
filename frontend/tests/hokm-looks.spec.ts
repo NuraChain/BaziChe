@@ -355,7 +355,8 @@ describe('the signature where a hokm card in a look is laid', () =>
 
         expect(host!.classList.contains('hokm-burst')).toBe(true);
         expect(host!.parentElement?.classList.contains('hokm-table'), 'the bursts are not drawn on the felt').toBe(true);
-        expect(host!.parentElement?.firstElementChild, 'something on the felt lies under the bursts').toBe(host);
+        expect(host!.previousElementSibling?.classList.contains('felt-mats'), 'something on the felt but the mats lies under the bursts').toBe(true);
+        expect(host!.parentElement?.firstElementChild?.classList.contains('felt-mats'), 'something on the felt lies under the mats').toBe(true);
 
         await elapse(TIMING.FLY_THEIRS);
         read({ ...table({}, 0, { 1: { face: 'face.gold' } }), id: 'match-2' });
@@ -415,5 +416,69 @@ describe('a card of the reader\'s hand leaning toward the pointer', () =>
         pointer(hold(plain.container), 'pointermove', 145, 421, { pointerType: 'mouse' });
 
         expect(leaning(plain.container)).toEqual(['', '']);
+    });
+});
+
+describe('the felt in front of each hokm seat', () =>
+{
+    const FELTS: Record<number, Look> = { 0: { felt: 'felt.inferno' }, 2: { felt: 'felt.ember' }, 3: { felt: 'felt.frost', back: 'back.gold' } };
+
+    const mats = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('.felt-mats > .felt-mat')];
+
+    const worn = (container: HTMLElement) => mats(container).map((mat) => [mat.dataset.seat, mat.dataset.mat]);
+
+    it('lays a mat on the side of each seat that wears a felt, and none for Classic or a look this build does not draw', async () =>
+    {
+        const { container } = await mounted(table({}, 0, FELTS));
+
+        expect(worn(container)).toEqual([['0', 'inferno'], ['3', 'frost']]);
+        expect(mats(container)[0]?.dataset.side, 'the reader\'s mat is not at the foot of the table').toBe('bottom');
+
+        for (const mat of mats(container))
+        {
+            expect(mat.dataset.side, 'a mat lay on another side than its seat').toBe(container.querySelector<HTMLElement>(`.hokm-seat[data-seat="${ mat.dataset.seat }"]`)?.dataset.side);
+        }
+
+        expect(container.querySelector('.felt-mats')?.getAttribute('aria-hidden')).toBe('true');
+        expect(container.querySelector('.felt-mats')?.nextElementSibling?.classList.contains('hokm-burst'), 'the mats are not under the bursts').toBe(true);
+    });
+
+    it('lights the mat of the seat on turn and no other', async () =>
+    {
+        const lit = async (turn: number) =>
+        {
+            cleanup();
+
+            const { container } = await mounted(table({ turn, lead: turn }, 0, FELTS));
+
+            return mats(container).filter((mat) => mat.dataset.turn === 'true').map((mat) => mat.dataset.seat);
+        };
+
+        expect(await lit(3)).toEqual(['3']);
+        expect(await lit(0)).toEqual(['0']);
+        expect(await lit(1), 'a mat was lit for a seat whose turn it is not').toEqual([]);
+    });
+
+    it('keeps each mat through a read that changes nothing, and lays a new game\'s in its own felts', async () =>
+    {
+        const { container, read, match } = await mounted(table({}, 0, FELTS));
+        const [first] = mats(container);
+
+        read(match());
+        await flush();
+
+        expect(mats(container)[0], 'a mat was drawn again for a read that changed nothing').toBe(first);
+
+        read({ ...table({}, 0, { 1: { felt: 'felt.gold' }, 3: { felt: 'felt.oni' } }), id: 'match-2' });
+        await flush();
+
+        expect(worn(container), 'a seat kept the felt of the game before').toEqual([['1', 'gold'], ['3', 'oni']]);
+    });
+
+    it('lays every player\'s mat for somebody watching', async () =>
+    {
+        const { container } = await mounted(table({}, null, FELTS));
+
+        expect(worn(container)).toEqual([['0', 'inferno'], ['3', 'frost']]);
     });
 });

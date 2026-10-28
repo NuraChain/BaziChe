@@ -41,3 +41,6 @@ export function motif(id, palette, scale = 1)
 }
 
 export const neon = (palette) => palette.pattern === 'grid';
+
+/** The cloth a collection's felt is woven in: Royal Gold's a deep green under its gold, Shiraz's its turquoise glaze, every other collection's its surface. */
+export const clothOf = (palette) => (palette.pattern === 'filigree' ? ['#1E3B2C', '#10261B', '#07140E'] : (palette.pattern === 'girih' ? palette.piece : palette.surface));

@@ -59,6 +59,7 @@ import type {
     PartyState,
     ShopCollectionView,
     ShopOrderView,
+    ShopPaying,
     ShopPurchase,
     ShopState,
     StaffList,
@@ -596,7 +597,10 @@ export interface ShopPort
      * An order for a look or a bundle, for the reader or a friend by handle, and the purchase their
      * wallet sends to pay it: the order they already hold for it while it has time left, or a new one.
      */
-    order(me: string, item: string, recipient: string | undefined): Promise<ShopPurchase>;
+    order(me: string, item: string, recipient: string | undefined): Promise<ShopPaying>;
+
+    /** What Buy does: the free buyer's own look given at once, anybody else's purchase an order to pay. */
+    purchase(me: string, item: string, recipient: string | undefined): Promise<ShopPurchase>;
 
     /** The reader's orders, newest first, fifty a page. */
     orders(me: string, cursor: string | null): Promise<Infer<typeof shopOrders>>;

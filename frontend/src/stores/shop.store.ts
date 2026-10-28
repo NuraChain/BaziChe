@@ -7,8 +7,7 @@ import {
     type ShopCollectionView,
     type ShopEarnings,
     type ShopOrderView,
-    type ShopState,
-    type WalletCall
+    type ShopState
 } from '../api.ts';
 import { bundleOf, bundlePriceFor, type ShopSlot } from '../../../backend/src/domains/shop/catalogue.ts';
 import { attempt } from '../lib/attempt.ts';
@@ -324,12 +323,21 @@ export const useShop = createStore((): ShopApi =>
 
         setBuying({ item, for: recipient, step: 'preparing', order: null, chainId: null, from: null, hash: null, said: null, short: null });
 
-        let order: ShopOrderView;
-        let call: WalletCall;
+        const arrived = () =>
+        {
+            mine();
+
+            if (untrack(() => watched) !== item)
+            {
+                useToasts().show({ kind: 'success', text: recipient === null ? locale.t('shop.step.mineNamed', { look: itemName(item, locale) }) : locale.t('shop.step.sent', { name: recipient }) });
+            }
+        };
+
+        let placed: Awaited<ReturnType<typeof client.shop.order>>;
 
         try
         {
-            ({ order, call } = await client.shop.order({ input: { item, ...(recipient === null ? {} : { for: recipient }) } }));
+            placed = await client.shop.order({ input: { item, ...(recipient === null ? {} : { for: recipient }) } });
         }
         catch (error)
         {
@@ -339,6 +347,15 @@ export const useShop = createStore((): ShopApi =>
             set({ step: 'failed', said: whyShop(error), short: price === null ? null : { price, held: inWallet } });
             return;
         }
+
+        if ('given' in placed)
+        {
+            set({ step: 'done' });
+            arrived();
+            return;
+        }
+
+        const { order, call } = placed;
 
         set({ order, chainId: call.chainId });
 
@@ -380,13 +397,7 @@ export const useShop = createStore((): ShopApi =>
         if (landed.state === 'paid')
         {
             set({ step: 'done', order: landed, said: landed.delivered === false ? 'shop.step.nothing' : null });
-            mine();
-
-            if (untrack(() => watched) !== item)
-            {
-                useToasts().show({ kind: 'success', text: recipient === null ? locale.t('shop.step.mineNamed', { look: itemName(item, locale) }) : locale.t('shop.step.sent', { name: recipient }) });
-            }
-
+            arrived();
             return;
         }
 

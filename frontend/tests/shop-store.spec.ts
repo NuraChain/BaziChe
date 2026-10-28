@@ -252,6 +252,26 @@ describe('buying a look', () =>
         watched();
     });
 
+    it('takes a look given at Buy as the reader\'s at once, asking the wallet nothing', async () =>
+    {
+        const wallet = walletAt(OWNER);
+
+        await signIn(wallet);
+
+        if (server.shop.state.open)
+        {
+            server.shop.state = { ...server.shop.state, free: true };
+        }
+
+        await useShop().buy('bundle.storm');
+
+        expect(useShop().buying()).toMatchObject({ item: 'bundle.storm', step: 'done', order: null, hash: null });
+        expect(useShop().owns('bundle.storm')).toBe(true);
+        expect(wallet.held.calls.filter((call) => call.method === 'eth_sendTransaction'), 'the wallet was asked to pay for a free look').toEqual([]);
+        expect(server.calls.filter((call) => call.startsWith('shop.sent')), 'a transaction was handed in for a free look').toEqual([]);
+        expect(useToasts().items().map((toast) => toast.text)).toEqual(['Stormforged Monarch bundle is yours.']);
+    });
+
     it('says it once it lands with a toast when no sheet is watching it', async () =>
     {
         await signIn(walletAt(OWNER));

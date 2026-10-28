@@ -1751,6 +1751,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             state: (me) => orders.state(me),
             balance: (me) => orders.balance(me),
             order: (me, item, recipient) => orders.order(me, item, recipient),
+            purchase: (me, item, recipient) => orders.purchase(me, item, recipient),
             orders: (me, cursor) => orders.orders(me, cursor),
             one: (me, id) => orders.one(me, id),
             sent: (me, id, hash) => orders.sent(me, id, hash),

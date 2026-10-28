@@ -13,7 +13,7 @@ import { seatBets, type Box } from '../../game/chip-spot.ts';
 import { aroundStadium, type Spot } from '../../game/poker-seats.ts';
 import { pokerOf } from '../../data/match.ts';
 import { cardsOf as worn, dressCards, lean, playAt, unlean } from '../../game/looks/cards.ts';
-import { heardAt } from '../../game/looks/table.ts';
+import { heardAt, wornOf } from '../../game/looks/table.ts';
 import { coachOf, handOf, pressed, priceOf, type PokerVerb } from '../../game/helpers/poker.ts';
 import { EASE, centreOf, rectIn, type Rect } from '../../game/motion.ts';
 import { BETWEEN_CAP, BOARD_GAP, BOARD_OUT, CARD_FLY, CARD_GAP, CARD_RISE, CHIP_FLY, COLLECT, DEAL_LEAD, DISC_GAP, GATHER, GATHER_GAP, KNOCK, MUCK, MUCK_GAP, POT_FLY, POT_GAP, POT_SPAN, PUCK, RACK, TURN, WIN_AFTER, collectGap, dealGap, heldBefore, slides, spanOf, tabling } from '../../game/poker-beats.ts';
@@ -427,6 +427,9 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
     const facesAt = (seat: number | undefined) => (seat === undefined ? null : worn(lookAt(seat)).faces);
 
     const backsAt = (seat: number) => worn(lookAt(seat)).backs;
+
+    /** The collection of the mat in front of a seat, or null for Classic. */
+    const matAt = (seat: number) => wornOf('felt', lookAt(seat)?.felt);
 
     /** A card in flight, in the look of whoever it belongs to; none for the house's board and deck. */
     const dressed = (node: HTMLElement, seat: number | undefined) =>
@@ -1438,6 +1441,8 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
 
     derived chairs = [...plates.keys()];
 
+    derived matted = chairs.filter((seat) => matAt(seat) !== null);
+
     const plateAt = (seat: number) => plates.get(seat) ?? UNSEATED;
 
     derived betOn = (seat: number) =>
@@ -1665,6 +1670,11 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                 { () =>
                     <div class="table-fit">
                         <div class="table-surface poker-table" role="group" aria-label={ locale.t('poker.table') } data-seats={ count }>
+                            <div class="felt-mats" aria-hidden="true">
+                                <For each={ matted } key={ (seat) => seat } let={ seat }>
+                                    <span class="felt-mat" data-seat={ seat } data-mat={ matAt(seat) ?? undefined } data-turn={ !over && turnSeat === seat ? 'true' : undefined } style={ placed(seat) }></span>
+                                </For>
+                            </div>
                             <div class="poker-burst" aria-hidden="true" ref={ burstsIn }></div>
 
                             <div class="poker-centre">

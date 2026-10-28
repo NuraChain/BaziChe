@@ -74,6 +74,7 @@ export const shop = {
     'shop.owned': 'Owned',
     'shop.inUse': 'In use',
     'shop.buy': 'Buy for {price} NURA',
+    'shop.free': 'Get it free',
     'shop.give': 'Send as a gift',
     'shop.use': 'Use it',
     'shop.useAt': 'Use at {game}',

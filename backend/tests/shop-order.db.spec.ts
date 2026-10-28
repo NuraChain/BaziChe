@@ -384,6 +384,92 @@ describe.skipIf(!active)('buying a look with NURA, against a real database', () 
         });
     });
 
+    describe('the wallet whose own looks are free', () =>
+    {
+        const FREE = getAddress('0x6c1bd367efcc5f57f2812b404d83480c2af77987');
+
+        const freeBuyer = async (options: { minor?: boolean } = {}): Promise<Person> =>
+        {
+            const minor = options.minor ?? false;
+            const user = await db.getRepository(User).save({ handle: 'owner', displayName: 'Owner', hue: 40, kind: 'wallet', isMinor: minor, allowStrangerMessages: !minor });
+
+            await db.getRepository(Wallet).insert({ userId: user.id, address: FREE, attestation: 'wallet', lastUsedAt: new Date() });
+
+            return { id: user.id, handle: user.handle, address: FREE };
+        };
+
+        it('is given every look it buys for itself at Buy, as grants, with no order and nothing asked of the chain', async () =>
+        {
+            const { ports, fake } = door();
+            const owner = await freeBuyer();
+            const bundle = BUNDLES.find((one) => one.id === 'bundle.storm')!;
+
+            fake.state.away = true;
+
+            expect(await ports.shop.state(owner.id).catch(() => null), 'the shop could not say what it sells while the chain was away').toMatchObject({ open: true, may: 'yes', free: true });
+            expect(await ports.shop.purchase(owner.id, 'dice.shiraz', undefined)).toEqual({ given: true });
+            expect(await ports.shop.purchase(owner.id, bundle.id, undefined)).toEqual({ given: true });
+            expect(await ownedBy(owner.id)).toEqual(['dice.shiraz', ...bundle.looks].toSorted().map((item) => ({ item, via: 'grant', order: null, giver: null })));
+            expect(await db.getRepository(ShopOrder).count(), 'a free look left an order behind').toBe(0);
+            expect(fake.quotes, 'a quote was signed for a free look').toEqual([]);
+            expect(fake.asked, 'the chain was asked about a free look').toEqual([]);
+            expect(rung).toContainEqual([owner.id, 'shop']);
+        });
+
+        it('is refused what is not on sale, already its own or held by an order of its own, as anybody is', async () =>
+        {
+            const { ports } = door();
+            const owner = await freeBuyer();
+
+            expect(await refusal(ports.shop.purchase(owner.id, 'dice.nowhere', undefined))).toEqual({ status: 404, code: 'shop-item' });
+
+            await db.query(`update shop_items set status = 'hidden' where id = 'dice.storm'`);
+
+            expect(await refusal(ports.shop.purchase(owner.id, 'dice.storm', undefined))).toEqual({ status: 404, code: 'shop-item' });
+
+            await ports.shop.purchase(owner.id, 'dice.shiraz', undefined);
+
+            expect(await refusal(ports.shop.purchase(owner.id, 'dice.shiraz', undefined))).toEqual({ status: 409, code: 'shop-owned' });
+
+            await ports.shop.order(owner.id, 'pawns.shiraz', undefined);
+
+            expect(await refusal(ports.shop.purchase(owner.id, 'pawns.shiraz', undefined)), 'a look was given while an order for it could still be paid').toEqual({ status: 409, code: 'shop-pending' });
+            expect(await refusal(ports.shop.purchase(owner.id, 'bundle.shiraz', undefined)), 'a bundle holding it was given while that order could still be paid').toEqual({ status: 409, code: 'shop-pending' });
+            expect((await ownedBy(owner.id)).map((one) => one.item)).toEqual(['dice.shiraz']);
+        });
+
+        it('still pays for a gift, and gives nothing free to an account under 18 or where the shop is not open', async () =>
+        {
+            const { ports } = door();
+            const owner = await freeBuyer();
+            const friend = await person();
+
+            await befriend(owner, friend);
+
+            expect(await ports.shop.purchase(owner.id, 'back.gold', friend.handle)).toMatchObject({ order: { item: 'back.gold', for: friend.handle, state: 'quoted' } });
+            expect(await ownedBy(friend.id), 'a gift from the free wallet arrived unpaid').toEqual([]);
+
+            await db.getRepository(User).delete({ id: owner.id });
+
+            const minor = await freeBuyer({ minor: true });
+
+            expect(await ports.shop.state(minor.id)).not.toHaveProperty('free');
+            expect(await refusal(ports.shop.purchase(minor.id, 'dice.shiraz', undefined))).toEqual({ status: 409, code: 'shop-minor' });
+            expect(await refusal(door(fakeShop(false)).ports.shop.purchase(minor.id, 'dice.shiraz', undefined))).toEqual({ status: 404, code: 'shop-off' });
+            expect(await ownedBy(minor.id)).toEqual([]);
+        });
+
+        it('answers anybody else at Buy with an order to pay, and tells nobody else their looks are free', async () =>
+        {
+            const { ports } = door();
+            const buyer = await person();
+
+            expect(await ports.shop.state(buyer.id)).not.toHaveProperty('free');
+            expect(await ports.shop.purchase(buyer.id, 'dice.shiraz', undefined)).toMatchObject({ order: { item: 'dice.shiraz', state: 'quoted' } });
+            expect(await ownedBy(buyer.id)).toEqual([]);
+        });
+    });
+
     describe('a gift', () =>
     {
         it('goes to a friend, a friend under 18 included, and anybody else is answered in one sentence', async () =>

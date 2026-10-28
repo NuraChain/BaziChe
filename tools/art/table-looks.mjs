@@ -3,8 +3,9 @@
  * pieces so a look stands exactly where the classic one does: a ludo pawn in every collection for
  * every seat's colour (`public/pawns/<collection>-<colour>.svg`), the seat's colour kept wherever a
  * board is read for whose pawn it is; every collection's deck (`public/decks/`, the classic cards
- * in its dress, the standard indices kept) and card back (`public/backs/`); and its yard
- * (`public/yards/`), laid over its owner's corner of the Ludo board. `npm run looks` runs it.
+ * in its dress, the standard indices kept) and card back (`public/backs/`); its yard
+ * (`public/yards/`), laid over its owner's corner of the Ludo board; and its felt (`public/felts/`),
+ * the mat in front of its owner's seat at Hokm and poker. `npm run looks` runs it.
  */
 
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -16,7 +17,7 @@ import { PALETTES, SEAT_RAMPS } from '../../frontend/src/game/looks/palette.ts';
 import { cardBack, HALO } from './card-back.mjs';
 import { H, W, deck } from './card-parts.mjs';
 import { LEGENDARY } from './legendary/index.mjs';
-import { gloss, motif, octagram, polygon, radial, sparkle, starOf } from './look-parts.mjs';
+import { clothOf, gloss, motif, octagram, polygon, r2, radial, sparkle, starOf } from './look-parts.mjs';
 import { PAWN, outlined } from './pawn-shape.mjs';
 
 const PUBLIC = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'public');
@@ -300,9 +301,65 @@ ${ sign.body.join('') }
 `;
 }
 
+/** A felt's mat across, its edge, and the ring engraved in it, which the stylesheet's light runs round at 84% of its radius. */
+const MAT = { size: 400, rim: 186, ring: 168 };
+
+/** The ink a felt's lines are cut in, a shadow under each line. */
+const ENGRAVE = '#050A08';
+
+/**
+ * A collection's felt: the mat a card table's cloth shows in front of its owner's seat. It is
+ * round, so the same mat lies under a seat on any side of a table, and the table shows what of it
+ * is on its cloth. Its cloth with the cloth's grain, its motif embroidered thick round its border
+ * and fading toward its middle, which the owner's plate covers; an engraved ring in its edge with
+ * a dashed line inside it and studs of its glint round it, a fine line at its rim and a shadow
+ * outside it, where it lies on the table's own cloth.
+ */
+function mat(collection)
+{
+    const palette = PALETTES[collection];
+    const cloth = clothOf(palette);
+    const { size, rim, ring } = MAT;
+    const mid = size / 2;
+    const at = (radius) => radius / (size / 2);
+    const circle = (r, rest) => `<circle cx="${ mid }" cy="${ mid }" r="${ r }" ${ rest }/>`;
+    const studs = Array.from({ length: 16 }, (_, step) =>
+    {
+        const turn = step * 22.5;
+        const angle = turn * Math.PI / 180;
+
+        return `<path d="${ polygon(r2(mid + ring * Math.cos(angle)), r2(mid + ring * Math.sin(angle)), step % 2 === 0 ? 7.5 : 4.5, 4, turn) }" fill="${ palette.glint }" stroke="${ ENGRAVE }" stroke-width="1.6" stroke-linejoin="round"/>`;
+    });
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${ size } ${ size }" width="${ size }" height="${ size }">
+<defs>
+    ${ motif('motif', palette, 1.7) }
+    <radialGradient id="shadow"><stop offset="${ r2(at(rim) - 0.02) }" stop-color="#000000" stop-opacity="0.5"/><stop offset="1" stop-color="#000000" stop-opacity="0"/></radialGradient>
+    <radialGradient id="ground"><stop offset="0" stop-color="${ cloth[0] }"/><stop offset="0.42" stop-color="${ cloth[1] }"/><stop offset="1" stop-color="${ cloth[2] }"/></radialGradient>
+    <radialGradient id="border"><stop offset="0.38" stop-color="#000000"/><stop offset="0.74" stop-color="#5A5A5A"/><stop offset="${ r2(at(ring) + 0.02) }" stop-color="#FFFFFF"/><stop offset="${ r2(at(rim) - 0.01) }" stop-color="#FFFFFF"/><stop offset="${ r2(at(rim)) }" stop-color="#000000"/></radialGradient>
+    <radialGradient id="lit"><stop offset="${ r2(at(ring) - 0.07) }" stop-color="${ palette.glint }" stop-opacity="0"/><stop offset="${ r2(at(ring)) }" stop-color="${ palette.glint }" stop-opacity="0.2"/><stop offset="${ r2(at(ring) + 0.06) }" stop-color="${ palette.glint }" stop-opacity="0"/></radialGradient>
+    <mask id="weave">${ circle(rim, 'fill="url(#border)"') }</mask>
+    <filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.42" numOctaves="2" seed="7" result="noise"/><feColorMatrix in="noise" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.16 0"/><feComposite in2="SourceGraphic" operator="in"/></filter>
+</defs>
+${ circle(mid, 'fill="url(#shadow)"') }
+${ circle(rim, 'fill="url(#ground)"') }
+${ circle(rim, 'fill="url(#ground)" filter="url(#grain)"') }
+${ circle(rim, 'fill="url(#motif)" mask="url(#weave)"') }
+${ circle(rim, 'fill="url(#lit)"') }
+${ circle(ring - 16, `fill="none" stroke="${ palette.edge }" stroke-width="1.4" stroke-dasharray="2.5 5.5" stroke-opacity="0.75"`) }
+${ circle(ring, `fill="none" stroke="${ ENGRAVE }" stroke-width="7.5" stroke-opacity="0.5"`) }
+${ circle(ring, `fill="none" stroke="${ palette.edge }" stroke-width="3.2"`) }
+${ circle(rim - 4, `fill="none" stroke="${ ENGRAVE }" stroke-width="3.5" stroke-opacity="0.4"`) }
+${ circle(rim - 4, `fill="none" stroke="${ palette.edge }" stroke-width="1.3" stroke-opacity="0.6"`) }
+${ studs.join('\n') }
+</svg>
+`;
+}
+
 const pawns = write('pawns', SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => [`${ collection }-${ seat }`, pawnOf(collection, seat)])));
 const decks = write('decks', SHOP_COLLECTIONS.map((collection) => [collection, deckOf(collection)]));
 const backs = write('backs', SHOP_COLLECTIONS.map((collection) => [collection, back(collection)]));
 const yards = write('yards', SHOP_COLLECTIONS.map((collection) => [collection, yard(collection)]));
+const felts = write('felts', SHOP_COLLECTIONS.map((collection) => [collection, mat(collection)]));
 
-console.log(`table looks: ${ pawns } pawns, ${ decks } decks, ${ backs } backs, ${ yards } yards`);
+console.log(`table looks: ${ pawns } pawns, ${ decks } decks, ${ backs } backs, ${ yards } yards, ${ felts } felts`);

@@ -925,6 +925,216 @@ html:has(.site-drawer[open])
     }
 }
 
+/*
+ * A player's felt, the mat in front of their seat at Hokm and poker (`public/felts/`): round,
+ * centred where their plate sits at the rail and clipped to the cloth (`.felt-mats`), so the table
+ * shows what of it lies on its cloth, a half disc on a straight side and the rail's own curve round
+ * a stadium's end, under every plate, card and chip. While it is its owner's turn a light of the
+ * collection's glint (`--felt-light`) runs round the ring its drawing engraves at 84% of its
+ * radius; with less motion asked for the ring is lit and still. A mat grows out of its seat when
+ * the table is drawn for a game.
+ */
+.felt-mats
+{
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    clip-path: inset(var(--cloth-in) round var(--cloth-round));
+    pointer-events: none;
+}
+
+.hokm-table > .felt-mats
+{
+    --cloth-in: 6.1cqmin;
+    --cloth-round: 4cqmin;
+    --mat: clamp(5.5rem, 36cqmin, 17rem);
+}
+
+.poker-table > .felt-mats
+{
+    --cloth-in: 10.2cqmin;
+    --cloth-round: 999px;
+    --mat: clamp(5.5rem, 44cqmin, 19rem);
+}
+
+.felt-mat
+{
+    position: absolute;
+    inline-size: var(--mat);
+    block-size: var(--mat);
+    border-radius: 50%;
+    background: var(--felt) center / 100% 100% no-repeat;
+    translate: -50% -50%;
+}
+
+.felt-mat::after
+{
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: conic-gradient(transparent 0 62%, color-mix(in srgb, var(--felt-light) 35%, transparent) 80%, var(--felt-light) 96%, transparent);
+    mask: radial-gradient(closest-side, transparent 80.5%, #000000 82% 86%, transparent 87.5%);
+    opacity: 0;
+    transition: opacity 320ms var(--ease-ui, ease);
+}
+
+.felt-mat[data-turn]::after
+{
+    opacity: 1;
+}
+
+.poker-table .felt-mat
+{
+    left: calc(var(--x) * 1%);
+    top: calc(var(--y) * 1%);
+}
+
+.hokm-table .felt-mat:is([data-side='top'], [data-side='bottom'])
+{
+    left: 50%;
+}
+
+.hokm-table .felt-mat[data-side='top']
+{
+    top: calc(4% + var(--plate-h) / 2);
+}
+
+.hokm-table .felt-mat[data-side='bottom']
+{
+    top: calc(96% - var(--plate-h) / 2);
+}
+
+.hokm-table .felt-mat:is([data-side='left'], [data-side='top-left'])
+{
+    left: calc(3.5% + var(--side-w) / 2);
+}
+
+.hokm-table .felt-mat:is([data-side='right'], [data-side='top-right'])
+{
+    left: calc(96.5% - var(--side-w) / 2);
+}
+
+.hokm-table .felt-mat:is([data-side='left'], [data-side='right'])
+{
+    top: 50%;
+}
+
+.hokm-table .felt-mat:is([data-side='top-left'], [data-side='top-right'])
+{
+    top: calc(17% + var(--plate-h) / 2);
+}
+
+[data-mat='glow']
+{
+    --felt: url('/felts/glow.svg');
+    --felt-light: #FBE7A6;
+}
+
+[data-mat='shiraz']
+{
+    --felt: url('/felts/shiraz.svg');
+    --felt-light: #FFF4D6;
+}
+
+[data-mat='neon']
+{
+    --felt: url('/felts/neon.svg');
+    --felt-light: #38E8FF;
+}
+
+[data-mat='gold']
+{
+    --felt: url('/felts/gold.svg');
+    --felt-light: #FFFAE6;
+}
+
+[data-mat='inferno']
+{
+    --felt: url('/felts/inferno.svg');
+    --felt-light: #FFE7A1;
+}
+
+[data-mat='storm']
+{
+    --felt: url('/felts/storm.svg');
+    --felt-light: #EAF6FF;
+}
+
+[data-mat='astral']
+{
+    --felt: url('/felts/astral.svg');
+    --felt-light: #FFE58A;
+}
+
+[data-mat='void']
+{
+    --felt: url('/felts/void.svg');
+    --felt-light: #E9D5FF;
+}
+
+[data-mat='jade']
+{
+    --felt: url('/felts/jade.svg');
+    --felt-light: #FFF1C4;
+}
+
+[data-mat='frost']
+{
+    --felt: url('/felts/frost.svg');
+    --felt-light: #F2FBFF;
+}
+
+[data-mat='phoenix']
+{
+    --felt: url('/felts/phoenix.svg');
+    --felt-light: #FFF6D6;
+}
+
+[data-mat='oni']
+{
+    --felt: url('/felts/oni.svg');
+    --felt-light: #20E6FF;
+}
+
+@media (prefers-reduced-motion: no-preference)
+{
+    .felt-mat
+    {
+        animation: felt-in 640ms var(--ease-ui, ease) both;
+    }
+
+    .felt-mat[data-turn]::after
+    {
+        animation: felt-run 2.4s linear infinite;
+    }
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+    .felt-mat::after
+    {
+        background: var(--felt-light);
+    }
+}
+
+@keyframes felt-in
+{
+    from
+    {
+        opacity: 0;
+        scale: 0.4;
+    }
+}
+
+@keyframes felt-run
+{
+    to
+    {
+        rotate: 1turn;
+    }
+}
+
 @keyframes back-shine
 {
     0%,

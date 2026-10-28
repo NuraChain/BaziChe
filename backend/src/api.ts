@@ -604,10 +604,11 @@ export function buildApi(ports: Ports)
 
             /**
              * An order, and the purchase the reader's wallet sends to pay it. Nothing is delivered
-             * for the answer: the look arrives when `ArcadeShop` says the order was paid.
+             * for the answer: the look arrives when `ArcadeShop` says the order was paid. The one
+             * wallet whose own looks are free is given the look in the answer, and pays nothing.
              */
             order: routes.post('/orders', { input: shopOrderInput, output: shopPurchase },
-                (context) => ports.shop.order(context.principal.userId, context.input.item, context.input.for)),
+                (context) => ports.shop.purchase(context.principal.userId, context.input.item, context.input.for)),
 
             orders: routes.get('/orders', { query: shopOrdersQuery, output: shopOrders },
                 (context) => ports.shop.orders(context.principal.userId, context.query.cursor ?? null)),

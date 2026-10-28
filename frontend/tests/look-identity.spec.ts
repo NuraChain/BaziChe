@@ -4,6 +4,7 @@ import { LEGENDARY_COLLECTIONS, SHOP_COLLECTIONS } from '../../backend/src/domai
 import { AURAS, REVEALS } from '../src/game/looks/aura.ts';
 import { playAt } from '../src/game/looks/cards.ts';
 import { LIGHTS } from '../src/game/looks/lights.ts';
+import { SIXES, TAKES, TRAILS } from '../src/game/looks/ludo.ts';
 import { burstOf, lightOf } from '../src/game/looks/table.ts';
 
 describe('a legendary collection\'s motion', () =>
@@ -46,5 +47,24 @@ describe('a collection\'s light', () =>
         const others = SHOP_COLLECTIONS.filter((one) => one !== collection);
 
         expect(others.map(lightAs)).not.toContain(lightAs(collection));
+    });
+});
+
+describe('a legendary collection at a Ludo table', () =>
+{
+    const others = (collection: (typeof SHOP_COLLECTIONS)[number]) => SHOP_COLLECTIONS.filter((one) => one !== collection);
+
+    it.each([...LEGENDARY_COLLECTIONS])('walks a pawn of %s shedding a stream no other collection’s pawn sheds', (collection) =>
+    {
+        const own = TRAILS[collection].at(-1)!;
+
+        expect(own, 'it sheds the trail every collection draws').not.toBe('trail');
+        expect(others(collection).flatMap((one) => [...TRAILS[one]])).not.toContain(own);
+    });
+
+    it.each([...LEGENDARY_COLLECTIONS])('throws a six of %s and takes a pawn of it with signatures whose first layers no other collection opens with', (collection) =>
+    {
+        expect(others(collection).map((one) => SIXES[one][0].effect)).not.toContain(SIXES[collection][0].effect);
+        expect(others(collection).map((one) => TAKES[one][0].effect)).not.toContain(TAKES[collection][0].effect);
     });
 });

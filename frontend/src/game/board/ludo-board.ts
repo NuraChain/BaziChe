@@ -1,5 +1,6 @@
 import { BLOCK, CELL, GRID, HOME_SCALE, MARGIN, YARD_AT, YARD_SIZE, aimNear, stackSpot } from '../layout.ts';
 import { DIE_PROPERTIES, dieDress } from '../looks/dice.ts';
+import { SIXES, TAKES, TRAILS } from '../looks/ludo.ts';
 import { burstOf, lightOf, wornOf, type Collection } from '../looks/table.ts';
 import { HISTORY, beatsOf, placeOf, sameAs, shownOf, step, type Beat, type Felt, type Pawn, type Rolled, type Shown } from '../ludo-felt.ts';
 import { celebrate } from '../stage/celebrate.ts';
@@ -788,9 +789,10 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
     };
 
     /**
-     * A worn pawn's trail for as long as it moves, and where `run` brings it, a puff, or a ring for a
-     * pawn that has just left its yard, each with its collection's voice. The trail ends itself the
-     * first frame the pawn stands still, because a run the stage abandons never says it is done.
+     * A worn pawn's trail for as long as it moves, each of its collection's streams, and where `run`
+     * brings it, a puff, or a ring for a pawn that has just left its yard, each with its collection's
+     * voice. Every stream ends itself the first frame the pawn stands still, because a run the stage
+     * abandons never says it is done.
      */
     const trail = (piece: Piece, pawn: Pawn, run: Run, entering: boolean) =>
     {
@@ -805,17 +807,20 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
         effects.play((vfx) =>
         {
-            const stop = vfx.stream('trail', () =>
+            for (const kind of TRAILS[worn])
             {
-                if (!piece.root.hasAttribute('data-moving'))
+                const stop = vfx.stream(kind, () =>
                 {
-                    stop();
+                    if (!piece.root.hasAttribute('data-moving'))
+                    {
+                        stop();
 
-                    return null;
-                }
+                        return null;
+                    }
 
-                return footOf(piece);
-            }, { colors, scale: scaleFor(TRAIL_CELLS), density: TRAIL_DENSITY });
+                    return footOf(piece);
+                }, { colors, scale: scaleFor(TRAIL_CELLS), density: TRAIL_DENSITY });
+            }
         });
 
         void run.done.then(() =>
@@ -1152,9 +1157,10 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         if (worn !== null)
         {
             const { effect, tune } = burstOf(worn);
+            const sized = { ...tune, scale: scaleFor(DIE_SIZE) };
 
             sound()?.play(`${ worn }.die`, { pan: pan(spot.x) });
-            effects.play((vfx) => vfx.burst(effect, pixels(spot), { ...tune, scale: scaleFor(DIE_SIZE) }));
+            effects.play((vfx) => (beat.face === 6 && beat.fate === 'pending' ? vfx.signature(SIXES[worn], pixels(spot), sized) : vfx.burst(effect, pixels(spot), sized)));
         }
 
         if (beat.fate === 'pending')
@@ -1294,10 +1300,8 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
             if (worn !== null)
             {
-                const { effect, tune } = burstOf(worn);
-
                 options.sound()?.play(`${ worn }.capture`, { pan: pan(piece.at.x) });
-                effects.play((vfx) => vfx.burst(effect, pixels(piece.at), { ...tune, scale: scaleFor(1) }));
+                effects.play((vfx) => vfx.signature(TAKES[worn], pixels(piece.at), { colors: lightOf(worn), scale: scaleFor(1) }));
             }
 
             if (reader)

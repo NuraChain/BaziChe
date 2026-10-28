@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
 import { playAt } from '../src/game/looks/cards.ts';
+import { LIGHTS } from '../src/game/looks/lights.ts';
+import { SIXES, TAKES } from '../src/game/looks/ludo.ts';
 import { createVfx, PAGE_CEILING, qualityOf, type Quality, type Vfx, type VfxOptions } from '../src/game/vfx/engine.ts';
 import { FAMILIES, FAMILY_STREAMS, type Family, type FamilyStream } from '../src/game/vfx/families.ts';
 import { make, radial, rolling, seeded, TRAIL_EVERY, type Shape } from '../src/game/vfx/presets.ts';
@@ -524,6 +526,31 @@ describe('a card\'s signature, as a table plays it', () =>
             clock.advance(SPENT_MS);
 
             expect(vfx.live(), `seed ${ seed } was still drawing`).toBe(0);
+        }
+    });
+});
+
+describe('a Ludo moment\'s signature, as the board plays it', () =>
+{
+    /** Longer than a six's or a capture's signature lasts to its faintest tail at a scale of one, so one that lingers or streams is caught. */
+    const SPENT_MS = 3_000;
+
+    it.each([...SHOP_COLLECTIONS])('throws a six of %s and takes a pawn of it with signatures that are spent within three seconds, whatever their roll', (collection) =>
+    {
+        for (const steps of [SIXES[collection], TAKES[collection]])
+        {
+            for (let seed = 1; seed <= 6; seed += 1)
+            {
+                const vfx = made(recording());
+
+                vfx.signature(steps, AT, { colors: LIGHTS[collection], scale: 1, seed });
+
+                expect(vfx.live()).toBeGreaterThan(0);
+
+                clock.advance(SPENT_MS);
+
+                expect(vfx.live(), `seed ${ seed } was still drawing`).toBe(0);
+            }
         }
     });
 });

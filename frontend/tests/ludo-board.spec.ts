@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import type { Haptic } from '../src/lib/haptics.ts';
 import type { LudoBoard, MatchPlayer } from '../src/data/match.ts';
+import { SIXES, TAKES, TRAILS } from '../src/game/looks/ludo.ts';
 import { PALETTES } from '../src/game/looks/palette.ts';
 import { lightOf, wornOf } from '../src/game/looks/table.ts';
 import { DIE_REST_MS, DIE_SIZE, ENTER_MS, GONE_MS, HAND, HOME_MS, KNOCK_MS, LIFTED, PASS_LEAST, PASS_MS, PICKUP_MS, SLIDE_MS, STEP_LEAST, STEP_MS, WIN_LEAST, WIN_MS, createLudoBoard, dieRest } from '../src/game/board/ludo-board.ts';
@@ -34,6 +35,9 @@ interface Burst
     preset: string;
     at: { x: number; y: number };
     tune: { colors?: readonly string[]; scale?: number };
+
+    /** A signature's layers; its first names it in `preset`. */
+    steps?: readonly { effect: string }[];
 }
 
 interface Streamed
@@ -54,6 +58,7 @@ vi.mock('../src/game/vfx/engine.ts', () => ({
 
         return {
             burst: (preset: string, at: Burst['at'], tune: Burst['tune']) => engine.bursts.push({ preset, at, tune }),
+            signature: (steps: readonly { effect: string }[], at: Burst['at'], tune: Burst['tune']) => engine.bursts.push({ preset: steps[0]!.effect, steps, at, tune }),
             stream: (kind: string, at: Streamed['at'], tune: Burst['tune']) =>
             {
                 const running = { kind, at, tune, stopped: false };
@@ -2469,6 +2474,55 @@ describe('a ludo die in the look its thrower chose', () =>
         expect(cube().dataset.look).toBe('shiraz');
     });
 
+    it('plays its collection’s fuller signature over a six that keeps the turn, and its landing for any other face', async () =>
+    {
+        worn = { 0: { dice: 'dice.storm' } };
+        const six = rolled(0, 6);
+
+        table.reset(sight(six.before));
+        wide(600);
+        play([six.act], sight(six.state));
+        await flush();
+        await elapse(thrown(six.act).duration + 40);
+        await vi.waitFor(() => expect(engine.bursts).toHaveLength(1));
+
+        const [revealed] = engine.bursts;
+        const rest = dieRest('red');
+
+        expect(revealed!.steps, 'a six played the landing any face plays').toBe(SIXES.storm);
+        expect(revealed!.at.x).toBeCloseTo(rest.x * 6);
+        expect(revealed!.tune.colors).toEqual(lightOf('storm'));
+        expect(revealed!.tune.scale).toBeCloseTo(600 * DIE_SIZE * C / 100 / 40);
+
+        await elapse(1300);
+        engine.bursts = [];
+
+        const four = rolled(0, 4);
+
+        table.reset(sight(four.before));
+        play([four.act], sight(four.state));
+        await flush();
+        await elapse(thrown(four.act).duration + 40);
+        await vi.waitFor(() => expect(engine.bursts).toHaveLength(1));
+
+        expect(engine.bursts[0]!.steps, 'a four played the six’s signature').toBeUndefined();
+        expect(engine.bursts[0]!.preset).toBe('discharge');
+
+        await elapse(1300);
+        engine.bursts = [];
+
+        const thirdBefore = standing([[10, YARD, YARD, YARD], [5, YARD, YARD, YARD]], null, 0, 2);
+        const third = stepped(thirdBefore, { kind: 'roll', seat: 0, die: 6 });
+
+        table.reset(sight(thirdBefore));
+        play([third.act], sight(third.state));
+        await flush();
+        await elapse(thrown(third.act).duration + 40);
+        await vi.waitFor(() => expect(engine.bursts).toHaveLength(1));
+
+        expect(engine.bursts[0]!.steps, 'a third six, which loses the turn, played the six’s signature').toBeUndefined();
+    });
+
     it('plays its collection’s landing where it lands, sized to it and over the die, and nothing before', async () =>
     {
         worn = { 0: { dice: 'dice.gold' } };
@@ -2592,6 +2646,20 @@ describe('ludo pawns in the look their owner chose', () =>
         expect(voiced(), 'leaving the yard is heard as its own moment').toEqual(['glow.spawn']);
     });
 
+    it('sheds a legendary collection’s own stream along its trail, every one ended as the pawn stands', async () =>
+    {
+        worn = { 0: { pawns: 'pawns.inferno' } };
+        await played(standing([[10, YARD, YARD, YARD], [5, YARD, YARD, YARD]], 4));
+        await vi.waitFor(() => expect(engine.streams).toHaveLength(2));
+
+        expect(engine.streams.map((one) => one.kind)).toEqual([...TRAILS.inferno]);
+        expect(engine.streams.every((one) => one.at() !== null), 'a walking pawn shed nothing').toBe(true);
+
+        await elapse(700);
+
+        expect(engine.streams.map((one) => one.at()), 'a stream went on after the pawn had stopped').toEqual([null, null]);
+    });
+
     it('bursts in its walker’s look where it takes a pawn, flashing the taken one in its own drawing', async () =>
     {
         worn = { 0: { pawns: 'pawns.neon' }, 1: { pawns: 'pawns.shiraz' } };
@@ -2603,6 +2671,7 @@ describe('ludo pawns in the look their owner chose', () =>
 
         const flash = drawn.map((one) => one.el).find((el) => el instanceof HTMLImageElement && el.className.includes('invert(1)'));
 
+        expect(engine.bursts.find((one) => one.preset === 'sparks')!.steps, 'a capture played no signature of its walker’s collection').toBe(TAKES.neon);
         expect(engine.bursts.find((one) => one.preset === 'sparks')!.tune.colors).toEqual(lightOf('neon'));
         expect(flash?.getAttribute('src'), 'the taken pawn flashed in another drawing').toBe('/pawns/shiraz-yellow.svg');
         expect(voiced(), 'the walker lands, then takes, each in its own voice, and the taken pawn says nothing').toEqual(['neon.pawn', 'neon.capture']);

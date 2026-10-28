@@ -134,7 +134,11 @@ const gameOf = (id: string | undefined, locale: LocaleApi) =>
 };
 
 /** One fact of a line, as parts: a handle, an address and a code each run left to right whatever the page. */
-export type Fact = { key: string; parts: SaidPart[] };
+export interface Fact
+{
+    key: string;
+    parts: SaidPart[];
+}
 
 const fact = (key: string, said: string, slots: Readonly<Record<string, string>> = {}): Fact => ({ key, parts: handleParts(said, slots) });
 

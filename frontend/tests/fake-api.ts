@@ -60,6 +60,7 @@ import { ESCROW_STATES, STAKE_LADDER } from '../../backend/src/domains/stake/pol
 import { STAFF_REFUSALS, type StaffRefusal } from '../../backend/src/domains/admin/refusals.ts';
 import { CHECKS_PAGE, type CheckFamily, type CheckList } from '../../backend/src/domains/reconcile/kinds.ts';
 import { LIVE_PAGE, LOG_PAGE, may, outranks, PEOPLE_PAGE, PLAY_PAGE, REPORTS_PAGE, type Ability, type ActionKind, type ClearPart, type GrantedRole, type PeopleList, type ReportList, type ReportOutcome, type ReportStatus, type StaffRole, type SuspendCategory, type SuspendDays } from '../../backend/src/domains/admin/roles.ts';
+import { ALERT_ABILITY } from '../../backend/src/ops/measures.ts';
 import {
     FRIENDSHIP_FIXTURES,
     GROUP_FIXTURES,
@@ -612,6 +613,7 @@ const lookoutFresh = () => ({
         stuck: 0,
         reports: 0,
         money: { playing: 0, inPlay: '0', stuck: 0 },
+        alerts: [],
         health: { uptime: 0, rss: 0, heap: 0, loop: { busy: 0, stall: 0 }, pool: { total: 0, idle: 0, waiting: 0 }, sockets: 0, requests: 0, failed: 0, failures: [] }
     } as AdminOverview,
     online: [] as AdminLive['rows']
@@ -1755,14 +1757,16 @@ export const client =
             staffGate('overview');
 
             const role = staffRoleOf(server.me);
-            const { money, health, checks, ...seen } = structuredClone(server.lookout.overview);
+            const { money, health, checks, alerts, payouts, ...seen } = structuredClone(server.lookout.overview);
 
             return {
                 ...seen,
                 reports: waitingReports(),
+                alerts: alerts.filter((one) => may(role, ALERT_ABILITY[one.alert])),
                 ...(may(role, 'money') && money !== undefined ? { money } : {}),
                 ...(may(role, 'money') && checks !== undefined ? { checks } : {}),
-                ...(may(role, 'health') && health !== undefined ? { health } : {})
+                ...(may(role, 'health') && health !== undefined ? { health } : {}),
+                ...(may(role, 'money') && payouts !== undefined ? { payouts } : {})
             };
         },
 

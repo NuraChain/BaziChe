@@ -38,6 +38,11 @@ describe('what watches the server', () =>
         expect(services).toMatch(/sample: sampleWork,/);
     });
 
+    it('is what the admin\'s overview reads, beside the process\'s own health', () =>
+    {
+        expect(main).toMatch(/log\[level\]\(event, fields\), undefined, \{ health: \(\) => ops\.health\(\), watch: monitor \}\);/);
+    });
+
     it('says an alert raised or cleared in the server\'s log, at the alert\'s own level', () =>
     {
         expect(made).toMatch(/said: \(level, event, fields\) => \(level === 'error' \? log\.error\(event, fields\) : log\.warn\(event, fields\)\)/);

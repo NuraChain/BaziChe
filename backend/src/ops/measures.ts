@@ -31,7 +31,9 @@ export const ALERT_KINDS = ['sockets-full', 'sockets-behind', 'watch-slow', 'err
 
 export type AlertKind = (typeof ALERT_KINDS)[number];
 
-export type AlertLevel = 'warn' | 'error';
+export const ALERT_LEVELS = ['warn', 'error'] as const;
+
+export type AlertLevel = (typeof ALERT_LEVELS)[number];
 
 /** Which section of the admin an alert belongs to: the server's, or the money's. */
 export const ALERT_ABILITY: Record<AlertKind, 'health' | 'money'> = {

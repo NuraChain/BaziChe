@@ -277,7 +277,54 @@ describe.skipIf(!active)('the overview, against a real database', () =>
 
         const seen = await ports.admin.overview(owner.id);
 
-        expect([seen?.money, seen?.health]).toEqual([undefined, undefined]);
+        expect([seen?.money, seen?.health, seen?.payouts]).toEqual([undefined, undefined, undefined]);
+        expect(seen?.alerts, 'no monitor, no alerts').toEqual([]);
+    });
+
+    it('names each standing alert to a role that opens its section, beside the server\'s measures and the money\'s, and none of it to a moderator', async () =>
+    {
+        const owner = await makeUser(OWNER);
+        const admin = await makeUser(1);
+        const moderator = await makeUser(2);
+
+        await grant(owner, admin, 'admin');
+        await grant(owner, moderator, 'moderator');
+
+        const asked: { health: boolean; money: boolean }[] = [];
+        const standing = [
+            { alert: 'backlog' as const, about: 'orders', level: 'warn' as const, value: 700, limit: 600, since: Date.parse('2026-10-28T21:00:00.000Z') },
+            { alert: 'chain-down' as const, level: 'error' as const, value: 2, limit: 2, since: Date.parse('2026-10-28T21:05:00.000Z') }
+        ];
+        const server = { opened: 4, closed: { 1000: 3 }, refused: {}, deepest: 1, waiting: 1, families: [], queues: [{ queue: 'orders' as const, count: 2, oldest: 700 }], moves: {} };
+        const money = { failedLocks: 0, failing: [], reachable: false };
+
+        ports = buildPorts(db, CONFIG, listener, presence, undefined, fakeVault().vault, {
+            health: () => HEALTH,
+            watch: {
+                server: () => server,
+                money: () => money,
+                alertsFor: (abilities) =>
+                {
+                    asked.push(abilities);
+                    return standing.filter((one) => (one.alert === 'backlog' ? abilities.health : abilities.money));
+                }
+            }
+        });
+
+        const seen = await ports.admin.overview(admin.id);
+
+        expect(seen?.alerts).toEqual([
+            { alert: 'backlog', about: 'orders', level: 'warn', value: 700, limit: 600, since: '2026-10-28T21:00:00.000Z' },
+            { alert: 'chain-down', level: 'error', value: 2, limit: 2, since: '2026-10-28T21:05:00.000Z' }
+        ]);
+        expect(seen?.health?.watch).toEqual(server);
+        expect(seen?.payouts).toEqual(money);
+
+        const looked = await ports.admin.overview(moderator.id);
+
+        expect(looked?.alerts).toEqual([]);
+        expect([looked?.health, looked?.payouts]).toEqual([undefined, undefined]);
+        expect(asked).toEqual([{ health: true, money: true }, { health: false, money: false }]);
     });
 
     it('answers a player and a suspended moderator as nothing', async () =>

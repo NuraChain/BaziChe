@@ -3,6 +3,7 @@ import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import type { RequestObserver } from '@azerothjs/http';
 
 import { FAMILIES, familyOf, type Family } from '../ops/measures.ts';
+import type { Monitor } from '../ops/monitor.ts';
 import { minuteCounts } from '../ops/rings.ts';
 import { routedPath } from './rate-limit.ts';
 
@@ -42,6 +43,9 @@ export interface ProcessHealth
 export interface OpsReader
 {
     health(): ProcessHealth;
+
+    /** What the monitor shows (`ops/monitor.ts`), where this process runs one. */
+    watch?: Pick<Monitor, 'server' | 'money' | 'alertsFor'>;
 }
 
 const NS_PER_MS = 1_000_000;

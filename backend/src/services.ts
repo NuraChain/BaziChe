@@ -2239,6 +2239,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     may(actor.role, 'money') && reconciler.watching.length > 0 ? reconciler.openCount() : null
                 ]);
 
+                const health = may(actor.role, 'health');
+                const funds = may(actor.role, 'money');
+                const watch = ops?.watch;
+
                 return {
                     at: new Date().toISOString(),
                     people,
@@ -2248,7 +2252,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     reports,
                     ...(money === null ? {} : { money }),
                     ...(checks === null ? {} : { checks }),
-                    ...(may(actor.role, 'health') && ops !== undefined ? { health: { ...ops.health(), pool: poolOf(db), sockets: presence?.sockets?.() ?? 0 } } : {})
+                    alerts: (watch?.alertsFor({ health, money: funds }) ?? []).map((one) => ({ ...one, since: new Date(one.since).toISOString() })),
+                    ...(health && ops !== undefined
+                        ? { health: { ...ops.health(), pool: poolOf(db), sockets: presence?.sockets?.() ?? 0, ...(watch === undefined ? {} : { watch: watch.server() }) } }
+                        : {}),
+                    ...(funds && watch !== undefined ? { payouts: watch.money() } : {})
                 };
             },
 

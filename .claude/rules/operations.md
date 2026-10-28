@@ -216,6 +216,10 @@ still holds. A sample that cannot read the database still judges what is held, a
 logged (`monitor sample failed`). Samples are one at a time, on a timer that never holds the process
 open, stopped on the way down before the sockets are let go.
 
+**The staff read it on the overview** (`.claude/rules/admin.md`, *The overview*): every alert standing
+that the reader's role opens, as a row of "Needs you" in the reader's words, the monitor's measures
+under "This server" for `health`, and the money on its way for `money`.
+
 **A monitor outside reads it at `GET /api/metrics`** (`metricsAt` in `http/metrics.ts`, the last
 wrapper `main.ts` puts round the app, inside the rate limiters): every measure in the Prometheus text
 format, 0.0.4 (`ops/prometheus.ts`), gauges for what is now, counters since the process began and one

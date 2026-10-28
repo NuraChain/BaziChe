@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { LIMITS, SAMPLE_MS, type AlertLevel } from '../src/ops/measures.ts';
-import { createMonitor, type Sampled } from '../src/ops/monitor.ts';
+import { createMonitor, type FamilyCount, type Sampled } from '../src/ops/monitor.ts';
 import { rendered } from '../src/ops/prometheus.ts';
 import { HOUR_MINUTES, MINUTE_MS } from '../src/ops/rings.ts';
 
@@ -10,7 +10,7 @@ const START = Date.parse('2026-10-28T22:00:00.000Z');
 const quiet = (): Sampled => ({ queues: [], stuck: 0, checks: { open: 0, oldest: null } });
 
 /** A monitor on a clock the test moves, every line it says kept in order. */
-const watched = (sampled: () => Sampled = quiet) =>
+const watched = (sampled: () => Sampled = quiet, families: FamilyCount[] = []) =>
 {
     const clock = { at: START };
     const lines: { level: AlertLevel; event: string; fields: Record<string, unknown> }[] = [];
@@ -19,7 +19,7 @@ const watched = (sampled: () => Sampled = quiet) =>
         sample: async () => sampled(),
         sockets: () => 3,
         outboxes: () => ({ deepest: 2, waiting: 5 }),
-        families: () => [],
+        families: () => families,
         familyTotals: () => [],
         process: () => ({ uptime: 60, rss: 100, heap: 50, loop: { busy: 0.1, stall: 2 }, pool: { total: 4, idle: 3, waiting: 0 } }),
         said: (level, event, fields) => lines.push({ level, event, fields })
@@ -151,6 +151,26 @@ describe('the alerts the monitor raises', () =>
         expect(monitor.alertsFor({ health: true, money: false }).map((one) => one.alert)).toEqual(['backlog']);
         expect(monitor.alertsFor({ health: false, money: true }).map((one) => one.alert)).toEqual(['payments-stuck', 'markets-late', 'checks-open']);
         expect(monitor.alertsFor({ health: false, money: false })).toEqual([]);
+        expect(monitor.money()).toEqual({
+            stuck: 1,
+            markets: { count: 1, oldest: LIMITS.marketsLateSeconds },
+            failedLocks: 0,
+            failing: [],
+            reachable: true,
+            checks: { open: 2, oldest: 30 }
+        });
+    });
+
+    it('shows nothing of the money this server does not run, and a queue that is empty with no age', async () =>
+    {
+        const { monitor } = watched(() => ({ queues: [{ queue: 'orders', count: 0, oldest: null }], stuck: null, checks: null }));
+
+        expect(monitor.money(), 'before any sample').toEqual({ failedLocks: 0, failing: [], reachable: true });
+
+        await monitor.sample();
+
+        expect(monitor.money()).toEqual({ failedLocks: 0, failing: [], reachable: true });
+        expect(monitor.server().queues).toEqual([{ queue: 'orders', count: 0 }]);
     });
 
     it('judges what it already holds when the database cannot be read, and lets the failure through', async () =>
@@ -226,7 +246,7 @@ describe('the alerts the monitor raises', () =>
         await monitor.sample();
 
         expect(lines).toEqual([]);
-        expect(monitor.server().watch).toEqual({ frames: 49, p50: 1500, p95: 1500, p99: 1500 });
+        expect(monitor.server().delivery).toEqual({ frames: 49, p50: 1500, p95: 1500, p99: 1500 });
 
         monitor.delivered(1500);
         await monitor.sample();
@@ -237,9 +257,14 @@ describe('the alerts the monitor raises', () =>
 
 describe('what the monitor shows', () =>
 {
-    it('says the sockets of the hour by close code, the deepest outbox and the market\'s moves', async () =>
+    it('says the sockets of the hour by close code, the deepest outbox, the hour\'s requests by family and the market\'s moves', async () =>
     {
-        const { monitor } = watched();
+        const families = [
+            { family: 'tables' as const, requests: 12, failed: 1 },
+            { family: 'chat' as const, requests: 0, failed: 0 },
+            { family: 'pages' as const, requests: 3, failed: 0 }
+        ];
+        const { monitor } = watched(quiet, families);
 
         monitor.opened();
         monitor.opened();
@@ -248,12 +273,14 @@ describe('what the monitor shows', () =>
         monitor.passed('markets', { faults: [], moves: { settled: 2, claimed: 1 } });
         await monitor.sample();
 
-        expect(monitor.server()).toMatchObject({
+        expect(monitor.server()).toEqual({
             opened: 2,
             closed: { 1001: 1, other: 1 },
             refused: {},
             deepest: 2,
             waiting: 5,
+            families: [{ family: 'tables', requests: 12, failed: 1 }, { family: 'pages', requests: 3, failed: 0 }],
+            queues: [],
             moves: { settled: 2, claimed: 1 },
             sampledAt: new Date(START).toISOString()
         });

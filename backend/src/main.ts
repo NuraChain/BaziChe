@@ -172,7 +172,7 @@ const ports = buildPorts(dataSource, config, hub, {
     calls: () => hub.calls(),
     sockets: () => hub.size(),
     looking: (tableId) => hub.looking(tableId)
-}, (event, fields, level = 'info') => log[level](event, fields), undefined, ops);
+}, (event, fields, level = 'info') => log[level](event, fields), undefined, { health: () => ops.health(), watch: monitor });
 
 const serving = config.servePages;
 

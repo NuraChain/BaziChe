@@ -1,6 +1,8 @@
 import { createResource, Link, untrack, useHead } from 'azerothjs';
 
 import { may } from '../../../../backend/src/domains/admin/roles.ts';
+import { ALERT_ABILITY, MOVES, QUEUES, REFUSALS, WORKERS, type AlertKind, type Queue, type Worker } from '../../../../backend/src/ops/measures.ts';
+import type { AdminOverview } from '../../../../backend/src/schemas.ts';
 import AdminHead from '../../components/admin/admin-head.component.azeroth';
 import When from '../../components/admin/when.component.azeroth';
 import GameIcon from '../../components/games/game-icon.component.azeroth';
@@ -31,11 +33,26 @@ const LINK = 'text-ui-sm font-semibold text-accent hover:underline';
 
 const TILE = 'flex h-full flex-col gap-1.5 p-4';
 
+const CHIP = 'rounded-control bg-raised px-1.5 py-0.5';
+
 const STATUS: Record<'available' | 'disabled' | 'coming-soon', { word: MessageKey; tone: 'live' | 'gold' | 'neutral' }> = {
     available: { word: 'admin.play.status.available', tone: 'live' },
     disabled: { word: 'admin.play.status.disabled', tone: 'gold' },
     'coming-soon': { word: 'admin.play.status.coming-soon', tone: 'neutral' }
 };
+
+/** Every alert but the two "Needs you" already has a row of its own for: the payments stuck and the disagreements. */
+const DRAWN = ['sockets-full', 'sockets-behind', 'watch-slow', 'errors', 'backlog', 'markets-late', 'locks-failed', 'workers-failing', 'chain-down'] as const satisfies readonly AlertKind[];
+
+type Drawn = (typeof DRAWN)[number];
+
+type Standing = AdminOverview['alerts'][number];
+
+const isDrawn = (value: string): value is Drawn => DRAWN.some((one) => one === value);
+
+const isQueue = (value: string | undefined): value is Queue => QUEUES.some((one) => one === value);
+
+const isWorker = (value: string | undefined): value is Worker => WORKERS.some((one) => one === value);
 
 export default component OverviewPage()
 {
@@ -158,13 +175,9 @@ export default component OverviewPage()
 
     derived disagreeing = checkCount > 0;
 
-    derived needed = reported || jammed || owed || disagreeing;
-
     derived health = held?.health ?? null;
 
     derived watched = health !== null;
-
-    derived serverSpan = funded ? 'lg:col-span-2' : 'lg:col-span-3';
 
     const megabytes = (bytes: number) => locale.n(bytes / MB, { style: 'unit', unit: 'megabyte', unitDisplay: 'short', maximumFractionDigits: 0 });
 
@@ -186,6 +199,73 @@ export default component OverviewPage()
         }
 
         return hours > 0 ? locale.list([unit(hours, 'hour'), unit(minutes, 'minute')], { type: 'unit', style: 'long' }) : unit(minutes, 'minute');
+    };
+
+    const waited = (seconds: number) => (seconds < MINUTE_S ? unit(seconds, 'second') : span(seconds));
+
+    /** An api feature is named by its address, left to right in every language; the pages and the rest of the api by words. */
+    const familyOf = (family: string) =>
+        (family === 'pages' || family === 'other'
+            ? { text: locale.t(family === 'pages' ? 'admin.family.pages' : 'admin.family.other'), dir: 'auto', code: false }
+            : { text: `/api/${ family }`, dir: 'ltr', code: true });
+
+    const queueOf = (about: string | undefined) => (isQueue(about) ? locale.t(`admin.queue.${ about }`) : about ?? '');
+
+    const workerOf = (about: string | undefined) => (isWorker(about) ? locale.t(`admin.worker.${ about }`) : about ?? '');
+
+    const sentenceOf = (one: Standing, kind: Drawn) =>
+    {
+        const count = locale.n(one.value);
+
+        switch (kind)
+        {
+            case 'sockets-full': return locale.t('admin.alert.sockets-full', { count });
+            case 'sockets-behind': return locale.t('admin.alert.sockets-behind', { count });
+            case 'watch-slow': return locale.t('admin.alert.watch-slow', { time: millis(one.value) });
+            case 'errors': return locale.t('admin.alert.errors', { count });
+            case 'backlog': return locale.t('admin.alert.backlog', { queue: queueOf(one.about), time: waited(one.value) });
+            case 'markets-late': return locale.t('admin.alert.markets-late', { time: waited(one.value) });
+            case 'locks-failed': return locale.t('admin.alert.locks-failed', { count });
+            case 'workers-failing': return locale.t('admin.alert.workers-failing', { worker: workerOf(one.about), time: waited(one.value) });
+            case 'chain-down': return locale.t('admin.alert.chain-down', { count });
+        }
+    };
+
+    derived standing = held?.alerts ?? [];
+
+    derived alerts = standing.flatMap((one) =>
+    {
+        const kind = one.alert;
+
+        if (!isDrawn(kind))
+        {
+            return [];
+        }
+
+        const family = kind === 'errors' && one.about !== undefined ? familyOf(one.about) : null;
+
+        return [{
+            key: `${ one.alert }:${ one.about ?? '' }`,
+            tone: one.level === 'error' ? 'bg-danger/15 text-danger' : 'bg-gold/15 text-gold',
+            said: sentenceOf(one, kind),
+            about: family?.text ?? '',
+            since: one.since,
+            panel: ALERT_ABILITY[kind] === 'health' ? 'overview-server' : 'overview-payouts'
+        }];
+    });
+
+    derived alerting = alerts.length > 0;
+
+    derived needed = reported || jammed || owed || disagreeing || alerting;
+
+    const standingIn = (list: readonly Standing[], kind: AlertKind) => list.some((one) => one.alert === kind);
+
+    const toPanel = (id: string) =>
+    {
+        const heading = document.getElementById(id);
+
+        heading?.scrollIntoView({ block: 'start' });
+        heading?.focus({ preventScroll: true });
     };
 
     derived uptime = health === null
@@ -217,6 +297,118 @@ export default component OverviewPage()
     derived failures = (health?.failures ?? []).map((one, at) => ({ key: `${ one.at } ${ at }`, at: one.at, said: `${ one.method } ${ one.path }`, status: locale.n(one.status, { useGrouping: false }) }));
 
     derived listed = failures.length > 0;
+
+    derived watch = health?.watch ?? null;
+
+    derived measured = watch !== null;
+
+    const total = (counts: Record<string, number>) => Object.values(counts).reduce((sum, one) => sum + one, 0);
+
+    derived socketsHour = watch === null
+        ? ''
+        : locale.t('admin.overview.socketsHourValue', { opened: locale.n(watch.opened), closed: locale.n(total(watch.closed)), refused: locale.n(total(watch.refused)) });
+
+    derived closes = Object.entries(watch?.closed ?? {}).map(([code, count]) => ({ key: code, said: `${ code } × ${ locale.n(count) }` }));
+
+    derived refusals = REFUSALS.filter((why) => (watch?.refused[why] ?? 0) > 0)
+        .map((why) => ({ key: why, said: locale.t('admin.overview.countedValue', { what: locale.t(`admin.refusal.${ why }`), count: locale.n(watch?.refused[why] ?? 0) }) }));
+
+    derived outbox = watch === null ? '' : locale.t('admin.overview.outboxValue', { deepest: locale.n(watch.deepest), waiting: locale.n(watch.waiting) });
+
+    derived delivery = watch?.delivery ?? null;
+
+    derived delivered = delivery !== null;
+
+    derived deliveryValue = delivery === null ? '' : locale.t('admin.overview.deliveryValue', { p50: millis(delivery.p50), p95: millis(delivery.p95), p99: millis(delivery.p99) });
+
+    derived deliveryFrames = delivery === null ? '' : locale.t('admin.overview.deliveryFrames', { frames: locale.n(delivery.frames) });
+
+    derived slow = standingIn(standing, 'watch-slow');
+
+    derived families = (watch?.families ?? []).map((one) => ({
+        key: one.family,
+        name: familyOf(one.family),
+        said: locale.t('admin.overview.familyValue', { requests: locale.n(one.requests), failed: locale.n(one.failed) }),
+        tone: one.failed > 0 ? 'text-danger' : 'text-muted'
+    }));
+
+    derived asked = families.length > 0;
+
+    derived behind = new Set(standing.flatMap((one) => (one.alert === 'markets-late' ? ['markets'] : one.alert === 'backlog' && one.about !== undefined ? [one.about] : [])));
+
+    derived queues = (watch?.queues ?? []).filter((one) => one.count > 0).map((one) => ({
+        key: one.queue,
+        name: locale.t(`admin.queue.${ one.queue }`),
+        said: one.oldest === undefined
+            ? locale.t('admin.overview.queueValue', { count: locale.n(one.count) })
+            : locale.t('admin.overview.queueOldest', { count: locale.n(one.count), time: waited(one.oldest) }),
+        tone: behind.has(one.queue) ? 'text-danger' : 'text-muted'
+    }));
+
+    derived queued = queues.length > 0;
+
+    derived sampledAt = watch?.sampledAt ?? '';
+
+    derived sampled = sampledAt !== '';
+
+    derived marketsRun = (watch?.queues ?? []).some((one) => one.queue === 'markets');
+
+    derived moves = MOVES.filter((move) => (watch?.moves[move] ?? 0) > 0)
+        .map((move) => ({ key: move, said: locale.t('admin.overview.countedValue', { what: locale.t(`admin.move.${ move }`), count: locale.n(watch?.moves[move] ?? 0) }) }));
+
+    derived moved = moves.length > 0;
+
+    derived payouts = held?.payouts ?? null;
+
+    derived paying = payouts !== null;
+
+    derived payoutsSpan = funded ? 'lg:col-span-2' : 'lg:col-span-3';
+
+    derived serverSpan = funded && !paying ? 'lg:col-span-2' : 'lg:col-span-3';
+
+    derived payStuckShown = payouts?.stuck !== undefined;
+
+    derived payStuck = locale.n(payouts?.stuck ?? 0);
+
+    derived payStuckTone = (payouts?.stuck ?? 0) > 0 ? 'text-danger' : 'text-text';
+
+    derived marketsDue = payouts?.markets ?? null;
+
+    derived marketsShown = marketsDue !== null;
+
+    derived marketsCount = locale.n(marketsDue?.count ?? 0);
+
+    derived marketsOldest = marketsDue?.oldest === undefined ? '' : locale.t('admin.overview.payouts.oldest', { time: waited(marketsDue.oldest) });
+
+    derived marketsTone = standingIn(standing, 'markets-late') ? 'text-danger' : 'text-text';
+
+    derived locks = locale.n(payouts?.failedLocks ?? 0);
+
+    derived locksTone = standingIn(standing, 'locks-failed') ? 'text-danger' : 'text-text';
+
+    derived reachable = payouts?.reachable ?? true;
+
+    derived chainSaid = locale.t(reachable ? 'admin.overview.payouts.reached' : 'admin.overview.payouts.unreached');
+
+    derived chainTone = reachable ? 'text-text' : 'text-danger';
+
+    derived checksOpen = payouts?.checks ?? null;
+
+    derived checksShown = checksOpen !== null;
+
+    derived checksCount = locale.n(checksOpen?.open ?? 0);
+
+    derived checksOldest = checksOpen?.oldest === undefined ? '' : locale.t('admin.overview.payouts.oldest', { time: waited(checksOpen.oldest) });
+
+    derived checksTone = (checksOpen?.open ?? 0) > 0 ? 'text-danger' : 'text-text';
+
+    derived workers = (payouts?.failing ?? []).map((one) => ({
+        key: one.worker,
+        name: locale.t(`admin.worker.${ one.worker }`),
+        said: locale.t('admin.overview.payouts.failingValue', { count: locale.n(one.count), time: waited(one.oldest) })
+    }));
+
+    derived stalled = workers.length > 0;
 
     <div class="flex flex-col gap-6">
         <AdminHead
@@ -284,6 +476,21 @@ export default component OverviewPage()
                                     </Link>
                                 </li>
                             </Show>
+                            <For each={ alerts } key={ (one) => one.key } let={ alert }>
+                                <li>
+                                    <button type="button" class="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-start transition-colors duration-150 hover:bg-raised" data-alert={ alert.key } onClick={ () => toPanel(alert.panel) }>
+                                        <span class={ () => `flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${ alert.tone }` } aria-hidden="true"><Icon name="alert" size={ 18 } /></span>
+                                        <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+                                            <span class="text-ui-base font-semibold text-text" data-alert-said>{ alert.said }</span>
+                                            <span class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-ui-xs text-faint">
+                                                <code class="font-mono text-muted empty:hidden" dir="ltr" data-alert-about>{ alert.about }</code>
+                                                <When at={ alert.since } />
+                                            </span>
+                                        </span>
+                                        <Icon name="chevron-right" size={ 16 } class="icon-flip shrink-0 text-faint" />
+                                    </button>
+                                </li>
+                            </For>
                         </ul>
                     </Show>
                 </section>
@@ -382,10 +589,63 @@ export default component OverviewPage()
                         </Panel>
                     </Show>
 
+                    <Show when={ paying }>
+                        <Panel pad="none" class={ payoutsSpan } labelledBy="overview-payouts" data-payouts>
+                            <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+                                <h2 id="overview-payouts" tabindex="-1" class="text-ui-md font-semibold text-text">{ locale.t('admin.overview.payouts') }</h2>
+                                <Link to="/admin/money" class={ LINK }>{ locale.t('admin.overview.openMoney') }</Link>
+                            </div>
+                            <dl class="grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-3">
+                                <Show when={ payStuckShown }>
+                                    <div class="flex flex-col gap-1 bg-field px-4 py-3">
+                                        <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.payouts.stuck') }</dt>
+                                        <dd class={ () => `tally text-ui-xl font-bold ${ payStuckTone }` } data-pay-stuck>{ payStuck }</dd>
+                                    </div>
+                                </Show>
+                                <Show when={ marketsShown }>
+                                    <div class="flex flex-col gap-1 bg-field px-4 py-3">
+                                        <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.payouts.markets') }</dt>
+                                        <dd class={ () => `tally text-ui-xl font-bold ${ marketsTone }` } data-markets-due>{ marketsCount }</dd>
+                                        <dd class="text-ui-xs text-faint" data-markets-oldest>{ marketsOldest }</dd>
+                                    </div>
+                                </Show>
+                                <div class="flex flex-col gap-1 bg-field px-4 py-3">
+                                    <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.payouts.locks') }</dt>
+                                    <dd class={ () => `tally text-ui-xl font-bold ${ locksTone }` } data-locks>{ locks }</dd>
+                                </div>
+                                <div class="flex flex-col gap-1 bg-field px-4 py-3">
+                                    <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.payouts.chain') }</dt>
+                                    <dd class={ () => `text-ui-base font-semibold ${ chainTone }` } data-chain>{ chainSaid }</dd>
+                                </div>
+                                <Show when={ checksShown }>
+                                    <div class="flex flex-col gap-1 bg-field px-4 py-3">
+                                        <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.payouts.checks') }</dt>
+                                        <dd class={ () => `tally text-ui-xl font-bold ${ checksTone }` } data-checks-open>{ checksCount }</dd>
+                                        <dd class="text-ui-xs text-faint" data-checks-oldest>{ checksOldest }</dd>
+                                    </div>
+                                </Show>
+                                <div class="flex flex-col gap-1.5 bg-field px-4 py-3 sm:col-span-2 xl:col-span-3">
+                                    <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.payouts.failing') }</dt>
+                                    <Show when={ stalled } fallback={ <dd class="text-ui-base text-muted" data-failing="none">{ locale.t('admin.overview.payouts.failingNone') }</dd> }>
+                                        <dd>
+                                            <ul class="flex flex-col gap-1" data-failing>
+                                                <For each={ workers } key={ (one) => one.key } let={ worker }>
+                                                    <li class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-ui-base" data-worker={ worker.key }>
+                                                        <span class="font-semibold text-danger">{ worker.name }</span> <span class="text-ui-xs text-muted">{ worker.said }</span>
+                                                    </li>
+                                                </For>
+                                            </ul>
+                                        </dd>
+                                    </Show>
+                                </div>
+                            </dl>
+                        </Panel>
+                    </Show>
+
                     <Show when={ watched }>
                         <Panel pad="none" class={ serverSpan } labelledBy="overview-server" data-health>
                             <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-line px-4 py-3">
-                                <h2 id="overview-server" class="text-ui-md font-semibold text-text">{ locale.t('admin.overview.server') }</h2>
+                                <h2 id="overview-server" tabindex="-1" class="text-ui-md font-semibold text-text">{ locale.t('admin.overview.server') }</h2>
                                 <span class="text-ui-sm text-muted" data-uptime>{ uptime }</span>
                             </div>
                             <dl class="grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-3">
@@ -411,7 +671,75 @@ export default component OverviewPage()
                                     <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.hour') }</dt>
                                     <dd class={ () => `text-ui-base ${ failing ? 'text-danger' : 'text-text' }` } data-hour>{ hour }</dd>
                                 </div>
+                                <Show when={ measured }>
+                                    <div class="flex flex-col gap-1 bg-field px-4 py-3">
+                                        <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.socketsHour') }</dt>
+                                        <dd class="text-ui-base text-text" data-sockets-hour>{ socketsHour }</dd>
+                                        <dd class="flex flex-wrap gap-1.5 text-ui-xs text-muted" data-closes>
+                                            <For each={ closes } key={ (one) => one.key } let={ close }>
+                                                <span class={ `${ CHIP } font-mono` } dir="ltr" data-close={ close.key }>{ close.said }</span>
+                                            </For>
+                                            <For each={ refusals } key={ (one) => one.key } let={ refusal }>
+                                                <span class={ CHIP } data-refusal={ refusal.key }>{ refusal.said }</span>
+                                            </For>
+                                        </dd>
+                                    </div>
+                                    <div class="flex flex-col gap-1 bg-field px-4 py-3">
+                                        <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.outbox') }</dt>
+                                        <dd class="text-ui-base text-text" data-outbox>{ outbox }</dd>
+                                    </div>
+                                    <div class="flex flex-col gap-1 bg-field px-4 py-3 sm:col-span-2 xl:col-span-1">
+                                        <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.overview.delivery') }</dt>
+                                        <Show when={ delivered } fallback={ <dd class="text-ui-base text-muted" data-delivery="none">{ locale.t('admin.overview.deliveryNone') }</dd> }>
+                                            <dd class={ () => `text-ui-base ${ slow ? 'text-danger' : 'text-text' }` } data-delivery>{ deliveryValue }</dd>
+                                            <dd class="text-ui-xs text-faint" data-frames>{ deliveryFrames }</dd>
+                                        </Show>
+                                    </div>
+                                </Show>
                             </dl>
+                            <Show when={ measured }>
+                                <div class="flex flex-col gap-2 border-t border-line px-4 py-3">
+                                    <h3 class="text-ui-sm font-semibold text-text">{ locale.t('admin.overview.families') }</h3>
+                                    <Show when={ asked } fallback={ <p class="text-ui-sm text-muted" data-families="none">{ locale.t('admin.overview.familiesNone') }</p> }>
+                                        <ul class="grid gap-x-6 gap-y-1 sm:grid-cols-2 xl:grid-cols-3" data-families>
+                                            <For each={ families } key={ (one) => one.key } let={ family }>
+                                                <li class="flex items-baseline justify-between gap-3 py-0.5 text-ui-xs" data-family={ family.key }>
+                                                    <span class={ () => (family.name.code ? 'font-mono text-text' : 'text-text') } dir={ family.name.dir }>{ family.name.text }</span> <span class={ () => family.tone }>{ family.said }</span>
+                                                </li>
+                                            </For>
+                                        </ul>
+                                    </Show>
+                                </div>
+                                <div class="flex flex-col gap-2 border-t border-line px-4 py-3">
+                                    <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                                        <h3 class="text-ui-sm font-semibold text-text">{ locale.t('admin.overview.queues') }</h3>
+                                        <Show when={ sampled }>
+                                            <span class="text-ui-xs text-faint" data-sampled>{ locale.t('admin.overview.sampled') } <When at={ sampledAt } /></span>
+                                        </Show>
+                                    </div>
+                                    <Show when={ queued } fallback={ <p class="text-ui-sm text-muted" data-queues="none">{ locale.t('admin.overview.queuesNone') }</p> }>
+                                        <ul class="flex flex-col gap-1" data-queues>
+                                            <For each={ queues } key={ (one) => one.key } let={ queue }>
+                                                <li class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-ui-xs" data-queue={ queue.key }>
+                                                    <span class="text-text">{ queue.name }</span> <span class={ () => queue.tone }>{ queue.said }</span>
+                                                </li>
+                                            </For>
+                                        </ul>
+                                    </Show>
+                                </div>
+                                <Show when={ marketsRun }>
+                                    <div class="flex flex-col gap-2 border-t border-line px-4 py-3">
+                                        <h3 class="text-ui-sm font-semibold text-text">{ locale.t('admin.overview.moves') }</h3>
+                                        <Show when={ moved } fallback={ <p class="text-ui-sm text-muted" data-moves="none">{ locale.t('admin.overview.movesNone') }</p> }>
+                                            <p class="flex flex-wrap gap-1.5 text-ui-xs text-muted" data-moves>
+                                                <For each={ moves } key={ (one) => one.key } let={ move }>
+                                                    <span class={ CHIP } data-move={ move.key }>{ move.said }</span>
+                                                </For>
+                                            </p>
+                                        </Show>
+                                    </div>
+                                </Show>
+                            </Show>
                             <div class="flex flex-col gap-2 border-t border-line px-4 py-3">
                                 <h3 class="text-ui-sm font-semibold text-text">{ locale.t('admin.overview.failures') }</h3>
                                 <Show when={ listed } fallback={ <p class="text-ui-sm text-muted" data-failures="none">{ locale.t('admin.overview.noFailures') }</p> }>

@@ -74,7 +74,9 @@ export interface Standing extends Alert
 type SocketEvent = 'opened' | 'asked' | 'gated';
 
 const counted = <K extends string>(keys: readonly K[], counts: ReadonlyMap<K, number>) =>
-    Object.fromEntries(keys.filter((key) => (counts.get(key) ?? 0) > 0).map((key) => [key, counts.get(key) ?? 0])) as Partial<Record<K, number>>;
+    Object.fromEntries(keys.filter((key) => (counts.get(key) ?? 0) > 0).map((key) => [key, counts.get(key) ?? 0]));
+
+const waited = (oldest: number | null) => (oldest === null ? {} : { oldest });
 
 const said = (alert: Alert) => ({ alert: alert.alert, ...(alert.about === undefined ? {} : { about: alert.about }), value: alert.value, limit: alert.limit });
 
@@ -228,33 +230,39 @@ export function createMonitor(deps: MonitorDeps)
 
         alertsFor: (abilities: { health: boolean; money: boolean }) => standing.filter((one) => abilities[ALERT_ABILITY[one.alert]]),
 
-        /** The server's own measures, as "This server" draws them. */
+        /** The server's own measures, as "This server" draws them: the last hour's, and the latest sample's. */
         server()
         {
             const hour = sockets.within(HOUR_MINUTES);
+            const delays = watch.within();
 
             return {
                 opened: hour.get('opened') ?? 0,
                 closed: counted(CLOSE_CODES, closes.within(HOUR_MINUTES)),
                 refused: counted(REFUSALS, refusedIn(HOUR_MINUTES)),
                 ...deps.outboxes(),
-                watch: watch.within(),
-                queues: sampled?.queues ?? [],
+                ...(delays === null ? {} : { delivery: delays }),
+                families: deps.families(HOUR_MINUTES).filter((one) => one.requests > 0),
+                queues: (sampled?.queues ?? []).map((one) => ({ queue: one.queue, count: one.count, ...waited(one.oldest) })),
                 moves: counted(MOVES, moves.within(HOUR_MINUTES)),
                 ...(sampled === null ? {} : { sampledAt: new Date(sampled.at).toISOString() })
             };
         },
 
-        /** The money's own measures, as Money's panel on the overview draws them. */
+        /** The money's own measures, as the overview draws them for a role that opens Money; what this server does not run is absent. */
         money()
         {
+            const stuck = sampled?.stuck ?? null;
+            const markets = sampled?.queues.find((one) => one.queue === 'markets');
+            const checks = sampled?.checks ?? null;
+
             return {
-                stuck: sampled?.stuck ?? null,
-                markets: sampled?.queues.find((one) => one.queue === 'markets') ?? null,
+                ...(stuck === null ? {} : { stuck }),
+                ...(markets === undefined ? {} : { markets: { count: markets.count, ...waited(markets.oldest) } }),
                 failedLocks: locks.within(HOUR_MINUTES).get('failed') ?? 0,
                 failing: failingNow(),
                 reachable: unreached < LIMITS.chainDownPasses,
-                checks: sampled?.checks ?? null
+                ...(checks === null ? {} : { checks: { open: checks.open, ...waited(checks.oldest) } })
             };
         },
 

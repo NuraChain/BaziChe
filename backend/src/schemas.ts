@@ -13,6 +13,7 @@ import { REASONS } from './domains/match/chess/state.ts';
 import { CLOCKS } from './domains/table/clocks.ts';
 import { PARTNERS } from './domains/table/teams.ts';
 import { VOICE_SCOPES } from './domains/table/voices.ts';
+import { ALERT_KINDS, ALERT_LEVELS, FAMILIES, QUEUES, WORKERS } from './ops/measures.ts';
 
 const NUL = String.fromCharCode(0);
 
@@ -1585,6 +1586,43 @@ export const adminPlay = object({
 
 export type AdminPlay = Infer<typeof adminPlay>;
 
+/** An alert standing, named to a role that opens its section (`ops/measures.ts`): what crossed, about what, its value, its limit and since when. */
+const standingAlert = object({
+    alert: enumOf(ALERT_KINDS),
+    about: string().optional(),
+    level: enumOf(ALERT_LEVELS),
+    value: number(),
+    limit: number(),
+    since: string()
+});
+
+/** How many wait, and the seconds the oldest has waited; no age for nothing waiting. */
+const waitingFor = { count: number(), oldest: number().optional() };
+
+/** The server's own measures over the last hour, and what the latest sample of the database read. */
+const serverWatch = object({
+    opened: number(),
+    closed: record(number()),
+    refused: record(number()),
+    deepest: number(),
+    waiting: number(),
+    delivery: object({ frames: number(), p50: number(), p95: number(), p99: number() }).optional(),
+    families: array(object({ family: enumOf(FAMILIES), requests: number(), failed: number() })),
+    queues: array(object({ queue: enumOf(QUEUES), ...waitingFor })),
+    moves: record(number()),
+    sampledAt: string().optional()
+});
+
+/** The money on its way, as the monitor holds it; what this server does not run is absent. */
+const payoutsWatch = object({
+    stuck: number().optional(),
+    markets: object(waitingFor).optional(),
+    failedLocks: number(),
+    failing: array(object({ worker: enumOf(WORKERS), count: number(), oldest: number() })),
+    reachable: boolean(),
+    checks: object({ open: number(), oldest: number().optional() }).optional()
+});
+
 export const adminOverview = object({
     at: string(),
     people: object({ total: number(), day: number(), week: number(), active: number(), suspended: number(), minors: number() }),
@@ -1596,6 +1634,9 @@ export const adminOverview = object({
 
     /** The disagreements with NuraChain still open, for a role that opens Money where this server checks any. */
     checks: number().optional(),
+
+    /** The alerts standing that the reader's role opens: the server's to `health`, the money's to `money`. */
+    alerts: array(standingAlert),
     health: object({
         uptime: number(),
         rss: number(),
@@ -1605,8 +1646,10 @@ export const adminOverview = object({
         sockets: number(),
         requests: number(),
         failed: number(),
-        failures: array(object({ at: string(), method: string(), path: string(), status: number() }))
-    }).optional()
+        failures: array(object({ at: string(), method: string(), path: string(), status: number() })),
+        watch: serverWatch.optional()
+    }).optional(),
+    payouts: payoutsWatch.optional()
 });
 
 export type AdminOverview = Infer<typeof adminOverview>;

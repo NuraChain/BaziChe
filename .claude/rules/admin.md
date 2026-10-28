@@ -373,6 +373,19 @@ tick of the clock, an idle loop read as 32 ms of delay at a 20 ms tick; what is 
 monitor is the longest wait less the tick, which is what a stall looks like. The numbers are this
 server's: one server per database stays the rule.
 
+**What the server's monitor holds rides on the overview** (`.claude/rules/operations.md`, *The server
+watched*), read from `ops.watch`, which `main.ts` hands `buildPorts` beside the health. `alerts` is
+every alert standing that the reader's role opens (`alertsFor`: the server's to `health`, the money's
+to `money`; nothing to a moderator), each with what it is about, its value, its limit and since when.
+The health carries `watch`, the monitor's measures (the sockets of the hour by close code and by
+why a handshake was refused, the deepest outbox, spectator delivery over five minutes, the hour's
+requests and failures by route family, each queue's count and oldest from the latest sample, the
+market worker's moves of the hour). A role that opens Money gets `payouts`, the money on its way
+(the payments stuck, the markets due with the oldest, the locks that failed in the hour, each worker
+failing with its records and since when, whether NuraChain was reached, the disagreements open with
+the oldest), where what this server does not run is absent. No monitor, as in the database specs
+that build their ports without one, is no alerts and neither block.
+
 **Who is online now** (`live`, a moderator included): `GET /api/admin/live?cursor=` lists everybody
 with a socket open now (`hub.online()`: a tab looked away from as `away`, nobody whose last socket
 has closed), fifty a page by handle, each with their role on the staff, when they came, the tables
@@ -382,7 +395,9 @@ table is named and never offered to watch (D12). It is memory, as presence is: t
 the sockets is the one that knows.
 
 `admin-overview.db.spec.ts` holds the counts against rows dated by hand, the money and the health
-for the roles that open them and for nobody else, and the money left out where there is no vault;
+for the roles that open them and for nobody else, the money left out where there is no vault, and
+the monitor's alerts, measures and money on its way to the roles that open them (`app.spec.ts`
+the same on the wire, `admin-overview.spec.ts` the page);
 `admin-live.db.spec.ts` the list, its pages and who is answered as nothing; `ops.spec.ts` the
 requests, the failures and the hour's ring; `realtime-hub.spec.ts` (*who the staff see online*, and
 the calls) the hub's two reads.
@@ -526,6 +541,22 @@ when one failed), then the last failures by status, method and path, their exact
 pointer. It is read when it opens, at "Read again", every fifteen seconds while the tab is seen and
 at once when it is seen again (`whileSeen` in `lib/while-seen.ts`, on the product clock), never
 while the tab is hidden, and says when it was read. The count of reports it reads is the nav's too.
+
+**The monitor's alerts are rows of "Needs you" too**, each in the reader's words ("Shop orders on
+their way: the oldest has waited 11 minutes", "Requests failing: 12 in the last 10 minutes" with
+the address `/api/tables` beside it, left to right), gold for a warning and danger for an error,
+with since when, and each a button that takes the keyboard to the panel that shows what it is about
+(the heading of "This server" or of "Money on its way"). The stuck payments and the disagreements
+keep the rows they had and are not said twice. Under the server's grid, the monitor's: the sockets
+of the hour with a chip for each close code and each reason a handshake was refused, the frames
+waiting, the watchers' delay (half, 95% and 99% within, in danger while its alert stands, or that
+nobody watched a move), then the hour's requests by address (a family with a failure in danger),
+the work waiting with each queue's oldest (in danger while its alert stands) and when the
+database was read, and where the server runs markets their moves of the hour. A role that opens
+Money has "Money on its way" beside the money in play: the payments stuck, the markets due, the
+locks that failed, NuraChain's reach and the disagreements open, each in danger when it is, and
+each worker failing, or that every worker is moving; a panel shows nothing of what this server does
+not run. A value sits beside its label in every language, so none of it needs a plural.
 
 **Online now** lists everybody online by handle, each leading to their page: the name, the
 handle, their role on the staff, "Away" when no tab of theirs is looked at, when they came (exact

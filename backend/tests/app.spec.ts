@@ -258,7 +258,7 @@ describe('a chain that cannot be reached', () =>
         const main = readFileSync(fileURLToPath(new URL('../src/main.ts', import.meta.url)), 'utf8');
 
         expect(main).toContain('observe: ops.observer(logRequests(requestLog(log))),');
-        expect(main).toContain(`}, (event, fields, level = 'info') => log[level](event, fields), undefined, ops);`);
+        expect(main).toContain(`}, (event, fields, level = 'info') => log[level](event, fields), undefined, { health: () => ops.health(), watch: monitor });`);
         expect(main).toContain('    online: () => hub.online(),');
         expect(main).toContain('    calls: () => hub.calls(),');
         expect(main).toContain('    sockets: () => hub.size()');
@@ -1538,6 +1538,47 @@ describe('the owner\'s view of the vault', () =>
 
         expect(told).toEqual([['overview', 'somebody'], ['live', 'somebody', { cursor: 'mina' }]]);
         expect((await sent(app, `/live?cursor=${ 'x'.repeat(81) }`)).status).toBe(422);
+    });
+
+    it('carries the alerts standing, the server\'s measures and the money on its way as the port answers them', async () =>
+    {
+        const overview = {
+            at: '2026-10-28T22:00:00.000Z',
+            people: { total: 1, day: 0, week: 0, active: 1, suspended: 0, minors: 0 },
+            online: 1,
+            games: [],
+            stuck: 0,
+            reports: 0,
+            alerts: [{ alert: 'backlog', about: 'orders', level: 'warn', value: 700, limit: 600, since: '2026-10-28T21:00:00.000Z' }],
+            health: {
+                uptime: 60,
+                rss: 100,
+                heap: 50,
+                loop: { busy: 0.1, stall: 2 },
+                pool: { total: 4, idle: 3, waiting: 0 },
+                sockets: 3,
+                requests: 9,
+                failed: 0,
+                failures: [],
+                watch: {
+                    opened: 4,
+                    closed: { 1000: 3, 4413: 1 },
+                    refused: { ceiling: 1 },
+                    deepest: 2,
+                    waiting: 5,
+                    delivery: { frames: 60, p50: 11, p95: 28, p99: 34 },
+                    families: [{ family: 'tables', requests: 9, failed: 0 }],
+                    queues: [{ queue: 'orders', count: 2, oldest: 700 }, { queue: 'gifts', count: 0 }],
+                    moves: { settled: 1 },
+                    sampledAt: '2026-10-28T21:59:50.000Z'
+                }
+            },
+            payouts: { stuck: 1, markets: { count: 1, oldest: 90 }, failedLocks: 2, failing: [{ worker: 'stakes', count: 1, oldest: 130 }], reachable: false, checks: { open: 1, oldest: 300 } }
+        };
+        const response = await sent(owned([], overview), '/overview');
+
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual(overview);
     });
 
     it('answers anybody whose role does not open Money as a page that is not there when they ask what NuraChain disagrees with', async () =>

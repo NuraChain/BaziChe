@@ -8,6 +8,7 @@ paths:
   - "frontend/src/lib/check-words.ts"
   - "frontend/tests/admin-checks.spec.ts"
   - "tools/qa/reconcile-pass.mjs"
+  - "tools/qa/ops-pass.mjs"
   - "backend/src/ops/**"
   - "backend/src/http/ops.ts"
   - "backend/src/http/metrics.ts"
@@ -239,4 +240,6 @@ requests by family; `realtime-hub.spec.ts` a watch frame timed as it leaves and 
 queues the monitor reads*, and *calm* for `reached`) the sample against a real database;
 `metrics.spec.ts` the endpoint, each caller without the token answered byte for byte as a server
 with no endpoint at all; `env.spec.ts` the token; `ops-sweep.spec.ts` the monitor's place in
-`main.ts`, the endpoint's among the wrappers included.
+`main.ts`, the endpoint's among the wrappers included; `tools/qa/ops-pass.mjs` the endpoint, the
+sockets, a spectator's delay, a backlog raised, named and cleared, and NuraChain out of reach, over
+the built server and a local chain (`tools/qa/CLAUDE.md`, *The ops pass*).

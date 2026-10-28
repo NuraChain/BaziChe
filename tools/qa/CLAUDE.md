@@ -1326,3 +1326,55 @@ the log, a close that writes nothing to the staff's log, and a contract short of
 found. It failed 6 of 32 lines, the six those faults touch (the order put right, the shop's books
 found and agreeing again, the warning when one is found, the warning when one is put right, and the
 staff's log of the close) and no other.
+
+## The ops pass
+
+**`tools/qa/ops-pass.mjs` watches the server watching itself**, over the api of the built server and
+a local chain: `PGDATABASE=<the server's database> QA_BASE=http://localhost:5300 QA_LOG=<a file
+holding the server's output> QA_METRICS_TOKEN=<its METRICS_TOKEN> QA_NODE_STOP="<stops the node>"
+node tools/qa/ops-pass.mjs`, about three minutes, 28 checks. It wants a hardhat node (`npx hardhat
+node --port 8645` in the SmartContract project), every contract `vault-deploy.mjs` deploys on it, a
+database nobody else uses given its schema by `sync-cli`, and the built server started on it in
+production with `NURA_RPC_URL`, `NURA_CHAIN_ID=31337`, `NURA_VAULT_ADDRESS`, `NURA_REFEREE_KEY`,
+`NURA_SHOP_ADDRESS`, a `METRICS_TOKEN` of its own and `ADMIN_WALLET_ADDRESS` set to hardhat's #6
+(`QA_OWNER_KEY` names another owner's key), its output written to the file `QA_LOG` names, where the
+pass reads what the server said. PGDATABASE names the server's database because a shop order is
+written by hand. `QA_NODE_STOP` is a command `cmd.exe` runs that stops the node; without it the last
+part is left out.
+
+Every person is a wallet made for the run, the owner and a moderator the owner makes among them. In
+order:
+
+- **The metrics a monitor outside reads**: without the token the address is answered in the bytes
+  of one nothing is served at, and a wrong token in the same bytes; with it, the Prometheus text
+  format, naming every measure and every route family (`FAMILIES`, read from the server's own
+  `ops/measures.ts`).
+- **The sockets and the requests**: a socket opened and closed is counted with its close code, an
+  upgrade from another site and one with no session are counted by why each was turned away, and
+  three reads of the catalogue are counted under their family.
+- **A spectator's delay**: a public live Ludo game between two players over the api, watched by a
+  third with a socket. Each frame the spectator is handed is timed, the 95th percentile of the last
+  five minutes is under a second, and the owner's overview says the same.
+- **Work the server is behind on**: a shop order written by hand as sent eleven minutes ago (nothing
+  on the chain sold it and its deadline is twenty minutes off, so no worker touches it). The next
+  sample of the database raises a `backlog` warning about `orders`, said in the server's log, named
+  on the owner's overview beside the queue with its oldest past ten minutes, named to no moderator,
+  and carried by the metrics as a series of its own beside the queue's oldest. The order is then run
+  out by hand, and the next sample clears it: said, and gone from the overview and the metrics.
+- **NuraChain out of reach**: the node is stopped, and two reconciliation passes that cannot reach it
+  raise `chain-down` as an error on the owner's overview, with the money on its way saying it was not
+  reached, said in the log as an error and carried by the metrics with the passes in a row.
+
+**The waits are the monitor's own clocks.** It samples the database every thirty seconds, and the
+reconciliation runs thirty seconds after boot and once a minute after, so an alert about a queue is
+waited for up to ninety seconds and NuraChain out of reach up to four minutes. On this machine the
+backlog was raised by the first sample after boot and cleared by the next, and `chain-down` by the
+second pass after the node stopped. The server's log held those three lines at warn and error and
+nothing else.
+
+**Proved red** against a build of the compiled server broken four ways at once and put back from
+saved copies: a metrics endpoint that takes any token, a spectator's frames never timed, the
+backlog read by when an order was made rather than when it was sent, and an alert raised but never
+said in the log. It failed 13 of 28 lines, every one a line those faults touch: the endpoint's two;
+the spectator's three; the backlog, never raised, on the overview, beside its queue, in the metrics
+twice and in the line that says it cleared; and the three that read the log for a raise.

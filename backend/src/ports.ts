@@ -655,23 +655,20 @@ export interface DonatePort
     history(me: string, side: 'given' | 'received', cursor: string | null): Promise<Donations>;
 }
 
-/** A header of the request, by name: the reader's country is the one the proxy writes. */
-export type HeaderOf = (name: string) => string | null;
-
 /** People watching a game backing one of its outcomes with NURA, in a pool the winners share. */
 export interface MarketPort
 {
-    /** Whether markets are open here, whether the reader may take a position where they are, and the limits. */
-    state(me: string, header: HeaderOf): Promise<MarketsState>;
+    /** Whether markets are open here, whether the reader may take a position, and the limits. */
+    state(me: string): Promise<MarketsState>;
 
     /** That the reader read what a market is; answers the state as it now is. */
-    disclose(me: string, header: HeaderOf): Promise<MarketsState>;
+    disclose(me: string): Promise<MarketsState>;
 
     /** The market on a game the reader may watch: its outcomes, the stakes held on each, and the reader's own. */
-    view(me: string, header: HeaderOf, matchId: string): Promise<MarketLook>;
+    view(me: string, matchId: string): Promise<MarketLook>;
 
     /** A position on one outcome, and the call the reader's wallet sends to place it. */
-    place(me: string, header: HeaderOf, marketId: string, input: { outcome: number; amount: string }): Promise<MarketPaying>;
+    place(me: string, marketId: string, input: { outcome: number; amount: string }): Promise<MarketPaying>;
 
     /** One of the reader's positions; anything else is `market-missing`. */
     one(me: string, id: string): Promise<MarketPositionView>;

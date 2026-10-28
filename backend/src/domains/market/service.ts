@@ -405,7 +405,6 @@ const MAY_OF = {
 } as const satisfies Record<Exclude<Eligibility, 'yes'>, MarketMay>;
 
 const mayRefused = {
-    'market-region': () => marketRefusal('market-region', 'Markets are not offered where you are.'),
     'market-wallet': () => marketRefusal('market-wallet', 'Taking a position needs a wallet account.'),
     'market-minor': () => marketRefusal('market-minor', 'Markets are for adults only.'),
     'market-terms': () => marketRefusal('market-terms', 'Confirm the terms of playing for NURA first.'),
@@ -462,13 +461,12 @@ export function createMarketService(
     db: DataSource,
     chain: MarketsChain,
     engines: readonly Engine[],
-    regions: ReadonlySet<string>,
     standingOf: (me: string) => Promise<Standing>,
     mayWatch: (tableId: string, userIds: readonly string[]) => Promise<string[]>,
     hooks: MarketHooks
 )
 {
-    const open = chain.configured && regions.size > 0;
+    const open = chain.configured;
 
     /** When each position nobody said they sent was last asked about, in this process. */
     const askedAt = new Map<string, number>();
@@ -484,13 +482,8 @@ export function createMarketService(
 
     const disclosed = (me: string) => db.getRepository(MarketDisclosure).existsBy({ userId: me });
 
-    const mayOf = (country: string | null, standing: Standing, accepted: boolean): MarketMay =>
+    const mayOf = (standing: Standing, accepted: boolean): MarketMay =>
     {
-        if (country === null || !regions.has(country.trim().toUpperCase()))
-        {
-            return 'market-region';
-        }
-
         const paid = eligibilityOf(standing);
 
         if (paid !== 'yes')
@@ -605,10 +598,10 @@ export function createMarketService(
     const holdsIn = (me: string, marketId: string) => db.getRepository(MarketPosition).existsBy({ marketId, bettorId: me });
 
     /** Whoever may take a position, or the refusal they would meet. */
-    const mustMay = async (me: string, country: string | null) =>
+    const mustMay = async (me: string) =>
     {
         const standing = await standingOf(me);
-        const may = mayOf(country, standing, await disclosed(me));
+        const may = mayOf(standing, await disclosed(me));
 
         if (may !== 'yes')
         {
@@ -1342,7 +1335,7 @@ export function createMarketService(
         return [{ ...finding, putRight: true as const }];
     };
 
-    const stateFor = async (me: string, country: string | null): Promise<MarketsState> =>
+    const stateFor = async (me: string): Promise<MarketsState> =>
     {
         if (!open)
         {
@@ -1353,7 +1346,7 @@ export function createMarketService(
 
         return {
             open: true,
-            may: mayOf(country, standing, accepted),
+            may: mayOf(standing, accepted),
             presets: MARKET_PRESETS_NURA.map((amount) => nura(amount).toString()),
             least: LEAST.toString(),
             most: nura(MAX_STAKE_NURA).toString(),
@@ -1371,7 +1364,7 @@ export function createMarketService(
         state: stateFor,
 
         /** That the reader read what a market is: asked once, before their first position. */
-        async disclose(me: string, country: string | null)
+        async disclose(me: string)
         {
             if (!open)
             {
@@ -1381,7 +1374,7 @@ export function createMarketService(
             await db.getRepository(MarketDisclosure).createQueryBuilder().insert().values({ userId: me }).orIgnore().execute();
             ring(null, [me]);
 
-            return await stateFor(me, country);
+            return await stateFor(me);
         },
 
         /**
@@ -1389,7 +1382,7 @@ export function createMarketService(
          * they hold a stake in whatever became of its table. A game with none, or one the reader may
          * not see, answers with no market: most games have none, and it is no refusal.
          */
-        async view(me: string, country: string | null, matchId: string): Promise<MarketLook>
+        async view(me: string, matchId: string): Promise<MarketLook>
         {
             if (!open)
             {
@@ -1397,11 +1390,9 @@ export function createMarketService(
             }
 
             const standing = await standingOf(me);
-            const may = mayOf(country, standing, true);
-
-            if (may === 'market-region' || may === 'market-minor')
+            if (mayOf(standing, true) === 'market-minor')
             {
-                throw mayRefused[may]();
+                throw mayRefused['market-minor']();
             }
 
             const market = UUID.test(matchId) ? await marketOfMatch(me, matchId) : null;
@@ -1460,14 +1451,14 @@ export function createMarketService(
          * A position on one outcome of a market, and the call the reader's wallet sends to place it.
          * No ticket is signed for a game that is over, nor for a market about to close.
          */
-        async place(me: string, country: string | null, marketId: string, input: { outcome: number; amount: string }): Promise<MarketPaying>
+        async place(me: string, marketId: string, input: { outcome: number; amount: string }): Promise<MarketPaying>
         {
             if (!open)
             {
                 throw notOpen();
             }
 
-            const bettor = await mustMay(me, country);
+            const bettor = await mustMay(me);
             const market = UUID.test(marketId) ? await marketQuery(db).where('k.id = :marketId', { marketId }).getRawOne<MarketRow>() : undefined;
 
             if (market === undefined || !(await watches(me, market.table_id)))

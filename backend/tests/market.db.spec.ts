@@ -20,7 +20,6 @@ const active = url !== undefined && url !== '';
 
 const NURA = 10n ** 18n;
 
-const HERE = 'cf-ipcountry';
 
 let db: DataSource;
 
@@ -60,15 +59,8 @@ const CONFIG = {
     vaultAddress: '',
     shopAddress: '',
     tipsAddress: '',
-    adminWallet: '',
-    marketCountries: ['DE', 'NL'],
-    marketCountryHeader: HERE
+    adminWallet: ''
 } as Parameters<typeof buildPorts>[1];
-
-/** A request from a country, as the proxy says it: nothing at all when it says nothing. */
-const from = (country: string | null) => (name: string) => (name === HERE ? country : null);
-
-const DE = from('de');
 
 const door = (fake = fakeMarkets()): { ports: Services; fake: ReturnType<typeof fakeMarkets> } =>
     ({
@@ -181,7 +173,7 @@ const watched = async () =>
     const guest = await person();
     const watcher = await person();
     const game = await liveGame(ports, [host, guest]);
-    const market = (await ports.markets.view(watcher.id, DE, game.matchId)).market!;
+    const market = (await ports.markets.view(watcher.id, game.matchId)).market!;
 
     return { ports, fake, host, guest, watcher, game, market };
 };
@@ -231,34 +223,31 @@ describe.skipIf(!active)('markets, against a real database', () =>
             const { ports } = door(fakeMarkets(false));
             const one = await person();
 
-            expect(await ports.markets.state(one.id, DE)).toEqual({ open: false });
-            expect(await refusal(ports.markets.view(one.id, DE, randomUUID()))).toEqual({ status: 404, code: 'market-off' });
-            expect(await refusal(ports.markets.place(one.id, DE, randomUUID(), { outcome: 0, amount: NURA.toString() }))).toEqual({ status: 404, code: 'market-off' });
+            expect(await ports.markets.state(one.id)).toEqual({ open: false });
+            expect(await refusal(ports.markets.view(one.id, randomUUID()))).toEqual({ status: 404, code: 'market-off' });
+            expect(await refusal(ports.markets.place(one.id, randomUUID(), { outcome: 0, amount: NURA.toString() }))).toEqual({ status: 404, code: 'market-off' });
             expect(await refusal(ports.markets.claim(one.id, [randomUUID()]))).toEqual({ status: 404, code: 'market-off' });
         });
 
-        it('is asked where they are first, then the rules of paid play, then what a market is', async () =>
+        it('is asked the rules of paid play, then what a market is', async () =>
         {
             const { ports } = door();
-            const mayOf = async (who: Person, header = DE) => (await ports.markets.state(who.id, header) as { may: string }).may;
+            const mayOf = async (who: Person) => (await ports.markets.state(who.id) as { may: string }).may;
             const ready = await person();
 
             expect(await mayOf(ready)).toBe('yes');
-            expect(await mayOf(ready, from('US')), 'a country nobody named').toBe('market-region');
-            expect(await mayOf(ready, from(null)), 'a request the proxy said nothing about').toBe('market-region');
             expect(await mayOf(await person({ wallet: false }))).toBe('market-wallet');
             expect(await mayOf(await person({ minor: true }))).toBe('market-minor');
             expect(await mayOf(await person({ terms: false }))).toBe('market-terms');
             expect(await mayOf(await person({ resting: true }))).toBe('market-break');
             expect(await mayOf(await person({ disclosed: false }))).toBe('market-disclosure');
-            expect(await mayOf(await person({ minor: true }), from('US')), 'where they are comes before everything').toBe('market-region');
         });
 
         it('says the limits in wei, and takes what a market is as read once, ringing the reader', async () =>
         {
             const { ports } = door();
             const one = await person({ disclosed: false });
-            const state = await ports.markets.disclose(one.id, DE);
+            const state = await ports.markets.disclose(one.id);
 
             expect(state).toMatchObject({
                 open: true,
@@ -272,7 +261,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
                 window: 90
             });
             expect(rung).toContainEqual([one.id, 'markets']);
-            expect(await ports.markets.disclose(one.id, DE), 'read twice is read once').toMatchObject({ may: 'yes' });
+            expect(await ports.markets.disclose(one.id), 'read twice is read once').toMatchObject({ may: 'yes' });
         });
     });
 
@@ -287,8 +276,8 @@ describe.skipIf(!active)('markets, against a real database', () =>
             const other = await person();
             const game = await liveGame(ports, [host, guest]);
             const [first, second] = (await Promise.all([
-                ports.markets.view(watcher.id, DE, game.matchId),
-                ports.markets.view(other.id, DE, game.matchId)
+                ports.markets.view(watcher.id, game.matchId),
+                ports.markets.view(other.id, game.matchId)
             ])).map((one) => one.market!);
 
             expect(first.id).toBe(second.id);
@@ -322,22 +311,22 @@ describe.skipIf(!active)('markets, against a real database', () =>
             const watcher = await person();
 
             const invite = await liveGame(ports, [a, b], { privacy: 'invite' });
-            expect(await ports.markets.view(watcher.id, DE, invite.matchId)).toEqual({});
-            expect(await ports.markets.view(a.id, DE, invite.matchId), 'not even to somebody who sits at it').toEqual({});
+            expect(await ports.markets.view(watcher.id, invite.matchId)).toEqual({});
+            expect(await ports.markets.view(a.id, invite.matchId), 'not even to somebody who sits at it').toEqual({});
 
             const turns = await liveGame(ports, [c, d], { mode: 'turns' });
-            expect(await ports.markets.view(watcher.id, DE, turns.matchId)).toEqual({});
+            expect(await ports.markets.view(watcher.id, turns.matchId)).toEqual({});
 
             const late = await liveGame(ports, [e, f]);
             await db.query(`update matches set started_at = now() - interval '2 minutes' where id = $1`, [late.matchId]);
-            expect(await ports.markets.view(watcher.id, DE, late.matchId)).toEqual({});
+            expect(await ports.markets.view(watcher.id, late.matchId)).toEqual({});
 
             await ports.social.block(watcher.id, e.handle);
             await db.query(`update matches set started_at = now() where id = $1`, [late.matchId]);
-            expect(await ports.markets.view(watcher.id, DE, late.matchId), 'a host the reader blocked').toEqual({});
+            expect(await ports.markets.view(watcher.id, late.matchId), 'a host the reader blocked').toEqual({});
 
-            expect(await ports.markets.view(watcher.id, DE, 'not-a-uuid')).toEqual({});
-            expect(await ports.markets.view(watcher.id, DE, randomUUID())).toEqual({});
+            expect(await ports.markets.view(watcher.id, 'not-a-uuid')).toEqual({});
+            expect(await ports.markets.view(watcher.id, randomUUID())).toEqual({});
             expect(await db.getRepository(Market).count(), 'nothing written for any of them').toBe(0);
         });
 
@@ -346,28 +335,26 @@ describe.skipIf(!active)('markets, against a real database', () =>
             const { ports, fake, market, game, watcher } = await watched();
             const passer = await person();
 
-            await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (5n * NURA).toString() });
+            await ports.markets.place(watcher.id, market.id, { outcome: 0, amount: (5n * NURA).toString() });
             mined(fake);
             await sweep(ports);
             await db.query(`update tables set status = 'closed', closed_at = now() where id = $1`, [game.tableId]);
 
-            const held = await ports.markets.view(watcher.id, DE, game.matchId);
+            const held = await ports.markets.view(watcher.id, game.matchId);
 
             expect(held.market?.id, 'the bettor').toBe(market.id);
             expect(held.market?.mine.map((one) => one.state)).toEqual(['confirmed']);
-            expect(await ports.markets.view(passer.id, DE, game.matchId), 'somebody who holds nothing there').toEqual({});
+            expect(await ports.markets.view(passer.id, game.matchId), 'somebody who holds nothing there').toEqual({});
         });
 
-        it('is shown nowhere markets are not offered, and to no minor', async () =>
+        it('is shown to no minor', async () =>
         {
             const { ports } = door();
             const [a, b] = await Promise.all([person(), person()]);
             const game = await liveGame(ports, [a, b]);
             const minor = await person({ minor: true });
-            const watcher = await person();
 
-            expect(await refusal(ports.markets.view(watcher.id, from('US'), game.matchId))).toEqual({ status: 451, code: 'market-region' });
-            expect(await refusal(ports.markets.view(minor.id, DE, game.matchId))).toEqual({ status: 409, code: 'market-minor' });
+            expect(await refusal(ports.markets.view(minor.id, game.matchId))).toEqual({ status: 409, code: 'market-minor' });
         });
     });
 
@@ -377,7 +364,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
         {
             const { ports, fake, watcher, market } = await watched();
             const amount = 25n * NURA;
-            const paying = await ports.markets.place(watcher.id, DE, market.id, { outcome: 1, amount: amount.toString() });
+            const paying = await ports.markets.place(watcher.id, market.id, { outcome: 1, amount: amount.toString() });
             const { terms, ticket } = fake.placed.at(-1)!;
             const placed = decodeFunctionData({ abi: MARKETS_ABI, data: paying.call.data as Hex });
 
@@ -397,7 +384,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
             expect(Number(ticket.deadline), 'and two minutes at most').toBeLessThanOrEqual(Math.ceil(Date.now() / 1000) + 120);
             expect(rung).toContainEqual([watcher.id, 'markets']);
 
-            const again = await ports.markets.place(watcher.id, DE, market.id, { outcome: 1, amount: amount.toString() });
+            const again = await ports.markets.place(watcher.id, market.id, { outcome: 1, amount: amount.toString() });
 
             expect(again.position.id, 'asked again, the same position while its ticket has time').toBe(paying.position.id);
             expect(await db.getRepository(MarketPosition).count()).toBe(1);
@@ -408,19 +395,18 @@ describe.skipIf(!active)('markets, against a real database', () =>
             const { ports, host, watcher, market, game } = await watched();
             const one = NURA.toString();
 
-            expect(await refusal(ports.markets.place(host.id, DE, market.id, { outcome: 0, amount: one }))).toEqual({ status: 409, code: 'market-playing' });
-            expect(await refusal(ports.markets.place(watcher.id, DE, market.id, { outcome: 2, amount: one }))).toEqual({ status: 422, code: 'market-outcome' });
-            expect(await refusal(ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (NURA - 1n).toString() }))).toEqual({ status: 422, code: 'market-amount' });
-            expect(await refusal(ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (500n * NURA + 1n).toString() }))).toEqual({ status: 422, code: 'market-amount' });
-            expect(await refusal(ports.markets.place(watcher.id, DE, randomUUID(), { outcome: 0, amount: one }))).toEqual({ status: 404, code: 'market-missing' });
-            expect(await refusal(ports.markets.place(watcher.id, from('US'), market.id, { outcome: 0, amount: one }))).toEqual({ status: 451, code: 'market-region' });
+            expect(await refusal(ports.markets.place(host.id, market.id, { outcome: 0, amount: one }))).toEqual({ status: 409, code: 'market-playing' });
+            expect(await refusal(ports.markets.place(watcher.id, market.id, { outcome: 2, amount: one }))).toEqual({ status: 422, code: 'market-outcome' });
+            expect(await refusal(ports.markets.place(watcher.id, market.id, { outcome: 0, amount: (NURA - 1n).toString() }))).toEqual({ status: 422, code: 'market-amount' });
+            expect(await refusal(ports.markets.place(watcher.id, market.id, { outcome: 0, amount: (500n * NURA + 1n).toString() }))).toEqual({ status: 422, code: 'market-amount' });
+            expect(await refusal(ports.markets.place(watcher.id, randomUUID(), { outcome: 0, amount: one }))).toEqual({ status: 404, code: 'market-missing' });
 
             await closeIn(market.id, 3);
-            expect(await refusal(ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: one })), 'too near the close to be placed in time').toEqual({ status: 409, code: 'market-closed' });
+            expect(await refusal(ports.markets.place(watcher.id, market.id, { outcome: 0, amount: one })), 'too near the close to be placed in time').toEqual({ status: 409, code: 'market-closed' });
 
             await closeIn(market.id, 60);
             await ports.match.resign(host.id, game.matchId, { key: randomUUID() });
-            expect(await refusal(ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: one })), 'no ticket for a game that is over').toEqual({ status: 409, code: 'market-closed' });
+            expect(await refusal(ports.markets.place(watcher.id, market.id, { outcome: 0, amount: one })), 'no ticket for a game that is over').toEqual({ status: 409, code: 'market-closed' });
             expect(await db.getRepository(MarketPosition).count()).toBe(0);
         });
 
@@ -429,23 +415,23 @@ describe.skipIf(!active)('markets, against a real database', () =>
             const { ports, fake, watcher, market } = await watched();
             const most = (500n * NURA).toString();
 
-            await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: most });
-            await ports.markets.place(watcher.id, DE, market.id, { outcome: 1, amount: most });
+            await ports.markets.place(watcher.id, market.id, { outcome: 0, amount: most });
+            await ports.markets.place(watcher.id, market.id, { outcome: 1, amount: most });
 
-            expect(await refusal(ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: NURA.toString() }))).toEqual({ status: 409, code: 'market-limit', details: { limit: 'bettor' } });
+            expect(await refusal(ports.markets.place(watcher.id, market.id, { outcome: 0, amount: NURA.toString() }))).toEqual({ status: 409, code: 'market-limit', details: { limit: 'bettor' } });
 
             const late = await person();
             const [a, b] = await Promise.all([person(), person()]);
             const other = await liveGame(ports, [a, b]);
-            const elsewhere = (await ports.markets.view(late.id, DE, other.matchId)).market!;
+            const elsewhere = (await ports.markets.view(late.id, other.matchId)).market!;
 
             await db.getRepository(MarketPosition).insert({ marketId: elsewhere.id, bettorId: late.id, address: late.address!.toLowerCase(), outcome: 0, amount: (1_999n * NURA).toString(), deadline: new Date(), state: 'confirmed', confirmedAt: new Date() });
-            expect(await refusal(ports.markets.place(late.id, DE, market.id, { outcome: 0, amount: (2n * NURA).toString() }))).toEqual({ status: 409, code: 'market-limit', details: { limit: 'day' } });
+            expect(await refusal(ports.markets.place(late.id, market.id, { outcome: 0, amount: (2n * NURA).toString() }))).toEqual({ status: 409, code: 'market-limit', details: { limit: 'day' } });
 
             const crowd = await person();
 
             await db.getRepository(MarketPosition).insert({ marketId: market.id, bettorId: crowd.id, address: crowd.address!.toLowerCase(), outcome: 1, amount: (99_000n * NURA).toString(), deadline: new Date(), state: 'confirmed', confirmedAt: new Date() });
-            expect(await refusal(ports.markets.place(late.id, DE, market.id, { outcome: 0, amount: NURA.toString() }))).toEqual({ status: 409, code: 'market-limit', details: { limit: 'pool' } });
+            expect(await refusal(ports.markets.place(late.id, market.id, { outcome: 0, amount: NURA.toString() }))).toEqual({ status: 409, code: 'market-limit', details: { limit: 'pool' } });
 
             expect(fake.placed.filter((one) => one.ticket.bettor === late.address), 'nothing signed for a position past a limit').toHaveLength(0);
         });
@@ -456,17 +442,17 @@ describe.skipIf(!active)('markets, against a real database', () =>
             const five = (5n * NURA).toString();
 
             fake.state.balance = 3n * NURA;
-            expect(await refusal(ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: five }))).toEqual({ status: 409, code: 'market-funds', details: { amount: five, held: (3n * NURA).toString() } });
+            expect(await refusal(ports.markets.place(watcher.id, market.id, { outcome: 0, amount: five }))).toEqual({ status: 409, code: 'market-funds', details: { amount: five, held: (3n * NURA).toString() } });
 
             fake.state.balance = 10n ** 24n;
             fake.state.refusePlace = 'EnforcedPause';
-            expect(await refusal(ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: five }))).toEqual({ status: 409, code: 'market-paused' });
+            expect(await refusal(ports.markets.place(watcher.id, market.id, { outcome: 0, amount: five }))).toEqual({ status: 409, code: 'market-paused' });
 
             fake.state.refusePlace = 'MarketClosed';
-            expect(await refusal(ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: five }))).toEqual({ status: 409, code: 'market-closed' });
+            expect(await refusal(ports.markets.place(watcher.id, market.id, { outcome: 0, amount: five }))).toEqual({ status: 409, code: 'market-closed' });
 
             fake.state.refusePlace = 'InvalidSignature';
-            expect(await refusal(ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: five }))).toEqual({ status: 409, code: 'market-refused', details: { error: 'InvalidSignature' } });
+            expect(await refusal(ports.markets.place(watcher.id, market.id, { outcome: 0, amount: five }))).toEqual({ status: 409, code: 'market-refused', details: { error: 'InvalidSignature' } });
             expect(await db.getRepository(MarketPosition).count()).toBe(0);
         });
     });
@@ -476,7 +462,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
         it('believes one once the contract holds it as it was prepared, counts it in its pool and rings whoever looks at the table', async () =>
         {
             const { ports, fake, watcher, market, game, host } = await watched();
-            const paying = await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (10n * NURA).toString() });
+            const paying = await ports.markets.place(watcher.id, market.id, { outcome: 0, amount: (10n * NURA).toString() });
 
             lookers.set(game.tableId, [host.id]);
             mined(fake);
@@ -486,7 +472,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
             expect((await sweep(ports)).placed).toBe(1);
             expect((await positionRow(paying.position.id)).state).toBe('confirmed');
 
-            const seen = (await ports.markets.view(watcher.id, DE, game.matchId)).market!;
+            const seen = (await ports.markets.view(watcher.id, game.matchId)).market!;
 
             expect(seen.outcomes.map((one) => one.pool)).toEqual([(10n * NURA).toString(), '0']);
             expect([seen.pool, seen.bettors]).toEqual([(10n * NURA).toString(), 1]);
@@ -498,8 +484,8 @@ describe.skipIf(!active)('markets, against a real database', () =>
         it('says the contract\'s word for one its transaction was refused, and lets go of one that can never be placed', async () =>
         {
             const { ports, fake, watcher, market } = await watched();
-            const refused = await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (10n * NURA).toString() });
-            const forgotten = await ports.markets.place(watcher.id, DE, market.id, { outcome: 1, amount: (10n * NURA).toString() });
+            const refused = await ports.markets.place(watcher.id, market.id, { outcome: 0, amount: (10n * NURA).toString() });
+            const forgotten = await ports.markets.place(watcher.id, market.id, { outcome: 1, amount: (10n * NURA).toString() });
             const hash: Hex = `0x${ 'cd'.repeat(32) }`;
 
             await ports.markets.sent(watcher.id, refused.position.id, hash);
@@ -517,7 +503,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
         it('believes nobody\'s position held under a ticket in place of the one prepared, and says so as a fault', async () =>
         {
             const { ports, fake, watcher, market } = await watched();
-            const paying = await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (10n * NURA).toString() });
+            const paying = await ports.markets.place(watcher.id, market.id, { outcome: 0, amount: (10n * NURA).toString() });
 
             fake.take(fake.placed.at(-1)!.ticket, { outcome: 1 });
 
@@ -541,7 +527,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
 
             for (const [who, outcome, amount] of stakes)
             {
-                ids.push((await ports.markets.place(who.id, DE, market.id, { outcome, amount: (amount * NURA).toString() })).position.id);
+                ids.push((await ports.markets.place(who.id, market.id, { outcome, amount: (amount * NURA).toString() })).position.id);
                 mined(fake);
             }
 
@@ -582,7 +568,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
         {
             const early = await watched();
 
-            await early.ports.markets.place(early.watcher.id, DE, early.market.id, { outcome: 0, amount: (5n * NURA).toString() });
+            await early.ports.markets.place(early.watcher.id, early.market.id, { outcome: 0, amount: (5n * NURA).toString() });
             mined(early.fake);
             await early.ports.match.resign(early.guest.id, early.game.matchId, { key: randomUUID() });
             await sweep(early.ports);
@@ -592,7 +578,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
 
             const voided = await watched();
 
-            await voided.ports.markets.place(voided.watcher.id, DE, voided.market.id, { outcome: 0, amount: (5n * NURA).toString() });
+            await voided.ports.markets.place(voided.watcher.id, voided.market.id, { outcome: 0, amount: (5n * NURA).toString() });
             mined(voided.fake);
             await closeIn(voided.market.id, -30);
             await db.query(
@@ -608,7 +594,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
         {
             const { ports, fake, market, guest, game, watcher } = await watched();
 
-            await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (5n * NURA).toString() });
+            await ports.markets.place(watcher.id, market.id, { outcome: 0, amount: (5n * NURA).toString() });
             mined(fake);
             await closeIn(market.id, -5);
             fake.state.clock = BigInt(Math.floor(Date.now() / 1000) - 30);
@@ -622,7 +608,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
         {
             const { ports, fake, market, guest, game, watcher } = await watched();
 
-            await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (5n * NURA).toString() });
+            await ports.markets.place(watcher.id, market.id, { outcome: 0, amount: (5n * NURA).toString() });
             mined(fake);
             await closeIn(market.id, -40);
             fake.state.clock = BigInt(Math.floor(Date.now() / 1000) - 300);
@@ -721,7 +707,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
 
                 for (const [who, outcome, amount] of placed)
                 {
-                    await p.markets.place(who.id, DE, m.id, { outcome, amount: (amount * NURA).toString() });
+                    await p.markets.place(who.id, m.id, { outcome, amount: (amount * NURA).toString() });
                     mined(f);
                 }
 
@@ -757,9 +743,9 @@ describe.skipIf(!active)('markets, against a real database', () =>
             const { ports, fake, market, game, host, watcher } = setting;
             const backer = await person();
 
-            const mine = (await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (10n * NURA).toString() })).position.id;
+            const mine = (await ports.markets.place(watcher.id, market.id, { outcome: 0, amount: (10n * NURA).toString() })).position.id;
             mined(fake);
-            await ports.markets.place(backer.id, DE, market.id, { outcome: 1, amount: (30n * NURA).toString() });
+            await ports.markets.place(backer.id, market.id, { outcome: 1, amount: (30n * NURA).toString() });
             mined(fake);
             await sweep(ports);
 
@@ -799,7 +785,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
         it('forgets a claim whose transaction reverted, so it can be claimed again', async () =>
         {
             const { ports, fake, market, game, watcher, guest } = await watched();
-            const mine = (await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (10n * NURA).toString() })).position.id;
+            const mine = (await ports.markets.place(watcher.id, market.id, { outcome: 0, amount: (10n * NURA).toString() })).position.id;
 
             mined(fake);
             await sweep(ports);
@@ -886,7 +872,7 @@ describe.skipIf(!active)('markets, against a real database', () =>
         it('writes down a position claimed by a call this server never saw, with what it paid only where that is known', async () =>
         {
             const { ports, fake, market, game, watcher, guest } = await watched();
-            const mine = (await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (10n * NURA).toString() })).position.id;
+            const mine = (await ports.markets.place(watcher.id, market.id, { outcome: 0, amount: (10n * NURA).toString() })).position.id;
             const ticket = fake.placed.at(-1)!.ticket;
 
             fake.take(ticket);
@@ -908,11 +894,11 @@ describe.skipIf(!active)('markets, against a real database', () =>
         {
             const { ports, fake, market, game, watcher, guest } = await watched();
             const backer = await person();
-            const mine = (await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (10n * NURA).toString() })).position.id;
+            const mine = (await ports.markets.place(watcher.id, market.id, { outcome: 0, amount: (10n * NURA).toString() })).position.id;
             const ticket = fake.placed.at(-1)!.ticket;
 
             fake.take(ticket);
-            await ports.markets.place(backer.id, DE, market.id, { outcome: 1, amount: (30n * NURA).toString() });
+            await ports.markets.place(backer.id, market.id, { outcome: 1, amount: (30n * NURA).toString() });
             mined(fake);
             await sweep(ports);
             await closeIn(market.id, -30);

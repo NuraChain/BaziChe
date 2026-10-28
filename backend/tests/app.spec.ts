@@ -1255,7 +1255,7 @@ describe('markets', () =>
         claimSent: { positions: [POSITION] }
     };
 
-    /** Every verb told the port with what it was handed; a header the port is handed is asked for the country there and then. */
+    /** Every verb told the port with what it was handed. */
     const marketsAs = (told: unknown[][], who: unknown = { userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' }) => buildApp({
         db: fakeDb({ initialized: true }),
         config,
@@ -1264,7 +1264,7 @@ describe('markets', () =>
             identity: { principal: () => Promise.resolve(who) },
             markets: Object.fromEntries(Object.entries(ANSWERS).map(([verb, answer]) => [verb, (...said: unknown[]) =>
             {
-                told.push([verb, ...said.map((one) => (typeof one === 'function' ? `country ${ String((one as (name: string) => string | null)('cf-ipcountry')) }` : one))]);
+                told.push([verb, ...said]);
 
                 return Promise.resolve(answer);
             }]))
@@ -1274,7 +1274,7 @@ describe('markets', () =>
     const send = (app: ReturnType<typeof buildApp>, path: string, body?: unknown) =>
         app.handle(new Request(`http://local/api${ path }`, {
             ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }),
-            headers: { 'content-type': 'application/json', 'cf-ipcountry': 'DE' }
+            headers: { 'content-type': 'application/json' }
         }));
 
     it('is markets, a game\'s market, positions and their claims, for somebody signed in', async () =>
@@ -1306,7 +1306,7 @@ describe('markets', () =>
         expect(told).toEqual([]);
     });
 
-    it('tells the port who asked and the header the country is read from, and hands on what it answers', async () =>
+    it('tells the port who asked, and hands on what it answers', async () =>
     {
         const told: unknown[][] = [];
         const app = marketsAs(told);
@@ -1323,10 +1323,10 @@ describe('markets', () =>
         expect(await (await send(app, '/markets/claims/sent', { hash: SENT, positions: ['p-1'] })).json()).toEqual(ANSWERS.claimSent);
 
         expect(told).toEqual([
-            ['state', 'somebody', 'country DE'],
-            ['disclose', 'somebody', 'country DE'],
-            ['view', 'somebody', 'country DE', 'm-1'],
-            ['place', 'somebody', 'country DE', 'k-1', { outcome: 1, amount: '5000000000000000000' }],
+            ['state', 'somebody'],
+            ['disclose', 'somebody'],
+            ['view', 'somebody', 'm-1'],
+            ['place', 'somebody', 'k-1', { outcome: 1, amount: '5000000000000000000' }],
             ['positions', 'somebody', 'abc'],
             ['one', 'somebody', 'p-1'],
             ['sent', 'somebody', 'p-1', SENT],

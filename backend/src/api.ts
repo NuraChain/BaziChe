@@ -681,21 +681,21 @@ export function buildApi(ports: Ports)
 
         markets: feature('/markets', [session], (routes) => ({
             state: routes.get('/', { output: marketsState }, (context) =>
-                ports.markets.state(context.principal.userId, (name) => context.request.headers.get(name))),
+                ports.markets.state(context.principal.userId)),
 
             disclose: routes.post('/disclosure', { output: marketsState }, (context) =>
-                ports.markets.disclose(context.principal.userId, (name) => context.request.headers.get(name))),
+                ports.markets.disclose(context.principal.userId)),
 
             /** The market on a game the reader may watch, opened the first time anybody asks while it may take positions; none where there is none. */
             game: routes.get('/matches/:match', { output: marketLook }, (context) =>
-                ports.markets.view(context.principal.userId, (name) => context.request.headers.get(name), context.params.match)),
+                ports.markets.view(context.principal.userId, context.params.match)),
 
             /**
              * A position, and the call the reader's wallet sends to place it. Nothing is held for the
              * answer: the position counts once `ArcadeMarkets` holds it under its ticket.
              */
             place: routes.post('/:id/positions', { input: marketPositionInput, output: marketPaying }, (context) =>
-                ports.markets.place(context.principal.userId, (name) => context.request.headers.get(name), context.params.id, context.input)),
+                ports.markets.place(context.principal.userId, context.params.id, context.input)),
 
             positions: routes.get('/positions', { query: marketPositionsQuery, output: marketPositions },
                 (context) => ports.markets.positions(context.principal.userId, context.query.cursor ?? null)),

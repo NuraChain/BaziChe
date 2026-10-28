@@ -555,7 +555,7 @@
         "market_positions_failure_when :: CHECK ((((state)::text = 'reverted'::text) = (failure IS NOT NULL)))",
         "market_positions_hash_shape :: CHECK (((tx_hash IS NULL) OR ((tx_hash)::text ~ '^0x[0-9a-f]{64}$'::text)))",
         "market_positions_outcome_range :: CHECK (((outcome >= 0) AND (outcome < 16)))",
-        "market_positions_paid_when :: CHECK (((paid IS NULL) = (claimed_at IS NULL)))",
+        "market_positions_paid_claimed :: CHECK (((paid IS NULL) OR (claimed_at IS NOT NULL)))",
         "market_positions_sent_has_hash :: CHECK ((((state)::text <> 'sent'::text) OR (tx_hash IS NOT NULL)))",
         "market_positions_state_known :: CHECK (((state)::text = ANY ((ARRAY['prepared'::character varying, 'sent'::character varying, 'confirmed'::character varying, 'reverted'::character varying, 'expired'::character varying])::text[])))",
         "markets_claimable_when :: CHECK ((((state)::text = 'settled'::text) = (claimable_at IS NOT NULL)))",

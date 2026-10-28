@@ -19,7 +19,7 @@ import type { PositionState } from '../domains/market/policy.ts';
 @Check('market_positions_confirmed_when', `(state = 'confirmed') = (confirmed_at is not null)`)
 @Check('market_positions_failure_when', `(state = 'reverted') = (failure is not null)`)
 @Check('market_positions_claimed_confirmed', `claimed_at is null or state = 'confirmed'`)
-@Check('market_positions_paid_when', `(paid is null) = (claimed_at is null)`)
+@Check('market_positions_paid_claimed', `paid is null or claimed_at is not null`)
 @Index('market_positions_hash', ['txHash'], { unique: true, where: 'tx_hash is not null' })
 @Index('market_positions_pending', ['state', 'createdAt'], { where: `state in ('prepared', 'sent')` })
 @Index('market_positions_of_market', ['marketId', 'state'])
@@ -67,10 +67,14 @@ export class MarketPosition
     @Column({ name: 'confirmed_at', type: 'timestamptz', nullable: true })
     confirmedAt!: Date | null;
 
-    /** When the contract said it was claimed, and what it paid. */
+    /** When the contract said it was claimed. */
     @Column({ name: 'claimed_at', type: 'timestamptz', nullable: true })
     claimedAt!: Date | null;
 
+    /**
+     * Wei: what the claim paid, read off its own receipt. None for a position claimed by a call this
+     * server never saw: a winner's share depends on who claimed before it, so it is not worked out.
+     */
     @Column({ type: 'numeric', precision: 40, scale: 0, nullable: true })
     paid!: string | null;
 

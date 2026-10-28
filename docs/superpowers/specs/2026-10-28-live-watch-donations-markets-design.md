@@ -299,3 +299,44 @@ pushed frame and to its board, against the opponent's board:
 
 The spectator made no api request while it watched. In a browser at 1280 and at 390, each move
 reached the watched board 8 to 18 ms after it was sent.
+
+**PB4, donations.** As designed, with these differences.
+
+- **A call carries a deadline, and a gift is recorded under its giver and its id.**
+  `tip(id, to, deadline)` is refused after the deadline (`TipExpired`), so a gift this server let
+  lapse cannot be made later behind its back. `tipOf(from, id)` keys the record by the giver, so
+  nobody can spend a giver's id first: the same call sent from another wallet is recorded under that
+  wallet, and the real gift still goes through. The record is the player, the amount and when. A
+  `tip` costs 81,080 gas, paid by the giver.
+- **Six states** (DN-D8): `prepared`, `sent`, `confirmed`, `reverted`, `expired`, and `failed`,
+  a record under the id that is not the gift prepared, which only a call made by hand can write. A
+  wallet that says no is not a state: the gift stays `prepared`, and Send again hands back the same
+  one while it has two minutes left to be sent (a gift that reverted gets a new id). A gift lives half
+  an hour (DN-D9) and is let go of five minutes after that, because a block's clock can run ahead of
+  this one. The worker asks the contract about a gift whose transaction was handed in at every sweep,
+  three seconds apart, and about one nobody said they sent every thirty seconds, since a wallet can
+  send after its tab has closed.
+- **Who** (DN-D2): nobody gives in a game they play in (DN-D6: a gift between two players of one
+  game is a side payment), a receiver is not suspended, and no block stands between the two either
+  way. Turning donations off is a row of `donations_off` (DN-D7), so the default, on, writes
+  nothing; the switch is in Settings › Privacy and safety.
+- **How much** (DN-D3): the sheet refuses an amount with more than four decimal places, the figures
+  NURA is shown in, and the server reads the giver's wallet before it composes the call, answering
+  a short one with what it holds (`donate-funds`).
+- **Told** (DN-D5): the notification is in a category of its own, `gifts`, beside the shop's gift
+  (DN-D12): the gift's category was the friend requests', and turning those off would have silenced
+  NURA a stranger sent from a game they watched. It leads to the wallet page, which lists what was
+  received, once confirmed, and what was given, in every state.
+- **The way in** (DN-D11) is "Send NURA to {name}" in the sheet about a player, opened from their
+  plate while the reader watches a live game, offered only where the server says that player may be
+  given NURA by the reader (`GET /donations/players`); the phases above called it a Support button.
+- **Nothing on this server signs for a gift**, so donations need no key: the contract's address,
+  the rpc and the chain id open them.
+
+`tools/qa/donate-pass.mjs` holds it over the built server and a local chain, 40 checks, red against
+two builds broken five ways each; `donate.db.spec.ts`, `notify.db.spec.ts` and
+`donation-sweep.spec.ts` hold the server, and the browser's specs the sheet, the store, the row, the
+wallet page and the switch. Walked at 1280 in English and at 390 in Persian: a gift given 4.5 s after
+the press, the player's wallet 10,000 then 10,005 NURA on the chain; 2.5 NURA typed in Persian
+digits, shown at the press and given 1.5 s later. `ArcadeTips` on NuraChain waits on the owner
+(section 8).

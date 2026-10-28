@@ -111,7 +111,6 @@ export default component CollectionPage()
     mount
     {
         shop.want('orders');
-        shop.want('earnings');
         voices = createVoices(untrack(() => settings.settings().sound));
 
         const unlisten = shop.listen();
@@ -129,6 +128,15 @@ export default component CollectionPage()
         const on = settings.settings().sound;
 
         untrack(() => voices?.setEnabled(on));
+    }
+
+    // What the shop owes for the people the reader invited is the contract's to say, and a closed shop has none to ask.
+    effect
+    {
+        if (open)
+        {
+            untrack(() => shop.want('earnings'));
+        }
     }
 
     <Page width="narrow" label={ locale.t('shop.collection.title') } onRefresh={ () => void shop.refresh() }>
@@ -186,9 +194,11 @@ export default component CollectionPage()
                                                 </button>
                                             </li>
                                         </For>
-                                        <li class="shrink-0">
-                                            <Button variant="ghost" size="sm" leading="sparkles" class="h-full whitespace-nowrap" to={ `/app/shop?for=${ area.id === 'table' ? 'all' : area.id }` }>{ locale.t('shop.collection.more') }</Button>
-                                        </li>
+                                        <Show when={ open }>
+                                            <li class="shrink-0">
+                                                <Button variant="ghost" size="sm" leading="sparkles" class="h-full whitespace-nowrap" to={ `/app/shop?for=${ area.id === 'table' ? 'all' : area.id }` }>{ locale.t('shop.collection.more') }</Button>
+                                            </li>
+                                        </Show>
                                     </ul>
                                 </div>
                             </For>

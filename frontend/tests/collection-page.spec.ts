@@ -189,6 +189,27 @@ describe('the reader\'s collection', () =>
         expect(voices.made[0]!.disposed).toBe(true);
     });
 
+    it('asks what the shop owes for the people the reader invited only while the shop is open', async () =>
+    {
+        const opened = server.shop.state;
+        server.shop.state = { open: false };
+        const root = await page();
+
+        expect(server.calls, 'a closed shop was asked, and answered as missing').not.toContain('shop.earnings');
+        expect(root.querySelector('#collection-earnings')).toBeNull();
+        expect(root.querySelector('[data-slot="ludo.dice"]'), 'what the reader owns is still theirs to choose').not.toBeNull();
+        expect(root.querySelector('a[href^="/app/shop?for="]'), 'a way into a shop that is closed').toBeNull();
+
+        cleanup();
+        useShop().reset();
+        server.calls.length = 0;
+        server.shop.state = opened;
+        const open = await page();
+
+        expect(server.calls).toContain('shop.earnings');
+        expect(open.querySelector('a[href="/app/shop?for=ludo"]')?.textContent?.trim()).toBe('Find more');
+    });
+
     it('lists the gifts with who sent them, and says none came yet when none did', async () =>
     {
         const quiet = await page();

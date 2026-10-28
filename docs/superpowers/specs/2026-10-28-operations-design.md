@@ -266,3 +266,35 @@ one series a standing alert.
 
 **What it costs**: a sample is nine indexed queries every thirty seconds; the rings are a few thousand
 numbers; a frame's delivery is one map increment; the endpoint and the overview read memory.
+
+## 4. As built: the server watched
+
+As designed in part 3, with these differences.
+
+- **A sample asks its questions one after another.** The design's nine queries every thirty seconds
+  run on one pooled connection in turn (`ops/sample.ts`), so the monitor never holds more than one
+  of the pool's connections, whatever a request is waiting for.
+- **The endpoint is the last wrapper round the app**, inside the rate limiters, so a guess at the
+  token is metered like any other request; a request without it is handed on and answered by the
+  router as an address nothing is served at.
+- **What this server does not run is absent, never null.** The monitor's two reads give the wire's
+  shape: a vault's stuck payments, the markets due and the disagreements are left out where there
+  is no vault, no markets contract or nothing reconciled, and the overview draws only what it is
+  handed.
+- **"Money on its way" is a wrapping row.** Which of its tiles it has is what the server runs (two
+  to five), so a grid of three left empty cells beside the last; each tile grows to fill its row,
+  and the workers' row stands under them whole.
+- **The Persian counts read number first** («۱۳ درخواست · ۰ خطا», «۲ تا منتظره»): a noun after a
+  number is singular in Persian, so the label-first form the other languages use to keep clear of
+  plurals is not needed there, and «درخواست ۱۳» reads as request number thirteen.
+
+**Held.** The specs `.claude/rules/operations.md` lists (*The server watched*), each feature's faults
+caught one at a time (the monitor 72 of 72, the endpoint 14 of 14, the overview 28 of 28, the walk's
+fixes 4 of 4), and `tools/qa/ops-pass.mjs` over the built server and a local chain: 28 of 28, and 13 of
+28 against a build broken four ways. On this machine the backlog the pass writes was raised by the
+first sample after boot and cleared by the next, and NuraChain out of reach by the second
+reconciliation pass after the node stopped. Walked as the owner at 1280 in English and 390 in Persian,
+an alert's row taking the keyboard to its panel, the consoles clean.
+
+**For whoever runs it**: `METRICS_TOKEN` is a name every `.env` writes, empty while nothing scrapes
+the server and at least 32 characters once something does.

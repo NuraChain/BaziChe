@@ -248,6 +248,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.line.group.opened': '{who} bu grubu herkese açık yaptı',
     'chat.line.expiry.on': 'Buradaki yeni mesajlar artık şu süre sonra kaybolur: {name}',
     'chat.line.expiry.off': 'Buradaki yeni mesajlar biri silene kadar kalır',
+    'chat.line.donation': '{who}, {to} için {amount} NURA gönderdi',
 
     'expiry.title': 'Kaybolan mesajlar',
     'expiry.off': 'Kapalı',
@@ -344,6 +345,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.inviteJoined': '{who} senin bağlantınla katıldı ve ilk oyununu oynadı',
     'notify.gift': '{who} sana bir hediye gönderdi',
     'notify.donation': '{who} sana {amount} NURA gönderdi',
+    'donate.action': 'NURA gönder: {name}',
     'notify.tableInvite': '{who} sana bir yer ayırdı',
     'notify.tableRemoved': '{who} seni bir {game} masasından çıkardı',
     'notify.turn': 'Sıra sende: {game}',

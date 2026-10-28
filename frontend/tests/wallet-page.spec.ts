@@ -12,6 +12,8 @@ import { NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
 import { useVault } from '../src/stores/vault.store.ts';
+import { useDonations } from '../src/stores/donations.store.ts';
+import { usePeople } from '../src/stores/people.store.ts';
 import type { Account, VaultGame, VaultState } from '../../backend/src/schemas.ts';
 import { client, nuraState, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
@@ -101,6 +103,8 @@ beforeEach(() =>
     useOverlay().reset();
     useToasts().reset();
     useVault().reset();
+    useDonations().reset();
+    usePeople().reset();
 });
 
 afterEach(() =>
@@ -652,5 +656,126 @@ describe('a page that hears the vault move', () =>
         await page();
 
         expect(reads()).toEqual({ vault: 1, games: 1 });
+    });
+});
+
+describe('the NURA people sent the reader, and the NURA they sent', () =>
+{
+    const OPEN = {
+        open: true as const,
+        accepting: true,
+        may: 'yes' as const,
+        presets: [(5n * WEI).toString()],
+        least: WEI.toString(),
+        most: (1000n * WEI).toString()
+    };
+
+    const gift = (id: string, change: Record<string, string>) => ({
+        id,
+        amount: (5n * WEI).toString(),
+        state: 'confirmed' as const,
+        game: 'hokm',
+        deadline: '2026-10-21T12:30:00.000Z',
+        at: '2026-10-21T11:00:00.000Z',
+        ...change
+    });
+
+    it('draws nothing of donations while they are not open here, and asks for no list', async () =>
+    {
+        signIn();
+
+        const container = await page();
+
+        expect(container.querySelector('[data-donations]')).toBeNull();
+        expect(server.calls.filter((call) => call.startsWith('donations.history'))).toEqual([]);
+    });
+
+    it('lists what the reader was given, from whom and at which game, beside a vault or without one', async () =>
+    {
+        server.nura.state = { configured: false };
+        server.donate.state = { ...OPEN };
+        server.donate.received = [gift('r-1', { from: 'sara.k' })];
+        signIn();
+
+        const container = await page();
+        const section = container.querySelector('[data-donations]');
+
+        expect(section?.querySelector('h2')?.textContent).toBe('Donations');
+        expect(button(section!, 'Received')?.getAttribute('aria-pressed') ?? button(section!, 'Received')?.getAttribute('aria-checked')).toBe('true');
+        expect(section?.querySelector('[data-donation="confirmed"]')?.textContent).toContain('Sara Kamali sent you 5 NURA at Hokm');
+        expect(section?.querySelector('[data-donation]')?.textContent, 'a gift received says no state: it is only listed once it is given').not.toContain('Given');
+    });
+
+    it('lists what the reader gave in every state, each with where it got to', async () =>
+    {
+        server.donate.state = { ...OPEN };
+        server.donate.given = [
+            gift('g-1', { to: 'sara.k' }),
+            gift('g-2', { to: 'reza.t', state: 'sent', game: 'ludo' }),
+            gift('g-3', { to: 'reza.t', state: 'reverted', game: 'ludo' })
+        ];
+        signIn();
+
+        const container = await page();
+        const section = container.querySelector('[data-donations]')!;
+
+        button(section, 'Given')!.click();
+        await settle();
+
+        const rows = [...section.querySelectorAll('[data-donation]')].map((one) => one.textContent ?? '');
+
+        expect(rows).toHaveLength(3);
+        expect(rows[0]).toContain('You sent Sara Kamali 5 NURA at Hokm');
+        expect(rows[0]).toContain('Given');
+        expect(rows[1]).toContain('On its way');
+        expect(rows[2]).toContain('Refused');
+    });
+
+    it('says there are none yet on each side', async () =>
+    {
+        server.donate.state = { ...OPEN };
+        signIn();
+
+        const container = await page();
+        const section = container.querySelector('[data-donations]')!;
+
+        expect(section.textContent).toContain('Nobody has sent you NURA yet.');
+
+        button(section, 'Given')!.click();
+        await settle();
+
+        expect(section.textContent).toContain('You have not sent anybody NURA yet.');
+    });
+
+    it('says a list it could not read as that, never as none, and reads it again when asked', async () =>
+    {
+        server.donate.state = { ...OPEN };
+        server.donate.historyRefuse = { status: 500, code: 'internal' };
+        signIn();
+
+        const container = await page();
+        const section = container.querySelector('[data-donations]')!;
+
+        expect(section.textContent).toContain('Your donations could not be read.');
+        expect(section.textContent).not.toContain('Nobody has sent you NURA yet.');
+
+        server.donate.historyRefuse = null;
+        server.donate.received = [gift('r-1', { from: 'sara.k' })];
+        button(section, 'Try again')!.click();
+        await settle();
+
+        expect(section.querySelector('[data-donation]')?.textContent).toContain('Sara Kamali sent you 5 NURA at Hokm');
+    });
+
+    it('says it in Persian to a Persian reader', async () =>
+    {
+        useLocale().setLocale('fa');
+        server.donate.state = { ...OPEN };
+        server.donate.received = [gift('r-1', { from: 'sara.k' })];
+        signIn();
+
+        const container = await page();
+
+        expect(container.querySelector('[data-donation]')?.textContent).toContain('Sara Kamali سر بازی حکم واست ۵ NURA فرستاد');
     });
 });

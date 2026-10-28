@@ -1,0 +1,255 @@
+import { Link, untrack } from 'azerothjs';
+
+import { NURA_CHAIN } from '../../data/chain.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { amountOf } from '../../lib/donate.ts';
+import { explorerTx, nuraOf } from '../../lib/nura.ts';
+import { shortAddress } from '../../lib/wallet.ts';
+import { useDonations } from '../../stores/donations.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import Avatar from '../ui/avatar.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import Spinner from '../ui/spinner.component.azeroth';
+import '../../locales/donate-catalogue.ts';
+
+/**
+ * NURA for a player of the game the reader watches: an amount, then the reader's own wallet sends
+ * it to `ArcadeTips`, which passes the whole of it to the player there and then.
+ */
+export default component DonateSheet(props: OverlayProps & { match: string; to: string })
+{
+    const locale = useLocale();
+    const donations = useDonations();
+    const people = usePeople();
+
+    state chosen = '';
+
+    state typed = '';
+
+    state typing = false;
+
+    const figure = (wei: string) => locale.n(nuraOf(wei), { maximumFractionDigits: 4 });
+
+    derived person = people.byHandle(props.to) ?? null;
+
+    derived name = person === null ? props.to : person.displayName.split(' ')[0];
+
+    derived held = donations.state();
+
+    derived may = held !== null && held.open ? held.may : null;
+
+    derived presets = held !== null && held.open ? held.presets : [];
+
+    derived least = held !== null && held.open ? held.least : '0';
+
+    derived most = held !== null && held.open ? held.most : '0';
+
+    derived written = typing ? amountOf(typed, least, most) : null;
+
+    derived amount = typing ? written ?? '' : chosen;
+
+    derived ready = amount !== '';
+
+    derived badTyping = typing && typed.trim() !== '' && written === null;
+
+    derived giving = donations.giving();
+
+    derived mine = giving !== null && giving.match === props.match && giving.to.toLowerCase() === props.to.toLowerCase();
+
+    derived step = mine ? giving!.step : null;
+
+    derived working = step === 'preparing' || step === 'wallet' || step === 'chain';
+
+    derived finished = step === 'done';
+
+    derived failed = step === 'failed';
+
+    derived elsewhere = giving !== null && !mine && (giving.step === 'preparing' || giving.step === 'wallet' || giving.step === 'chain');
+
+    derived shown = mine ? giving!.amount : amount;
+
+    derived stepWords = step === 'wallet'
+        ? locale.t('donate.step.wallet', { amount: figure(shown), address: shortAddress(giving?.from ?? '') })
+        : locale.t(step === 'chain' ? 'donate.step.chain' : 'donate.step.preparing');
+
+    derived link = !mine || giving!.hash === null || giving!.chainId === null ? null : explorerTx(giving!.chainId, giving!.hash);
+
+    derived linked = link !== null;
+
+    derived doneWords = locale.t('donate.step.done', { name, amount: figure(shown) });
+
+    derived short = failed && giving!.said === 'donate.refused.donate-funds' && giving!.held !== null;
+
+    derived shortWords = locale.t('donate.short', { held: figure(giving?.held ?? '0'), amount: figure(shown) });
+
+    derived plainFail = failed && !short;
+
+    derived failWords = locale.t(giving?.said ?? 'common.actionFailed');
+
+    derived terms = may === 'donate-terms';
+
+    derived resting = may === 'donate-break';
+
+    derived choosing = may === 'yes' && !working && !finished && !elsewhere;
+
+    derived sendWords = locale.t('donate.send', { amount: ready ? figure(amount) : '' });
+
+    derived rangeWords = locale.t('donate.otherHint', { least: figure(least), most: figure(most) });
+
+    derived badWords = locale.t('donate.otherBad', { least: figure(least), most: figure(most) });
+
+    mount
+    {
+        const unlisten = donations.listen();
+        const offered = untrack(() => presets);
+
+        if (offered.length > 1)
+        {
+            chosen = offered[1];
+        }
+
+        return () =>
+        {
+            unlisten();
+            donations.forget();
+        };
+    }
+
+    const pick = (wei: string) =>
+    {
+        typing = false;
+        chosen = wei;
+    };
+
+    const send = () =>
+    {
+        if (!ready || working)
+        {
+            return;
+        }
+
+        void donations.give(props.match, props.to, amount);
+    };
+
+    <div class="flex flex-col gap-4 p-4" data-donate>
+        <header class="flex items-center gap-3">
+            <Avatar person={ person } size="md" />
+            <span class="flex min-w-0 flex-1 flex-col">
+                <span class="truncate text-ui-lg font-semibold text-text" dir="auto">{ locale.t('donate.title', { name }) }</span>
+                <span class="truncate text-ui-xs text-muted" dir="ltr">@{ person?.handle ?? props.to }</span>
+            </span>
+            <IconButton icon="close" label={ locale.t('common.close') } variant="ghost" onClick={ () => props.close() } />
+        </header>
+
+        <p class="text-ui-sm text-muted">{ locale.t('donate.lead') }</p>
+
+        <Show when={ terms }>
+            <div class="flex flex-col gap-2 rounded-tile border border-line bg-sunk p-3">
+                <p class="text-ui-sm text-text">{ locale.t('donate.may.terms') }</p>
+                <Link to="/app/me/wallet" class="self-start text-ui-sm font-semibold text-accent underline-offset-2 hover:underline" onClick={ () => props.close() }>{ locale.t('donate.toWallet') }</Link>
+            </div>
+        </Show>
+
+        <Show when={ resting }>
+            <p class="rounded-tile border border-line bg-sunk p-3 text-ui-sm text-muted">{ locale.t('donate.refused.donate-break') }</p>
+        </Show>
+
+        <Show when={ choosing }>
+            <fieldset class="flex flex-col gap-3">
+                <legend class="mb-2 text-ui-sm font-semibold text-text">{ locale.t('donate.amount') }</legend>
+                <ul class="grid grid-cols-3 gap-2">
+                    <For each={ presets } key={ (wei) => wei } let={ wei }>
+                        <li>
+                            <button
+                                type="button"
+                                class={ () => [
+                                    'flex min-h-11 w-full cursor-pointer items-center justify-center gap-1 rounded-control border text-ui-md font-semibold transition-colors',
+                                    !typing && chosen === wei ? 'border-accent bg-accent-fill/15 text-text' : 'border-line bg-field text-muted hover:bg-raised'
+                                ].join(' ') }
+                                aria-pressed={ !typing && chosen === wei }
+                                data-preset={ wei }
+                                onClick={ () => pick(wei) }
+                            >
+                                <span class="tally">{ figure(wei) }</span> NURA
+                            </button>
+                        </li>
+                    </For>
+                </ul>
+                <button
+                    type="button"
+                    class="min-h-11 cursor-pointer self-start text-ui-sm font-semibold text-accent underline-offset-2 hover:underline"
+                    aria-pressed={ typing }
+                    data-other
+                    onClick={ () => typing = true }
+                >
+                    { locale.t('donate.other') }
+                </button>
+                <Show when={ typing }>
+                    <div class="flex flex-col gap-1">
+                        <Input
+                            value={ typed }
+                            onInput={ (value) => typed = value }
+                            inputmode="decimal"
+                            autofocus
+                            label={ locale.t('donate.other') }
+                            placeholder={ rangeWords }
+                            invalid={ badTyping }
+                            onEnter={ send }
+                        />
+                        <Show when={ badTyping }>
+                            <p class="text-ui-xs text-danger" data-bad-amount>{ badWords }</p>
+                        </Show>
+                    </div>
+                </Show>
+            </fieldset>
+        </Show>
+
+        <Show when={ elsewhere }>
+            <p class="text-ui-sm text-muted">{ locale.t('donate.busy') }</p>
+        </Show>
+
+        <Show when={ working }>
+            <div role="status" class="flex items-start gap-3 rounded-tile border border-line bg-sunk p-3" data-give-step={ step ?? '' }>
+                <Spinner size={ 16 } />
+                <div class="flex min-w-0 flex-col gap-1">
+                    <p class="text-ui-sm text-text">{ stepWords }</p>
+                    <Show when={ linked }>
+                        <a href={ link ?? '' } target="_blank" rel="noopener noreferrer" class="text-ui-sm font-semibold text-accent underline-offset-2 hover:underline">{ locale.t('donate.step.transaction') }</a>
+                    </Show>
+                </div>
+            </div>
+        </Show>
+
+        <Show when={ finished }>
+            <div role="status" class="flex items-start gap-3 rounded-tile border border-live/40 bg-live/10 p-3" data-give-step="done">
+                <Icon name="check-circle" size={ 18 } class="shrink-0 text-live" />
+                <div class="flex min-w-0 flex-col gap-1">
+                    <p class="text-ui-sm font-semibold text-text">{ doneWords }</p>
+                    <Show when={ linked }>
+                        <a href={ link ?? '' } target="_blank" rel="noopener noreferrer" class="text-ui-sm font-semibold text-accent underline-offset-2 hover:underline">{ locale.t('donate.step.transaction') }</a>
+                    </Show>
+                </div>
+            </div>
+        </Show>
+
+        <Show when={ failed }>
+            <div role="alert" class="flex flex-col gap-2 rounded-tile border border-gold/40 bg-gold/10 p-3" data-give-step="failed">
+                <Show when={ plainFail }>
+                    <p class="text-ui-sm text-text">{ failWords }</p>
+                </Show>
+                <Show when={ short }>
+                    <p class="text-ui-sm text-text">{ shortWords }</p>
+                    <a href={ NURA_CHAIN.site } target="_blank" rel="noopener noreferrer" class="self-start text-ui-sm font-semibold text-accent underline-offset-2 hover:underline">{ locale.t('donate.getNura') }</a>
+                </Show>
+            </div>
+        </Show>
+
+        <Show when={ choosing }>
+            <Button variant="primary" size="lg" block leading="coins" disabled={ !ready } onClick={ send }>{ sendWords }</Button>
+        </Show>
+    </div>
+}

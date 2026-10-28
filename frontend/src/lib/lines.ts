@@ -1,4 +1,6 @@
 import type { MessageVars } from '../locales/format.ts';
+import type { LocaleApi } from '../stores/locale.store.ts';
+import { nuraOf } from './nura.ts';
 
 /**
  * The server-authored lines this client knows how to say.
@@ -36,7 +38,11 @@ export const LINE_KEYS = [
     // Written by `setExpiry` in the chat half of `services.ts`. A rule about how long words last is
     // not something to change behind somebody's back.
     'chat.line.expiry.on',
-    'chat.line.expiry.off'
+    'chat.line.expiry.off',
+
+    // Written by the donations' half of `services.ts` once `ArcadeTips` holds a gift: the room
+    // that watches the game learns who gave whom how much.
+    'chat.line.donation'
 ] as const;
 
 export type LineKey = typeof LINE_KEYS[number];
@@ -58,7 +64,10 @@ export function isLineKey(key: string): key is LineKey
  * two components that render a line - which is how one of them would have been fixed and the other
  * left saying the handle.
  */
-const NAMES: readonly string[] = ['who', 'winners'];
+const NAMES: readonly string[] = ['who', 'winners', 'to'];
+
+/** The params that are an amount of NURA in wei, said as NURA to four places as every NURA figure is. */
+const WEI: readonly string[] = ['amount'];
 
 /**
  * A line's params with every handle turned into whatever this browser has been told that person is
@@ -68,7 +77,7 @@ const NAMES: readonly string[] = ['who', 'winners'];
 export function namedParams(
     params: Record<string, string | readonly string[] | undefined> | undefined,
     nameOf: (handle: string) => string,
-    list: (items: readonly string[]) => string
+    locale: Pick<LocaleApi, 'list' | 'n'>
 ): MessageVars | undefined
 {
     if (params === undefined)
@@ -87,11 +96,11 @@ export function namedParams(
 
         if (typeof value === 'string')
         {
-            resolved[key] = NAMES.includes(key) ? nameOf(value) : value;
+            resolved[key] = NAMES.includes(key) ? nameOf(value) : (WEI.includes(key) ? locale.n(nuraOf(value), { maximumFractionDigits: 4 }) : value);
             continue;
         }
 
-        resolved[key] = list(NAMES.includes(key) ? value.map(nameOf) : value);
+        resolved[key] = locale.list(NAMES.includes(key) ? value.map(nameOf) : value);
         resolved.count = value.length;
     }
 

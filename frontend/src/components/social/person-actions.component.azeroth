@@ -1,15 +1,17 @@
-import { useNavigate } from 'azerothjs';
+import { untrack, useNavigate } from 'azerothjs';
 
 import Icon from '../../icons/icon.component.azeroth';
 import type { IconName } from '../../icons/registry.ts';
 import ConfirmSheet from '../app/confirm-sheet.component.azeroth';
 import { usePeople } from '../../stores/people.store.ts';
 import { useChat } from '../../stores/chat.store.ts';
+import { useDonations } from '../../stores/donations.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
 import { useOverlay } from '../../stores/overlay.store.ts';
 import { useSocial } from '../../stores/social.store.ts';
 import { LOUDEST, useVoice } from '../../stores/voice.store.ts';
+import { useWatch } from '../../stores/watch.store.ts';
 import Avatar from '../ui/avatar.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
 import Slider from '../ui/slider.component.azeroth';
@@ -17,6 +19,7 @@ import ReportSheet from './report-sheet.component.azeroth';
 import { copyText } from '../../lib/clipboard.ts';
 import { attempt } from '../../lib/attempt.ts';
 import { playWith } from '../../lib/play-with.ts';
+import { giveTo } from '../../lib/donate-sheet.ts';
 
 interface Action
 {
@@ -45,6 +48,39 @@ export default component PersonActions(props: OverlayProps & {
     const people = usePeople();
     const voice = useVoice();
     const { navigate } = useNavigate();
+
+    const watched = untrack(() => useWatch().view());
+
+    /** The live game the reader watches with this person in it: the one place NURA can be sent to a player from. */
+    const matchId = watched !== null && watched.live && watched.match.players.some((one) => one.who === props.personId) ? watched.match.id : null;
+
+    const donations = matchId === null ? null : useDonations();
+
+    state givable = false;
+
+    derived readerMay = (() =>
+    {
+        const now = donations?.state() ?? null;
+
+        return now !== null && now.open ? now.may : null;
+    })();
+
+    derived offered = givable && (readerMay === 'yes' || readerMay === 'donate-terms' || readerMay === 'donate-break');
+
+    mount
+    {
+        if (donations !== null && matchId !== null)
+        {
+            const unlisten = donations.listen();
+
+            void donations.players(matchId).then((players) =>
+            {
+                givable = players?.get(props.personId.toLowerCase()) === true;
+            });
+
+            return unlisten;
+        }
+    }
 
     derived person = people.byHandle(props.personId) ?? null;
 
@@ -105,6 +141,18 @@ export default component PersonActions(props: OverlayProps & {
                 : (relation === 'incoming'
                     ? [{ id: 'accept', icon: 'friend-check', label: locale.t('actions.accept', { name }), run: () => void attempt(social.accept(asked)) }]
                     : []));
+        const give: Action[] = offered && matchId !== null
+            ? [{
+                id: 'donate',
+                icon: 'coins',
+                label: locale.t('donate.action', { name }),
+                run: () =>
+                {
+                    props.close();
+                    void giveTo(matchId, props.personId, name);
+                }
+            }]
+            : [];
         const play: Action[] = relation === 'friend'
             ? [{
                 id: 'play',
@@ -149,6 +197,7 @@ export default component PersonActions(props: OverlayProps & {
 
         const list: Action[] = [
             profile,
+            ...give,
             ...play,
             ...message,
             ...befriend,
@@ -254,7 +303,7 @@ export default component PersonActions(props: OverlayProps & {
                         onClick={ () =>
                         {
                             action.run();
-                            if (action.id !== 'message' && action.id !== 'profile' && action.id !== 'report')
+                            if (action.id !== 'message' && action.id !== 'profile' && action.id !== 'report' && action.id !== 'donate')
                             {
                                 props.close();
                             }

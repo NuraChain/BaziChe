@@ -128,6 +128,8 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.safety.saveFailed': '这项设置没有保存，仍保持原来的状态。',
     'settings.safety.online': '显示我在线',
     'settings.safety.onlineHint': '好友会看到一个绿点，以及你正在玩什么。',
+    'settings.safety.donations': '允许观看的人给你送 NURA',
+    'settings.safety.donationsHint': '关闭后，观看你对局的人都不能给你送 NURA。',
     'settings.safety.reports': '我的举报',
     'settings.safety.reportsLead': '你提交的每一条举报，以及处理进度。',
 

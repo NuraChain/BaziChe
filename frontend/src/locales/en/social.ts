@@ -245,6 +245,7 @@ export const social = {
     'chat.line.group.opened': '{who} made this group public',
     'chat.line.expiry.on': 'New messages here now disappear after {name}',
     'chat.line.expiry.off': 'New messages here stay until somebody deletes them',
+    'chat.line.donation': '{who} sent {to} {amount} NURA',
 
     'expiry.title': 'Disappearing messages',
     'expiry.off': 'Off',
@@ -341,6 +342,7 @@ export const social = {
     'notify.inviteJoined': '{who} joined through your link and played a first game',
     'notify.gift': '{who} sent you a gift',
     'notify.donation': '{who} sent you {amount} NURA',
+    'donate.action': 'Send NURA to {name}',
     'notify.tableInvite': '{who} saved you a seat',
     'notify.tableRemoved': '{who} took you out of a {game} table',
     'notify.turn': 'Your turn at {game}',

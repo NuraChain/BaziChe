@@ -244,7 +244,7 @@ export default component MessageBubble(props: {
             return locale.text(props.message.text);
         }
         return isLineKey(line.key)
-            ? locale.t(line.key, namedParams(line.params, nameOf, locale.list))
+            ? locale.t(line.key, namedParams(line.params, nameOf, locale))
             : '';
     })();
 

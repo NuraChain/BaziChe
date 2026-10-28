@@ -1,0 +1,125 @@
+import { useDonations, type Side } from '../../stores/donations.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import EmptyState from '../ui/empty-state.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import LoadMore from '../ui/load-more.component.azeroth';
+import SectionHeading from '../ui/section-heading.component.azeroth';
+import Segmented from '../ui/segmented.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import DonationRow from './donation-row.component.azeroth';
+import '../../locales/donate-catalogue.ts';
+
+/** NURA sent to the reader while somebody watched their game, and NURA the reader sent players: a page at a time. */
+export default component DonationsHistory(props: { class?: string })
+{
+    const locale = useLocale();
+    const donations = useDonations();
+    const people = usePeople();
+
+    state side = 'received' as Side;
+
+    state paging = false;
+
+    state pageFailed = false;
+
+    derived rows = donations.list(side);
+
+    derived awaited = donations.listLoading(side) && rows.length === 0;
+
+    derived refused = donations.listFailed(side);
+
+    derived bare = !donations.listLoading(side) && !refused && rows.length === 0;
+
+    derived listed = rows.length > 0;
+
+    derived more = donations.hasOlder(side);
+
+    derived given = side === 'given';
+
+    derived sides = [
+        { id: 'received', label: locale.t('donate.history.received') },
+        { id: 'given', label: locale.t('donate.history.given') }
+    ];
+
+    effect
+    {
+        donations.want(side);
+    }
+
+    effect
+    {
+        const handles = rows.map((one) => one.from ?? one.to ?? '').filter((one) => one !== '');
+
+        if (handles.length > 0)
+        {
+            void people.want(handles);
+        }
+    }
+
+    mount
+    {
+        return donations.listen();
+    }
+
+    const older = async () =>
+    {
+        if (paging)
+        {
+            return;
+        }
+
+        paging = true;
+        pageFailed = false;
+
+        try
+        {
+            await donations.older(side);
+        }
+        catch
+        {
+            pageFailed = true;
+        }
+        finally
+        {
+            paging = false;
+        }
+    };
+
+    <section class={ () => [ 'flex flex-col gap-3', props.class ?? '' ].join(' ') } aria-labelledby="donations-title" data-donations>
+        <SectionHeading id="donations-title" title={ locale.t('donate.history.title') } />
+        <p class="-mt-2 text-ui-sm text-muted">{ locale.t('donate.history.lead') }</p>
+
+        <Segmented items={ sides } value={ side } label={ locale.t('donate.history.title') } onChange={ (id) => side = id === 'given' ? 'given' : 'received' } />
+
+        <Show when={ awaited }>
+            <Skeleton lines={ 3 } avatar class="rounded-panel border border-line bg-field p-4" />
+        </Show>
+
+        <Show when={ refused }>
+            <ErrorState title={ locale.t('donate.history.failed') } onRetry={ () => donations.again(side) } />
+        </Show>
+
+        <Show when={ bare }>
+            <EmptyState icon="coins" title={ locale.t(given ? 'donate.history.emptyGiven' : 'donate.history.emptyReceived') } class="py-8" />
+        </Show>
+
+        <Show when={ listed }>
+            <ul class="divide-y divide-line rounded-panel border border-line bg-field" aria-labelledby="donations-title">
+                <For each={ rows } key={ (one) => one.id } let={ one }>
+                    <li>
+                        <DonationRow gift={ one } />
+                    </li>
+                </For>
+            </ul>
+        </Show>
+
+        <Show when={ pageFailed }>
+            <p class="text-center text-ui-xs text-danger" role="alert">{ locale.t('donate.history.failed') }</p>
+        </Show>
+
+        <Show when={ more }>
+            <LoadMore label={ locale.t('donate.history.more') } loading={ paging } onMore={ () => void older() } />
+        </Show>
+    </section>
+}

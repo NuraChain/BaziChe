@@ -123,7 +123,7 @@ export default component ChatListItem(props: {
             const line = last.line;
             if (line !== undefined && isLineKey(line.key))
             {
-                return locale.t(line.key, namedParams(line.params, nameOf, locale.list));
+                return locale.t(line.key, namedParams(line.params, nameOf, locale));
             }
             return locale.t(last.kind === 'invite'
                 ? 'chats.invitePreview'

@@ -162,7 +162,7 @@ describe('a line that names somebody', () =>
         const named = namedParams(
             { who: 'bot63807d', winners: ['ludotwo', 'sara.k'], game: 'ludo', name: 'Friday Crew' },
             (handle) => ({ bot63807d: 'Bot 63807d', ludotwo: 'Ludo Two' } as Record<string, string>)[handle] ?? handle,
-            (items) => useLocale().list(items)
+            useLocale()
         );
 
         expect(named).toEqual({
@@ -174,18 +174,34 @@ describe('a line that names somebody', () =>
         });
     });
 
+    it.each([
+        ['en', 'Sara sent Reza 1.2345 NURA'],
+        ['fa', 'Sara واسه Reza ۱٫۲۳۴۵ NURA فرستاد']
+    ] as const)('names whoever gave and whoever was given, and says the NURA cut at four places, in %s', (language, said) =>
+    {
+        useLocale().setLocale(language);
+
+        const named = namedParams(
+            { who: 'sara.k', to: 'reza.t', amount: '1234567000000000000' },
+            (handle) => ({ 'sara.k': 'Sara', 'reza.t': 'Reza' } as Record<string, string>)[handle] ?? handle,
+            useLocale()
+        );
+
+        expect(useLocale().t('chat.line.donation', named)).toBe(said);
+    });
+
     it('says every winner of a game, in the plural the language needs', () =>
     {
-        const named = namedParams({ winners: ['alex', 'sara.k'] }, (handle) => handle, (items) => useLocale().list(items));
+        const named = namedParams({ winners: ['alex', 'sara.k'] }, (handle) => handle, useLocale());
 
         expect(useLocale().t('chat.line.result', named)).toBe('alex and sara.k won');
 
         useLocale().setLocale('fa');
 
-        const persian = namedParams({ winners: ['alex', 'sara.k'] }, (handle) => handle, (items) => useLocale().list(items));
+        const persian = namedParams({ winners: ['alex', 'sara.k'] }, (handle) => handle, useLocale());
 
         expect(useLocale().t('chat.line.result', persian)).toBe(`${ useLocale().list(['alex', 'sara.k']) } بردن`);
-        expect(useLocale().t('chat.line.result', namedParams({ winners: ['alex'] }, (handle) => handle, (items) => useLocale().list(items)))).toBe('alex برد');
+        expect(useLocale().t('chat.line.result', namedParams({ winners: ['alex'] }, (handle) => handle, useLocale()))).toBe('alex برد');
     });
 
     /**
@@ -195,7 +211,7 @@ describe('a line that names somebody', () =>
      */
     it('leaves a handle it has never been told about exactly as it is', () =>
     {
-        expect(namedParams({ who: 'stranger' }, (handle) => handle, (items) => items.join())).toEqual({ who: 'stranger' });
-        expect(namedParams(undefined, (handle) => handle, (items) => items.join())).toBeUndefined();
+        expect(namedParams({ who: 'stranger' }, (handle) => handle, useLocale())).toEqual({ who: 'stranger' });
+        expect(namedParams(undefined, (handle) => handle, useLocale())).toBeUndefined();
     });
 });

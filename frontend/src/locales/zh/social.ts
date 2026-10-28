@@ -248,6 +248,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.line.group.opened': '{who} 将这个群组设为公开',
     'chat.line.expiry.on': '这里的新消息现在会在 {name} 后消失',
     'chat.line.expiry.off': '这里的新消息会一直保留，直到有人删除',
+    'chat.line.donation': '{who} 给 {to} 送了 {amount} NURA',
 
     'expiry.title': '阅后即焚',
     'expiry.off': '关闭',
@@ -344,6 +345,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.inviteJoined': '{who} 通过你的链接加入并玩了第一局',
     'notify.gift': '{who} 送了你一份礼物',
     'notify.donation': '{who} 送了你 {amount} NURA',
+    'donate.action': '给 {name} 送 NURA',
     'notify.tableInvite': '{who} 给你留了个座位',
     'notify.tableRemoved': '{who} 把你移出了一张 {game} 牌桌',
     'notify.turn': '{game} 轮到你了',

@@ -125,6 +125,8 @@ export const me = {
     'settings.safety.saveFailed': 'That setting did not save. It is still set the way it was.',
     'settings.safety.online': 'Show when I’m online',
     'settings.safety.onlineHint': 'Friends see a green dot and what you’re playing.',
+    'settings.safety.donations': 'Let people watching send you NURA',
+    'settings.safety.donationsHint': 'Off means nobody watching your games can send you NURA.',
     'settings.safety.reports': 'My reports',
     'settings.safety.reportsLead': 'Every report you send, and where it got to.',
 

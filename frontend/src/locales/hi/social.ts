@@ -248,6 +248,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.line.group.opened': '{who} ने यह ग्रुप पब्लिक किया',
     'chat.line.expiry.on': 'अब यहाँ नए मैसेज {name} बाद गायब हो जाते हैं',
     'chat.line.expiry.off': 'अब यहाँ नए मैसेज तब तक रहते हैं जब तक कोई उन्हें डिलीट न करे',
+    'chat.line.donation': '{who} ने {to} को {amount} NURA भेजे',
 
     'expiry.title': 'गायब होने वाले मैसेज',
     'expiry.off': 'बंद',
@@ -344,6 +345,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.inviteJoined': '{who} तुम्हारे लिंक से जुड़ा और पहला खेल खेला',
     'notify.gift': '{who} ने तुम्हें एक तोहफ़ा भेजा',
     'notify.donation': '{who} ने तुम्हें {amount} NURA भेजे',
+    'donate.action': '{name} को NURA भेजो',
     'notify.tableInvite': '{who} ने तुम्हारे लिए सीट रखी है',
     'notify.tableRemoved': '{who} ने तुम्हें {game} की टेबल से हटा दिया',
     'notify.turn': '{game} में तुम्हारी बारी',

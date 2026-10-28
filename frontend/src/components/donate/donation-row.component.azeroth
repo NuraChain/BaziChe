@@ -1,0 +1,64 @@
+import type { DonationView } from '../../api.ts';
+import type { GameId } from '../../data/games.ts';
+import { nuraOf } from '../../lib/nura.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import { useCatalogue } from '../../stores/catalogue.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import Avatar from '../ui/avatar.component.azeroth';
+import Badge from '../ui/badge.component.azeroth';
+import type { Tone } from '../ui/variants.ts';
+
+const STATE_WORD: Record<DonationView['state'], MessageKey> = {
+    prepared: 'donate.state.prepared',
+    sent: 'donate.state.sent',
+    confirmed: 'donate.state.confirmed',
+    reverted: 'donate.state.reverted',
+    expired: 'donate.state.expired',
+    failed: 'donate.state.failed'
+};
+
+const STATE_TONE: Record<DonationView['state'], Tone> = {
+    prepared: 'neutral',
+    sent: 'accent',
+    confirmed: 'live',
+    reverted: 'danger',
+    expired: 'neutral',
+    failed: 'danger'
+};
+
+export default component DonationRow(props: { gift: DonationView })
+{
+    const locale = useLocale();
+    const people = usePeople();
+    const catalogue = useCatalogue();
+
+    derived given = props.gift.from === undefined;
+
+    derived who = props.gift.from ?? props.gift.to ?? '';
+
+    derived person = people.byHandle(who);
+
+    derived words = locale.t(given ? 'donate.history.to' : 'donate.history.from', {
+        name: person?.displayName ?? who,
+        amount: locale.n(nuraOf(props.gift.amount), { maximumFractionDigits: 4 }),
+        game: locale.t(catalogue.byId(props.gift.game as GameId).nameKey)
+    });
+
+    derived when = locale.date(Date.parse(props.gift.at), { dateStyle: 'medium', timeStyle: 'short' });
+
+    derived stateWord = locale.t(STATE_WORD[props.gift.state]);
+
+    derived tone = STATE_TONE[props.gift.state];
+
+    <div class="flex min-h-14 items-center gap-3 px-4 py-3" data-donation={ props.gift.state }>
+        <Avatar person={ person } size="sm" />
+        <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span class="text-ui-sm text-text" dir="auto">{ words }</span>
+            <time class="text-ui-xs text-faint" datetime={ props.gift.at }>{ when }</time>
+        </span>
+        <Show when={ given }>
+            <Badge dot text={ stateWord } tone={ tone } />
+        </Show>
+    </div>
+}

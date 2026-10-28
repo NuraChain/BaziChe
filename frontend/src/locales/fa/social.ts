@@ -248,6 +248,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.line.group.opened': '{who} این گروه رو عمومی کرد',
     'chat.line.expiry.on': 'پیام‌های جدید این‌جا از این به بعد بعد از {name} پاک می‌شن',
     'chat.line.expiry.off': 'پیام‌های جدید این‌جا می‌مونن تا یکی پاکشون کنه',
+    'chat.line.donation': '{who} واسه {to} {amount} NURA فرستاد',
 
     'expiry.title': 'پیام‌های ناپدیدشونده',
     'expiry.off': 'خاموش',
@@ -344,6 +345,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.inviteJoined': '{who} با لینک تو اومد و اولین بازیش رو کرد',
     'notify.gift': '{who} واست یه هدیه فرستاد',
     'notify.donation': '{who} واست {amount} NURA فرستاد',
+    'donate.action': 'واسه {name} NURA بفرست',
     'notify.tableInvite': '{who} یه صندلی واست نگه داشته',
     'notify.tableRemoved': '{who} تو رو از یه میز {game} بلند کرد',
     'notify.turn': 'نوبتته توی {game}',

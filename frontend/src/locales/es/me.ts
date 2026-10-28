@@ -128,6 +128,8 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.safety.saveFailed': 'Ese ajuste no se ha guardado. Sigue como estaba.',
     'settings.safety.online': 'Mostrar cuándo estoy conectado',
     'settings.safety.onlineHint': 'Tus amigos ven un punto verde y a qué estás jugando.',
+    'settings.safety.donations': 'Que quien mira pueda enviarte NURA',
+    'settings.safety.donationsHint': 'Si está desactivado, nadie que mire tus partidas podrá enviarte NURA.',
     'settings.safety.reports': 'Mis denuncias',
     'settings.safety.reportsLead': 'Cada denuncia que envías y en qué ha quedado.',
 

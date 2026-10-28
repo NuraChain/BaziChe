@@ -9,12 +9,14 @@ import ErrorState from '../../components/ui/error-state.component.azeroth';
 import Panel from '../../components/ui/panel.component.azeroth';
 import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import Toggle from '../../components/ui/switch.component.azeroth';
+import DonationsHistory from '../../components/donate/donations-history.component.azeroth';
 import VaultGames from '../../components/vault/vault-games.component.azeroth';
 import VaultMove, { type Deposits } from '../../components/vault/vault-move.component.azeroth';
 import { GAMES } from '../../data/games.ts';
 import { nuraOf } from '../../lib/nura.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import { useAccount } from '../../stores/account.store.ts';
+import { useDonations } from '../../stores/donations.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useOverlay } from '../../stores/overlay.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
@@ -40,6 +42,7 @@ export default component WalletPage()
     const account = useAccount();
     const overlay = useOverlay();
     const toasts = useToasts();
+    const donations = useDonations();
 
     useHead({ title: () => locale.t('vault.title') });
 
@@ -58,6 +61,8 @@ export default component WalletPage()
     derived off = held !== null && !held.configured;
 
     derived open = vault !== null;
+
+    derived donating = donations.state()?.open === true;
 
     derived may = vault?.may ?? null;
 
@@ -240,6 +245,10 @@ export default component WalletPage()
                     <VaultGames owner={ owner } chainId={ chainId } reclaimAfter={ reclaimAfter } />
                 </Show>
             </div>
+        </Show>
+
+        <Show when={ donating }>
+            <DonationsHistory class="mt-6" />
         </Show>
     </Page>
 }

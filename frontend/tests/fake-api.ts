@@ -30,6 +30,8 @@ import type {
     ConversationDevices,
     ConversationSummary,
     Device,
+    DonationsState,
+    DonationView,
     MatchHistoryEntry,
     MuteSubject,
     NftItem,
@@ -731,6 +733,63 @@ export function failShopOrder(id: string, word: string)
     order.failure = word;
 }
 
+export const NURA_TIPS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+
+const donateFresh = () => ({
+    state: { open: false } as DonationsState,
+    players: [] as { who: string; may: boolean }[],
+    given: [] as DonationView[],
+    received: [] as DonationView[],
+    refuse: null as { status: number; code: string; details?: Record<string, string> } | null,
+
+    /** A refusal for the history alone, so a page can be shown and its list fail. */
+    historyRefuse: null as { status: number; code: string } | null,
+
+    /** A promise a switch waits on before it is answered, so a spec can look between the press and the answer. */
+    hold: null as Promise<void> | null,
+    seq: 0
+});
+
+const donateRefusal = () =>
+{
+    const refused = server.donate.refuse;
+
+    if (refused !== null)
+    {
+        throw new ApiError(refused.status, refused.code, refused.code, refused.details);
+    }
+};
+
+const donationOf = (id: string) =>
+{
+    const found = server.donate.given.find((one) => one.id === id);
+
+    if (found === undefined)
+    {
+        throw new ApiError(404, 'donate-missing', 'No donation of yours by that name.', undefined);
+    }
+
+    return found;
+};
+
+/** NuraChain holds a gift as it was prepared, or refused it, or it ran out, as the server's worker would find it. */
+export function settleDonation(id: string, state: 'confirmed' | 'reverted' | 'expired' | 'failed', failure?: string)
+{
+    const gift = donationOf(id);
+
+    gift.state = state;
+
+    if (state === 'confirmed')
+    {
+        gift.confirmedAt = '2026-10-28T12:01:00.000Z';
+    }
+
+    if (failure !== undefined)
+    {
+        gift.failure = failure;
+    }
+}
+
 export const server =
 {
     account: null as Account | null,
@@ -844,6 +903,7 @@ export const server =
     vault: null as { salt: string; publicKey: string; wrapped: string; checkValue: string } | null,
     nura: nuraFresh(),
     shop: shopFresh(),
+    donate: donateFresh(),
     admin: adminFresh(),
     staff: staffFresh(),
     accounts: accountsFresh(),
@@ -1032,6 +1092,7 @@ export const server =
         server.vault = null;
         server.nura = nuraFresh();
         server.shop = shopFresh();
+        server.donate = donateFresh();
         server.admin = adminFresh();
         server.staff = staffFresh();
         server.accounts = accountsFresh();
@@ -1948,6 +2009,84 @@ export const client =
             }
 
             return { from: SHOP_BUYER, to: NURA_SHOP, data: '0x4e71d92d', value: '0x0', chainId: 31337 } as WalletCall;
+        }
+    },
+
+    donations:
+    {
+        async state()
+        {
+            server.calls.push('donations.state');
+            donateRefusal();
+            return structuredClone(server.donate.state);
+        },
+        async accept({ input }: { input: { on: boolean } })
+        {
+            server.calls.push(`donations.accept ${ input.on }`);
+            await server.donate.hold;
+            donateRefusal();
+
+            if (server.donate.state.open)
+            {
+                server.donate.state = { ...server.donate.state, accepting: input.on };
+            }
+
+            return { accepting: input.on };
+        },
+        async players({ query }: { query: { match: string } })
+        {
+            server.calls.push(`donations.players ${ query.match }`);
+            donateRefusal();
+            return { players: structuredClone(server.donate.players) };
+        },
+        async give({ input }: { input: { match: string; to: string; amount: string } })
+        {
+            server.calls.push(`donations.give ${ input.match } ${ input.to } ${ input.amount }`);
+            donateRefusal();
+            server.donate.seq += 1;
+
+            const gift: DonationView = {
+                id: `gift-${ server.donate.seq }`,
+                to: input.to.replace(/^@/, ''),
+                amount: input.amount,
+                state: 'prepared',
+                game: 'ludo',
+                deadline: '2026-10-28T12:30:00.000Z',
+                at: '2026-10-28T12:00:00.000Z'
+            };
+
+            server.donate.given = [gift, ...server.donate.given];
+
+            return { donation: { ...gift }, call: { from: SHOP_BUYER, to: NURA_TIPS, data: '0xtip', value: `0x${ BigInt(input.amount).toString(16) }`, chainId: 31337 } as WalletCall };
+        },
+        async history({ query }: { query: { side: 'given' | 'received'; cursor?: string } })
+        {
+            server.calls.push(`donations.history ${ query.side } ${ query.cursor ?? '' }`.trim());
+            donateRefusal();
+
+            if (server.donate.historyRefuse !== null)
+            {
+                throw new ApiError(server.donate.historyRefuse.status, server.donate.historyRefuse.code, server.donate.historyRefuse.code, undefined);
+            }
+            return { donations: structuredClone(query.side === 'given' ? server.donate.given : server.donate.received) };
+        },
+        async one({ params }: { params: { id: string } })
+        {
+            server.calls.push(`donations.one ${ params.id }`);
+            return { ...donationOf(params.id) };
+        },
+        async sent({ params, input }: { params: { id: string }; input: { hash: string } })
+        {
+            server.calls.push(`donations.sent ${ params.id }`);
+            const gift = donationOf(params.id);
+
+            if (gift.state === 'prepared')
+            {
+                gift.state = 'sent';
+                gift.hash = input.hash.toLowerCase();
+            }
+
+            return { ...gift };
         }
     },
 

@@ -15,10 +15,25 @@ import { useToasts } from '../src/stores/toasts.store.ts';
 import { useRealtime } from '../src/stores/realtime.store.ts';
 import { useSettings } from '../src/stores/settings.store.ts';
 import { setVoiceCall, setVoiceMedia, useVoice } from '../src/stores/voice.store.ts';
+import { useDonations } from '../src/stores/donations.store.ts';
 import { ApiError, client, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
 
 type Rendered = HTMLElement;
+
+const watched = vi.hoisted(() => ({ view: null as null | { live: boolean; match: { id: string; players: { who: string }[] } } }));
+
+const given = vi.hoisted(() => [] as { match: string; to: string; name: string }[]);
+
+vi.mock('../src/stores/watch.store.ts', () => ({ useWatch: () => ({ view: () => watched.view }) }));
+
+vi.mock('../src/lib/donate-sheet.ts', () => ({
+    giveTo: (match: string, to: string, name: string) =>
+    {
+        given.push({ match, to, name });
+        return Promise.resolve();
+    }
+}));
 
 let closed: unknown[] = [];
 
@@ -75,6 +90,9 @@ beforeEach(async () =>
     useSocial().reset();
     useToasts().reset();
     useOverlay().reset();
+    useDonations().reset();
+    watched.view = null;
+    given.length = 0;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     await settle();
 });
@@ -412,5 +430,106 @@ describe('what can be done about a person', () =>
 
         expect(asked.props).toMatchObject({ title: 'Sara رو از دوستات حذف کنی؟', confirm: 'حذف Sara از دوستام' });
         await vi.waitFor(() => expect(said()).toEqual([['info', 'Sara دیگه توی دوستات نیست.']]));
+    });
+});
+
+describe('sending NURA to a player, from the sheet about them', () =>
+{
+    const NURA = 10n ** 18n;
+
+    const OPEN = {
+        open: true as const,
+        accepting: true,
+        may: 'yes' as 'yes' | 'donate-wallet' | 'donate-minor' | 'donate-terms' | 'donate-break',
+        presets: [(5n * NURA).toString()],
+        least: NURA.toString(),
+        most: (1000n * NURA).toString()
+    };
+
+    const watching = (live = true) =>
+    {
+        watched.view = { live, match: { id: 'm-1', players: [{ who: 'sara.k' }, { who: 'reza.t' }] } };
+        server.donate.state = { ...OPEN };
+        server.donate.players = [{ who: 'sara.k', may: true }, { who: 'reza.t', may: false }];
+    };
+
+    it('offers it after their profile when the reader watches their game and the server says they may be given NURA', async () =>
+    {
+        watching();
+
+        const container = await sheet('sara.k');
+
+        expect(server.calls).toContain('donations.players m-1');
+        expect(offered(container).slice(0, 2)).toEqual(['View profile', 'Send NURA to Sara']);
+    });
+
+    it('closes itself and opens the sheet that sends it, for that game and that player', async () =>
+    {
+        watching();
+
+        const container = await sheet('sara.k');
+
+        action(container, 'Send NURA to Sara')!.click();
+        await settle();
+
+        expect(closed).toHaveLength(1);
+        expect(given).toEqual([{ match: 'm-1', to: 'sara.k', name: 'Sara' }]);
+    });
+
+    it('offers it to a reader who has the terms still to confirm or is on a break, whom the sheet tells what to do', async () =>
+    {
+        for (const may of ['donate-terms', 'donate-break'] as const)
+        {
+            watching();
+            server.donate.state = { ...OPEN, may };
+
+            expect(offered(await sheet('sara.k')), may).toContain('Send NURA to Sara');
+
+            cleanup();
+            useDonations().reset();
+        }
+    });
+
+    it('asks nothing and offers nothing where the reader watches no game, or another one', async () =>
+    {
+        expect(offered(await sheet('sara.k'))).not.toContain('Send NURA to Sara');
+
+        cleanup();
+        watching();
+
+        expect(offered(await sheet('mina')), 'somebody who is not playing in it').not.toContain('Send NURA to Mina');
+        expect(server.calls.filter((call) => call.startsWith('donations.players')), 'asked about a game nobody here plays in').toEqual([]);
+    });
+
+    it('offers nothing for a player the server says cannot be given NURA, a game that is over, a reader who cannot give, or donations that are closed', async () =>
+    {
+        const cases: [string, () => void, string][] = [
+            ['a player who may not be given', () => undefined, 'reza.t'],
+            ['a game that is over', () => watching(false), 'sara.k'],
+            ['a reader without a wallet', () => { server.donate.state = { ...OPEN, may: 'donate-wallet' }; }, 'sara.k'],
+            ['a reader under 18', () => { server.donate.state = { ...OPEN, may: 'donate-minor' }; }, 'sara.k'],
+            ['donations closed', () => { server.donate.state = { open: false }; }, 'sara.k']
+        ];
+
+        for (const [what, arrange, who] of cases)
+        {
+            watching();
+            arrange();
+
+            const labels = offered(await sheet(who));
+
+            expect(labels.some((one) => one.startsWith('Send NURA')), what).toBe(false);
+
+            cleanup();
+            useDonations().reset();
+        }
+    });
+
+    it('says it in Persian too', async () =>
+    {
+        useLocale().setLocale('fa');
+        watching();
+
+        expect(offered(await sheet('sara.k'))[1]).toBe('واسه Sara NURA بفرست');
     });
 });

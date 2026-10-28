@@ -8,6 +8,7 @@ import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import '../src/locales/app-catalogue.ts';
 import { useAccount } from '../src/stores/account.store.ts';
+import { useDonations } from '../src/stores/donations.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { defaultSettings, useSettings } from '../src/stores/settings.store.ts';
@@ -380,5 +381,71 @@ describe('the page of settings', () =>
         }
 
         expect(voice.textContent).toContain(t('voice.privacy'));
+    });
+});
+
+describe('NURA from people watching', () =>
+{
+    let seq = 0;
+
+    const OPEN = {
+        open: true as const,
+        accepting: true,
+        may: 'yes' as const,
+        presets: ['5000000000000000000'],
+        least: '1000000000000000000',
+        most: '1000000000000000000000'
+    };
+
+    const signedIn = () =>
+    {
+        seq += 1;
+        useSession().establish(establishAccount('alex', { id: `u-donate-${ seq }` }));
+    };
+
+    const donationsSwitch = (container: HTMLElement, label: string) =>
+        [...container.querySelectorAll<HTMLElement>('#settings-safety [role="switch"]')].find((one) => one.querySelector('span span')?.textContent === label);
+
+    beforeEach(() =>
+    {
+        useDonations().reset();
+    });
+
+    it('is a switch of the privacy section while donations are open, on until the reader turns it off, and writes through the server', async () =>
+    {
+        server.donate.state = { ...OPEN };
+        signedIn();
+
+        const container = await show(SettingsPage as unknown as () => HTMLElement, '/app/me/settings');
+        const toggle = donationsSwitch(container, 'Let people watching send you NURA');
+
+        expect(toggle?.getAttribute('aria-checked')).toBe('true');
+
+        toggle!.click();
+        await settle();
+
+        expect(server.calls).toContain('donations.accept false');
+        expect(donationsSwitch(container, 'Let people watching send you NURA')?.getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('is not drawn while donations are not open here', async () =>
+    {
+        signedIn();
+
+        const container = await show(SettingsPage as unknown as () => HTMLElement, '/app/me/settings');
+
+        expect(container.querySelector('#settings-safety')).not.toBeNull();
+        expect(donationsSwitch(container, 'Let people watching send you NURA')).toBeUndefined();
+    });
+
+    it('says it in Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+        server.donate.state = { ...OPEN, accepting: false };
+        signedIn();
+
+        const container = await show(SettingsPage as unknown as () => HTMLElement, '/app/me/settings');
+
+        expect(donationsSwitch(container, 'تماشاچیا بتونن واسم NURA بفرستن')?.getAttribute('aria-checked')).toBe('false');
     });
 });

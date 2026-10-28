@@ -128,6 +128,8 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.safety.saveFailed': 'Bu ayar kaydedilmedi. Hâlâ eskisi gibi.',
     'settings.safety.online': 'Çevrimiçi olduğumu göster',
     'settings.safety.onlineHint': 'Arkadaşların yeşil bir nokta ve ne oynadığını görür.',
+    'settings.safety.donations': 'İzleyenler sana NURA gönderebilsin',
+    'settings.safety.donationsHint': 'Kapalıyken oyunlarını izleyen hiç kimse sana NURA gönderemez.',
     'settings.safety.reports': 'Şikâyetlerim',
     'settings.safety.reportsLead': 'Gönderdiğin her şikâyet ve vardığı yer.',
 

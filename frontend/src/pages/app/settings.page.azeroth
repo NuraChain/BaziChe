@@ -25,6 +25,7 @@ import { shortAddress } from '../../lib/wallet.ts';
 import { attempt } from '../../lib/attempt.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useAccount } from '../../stores/account.store.ts';
+import { useDonations } from '../../stores/donations.store.ts';
 import { useDevice } from '../../stores/device.store.ts';
 import { pagingFor, visible } from '../../lib/pagination.ts';
 import { usePageParams } from '../../lib/page-param.ts';
@@ -62,6 +63,7 @@ export default component SettingsPage()
     const toasts = useToasts();
     const voice = useVoice();
     const vaults = useVault();
+    const donations = useDonations();
 
     useHead({ title: () => locale.t('settings.title') });
 
@@ -121,6 +123,8 @@ export default component SettingsPage()
         .filter((person): person is Person => person !== null);
 
     derived privacy = social.privacy();
+
+    derived donating = donations.state()?.open === true;
 
     derived muted = visible(allMuted, SAFETY_PAGE, mutedPage, paging);
 
@@ -305,6 +309,14 @@ export default component SettingsPage()
                                     description={ locale.t('settings.safety.onlineHint') }
                                     onChange={ (checked) => void save({ showOnline: checked }) }
                                 />
+                                <Show when={ donating }>
+                                    <Toggle
+                                        checked={ donations.accepting() }
+                                        label={ locale.t('settings.safety.donations') }
+                                        description={ locale.t('settings.safety.donationsHint') }
+                                        onChange={ (checked) => void donations.accept(checked) }
+                                    />
+                                </Show>
                             </div>
 
                             <div class="flex flex-col gap-6 border-t border-line pt-4">

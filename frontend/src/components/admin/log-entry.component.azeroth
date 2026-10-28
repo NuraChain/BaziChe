@@ -23,7 +23,8 @@ const MARKS: Record<ActionKind, { icon: IconName; tone: string }> = {
     void: { icon: 'close', tone: 'bg-danger/15 text-danger' },
     close: { icon: 'lock', tone: 'bg-gold/15 text-gold' },
     minor: { icon: 'calendar', tone: 'bg-gold/15 text-gold' },
-    notice: { icon: 'megaphone', tone: 'bg-accent/15 text-accent' }
+    notice: { icon: 'megaphone', tone: 'bg-accent/15 text-accent' },
+    check: { icon: 'wallet', tone: 'bg-gold/15 text-gold' }
 };
 
 export default component LogEntry(props: { row: LogRow; report?: string })

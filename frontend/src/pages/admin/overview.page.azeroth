@@ -152,7 +152,13 @@ export default component OverviewPage()
 
     derived owed = paidStuckCount > 0;
 
-    derived needed = reported || jammed || owed;
+    derived checkCount = held?.checks ?? 0;
+
+    derived checks = counted(checkCount, 'admin.overview.checks');
+
+    derived disagreeing = checkCount > 0;
+
+    derived needed = reported || jammed || owed || disagreeing;
 
     derived health = held?.health ?? null;
 
@@ -265,6 +271,15 @@ export default component OverviewPage()
                                     <Link to="/admin/money" class="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-raised" data-owed>
                                         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-danger/15 text-danger" aria-hidden="true"><Icon name="coins" size={ 18 } /></span>
                                         <span class="min-w-0 flex-1 text-ui-base font-semibold text-text"><span class="tally">{ paidStuck.count }</span> { paidStuck.label }</span>
+                                        <Icon name="chevron-right" size={ 16 } class="icon-flip shrink-0 text-faint" />
+                                    </Link>
+                                </li>
+                            </Show>
+                            <Show when={ disagreeing }>
+                                <li>
+                                    <Link to="/admin/money/checks" class="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-raised" data-checks>
+                                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-danger/15 text-danger" aria-hidden="true"><Icon name="wallet" size={ 18 } /></span>
+                                        <span class="min-w-0 flex-1 text-ui-base font-semibold text-text"><span class="tally">{ checks.count }</span> { checks.label }</span>
                                         <Icon name="chevron-right" size={ 16 } class="icon-flip shrink-0 text-faint" />
                                     </Link>
                                 </li>

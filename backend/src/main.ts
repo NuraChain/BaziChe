@@ -150,7 +150,7 @@ const ports = buildPorts(dataSource, config, hub, {
     calls: () => hub.calls(),
     sockets: () => hub.size(),
     looking: (tableId) => hub.looking(tableId)
-}, (event, fields) => log.info(event, fields), undefined, ops);
+}, (event, fields, level = 'info') => log[level](event, fields), undefined, ops);
 
 const serving = config.servePages;
 
@@ -543,6 +543,48 @@ const sweepMarkets = () =>
 marketing = setTimeout(sweepMarkets, MARKET_SWEEP_MS);
 marketing.unref();
 
+const RECONCILE_MS = 60_000;
+
+const RECONCILE_FIRST_MS = 30_000;
+
+const RECONCILE_BUDGET_MS = 20_000;
+
+let reconciling: NodeJS.Timeout | null = null;
+
+const reconcileTold = new Map<string, string>();
+
+const reconcile = () =>
+{
+    void ports.jobs.reconcile(RECONCILE_BUDGET_MS)
+        .then(({ faults }) =>
+        {
+            const now = new Map(faults.map((one) => [`${ one.family } ${ one.record }`, one]));
+
+            for (const [key, one] of now)
+            {
+                if (reconcileTold.get(key) !== one.error)
+                {
+                    log.warn('reconcile step failed', { family: one.family, record: one.record, error: one.error });
+                }
+            }
+
+            reconcileTold.clear();
+            now.forEach((one, key) => reconcileTold.set(key, one.error));
+        })
+        .catch((error: unknown) => log.error('reconcile pass failed', { error }))
+        .finally(() =>
+        {
+            if (reconciling !== null)
+            {
+                reconciling = setTimeout(reconcile, RECONCILE_MS);
+                reconciling.unref();
+            }
+        });
+};
+
+reconciling = setTimeout(reconcile, RECONCILE_FIRST_MS);
+reconciling.unref();
+
 handleShutdownSignals(served, {
     /**
      * The window where connections are still live.
@@ -590,6 +632,11 @@ handleShutdownSignals(served, {
         {
             clearTimeout(marketing);
             marketing = null;
+        }
+        if (reconciling !== null)
+        {
+            clearTimeout(reconciling);
+            reconciling = null;
         }
 
         goingDown = true;

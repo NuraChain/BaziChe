@@ -11,6 +11,8 @@ import { ShopOrder } from '../../entities/shop-order.entity.ts';
 import { User } from '../../entities/user.entity.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan } from '../../lib/keyset.ts';
 import type { ShopOrderView, ShopPaying, ShopPurchase, ShopState } from '../../schemas.ts';
+import { audited, AUDIT_PAGE, nothing, RECENT, type AuditAsk, type Finding } from '../reconcile/audit.ts';
+import { orderVerdict, type OrderAfter, type Sold } from '../reconcile/verdicts.ts';
 import { FEATURED_FIRST, SHOP_COLLECTIONS, bundleOf, bundlePriceFor, isItemId } from './catalogue.ts';
 import type { OrderState, ShopItemStatus, ShopMay } from './policy.ts';
 import { shopRefusal } from './service.ts';
@@ -73,6 +75,14 @@ interface OrderRow
     lapsed: boolean;
     at_key: string;
 }
+
+interface AuditRow extends OrderRow
+{
+    buyer: string;
+}
+
+/** An order the shop worker is still moving: priced, handed in, or refused by the chain while it can still be paid. */
+const IN_HAND = `(o.state in ('quoted', 'sent') or (o.state = 'failed' and o.deadline + ${ LAPSE } >= now()))`;
 
 /** The looks an item stands for: a look itself, or every look of a bundle. */
 const looksIn = (item: string): readonly string[] => bundleOf(item)?.looks ?? [item];
@@ -516,6 +526,58 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
         return row.lapsed && row.state !== 'failed' ? await expire(row) : null;
     };
 
+    const auditQuery = () => orderQuery(db).innerJoin('users', 'b', 'b.id = o.buyer_id').addSelect('b.handle::text', 'buyer');
+
+    /**
+     * One order no worker is moving, against the sale the shop holds under its id. A sale the shop
+     * holds for an order that ran out or failed here is delivered by the worker's own `deliver`; a
+     * sale to anybody or at any price but the quote's is a quote this server never signed.
+     */
+    const compared = async (row: AuditRow) =>
+    {
+        if (row.state === 'quoted' || row.state === 'sent' || (row.state === 'failed' && !row.lapsed))
+        {
+            return null;
+        }
+
+        const sale = await shop.saleOf(orderIdOf(row.id));
+        const quoted = sale.buyer?.toLowerCase() === row.buyer_address && sale.price === BigInt(row.price);
+        const sold: Sold = sale.buyer === null ? 'unsold' : !quoted ? 'other' : sale.refunded ? 'refunded' : 'sold';
+        const verdict = orderVerdict(row.state as OrderAfter, sold);
+        const about = {
+            item: row.item_id,
+            amount: row.price,
+            who: row.buyer,
+            ...(row.recipient_id === row.buyer_id ? {} : { to: row.recipient }),
+            ...(row.tx_hash === null ? {} : { tx: row.tx_hash })
+        };
+
+        if (verdict === 'agree')
+        {
+            return [];
+        }
+
+        if (sold === 'other')
+        {
+            return [{
+                record: row.id,
+                kind: 'order-sale' as const,
+                db: { amount: row.price, address: row.buyer_address },
+                chain: { amount: sale.price.toString(), address: sale.buyer?.toLowerCase() ?? '' },
+                about
+            }];
+        }
+
+        const finding: Finding = { record: row.id, kind: 'order-state', db: { state: row.state }, chain: { state: sold }, about };
+
+        if (verdict !== 'put-right')
+        {
+            return [finding];
+        }
+
+        return await deliver(row, sold === 'refunded') === null ? [] : [{ ...finding, putRight: true as const }];
+    };
+
     /** An order for a look or a bundle, for the buyer or a friend by handle, and the call their wallet sends to pay it. */
     const orderAs = async (me: string, buyer: Address, item: string, recipient: string | undefined): Promise<ShopPaying> =>
     {
@@ -733,6 +795,31 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
             }
 
             return wireOf(address, asked.call);
+        },
+
+        /** Every order no worker is moving, against what the shop holds: one paid whatever its age, any other made in the last week, and those with a disagreement open. */
+        async audit({ ids, after, deadline }: AuditAsk)
+        {
+            if (!shop.configured)
+            {
+                return nothing();
+            }
+
+            const known = ids.filter((id) => UUID.test(id));
+            const again = known.length === 0 ? [] : await auditQuery().where('o.id = any(:ids::uuid[])', { ids: known }).getRawMany<AuditRow>();
+            const from = keysetAfter(after);
+            const page = auditQuery()
+                .where(`not ${ IN_HAND }`)
+                .andWhere(`(o.state = 'paid' or o.created_at > now() - ${ RECENT })`);
+
+            if (from !== null)
+            {
+                page.andWhere(olderThan('o.created_at', 'o.id'), from);
+            }
+
+            const rows = await page.orderBy('o.created_at', 'DESC').addOrderBy('o.id', 'DESC').limit(AUDIT_PAGE + 1).getRawMany<AuditRow>();
+
+            return await audited({ again, page: rows, after }, deadline, compared);
         },
 
         /**

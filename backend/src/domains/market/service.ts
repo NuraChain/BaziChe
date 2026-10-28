@@ -13,6 +13,8 @@ import { cursorOf, keyOf, keysetAfter, olderThan } from '../../lib/keyset.ts';
 import type { MarketChoice, MarketLook, MarketPaying, MarketPositions, MarketPositionView, MarketsState, WalletCall } from '../../schemas.ts';
 import type { Engine } from '../match/engine.ts';
 import { voidedOf } from '../match/service.ts';
+import { audited, AUDIT_PAGE, nothing, RECENT, type AuditAsk, type Finding, type Words } from '../reconcile/audit.ts';
+import { claimVerdict, marketVerdict, positionVerdict, type Given, type MarketAfter, type PositionAfter } from '../reconcile/verdicts.ts';
 import { eligibilityOf, WEI_PER_NURA, weiOf, type Eligibility, type Standing } from '../stake/policy.ts';
 import { choicesOf, verdictOf } from './outcomes.ts';
 import {
@@ -83,6 +85,14 @@ const PAID_UNSEEN = `case when (select k.state from markets k where k.id = marke
 
 const CLAIMABLE = `p.state = 'confirmed' and p.claimed_at is null
     and ((k.state = 'settled' and p.outcome = k.outcome and k.claimable_at <= now()) or k.state in ('refunded', 'cancelled', 'expired'))`;
+
+/**
+ * A position that can still be claimed, now or later: one in a market that is not settled (a stake
+ * back, or a market not resolved yet), a winner's, or any in a settled market the owner may still
+ * overturn. A loser past the dispute window never can.
+ */
+const CLAIMS_YET = `p.state = 'confirmed' and p.claimed_at is null
+    and (k.state <> 'settled' or p.outcome = k.outcome or k.claimable_at + ${ LAPSE } > now())`;
 
 export interface MarketHooks
 {
@@ -165,6 +175,43 @@ interface PositionRow extends TermsFields
     lapsed: boolean;
     at_key: string;
 }
+
+interface AuditMarketRow extends MarketRow
+{
+    handles: Record<string, string> | null;
+    at_key: string;
+}
+
+interface AuditPositionRow extends PositionRow
+{
+    bettor: string;
+}
+
+/** Each seat's handle in a market's game, by seat. */
+const HANDLES = '(select jsonb_object_agg(s.seat, u.handle) from match_players s join users u on u.id = s.user_id where s.match_id = k.match_id)';
+
+/** An outcome in words: who it is (the seat's player, a side's players), or a draw. */
+const outcomeWords = (choices: readonly Choice[], handles: Record<string, string> | null, outcome: number | null): Words =>
+{
+    const choice = outcome === null ? undefined : choices[outcome];
+
+    if (choice === undefined)
+    {
+        return outcome === null ? {} : { outcome: String(outcome) };
+    }
+
+    const named = (seat: number) => handles?.[String(seat)] ?? '';
+
+    switch (choice.kind)
+    {
+        case 'seat':
+            return { outcome: String(outcome), backed: named(choice.seat) };
+        case 'side':
+            return { outcome: String(outcome), backed: choice.seats.map(named).join(' & ') };
+        default:
+            return { outcome: String(outcome), draw: 'yes' };
+    }
+};
 
 const marketQuery = (from: DataSource | EntityManager) => from.getRepository(Market)
     .createQueryBuilder('k')
@@ -667,7 +714,10 @@ export function createMarketService(
             .where('p.market_id = :marketId', { marketId })
             .getRawMany<{ bettor_id: string }>()).map((row) => row.bettor_id);
 
-    /** A position the contract holds as it was prepared, written once. */
+    /**
+     * A position the contract holds as it was prepared, written once, whatever was said of it before:
+     * a ticket let go of here that a block clock behind took after all is a stake the pool holds.
+     */
     const confirm = async (row: PositionRow) =>
     {
         const { affected } = await db.getRepository(MarketPosition)
@@ -675,7 +725,7 @@ export function createMarketService(
             .update()
             .set({ state: 'confirmed', confirmedAt: () => 'now()', failure: null })
             .where('id = :id', { id: row.id })
-            .andWhere(`state in ('prepared', 'sent')`)
+            .andWhere(`state <> 'confirmed'`)
             .execute();
 
         if (affected === 0)
@@ -686,6 +736,26 @@ export function createMarketService(
         ring(row.table_id, [row.bettor_id]);
 
         return 'placed' as const;
+    };
+
+    /**
+     * A position the contract says was claimed by a call this server never read, written down as
+     * claimed (`PAID_UNSEEN`); `hash` names the claim this server was waiting on, or null for none.
+     */
+    const claimedUnseen = async (id: string, hash?: string | null) =>
+    {
+        const update = db.getRepository(MarketPosition)
+            .createQueryBuilder()
+            .update()
+            .set({ claimedAt: () => 'now()', paid: () => PAID_UNSEEN })
+            .where('id = :id and claimed_at is null', { id });
+
+        if (hash !== undefined)
+        {
+            update.andWhere(hash === null ? 'claim_hash is null' : 'claim_hash = :hash', { hash });
+        }
+
+        return (await update.execute()).affected ?? 0;
     };
 
     const endAs = async (row: PositionRow, state: 'reverted' | 'expired', failure: string | null) =>
@@ -987,15 +1057,18 @@ export function createMarketService(
 
         for (const id of claim.ids)
         {
-            const held = await chain.positionOf(marketIdOf(id));
-            const { affected } = await db.getRepository(MarketPosition)
+            if ((await chain.positionOf(marketIdOf(id))).claimed)
+            {
+                claimed += await claimedUnseen(id, claim.hash) > 0 ? 1 : 0;
+                continue;
+            }
+
+            await db.getRepository(MarketPosition)
                 .createQueryBuilder()
                 .update()
-                .set(held.claimed ? { claimedAt: () => 'now()', paid: () => PAID_UNSEEN } : { claimHash: null })
+                .set({ claimHash: null })
                 .where('id = :id and claim_hash = :hash and claimed_at is null', { id, hash: claim.hash })
                 .execute();
-
-            claimed += held.claimed && (affected ?? 0) > 0 ? 1 : 0;
         }
 
         return claimed;
@@ -1132,6 +1205,141 @@ export function createMarketService(
                 }
             }
         }
+    };
+
+    const auditMarketQuery = () => marketQuery(db).addSelect(HANDLES, 'handles').addSelect(keyOf('k.created_at'), 'at_key');
+
+    const auditPositionQuery = () => positionQuery(db).innerJoin('users', 'b', 'b.id = p.bettor_id').addSelect('b.handle::text', 'bettor');
+
+    /**
+     * One market no worker is moving, against what the contract holds: its state, and settled or
+     * refunded, the winner it named, and settled, when its winners may claim. A settled market the
+     * chain holds as called off was overturned while the worker was not asking: its own `resolve`.
+     */
+    const comparedMarket = async (row: AuditMarketRow) =>
+    {
+        if (row.state === 'open' || row.state === 'closing' || (row.state === 'settled' && row.disputed))
+        {
+            return null;
+        }
+
+        const held = await chain.marketOf(marketIdOf(row.id));
+        const verdict = marketVerdict(row.state as MarketAfter, held.state);
+        const about = { game: row.game, match: row.match_id };
+        const state: Finding = { record: row.id, kind: 'market-state', db: { state: row.state }, chain: { state: held.state }, about };
+
+        if (verdict === 'put-right')
+        {
+            return await resolve(row, 'cancelled', held) === null ? [] : [{ ...state, putRight: true as const }];
+        }
+
+        if (verdict === 'person')
+        {
+            return [state];
+        }
+
+        const found: Finding[] = [];
+
+        if ((row.state === 'settled' || row.state === 'refunded') && row.outcome !== held.winner)
+        {
+            found.push({
+                record: row.id,
+                kind: 'market-winner',
+                db: outcomeWords(row.choices, row.handles, row.outcome),
+                chain: outcomeWords(row.choices, row.handles, held.winner),
+                about
+            });
+        }
+
+        const claimable = row.claimable_at === null ? null : BigInt(Math.floor(new Date(row.claimable_at).getTime() / 1000));
+
+        if (row.state === 'settled' && claimable !== held.claimableAt)
+        {
+            found.push({
+                record: row.id,
+                kind: 'market-claimable',
+                db: claimable === null ? {} : { at: new Date(Number(claimable) * 1000).toISOString() },
+                chain: { at: new Date(Number(held.claimableAt) * 1000).toISOString() },
+                about
+            });
+        }
+
+        return found;
+    };
+
+    /**
+     * One position no worker is moving, against what the contract holds under its ticket. Held as it
+     * was prepared after it was let go of here, it is the worker's own `confirm`; claimed by a call
+     * this server never read, the claim route's own write.
+     */
+    const comparedPosition = async (row: AuditPositionRow) =>
+    {
+        if (row.state === 'prepared' || row.state === 'sent' || (row.claim_hash !== null && row.claimed_at === null))
+        {
+            return null;
+        }
+
+        const held = await chain.positionOf(marketIdOf(row.id));
+        const given: Given = held.bettor === null
+            ? 'none'
+            : held.bettor.toLowerCase() === row.address && held.outcome === row.outcome && held.amount === BigInt(row.amount) ? 'prepared' : 'other';
+        const verdict = positionVerdict(row.state as PositionAfter, given);
+        const about: Words = { game: row.game, amount: row.amount, who: row.bettor, ...outcomeWords(row.choices, row.handles, row.outcome) };
+
+        if (verdict === 'put-right')
+        {
+            const placed: Finding = { record: row.id, kind: 'position-state', db: { state: row.state }, chain: { state: 'placed' }, about, putRight: true };
+
+            return await confirm(row) === null ? [] : [placed];
+        }
+
+        if (verdict === 'person')
+        {
+            const found: Finding = given === 'other'
+                ? {
+                    record: row.id,
+                    kind: 'position-ticket',
+                    db: { amount: row.amount, address: row.address, ...outcomeWords(row.choices, row.handles, row.outcome) },
+                    chain: { amount: held.amount.toString(), address: held.bettor?.toLowerCase() ?? '', ...outcomeWords(row.choices, row.handles, held.outcome) },
+                    about
+                }
+                : { record: row.id, kind: 'position-state', db: { state: row.state }, chain: { state: 'none' }, about };
+
+            return [found];
+        }
+
+        if (row.state !== 'confirmed')
+        {
+            return [];
+        }
+
+        const claim = claimVerdict(row.claimed_at !== null, held.claimed);
+        const finding: Finding = {
+            record: row.id,
+            kind: 'position-claim',
+            db: { state: row.claimed_at === null ? 'unclaimed' : 'claimed' },
+            chain: { state: held.claimed ? 'claimed' : 'unclaimed' },
+            about
+        };
+
+        if (claim === 'agree')
+        {
+            return [];
+        }
+
+        if (claim === 'person')
+        {
+            return [finding];
+        }
+
+        if (await claimedUnseen(row.id, null) === 0)
+        {
+            return [];
+        }
+
+        ring(null, [row.bettor_id]);
+
+        return [{ ...finding, putRight: true as const }];
     };
 
     const stateFor = async (me: string, country: string | null): Promise<MarketsState> =>
@@ -1411,12 +1619,7 @@ export function createMarketService(
                 {
                     if ((await chain.positionOf(marketIdOf(row.id))).claimed)
                     {
-                        await db.getRepository(MarketPosition)
-                            .createQueryBuilder()
-                            .update()
-                            .set({ claimedAt: () => 'now()', paid: () => PAID_UNSEEN })
-                            .where('id = :id and claimed_at is null', { id: row.id })
-                            .execute();
+                        await claimedUnseen(row.id);
                     }
                     else
                     {
@@ -1464,6 +1667,62 @@ export function createMarketService(
                 : await positionQuery(db).where('p.bettor_id = :me and p.id = any(:ids::uuid[])', { me, ids: wanted }).orderBy('p.created_at', 'DESC').getRawMany<PositionRow>();
 
             return { positions: await positionsAs(rows) };
+        },
+
+        /** Every market no worker is moving that was made in the last week, against what the contract holds, and those with a disagreement open. */
+        async auditMarkets({ ids, after, deadline }: AuditAsk)
+        {
+            if (!chain.configured)
+            {
+                return nothing();
+            }
+
+            const known = ids.filter((id) => UUID.test(id));
+            const again = known.length === 0 ? [] : await auditMarketQuery().where('k.id = any(:ids::uuid[])', { ids: known }).getRawMany<AuditMarketRow>();
+            const from = keysetAfter(after);
+            const page = auditMarketQuery()
+                .where(`k.state not in ('open', 'closing')`)
+                .andWhere(`not (k.state = 'settled' and coalesce(k.claimable_at + ${ LAPSE } > now(), false))`)
+                .andWhere(`k.created_at > now() - ${ RECENT }`);
+
+            if (from !== null)
+            {
+                page.andWhere(olderThan('k.created_at', 'k.id'), from);
+            }
+
+            const rows = await page.orderBy('k.created_at', 'DESC').addOrderBy('k.id', 'DESC').limit(AUDIT_PAGE + 1).getRawMany<AuditMarketRow>();
+
+            return await audited({ again, page: rows, after }, deadline, comparedMarket);
+        },
+
+        /**
+         * Every position no worker is moving, against what the contract holds: one that can still be
+         * claimed whatever its age, any other made in the last week, and those with a disagreement open.
+         * A loser in a market settled past its dispute window can never be claimed, and is left to the week.
+         */
+        async auditPositions({ ids, after, deadline }: AuditAsk)
+        {
+            if (!chain.configured)
+            {
+                return nothing();
+            }
+
+            const known = ids.filter((id) => UUID.test(id));
+            const again = known.length === 0 ? [] : await auditPositionQuery().where('p.id = any(:ids::uuid[])', { ids: known }).getRawMany<AuditPositionRow>();
+            const from = keysetAfter(after);
+            const page = auditPositionQuery()
+                .where(`p.state not in ('prepared', 'sent')`)
+                .andWhere('not (p.claim_hash is not null and p.claimed_at is null)')
+                .andWhere(`(p.created_at > now() - ${ RECENT } or (${ CLAIMS_YET }))`);
+
+            if (from !== null)
+            {
+                page.andWhere(olderThan('p.created_at', 'p.id'), from);
+            }
+
+            const rows = await page.orderBy('p.created_at', 'DESC').addOrderBy('p.id', 'DESC').limit(AUDIT_PAGE + 1).getRawMany<AuditPositionRow>();
+
+            return await audited({ again, page: rows, after }, deadline, comparedPosition);
         },
 
         async sweep(budgetMs: number)

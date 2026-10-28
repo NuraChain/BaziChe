@@ -342,6 +342,14 @@ sees it, read for their own wallet's roles on the vault. The calls that change i
 fees, pause) are `wallet`, the owner's alone: an admin asking for one is answered as a page that is
 not there and no call is composed (`stake.db.spec.ts`).
 
+**What NuraChain and the database disagree about is Money's too** (`.claude/rules/operations.md`):
+`GET /admin/checks` lists them and `POST /admin/checks/:id/close`, `{ reason }`, closes one, both
+`money`, an admin and the owner alike, because closing one changes nothing on the chain or in any
+money record: it says somebody looked. The close locks the row, writes the staff action `check`
+(`{ check, family, record, kind }`) in the same transaction, and refuses one already closed as
+`staff-check-closed` (409); an id that is not one, or names nothing, is the page that is not
+there, and so is everybody whose role does not open Money.
+
 ## The overview, and who is online
 
 **The overview is counted, never estimated** (D11), and every member of the staff reads it
@@ -490,14 +498,16 @@ The log is grouped under the reader's own days ("Today", "Yesterday", then the d
 by its heading, and the heading is held at the top of the screen while its day is read. An older
 page joins the day it carries on, which keeps its place. Each entry begins with a mark for its kind
 in a tinted circle (`MARKS` in `log-entry`): a suspension, a clear and a game ended in danger, a lift
-in green, a report, a sign-out, a closed table and an age in gold, a note, a role, a game switched
+in green, a report, a sign-out, a closed table, an age and a disagreement with NuraChain closed in gold, a note, a role, a game switched
 and an announcement in blue, and a suspension that ran out and somebody taken off the staff plain.
 The mark is hidden from a screen reader, because the sentence beside it says the same.
 
 **Overview** is the first section, open to every role on the staff, and it is a dashboard. It
 opens with what needs the reader ("Needs you", with when it was read): the reports waiting in
-gold, and the games the sweep cannot play and the payments stuck on the way in danger, each only
-when there are some and each leading to its place (stuck games for a role that opens Play alone);
+gold, and the games the sweep cannot play, the payments stuck on the way and the disagreements
+with NuraChain still open in danger, each only when there are some and each leading to its place
+(stuck games for a role that opens Play alone, the disagreements for one that opens Money, to
+`/admin/money/checks`);
 when nothing does it says so, "Nothing needs you right now.". Then four tiles, two to a row on a
 phone and four from 1024px, each leading to its section and each named to a screen reader as one
 sentence ("Accounts: 1,234, 12 joined in the last day"): the accounts with the new ones of the
@@ -676,17 +686,37 @@ person is a status badge (waiting in gold, reviewed plain, acted on in green).
 
 **Money** is the vault panel, and its calls are drawn for the owner alone (`may(role, 'wallet')`):
 an admin whose wallet happens to hold a role on the vault is told that only the owner changes it
-from here, because the server would refuse the call.
+from here, because the server would refuse the call. Its head leads to the checks against NuraChain.
+
+**The checks against NuraChain** (`/admin/money/checks`, Money lit, a way back to Money in its
+head) say when this server last finished a pass and which families it checks, then list the
+disagreements in the address's list (`list`: Open, the default and never written, with how many
+are open on its chip, Closed, All), newest first by when each was first seen, older ones under
+"Show older". A row is one card's row: a mark for its family (red while open, plain once
+closed), the kind's sentence ("The vault holds this paid game in another state."), a line of facts
+about the record (its family, its game, its amount, the people in it, a look, the first eight
+characters of its id), what each side says as two tiles, Here and On NuraChain, side by side
+from 36rem of the page (`lib/check-words.ts`: each family's states in its own words, a paid
+game's in the vault panel's, an amount in NURA, a fee as a percentage, an address shortened,
+whoever was paid or backed by handle, a draw as a draw), and when it was first and last seen,
+each exact under a pointer. A handle, an address and an id run left to right whatever the page
+(`Said`). The database says nothing of a contract's coin, so a contract short of what it owes has
+no Here tile. An open one offers Close, which asks why in the reason sheet as a question that
+loses nothing; said yes to, it leaves the open list at the press (or reads as closed on the
+others) and the open count drops, the toast says so once the server has, and a refusal brings it
+back in the refusal's words; the list is read again either way. A closed one says how it ended:
+they agree again, put right from NuraChain, or closed by whom with their reason. With nothing
+open it says the two agree; a server that keeps no contract says it checks nothing.
 
 `admin-shell.spec.ts`, `admin-overview.spec.ts`, `admin-live.spec.ts`, `admin-notice.spec.ts`, `admin-staff.spec.ts`, `admin-log.spec.ts`, `admin-people.spec.ts`,
 `admin-person.spec.ts`, `admin-reports.spec.ts`, `admin-report.spec.ts`, `admin-play.spec.ts`,
-`reason-sheet.spec.ts`, `suspend-sheet.spec.ts` and `admin-vault.spec.ts` hold the page (`admin-play.spec.ts` its lists, the end of a game and the close of a table as well, `match-result.spec.ts` the card),
+`reason-sheet.spec.ts`, `suspend-sheet.spec.ts`, `admin-checks.spec.ts` and `admin-vault.spec.ts` hold the page (`admin-play.spec.ts` its lists, the end of a game and the close of a table as well, `match-result.spec.ts` the card),
 `paused-game.spec.ts` what a player sees of a paused game, `play.spec.ts` of a table the staff closed and `notice-strip.spec.ts` the notice on every page and at a table; `app-stores.spec.ts` the guards and `profile-page.spec.ts` the shield.
 
 ## The garbage pass
 
 `tools/qa/garbage-pass.mjs` sends the admin's routes garbage like every other: the staff change, a
-note, a suspension, a lift, a clear, a sign-out, a mark under 18, a report's outcome, a game's switch, a game's end, a table's close, a notice put up and one taken down, and the vault's amounts as bodies, the pause as spared (its body is a
+note, a suspension, a lift, a clear, a sign-out, a mark under 18, a report's outcome, a game's switch, a game's end, a table's close, a notice put up and one taken down, a check closed, and the vault's amounts as bodies, the pause as spared (its body is a
 switch), the log's four query words, the people's three, the reports' two, the games being played's
-three, the tables waiting's two and the live list's one. Its garbage accounts are not staff, so every one of them is answered as missing; what it
+three, the tables waiting's two, the live list's one and the checks' two. Its garbage accounts are not staff, so every one of them is answered as missing; what it
 proves is that none is a 5xx.

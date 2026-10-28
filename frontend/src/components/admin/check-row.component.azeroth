@@ -1,0 +1,101 @@
+import type { AdminCheck } from '../../../../backend/src/schemas.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { aboutOf, codeOf, FAMILY_MARKS, headlineOf, resolvedOf, sideOf } from '../../lib/check-words.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Said from './said.component.azeroth';
+import When from './when.component.azeroth';
+
+const TONES = {
+    open: 'bg-danger/15 text-danger',
+    closed: 'bg-raised text-muted'
+} as const;
+
+export default component CheckRow(props: { check: AdminCheck; onClose?: () => void })
+{
+    const locale = useLocale();
+
+    derived open = props.check.resolvedAt === undefined;
+
+    derived closed = !open;
+
+    derived closable = open && props.onClose !== undefined;
+
+    derived tone = open ? TONES.open : TONES.closed;
+
+    derived headline = headlineOf(props.check, locale);
+
+    derived closeLabel = locale.t('admin.checks.closeLabel', { what: props.check.family === 'contract' ? headline : `${ headline } ${ codeOf(props.check) }` });
+
+    derived about = aboutOf(props.check, locale);
+
+    derived here = sideOf(props.check, 'db', locale);
+
+    derived there = sideOf(props.check, 'chain', locale);
+
+    derived said = here.length > 0;
+
+    derived resolved = resolvedOf(props.check, locale);
+
+    derived reason = props.check.reason ?? '';
+
+    derived reasoned = reason !== '';
+
+    derived resolvedAt = props.check.resolvedAt ?? '';
+
+    <div class="flex gap-3 px-4 py-3.5" data-check={ props.check.id } data-kind={ props.check.kind }>
+        <span class={ () => `mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${ tone }` } aria-hidden="true">
+            <Icon name={ FAMILY_MARKS[props.check.family] } size={ 18 } />
+        </span>
+        <div class="flex min-w-0 flex-1 flex-col gap-2">
+            <div class="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+                <div class="flex min-w-0 flex-[1_1_16rem] flex-col gap-1">
+                    <p class="text-ui-base font-semibold text-text" data-headline>{ headline }</p>
+                    <p class="facts text-ui-xs text-muted" data-about>
+                        <For each={ about } key={ (one) => one.key } let={ one }>
+                            <span><Said parts={ one.parts } /></span>
+                        </For>
+                    </p>
+                </div>
+                <Show when={ closable }>
+                    <Button variant="outline" size="sm" label={ closeLabel } onClick={ () => props.onClose?.() }>{ locale.t('admin.checks.close') }</Button>
+                </Show>
+            </div>
+            <dl class="grid gap-2 @xl:grid-cols-2">
+                <Show when={ said }>
+                    <div class="flex flex-col gap-0.5 rounded-tile bg-sunk px-3 py-2" data-side="db">
+                        <dt class="text-ui-2xs font-semibold text-faint">{ locale.t('admin.checks.here') }</dt>
+                        <dd class="facts text-ui-sm text-text [&>span:first-child]:first-letter:uppercase">
+                            <For each={ here } key={ (one) => one.key } let={ one }>
+                                <span><Said parts={ one.parts } /></span>
+                            </For>
+                        </dd>
+                    </div>
+                </Show>
+                <div class="flex flex-col gap-0.5 rounded-tile bg-sunk px-3 py-2" data-side="chain">
+                    <dt class="text-ui-2xs font-semibold text-faint">{ locale.t('admin.checks.chain') }</dt>
+                    <dd class="facts text-ui-sm text-text [&>span:first-child]:first-letter:uppercase">
+                        <For each={ there } key={ (one) => one.key } let={ one }>
+                            <span><Said parts={ one.parts } /></span>
+                        </For>
+                    </dd>
+                </div>
+            </dl>
+            <p class="facts text-ui-xs text-faint" data-seen>
+                <span>{ locale.t('admin.checks.firstSeen') } <When at={ props.check.firstSeen } /></span>
+                <span>{ locale.t('admin.checks.lastSeen') } <When at={ props.check.lastSeen } /></span>
+            </p>
+            <Show when={ closed }>
+                <div class="flex flex-col gap-1" data-resolved={ props.check.resolution }>
+                    <p class="facts text-ui-xs text-muted">
+                        <span class="font-semibold text-text"><Said parts={ resolved } /></span>
+                        <When at={ resolvedAt } />
+                    </p>
+                    <Show when={ reasoned }>
+                        <p class="border-s-2 border-line-strong ps-3 text-ui-sm text-muted" dir="auto" data-reason>{ reason }</p>
+                    </Show>
+                </div>
+            </Show>
+        </div>
+    </div>
+}

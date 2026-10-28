@@ -162,6 +162,32 @@ describe('the overview', () =>
         expect(container.querySelector('[data-calm]')).toBeNull();
     });
 
+    it('says the disagreements with NuraChain still open need a reader whose role opens Money, leading to their list, and shows a moderator none', async () =>
+    {
+        told();
+        server.lookout.overview = { ...server.lookout.overview, checks: 3 };
+        const container = await opened();
+
+        expect(all(container, '[data-needs] li')).toEqual(['2 reports waiting', '1 game stuck', '1 payment stuck on the way', '3 disagreements with NuraChain']);
+        expect(href(container, '[data-checks]')).toBe('/admin/money/checks');
+        expect(container.querySelector('[data-checks] .text-danger'), 'in danger').not.toBeNull();
+        cleanup();
+
+        as('moderator');
+        const looked = await opened();
+
+        expect(looked.querySelector('[data-checks]')).toBeNull();
+        cleanup();
+
+        as('owner');
+        server.lookout.overview = { ...server.lookout.overview, checks: 1, stuck: 0, reports: 0, money: { playing: 0, inPlay: '0', stuck: 0 } };
+        server.desk.filed = [];
+        const alone = await opened();
+
+        expect(all(alone, '[data-needs] li')).toEqual(['1 disagreement with NuraChain']);
+        expect(alone.querySelector('[data-calm]')).toBeNull();
+    });
+
     it('says nothing needs the reader when nothing does', async () =>
     {
         told();

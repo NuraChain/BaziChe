@@ -62,6 +62,15 @@ const CLEAR_LINES: Readonly<Record<string, MessageKey>> = {
     bio: 'admin.log.line.clear.bio'
 };
 
+const CHECK_LINES: Readonly<Record<string, MessageKey>> = {
+    escrow: 'admin.log.line.check.escrow',
+    order: 'admin.log.line.check.order',
+    donation: 'admin.log.line.check.donation',
+    market: 'admin.log.line.check.market',
+    position: 'admin.log.line.check.position',
+    contract: 'admin.log.line.check.contract'
+};
+
 const isRole = (value: string | undefined): value is StaffRole => STAFF_ROLES.some((role) => role === value);
 
 export const foldHandle = (typed: string) => normalizeName(typed.trim().replace(/^@/, ''));
@@ -157,6 +166,11 @@ const said = (row: LogRow, locale: LocaleApi) =>
         return row.details.to === 'down'
             ? locale.t('admin.log.line.notice.down', slots)
             : locale.t('admin.log.line.notice.up', { ...slots, term: locale.t(NOTICE_TERMS[row.details.hours ?? ''] ?? 'admin.notice.term.6') });
+    }
+
+    if (row.kind === 'check')
+    {
+        return locale.t(CHECK_LINES[row.details.family ?? ''] ?? 'admin.log.line.check.contract', slots);
     }
 
     if (row.kind === 'void' || row.kind === 'close')

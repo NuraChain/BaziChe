@@ -9,6 +9,8 @@ import { MatchPlayer } from '../../entities/match-player.entity.ts';
 import { Match } from '../../entities/match.entity.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan } from '../../lib/keyset.ts';
 import type { DonationPaying, DonationPlayers, DonationView, Donations, DonationsState } from '../../schemas.ts';
+import { audited, AUDIT_PAGE, nothing, RECENT, type AuditAsk, type Finding } from '../reconcile/audit.ts';
+import { donationVerdict, type DonationAfter, type Given } from '../reconcile/verdicts.ts';
 import { eligibilityOf, WEI_PER_NURA, type Eligibility, type Standing } from '../stake/policy.ts';
 import { LEAST_NURA, MOST_NURA, PRESETS_NURA, type DonateMay, type DonationState } from './policy.ts';
 import { DONATE_REFUSALS, type DonateRefusal } from './refusals.ts';
@@ -285,7 +287,11 @@ export function createDonationService(
         return asDonation(row, 'given');
     };
 
-    /** A gift the contract holds as it was prepared, written once under its row's lock. */
+    /**
+     * A gift the contract holds as it was prepared, written once under its row's lock, whatever was
+     * said of it before: a gift let go of here whose call a block clock behind took after all, or one
+     * that reverted and that the wallet sent again, is given all the same.
+     */
     const confirm = async (row: DonationRow) =>
     {
         const { affected } = await db.getRepository(Donation)
@@ -293,7 +299,7 @@ export function createDonationService(
             .update()
             .set({ state: 'confirmed', confirmedAt: () => 'now()', failure: null })
             .where('id = :id', { id: row.id })
-            .andWhere(`state in ('prepared', 'sent')`)
+            .andWhere(`state <> 'confirmed'`)
             .execute();
 
         if (affected === 0)
@@ -307,14 +313,14 @@ export function createDonationService(
         return 'confirmed' as const;
     };
 
-    const settleAs = async (row: DonationRow, state: 'reverted' | 'failed' | 'expired', failure: string | null) =>
+    const settleAs = async (row: DonationRow, state: 'reverted' | 'failed' | 'expired', failure: string | null, from: readonly DonationState[] = ['prepared', 'sent']) =>
     {
         const update = db.getRepository(Donation)
             .createQueryBuilder()
             .update()
             .set({ state, failure })
             .where('id = :id', { id: row.id })
-            .andWhere(`state in ('prepared', 'sent')`);
+            .andWhere('state in (:...from)', { from });
 
         if (state === 'expired')
         {
@@ -370,6 +376,49 @@ export function createDonationService(
         }
 
         return row.lapsed ? await settleAs(row, 'expired', null) : null;
+    };
+
+    /**
+     * One gift no worker is moving, against what the contract holds under its giver and id. Held as
+     * it was prepared, it is the worker's own `confirm`; held as something else, its `failed`.
+     */
+    const compared = async (row: DonationRow) =>
+    {
+        if (row.state === 'prepared' || row.state === 'sent')
+        {
+            return null;
+        }
+
+        const held = await tips.tipOf(getAddress(row.giver_address), tipIdOf(row.id));
+        const given: Given = held.to === null
+            ? 'none'
+            : held.to.toLowerCase() === row.receiver_address && held.amount === BigInt(row.amount) ? 'prepared' : 'other';
+        const verdict = donationVerdict(row.state as DonationAfter, given);
+        const about = { game: row.game, amount: row.amount, who: row.giver, to: row.receiver, ...(row.tx_hash === null ? {} : { tx: row.tx_hash }) };
+
+        if (verdict === 'agree')
+        {
+            return [];
+        }
+
+        const finding: Finding = given === 'other'
+            ? {
+                record: row.id,
+                kind: 'donation-gift',
+                db: { amount: row.amount, address: row.receiver_address },
+                chain: { amount: held.amount.toString(), address: held.to?.toLowerCase() ?? '' },
+                about
+            }
+            : { record: row.id, kind: 'donation-state', db: { state: row.state }, chain: { state: given === 'none' ? 'none' : 'held' }, about };
+
+        if (verdict !== 'put-right')
+        {
+            return [finding];
+        }
+
+        const done = given === 'prepared' ? await confirm(row) : await settleAs(row, 'failed', 'mismatch', ['expired', 'reverted']);
+
+        return done === null ? [] : [{ ...finding, putRight: true as const }];
     };
 
     return {
@@ -552,6 +601,31 @@ export function createDonationService(
             const rows = await query.orderBy('d.created_at', 'DESC').addOrderBy('d.id', 'DESC').limit(PAGE + 1).getRawMany<DonationRow>();
 
             return { donations: rows.slice(0, PAGE).map((row) => asDonation(row, side)), ...cursorOf(rows, PAGE) };
+        },
+
+        /** Every gift no worker is moving that was made in the last week, against what the contract holds, and those with a disagreement open. */
+        async audit({ ids, after, deadline }: AuditAsk)
+        {
+            if (!tips.configured)
+            {
+                return nothing();
+            }
+
+            const known = ids.filter((id) => UUID.test(id));
+            const again = known.length === 0 ? [] : await donationQuery(db).where('d.id = any(:ids::uuid[])', { ids: known }).getRawMany<DonationRow>();
+            const from = keysetAfter(after);
+            const page = donationQuery(db)
+                .where(`d.state not in ('prepared', 'sent')`)
+                .andWhere(`d.created_at > now() - ${ RECENT }`);
+
+            if (from !== null)
+            {
+                page.andWhere(olderThan('d.created_at', 'd.id'), from);
+            }
+
+            const rows = await page.orderBy('d.created_at', 'DESC').addOrderBy('d.id', 'DESC').limit(AUDIT_PAGE + 1).getRawMany<DonationRow>();
+
+            return await audited({ again, page: rows, after }, deadline, compared);
         },
 
         async sweep(budgetMs: number)

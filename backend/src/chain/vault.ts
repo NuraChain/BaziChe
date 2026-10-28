@@ -11,10 +11,12 @@ import {
     getAddress,
     hashTypedData,
     isAddress,
+    isAddressEqual,
     keccak256,
     nonceManager,
     pad,
     parseAbi,
+    parseEventLogs,
     recoverTypedDataAddress,
     stringToHex,
     type Address,
@@ -22,7 +24,7 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
-import { boundedClient, boundedTransport, reached, refusedByContract, unreached } from './rpc.ts';
+import { booksOf, boundedClient, boundedTransport, reached, refusedByContract, unreached, type Books } from './rpc.ts';
 
 export const VAULT_ABI = parseAbi([
     'struct Seat { address player; bytes32 commit; bytes32 nonce; uint64 deadline; bytes signature; }',
@@ -55,6 +57,7 @@ export const VAULT_ABI = parseAbi([
     'function withdrawFees(address to, uint256 amount)',
     'function pause()',
     'function unpause()',
+    'event Settled(bytes32 indexed id, uint256 winners, uint256 share, uint256 fee, bytes32[] secrets)',
     'error StakeExpired(address player, uint64 deadline)',
     'error StakeTooLong(address player, uint64 deadline)',
     'error NonceUsed(address player, bytes32 nonce)',
@@ -221,7 +224,11 @@ export interface Vault
     settle(id: Hex, winners: bigint, secrets: readonly Hex[]): Promise<Sent>;
     refund(id: Hex): Promise<Sent>;
     mined(hash: Hex): Promise<Mined>;
+
+    /** The seats a mined `settle` of game `id` paid, read off its receipt's own `Settled` event; none for a receipt that holds none. */
+    winnersIn(hash: Hex, id: Hex): Promise<bigint | null>;
     gas(): Promise<bigint>;
+    books(): Promise<Books>;
     ledger(admin: Address): Promise<VaultLedger>;
     feeCall(admin: Address, feeBps: number): Promise<Asked>;
     gameFeeCall(admin: Address, game: string, feeBps: number): Promise<Asked>;
@@ -598,10 +605,37 @@ export function createVault(settings: VaultSettings): Vault
             }
         },
 
+        async winnersIn(hash, id)
+        {
+            const { vault: at } = ready();
+            let receipt;
+
+            try
+            {
+                receipt = await reader().getTransactionReceipt({ hash });
+            }
+            catch (error)
+            {
+                if (error instanceof BaseError && error.walk((cause) => cause instanceof TransactionReceiptNotFoundError) !== null)
+                {
+                    return null;
+                }
+
+                return await reached(Promise.reject(error));
+            }
+
+            const paid = parseEventLogs({ abi: VAULT_ABI, eventName: 'Settled', logs: receipt.logs })
+                .find((log) => isAddressEqual(log.address, at) && log.args.id.toLowerCase() === id.toLowerCase());
+
+            return paid?.args.winners ?? null;
+        },
+
         async gas()
         {
             return await reached(reader().getBalance({ address: ready().account.address }));
         },
+
+        books: () => booksOf(settings.rpcUrl, ready().vault, VAULT_ABI, ['totalBalances', 'totalLocked', 'fees']),
 
         async ledger(admin)
         {

@@ -109,8 +109,8 @@ the third so nobody re-investigates it.
   rpc and contract addresses, the numbers). A personal value - an admin wallet included - goes in
   `.env` only.
 - No absolute path naming a machine. `~` is fine; `/c/Users/<somebody>` is a person's name.
-- The `0x…` keys in tests, `seed-wallets.ts`, `tools/qa/vault-deploy.mjs` and `tools/qa/admin-pass.mjs`
-  are hardhat's published accounts; nothing else here is key material (`recovery.ts`'s look-alike is the P-256 curve order).
+- The `0x…` keys in tests, `seed-wallets.ts`, `tools/qa/vault-deploy.mjs`, `tools/qa/admin-pass.mjs` and
+  `tools/qa/reconcile-pass.mjs` are hardhat's published accounts; nothing else here is key material (`recovery.ts`'s look-alike is the P-256 curve order).
 
 **Comment only when the code cannot say it.** Names and structure carry the meaning. A comment
 earns its place when it records something a reader could not work out from the code itself: why a
@@ -203,4 +203,6 @@ Loaded only when a session touches the matching code:
   may take a position, the tickets, the worker that settles or calls a market off, and the claims.
 - `.claude/rules/admin.md` - running the platform: the staff and their roles, and the log every
   change writes.
+- `.claude/rules/operations.md` - the database and NuraChain checked against each other: what the
+  pass compares, what it puts right through a worker, and what it keeps for a person.
 - `tools/blender/CLAUDE.md` and `tools/qa/CLAUDE.md` - the 3D asset kit and the browser passes.

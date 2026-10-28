@@ -23,7 +23,8 @@ export function fakeShop(configured = true)
         claimRefuse: null as string | null,
         away: false,
         balance: 10n ** 24n,
-        earned: { earnings: 0n, referralBps: 1000 } as ShopEarned
+        earned: { earnings: 0n, referralBps: 1000 } as ShopEarned,
+        books: { held: 0n, owed: 0n, solvent: true }
     };
 
     const reach = () =>
@@ -92,6 +93,13 @@ export function fakeShop(configured = true)
             return Promise.resolve(state.claimRefuse === null
                 ? { ok: true, call: callOf(encodeFunctionData({ abi: SHOP_ABI, functionName: 'claim' }), 0n) }
                 : { ok: false, refusal: { error: state.claimRefuse } });
+        },
+
+        books()
+        {
+            reach();
+
+            return Promise.resolve({ ...state.books });
         },
 
         ledger: notHere,

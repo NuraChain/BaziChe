@@ -30,7 +30,10 @@ export const SOUND_DATA_MAX = 2048;
 
 export const SOUND_TO_MOST = 8;
 
-export const FRAME_FLOORS: Readonly<Record<string, number>> = { sync: 5000, presence: 2000, typing: 3000 };
+/** The most people one page may ask to be told about: a frame of them stays under `FRAME_MAX`. */
+export const SEE_MOST = 100;
+
+export const FRAME_FLOORS: Readonly<Record<string, number>> = { sync: 5000, presence: 2000, typing: 3000, see: 1000 };
 
 export const BUDGET_WINDOW_MS = 10_000;
 
@@ -65,6 +68,7 @@ export type ClientFrame =
     | { t: 'signal'; table: string; to: string; join: string; kind: SignalKind; data: string }
     | { t: 'sound'; table: string; to: string[]; codec: Codec; at: number; data: string }
     | { t: 'play'; match: string; key: string; rev?: number; play: unknown }
+    | { t: 'see'; who: string[] }
     | { t: 'ping' };
 
 /** The transport version, carried in the payload. Independent of `nura-e2ee/v1`, which seals. */
@@ -165,6 +169,7 @@ const SHAPES: Record<string, ReadonlySet<string>> = Object.assign(Object.create(
     signal: new Set(['v', 't', 'table', 'to', 'join', 'kind', 'data']),
     sound: new Set(['v', 't', 'table', 'to', 'codec', 'at', 'data']),
     play: new Set(['v', 't', 'match', 'key', 'rev', 'play']),
+    see: new Set(['v', 't', 'who']),
     ping: new Set(['v', 't'])
 });
 
@@ -238,6 +243,13 @@ export function parseClientFrame(text: string): ClientFrame | null
         return idOf(frame.match) && idOf(frame.key) && (frame.rev === undefined || revOf(frame.rev))
             && typeof frame.play === 'object' && frame.play !== null && !Array.isArray(frame.play)
             ? { t: 'play', match: frame.match, key: frame.key, ...(frame.rev === undefined ? {} : { rev: frame.rev as number }), play: frame.play }
+            : null;
+    }
+
+    if (frame.t === 'see')
+    {
+        return Array.isArray(frame.who) && frame.who.length <= SEE_MOST && frame.who.every(idOf)
+            ? { t: 'see', who: frame.who as string[] }
             : null;
     }
 

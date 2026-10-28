@@ -14,7 +14,7 @@ import { createHub } from '../src/realtime/hub.ts';
 import type { ServerConfig } from '../src/env.ts';
 import type { Ports } from '../src/ports.ts';
 import type { Principal } from '../src/http/auth.ts';
-import type { ServerFrame } from '../src/realtime/frames.ts';
+import { SEE_MOST, type ServerFrame } from '../src/realtime/frames.ts';
 
 /**
  * The handful of claims that need an actual socket.
@@ -109,6 +109,11 @@ beforeAll(async () =>
         {
             noted.push(`sound ${ given[1] } ${ given[2].join('+') } ${ given[3] } ${ given[4] } ${ given[5] }`);
             base.sound(...given);
+        },
+        see(...given: Parameters<typeof base.see>)
+        {
+            noted.push(`see ${ given[1].join('+') }`);
+            base.see(...given);
         }
     };
 
@@ -395,6 +400,23 @@ describe('a bound socket', () =>
         expect(refusals).toEqual([['k1', 403, 'not-your-turn'], ['k2', 422, 'validation-failed']]);
         expect(noted).not.toContain('played k2');
         talker.end();
+    });
+
+    it('hands the hub whom the page shows, and hangs up on a page that names more than a frame may', async () =>
+    {
+        const talker = talk('/ws', { Origin: 'http://localhost:3100', Cookie: COOKIE });
+        await settle();
+
+        talker.send({ v: 1, t: 'see', who: ['sara.k', 'reza.t'] });
+        await settle(100);
+
+        expect(noted).toContain('see sara.k+reza.t');
+        expect(talker.frames.at(-1)).toMatchObject({ t: 'presence', full: true });
+
+        talker.send({ v: 1, t: 'see', who: Array.from({ length: SEE_MOST + 1 }, (_, index) => `p${ index }`) });
+
+        expect((await talker.closed).code).toBe(4400);
+        expect(noted.filter((line) => line.startsWith('see '))).toHaveLength(1);
     });
 
     it('hands sound to the hub as it came, and hangs up on a socket that sends more than any call makes', async () =>

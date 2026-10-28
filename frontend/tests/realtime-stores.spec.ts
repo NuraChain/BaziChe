@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createEffect, createRoot, createSignal } from 'azerothjs';
 
+import { FRAME_FLOORS, SEE_MOST } from '../../backend/src/realtime/frames.ts';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import { TYPING_PING_MS, TYPING_TTL_MS, useChat } from '../src/stores/chat.store.ts';
-import { usePresence } from '../src/stores/presence.store.ts';
-import { NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.store.ts';
+import { SEE_PAUSE_MS, usePresence } from '../src/stores/presence.store.ts';
+import { BACKOFF_MS, FLOOR_MARGIN_MS, NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
 import { server } from './fake-api.ts';
@@ -139,6 +141,184 @@ describe('presence over the socket', () =>
     {
         usePresence().refresh();
         expect(socket.sent).toEqual([{ t: 'sync' }]);
+    });
+});
+
+/**
+ * The server tells a socket when somebody comes, goes or looks away only if that socket's page shows
+ * them, or they are a friend. Telling every socket about everybody was a frame for each of N people
+ * to each of N sockets, and at a thousand sockets that was the event loop's whole second. So the page
+ * names whom it draws, and it learns that from the reads that draw them.
+ */
+describe('whom the page shows, told to the server', () =>
+{
+    const sees = () => socket.sent.filter((frame) => frame.t === 'see');
+
+    const floor = FRAME_FLOORS.see + FLOOR_MARGIN_MS;
+
+    const showing = (...ids: string[]) => createRoot((dispose) =>
+    {
+        createEffect(() =>
+        {
+            for (const id of ids)
+            {
+                usePresence().dot(id);
+            }
+        });
+
+        return dispose;
+    });
+
+    it('names the people drawn once the page has stayed put, in the order they were drawn', async () =>
+    {
+        const stop = showing('sara.k', 'reza.t');
+        await settle();
+
+        clock.advance(SEE_PAUSE_MS - 1);
+        expect(sees(), 'told before the page stopped changing').toEqual([]);
+
+        clock.advance(1);
+        expect(sees()).toEqual([{ t: 'see', who: ['sara.k', 'reza.t'] }]);
+
+        stop();
+    });
+
+    it('names nobody for a read that draws nothing', async () =>
+    {
+        usePresence().dot('sara.k');
+        usePresence().isOnline('reza.t');
+        await settle();
+
+        clock.advance(SEE_PAUSE_MS * 4);
+        expect(sees()).toEqual([]);
+    });
+
+    it('lets them go when what drew them goes, and keeps to the frame\'s floor doing it', async () =>
+    {
+        const stop = showing('sara.k');
+        await settle();
+        clock.advance(SEE_PAUSE_MS);
+
+        stop();
+        clock.advance(SEE_PAUSE_MS);
+        expect(sees(), 'a second frame inside the floor the gateway holds the socket to').toHaveLength(1);
+
+        clock.advance(floor);
+        expect(sees()).toEqual([{ t: 'see', who: ['sara.k'] }, { t: 'see', who: [] }]);
+    });
+
+    it('says nothing more while the same people are drawn, however often they are drawn again', async () =>
+    {
+        const [tick, setTick] = createSignal(0);
+        const stop = createRoot((dispose) =>
+        {
+            createEffect(() =>
+            {
+                tick();
+                usePresence().dot('sara.k');
+            });
+
+            return dispose;
+        });
+        await settle();
+        clock.advance(SEE_PAUSE_MS);
+
+        setTick(1);
+        room([{ who: 'sara.k', state: 'online' }]);
+        setTick(2);
+        await settle();
+
+        clock.advance(SEE_PAUSE_MS + floor);
+        expect(sees()).toEqual([{ t: 'see', who: ['sara.k'] }]);
+
+        stop();
+    });
+
+    it('lets go of somebody only once nothing draws them', async () =>
+    {
+        const first = showing('sara.k');
+        const second = showing('sara.k');
+        await settle();
+        clock.advance(SEE_PAUSE_MS);
+
+        first();
+        clock.advance(SEE_PAUSE_MS + floor);
+        expect(sees(), 'let go while another read still drew them').toEqual([{ t: 'see', who: ['sara.k'] }]);
+
+        second();
+        clock.advance(SEE_PAUSE_MS + floor);
+        expect(sees()).toEqual([{ t: 'see', who: ['sara.k'] }, { t: 'see', who: [] }]);
+    });
+
+    it('names the newest when the page draws more people than a frame may name', async () =>
+    {
+        const ids = Array.from({ length: SEE_MOST + 5 }, (_, index) => `p${ index }`);
+        const stop = showing(...ids);
+        await settle();
+
+        clock.advance(SEE_PAUSE_MS);
+        expect(sees()).toEqual([{ t: 'see', who: ids.slice(-SEE_MOST) }]);
+
+        stop();
+    });
+
+    it('says it again to every new connection, which knows nothing of the last one', async () =>
+    {
+        const stop = showing('sara.k');
+        await settle();
+        clock.advance(SEE_PAUSE_MS);
+
+        socket.drop();
+        clock.advance(BACKOFF_MS[0] * 1.11);
+        socket.accept();
+        clock.advance(floor);
+
+        expect(sees()).toEqual([{ t: 'see', who: ['sara.k'] }, { t: 'see', who: ['sara.k'] }]);
+
+        stop();
+    });
+
+    it('forgets whom the page drew when the stores are reset', async () =>
+    {
+        showing('reza.t');
+        await settle();
+
+        usePresence().reset();
+        useRealtime().reset();
+        socket.reset();
+        useRealtime().start();
+        socket.accept();
+        clock.advance(floor);
+        expect(sees(), 'a new connection was told about a page from before the reset').toEqual([]);
+
+        const stop = showing('sara.k');
+        await settle();
+        clock.advance(SEE_PAUSE_MS);
+        expect(sees()).toEqual([{ t: 'see', who: ['sara.k'] }]);
+
+        stop();
+    });
+
+    it('tells a page drawn again after a reset, and what was drawn before it lets go of nothing', async () =>
+    {
+        const before = showing('sara.k');
+        await settle();
+        clock.advance(SEE_PAUSE_MS);
+
+        usePresence().reset();
+        useRealtime().reset();
+        socket.reset();
+        useRealtime().start();
+        socket.accept();
+
+        const after = showing('sara.k');
+        await settle();
+        before();
+        clock.advance(SEE_PAUSE_MS + floor);
+
+        expect(sees()).toEqual([{ t: 'see', who: ['sara.k'] }]);
+
+        after();
     });
 });
 

@@ -1334,8 +1334,8 @@ delivery path carrying message bodies would be a second place to get all three w
 have to be rewritten again the moment a body becomes ciphertext.
 
 `backend/src/realtime/frames.ts` is the whole wire. Server frames: `hello`, `presence`, `nudge`,
-`typing`, `voice`, `signal`, `game`, `ack`, `refused`, `pulse`, `pong`. Client frames: `sync`,
-`presence`, `typing`, `voice`, `signal`, `play`, `ping`. And
+`typing`, `voice`, `signal`, `sound`, `game`, `watch`, `ack`, `refused`, `pulse`, `pong`. Client
+frames: `sync`, `presence`, `typing`, `voice`, `signal`, `sound`, `play`, `see`, `ping`. And
 `parseClientFrame` is total and strict — **unknown keys are refused**, because a frame carrying a
 field this version does not know is a frame from something that is not this client.
 
@@ -1404,6 +1404,27 @@ be `show_online: false`. An unknown person renders **no dot** (`presence.dot()` 
 no presence word — a handle, which is always true, goes in that line instead. The store is a
 projection of `useRealtime().presence()` and nothing else: the seeded roster that used to drift on
 a timer is gone, so a page with no socket shows nobody online rather than inventing a room.
+
+**Presence is told to the sockets that care, and a page says whom it shows.** Every arrival,
+departure and change of state went to every socket the policy let see it, and strangers see
+strangers, so it was a frame for each of N people to each of N sockets: the crowd pass counted
+about 370,000 presence frames on the way from five hundred sockets to a thousand. Now somebody's
+presence goes to their own sockets, their friends' and any socket whose page shows them
+(`audienceOf` in `hub.ts`), and a snapshot carries the reader, their friends and whoever their
+page shows (`entriesFor`), the policy (`visible`) asked of each exactly as before. A page says
+whom it shows with a `see` frame: handles, at most `SEE_MOST` (100, which keeps the frame under
+`FRAME_MAX`), floored at one a second. The hub answers it with a fresh snapshot and keeps the
+socket in `seenBy` under each handle in lower case until the next `see` or until the socket closes;
+a rename moves it to the new handle. The browser learns whom it shows from the reads that draw
+them: `presence.of`, and `dot`, `isOnline` and `online` through it, read inside a render or a
+derived holds that person until the read runs again or goes (`onCleanup`), and a read in a handler
+holds nobody. Once the people drawn have stayed put for `SEE_PAUSE_MS` (300 ms) the store names
+them, the newest hundred in the order they were first drawn, and only when the set has changed; the
+socket says it again on every new connection, which knows nothing of the last, and keeps it to the
+floor (`paced`). Somebody no page shows and nobody counts as a friend is told to nobody but
+themselves. `realtime-hub.spec.ts` (*who is told when somebody comes, goes or looks away*),
+`realtime-frames.spec.ts`, `realtime.socket.spec.ts` and `realtime-stores.spec.ts` (*whom the page
+shows, told to the server*) hold it.
 
 **A departure is a field, because it cannot be an absence.** `announce` builds its entry from the
 presence record, and going dark is precisely the state where there is no record - so it used to send

@@ -167,6 +167,9 @@ export interface RealtimeApi
     setState(state: 'online' | 'away'): void;
     startTyping(conversationId: string): void;
 
+    /** Whom the page shows: the server tells this socket when any of them come, go or look away. */
+    see(who: readonly string[]): void;
+
     /** Closes and suppresses reconnection for `ms`. The settings affordance uses it. */
     simulateDrop(ms: number): void;
 
@@ -227,6 +230,7 @@ export const useRealtime = createStore((): RealtimeApi =>
     /** Cancels the pending "the tab has been hidden long enough" timer, if one is armed. */
     let cancelSleep: (() => void) | null = null;
     let holds = 0;
+    let seeing: readonly string[] = [];
     let era = 0;
     let arm: (() => void) | null = null;
     let wanted = false;
@@ -588,6 +592,11 @@ export const useRealtime = createStore((): RealtimeApi =>
                     armProbe();
                 }
 
+                if (seeing.length > 0)
+                {
+                    paced({ t: 'see', who: [...seeing] });
+                }
+
                 ring();
             },
 
@@ -862,6 +871,12 @@ export const useRealtime = createStore((): RealtimeApi =>
         setState: (state) => paced({ t: 'presence', state }),
         startTyping: (conversationId) => paced({ t: 'typing', id: conversationId }),
 
+        see(who)
+        {
+            seeing = [...who];
+            paced({ t: 'see', who: [...seeing] });
+        },
+
         simulateDrop(ms)
         {
             clearRetry();
@@ -900,6 +915,7 @@ export const useRealtime = createStore((): RealtimeApi =>
             signals.clear();
             sounds.clear();
             games.clear();
+            watches.clear();
             replies.clear();
             pulses.clear();
             samples.length = 0;
@@ -908,6 +924,7 @@ export const useRealtime = createStore((): RealtimeApi =>
             setRtt(null);
             setStalled(false);
             holds = 0;
+            seeing = [];
             era += 1;
             attempt = 0;
             suppressUntil = 0;

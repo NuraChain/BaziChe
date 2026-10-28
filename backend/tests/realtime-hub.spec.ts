@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setFlagsFromString } from 'node:v8';
+import { runInNewContext } from 'node:vm';
 
 import { createHub, EDGES_TTL_MS, LINGER_MS, PULSE_MS, SEEN_MS, TICK_MS, type Connection, type Edges, type Hub, type Wire } from '../src/realtime/hub.ts';
+import { SEE_MOST } from '../src/realtime/frames.ts';
 import type { Party } from '../src/domains/social/policy.ts';
 import type { Principal } from '../src/http/auth.ts';
 import type { ServerFrame } from '../src/realtime/frames.ts';
@@ -249,10 +252,14 @@ describe('binding', () =>
 
 describe('who may see whom online', () =>
 {
-    it('shows two ordinary strangers to each other', async () =>
+    it('shows a stranger somebody once their page shows them', async () =>
     {
         const alex = await connect('alex');
         await connect('sara.k');
+
+        expect(peopleSeenBy(alex.wire), 'a stranger the page does not show').not.toContain('sara.k');
+
+        world.hub.see(alex.connection, ['sara.k']);
 
         expect(peopleSeenBy(alex.wire)).toContain('sara.k');
     });
@@ -267,6 +274,8 @@ describe('who may see whom online', () =>
         const friend = await connect('sara.k');
         await connect('kian16');
 
+        world.hub.see(stranger.connection, ['kian16']);
+
         expect(peopleSeenBy(stranger.wire)).not.toContain('kian16');
         expect(peopleSeenBy(friend.wire)).toContain('kian16');
     });
@@ -280,6 +289,8 @@ describe('who may see whom online', () =>
         const friend = await connect('sara.k');
         await connect('hidden');
 
+        world.hub.see(stranger.connection, ['hidden']);
+
         expect(peopleSeenBy(stranger.wire)).not.toContain('hidden');
         expect(peopleSeenBy(friend.wire)).toContain('hidden');
     });
@@ -292,6 +303,9 @@ describe('who may see whom online', () =>
         const blocker = await connect('alex');
         const blocked = await connect('reza.t');
 
+        world.hub.see(blocker.connection, ['reza.t']);
+        world.hub.see(blocked.connection, ['alex']);
+
         expect(peopleSeenBy(blocker.wire)).not.toContain('reza.t');
         expect(peopleSeenBy(blocked.wire)).not.toContain('alex');
     });
@@ -302,6 +316,8 @@ describe('who may see whom online', () =>
         const alex = await connect('alex');
         await connect('u-7');
 
+        world.hub.see(alex.connection, ['Nima']);
+
         expect(peopleSeenBy(alex.wire)).toContain('nima');
         expect(peopleSeenBy(alex.wire)).not.toContain('u-7');
     });
@@ -311,6 +327,167 @@ describe('who may see whom online', () =>
         const alex = await connect('alex');
         expect(world.hub.presenceOf('alex').map((entry) => entry.who)).toContain('alex');
         expect(alex.wire.sent[1]).toMatchObject({ t: 'presence', full: true });
+    });
+});
+
+describe('who is told when somebody comes, goes or looks away', () =>
+{
+    const presenceSince = (wire: FakeWire, from: number) => wire.sent.slice(from).filter((frame) => frame.t === 'presence');
+
+    it('tells their friends and the pages showing them, and not a crowd of strangers', async () =>
+    {
+        world.edges.set('alex', { party: party('alex'), friends: ['sara.k'], blocks: [] });
+        world.edges.set('sara.k', { party: party('sara.k'), friends: ['alex'], blocks: [] });
+
+        const crowd = await Promise.all(Array.from({ length: 30 }, (_, index) => connect(`stranger-${ index }`)));
+        const friend = await connect('sara.k');
+        const looking = await connect('omid.k');
+
+        world.hub.see(looking.connection, ['alex']);
+
+        const before = [...crowd, friend, looking].map((one) => one.wire.sent.length);
+        const alex = await connect('alex');
+
+        world.hub.setState(alex.connection, 'away');
+
+        expect(crowd.map((one, index) => presenceSince(one.wire, before[index]).length), 'a stranger was told of an arrival their page does not show').toEqual(crowd.map(() => 0));
+        expect(presenceSince(friend.wire, before[30]).map((frame) => (frame.t === 'presence' ? frame.people.map((entry) => [entry.who, entry.state]) : [])))
+            .toEqual([[['alex', 'online']], [['alex', 'away']]]);
+        expect(presenceSince(looking.wire, before[31])).toHaveLength(2);
+    });
+
+    it('hands a page that shows somebody new whoever it shows who is here, itself and its friends', async () =>
+    {
+        world.edges.set('sara.k', { party: party('sara.k'), friends: ['reza.t'], blocks: [] });
+        world.edges.set('reza.t', { party: party('reza.t'), friends: ['sara.k'], blocks: [] });
+        await connect('alex');
+        await connect('reza.t');
+        await connect('mina');
+
+        const sara = await connect('sara.k');
+
+        world.hub.see(sara.connection, ['alex', 'nobody.here']);
+
+        const last = sara.wire.framesOf('presence').at(-1);
+
+        expect(last).toMatchObject({ full: true });
+        expect(last?.t === 'presence' ? last.people.map((entry) => entry.who).sort() : []).toEqual(['alex', 'reza.t', 'sara.k']);
+    });
+
+    it('stops telling a page about somebody once it no longer shows them', async () =>
+    {
+        const alex = await connect('alex');
+        const sara = await connect('sara.k');
+
+        world.hub.see(sara.connection, ['alex']);
+        world.hub.see(sara.connection, []);
+
+        const before = sara.wire.sent.length;
+
+        world.hub.setState(alex.connection, 'away');
+
+        expect(presenceSince(sara.wire, before)).toEqual([]);
+    });
+
+    it('tells nothing to a socket that has closed, and keeps telling the others', async () =>
+    {
+        const alex = await connect('alex');
+        const gone = await connect('sara.k');
+        const still = await connect('omid.k');
+
+        world.hub.see(gone.connection, ['alex']);
+        world.hub.see(still.connection, ['alex']);
+        world.hub.release(gone.connection);
+
+        const before = [gone.wire.sent.length, still.wire.sent.length];
+
+        world.hub.setState(alex.connection, 'away');
+
+        expect([presenceSince(gone.wire, before[0]).length, presenceSince(still.wire, before[1]).length]).toEqual([0, 1]);
+    });
+
+    it('takes no more people from one page than a frame of them may hold', async () =>
+    {
+        const sara = await connect('sara.k');
+        const last = await connect(`p-${ SEE_MOST }`);
+
+        world.hub.see(sara.connection, Array.from({ length: SEE_MOST + 1 }, (_, index) => `p-${ index }`));
+
+        const before = sara.wire.sent.length;
+
+        world.hub.setState(last.connection, 'away');
+
+        expect(presenceSince(sara.wire, before), 'a page was told about a person past the most it may ask about').toEqual([]);
+    });
+
+    it('tells a page that shows somebody nothing the policy keeps from it, as they come or look away', async () =>
+    {
+        world.edges.set('kian16', { party: party('kian16', { isMinor: true, allowStrangerMessages: false }), friends: [], blocks: [] });
+        world.edges.set('hidden', { party: party('hidden', { showOnline: false }), friends: [], blocks: [] });
+        world.edges.set('reza.t', { party: party('reza.t'), friends: [], blocks: ['alex'] });
+
+        const alex = await connect('alex');
+
+        world.hub.see(alex.connection, ['kian16', 'hidden', 'reza.t']);
+
+        const before = alex.wire.sent.length;
+
+        for (const userId of ['kian16', 'hidden', 'reza.t'])
+        {
+            world.hub.setState((await connect(userId)).connection, 'away');
+        }
+
+        expect(presenceSince(alex.wire, before)).toEqual([]);
+    });
+
+    it('tells a page that can no longer be told about somebody that they have gone, and leaves them where it can', async () =>
+    {
+        world.edges.set('alex', { party: party('alex'), friends: ['omid.k', 'sara.k'], blocks: [] });
+        world.edges.set('omid.k', { party: party('omid.k'), friends: ['alex'], blocks: [] });
+        world.edges.set('sara.k', { party: party('sara.k'), friends: ['alex'], blocks: [] });
+        await connect('alex');
+        const omid = await connect('omid.k');
+        const sara = await connect('sara.k');
+
+        world.hub.see(sara.connection, ['alex']);
+
+        const before = [omid.wire.sent.length, sara.wire.sent.length];
+
+        world.edges.set('alex', { party: party('alex'), friends: [], blocks: [] });
+        world.hub.edgesChanged('alex');
+        await settle();
+
+        expect(presenceSince(omid.wire, before[0]), 'nothing will tell them more, so they cannot be left standing').toMatchObject([{ full: false, people: [], gone: ['alex'] }]);
+        expect(presenceSince(sara.wire, before[1]), 'a page that shows them goes on being told').toEqual([]);
+    });
+
+    /**
+     * A socket that closed is dropped by `emit`, so one left among those who see somebody is told
+     * nothing and costs nothing a frame shows: only the memory, socket after socket, all day. So it
+     * is asked of the collector.
+     */
+    it('holds nothing of a socket that closed, whatever its page showed', async () =>
+    {
+        setFlagsFromString('--expose-gc');
+
+        const collect = runInNewContext('gc') as () => void;
+
+        await connect('alex');
+
+        const gone = await (async () =>
+        {
+            const one = await connect('sara.k');
+
+            world.hub.see(one.connection, ['alex']);
+            world.hub.release(one.connection);
+
+            return new WeakRef(one.connection);
+        })();
+
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        collect();
+
+        expect(gone.deref(), 'a closed socket kept by the people its page showed').toBeUndefined();
     });
 });
 
@@ -456,6 +633,9 @@ describe('an edge change', () =>
         const alex = await connect('alex');
         const reza = await connect('reza.t');
 
+        world.hub.see(alex.connection, ['reza.t']);
+        world.hub.see(reza.connection, ['alex']);
+
         world.edges.set('alex', { party: party('alex'), friends: [], blocks: ['reza.t'] });
         world.hub.edgesChanged('alex');
         await settle();
@@ -473,6 +653,8 @@ describe('an edge change', () =>
         const alex = await connect('alex');
         await connect('sara.k');
         await connect('kian16');
+
+        world.hub.see(alex.connection, ['sara.k']);
 
         world.edges.set('alex', { party: party('alex'), friends: ['kian16'], blocks: [] });
         world.edges.set('kian16', { party: party('kian16', { isMinor: true, allowStrangerMessages: false }), friends: ['alex'], blocks: [] });
@@ -504,6 +686,8 @@ describe('an edge change', () =>
     {
         const alex = await connect('alex');
         const sara = await connect('sara.k');
+
+        world.hub.see(sara.connection, ['alex']);
 
         world.edges.set('alex', { party: party('alex.new'), friends: [], blocks: [] });
         world.hub.edgesChanged('alex');
@@ -668,6 +852,8 @@ describe('leaving', () =>
     {
         const alex = await connect('alex');
         const watcher = await connect('sara.k');
+
+        world.hub.see(watcher.connection, ['alex']);
         await world.hub.sweep();
 
         world.hub.release(alex.connection);
@@ -698,6 +884,8 @@ describe('leaving', () =>
     {
         await connect('alex');
         const watcher = await connect('sara.k');
+
+        world.hub.see(watcher.connection, ['alex']);
         await world.hub.sweep();
 
         const before = watcher.wire.framesOf('presence').length;
@@ -718,8 +906,8 @@ describe('leaving', () =>
     {
         const first = await connect('alex');
         await connect('alex');
-        await connect('sara.k');
 
+        world.hub.see((await connect('sara.k')).connection, ['alex']);
         world.hub.release(first.connection);
         world.at += LINGER_MS * 2;
         await world.hub.sweep();
@@ -756,8 +944,8 @@ describe('leaving', () =>
     it('touches nobody at a sweep once they have left, while they linger and somebody else is here', async () =>
     {
         const alex = await connect('alex');
-        await connect('sara.k');
 
+        world.hub.see((await connect('sara.k')).connection, ['alex']);
         world.hub.release(alex.connection);
         world.touched = [];
         await world.hub.sweep();

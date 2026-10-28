@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { FRAME_FLOORS } from '../../backend/src/realtime/frames.ts';
+import { FRAME_FLOORS, type ServerFrame } from '../../backend/src/realtime/frames.ts';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import {
@@ -260,6 +260,24 @@ describe('the realtime store', () =>
         clock.advance(IDLE_MS * 3);
 
         expect(socket.closed.length, 'a hold was let go by a release that belonged to the connection before it').toBe(0);
+    });
+
+    it('lets go of whoever listened for a game, or for a game being watched, when it is reset', () =>
+    {
+        const live = useRealtime();
+        const heard: string[] = [];
+
+        live.onGame(() => heard.push('game'));
+        live.onWatch(() => heard.push('watch'));
+
+        live.reset();
+        socket.reset();
+        live.start();
+        socket.accept();
+        socket.deliver({ v: 1, t: 'game', n: 2 } as unknown as ServerFrame);
+        socket.deliver({ v: 1, t: 'watch', n: 3 } as unknown as ServerFrame);
+
+        expect(heard, 'a listener from before the reset heard a frame after it').toEqual([]);
     });
 
     it('reconnects a held socket that drops while the tab is hidden, rather than waiting to be looked at', () =>

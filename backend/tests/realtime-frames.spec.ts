@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import type { IncomingMessage } from 'node:http';
 
 import { isSameOrigin } from '../src/http/origin.ts';
 import { admit } from '../src/realtime/admit.ts';
 import { addressKey, createHandshakeLimit } from '../src/realtime/handshake-limit.ts';
-import { hello, nudge, parseClientFrame, presence, pulse, REALTIME_WIRE, typing } from '../src/realtime/frames.ts';
+import { FRAME_BUDGETS, FRAME_FLOORS, SEE_MOST, hello, nudge, parseClientFrame, presence, pulse, REALTIME_WIRE, typing } from '../src/realtime/frames.ts';
 
 /**
  * The realtime layer's pure half: what a frame may say, and who gets to open a socket at all.
@@ -288,6 +289,36 @@ describe('client frames', () =>
         expect(parseClientFrame('{"v":1,"t":"play","match":"m-1","key":"k","play":[1]}')).toBeNull();
         expect(parseClientFrame('{"v":1,"t":"play","match":"m-1","key":"k","play":{},"die":6}')).toBeNull();
         expect(parseClientFrame('{"v":1,"t":"ping","at":1}')).toBeNull();
+    });
+
+    it('accepts the people a page shows, up to the most a frame may name, and nothing else in their place', () =>
+    {
+        const many = (count: number) => JSON.stringify({ v: 1, t: 'see', who: Array.from({ length: count }, (_, index) => `p-${ index }`) });
+
+        expect(parseClientFrame('{"v":1,"t":"see","who":["sara.k","reza.t"]}')).toEqual({ t: 'see', who: ['sara.k', 'reza.t'] });
+        expect(parseClientFrame('{"v":1,"t":"see","who":[]}'), 'a page that shows nobody').toEqual({ t: 'see', who: [] });
+        expect(parseClientFrame(many(SEE_MOST))).toMatchObject({ t: 'see' });
+        expect(parseClientFrame(many(SEE_MOST + 1))).toBeNull();
+        expect(parseClientFrame('{"v":1,"t":"see","who":["sara.k",7]}')).toBeNull();
+        expect(parseClientFrame('{"v":1,"t":"see","who":[""]}')).toBeNull();
+        expect(parseClientFrame('{"v":1,"t":"see","who":"sara.k"}')).toBeNull();
+        expect(parseClientFrame('{"v":1,"t":"see","who":[],"also":1}')).toBeNull();
+        expect(many(SEE_MOST).length, 'a frame of the most people a page may name is refused for its size').toBeLessThan(4096);
+    });
+
+    /**
+     * The gateway floors a kind it has no number for at a second, and the browser paces only by the
+     * numbers it is given. A kind left out of both tables is one the browser sends as fast as it
+     * likes and the gateway quietly drops, so every kind is in exactly one of them.
+     */
+    it('holds every kind a page sends to a floor or to a budget, never to the gateway\'s own guess', () =>
+    {
+        const source = readFileSync(new URL('../src/realtime/frames.ts', import.meta.url), 'utf8');
+        const from = source.indexOf('const SHAPES');
+        const kinds = [...source.slice(from, source.indexOf('});', from)).matchAll(/^\s+(\w+): new Set\(/gm)].map((match) => match[1]);
+
+        expect(kinds).toContain('see');
+        expect(kinds.filter((kind) => Object.hasOwn(FRAME_FLOORS, kind) === Object.hasOwn(FRAME_BUDGETS, kind)), 'held to both, or to neither').toEqual([]);
     });
 
     it('refuses an unknown key rather than reading the parts it recognises', () =>

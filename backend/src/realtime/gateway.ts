@@ -285,6 +285,11 @@ export function attachRealtime(server: Server, deps: GatewayDeps): () => void
                     deps.hub.setState(connection, frame.state);
                     return;
                 }
+                if (frame.t === 'see')
+                {
+                    deps.hub.see(connection, frame.who);
+                    return;
+                }
                 deps.hub.typingIn(connection, frame.id);
             };
 

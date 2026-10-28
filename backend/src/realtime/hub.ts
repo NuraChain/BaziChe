@@ -4,7 +4,7 @@ import { maySeeOnline, type Party, type Relation } from '../domains/social/polic
 import type { Principal } from '../http/auth.ts';
 import { keyedQueue } from '../lib/keyed-queue.ts';
 import type { MatchEvent, MatchView, Pulse } from '../schemas.ts';
-import { game, hello, nudge, presence, pulse, signal, sound, typing, voice, watched, type Codec, type PresenceEntry, type PresenceState, type ServerFrame, type SignalKind, type VoicePeer } from './frames.ts';
+import { SEE_MOST, game, hello, nudge, presence, pulse, signal, sound, typing, voice, watched, type Codec, type PresenceEntry, type PresenceState, type ServerFrame, type SignalKind, type VoicePeer } from './frames.ts';
 
 /**
  * What the hub needs from a socket.
@@ -85,7 +85,12 @@ interface Held extends Connection
     bytes: number;
     pumping: boolean;
     n: number;
+
+    /** Whom this socket's page shows, by handle in lower case. Absent until it is bound. */
+    seeing?: Set<string>;
 }
+
+const NOBODY: ReadonlySet<string> = new Set();
 
 interface Caller
 {
@@ -142,6 +147,7 @@ export interface Hub
     sound(connection: Connection, tableId: string, to: readonly string[], codec: Codec, at: number, data: string): void;
     voiceOf(tableId: string): string[];
     setState(connection: Connection, state: PresenceState): void;
+    see(connection: Connection, who: readonly string[]): void;
     resync(connection: Connection): void;
 
     sweep(): Promise<void>;
@@ -179,6 +185,14 @@ export function createHub(deps: HubDeps): Hub
 {
     const byUser = new Map<string, Set<Held>>();
     const edges = new Map<string, Edges>();
+
+    /**
+     * Presence is told to the sockets that care: somebody's own, their friends', and any socket
+     * whose page shows them (`see`). Told to everybody online, every arrival, departure and
+     * change of state was a frame for every socket: four hundred thousand to open a thousand.
+     */
+    const seenBy = new Map<string, Set<Held>>();
+    const userOfHandle = new Map<string, string>();
     const online = new Map<string, { state: PresenceState; since: number; leftAt: number | null }>();
 
     const pendingChat = new Map<string, { at: number; also: Set<string> }>();
@@ -441,27 +455,100 @@ export function createHub(deps: HubDeps): Hub
         }
     };
 
-    const entriesFor = (viewer: string) =>
+    const handleOf = (userId: string) => edges.get(userId)?.handle ?? userId;
+
+    const keyOf = (handle: string) => handle.toLowerCase();
+
+    const keepEdges = (userId: string, loaded: Edges) =>
     {
-        const out: PresenceEntry[] = [];
-        for (const [userId, record] of online)
+        const before = edges.get(userId);
+
+        if (before !== undefined)
         {
-            if (!visible(viewer, userId))
-            {
-                continue;
-            }
-            const handle = edges.get(userId)?.handle;
-            out.push({ who: handle ?? userId, state: record.state, since: record.since });
+            userOfHandle.delete(keyOf(before.handle));
         }
+
+        edges.set(userId, loaded);
+        userOfHandle.set(keyOf(loaded.handle), userId);
+    };
+
+    const dropEdges = (userId: string) =>
+    {
+        const before = edges.get(userId);
+
+        if (before !== undefined)
+        {
+            userOfHandle.delete(keyOf(before.handle));
+            edges.delete(userId);
+        }
+    };
+
+    const unsee = (key: string, socket: Held) =>
+    {
+        const sockets = seenBy.get(key);
+
+        sockets?.delete(socket);
+
+        if (sockets?.size === 0)
+        {
+            seenBy.delete(key);
+        }
+    };
+
+    /** The sockets that may be told about `subject`, before the policy is asked of each. */
+    const audienceOf = (subject: string) =>
+    {
+        const out = new Set<Held>(connectionsOf(subject));
+
+        for (const friend of edges.get(subject)?.friends ?? NOBODY)
+        {
+            for (const socket of connectionsOf(friend))
+            {
+                out.add(socket);
+            }
+        }
+
+        for (const socket of seenBy.get(keyOf(handleOf(subject))) ?? [])
+        {
+            out.add(socket);
+        }
+
+        return out;
+    };
+
+    const entriesFor = (viewer: string, seeing: Iterable<string>) =>
+    {
+        const subjects = new Set([viewer, ...(edges.get(viewer)?.friends ?? NOBODY)]);
+
+        for (const key of seeing)
+        {
+            const userId = userOfHandle.get(key);
+
+            if (userId !== undefined)
+            {
+                subjects.add(userId);
+            }
+        }
+
+        const out: PresenceEntry[] = [];
+
+        for (const userId of subjects)
+        {
+            const record = online.get(userId);
+
+            if (record !== undefined && visible(viewer, userId))
+            {
+                out.push({ who: handleOf(userId), state: record.state, since: record.since });
+            }
+        }
+
         return out;
     };
 
     const sendSnapshot = (connection: Held) =>
     {
-        emit(connection, (n) => presence(n, true, entriesFor(connection.userId)));
+        emit(connection, (n) => presence(n, true, entriesFor(connection.userId, connection.seeing ?? NOBODY)));
     };
-
-    const handleOf = (userId: string) => edges.get(userId)?.handle ?? userId;
 
     const retalk = async (moved: ReadonlySet<string>) =>
     {
@@ -493,10 +580,10 @@ export function createHub(deps: HubDeps): Hub
             return;
         }
 
-        const viewers = new Set(byUser.keys());
+        const present = new Set([...byUser.values()].flatMap((sockets) => [...sockets]));
         const before = new Map(cached.map((userId) => [userId, {
             handle: handleOf(userId),
-            seen: online.has(userId) ? new Set([...byUser.keys()].filter((viewer) => visible(viewer, userId))) : new Set<string>()
+            seen: online.has(userId) ? new Set([...audienceOf(userId)].filter((socket) => visible(socket.userId, userId))) : new Set<Held>()
         }]));
 
         const loaded = await Promise.all(cached.map((userId) => deps.edgesFor(userId)));
@@ -508,7 +595,7 @@ export function createHub(deps: HubDeps): Hub
 
             if (current !== undefined && current.loadedAt <= loaded[index].loadedAt)
             {
-                edges.set(userId, loaded[index]);
+                keepEdges(userId, loaded[index]);
                 moved.add(userId);
             }
         });
@@ -525,15 +612,29 @@ export function createHub(deps: HubDeps): Hub
                 socket.handle = handle;
             }
 
-            for (const [viewer, sockets] of byUser)
+            // A page showing them under the old handle shows the same person: it is told the new one.
+            if (keyOf(was.handle) !== keyOf(handle))
             {
-                if (moved.has(viewer) || !viewers.has(viewer))
+                for (const socket of [...(seenBy.get(keyOf(was.handle)) ?? [])])
+                {
+                    unsee(keyOf(was.handle), socket);
+                    socket.seeing?.delete(keyOf(was.handle));
+                    socket.seeing?.add(keyOf(handle));
+                    seenBy.set(keyOf(handle), (seenBy.get(keyOf(handle)) ?? new Set<Held>()).add(socket));
+                }
+            }
+
+            const now = people.length > 0 ? audienceOf(userId) : new Set<Held>();
+
+            for (const connection of new Set([...was.seen, ...now]))
+            {
+                if (moved.has(connection.userId) || !present.has(connection))
                 {
                     continue;
                 }
 
-                const saw = was.seen.has(viewer);
-                const sees = people.length > 0 && visible(viewer, userId);
+                const saw = was.seen.has(connection);
+                const sees = now.has(connection) && visible(connection.userId, userId);
                 const renamed = saw && handle !== was.handle;
 
                 if (saw === sees && !renamed)
@@ -544,18 +645,15 @@ export function createHub(deps: HubDeps): Hub
                 const gone = saw && (!sees || renamed) ? [was.handle] : [];
                 const shown = sees ? people : [];
 
-                for (const connection of sockets)
-                {
-                    emit(connection, (n) => presence(n, false, shown, gone));
-                }
+                emit(connection, (n) => presence(n, false, shown, gone));
             }
         }
 
-        for (const viewer of byUser.keys())
+        for (const sockets of byUser.values())
         {
-            if (moved.has(viewer) || !viewers.has(viewer))
+            for (const connection of sockets)
             {
-                for (const connection of connectionsOf(viewer))
+                if (moved.has(connection.userId) || !present.has(connection))
                 {
                     sendSnapshot(connection);
                 }
@@ -754,18 +852,11 @@ export function createHub(deps: HubDeps): Hub
 
         const gone = record === undefined ? [handle] : [];
 
-        for (const [viewer, sockets] of byUser)
+        for (const connection of audienceOf(userId))
         {
-            if (!visible(viewer, userId))
+            if (connection !== except && visible(connection.userId, userId))
             {
-                continue;
-            }
-            for (const connection of sockets)
-            {
-                if (connection !== except)
-                {
-                    emit(connection, (n) => presence(n, false, people, gone));
-                }
+                emit(connection, (n) => presence(n, false, people, gone));
             }
         }
     };
@@ -779,6 +870,7 @@ export function createHub(deps: HubDeps): Hub
             socket.bytes = 0;
             socket.pumping = false;
             socket.n = 0;
+            socket.seeing = new Set();
             socket.userId = principal.userId;
             socket.handle = principal.handle;
             socket.sessionId = principal.sessionId;
@@ -798,7 +890,7 @@ export function createHub(deps: HubDeps): Hub
             const cached = edges.get(principal.userId);
             if (cached === undefined || deps.now() - cached.loadedAt > EDGES_TTL_MS)
             {
-                edges.set(principal.userId, await deps.edgesFor(principal.userId));
+                keepEdges(principal.userId, await deps.edgesFor(principal.userId));
             }
 
             sockets.add(socket);
@@ -834,6 +926,11 @@ export function createHub(deps: HubDeps): Hub
         {
             const socket = held(connection);
             socket.alive = false;
+
+            for (const key of socket.seeing ?? NOBODY)
+            {
+                unsee(key, socket);
+            }
 
             for (const call of [...rooms.keys()])
             {
@@ -1144,6 +1241,28 @@ export function createHub(deps: HubDeps): Hub
             announce(socket.userId);
         },
 
+        see(connection, who)
+        {
+            const socket = held(connection);
+            const next = new Set(who.slice(0, SEE_MOST).map(keyOf));
+
+            for (const key of socket.seeing ?? NOBODY)
+            {
+                if (!next.has(key))
+                {
+                    unsee(key, socket);
+                }
+            }
+
+            for (const key of next)
+            {
+                seenBy.set(key, (seenBy.get(key) ?? new Set<Held>()).add(socket));
+            }
+
+            socket.seeing = next;
+            sendSnapshot(socket);
+        },
+
         resync(connection)
         {
             sendSnapshot(held(connection));
@@ -1195,7 +1314,7 @@ export function createHub(deps: HubDeps): Hub
                     // going-dark frame unable to work out who to send itself to, and the watchers
                     // never hear that the account left.
                     announce(userId);
-                    edges.delete(userId);
+                    dropEdges(userId);
                     forgetViews(userId);
                 }
             }
@@ -1239,7 +1358,7 @@ export function createHub(deps: HubDeps): Hub
 
         flush,
 
-        presenceOf: (userId) => entriesFor(userId),
+        presenceOf: (userId) => entriesFor(userId, connectionsOf(userId).flatMap((socket) => [...(socket.seeing ?? NOBODY)])),
 
         present(userIds)
         {
@@ -1305,6 +1424,8 @@ export function createHub(deps: HubDeps): Hub
             byUser.clear();
             online.clear();
             edges.clear();
+            userOfHandle.clear();
+            seenBy.clear();
             rooms.clear();
             talks.clear();
             viewed.clear();

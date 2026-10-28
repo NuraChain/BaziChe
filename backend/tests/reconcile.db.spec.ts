@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DataSource, IsNull } from 'typeorm';
@@ -795,7 +795,7 @@ describe.skipIf(!active)('the database and NuraChain, checked against each other
             const paid = await escrow('settled');
 
             vaultHolds(paid, 'refunded');
-            await pass();
+            expect((await pass()).reached, 'a pass that read every contract says so').toBe(true);
             vault.state.away = true;
             shop.state.away = true;
             tips.state.away = true;
@@ -807,11 +807,40 @@ describe.skipIf(!active)('the database and NuraChain, checked against each other
             expect(await rowsAbout(ghost.id)).toEqual([]);
             expect((await rowsAbout(paid.id))[0], 'what it found stays open while it cannot ask').toMatchObject({ resolution: null });
             expect(done.faults, 'a chain out of reach is no fault').toEqual([]);
+            expect(done.reached, 'and the pass says it could not reach it').toBe(false);
 
             vault.state.away = false;
             await pass();
 
             expect(await kindsOf(ghost.id)).toEqual(['escrow-state open']);
+        });
+
+        it('says it could not reach NuraChain when a contract\'s books alone could not be read, or one record alone', async () =>
+        {
+            const paid = await escrow('settled');
+            const away = () => Promise.reject(Object.assign(new Error('the chain could not be reached'), { status: 503 }));
+            const books = vault.vault.books;
+            const game = vault.vault.game;
+
+            vaultHolds(paid, 'settled');
+            vault.vault.books = away;
+
+            const unbooked = await pass();
+
+            expect(unbooked.faults).toEqual([]);
+            expect(unbooked.reached, 'the books out of reach').toBe(false);
+
+            vault.vault.books = books;
+            vault.vault.game = away;
+
+            const unread = await pass();
+
+            expect(unread.faults).toEqual([]);
+            expect(unread.reached, 'a record out of reach').toBe(false);
+
+            vault.vault.game = game;
+
+            expect((await pass()).reached).toBe(true);
         });
 
         it('reports a record it could not compare and compares the rest', async () =>
@@ -908,7 +937,7 @@ describe.skipIf(!active)('the database and NuraChain, checked against each other
 
             const done = await pass();
 
-            expect(done).toEqual({ compared: 0, found: 0, resolved: 0, faults: [] });
+            expect(done, 'a server that keeps no contract watches nothing, and says neither that it reached the chain nor that it could not').toEqual({ compared: 0, found: 0, resolved: 0, faults: [], reached: null });
             expect(await openRows()).toEqual([]);
         });
 
@@ -1127,6 +1156,157 @@ describe.skipIf(!active)('the database and NuraChain, checked against each other
 
             expect(both.map((one) => one.status).sort()).toEqual(['fulfilled', 'rejected']);
             expect((await ports.admin.log(owner.id, { kind: 'check' }))?.rows).toHaveLength(1);
+        });
+    });
+
+    describe('the queues the monitor reads', () =>
+    {
+        const sample = () => ports.jobs.sample();
+
+        const age = (table: 'market_positions' | 'shop_orders' | 'donations' | 'escrows', column: string, id: string, minutes: number) =>
+            db.query(`update ${ table } set ${ column } = now() - make_interval(mins => $2) where id = $1`, [id, minutes]);
+
+        const finish = (matchId: string, minutes: number) =>
+            db.query(`update matches set finished_at = now() - make_interval(mins => $2), outcome = 'won', deadline_at = null where id = $1`, [matchId, minutes]);
+
+        /** A wait read by Postgres's clock a moment after it was written: at least what was written, and less than a minute more. */
+        const within = (seconds: number | null | undefined, written: number) =>
+        {
+            expect(seconds).toBeGreaterThanOrEqual(written);
+            expect(seconds).toBeLessThan(written + 60);
+        };
+
+        it('says every queue is empty, nothing is stuck and nothing is open, when that is so', async () =>
+        {
+            expect(await sample()).toEqual({
+                queues: [
+                    { queue: 'positions', count: 0, oldest: null },
+                    { queue: 'claims', count: 0, oldest: null },
+                    { queue: 'orders', count: 0, oldest: null },
+                    { queue: 'gifts', count: 0, oldest: null },
+                    { queue: 'locking', count: 0, oldest: null },
+                    { queue: 'paying', count: 0, oldest: null },
+                    { queue: 'markets', count: 0, oldest: null }
+                ],
+                stuck: 0,
+                checks: { open: 0, oldest: null }
+            });
+        });
+
+        it('counts what waits on each worker, and how long the oldest has, in whole seconds by Postgres\'s clock', async () =>
+        {
+            const live = await market('open');
+            const older = await position(live.id, 'prepared');
+            const newer = await position(live.id, 'prepared');
+            const claiming = await position(live.id, 'confirmed', { claimHash: hex() });
+
+            await position(live.id, 'confirmed');
+            await position(live.id, 'prepared');
+            await position(live.id, 'confirmed', { claimed: true, claimHash: hex() });
+            await db.query(`update market_positions set state = 'sent', tx_hash = $2, created_at = now() - interval '5 minutes' where id = $1`, [older.id, hex()]);
+            await db.query(`update market_positions set state = 'sent', tx_hash = $2, created_at = now() - interval '1 minute' where id = $1`, [newer.id, hex()]);
+            await age('market_positions', 'claim_sent_at', claiming.id, 3);
+
+            const sent = await order('sent');
+
+            await order('quoted');
+            await order('paid');
+            await age('shop_orders', 'sent_at', sent.id, 4);
+
+            const given = await donation('sent');
+
+            await donation('confirmed');
+            await age('donations', 'sent_at', given.id, 2);
+
+            const locking = await escrow('locking');
+            const settling = await escrow('settling');
+            const refunding = await escrow('refunding');
+
+            await escrow('open');
+            await escrow('settled');
+            await age('escrows', 'updated_at', locking.id, 6);
+            await age('escrows', 'updated_at', settling.id, 2);
+            await age('escrows', 'updated_at', refunding.id, 7);
+
+            const ended = await market('open');
+            const closing = await market('closing');
+            const ahead = await market('open');
+            const settled = await market('settled');
+
+            await finish(ended.matchId, 10);
+            await finish(closing.matchId, 40);
+            await finish(ahead.matchId, 1);
+            await finish(settled.matchId, 10);
+            await db.query(`update markets set closes_at = now() + interval '1 minute' where id = $1`, [ahead.id]);
+            await db.query(`update markets set closes_at = now() - interval '50 minutes' where id = $1`, [closing.id]);
+
+            const sampled = await sample();
+            const of = (queue: string) => sampled.queues.find((one) => one.queue === queue);
+
+            expect(of('positions')?.count, 'positions handed in').toBe(2);
+            within(of('positions')?.oldest, 300);
+            expect(of('claims')?.count, 'claims on their way').toBe(1);
+            within(of('claims')?.oldest, 180);
+            expect(of('orders')?.count, 'orders handed in').toBe(1);
+            within(of('orders')?.oldest, 240);
+            expect(of('gifts')?.count, 'gifts handed in').toBe(1);
+            within(of('gifts')?.oldest, 120);
+            expect(of('locking')?.count, 'stakes being locked').toBe(1);
+            within(of('locking')?.oldest, 360);
+            expect(of('paying')?.count, 'games being paid out or given back').toBe(2);
+            within(of('paying')?.oldest, 420);
+            expect(of('markets')?.count, 'markets due, their close passed and their game over, and not settled').toBe(2);
+            within(of('markets')?.oldest, 2400);
+        });
+
+        it('counts the paid games stuck by the vault panel\'s own rule', async () =>
+        {
+            const late = await escrow('locking');
+            const erred = await escrow('refunding');
+            const waited = await escrow('open');
+
+            await escrow('settling');
+            await age('escrows', 'updated_at', late.id, 11);
+            await age('escrows', 'updated_at', waited.id, 30);
+            await db.query(`update escrows set error = 'InsufficientBalance' where id = $1`, [erred.id]);
+
+            expect((await sample()).stuck).toBe(2);
+        });
+
+        it('counts the disagreements still open, and how long the oldest has been', async () =>
+        {
+            const disagree = (minutes: number, resolved: boolean) => db.query(
+                `insert into discrepancies (family, record, kind, db, chain, about, first_seen, last_seen, resolved_at, resolution)
+                 values ('order', $1, 'order-state', '{}', '{}', '{}', now() - make_interval(mins => $2), now(),
+                         case when $3::boolean then now() end, case when $3::boolean then 'agreed' end)`,
+                [randomUUID(), minutes, resolved]
+            );
+
+            await disagree(20, false);
+            await disagree(5, false);
+            await disagree(90, true);
+
+            const { checks } = await sample();
+
+            expect(checks?.open).toBe(2);
+            within(checks?.oldest, 1200);
+        });
+
+        it('reads no queue of a feature this server does not run, and no count it could not fill', async () =>
+        {
+            await escrow('locking');
+            await order('sent');
+            open({ vault: false, shop: false, tips: false, markets: false });
+
+            expect(await sample()).toEqual({ queues: [], stuck: null, checks: null });
+
+            open({ vault: true, shop: false, tips: false, markets: false });
+
+            const vaultOnly = await sample();
+
+            expect(vaultOnly.queues.map((one) => [one.queue, one.count])).toEqual([['locking', 1], ['paying', 0]]);
+            expect(vaultOnly.stuck).toBe(0);
+            expect(vaultOnly.checks, 'a server that compares the vault keeps its disagreements').toEqual({ open: 0, oldest: null });
         });
     });
 });

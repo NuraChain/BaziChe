@@ -8,17 +8,22 @@ paths:
   - "frontend/src/lib/check-words.ts"
   - "frontend/tests/admin-checks.spec.ts"
   - "tools/qa/reconcile-pass.mjs"
+  - "backend/src/ops/**"
+  - "backend/src/http/ops.ts"
+  - "backend/tests/ops*.ts"
 ---
 
-# Operations: the database and NuraChain, checked against each other
+# Operations: the database and NuraChain checked against each other, and the server watched
 
 Every money record here has a worker that asks its contract about it by its id until it is done
 (`.claude/rules/stakes.md`, `markets.md`, the shop and the gifts in their designs). Once a record
 leaves its worker's hands nothing asked the chain about it again, so a row changed by hand, a payment
 made straight to a contract, a reclaim while a game is still played here, a gift a block clock behind
 took after it was let go of, or a contract short of what it owes stayed silent. The reconciliation
-pass is what asks. The design and its decisions (OP-D1 to OP-D8) are
-`docs/superpowers/specs/2026-10-28-operations-design.md`; this file is what the code does.
+pass is what asks. Beside it, the server watches itself and the work it is behind on, and says in
+its log when something crosses a line a person should act on (*The server watched*, below). The
+design and its decisions (OP-D1 to OP-D16) are `docs/superpowers/specs/2026-10-28-operations-design.md`;
+this file is what the code does.
 
 ## The pass
 
@@ -146,3 +151,74 @@ at once, and closed until either side moves); `reconcile-sweep.spec.ts` the pass
 `app.spec.ts` the routes; `admin-checks.spec.ts`, `admin-overview.spec.ts` and `admin-log.spec.ts`
 the page, "Needs you" and the log's sentence; `tools/qa/reconcile-pass.mjs` all of it over the built
 server and a local chain (`tools/qa/CLAUDE.md`, *The reconcile pass*).
+
+## The server watched
+
+**What this process measures about itself and the work it is behind on** (`createMonitor` in
+`ops/monitor.ts`, made once in `main.ts`), in memory, bounded by its shape (`ops/rings.ts`):
+counts by key a minute at a time in a ring of sixty, with totals since the process began
+(`minuteCounts`), and delays a minute at a time for five minutes as counts per grain, to the
+millisecond under a second and to ten above, none past a minute (`delayWindow`), whose p50, p95 and
+p99 are the nearest rank, exact to that grain. The monitor writes nothing, holds no lock and sends no
+transaction: a restart costs it its memory and nothing else.
+
+**Where each measure comes from.**
+
+- **The sockets**, from the gateway (`SocketWatch` in `realtime/gateway.ts`): every upgrade on
+  `/ws`, by a listener on the server's own `upgrade` event beside the package's, so one the package
+  turns away at `SOCKETS_MOST` is counted too (asked and never gated is the ceiling's); what the gate
+  decided (`told` in `admit.ts`: `origin`, `budget`, `cookie` or let through); each socket
+  opened; and each close by its code (`closeCodeOf`: the codes `CLOSE_CODES` names, any other
+  `other`, so a peer cannot grow the set).
+- **Spectator delivery**: a `watch` frame waits in its socket's outbox with the moment its move was
+  pushed (`gameWatched`'s `at`), and the hub tells the monitor how long after that the pump handed
+  it to the socket, after any drain (`HubDeps.delivered`): the move's delay, watcher by watcher,
+  including what a frame waited behind others.
+- **Requests by family**: the request observer counts each answer under `familyOf` of the path the
+  router routes (`routedPath`): one of the api's eighteen features, `other` for any other `/api`
+  path and `pages` for the rest, a 5xx a failure of that family (`families` and `familyTotals` in
+  `http/ops.ts`).
+- **The workers**: `monitor.passed` after each pass of the stake, shop, gift and market workers. A
+  record is failing from the first pass it fails until the first it does not, and keeps the moment it
+  first failed; `failed` is the stake worker's locks that failed, `moves` the market worker's tally.
+- **NuraChain's reach**: `monitor.reconciled` after each reconciliation pass. Its `reached` is false
+  when any read of the chain could not get through (a contract's books or one record, a 503), null
+  when this server watches nothing, and true otherwise.
+- **The database, every thirty seconds** (`SAMPLE_MS`, `jobs.sample` in `ops/sample.ts`): each
+  worker's queue with its count and how long its oldest has waited by Postgres's clock (positions
+  handed in, from their creation; claims on their way, from `claim_sent_at`; orders and gifts handed
+  in, from `sent_at`; stakes locking, and games paying or giving back, from `updated_at`; markets
+  due, open or closing with their close passed and their game over, from the later of the two); the
+  paid games stuck by the vault panel's own rule (`stuckOf`); and the disagreements still open, with
+  the oldest. A feature this server does not run is not read: no queue of it, and no stuck games or
+  disagreements where there is no vault or nothing is watched (null, not nought). The reads go one
+  after another, so a sample holds one connection of the pool and never takes a request's.
+
+**The alerts.** `judge` in `ops/measures.ts`, a pure file both halves read, holds every threshold
+in `LIMITS` (the reason for each is in the design, 3.3): a socket refused at the ceiling in ten
+minutes; ten closed for falling behind (4413) in ten; spectator delivery at a second at the 95th,
+from fifty frames in five minutes; errors in a family (ten 5xx in ten minutes, or one in twenty of at
+least twenty); a queue whose oldest has waited ten minutes (positions, claims, orders, gifts; the
+paid games' and the markets' have alerts of their own); a payment stuck; a market due ten minutes;
+three locks failed in an hour; a record failing two minutes; NuraChain out of reach two passes in a
+row; a disagreement open. Each belongs to the server's section or the money's (`ALERT_ABILITY`),
+and money at risk is an error, the rest a warning (a failing stake or market worker an error, a
+failing shop or gift worker a warning).
+
+**Said once when it crosses and once when it clears.** Each sample judges every alert against what
+the monitor holds and what it read, and says one line for each alert raised (`alert raised`) and
+each cleared (`alert cleared`), at the alert's level, with what it is about (a family, a queue, a
+worker), its value and its limit; nothing per request or per pass. The monitor keeps the alerts
+standing and since when; a restart forgets them, and the first sample after it raises again what
+still holds. A sample that cannot read the database still judges what is held, and the failure is
+logged (`monitor sample failed`). Samples are one at a time, on a timer that never holds the process
+open, stopped on the way down before the sockets are let go.
+
+`ops-measures.spec.ts` holds every alert at its threshold and the families and close codes;
+`ops-rings.spec.ts` the rings; `ops-monitor.spec.ts` the alerts raised and cleared once, the ceiling
+counted, a worker failing, the chain out of reach, the money's alerts from a sample, a sample that
+fails, spectator delivery, what the monitor shows and the Prometheus text; `ops.spec.ts` the
+requests by family; `realtime-hub.spec.ts` a watch frame timed as it leaves and the outboxes;
+`realtime.socket.spec.ts` the gateway's hooks over a real socket; `reconcile.db.spec.ts` (*the
+queues the monitor reads*, and *calm* for `reached`) the sample against a real database;
+`ops-sweep.spec.ts` the monitor's place in `main.ts`.

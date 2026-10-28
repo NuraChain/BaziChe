@@ -19,6 +19,12 @@ const STUCK_MAX = 50;
 
 const IN_FLIGHT = ['locking', 'settling', 'refunding'];
 
+/** Paid games locking, paying or giving back for ten minutes or more, or carrying an error the chain gave: stuck, for the vault's panel and the server's monitor alike. */
+export const stuckOf = (db: DataSource) => db.getRepository(Escrow).createQueryBuilder('e')
+    .where('e.state in (:...flight)', { flight: IN_FLIGHT })
+    .andWhere('(e.updated_at < now() - make_interval(mins => :minutes) or e.error is not null)', { minutes: STUCK_MINUTES })
+    .getCount();
+
 interface StuckRow
 {
     id: string;
@@ -92,10 +98,7 @@ export function createVaultAdmin(db: DataSource, vault: Vault, catalogue: readon
                         'in_play'
                     )
                     .getRawOne<{ playing: number; in_play: string }>(),
-                db.getRepository(Escrow).createQueryBuilder('e')
-                    .where('e.state in (:...flight)', { flight: IN_FLIGHT })
-                    .andWhere('(e.updated_at < now() - make_interval(mins => :minutes) or e.error is not null)', { minutes: STUCK_MINUTES })
-                    .getCount()
+                stuckOf(db)
             ]);
 
             return { playing: row?.playing ?? 0, inPlay: row?.in_play ?? '0', stuck };

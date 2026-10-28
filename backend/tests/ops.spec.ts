@@ -135,4 +135,29 @@ describe('what this server knows of itself', () =>
         expect(loop.busy).toBeLessThanOrEqual(1);
         expect(loop.stall).toBeGreaterThan(80);
     });
+    it('counts requests and failures by the family of the route the router sends them to, whatever spelling reached it', () =>
+    {
+        const clock = { at: START };
+        const ops = opened(clock);
+        const observer = ops.observer(inner);
+
+        observer.onComplete(asked('GET', '/api/tables/mine'), answered(200), 1);
+        observer.onComplete(asked('POST', '/%61pi/tables/quick'), answered(503), 1);
+        observer.onComplete(asked('GET', '/api/nothing-here'), answered(404), 1);
+        observer.onComplete(asked('GET', '/app/games'), answered(200), 1);
+        observer.onComplete(asked('GET', '/api/markets'), answered(500), 1);
+
+        const now = new Map(ops.families(10).map((one) => [one.family, one]));
+
+        expect(now.get('tables')).toEqual({ family: 'tables', requests: 2, failed: 1 });
+        expect(now.get('other')).toEqual({ family: 'other', requests: 1, failed: 0 });
+        expect(now.get('pages')).toEqual({ family: 'pages', requests: 1, failed: 0 });
+        expect(now.get('markets')).toEqual({ family: 'markets', requests: 1, failed: 1 });
+        expect(ops.families(10).every((one) => one.family === 'tables' || one.family === 'other' || one.family === 'pages' || one.family === 'markets' || (one.requests === 0 && one.failed === 0))).toBe(true);
+
+        clock.at += 11 * MINUTE_MS;
+
+        expect(ops.families(10).find((one) => one.family === 'tables')).toEqual({ family: 'tables', requests: 0, failed: 0 });
+        expect(ops.familyTotals().find((one) => one.family === 'tables'), 'the totals are kept since the process began').toEqual({ family: 'tables', requests: 2, failed: 1 });
+    });
 });

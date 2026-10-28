@@ -33,6 +33,9 @@ const active = process.env.TEST_WS === '1';
 
 const noted: string[] = [];
 
+/** What the gateway told the monitor, in order. */
+const watched: string[] = [];
+
 const silent = {
     info: () => undefined,
     warn: () => undefined,
@@ -53,6 +56,7 @@ const PRINCIPAL: Principal = {
 let server: Server;
 let port = 0;
 let detach: () => void;
+let gateway: Parameters<typeof attachRealtime>[1];
 let identify: (request: Request) => Promise<Principal | null>;
 
 const config = {
@@ -152,7 +156,20 @@ beforeAll(async () =>
     await new Promise<void>((resolve) => server.listen(0, resolve));
     port = (server.address() as { port: number }).port;
 
-    detach = attachRealtime(server, { ports, hub, config, log: silent, limits });
+    gateway = {
+        ports,
+        hub,
+        config,
+        log: silent,
+        limits,
+        watch: {
+            asked: () => watched.push('asked'),
+            gated: (refusal) => watched.push('gated ' + (refusal ?? 'through')),
+            opened: () => watched.push('opened'),
+            closed: (code) => watched.push('closed ' + code)
+        }
+    };
+    detach = attachRealtime(server, gateway);
 });
 
 afterAll(async () =>
@@ -307,6 +324,44 @@ describe('the handshake', () =>
         const same = talk('/ws', { Origin: `http://localhost:${ port }`, Cookie: COOKIE });
         expect(await same.status).toBe(101);
         same.end();
+    });
+
+    it('tells the monitor of every upgrade on its path, what the gate made of it, and each socket opened and how it ended', async () =>
+    {
+        watched.length = 0;
+
+        const foreign = talk('/ws', { Origin: 'http://evil.example', Cookie: COOKIE });
+        expect(await foreign.status).toBe(403);
+        foreign.end();
+
+        const unsigned = talk('/ws', { Origin: 'http://localhost:3100' });
+        expect(await unsigned.status).toBe(403);
+        unsigned.end();
+
+        const beside = talk('/ws/', { Origin: 'http://localhost:3100', Cookie: COOKIE });
+        expect(await beside.status).toBe(404);
+        beside.end();
+
+        const admitted = talk('/ws', { Origin: 'http://localhost:3100', Cookie: COOKIE });
+        expect(await admitted.status).toBe(101);
+        await settle();
+        admitted.socket.write(serializeFrame(OPCODE.close, Buffer.from([0x03, 0xe8]), { mask: true }));
+        await admitted.closed;
+        await settle();
+        admitted.end();
+
+        expect(watched).toEqual(['asked', 'gated origin', 'asked', 'gated cookie', 'asked', 'gated through', 'opened', 'closed 1000']);
+    });
+
+    it('takes away every listener it put on the server when it is detached', () =>
+    {
+        const other = createServer();
+        const before = other.listenerCount('upgrade');
+        const gone = attachRealtime(other, gateway);
+
+        expect(other.listenerCount('upgrade')).toBeGreaterThan(before);
+        gone();
+        expect(other.listenerCount('upgrade')).toBe(before);
     });
 
     it('serves exactly /ws and 404s anything beside it', async () =>

@@ -65,6 +65,8 @@ import { createSocialService, type PersonRow } from './domains/social/service.ts
 import type { ServerConfig } from './env.ts';
 import { readSessionToken, SESSION_TTL_SECONDS } from './http/auth.ts';
 import type { OpsReader } from './http/ops.ts';
+import type { Sampled } from './ops/monitor.ts';
+import { createSampler, poolOf } from './ops/sample.ts';
 import type { HeaderOf, MatchEventLog, Ports } from './ports.ts';
 import type {
     Account,
@@ -154,6 +156,9 @@ export interface Services extends Ports
         sweepDonations(forMs: number): Promise<DonateSweep>;
         sweepMarkets(forMs: number): Promise<MarketSweep>;
         reconcile(forMs: number): Promise<ReconcileSweep>;
+
+        /** What only the database knows of the work behind: the queues, the stuck payments and the open disagreements. */
+        sample(): Promise<Sampled>;
         waiting(): Promise<{ game: string; mode: string; players: number; tables: number; oldest: number }[]>;
         otherServers(): Promise<number>;
         tidy(): Promise<Record<string, number>>;
@@ -1073,13 +1078,6 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         return { ...counts, ...(notice === null ? {} : { notice }) };
     };
 
-    const poolOf = () =>
-    {
-        const pool = (db.driver as unknown as { master?: { totalCount: number; idleCount: number; waitingCount: number } }).master;
-
-        return { total: pool?.totalCount ?? 0, idle: pool?.idleCount ?? 0, waiting: pool?.waitingCount ?? 0 };
-    };
-
     const stuckNow = async () =>
     {
         const live = new Set(await plays.stillLive([...stuckMatches.keys()]));
@@ -1227,6 +1225,14 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     }
 
     const reconciler = createReconciler(db, auditors, holders, { said: (event, fields) => note?.(event, fields, 'warn') });
+
+    const sampleWork = createSampler(db, {
+        vault: vaults.configured,
+        shop: looksShop.configured,
+        gifts: tipping.configured,
+        markets: forecasts.configured,
+        checks: reconciler.watching.length > 0
+    });
 
     const walkAway = async (me: string, tableId: string, forfeit: boolean) =>
     {
@@ -1708,6 +1714,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             sweepDonations: (forMs) => donations.sweep(forMs),
             sweepMarkets: (forMs) => markets.sweep(forMs),
             reconcile: (forMs) => reconciler.sweep(forMs),
+            sample: sampleWork,
             waiting: () => table.waitingByGame(),
             otherServers,
             tidy,
@@ -2241,7 +2248,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     reports,
                     ...(money === null ? {} : { money }),
                     ...(checks === null ? {} : { checks }),
-                    ...(may(actor.role, 'health') && ops !== undefined ? { health: { ...ops.health(), pool: poolOf(), sockets: presence?.sockets?.() ?? 0 } } : {})
+                    ...(may(actor.role, 'health') && ops !== undefined ? { health: { ...ops.health(), pool: poolOf(db), sockets: presence?.sockets?.() ?? 0 } } : {})
                 };
             },
 

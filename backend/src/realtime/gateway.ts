@@ -13,6 +13,16 @@ import { matchPlayInput } from '../schemas.ts';
 import { ack, BUDGET_WINDOW_MS, FRAME_BUDGETS, FRAME_FLOORS, parseClientFrame, pong, refused, SIGNAL_DATA_MAX, type ClientFrame } from './frames.ts';
 import type { Connection, Hub } from './hub.ts';
 
+/** What the gateway tells the server's monitor about its sockets (`ops/monitor.ts`). */
+export interface SocketWatch
+{
+    /** An upgrade on the socket's path, before anything decides on it. */
+    asked(): void;
+    gated(refusal: 'origin' | 'budget' | 'cookie' | null): void;
+    opened(): void;
+    closed(code: number): void;
+}
+
 export interface GatewayDeps
 {
     ports: Ports;
@@ -20,6 +30,7 @@ export interface GatewayDeps
     config: ServerConfig;
     log: Logger;
     limits: { handshakes: number; sockets: number };
+    watch?: SocketWatch;
 }
 
 /** How long a socket may stay unidentified before it is closed. */
@@ -126,6 +137,18 @@ export function attachRealtime(server: Server, deps: GatewayDeps): () => void
     }, SWEEP_MS);
     sweep.unref();
 
+    // Beside the package's own listener: one turned away at the ceiling never reaches the gate,
+    // so an upgrade counted here and never gated is one the ceiling refused.
+    const asked = (request: { url?: string }) =>
+    {
+        if (request.url?.split('?')[0] === '/ws')
+        {
+            deps.watch?.asked();
+        }
+    };
+
+    server.on('upgrade', asked);
+
     const detach = attachWebSockets(server, {
         path: '/ws',
         maxConnections: deps.limits.sockets,
@@ -148,13 +171,16 @@ export function attachRealtime(server: Server, deps: GatewayDeps): () => void
             origin: deps.config.origin,
             secureCookies: deps.config.origin.startsWith('https://'),
             limit,
-            trustProxy: deps.config.env === 'production'
+            trustProxy: deps.config.env === 'production',
+            told: (refusal) => deps.watch?.gated(refusal)
         }),
 
         logger: deps.log,
 
         onConnection: (socket, request) =>
         {
+            deps.watch?.opened();
+
             // An upgraded socket gets neither `requestId()` nor `logRequests` - both live in the
             // fetch pipeline, which an Upgrade request never reaches - so the gateway mints its
             // own correlation id and owns its log lines.
@@ -323,8 +349,9 @@ export function attachRealtime(server: Server, deps: GatewayDeps): () => void
              */
             let closed = false;
 
-            socket.onClose = () =>
+            socket.onClose = (code) =>
             {
+                deps.watch?.closed(code);
                 closed = true;
                 if (!connection.pending)
                 {
@@ -389,6 +416,7 @@ export function attachRealtime(server: Server, deps: GatewayDeps): () => void
     return () =>
     {
         clearInterval(sweep);
+        server.off('upgrade', asked);
         detach();
     };
 }

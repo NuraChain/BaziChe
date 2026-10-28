@@ -19,6 +19,9 @@ import { loadServerConfig } from './env.ts';
 import { gzipOnTheWay, precompressed } from './http/compression.ts';
 import { headersFor } from './http/headers.ts';
 import { createOps } from './http/ops.ts';
+import { SAMPLE_MS } from './ops/measures.ts';
+import { createMonitor } from './ops/monitor.ts';
+import { poolOf } from './ops/sample.ts';
 import { apiRateLimit, signInRateLimit } from './http/rate-limit.ts';
 import { createServerLogger } from './logger.ts';
 import { createChatService } from './domains/chat/service.ts';
@@ -135,7 +138,9 @@ const hub = createHub({
         return there === null && back === null;
     },
 
-    pulse: () => ports.pulse()
+    pulse: () => ports.pulse(),
+
+    delivered: (ms) => monitor.delivered(ms)
 });
 
 let goingDown = false;
@@ -143,6 +148,22 @@ let goingDown = false;
 // ONE instance, shared by the API and by the gateway. It used to be built twice here, once for
 // the manifest and once inside `buildApp`, and neither survived the expression it was created in.
 const ops = createOps();
+
+const monitor = createMonitor({
+    now: () => Date.now(),
+    sample: () => ports.jobs.sample(),
+    sockets: () => hub.size(),
+    outboxes: () => hub.outboxes(),
+    families: (minutes) => ops.families(minutes),
+    familyTotals: () => ops.familyTotals(),
+    process: () =>
+    {
+        const health = ops.health();
+
+        return { uptime: health.uptime, rss: health.rss, heap: health.heap, loop: health.loop, pool: poolOf(dataSource) };
+    },
+    said: (level, event, fields) => (level === 'error' ? log.error(event, fields) : log.warn(event, fields))
+});
 
 const ports = buildPorts(dataSource, config, hub, {
     present: (userIds) => goingDown ? new Set(userIds) : hub.present(userIds),
@@ -219,7 +240,8 @@ const detachRealtime = attachRealtime(served.server, {
     hub,
     config,
     log,
-    limits: { handshakes: HANDSHAKES_A_MINUTE, sockets: SOCKETS_MOST }
+    limits: { handshakes: HANDSHAKES_A_MINUTE, sockets: SOCKETS_MOST },
+    watch: monitor
 });
 
 /**
@@ -376,6 +398,8 @@ const sweepStakes = () =>
     void ports.jobs.sweepStakes(STAKE_SWEEP_BUDGET_MS)
         .then(({ begun, closed, failed, faults }) =>
         {
+            monitor.passed('stakes', { faults: faults.map((one) => one.escrow), failed });
+
             if (begun + closed + failed > 0)
             {
                 log.info('stakes moved', { begun, closed, failed });
@@ -421,6 +445,8 @@ const sweepShop = () =>
     void ports.jobs.sweepShop(SHOP_SWEEP_BUDGET_MS)
         .then(({ paid, refunded, failed, expired, faults }) =>
         {
+            monitor.passed('shop', { faults: faults.map((one) => one.order) });
+
             if (paid + refunded + failed + expired > 0)
             {
                 log.info('shop orders moved', { paid, refunded, failed, expired });
@@ -466,6 +492,8 @@ const sweepDonations = () =>
     void ports.jobs.sweepDonations(DONATION_SWEEP_BUDGET_MS)
         .then(({ confirmed, reverted, expired, failed, faults }) =>
         {
+            monitor.passed('gifts', { faults: faults.map((one) => one.donation) });
+
             if (confirmed + reverted + expired + failed > 0)
             {
                 log.info('donations moved', { confirmed, reverted, expired, failed });
@@ -511,6 +539,8 @@ const sweepMarkets = () =>
     void ports.jobs.sweepMarkets(MARKET_SWEEP_BUDGET_MS)
         .then(({ faults, ...moved }) =>
         {
+            monitor.passed('markets', { faults: faults.map((one) => one.market), moves: moved });
+
             if (Object.values(moved).some((count) => count > 0))
             {
                 log.info('markets moved', moved);
@@ -556,8 +586,10 @@ const reconcileTold = new Map<string, string>();
 const reconcile = () =>
 {
     void ports.jobs.reconcile(RECONCILE_BUDGET_MS)
-        .then(({ faults }) =>
+        .then(({ faults, reached }) =>
         {
+            monitor.reconciled(reached);
+
             const now = new Map(faults.map((one) => [`${ one.family } ${ one.record }`, one]));
 
             for (const [key, one] of now)
@@ -584,6 +616,26 @@ const reconcile = () =>
 
 reconciling = setTimeout(reconcile, RECONCILE_FIRST_MS);
 reconciling.unref();
+
+let sampling: NodeJS.Timeout | null = null;
+
+/** What the monitor reads from the database, then every alert judged against it: `ops/monitor.ts`. */
+const sample = () =>
+{
+    void monitor.sample()
+        .catch((error: unknown) => log.error('monitor sample failed', { error }))
+        .finally(() =>
+        {
+            if (sampling !== null)
+            {
+                sampling = setTimeout(sample, SAMPLE_MS);
+                sampling.unref();
+            }
+        });
+};
+
+sampling = setTimeout(sample, SAMPLE_MS);
+sampling.unref();
 
 handleShutdownSignals(served, {
     /**
@@ -637,6 +689,11 @@ handleShutdownSignals(served, {
         {
             clearTimeout(reconciling);
             reconciling = null;
+        }
+        if (sampling !== null)
+        {
+            clearTimeout(sampling);
+            sampling = null;
         }
 
         goingDown = true;

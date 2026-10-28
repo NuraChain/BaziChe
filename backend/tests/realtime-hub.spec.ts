@@ -86,6 +86,7 @@ interface World
     failing: boolean;
     sessionsAsked: string[] | null;
     sessionsHeld: Promise<void> | null;
+    delivered: number[];
 }
 
 let world: World;
@@ -110,7 +111,8 @@ function build()
         held: null,
         failing: false,
         sessionsAsked: null,
-        sessionsHeld: null
+        sessionsHeld: null,
+        delivered: []
     };
 
     state.hub = createHub({
@@ -163,7 +165,8 @@ function build()
             }
 
             return await (state.held ?? state.pulse);
-        }
+        },
+        delivered: (ms) => state.delivered.push(ms)
     });
 
     return state;
@@ -529,6 +532,43 @@ describe('a game somebody is watching', () =>
         expect(player.wire.framesOf('watch'), 'somebody not handed over was pushed the board').toEqual([]);
         expect(elsewhere.wire.framesOf('watch')).toEqual([]);
         expect(watcher.wire.framesOf('nudge'), 'somebody watching was rung to read what they were pushed').toEqual([]);
+    });
+
+    it('times each watch frame from its push until it has left for its socket, and no frame a player is pushed', async () =>
+    {
+        const player = await connect('alex');
+        const watcher = await connect('sara.k');
+        const board = { id: 'm-1', rev: 5 } as unknown as Parameters<typeof world.hub.gameWatched>[1];
+        const events = [{ rev: 5, seat: 0 }] as unknown as Parameters<typeof world.hub.gameWatched>[2];
+
+        watcher.wire.backpressure = true;
+        world.hub.gameWatched(['sara.k'], board, events);
+        world.hub.gamePushed([{ userId: 'alex', match: board, events: [] }]);
+        world.at += 40;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(watcher.wire.framesOf('watch')).toHaveLength(1);
+        expect(player.wire.framesOf('game')).toHaveLength(1);
+        expect(world.delivered, 'the frame waited for its socket to drain, and was timed when it left').toEqual([40]);
+    });
+
+    it('says the deepest outbox and how many frames wait across every socket', async () =>
+    {
+        const watcher = await connect('sara.k');
+        const other = await connect('reza.t');
+        const board = { id: 'm-1', rev: 5 } as unknown as Parameters<typeof world.hub.gameWatched>[1];
+
+        expect(world.hub.outboxes()).toEqual({ deepest: 0, waiting: 0 });
+
+        watcher.wire.stalled = true;
+        other.wire.stalled = true;
+        world.hub.gameWatched(['sara.k'], board, []);
+        world.hub.gameWatched(['sara.k'], board, []);
+        world.hub.gameWatched(['sara.k'], board, []);
+        world.hub.gameWatched(['reza.t'], board, []);
+        world.hub.gameWatched(['reza.t'], board, []);
+
+        expect(world.hub.outboxes(), 'the first frame of each is on the wire, waiting for a drain that never comes').toEqual({ deepest: 2, waiting: 3 });
     });
 
     it('says who is looking at a table: whoever read it among the last tables they read, while they are here', async () =>

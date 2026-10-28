@@ -2,6 +2,10 @@ import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 
 import type { RequestObserver } from '@azerothjs/http';
 
+import { FAMILIES, familyOf, type Family } from '../ops/measures.ts';
+import { minuteCounts } from '../ops/rings.ts';
+import { routedPath } from './rate-limit.ts';
+
 export const MINUTE_MS = 60_000;
 
 export const HOUR_MINUTES = 60;
@@ -46,6 +50,8 @@ export function createOps(now: () => number = Date.now)
 {
     const minutes: { minute: number; requests: number; failed: number }[] = [];
     const failures: Failure[] = [];
+    const asked = minuteCounts<Family>(now);
+    const failedBy = minuteCounts<Family>(now);
     const delay = monitorEventLoopDelay({ resolution: LOOP_TICK_MS });
     let since = performance.eventLoopUtilization();
     let last: Loop | null = null;
@@ -71,12 +77,15 @@ export function createOps(now: () => number = Date.now)
         const minute = Math.floor(now() / MINUTE_MS);
         const slot = minutes[minute % HOUR_MINUTES];
         const held = slot?.minute === minute ? slot : { minute, requests: 0, failed: 0 };
+        const family = familyOf(routedPath(new URL(request.url).pathname));
 
         held.requests += 1;
+        asked.add(family);
 
         if (status >= 500)
         {
             held.failed += 1;
+            failedBy.add(family);
             failures.unshift({ at: new Date(now()).toISOString(), method: request.method, path: new URL(request.url).pathname, status });
             failures.length = Math.min(failures.length, FAILURES_KEPT);
         }
@@ -111,6 +120,23 @@ export function createOps(now: () => number = Date.now)
                 failed: hour.reduce((sum, held) => sum + held.failed, 0),
                 failures: failures.map((failure) => ({ ...failure }))
             };
+        },
+
+        /** Requests and failures by route family over the last `minutes`, every family named. */
+        families(minutes: number)
+        {
+            const requests = asked.within(minutes);
+            const failed = failedBy.within(minutes);
+
+            return FAMILIES.map((family) => ({ family, requests: requests.get(family) ?? 0, failed: failed.get(family) ?? 0 }));
+        },
+
+        familyTotals()
+        {
+            const requests = asked.totals();
+            const failed = failedBy.totals();
+
+            return FAMILIES.map((family) => ({ family, requests: requests.get(family) ?? 0, failed: failed.get(family) ?? 0 }));
         },
 
         stop()

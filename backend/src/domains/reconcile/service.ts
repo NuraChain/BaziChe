@@ -20,6 +20,9 @@ export interface ReconcileSweep
     found: number;
     resolved: number;
     faults: { family: CheckFamily; record: string; error: string }[];
+
+    /** Whether this pass reached NuraChain: null when this server watches nothing, false when any read of it could not get through. */
+    reached: boolean | null;
 }
 
 interface CheckRow extends Keyed
@@ -209,7 +212,11 @@ export function createReconciler(
             }
             catch (error)
             {
-                if ((error as { status?: number }).status !== 503)
+                if ((error as { status?: number }).status === 503)
+                {
+                    tally.reached = false;
+                }
+                else
                 {
                     tally.faults.push({ family: 'contract', record: holder, error: error instanceof Error ? error.message : String(error) });
                 }
@@ -222,7 +229,7 @@ export function createReconciler(
     const sweepOnce = async (budgetMs: number) =>
     {
         const deadline = performance.now() + budgetMs;
-        const tally: ReconcileSweep = { compared: 0, found: 0, resolved: 0, faults: [] };
+        const tally: ReconcileSweep = { compared: 0, found: 0, resolved: 0, faults: [], reached: watching.length === 0 ? null : true };
 
         await books(tally);
 
@@ -243,6 +250,11 @@ export function createReconciler(
 
             cursors.set(family, done.next);
             await apply(family, done, tally);
+
+            if (done.unreached)
+            {
+                tally.reached = false;
+            }
             tally.faults.push(...done.faults.map((fault) => ({ family, ...fault })));
         }
 

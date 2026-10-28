@@ -12,6 +12,9 @@ export interface AdmitOptions
     secureCookies: boolean;
     limit: HandshakeLimit;
     trustProxy: boolean;
+
+    /** Told what the gate decided: why it refused, or null for an upgrade it let through. */
+    told?(refusal: 'origin' | 'budget' | 'cookie' | null): void;
 }
 
 /**
@@ -37,25 +40,26 @@ export interface AdmitOptions
  */
 export function admit(options: AdmitOptions): (origin: string | null, request: IncomingMessage) => boolean
 {
+    const decided = (refusal: 'origin' | 'budget' | 'cookie' | null) =>
+    {
+        options.told?.(refusal);
+        return refusal === null;
+    };
+
     return (origin, request) =>
     {
-        if (origin === null || origin === 'null')
+        if (origin === null || origin === 'null' || !isOurs(origin, request.headers.host, options.origin))
         {
-            return false;
-        }
-
-        if (!isOurs(origin, request.headers.host, options.origin))
-        {
-            return false;
+            return decided('origin');
         }
 
         const address = clientAddress(request, options.trustProxy);
         if (!options.limit.take(address))
         {
-            return false;
+            return decided('budget');
         }
 
-        return readSessionToken(toWebRequest(request), options.secureCookies) !== null;
+        return decided(readSessionToken(toWebRequest(request), options.secureCookies) === null ? 'cookie' : null);
     };
 }
 

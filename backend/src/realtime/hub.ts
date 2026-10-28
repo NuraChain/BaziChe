@@ -59,6 +59,9 @@ export interface HubDeps
 
     /** Sockets one account may hold at once. */
     accountMax: number;
+
+    /** A watch frame handed to its socket, this long after its move was pushed: what spectator delivery is measured from. */
+    delivered?(ms: number): void;
 }
 
 export interface GamePush
@@ -78,10 +81,18 @@ export interface Connection
     state: PresenceState;
 }
 
+interface Queued
+{
+    text: string;
+
+    /** When a watch frame's move was pushed, so its delivery can be timed as it leaves. */
+    since?: number;
+}
+
 interface Held extends Connection
 {
     alive: boolean;
-    outbox: string[];
+    outbox: Queued[];
     bytes: number;
     pumping: boolean;
     n: number;
@@ -159,6 +170,9 @@ export interface Hub
     calls(): { tableId: string; people: string[] }[];
     looking(tableId: string): string[];
     size(): number;
+
+    /** The most frames any one socket has waiting, and how many wait across every socket. */
+    outboxes(): { deepest: number; waiting: number };
     /**
      * Sends a close frame with a code to every connection, and answers how many it sent.
      *
@@ -363,11 +377,15 @@ export function createHub(deps: HubDeps): Hub
             {
                 while (connection.alive && connection.outbox.length > 0)
                 {
-                    const text = connection.outbox.shift()!;
+                    const { text, since } = connection.outbox.shift()!;
                     connection.bytes -= text.length;
                     if (!connection.wire.send(text))
                     {
                         await connection.wire.drain();
+                    }
+                    if (since !== undefined)
+                    {
+                        deps.delivered?.(deps.now() - since);
                     }
                 }
             }
@@ -389,7 +407,7 @@ export function createHub(deps: HubDeps): Hub
      * on rather than the order their promises happened to settle. One pump drains the queue, and
      * nothing else writes to the socket.
      */
-    const emit = (connection: Held, build: (n: number) => ServerFrame) =>
+    const emit = (connection: Held, build: (n: number) => ServerFrame, since?: number) =>
     {
         if (!connection.alive)
         {
@@ -399,7 +417,7 @@ export function createHub(deps: HubDeps): Hub
         connection.n += 1;
         const text = JSON.stringify(build(connection.n));
 
-        connection.outbox.push(text);
+        connection.outbox.push(since === undefined ? { text } : { text, since });
         connection.bytes += text.length;
 
         // Overflow CLOSES rather than dropping. A silently lossy stream defeats the only gap
@@ -444,13 +462,13 @@ export function createHub(deps: HubDeps): Hub
 
     const connectionsOf = (userId: string): Held[] => [...(byUser.get(userId) ?? [])];
 
-    const publish = (userIds: Iterable<string>, build: (n: number) => ServerFrame) =>
+    const publish = (userIds: Iterable<string>, build: (n: number) => ServerFrame, since?: number) =>
     {
         for (const userId of userIds)
         {
             for (const connection of connectionsOf(userId))
             {
-                emit(connection, build);
+                emit(connection, build, since);
             }
         }
     };
@@ -1034,7 +1052,7 @@ export function createHub(deps: HubDeps): Hub
         {
             const at = deps.now();
 
-            publish(viewers, (n) => watched(n, at, match, events));
+            publish(viewers, (n) => watched(n, at, match, events), at);
         },
 
         reply(connection, build)
@@ -1381,6 +1399,23 @@ export function createHub(deps: HubDeps): Hub
                 total += sockets.size;
             }
             return total;
+        },
+
+        outboxes()
+        {
+            let deepest = 0;
+            let waiting = 0;
+
+            for (const sockets of byUser.values())
+            {
+                for (const socket of sockets)
+                {
+                    deepest = Math.max(deepest, socket.outbox.length);
+                    waiting += socket.outbox.length;
+                }
+            }
+
+            return { deepest, waiting };
         },
 
         closeAll(code, reason)

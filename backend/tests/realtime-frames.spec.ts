@@ -135,13 +135,18 @@ describe('the handshake gate', () =>
         expect(secure('https://nura.games', request({ host: 'nura.games', cookie: 'something-else=abc' }))).toBe(false);
     });
 
-    it('spends the budget per address and refuses past it', () =>
+    it('spends the budget per address and refuses past it, telling the monitor why', () =>
     {
+        const told: (string | null)[] = [];
         const gated = admit({
             origin: 'http://localhost:3100',
             secureCookies: false,
             limit: createHandshakeLimit({ max: 2 }),
-            trustProxy: false
+            trustProxy: false,
+            told: (refusal) =>
+            {
+                told.push(refusal);
+            }
         });
         const one = request({ host: 'localhost:4900', cookie: COOKIE }, '9.9.9.9');
         const two = request({ host: 'localhost:4900', cookie: COOKIE }, '8.8.8.8');
@@ -152,6 +157,7 @@ describe('the handshake gate', () =>
 
         // A different address has its own budget, which is the point of keying on one.
         expect(gated('http://localhost:4900', two)).toBe(true);
+        expect(told).toEqual([null, null, 'budget', null]);
     });
 });
 

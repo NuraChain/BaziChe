@@ -1,3 +1,4 @@
+import type { Collection } from '../looks/table.ts';
 import { centreOf, type Rect } from '../motion.ts';
 import { launch } from './flight.ts';
 import type { Run, Stage } from './stage.ts';
@@ -10,6 +11,9 @@ export interface Pour
     easing: string;
     delay?: number;
     gone?: boolean;
+
+    /** The look of whoever the chips are, or Classic: the house's chips, the pot's, are nobody's. */
+    chips?: Collection | null;
 }
 
 const OVER = [1, 2.5, 6, 15];
@@ -41,7 +45,13 @@ export function pour(stage: Stage, layer: HTMLElement, from: Rect, to: Rect, fli
         const disc = document.createElement('span');
 
         disc.className = 'chip-stack';
-        disc.dataset.chips = '1';
+        disc.dataset.discs = '1';
+
+        if (flight.chips !== undefined && flight.chips !== null)
+        {
+            disc.dataset.chips = flight.chips;
+        }
+
         disc.style.fontSize = `${ to.width / DISC }px`;
 
         return launch(stage, layer, disc, leaving, to, {

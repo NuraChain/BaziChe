@@ -84,7 +84,8 @@ describe('discs poured from one place to another', () =>
         const { discs } = poured(false);
 
         expect(discs()).toHaveLength(3);
-        expect(discs().map((one) => [one.dataset.chips, one.style.width, one.style.height, one.style.left, one.style.top])).toEqual(Array.from({ length: 3 }, () => ['1', '10px', '10px', '200px', '100px']));
+        expect(discs().map((one) => [one.dataset.discs, one.style.width, one.style.height, one.style.left, one.style.top])).toEqual(Array.from({ length: 3 }, () => ['1', '10px', '10px', '200px', '100px']));
+        expect(discs().map((one) => one.dataset.chips), 'a pour with no look dressed its discs').toEqual([undefined, undefined, undefined]);
         expect(discs().every((one) => one.getAttribute('aria-hidden') === 'true')).toBe(true);
         expect(Number.parseFloat(discs()[0].style.fontSize), 'the disc is not drawn at the size of the box it lands in').toBeCloseTo(10 / 0.85, 5);
     });
@@ -127,6 +128,12 @@ describe('discs poured from one place to another', () =>
         clock.advance(1);
         await turns();
         expect([discs().length, landed()]).toEqual([0, true]);
+    });
+
+    it('are each in the look of whoever the chips are, and in none for the house', () =>
+    {
+        expect(poured(false, { chips: 'inferno' }).discs().map((one) => one.dataset.chips)).toEqual(['inferno', 'inferno', 'inferno']);
+        expect(poured(false, { chips: null }).discs().map((one) => one.dataset.chips)).toEqual([undefined, undefined, undefined]);
     });
 
     it('pour one disc when none was asked for, so that something is seen to move', () =>

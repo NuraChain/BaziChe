@@ -281,15 +281,15 @@ describe('what the reader holds and presses at a poker table', () =>
         const top = ruleOf('.chip-stack::before');
         const line = Number(/\n    line-height: ([\d.]+);/.exec(ruleOf('.poker-bet'))?.[1]);
         const face = Number(/\n    block-size: ([\d.]+)em;/.exec(top)?.[1]);
-        const edges = [2, 3, 4, 5].map((discs) => [...ruleOf(`.chip-stack[data-chips='${ discs }']::before`).matchAll(/0 ([\d.]+)em 0 var\(--chip-(?:rim|band)\)/g)].map((found) => Number(found[1])));
+        const edges = [2, 3, 4, 5].map((discs) => [...ruleOf(`.chip-stack[data-discs='${ discs }']::before`).matchAll(/0 ([\d.]+)em 0 var\(--chip-(?:rim|band)\)/g)].map((found) => Number(found[1])));
 
         expect(box).toContain('inline-size: 0.85em;');
         expect(box).toContain('block-size: 0.85em;');
         expect(edges.map((one) => one.length)).toEqual([1, 2, 3, 4]);
         expect(edges[3], 'the edges do not go down by even steps').toEqual([0.14, 0.28, 0.42, 0.56]);
         expect(face + (edges[3].at(-1) ?? 0), 'five discs stand taller than the line of the pill they are in').toBeLessThanOrEqual(line);
-        expect([2, 3, 4, 5].map((discs) => ruleOf(`.chip-stack[data-chips='${ discs }']`))).toEqual([2, 3, 4, 5].map((discs) => expect.stringContaining(`--chips: ${ discs };`)));
-        expect(ruleOf('.chip-stack[data-chips=\'0\']::before'), 'no chips are drawn as one').toContain('content: none;');
+        expect([2, 3, 4, 5].map((discs) => ruleOf(`.chip-stack[data-discs='${ discs }']`))).toEqual([2, 3, 4, 5].map((discs) => expect.stringContaining(`--chips: ${ discs };`)));
+        expect(ruleOf('.chip-stack[data-discs=\'0\']::before'), 'no chips are drawn as one').toContain('content: none;');
     });
 
     it('has no rule left for cards that fold, or for the dot a bet wore', () =>

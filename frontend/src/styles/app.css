@@ -3956,49 +3956,178 @@ svg.lobby-board
     box-shadow: 0 0.1em 0.1em rgb(0 0 0 / 0.55);
 }
 
-.chip-stack[data-chips='0']::before
+.chip-stack[data-discs='0']::before
 {
     content: none;
 }
 
-.chip-stack[data-chips='2']
+.chip-stack[data-discs='2']
 {
     --chips: 2;
 }
 
-.chip-stack[data-chips='2']::before
+.chip-stack[data-discs='2']::before
 {
     box-shadow: 0 0.14em 0 var(--chip-rim), 0 0.24em 0.1em rgb(0 0 0 / 0.55);
 }
 
-.chip-stack[data-chips='3']
+.chip-stack[data-discs='3']
 {
     --chips: 3;
 }
 
-.chip-stack[data-chips='3']::before
+.chip-stack[data-discs='3']::before
 {
     box-shadow: 0 0.14em 0 var(--chip-rim), 0 0.28em 0 var(--chip-band), 0 0.38em 0.1em rgb(0 0 0 / 0.55);
 }
 
-.chip-stack[data-chips='4']
+.chip-stack[data-discs='4']
 {
     --chips: 4;
 }
 
-.chip-stack[data-chips='4']::before
+.chip-stack[data-discs='4']::before
 {
     box-shadow: 0 0.14em 0 var(--chip-rim), 0 0.28em 0 var(--chip-band), 0 0.42em 0 var(--chip-rim), 0 0.52em 0.1em rgb(0 0 0 / 0.55);
 }
 
-.chip-stack[data-chips='5']
+.chip-stack[data-discs='5']
 {
     --chips: 5;
 }
 
-.chip-stack[data-chips='5']::before
+.chip-stack[data-discs='5']::before
 {
     box-shadow: 0 0.14em 0 var(--chip-rim), 0 0.28em 0 var(--chip-band), 0 0.42em 0 var(--chip-rim), 0 0.56em 0 var(--chip-band), 0 0.66em 0.1em rgb(0 0 0 / 0.55);
+}
+
+/*
+ * A player's chips in their look (`data-chips`, on their seat or on a disc in flight): the face,
+ * the inserts round its edge, its inlay and the stack's sides in the collection's colours, drawn
+ * by the stack's own rule, so a chip in a look is no file to fetch. The pot and what it pays out
+ * are the house's.
+ */
+:is([data-chips] .chip-stack, .chip-stack[data-chips])
+{
+    --chip-rim: var(--chips-rim);
+    --chip-band: var(--chips-band);
+}
+
+:is([data-chips] .chip-stack, .chip-stack[data-chips])::before
+{
+    border-color: var(--chips-stripe);
+    background:
+        radial-gradient(closest-side, var(--chips-inlay) 0 44%, var(--chips-face) 48% 58%, transparent 62%),
+        repeating-conic-gradient(var(--chips-stripe) 0 15deg, transparent 15deg 60deg),
+        var(--chips-face);
+}
+
+[data-chips='glow']
+{
+    --chips-face: #4A7FE8;
+    --chips-stripe: #FFFFFF;
+    --chips-inlay: #1B3480;
+    --chips-rim: #1B3480;
+    --chips-band: #4A7FE8;
+}
+
+[data-chips='shiraz']
+{
+    --chips-face: #18A8A0;
+    --chips-stripe: #FFFFFF;
+    --chips-inlay: #0B4F63;
+    --chips-rim: #0B4F63;
+    --chips-band: #18A8A0;
+}
+
+[data-chips='neon']
+{
+    --chips-face: #110B24;
+    --chips-stripe: #38E8FF;
+    --chips-inlay: #FF46D2;
+    --chips-rim: #05030C;
+    --chips-band: #110B24;
+}
+
+[data-chips='gold']
+{
+    --chips-face: #17120A;
+    --chips-stripe: #E9C565;
+    --chips-inlay: #E9C565;
+    --chips-rim: #080604;
+    --chips-band: #17120A;
+}
+
+[data-chips='inferno']
+{
+    --chips-face: #FFB43A;
+    --chips-stripe: #22100A;
+    --chips-inlay: #22100A;
+    --chips-rim: #22100A;
+    --chips-band: #FFB43A;
+}
+
+[data-chips='storm']
+{
+    --chips-face: #3FA9FF;
+    --chips-stripe: #FFFFFF;
+    --chips-inlay: #1E2534;
+    --chips-rim: #1E2534;
+    --chips-band: #3FA9FF;
+}
+
+[data-chips='astral']
+{
+    --chips-face: #4FE3D8;
+    --chips-stripe: #1C0C3E;
+    --chips-inlay: #1C0C3E;
+    --chips-rim: #1C0C3E;
+    --chips-band: #4FE3D8;
+}
+
+[data-chips='void']
+{
+    --chips-face: #A855F7;
+    --chips-stripe: #FFFFFF;
+    --chips-inlay: #0E0818;
+    --chips-rim: #0E0818;
+    --chips-band: #A855F7;
+}
+
+[data-chips='jade']
+{
+    --chips-face: #F2C14E;
+    --chips-stripe: #0B4A33;
+    --chips-inlay: #0B4A33;
+    --chips-rim: #0B4A33;
+    --chips-band: #F2C14E;
+}
+
+[data-chips='frost']
+{
+    --chips-face: #8FD3FF;
+    --chips-stripe: #173A5A;
+    --chips-inlay: #173A5A;
+    --chips-rim: #173A5A;
+    --chips-band: #8FD3FF;
+}
+
+[data-chips='phoenix']
+{
+    --chips-face: #FFC94A;
+    --chips-stripe: #57100E;
+    --chips-inlay: #57100E;
+    --chips-rim: #57100E;
+    --chips-band: #FFC94A;
+}
+
+[data-chips='oni']
+{
+    --chips-face: #FF2E4D;
+    --chips-stripe: #FFFFFF;
+    --chips-inlay: #24060E;
+    --chips-rim: #24060E;
+    --chips-band: #FF2E4D;
 }
 
 .poker-puck

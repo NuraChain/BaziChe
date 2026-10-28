@@ -42,5 +42,39 @@ export function motif(id, palette, scale = 1)
 
 export const neon = (palette) => palette.pattern === 'grid';
 
+/** How far apart two colours stand in light, by the measure the palette's ink is held to (WCAG). */
+export const contrast = (one, other) =>
+{
+    const light = (hex) =>
+    {
+        const [r, g, b] = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const [high, low] = [light(one), light(other)].sort((a, b) => b - a);
+
+    return (high + 0.05) / (low + 0.05);
+};
+
+/**
+ * A collection's chip: the light, the face and the dark of what it is made of; the inserts round
+ * its edge, white (Neon's in its glint, Royal Gold's in its gold) or its dark where white would not
+ * show on its face; and its inlay, whichever of its edge and its dark stands out more from its face.
+ */
+export function chipTones(palette)
+{
+    const [lit, face, dark] = lineOf(palette) !== undefined
+        ? [palette.glint, palette.edge, palette.deep[1]]
+        : (palette.pattern === 'sparkle' || palette.pattern === 'girih' ? palette.piece : palette.surface);
+    const light = neon(palette) ? palette.glint : (palette.pattern === 'filigree' ? palette.edge : '#FFFFFF');
+
+    return {
+        lit,
+        face,
+        dark,
+        stripe: contrast(light, face) >= 2.5 ? light : dark,
+        inlay: contrast(palette.edge, face) >= contrast(dark, face) ? palette.edge : dark
+    };
+}
+
 /** The cloth a collection's felt is woven in: Royal Gold's a deep green under its gold, Shiraz's its turquoise glaze, every other collection's its surface. */
 export const clothOf = (palette) => (palette.pattern === 'filigree' ? ['#1E3B2C', '#10261B', '#07140E'] : (palette.pattern === 'girih' ? palette.piece : palette.surface));

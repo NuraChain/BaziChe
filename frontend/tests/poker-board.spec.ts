@@ -151,11 +151,11 @@ describe('PokerBoard', () =>
                 seats: Array.from({ length: 6 }, (_, seat) => ({ seat, stack: seat === 5 ? 0 : 1500, bet: [0, 0, 0, 20, 330, 1500][seat], folded: false, allIn: seat === 5, out: false }))
             })
         }) as Rendered);
-        const discs = (seat: number) => container.querySelector(`.poker-seat[data-seat="${ seat }"] .poker-bet > .chip-stack`)?.getAttribute('data-chips') ?? null;
+        const discs = (seat: number) => container.querySelector(`.poker-seat[data-seat="${ seat }"] .poker-bet > .chip-stack`)?.getAttribute('data-discs') ?? null;
 
         expect([discs(3), discs(4), discs(5)]).toEqual(['1', '5', '5']);
         expect(discs(0), 'a seat with no bet has discs in front of it').toBeNull();
-        expect(container.querySelector('.poker-pot > .chip-stack')?.getAttribute('data-chips')).toBe('5');
+        expect(container.querySelector('.poker-pot > .chip-stack')?.getAttribute('data-discs')).toBe('5');
         expect(container.querySelector('.poker-pot svg'), 'the pot still wears the coins').toBeNull();
         expect([...container.querySelectorAll('.chip-stack')].every((one) => one.getAttribute('aria-hidden') === 'true')).toBe(true);
     });
@@ -867,12 +867,12 @@ describe('a table that is read again', () =>
         const { container, read } = shown(flop({ turn: 4, toCall: undefined, minRaiseTo: undefined, maxRaiseTo: undefined }));
         const stack = container.querySelector('.poker-seat[data-seat="4"] .poker-bet > .chip-stack')!;
 
-        expect(stack.getAttribute('data-chips')).toBe('2');
+        expect(stack.getAttribute('data-discs')).toBe('2');
 
         read(flop({ turn: 0, pot: 620, seats: rows({ 4: { stack: 1300, bet: 200 } }) }, { rev: 8 }));
 
         expect(container.querySelector('.poker-seat[data-seat="4"] .poker-bet > .chip-stack'), 'a raise drew the discs again').toBe(stack);
-        expect(stack.getAttribute('data-chips')).toBe('4');
+        expect(stack.getAttribute('data-discs')).toBe('4');
     });
 });
 

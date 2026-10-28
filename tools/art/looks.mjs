@@ -18,7 +18,7 @@ import { H as CARD_H, W as CARD_W } from './card-parts.mjs';
 import { pieceShapes } from './chess-set.mjs';
 import { lineOf } from './legendary/index.mjs';
 import { SUIT_PATH } from './suits.mjs';
-import { clothOf, gloss, linear, motif, neon, octagram, polygon, r2, radial, sparkle, starOf } from './look-parts.mjs';
+import { chipTones, clothOf, gloss, linear, motif, neon, octagram, polygon, r2, radial, sparkle, starOf } from './look-parts.mjs';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'public', 'looks');
 
@@ -410,10 +410,8 @@ function felt(palette)
 
 function chip(palette, id, x, y, top)
 {
-    const tone = lineOf(palette) !== undefined
-        ? [palette.glint, palette.edge, palette.deep[1]]
-        : palette.pattern === 'sparkle' || palette.pattern === 'girih' ? palette.piece : palette.surface;
-    const stripe = neon(palette) ? palette.glint : palette.pattern === 'filigree' ? palette.edge : '#FFFFFF';
+    const { lit, face: middle, dark, stripe } = chipTones(palette);
+    const tone = [lit, middle, dark];
     const side = `<path d="M${ x - 21 } ${ y }V${ y + 5 }C${ x - 21 } ${ y + 9.4 } ${ x + 21 } ${ y + 9.4 } ${ x + 21 } ${ y + 5 }V${ y }Z" fill="url(#${ id }-side)"/>`;
     const dashes = [-15, -6, 6, 15].map((dx) => `<rect x="${ x + dx - 2 }" y="${ y + 2 + Math.abs(dx) * 0.03 }" width="4" height="${ 5.6 - Math.abs(dx) * 0.07 }" fill="${ stripe }" opacity="0.92"/>`).join('');
     const face = top

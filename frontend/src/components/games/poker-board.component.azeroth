@@ -431,6 +431,9 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
     /** The collection of the mat in front of a seat, or null for Classic. */
     const matAt = (seat: number) => wornOf('felt', lookAt(seat)?.felt);
 
+    /** The collection a seat's chips are in, or null for Classic. */
+    const chipsAt = (seat: number) => wornOf('chips', lookAt(seat)?.chips);
+
     /** A card in flight, in the look of whoever it belongs to; none for the house's board and deck. */
     const dressed = (node: HTMLElement, seat: number | undefined) =>
     {
@@ -625,7 +628,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
 
         if (layer !== null && from !== null && to !== null && chips > 0)
         {
-            await pour(ctx.stage, layer, from, to, { discs: discsFor(chips, held.blinds.big), duration: CHIP_FLY, gap: DISC_GAP, easing: EASE.fly }).done;
+            await pour(ctx.stage, layer, from, to, { discs: discsFor(chips, held.blinds.big), duration: CHIP_FLY, gap: DISC_GAP, easing: EASE.fly, chips: chipsAt(seat) }).done;
         }
 
         if (ctx.live())
@@ -646,7 +649,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
 
         if (layer !== null && from !== null && plate !== null && chips > 0)
         {
-            await pour(ctx.stage, layer, from, discAt(plate, from), { discs: discsFor(chips, held.blinds.big), duration: CHIP_FLY, gap: DISC_GAP, easing: EASE.fly }).done;
+            await pour(ctx.stage, layer, from, discAt(plate, from), { discs: discsFor(chips, held.blinds.big), duration: CHIP_FLY, gap: DISC_GAP, easing: EASE.fly, chips: chipsAt(seat) }).done;
         }
 
         if (ctx.live())
@@ -658,7 +661,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
     const gather = async (ctx: Ctx) =>
     {
         const to = potSpot();
-        const piles = held.chairs.filter((chair) => chair.bet > 0).map((chair) => ({ from: spotOf(chair.seat), discs: discsFor(chair.bet, held.blinds.big) }));
+        const piles = held.chairs.filter((chair) => chair.bet > 0).map((chair) => ({ from: spotOf(chair.seat), discs: discsFor(chair.bet, held.blinds.big), chips: chipsAt(chair.seat) }));
         const over = layer;
 
         if (piles.length === 0)
@@ -674,7 +677,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         {
             await Promise.all(piles.flatMap((pile, at) => (pile.from === null
                 ? []
-                : [pour(ctx.stage, over, pile.from, to, { discs: pile.discs, duration: GATHER, gap: DISC_GAP, easing: EASE.gather, delay: at * GATHER_GAP }).done])));
+                : [pour(ctx.stage, over, pile.from, to, { discs: pile.discs, duration: GATHER, gap: DISC_GAP, easing: EASE.gather, delay: at * GATHER_GAP, chips: pile.chips }).done])));
         }
     };
 
@@ -985,7 +988,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         const reach = plate.height * RACK_OUT;
         const rail = { x: from.x + ((from.x - middle.x) / far) * reach, y: from.y + ((from.y - middle.y) / far) * reach, width: 0, height: 0 };
 
-        await pour(ctx.stage, over, plate, discAt(rail, like), { discs: discsFor(chips, held.blinds.big), duration: RACK, gap: DISC_GAP, easing: EASE.fly, gone: true }).done;
+        await pour(ctx.stage, over, plate, discAt(rail, like), { discs: discsFor(chips, held.blinds.big), duration: RACK, gap: DISC_GAP, easing: EASE.fly, gone: true, chips: chipsAt(seat) }).done;
     };
 
 /** The reader's own result in the match on the page, or nothing for somebody watching. */
@@ -1730,7 +1733,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                                         </div>
                                     </details>
                                     <p class="poker-pot">
-                                        <span class="chip-stack" data-chips={ potDiscs } aria-hidden="true"></span>
+                                        <span class="chip-stack" data-discs={ potDiscs } aria-hidden="true"></span>
                                         <span>{ potSays }</span>
                                     </p>
                                     <p class="poker-blinds">
@@ -1744,7 +1747,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                             </div>
 
                             <For each={ chairs } key={ (seat) => seat } let={ seat }>
-                                <div class="poker-seat" data-seat={ seat } data-lies={ plateAt(seat).lies } data-backs={ backsAt(seat) ?? undefined } data-faces={ facesAt(seat) ?? undefined } style={ placed(seat) }>
+                                <div class="poker-seat" data-seat={ seat } data-lies={ plateAt(seat).lies } data-backs={ backsAt(seat) ?? undefined } data-faces={ facesAt(seat) ?? undefined } data-chips={ chipsAt(seat) ?? undefined } style={ placed(seat) }>
                                     <PokerSeat
                                         who={ whoAt(seat) }
                                         name={ nameOf(seat) }

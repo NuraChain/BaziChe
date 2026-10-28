@@ -409,3 +409,120 @@ describe('the felt in front of each poker seat', () =>
         expect(worn(container)).toEqual([['1', 'jade'], ['4', 'storm']]);
     });
 });
+
+describe('the chips of each poker seat', () =>
+{
+    const CHIPS: Record<number, Look> = { 1: { chips: 'chips.inferno' }, 2: { chips: 'chips.ember' }, 4: { chips: 'chips.oni', face: 'face.neon' } };
+
+    const discsIn = (animate: { mock: { contexts: unknown[] } }) => everyFlight(animate).filter((one) => one.classList.contains('chip-stack'));
+
+    it('dresses each seat in its chips, the bet in front of it with them, and nothing in Classic, in a look nothing draws or in the pot', async () =>
+    {
+        const { container } = await seated(looked({ seats: rows({ 1: { stack: 1480, bet: 20 }, 4: { stack: 1490, bet: 10 } }) }, {}, CHIPS));
+        const worn = [0, 1, 2, 3, 4, 5].map((seat) => container.querySelector<HTMLElement>(`.poker-seat[data-seat="${ seat }"]`)?.dataset.chips ?? null);
+
+        expect(worn).toEqual([null, 'inferno', null, null, 'oni', null]);
+        expect(container.querySelector('.poker-seat[data-seat="1"] .poker-bet > .chip-stack')?.closest('[data-chips]')?.getAttribute('data-chips'), 'a bet is not in the chips of the seat it lies in front of').toBe('inferno');
+        expect(container.querySelector('.poker-pot > .chip-stack')?.closest('[data-chips]'), 'the pot was put in somebody\'s chips').toBeNull();
+        expect(container.querySelector('[data-chips="ember"]'), 'a look nothing draws was named on the table').toBeNull();
+    });
+
+    it('pours each blind in the chips of the seat that puts it in, and in none for a seat in Classic', async () =>
+    {
+        const animate = vi.spyOn(Element.prototype, 'animate');
+
+        await seated(looked({}, { rev: 1 }, { 4: { chips: 'chips.oni' } }), opening());
+        await elapse(LONG);
+
+        const discs = discsIn(animate);
+
+        expect(discs.length, 'no chips flew').toBeGreaterThan(0);
+        expect(new Set(discs.map((one) => one.dataset.chips ?? null)), 'the blinds did not fly, one in its seat\'s chips and one plain').toEqual(new Set(['oni', null]));
+    });
+
+    it('gathers each bet to the pot in its seat\'s chips, and pays the pot out in the house\'s', async () =>
+    {
+        const animate = vi.spyOn(Element.prototype, 'animate');
+        const worn: Record<number, Look> = { 1: { chips: 'chips.jade' }, 2: { chips: 'chips.storm' }, 4: { chips: 'chips.oni' }, 5: { chips: 'chips.gold' } };
+        const { read } = await seated(river(worn));
+
+        await read(shown(worn), tabled);
+        await elapse(LONG);
+
+        const discs = discsIn(animate);
+        const dressed = new Set(discs.map((one) => one.dataset.chips ?? null));
+
+        expect(dressed.has('jade'), 'the bet gathered from seat 1 was not in its chips').toBe(true);
+        expect(dressed.has('storm'), 'the call and the bet gathered from seat 2 were not in its chips').toBe(true);
+        expect(dressed.has('oni') && dressed.has('gold'), 'the next hand\'s blinds were not in their seats\' chips').toBe(true);
+        expect(discs.filter((one) => one.dataset.chips === undefined).length, 'the pot paid out in somebody\'s chips').toBeGreaterThan(0);
+    });
+
+    it('pours a bet nobody could call back to its seat in its chips', async () =>
+    {
+        const animate = vi.spyOn(Element.prototype, 'animate');
+        const worn: Record<number, Look> = { 1: { chips: 'chips.jade' } };
+        const shoved = looked(
+            {
+                turn: 2,
+                pot: 1530,
+                pots: [{ amount: 1530, eligible: [1, 2] }],
+                hole: [],
+                seats: rows({ 0: folded, 1: { stack: 0, bet: 1500, allIn: true }, 2: { stack: 1000 }, 3: { stack: 1490, bet: 10, ...folded }, 4: { stack: 1480, bet: 20, ...folded }, 5: folded })
+            },
+            { turn: 2 },
+            worn
+        );
+        const next = looked(
+            {
+                hand: 2,
+                button: 3,
+                turn: 1,
+                hole: [4, 17],
+                blinds: { small: 10, big: 20, level: 1, next: 9 },
+                seats: rows({ 0: { stack: 1500 }, 1: { stack: 500 }, 2: { stack: 2030 }, 3: { stack: 1490 }, 4: { stack: 1470, bet: 10 }, 5: { stack: 1480, bet: 20 } })
+            },
+            { rev: 8, turn: 1 },
+            worn
+        );
+        const { read } = await seated(shoved);
+
+        await read(next, heard(1, told(
+            8,
+            2,
+            { e: 'allin', seat: 2, amount: 1000 },
+            { e: 'board', street: 'flop', cards: [1, 15, 29] },
+            { e: 'board', street: 'turn', cards: [43] },
+            { e: 'board', street: 'river', cards: [8] },
+            { e: 'refund', seat: 1, amount: 500 },
+            { e: 'show', seat: 1, cards: [5, 18], category: 'pair' },
+            { e: 'show', seat: 2, cards: [7, 20], category: 'two-pair' },
+            { e: 'pot', amount: 2030, winners: [2] },
+            { e: 'end', hand: 1, dealt: EVERYBODY },
+            { e: 'deal', hand: 2, button: 3, small: 10, big: 20 },
+            { e: 'blind', seat: 4, amount: 10 },
+            { e: 'blind', seat: 5, amount: 20 }
+        )));
+        await elapse(LONG);
+
+        const back = discsIn(animate).filter((one) => one.style.left === '135px' && one.style.top === '615px');
+
+        expect(back.length, 'nothing went back to seat 1').toBeGreaterThan(0);
+        expect(back.map((one) => one.dataset.chips ?? null), 'the chips nobody called went back in another look').toEqual(back.map(() => 'jade'));
+    });
+
+    it('racks a stack that walks out off the felt in its seat\'s chips', async () =>
+    {
+        const animate = vi.spyOn(Element.prototype, 'animate');
+        const worn: Record<number, Look> = { 5: { chips: 'chips.gold' } };
+        const { read } = await seated(looked({}, {}, worn));
+
+        await read(looked({ seats: rows({ ...BLINDS, 5: { stack: 0, out: true } }) }, { rev: 8 }, worn), heard(1, told(8, 5, { e: 'forfeit', seat: 5, reason: 'left', place: 6 })));
+        await elapse(LONG);
+
+        const discs = discsIn(animate);
+
+        expect(discs.length, 'no stack was racked off').toBeGreaterThan(0);
+        expect(new Set(discs.map((one) => one.dataset.chips ?? null)), 'a stack walked off the felt in another look').toEqual(new Set(['gold']));
+    });
+});

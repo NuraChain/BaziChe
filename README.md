@@ -89,4 +89,15 @@ A production database holds nothing made up. The server writes the games, their 
 achievements on every start; every person, table, message and score is made by the people using
 it. The test accounts the project uses are written only in development.
 
+Once it runs:
+
+- `docs/operations/runbooks.md`: every alert the server raises, what it means and what to do, and
+  what to do when a server key leaks, a paid game is never paid, or the database goes;
+- `docs/operations/rollout.md`: updating without losing anything, rolling back, backups and
+  restoring;
+- `docs/operations/mainnet.md`: before real money, the steps that are the owner's (a key of the
+  server's own, the contracts' admin behind a multisig, the markets contract, an audit);
+- `docs/operations/compliance.md`: what the product enforces for paid play, markets, donations and
+  the shop, and the questions for a lawyer before any of it is opened anywhere.
+
 Licensed under the [MIT License](license).

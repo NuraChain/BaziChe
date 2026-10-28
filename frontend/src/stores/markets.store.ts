@@ -62,7 +62,10 @@ export interface Claiming
     hash: string | null;
     said: MessageKey | null;
 
-    /** Wei: what the claim paid, read off its receipt by the server. */
+    /**
+     * Wei: what the claim paid, read off its receipt by the server. None once it is done when the
+     * server learned of some of it from the contract alone, as when the wallet replaced the transaction.
+     */
     paid: string | null;
 }
 
@@ -436,7 +439,9 @@ export const useMarkets = createStore((): MarketsApi =>
 
         if (paid.every((one) => one.claimedAt !== undefined))
         {
-            set({ step: 'done', paid: paid.reduce((sum, one) => sum + BigInt(one.paid ?? '0'), 0n).toString() });
+            const read = paid.every((one) => one.paid !== undefined);
+
+            set({ step: 'done', paid: read ? paid.reduce((sum, one) => sum + BigInt(one.paid ?? '0'), 0n).toString() : null });
             return;
         }
 

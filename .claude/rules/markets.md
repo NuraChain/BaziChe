@@ -116,7 +116,13 @@ believes nothing it is told about the chain:
   whether the owner overturned it, which calls it off.
 - **A claim** sent from the bettor's wallet is read off its receipt (`claimsIn`, the contract's own
   `Claimed` events): what each position was paid. One that reverted is forgotten, so it can be
-  claimed again.
+  claimed again. One whose hash names nothing the node holds, mined or waiting (the wallet sped it
+  up or cancelled it under another hash, or dropped it), is given a minute for a transaction still
+  on its way to the node (`GONE_AFTER_MS`, kept in the worker's memory as the overturn's asking is,
+  so a restart starts it again), and then each of its positions is what the contract holds: claimed
+  by the transaction that took its place, written down as a claim this server never read (a stake
+  back at its stake, a winner with no amount: `PAID_UNSEEN`, the claim route's rule too), or
+  claimable again. Waited on for ever, it left the position "on its way" with no Claim offered.
 
 Every step rings the bettors and whoever is looking at the game's table on their `me` scope with
 `markets` (`hooks.changed`, coalesced by the hub per flush).
@@ -167,7 +173,9 @@ and the sheet each hold it and let go without taking it from the other), a posit
 donation is (one at a time, its hash handed in as a nudge, read again on the reader's `markets`
 ring and every three seconds until NuraChain holds it, refused it or it ran out), and a claim, whose
 hash is handed in until the server has it, since the server learns of a claim only from that
-hash, and which is then read until every position is claimed or two minutes have passed.
+hash, and which is then read until every position is claimed or two minutes have passed. A claim
+the server learned of from the contract alone is said done with no amount ("Claimed"), never as
+"Claimed 0 NURA".
 
 **The wallet page's Markets** (`LazyMarketPositions`, a chunk the page fetches once drawn) lists
 every position a page at a time with what it came to and when a winner may claim, and the claims

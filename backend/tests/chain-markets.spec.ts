@@ -89,6 +89,26 @@ const receipt = (status: '0x0' | '0x1', logs: unknown[] = []) => ({
     type: '0x0'
 });
 
+/** A transaction the node holds and has not mined. */
+const waiting = {
+    blockHash: null,
+    blockNumber: null,
+    from: BETTOR,
+    gas: '0x30000',
+    gasPrice: '0x3b9aca00',
+    hash: HASH,
+    input: '0x',
+    nonce: '0x2',
+    to: MARKETS,
+    transactionIndex: null,
+    value: '0x0',
+    type: '0x0',
+    chainId: '0x7a69',
+    v: '0x1b',
+    r: `0x${ '11'.repeat(32) }`,
+    s: `0x${ '22'.repeat(32) }`
+};
+
 const claimedLog = (address: Address, ticket: Hex, amount: bigint, index: number) => ({
     address,
     topics: encodeEventTopics({ abi: MARKETS_ABI, eventName: 'Claimed', args: { ticket, bettor: BETTOR } }),
@@ -232,10 +252,14 @@ describe('a claim', () =>
     it('is read off its receipt: what each of this contract\'s tickets was paid, and nothing another contract said', async () =>
     {
         let answer: unknown = null;
-        const { url } = await fakeChain(() => ({ result: answer }));
+        let held: unknown = null;
+        const { url } = await fakeChain((rpc: Rpc) => ({ result: rpc.method === 'eth_getTransactionByHash' ? held : answer }));
         const markets = marketsOn(url);
 
-        await expect(markets.claimsIn(HASH)).resolves.toBe('pending');
+        await expect(markets.claimsIn(HASH), 'a hash the node holds nothing under: replaced, dropped or never sent').resolves.toBe('unknown');
+
+        held = waiting;
+        await expect(markets.claimsIn(HASH), 'one the node holds and has not mined').resolves.toBe('pending');
 
         answer = receipt('0x0');
         await expect(markets.claimsIn(HASH)).resolves.toBe('reverted');

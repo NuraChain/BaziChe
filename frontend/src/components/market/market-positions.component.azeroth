@@ -61,7 +61,9 @@ export default component MarketPositions(props: { class?: string })
 
     derived stepWords = locale.t(claiming?.step === 'chain' ? 'market.step.chain' : claiming?.step === 'wallet' ? 'market.claim.wallet' : 'market.step.preparing');
 
-    derived doneWords = locale.t('market.claim.done', { amount: figure(BigInt(claiming?.paid ?? '0')) });
+    derived paid = claiming?.paid ?? null;
+
+    derived doneWords = paid === null ? locale.t('market.result.claimedNothing') : locale.t('market.claim.done', { amount: figure(BigInt(paid)) });
 
     derived failWords = locale.t(claiming?.said ?? 'common.actionFailed');
 

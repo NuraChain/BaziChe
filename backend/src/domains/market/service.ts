@@ -52,6 +52,12 @@ const UNSENT_EVERY_MS = 10_000;
 /** How often a settled market is asked whether the owner overturned it, until its dispute window has passed. */
 const OVERTURN_EVERY_MS = 30_000;
 
+/**
+ * How long a claim's hash may name nothing the node holds before the contract's own record decides
+ * what became of it: a transaction just sent can take a moment to reach the node this server reads.
+ */
+export const GONE_AFTER_MS = 60_000;
+
 const PAGE = 50;
 
 /** The most positions, claims and markets one pass of the worker looks at, each. */
@@ -69,6 +75,12 @@ const LEAST = nura(LEAST_STAKE_NURA);
 const LIVE = `(p.state = 'confirmed' or (p.state in ('prepared', 'sent') and p.deadline + ${ LAPSE } > now()))`;
 
 /** A position whose claim the contract would pay now: a winner's from the end of its dispute window, a stake back at once. */
+/**
+ * What a position claimed by a transaction this server never read paid: a stake back is its stake,
+ * and a winner's share depends on who claimed before it, so it is not worked out.
+ */
+const PAID_UNSEEN = `case when (select k.state from markets k where k.id = market_id) = 'settled' then null else amount end`;
+
 const CLAIMABLE = `p.state = 'confirmed' and p.claimed_at is null
     and ((k.state = 'settled' and p.outcome = k.outcome and k.claimable_at <= now()) or k.state in ('refunded', 'cancelled', 'expired'))`;
 
@@ -416,6 +428,9 @@ export function createMarketService(
 
     /** When each settled market was last asked whether it was overturned, in this process. */
     const overturnAskedAt = new Map<string, number>();
+
+    /** When each claim's hash was first found to name nothing the node holds, in this process. */
+    const goneSince = new Map<string, number>();
 
     /** Markets the chain was found to hold open while their games go on: asked about again once the game ends. */
     const heldOpen = new Set<string>();
@@ -961,6 +976,31 @@ export function createMarketService(
         return true;
     };
 
+    /**
+     * A claim whose hash names nothing the node holds: the wallet replaced it (sped up or cancelled)
+     * or dropped it. Each position is then what the contract holds: claimed, by the transaction that
+     * took its place, or claimable again. Answers how many it found claimed.
+     */
+    const settleGone = async (claim: { hash: string; ids: string[] }) =>
+    {
+        let claimed = 0;
+
+        for (const id of claim.ids)
+        {
+            const held = await chain.positionOf(marketIdOf(id));
+            const { affected } = await db.getRepository(MarketPosition)
+                .createQueryBuilder()
+                .update()
+                .set(held.claimed ? { claimedAt: () => 'now()', paid: () => PAID_UNSEEN } : { claimHash: null })
+                .where('id = :id and claim_hash = :hash and claimed_at is null', { id, hash: claim.hash })
+                .execute();
+
+            claimed += held.claimed && (affected ?? 0) > 0 ? 1 : 0;
+        }
+
+        return claimed;
+    };
+
     /** Claims sent from the reader's wallet, read off their receipts. */
     const sweepClaims = async (tally: MarketSweep, deadline: number) =>
     {
@@ -973,6 +1013,15 @@ export function createMarketService(
             .groupBy('p.claim_hash')
             .limit(SWEEP_MOST)
             .getRawMany<{ hash: string; ids: string[]; bettors: string[] }>();
+        const listed = new Set(claims.map((claim) => claim.hash));
+
+        for (const hash of goneSince.keys())
+        {
+            if (!listed.has(hash))
+            {
+                goneSince.delete(hash);
+            }
+        }
 
         for (const claim of claims)
         {
@@ -987,6 +1036,24 @@ export function createMarketService(
 
                 if (paid === 'pending')
                 {
+                    goneSince.delete(claim.hash);
+                    continue;
+                }
+
+                if (paid === 'unknown')
+                {
+                    const now = Date.now();
+                    const since = goneSince.get(claim.hash) ?? now;
+
+                    goneSince.set(claim.hash, since);
+
+                    if (now - since >= GONE_AFTER_MS)
+                    {
+                        tally.claimed += await settleGone(claim);
+                        goneSince.delete(claim.hash);
+                        ring(null, claim.bettors);
+                    }
+
                     continue;
                 }
 
@@ -1347,7 +1414,7 @@ export function createMarketService(
                         await db.getRepository(MarketPosition)
                             .createQueryBuilder()
                             .update()
-                            .set({ claimedAt: () => 'now()', paid: row.market_state === 'settled' ? null : row.amount })
+                            .set({ claimedAt: () => 'now()', paid: () => PAID_UNSEEN })
                             .where('id = :id and claimed_at is null', { id: row.id })
                             .execute();
                     }

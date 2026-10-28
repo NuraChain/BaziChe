@@ -506,6 +506,68 @@ async function main()
 
     ok('a lonely stake comes back', lonelyBack.received === 9n * WEI);
     ok('an overturned market gives every stake back', overturnBack.received === 12n * WEI);
+
+    console.log('\n[8] a claim the wallet replaced');
+
+    // Mining waits, so each claim lies in the node until the wallet sends another transaction at its
+    // nonce for more gas: the claim again (sped up), or nothing to itself (cancelled).
+    await node('evm_setIntervalMining', [0]);
+    await node('evm_setAutomine', [false]);
+
+    const gas = await reader.getGasPrice();
+    const replaceClaim = async (who, id, replacement) =>
+    {
+        const call = (await who.post('/markets/claims', { positions: [id] })).body;
+        const nonce = await reader.getTransactionCount({ address: who.address, blockTag: 'pending' });
+        const before = await balance(who.address);
+        const first = await who.wallet.sendTransaction({ to: call.to, data: call.data, value: BigInt(call.value), gasPrice: gas * 2n, nonce });
+
+        await who.post('/markets/claims/sent', { hash: first, positions: [id] });
+
+        // Its own gas: estimated against the waiting state, a second claim reverts AlreadyClaimed.
+        const second = await who.wallet.sendTransaction({ ...replacement(call), gasPrice: gas * 4n, gas: 300_000n, nonce });
+
+        return { first, second, before };
+    };
+
+    const spedUp = await replaceClaim(bo, earlyStakes[1].id, (call) => ({ to: call.to, data: call.data, value: BigInt(call.value) }));
+    const dropped = await replaceClaim(cy, overturnStakes[0].id, () => ({ to: cy.address, value: 0n }));
+
+    await node('evm_mine');
+    await node('evm_setAutomine', [true]);
+    await node('evm_setIntervalMining', [1000]);
+
+    const [spedReceipt, cancelReceipt] = await Promise.all([spedUp.second, dropped.second].map((hash) => reader.waitForTransactionReceipt({ hash })));
+    const firstGone = await Promise.all([spedUp.first, dropped.first].map((hash) => reader.getTransaction({ hash }).then(() => false, () => true)));
+
+    ok('the node holds nothing under either first hash once its replacement is mined', firstGone.every(Boolean) && spedReceipt.status === 'success' && cancelReceipt.status === 'success');
+
+    const waitingOn = await positionOf(bo, earlyStakes[1].id);
+
+    ok('a hash that names nothing is given time: the claim is still on its way at first', waitingOn?.claimHash === spedUp.first.toLowerCase() && waitingOn?.claimedAt === undefined);
+
+    const written = await until(100_000, async () =>
+    {
+        const now = await positionOf(bo, earlyStakes[1].id);
+
+        return now?.claimedAt === undefined ? null : now;
+    });
+    const spedGot = (await balance(bo.address)) - spedUp.before + spedReceipt.gasUsed * spedReceipt.effectiveGasPrice;
+
+    ok('a claim sped up is written down as claimed from what the contract holds, a stake back at its stake', written !== null && written.paid === (4n * WEI).toString() && spedGot === 4n * WEI, `${ written?.paid } ${ spedGot }`);
+
+    const freed = await until(30_000, async () =>
+    {
+        const now = await positionOf(cy, overturnStakes[0].id);
+
+        return now !== null && now !== undefined && now.claimHash === undefined && now.claimedAt === undefined ? now : null;
+    });
+
+    ok('a claim cancelled in the wallet is claimable again, since the contract paid nothing', freed !== null);
+
+    const again = await claim(cy, [overturnStakes[0].id]);
+
+    ok('and claimed again it pays the stake back', again.call.status === 200 && again.received === 8n * WEI, `${ again.received }`);
     ok('the contract still holds what it owes, and its books say so', await read('solvent'));
 }
 

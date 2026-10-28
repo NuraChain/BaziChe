@@ -364,6 +364,25 @@ describe('the market on a watched game', () =>
         expect(text(root, '[data-claim-step="done"]')).toBe('Claimed 7 NURA.');
     });
 
+    it('says a claim is done with no amount where the server could not read what it paid', async () =>
+    {
+        walletWith();
+        server.markets.view = { ...structuredClone(MARKET), state: 'settled', outcome: 1, claimableAt: '2026-10-28T11:59:00.000Z' };
+        server.markets.positions = [mine({ result: 'won', payout: (7n * NURA).toString(), claimableAt: '2026-10-28T11:59:00.000Z' })];
+        const { root } = await sheet();
+
+        button(root, 'Claim 7 NURA')?.click();
+        await settle();
+        await settle();
+        settleClaim(['position-9'], true, false);
+        clock.advance(SETTLE_MS);
+        await settle();
+        await settle();
+
+        expect(text(root, '[data-claim-step="done"]'), 'never "Claimed 0 NURA."').toBe('Claimed');
+        expect(root.querySelector('[data-yours]')?.textContent).toContain('Claimed');
+    });
+
     it('offers no claim before the dispute window has passed, and says when it may be made', async () =>
     {
         server.markets.view = { ...structuredClone(MARKET), state: 'settled', outcome: 1, claimableAt: '2026-10-28T12:05:00.000Z' };

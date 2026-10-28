@@ -220,7 +220,9 @@ export default component MarketSheet(props: OverlayProps & { match: string })
 
     derived claimStepWords = locale.t(claiming?.step === 'chain' ? 'market.step.chain' : claiming?.step === 'wallet' ? 'market.claim.wallet' : 'market.step.preparing');
 
-    derived claimDoneWords = locale.t('market.claim.done', { amount: figure(claiming?.paid ?? '0') });
+    derived claimPaid = claiming?.paid ?? null;
+
+    derived claimDoneWords = claimPaid === null ? locale.t('market.result.claimedNothing') : locale.t('market.claim.done', { amount: figure(claimPaid) });
 
     derived claimFailWords = locale.t(claiming?.said ?? 'common.actionFailed');
 

@@ -353,6 +353,24 @@ describe('the wallet page\'s markets', () =>
         expect(button(root, 'Claim 12 NURA')).toBeUndefined();
     });
 
+    it('says a claim is done with no amount where the server could not read what it paid', async () =>
+    {
+        walletWith();
+        server.markets.positions = [position('won', { result: 'won', payout: (7n * NURA).toString(), claimableAt: '2026-10-28T11:59:00.000Z' })];
+
+        const root = await positions();
+
+        button(root, 'Claim 7 NURA')?.click();
+        await settle();
+        await settle();
+        settleClaim(['won'], true, false);
+        clock.advance(SETTLE_MS);
+        await settle();
+        await settle();
+
+        expect(root.querySelector('[data-claim-step="done"]')?.textContent, 'never "Claimed 0 NURA."').toBe('Claimed');
+    });
+
     it('offers a claim for each wallet that placed something, to that wallet', async () =>
     {
         server.markets.positions = [

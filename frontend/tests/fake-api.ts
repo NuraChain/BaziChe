@@ -833,8 +833,12 @@ export function settlePosition(id: string, state: 'confirmed' | 'reverted' | 'ex
     }
 }
 
-/** The claim of these positions read off its receipt, as the server's worker would: each paid what it owed, or nothing for a claim that reverted. */
-export function settleClaim(ids: readonly string[], paid: boolean)
+/**
+ * The claim of these positions read off its receipt, as the server's worker would: each paid what it
+ * owed, or nothing for a claim that reverted. `read` false is a claim the server only learned of from
+ * the contract (the wallet replaced its transaction), so what a winner was paid is not known.
+ */
+export function settleClaim(ids: readonly string[], paid: boolean, read = true)
 {
     for (const id of ids)
     {
@@ -845,7 +849,16 @@ export function settleClaim(ids: readonly string[], paid: boolean)
         if (paid)
         {
             position.claimedAt = '2026-10-28T12:10:00.000Z';
-            position.paid = position.payout ?? position.amount;
+
+            if (read)
+            {
+                position.paid = position.payout ?? position.amount;
+            }
+            else
+            {
+                delete position.paid;
+            }
+
             delete position.payout;
         }
     }

@@ -1,5 +1,6 @@
 import {
     BaseError,
+    TransactionNotFoundError,
     TransactionReceiptNotFoundError,
     createWalletClient,
     decodeErrorResult,
@@ -162,8 +163,12 @@ export type MarketsAsked = { ok: true; call: MarketsCall } | { ok: false; error:
 /** A transaction this server sent with the operator's key, or the word the contract refused it with first. */
 export type MarketsSent = { ok: true; hash: Hex } | { ok: false; error: string };
 
-/** What a bettor's claim paid each of its positions, once it is mined: none for one the chain refused. */
-export type Claims = 'pending' | 'reverted' | { ticket: Hex; amount: bigint }[];
+/**
+ * What a bettor's claim paid each of its positions, once it is mined: none for one the chain refused.
+ * `unknown` is a hash the node holds no transaction under, mined or waiting: one the wallet replaced
+ * (sped up or cancelled), one it dropped, or one that was never sent.
+ */
+export type Claims = 'pending' | 'unknown' | 'reverted' | { ticket: Hex; amount: bigint }[];
 
 export interface MarketsSettings
 {
@@ -370,6 +375,25 @@ export function createMarketsChain(settings: MarketsSettings): MarketsChain
     const read = <T>(functionName: string, args: readonly unknown[] = []) =>
         reader().readContract({ address: ready().markets, abi: MARKETS_ABI, functionName, args } as never) as Promise<T>;
 
+    /** Whether the node holds any transaction under this hash: asked once it has no receipt for it, so one still waiting. */
+    const waiting = async (hash: Hex) =>
+    {
+        try
+        {
+            await reader().getTransaction({ hash });
+            return true;
+        }
+        catch (error)
+        {
+            if (error instanceof BaseError && error.walk((cause) => cause instanceof TransactionNotFoundError) !== null)
+            {
+                return false;
+            }
+
+            return await reached(Promise.reject(error));
+        }
+    };
+
     return {
         configured,
         address: markets,
@@ -445,7 +469,7 @@ export function createMarketsChain(settings: MarketsSettings): MarketsChain
             {
                 if (error instanceof BaseError && error.walk((cause) => cause instanceof TransactionReceiptNotFoundError) !== null)
                 {
-                    return 'pending';
+                    return await waiting(hash) ? 'pending' : 'unknown';
                 }
 
                 return await reached(Promise.reject(error));

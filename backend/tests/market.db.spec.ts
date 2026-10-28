@@ -2,7 +2,7 @@ import 'reflect-metadata';
 
 import { randomUUID } from 'node:crypto';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataSource } from 'typeorm';
 import { decodeFunctionData, getAddress, toHex, type Hex } from 'viem';
 
@@ -10,6 +10,7 @@ import { MARKETS_ABI, marketIdOf, termsHashOf } from '../src/chain/markets.ts';
 import { Market, MarketDisclosure, MarketPosition, PaidAccount, Table, User, Wallet, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
+import { GONE_AFTER_MS } from '../src/domains/market/service.ts';
 import { buildPorts, type Services, type WriteListener } from '../src/services.ts';
 import { FAKE_MARKETS, fakeMarkets } from './fake-markets.ts';
 
@@ -816,6 +817,70 @@ describe.skipIf(!active)('markets, against a real database', () =>
 
             expect(await positionRow(mine)).toMatchObject({ claimHash: null, claimedAt: null });
             expect((await ports.markets.claim(watcher.id, [mine])).to, 'a stake back is claimable at once').toBe(FAKE_MARKETS);
+        });
+
+        /** A stake back on a market called off, its claim handed in under a hash the node holds nothing under. */
+        const claimGone = async () =>
+        {
+            const { ports, fake, market, game, watcher, guest } = await watched();
+            const mine = (await ports.markets.place(watcher.id, DE, market.id, { outcome: 0, amount: (10n * NURA).toString() })).position.id;
+            const ticket = fake.placed.at(-1)!.ticket;
+
+            fake.take(ticket);
+            await sweep(ports);
+            await ports.match.resign(guest.id, game.matchId, { key: randomUUID() });
+            await sweep(ports);
+            fake.resolve(marketIdOf(market.id), 'cancelled');
+            await sweep(ports);
+
+            const hash: Hex = `0x${ '34'.repeat(32) }`;
+
+            await ports.markets.claimSent(watcher.id, hash, [mine]);
+            fake.claims.set(hash, 'unknown');
+            await sweep(ports);
+
+            expect(await positionRow(mine), 'a transaction just sent may not have reached the node yet').toMatchObject({ claimHash: hash, claimedAt: null });
+
+            return { ports, fake, watcher, mine, ticket };
+        };
+
+        /** One sweep a minute on, by this process's clock. */
+        const minuteOn = async (ports: Services) =>
+        {
+            const later = Date.now() + GONE_AFTER_MS;
+            const clock = vi.spyOn(Date, 'now').mockReturnValue(later);
+
+            try
+            {
+                await sweep(ports);
+            }
+            finally
+            {
+                clock.mockRestore();
+            }
+        };
+
+        it('lets a claim be made again once its hash has named nothing the node holds for a minute and the contract says it was not claimed', async () =>
+        {
+            const { ports, watcher, mine } = await claimGone();
+
+            await minuteOn(ports);
+
+            expect(await positionRow(mine), 'the wallet cancelled it or dropped it').toMatchObject({ claimHash: null, claimedAt: null });
+            expect((await ports.markets.claim(watcher.id, [mine])).to).toBe(FAKE_MARKETS);
+        });
+
+        it('writes down a claim whose hash names nothing the node holds as claimed when the contract says the transaction that took its place claimed it', async () =>
+        {
+            const { ports, fake, mine, ticket } = await claimGone();
+
+            fake.positions.set(ticket.id, { bettor: ticket.bettor, outcome: 0, amount: ticket.amount, claimed: true });
+            await minuteOn(ports);
+
+            const row = await positionRow(mine);
+
+            expect(row, 'sped up in the wallet: a stake back is the stake').toMatchObject({ paid: (10n * NURA).toString() });
+            expect(row.claimedAt).not.toBeNull();
         });
 
         it('writes down a position claimed by a call this server never saw, with what it paid only where that is known', async () =>

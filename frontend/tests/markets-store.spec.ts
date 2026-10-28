@@ -502,6 +502,21 @@ describe('a claim', () =>
         expect(useMarkets().claiming()).toMatchObject({ step: 'done', paid: (7n * NURA).toString() });
     });
 
+    it('says nothing of an amount the server could not read off the claim, as when the wallet replaced its transaction', async () =>
+    {
+        await signIn(walletAt(OWNER));
+        server.markets.positions = [won('position-9'), won('position-8', { result: 'refund', payout: FIVE })];
+
+        const claiming = useMarkets().claim(['position-9', 'position-8']);
+        await settle();
+        await settle();
+        settleClaim(['position-9', 'position-8'], true, false);
+        await tick();
+        await claiming;
+
+        expect(useMarkets().claiming()).toMatchObject({ step: 'done', paid: null });
+    });
+
     it('hands the hash in again when the server could not be told the first time', async () =>
     {
         await signIn(walletAt(OWNER));

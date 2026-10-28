@@ -1170,7 +1170,7 @@ confirmed.
 
 **`tools/qa/market-pass.mjs` backs games with NURA over the api of the built server and a local
 chain**: `QA_BASE=http://localhost:5300 QA_MARKETS=<the markets contract> node
-tools/qa/market-pass.mjs`, about four minutes, 47 checks. It wants a NEW hardhat node for every run
+tools/qa/market-pass.mjs`, about five minutes, 52 checks. It wants a NEW hardhat node for every run
 (`npx hardhat node --port 8645` in the SmartContract project): hardhat gives every block a second of
 its own, so the transactions of a few runs put its clock minutes ahead of this machine's, and a
 market's ninety seconds then closed on the chain before they opened here (`MarketClosed` on the
@@ -1195,8 +1195,13 @@ called off on the chain; the close; the settled game settled on what happened, i
 chain's; one bettor alone refunded; a market settled and overturned by the owner in its window,
 which the server hears; a winner refused before the window ends and a loser refused; a stake back
 claimed at once, to the wei; every winner paid their share, read off the claim's receipt, the last
-the exact remainder and the whole pool to the wei; a claimed position not claimable again; and the
-contract solvent.
+the exact remainder and the whole pool to the wei; a claimed position not claimable again; then two
+claims left lying in the node with mining stopped and replaced at their nonce for more gas, one by
+the same claim (sped up) and one by nothing sent to the wallet itself (cancelled): the node holds
+nothing under either first hash, the server keeps each on its way at first, then writes the first
+claimed from what the contract holds (the stake back, and the wallet holds it) and lets the second
+be claimed again, which pays; and the contract solvent. The minute the server gives a vanished hash
+is most of the extra minute this part takes.
 
 **Its first run found a fault of the server's**: a quiet chain was read as a clock minutes behind,
 and every market whose game ended after its close was called off (`cde64091`, `BEHIND_MOST_MS`).

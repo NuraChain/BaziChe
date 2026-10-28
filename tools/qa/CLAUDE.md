@@ -1110,6 +1110,36 @@ the wallet's balance before it composes one now, whatever the node does with suc
 never named, no balance read), with the file put back from a saved copy: 8 of 37 failed, the six
 lines about the inviter, the gift's line and the wallet's that could not pay.
 
+## The shop play pass
+
+**`tools/qa/shop-play-pass.mjs` is the shop in two real browsers**: `QA_BASE=http://localhost:5300
+QA_SHOP=<the shop> node tools/qa/shop-play-pass.mjs`, about a minute and a half, 24 checks, against the
+server and the node `shop-pass.mjs` wants (`QA_RPC`, `http://127.0.0.1:8645`). Each player is a wallet
+made for the run, given NURA by `hardhat_setBalance` and put in its page as an EIP-1193 provider, as
+`paid-play-pass.mjs` does: it answers with the account and the chain, sends the purchase to the node,
+passes every read through, and keeps what it was asked to send. The buyer is a desk in English and the
+other player a phone in Persian.
+
+- The shop is open and the buyer may buy; the other player wears nothing.
+- Twice, for Storm's pawns and Gold's frame: the look's sheet (`/app/shop?item=`) offers it at the
+  price the shop lists, Buy asks the wallet for exactly one transaction, to the shop, carrying that
+  price, the sheet says it is theirs (1.3 and 2.8 s after the press on this machine), the shop holds
+  the sale to that buyer at that price (`saleOf`, the order read off the call the wallet was asked to
+  send), and Use it puts it on.
+- A game of Ludo for the two, found by quick play over the api: the game carries the buyer's pawns on
+  their seat (`matchPlayer.look`) and nothing on the other's; in both browsers the buyer's four pawns
+  are drawn in Storm and the other four Classic (by each pawn's picture); on the phone the buyer's
+  plate wears the Gold frame and nobody else's wears one; and the buyer's pawns put back to Classic in
+  the middle of the game change nothing on the board until the next game.
+- Neither console says anything, and nothing either page asked for was refused.
+
+**Proved red** against the compiled server broken two ways, put back from saved copies: a game that
+copies no player's looks at its start (`looksAt`), and a frame read as nothing wherever a person is
+read (`chosenIn`). 5 of 24 failed: the game's look, the pawns in both browsers, the look taken off
+during the game, and the plate's frame. A first red run broke only the list and profile columns and
+left the frame on the plate: a person read by handle builds its frame with `chosenIn` itself, which is
+why the fault sits there.
+
 ## The donate pass
 
 **`tools/qa/donate-pass.mjs` gives NURA to a player over the api of the built server and a local

@@ -68,6 +68,15 @@ describe('what watches the server', () =>
         expect(sampling).toMatch(/^sampling = setTimeout\(sample, SAMPLE_MS\);\nsampling\.unref\(\);$/m);
     });
 
+    it('answers a monitor outside from the last wrapper round the app, inside the rate limits, with the token the operator names', () =>
+    {
+        const handler = between('const handler = pipeline(', '\n);');
+        const served = 'metricsAt(config.metricsToken, () => monitor.metrics())';
+
+        expect(handler.trimEnd().endsWith(served)).toBe(true);
+        expect(handler.indexOf(served)).toBeGreaterThan(handler.indexOf('signInRateLimit('));
+    });
+
     it('is stopped on the way down, before the sockets are let go', () =>
     {
         expect(shutdown).toMatch(/if \(sampling !== null\)\s+\{\s+clearTimeout\(sampling\);\s+sampling = null;/);

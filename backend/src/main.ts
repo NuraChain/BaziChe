@@ -18,6 +18,7 @@ import { syncSchema } from './db/schema.ts';
 import { loadServerConfig } from './env.ts';
 import { gzipOnTheWay, precompressed } from './http/compression.ts';
 import { headersFor } from './http/headers.ts';
+import { metricsAt } from './http/metrics.ts';
 import { createOps } from './http/ops.ts';
 import { SAMPLE_MS } from './ops/measures.ts';
 import { createMonitor } from './ops/monitor.ts';
@@ -227,7 +228,10 @@ const handler = pipeline(
     // Scoped to /api and /ws. Wrapping the whole handler would meter the forty static assets a
     // cold page load pulls, and a visitor would start taking 429s on their own JavaScript.
     apiRateLimit({ limit: config.apiRateMax, trustProxy: config.env === 'production' }),
-    signInRateLimit({ apiLimit: config.apiRateMax, trustProxy: config.env === 'production' })
+    signInRateLimit({ apiLimit: config.apiRateMax, trustProxy: config.env === 'production' }),
+
+    // Inside the limiters, so a guess at the token is metered like any other request.
+    metricsAt(config.metricsToken, () => monitor.metrics())
 );
 
 const served = await serve(handler, { port: config.port, hostname: config.host });

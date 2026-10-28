@@ -8,7 +8,7 @@ const NAMES = [
     'NURA_RPC_URL', 'NURA_PROFILE_ADDRESS', 'NURA_PROFILE_LENS_ADDRESS', 'NURA_EXPLORER_API', 'ADMIN_WALLET_ADDRESS',
     'API_RATE_MAX', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT',
     'NURA_VAULT_ADDRESS', 'NURA_REFEREE_KEY', 'NURA_SHOP_ADDRESS', 'NURA_TIPS_ADDRESS',
-    'NURA_MARKETS_ADDRESS', 'MARKET_REGIONS', 'MARKET_COUNTRY_HEADER'
+    'NURA_MARKETS_ADDRESS', 'MARKET_REGIONS', 'MARKET_COUNTRY_HEADER', 'METRICS_TOKEN'
 ];
 
 const NEEDED: Record<string, string> = {
@@ -202,6 +202,25 @@ describe('the environment the server boots from', () =>
         use({ ...NEEDED, SESSION_SECRET: '' });
 
         expect(refusal()).toMatch(/SESSION_SECRET is required/);
+    });
+
+    it('serves the metrics only behind a token as long as a session secret, written empty to leave them off, in either mode', () =>
+    {
+        use({ ...NEEDED, METRICS_TOKEN: 't'.repeat(32) });
+        expect(loadServerConfig().metricsToken).toBe('t'.repeat(32));
+
+        use(NEEDED);
+        expect(loadServerConfig().metricsToken, 'written empty, the endpoint is off').toBe('');
+
+        for (const mode of ['production', 'development'])
+        {
+            use({ ...NEEDED, METRICS_TOKEN: 'short-token-of-31-characters-xx', NODE_ENV: mode, PUBLIC_ORIGIN: 'http://localhost:4900' });
+
+            const said = refusal();
+
+            expect(said, mode).toMatch(/METRICS_TOKEN is 31 characters long, and needs at least 32/);
+            expect(said, 'the token itself is never said').not.toContain('short-token');
+        }
     });
 });
 

@@ -69,6 +69,12 @@ database says so in its log.
    nginx's GeoIP2 module it is a line such as `proxy_set_header X-Country-Code $geoip2_country_code;`.
    With the three names written empty, nobody is offered a market.
 
+   The server watches itself and says in its log when something crosses a line a person should
+   act on: one `alert raised` line at warn or error, and one `alert cleared` line when it is over.
+   To watch it from outside as well, point Prometheus, or anything that reads its text format, at
+   `GET /api/metrics` with `Authorization: Bearer` and the token written in `METRICS_TOKEN` (32
+   characters or more); with the name written empty the endpoint is off.
+
 To update: `git pull`, `npm ci`, `npm run build`, `pg_dump` the database, `npm run schema:sync`,
 then restart the server.
 

@@ -10,7 +10,9 @@ paths:
   - "tools/qa/reconcile-pass.mjs"
   - "backend/src/ops/**"
   - "backend/src/http/ops.ts"
+  - "backend/src/http/metrics.ts"
   - "backend/tests/ops*.ts"
+  - "backend/tests/metrics.spec.ts"
 ---
 
 # Operations: the database and NuraChain checked against each other, and the server watched
@@ -214,6 +216,16 @@ still holds. A sample that cannot read the database still judges what is held, a
 logged (`monitor sample failed`). Samples are one at a time, on a timer that never holds the process
 open, stopped on the way down before the sockets are let go.
 
+**A monitor outside reads it at `GET /api/metrics`** (`metricsAt` in `http/metrics.ts`, the last
+wrapper `main.ts` puts round the app, inside the rate limiters): every measure in the Prometheus text
+format, 0.0.4 (`ops/prometheus.ts`), gauges for what is now, counters since the process began and one
+series a standing alert, to a GET that carries `Authorization: Bearer` and `METRICS_TOKEN`, compared
+in constant time over digests. It stands in front of the router rather than in it, so a request
+without the token is handed on and answered exactly as an address nothing is served at, and nobody
+can tell whether the endpoint is on. Written empty, the token turns it off; written, it is at least 32
+characters in any mode (`metricsRefused` in `env.ts`). It reads the monitor's memory and the latest
+sample and never the database, so a scrape costs one request.
+
 `ops-measures.spec.ts` holds every alert at its threshold and the families and close codes;
 `ops-rings.spec.ts` the rings; `ops-monitor.spec.ts` the alerts raised and cleared once, the ceiling
 counted, a worker failing, the chain out of reach, the money's alerts from a sample, a sample that
@@ -221,4 +233,6 @@ fails, spectator delivery, what the monitor shows and the Prometheus text; `ops.
 requests by family; `realtime-hub.spec.ts` a watch frame timed as it leaves and the outboxes;
 `realtime.socket.spec.ts` the gateway's hooks over a real socket; `reconcile.db.spec.ts` (*the
 queues the monitor reads*, and *calm* for `reached`) the sample against a real database;
-`ops-sweep.spec.ts` the monitor's place in `main.ts`.
+`metrics.spec.ts` the endpoint, each caller without the token answered byte for byte as a server
+with no endpoint at all; `env.spec.ts` the token; `ops-sweep.spec.ts` the monitor's place in
+`main.ts`, the endpoint's among the wrappers included.

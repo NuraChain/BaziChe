@@ -66,6 +66,12 @@ export function marketsRefused(address: string, regions: string, header: string)
     ];
 }
 
+/** What is wrong with the metrics token, in any mode: written, it is at least as long as a session secret, because it is one. */
+export const metricsRefused = (token: string) =>
+    (token === '' || token.length >= SECRET_LEAST
+        ? []
+        : [`METRICS_TOKEN is ${ token.length } characters long, and needs at least ${ SECRET_LEAST }, such as the output of 'openssl rand -hex 32', or written empty to leave /api/metrics off.`]);
+
 export function unsafeForProduction(secret: string, origin: string)
 {
     const refused: string[] = [];
@@ -180,7 +186,13 @@ export function loadServerConfig()
              */
             vapidPublicKey: optional('VAPID_PUBLIC_KEY'),
             vapidPrivateKey: optional('VAPID_PRIVATE_KEY', { secret: true }),
-            vapidSubject: optional('VAPID_SUBJECT')
+            vapidSubject: optional('VAPID_SUBJECT'),
+
+            /**
+             * The bearer token a monitor outside sends for `GET /api/metrics`. Written empty, the
+             * endpoint is off, and nobody can tell it from an address nothing is served at.
+             */
+            metricsToken: optional('METRICS_TOKEN', { secret: true })
     };
 
     const missing = unwritten(shape);
@@ -202,11 +214,11 @@ export function loadServerConfig()
         throw new Error(`Configuration is invalid:\n${ missing.join('\n') }\nSet them in the root .env: .env.example says what each one is.`);
     }
 
-    const markets = marketsRefused(config.marketsAddress, config.marketRegions, config.marketCountryHeader);
+    const invalid = [...marketsRefused(config.marketsAddress, config.marketRegions, config.marketCountryHeader), ...metricsRefused(config.metricsToken)];
 
-    if (markets.length > 0)
+    if (invalid.length > 0)
     {
-        throw new Error(`Configuration is invalid: ${ markets.join(' ') }`);
+        throw new Error(`Configuration is invalid: ${ invalid.join(' ') }`);
     }
 
     if (env === 'production')

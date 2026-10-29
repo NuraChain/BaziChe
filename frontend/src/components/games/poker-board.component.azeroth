@@ -302,6 +302,18 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         const middle = [...cloth.querySelectorAll('.poker-centre > *, .poker-last > summary')].flatMap(reach);
         const touches = (one: Box, two: Box) => one.left < two.right - ROUND && two.left < one.right - ROUND && one.top < two.bottom - ROUND && two.top < one.bottom - ROUND;
 
+        for (const backs of cloth.querySelectorAll<HTMLElement>('.poker-seat > .poker-backs:not(.poker-shown)'))
+        {
+            delete backs.dataset.crowded;
+
+            const [box] = solid(backs);
+
+            if (box !== undefined && middle.some((one) => touches(box, one)))
+            {
+                backs.dataset.crowded = 'true';
+            }
+        }
+
         for (const hand of cloth.querySelectorAll<HTMLElement>('.poker-seat > .poker-shown'))
         {
             delete hand.dataset.tight;

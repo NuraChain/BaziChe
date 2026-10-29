@@ -954,6 +954,57 @@ describe('a table of the shape its room gives it', () =>
 
         await vi.waitFor(() => expect(bet.dataset.placed).toBe('true'));
     });
+
+    it('leaves out the backs of a seat that would lie on the middle of the table, and lays them again once there is room', async () =>
+    {
+        const boxes = watchedBoxes();
+        const box = (left: number, top: number, width: number, height: number) => ({ x: left, y: top, left, top, right: left + width, bottom: top + height, width, height, toJSON: () => ({}) }) as DOMRect;
+        let crowding = true;
+
+        vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element)
+        {
+            const seat = Number(this.closest('.poker-seat')?.getAttribute('data-seat') ?? -1);
+
+            if (this.classList.contains('poker-table'))
+            {
+                return box(0, 0, 340, 260);
+            }
+
+            if (this.classList.contains('poker-tally'))
+            {
+                return box(80, 140, 189, 22);
+            }
+
+            if (this.classList.contains('poker-backs'))
+            {
+                return seat === 3 && crowding ? box(59, 141, 23, 20) : box(20 + seat * 30, 20, 23, 20);
+            }
+
+            return box(0, 0, 0, 0);
+        });
+
+        try
+        {
+            const { container } = renderTest(() => PokerBoard({ events: NO_EVENTS, match: match({}, 0, 9) }) as Rendered);
+            const stage = container.querySelector('.poker-stage')!;
+            const backs = (seat: number) => container.querySelector<HTMLElement>(`.poker-seat[data-seat="${ seat }"] > .poker-backs`);
+
+            boxes.size(stage, 340, 260);
+
+            await vi.waitFor(() => expect(backs(3)?.dataset.crowded, 'cards that would lie on the pot’s line were laid there').toBe('true'));
+
+            expect(backs(5)?.dataset.crowded, 'cards with room of their own were left out').toBeUndefined();
+
+            crowding = false;
+            boxes.size(stage, 360, 260);
+
+            await vi.waitFor(() => expect(backs(3)?.dataset.crowded, 'cards that have room again were still left out').toBeUndefined());
+        }
+        finally
+        {
+            vi.unstubAllGlobals();
+        }
+    });
 });
 
 describe('a bet in front of its seat', () =>

@@ -255,6 +255,30 @@ describe('a hand of poker that ends in front of the table', () =>
         expect([hand(1)?.dataset.tight, hand(2)?.dataset.tight], 'a hand with room for its full size was drawn small, or one that has room again stayed small').toEqual([undefined, undefined]);
     });
 
+    it('draws a shown hand that would lie on the middle of the table small, and never leaves it out as it leaves out backs', async () =>
+    {
+        const boxes = places();
+        const usual = boxes.getMockImplementation() as (this: Element) => DOMRect;
+        const middle = { x: 150, y: 400, left: 150, top: 400, right: 190, bottom: 428, width: 40, height: 28, toJSON: () => ({}) } as DOMRect;
+
+        boxes.mockImplementation(function (this: Element)
+        {
+            return this.classList.contains('poker-tally') || (this.classList.contains('poker-shown') && this.closest('.poker-seat')?.getAttribute('data-seat') === '1')
+                ? middle
+                : usual.call(this);
+        });
+
+        const { container, read } = await seated(river());
+        const hand = () => container.querySelector<HTMLElement>('.poker-seat[data-seat="1"] .poker-shown');
+
+        await read(second(1), tabled([2]));
+        await elapse(CALLED + GATHERED);
+        await until(() => shownAt(container, 1).length === 2);
+
+        expect(hand()?.dataset.tight, 'a hand that would lie on the pot’s line was drawn at its full size').toBe('true');
+        expect(hand()?.dataset.crowded, 'a hand that is shown was left out, as backs with no room are').toBeUndefined();
+    });
+
     it('holds a showdown for the table to read before the pot is pushed', async () =>
     {
         const { container, read } = await seated(river());

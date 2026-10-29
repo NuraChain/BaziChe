@@ -181,6 +181,11 @@ describe('what lies on a poker table', () =>
         expect(ruleOf('.poker-shown[data-tight] > .poker-face + .poker-face'), 'a hand with no room is wider than the backs it was').toContain(`margin-inline-start: calc(var(--back-w) * -${ overlap });`);
     });
 
+    it('leaves out the backs the board marks as lying on the middle of the table', () =>
+    {
+        expect(ruleOf('.poker-backs[data-crowded]')).toContain('display: none;');
+    });
+
     it('names a hand that is shown in a pill of its own, laid where a bet would be until it is seated, and gold when it has won', () =>
     {
         const name = ruleOf('.poker-named');

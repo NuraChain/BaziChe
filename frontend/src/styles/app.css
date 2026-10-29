@@ -3845,6 +3845,15 @@ svg.lobby-board
     rotate: 6deg;
 }
 
+/*
+ * A seat's backs that would lie on the middle of the table, which the board measures (`seatChips`),
+ * are left out, as the smallest tables leave every seat's out: its plate still says whether it folded.
+ */
+.poker-backs[data-crowded]
+{
+    display: none;
+}
+
 .poker-shown
 {
     --card-w: var(--shown-w);

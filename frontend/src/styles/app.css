@@ -2296,17 +2296,25 @@ svg.lobby-board
     display: none;
 }
 
-@container (min-aspect-ratio: 1 / 1) and (min-width: 32rem)
+/*
+ * A side plate takes what the trick leaves it. 46.5cqw - 27.2cqh - 0.5rem is the widest that leaves
+ * a trick card 16% of the table's height, from `--trick-w`'s third term; it is under 8.5rem only on a
+ * table near square, where a plate a full 8.5rem wide would leave the trick 13% of it. A table too
+ * near square for a plate of 6.6rem (its face, its name and its facts) beside that trick keeps the
+ * compact plates.
+ */
+@container ((min-aspect-ratio: 9 / 8) and (min-width: 32rem)) or ((min-aspect-ratio: 1 / 1) and (min-width: 37rem))
 {
     .hokm-table > *
     {
         --side-w: 5.75rem;
-        --side-room: calc(3.5cqw + 8.5rem);
+        --side-most: min(8.5rem, 46.5cqw - 27.2cqh - 0.5rem);
+        --side-room: calc(3.5cqw + var(--side-most));
     }
 
     .hokm-seat:is([data-side='left'], [data-side='right'])
     {
-        max-inline-size: 8.5rem;
+        max-inline-size: var(--side-most);
     }
 
     .hokm-seat:is([data-side='left'], [data-side='right']) .table-plate
@@ -2346,7 +2354,7 @@ svg.lobby-board
     .hokm-seat:is([data-side='left'], [data-side='right']) .hokm-pile
     {
         display: block;
-        max-inline-size: 8.5rem;
+        max-inline-size: var(--side-most);
     }
 }
 
@@ -2926,7 +2934,7 @@ svg.lobby-board
     translate: 0 0;
 }
 
-@container (min-aspect-ratio: 1 / 1) and (min-width: 32rem)
+@container ((min-aspect-ratio: 9 / 8) and (min-width: 32rem)) or ((min-aspect-ratio: 1 / 1) and (min-width: 37rem))
 {
     .hokm-seat:is([data-side='left'], [data-side='right']) > .hokm-clock
     {

@@ -95,6 +95,38 @@ describe('the table a hokm game is played on', () =>
         expect(Number(trick?.[2]), 'a played card is under 15% of the table\'s shorter side').toBeGreaterThanOrEqual(15);
         expect(Number(trick?.[3]) * 16, 'the cap on a played card stops it growing on a table a desktop draws').toBeGreaterThanOrEqual(0.15 * 900);
     });
+
+    it('leaves a played card 15% of the table wherever it draws its side plates wide, and each of those plates room for a face, a name and its facts', () =>
+    {
+        const share = Number(/--trick-w: min\(clamp\([\d.]+rem, ([\d.]+)cqmin,/.exec(sheet)?.[1]) / 100;
+        const across = Number(/\(100cqw - 2 \* var\(--side-room\) - 4 \* var\(--trick-gap\)\) \/ ([\d.]+)\)/.exec(sheet)?.[1]);
+        const gap = Number(/--trick-gap: (\d+)px;/.exec(sheet)?.[1]);
+        const [most, wide, high, less] = (/--side-most: min\(([\d.]+)rem, ([\d.]+)cqw - ([\d.]+)cqh - ([\d.]+)rem\);/.exec(sheet) ?? []).slice(1).map(Number);
+        const margin = Number(/--side-room: calc\(([\d.]+)cqw \+ var\(--side-most\)\);/.exec(sheet)?.[1]) / 100;
+        const [over, under, first, square] = (/@container \(\(min-aspect-ratio: (\d+) \/ (\d+)\) and \(min-width: ([\d.]+)rem\)\) or \(\(min-aspect-ratio: 1 \/ 1\) and \(min-width: ([\d.]+)rem\)\)/.exec(sheet) ?? []).slice(1).map(Number);
+        const drawnWide = (width: number, height: number) => (width / height >= over / under && width >= first * 16) || (width >= height && width >= square * 16);
+        const tables = Array.from({ length: 120 }, (_, step) => 480 + step * 8).flatMap((width) => [1, 1.05, 1.1, 1.15, 1.2, 1.3, 1.5, 2, 2.5].map((aspect) => [width, width / aspect]));
+        const wides = tables.filter(([width, height]) => drawnWide(width, height));
+
+        expect(wides.length, 'no table of these shapes draws its side plates wide').toBeGreaterThan(100);
+
+        for (const [width, height] of wides)
+        {
+            const plate = Math.min(most * 16, wide / 100 * width - high / 100 * height - less * 16);
+            const card = Math.min(share * height, (width - 2 * (margin * width + plate) - 4 * gap) / across);
+
+            expect(card, `a played card on a table ${ width }x${ Math.round(height) } with its side plates wide`).toBeGreaterThanOrEqual(0.15 * height);
+            expect(plate, `a side plate on a table ${ width }x${ Math.round(height) }`).toBeGreaterThanOrEqual(6.6 * 16);
+        }
+
+        expect(drawnWide(545, 478), 'the table a 1024x768 screen draws beside the chat keeps its names').toBe(true);
+        expect(drawnWide(512, 512), 'a square table too narrow for a wide plate beside the trick draws them wide').toBe(false);
+
+        const condition = /@container \(\(min-aspect-ratio: \d+ \/ \d+\) and \(min-width: [\d.]+rem\)\) or \(\(min-aspect-ratio: 1 \/ 1\) and \(min-width: [\d.]+rem\)\)\n/.exec(sheet)?.[0] ?? '';
+
+        expect(sheet.split(condition).length - 1, 'a side seat\'s clock is placed for plates of one width beside plates of another').toBe(2);
+        expect(sheet, 'a side pile is wider than the plate it lies under').toMatch(/\.hokm-pile\n    \{\n        display: block;\n        max-inline-size: var\(--side-most\);/);
+    });
 });
 
 describe('the hand a hokm reader holds', () =>

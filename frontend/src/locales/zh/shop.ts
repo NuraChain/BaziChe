@@ -83,6 +83,7 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.inUseAt': '在{game}中使用中',
     'shop.classic': '经典',
     'shop.nextGame': '从你在那里的下一局开始',
+    'shop.useNext': '从你的下一局开始显示。正在进行的对局会保留开局时的外观。',
     'shop.may.wallet': '外观需要用钱包里的 NURA 购买，而这个账号没有钱包。不过朋友仍然可以送你一件。',
     'shop.may.minor': '未满 18 岁的账号不能购买外观。不过朋友仍然可以送你一件。',
     'shop.busy': '另一笔付款正在进行中，请先等它完成。',

@@ -80,6 +80,7 @@ export const shop = {
     'shop.inUseAt': 'In use at {game}',
     'shop.classic': 'Classic',
     'shop.nextGame': 'From your next game there',
+    'shop.useNext': 'It shows from your next game. A game already being played keeps the looks it began with.',
     'shop.may.wallet': 'Looks are paid for with NURA from a wallet, and this account has none. A friend can still send you one.',
     'shop.may.minor': 'Accounts under 18 cannot buy looks. A friend can still send you one.',
     'shop.busy': 'Another payment is on its way. Let it finish first.',

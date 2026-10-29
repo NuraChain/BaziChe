@@ -1,6 +1,6 @@
 import { untrack } from 'azerothjs';
 
-import { bundleOf, lookOf, type ShopSlot } from '../../../../backend/src/domains/shop/catalogue.ts';
+import { bundleOf, lookOf, PROFILE_SLOTS, type ShopSlot } from '../../../../backend/src/domains/shop/catalogue.ts';
 import { NURA_CHAIN } from '../../data/chain.ts';
 import { GAMES } from '../../data/games.ts';
 import { burstOver } from '../../game/looks/equip.ts';
@@ -99,6 +99,8 @@ export default component LookSheet(props: OverlayProps & { item: string })
     derived lackingWords = locale.plural('shop.bundle.left', lacking);
 
     derived slots = look === null ? [] : slotsFor(look.kind);
+
+    derived atTable = slots.some((slot) => !(PROFILE_SLOTS as readonly ShopSlot[]).includes(slot));
 
     derived buying = shop.buying();
 
@@ -376,6 +378,9 @@ export default component LookSheet(props: OverlayProps & { item: string })
                                     </li>
                                 </For>
                             </ul>
+                            <Show when={ atTable }>
+                                <p class="text-ui-sm text-muted" data-next-game>{ locale.t('shop.useNext') }</p>
+                            </Show>
                         </Show>
 
                         <div class="flex flex-col gap-2">

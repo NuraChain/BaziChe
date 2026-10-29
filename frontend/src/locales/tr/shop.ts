@@ -83,6 +83,7 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.inUseAt': '{game} için kullanımda',
     'shop.classic': 'Klasik',
     'shop.nextGame': 'Oradaki bir sonraki oyunundan itibaren',
+    'shop.useNext': 'Bir sonraki oyunundan itibaren görünür. Süren bir oyun, başladığı görünümleri korur.',
     'shop.may.wallet': 'Görünümler cüzdandaki NURA ile ödenir ve bu hesabın cüzdanı yok. Yine de bir arkadaşın sana bir tane gönderebilir.',
     'shop.may.minor': '18 yaş altı hesaplar görünüm satın alamaz. Yine de bir arkadaşın sana bir tane gönderebilir.',
     'shop.busy': 'Başka bir ödeme yolda. Önce onun bitmesini bekle.',

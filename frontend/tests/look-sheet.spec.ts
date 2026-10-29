@@ -165,6 +165,7 @@ describe('the sheet about a look', () =>
         expect(button(root, 'Buy for 12 NURA')).toBeDefined();
         expect(button(root, 'Send as a gift')).toBeDefined();
         expect(button(root, 'Use it'), 'nothing to use before it is owned').toBeUndefined();
+        expect(root.querySelector('[data-next-game]'), 'when a look is drawn was said beside Buy rather than Use').toBeNull();
     });
 
     it('marks the look\'s collection with its sigil, and a mythic look with a badge in the light of its edge', async () =>
@@ -202,6 +203,38 @@ describe('the sheet about a look', () =>
         expect(server.calls).toContain('shop.choose hokm.back back.glow');
         expect(button(root, 'In use at Hokm')?.getAttribute('aria-pressed')).toBe('true');
         expect(button(root, 'Use at Poker')).toBeDefined();
+    });
+
+    it('says beside Use that a look for a table shows from the next game, since a game already on keeps its looks', async () =>
+    {
+        server.shop.owned = [{ item: 'pawns.glow', via: 'purchase', at: '2026-10-27T11:00:00.000Z' }];
+        const { root } = await sheet('pawns.glow');
+
+        expect(root.querySelector('[data-next-game]')?.textContent).toBe('It shows from your next game. A game already being played keeps the looks it began with.');
+
+        fire(button(root, 'Use it')!, 'click');
+        await settle();
+
+        expect(button(root, 'In use')?.getAttribute('aria-pressed')).toBe('true');
+        expect(root.querySelector('[data-next-game]'), 'the sentence went once the look was in use').not.toBeNull();
+    });
+
+    it('says nothing of a next game for a look on the profile, which is drawn at once', async () =>
+    {
+        server.shop.owned = [{ item: 'decoration.glow', via: 'purchase', at: '2026-10-27T11:00:00.000Z' }];
+        const { root } = await sheet('decoration.glow');
+
+        expect(button(root, 'Use it')).toBeDefined();
+        expect(root.querySelector('[data-next-game]')).toBeNull();
+    });
+
+    it('says when a look for a table shows in Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+        server.shop.owned = [{ item: 'dice.glow', via: 'purchase', at: '2026-10-27T11:00:00.000Z' }];
+        const { root } = await sheet('dice.glow');
+
+        expect(root.querySelector('[data-next-game]')?.textContent).toBe('از بازی بعدیت نشون داده می‌شه. بازی‌ای که الان در جریانه همون استایل‌های اولش رو نگه می‌داره.');
     });
 
     it('plays the look’s burst over its drawing as it is put on somewhere, and none where it is already worn', async () =>

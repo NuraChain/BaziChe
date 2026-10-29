@@ -83,6 +83,7 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.inUseAt': 'Em uso no {game}',
     'shop.classic': 'Clássico',
     'shop.nextGame': 'A partir da sua próxima partida lá',
+    'shop.useNext': 'Aparece a partir da sua próxima partida. Uma partida em andamento mantém os estilos com que começou.',
     'shop.may.wallet': 'Os estilos são pagos com NURA de uma carteira, e esta conta não tem nenhuma. Um amigo ainda pode lhe enviar um.',
     'shop.may.minor': 'Contas de menores de 18 anos não podem comprar estilos. Um amigo ainda pode lhe enviar um.',
     'shop.busy': 'Há outro pagamento a caminho. Deixe-o terminar primeiro.',

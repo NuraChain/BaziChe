@@ -48,8 +48,11 @@ type Act = { kind: 'pass' | 'note' | 'flag' | 'concede' | 'forfeit'; seat: numbe
 
 const SECOND_BANK = 15_000;
 
-/** Two sides taking turns; `pass` hands the turn on, `note` keeps it; a bank per side when the table has a clock. */
-const fixture = (keeps: { bank: boolean; concede: boolean }): Engine<Clocked, Act> => ({
+/** What the boards hold of a turn that ends something, in the fixture that ends something at every pass. */
+const ENDED = 4500;
+
+/** Two sides taking turns; `pass` hands the turn on, `note` keeps it; a bank per side when the table has a clock; a pass that ends something when asked. */
+const fixture = (keeps: { bank: boolean; concede: boolean; pause?: boolean }): Engine<Clocked, Act> => ({
     id: 'ludo',
 
     formats: [{ seats: 2, variant: 'standard' }],
@@ -79,7 +82,7 @@ const fixture = (keeps: { bank: boolean; concede: boolean }): Engine<Clocked, Ac
         {
             const turn = action.kind === 'pass' ? 1 - state.turn : state.turn;
 
-            return { ok: true, state: { ...next, turn, moves: state.moves + (action.kind === 'pass' ? 1 : 0), lefts: [...state.lefts, moment?.left ?? null] }, events: [] };
+            return { ok: true, state: { ...next, turn, moves: state.moves + (action.kind === 'pass' ? 1 : 0), lefts: [...state.lefts, moment?.left ?? null] }, events: keeps.pause === true && action.kind === 'pass' ? [{ e: 'ended' }] : [] };
         }
 
         const winner = action.kind === 'flag' ? 1 - state.turn : 1 - action.seat;
@@ -90,6 +93,8 @@ const fixture = (keeps: { bank: boolean; concede: boolean }): Engine<Clocked, Ac
     ...(keeps.bank ? { bank: (state: Clocked) => (state.over !== null || state.banks === null ? null : state.banks[state.turn]) } : {}),
 
     ...(keeps.concede ? { concede: (seat: number): Act => ({ kind: 'concede', seat }) } : {}),
+
+    ...(keeps.pause === true ? { pause: (events: readonly unknown[]) => (events.some((one) => (one as { e?: string }).e === 'ended') ? ENDED : 0) } : {}),
 
     legal: () => [],
 
@@ -240,6 +245,30 @@ describe.skipIf(!active)('a game played against a clock, against a real database
 
             expect(left).toBeGreaterThan(193_000);
             expect(left).toBeLessThanOrEqual(195_000);
+        });
+
+        it('gives the next side back what the boards hold of what the turn that passed ended', async () =>
+        {
+            const { service, players, matchId } = await started(fixture({ bank: true, concede: true, pause: true }));
+
+            await service.act(players[0], matchId, { play: ROLL, key: 'pass-1' });
+
+            const left = await dueIn(matchId);
+
+            expect(left).toBeGreaterThan(193_000 + ENDED);
+            expect(left).toBeLessThanOrEqual(195_000 + ENDED);
+        });
+
+        it('gives it back at a table whose game keeps no clock, on top of the table\'s own turn', async () =>
+        {
+            const { service, players, matchId } = await started(fixture({ bank: false, concede: false, pause: true }), 'live', null);
+
+            await service.act(players[0], matchId, { play: ROLL, key: 'pass-1' });
+
+            const left = await dueIn(matchId);
+
+            expect(left).toBeGreaterThan(28_000 + ENDED);
+            expect(left).toBeLessThanOrEqual(30_000 + ENDED);
         });
 
         it('is left where it was while the turn stays with the side to move', async () =>

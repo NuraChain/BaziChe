@@ -161,6 +161,13 @@ export interface Engine<S = unknown, A = unknown>
     bank?(state: S): number | null;
 
     /**
+     * How long the boards hold what these events ended before the next turn is played, in
+     * milliseconds (`pauses.ts`): the service adds it to the deadline of whoever is to act next. A
+     * game whose actions end nothing that is held has none.
+     */
+    pause?(events: readonly unknown[]): number;
+
+    /**
      * Giving up as a result the game itself scores, sent as a play when somebody resigns: the other
      * side has then won the game rather than been left it. A game without one takes a resignation as
      * a forfeit, as every game before chess did, and leaving the table is a walkout either way.

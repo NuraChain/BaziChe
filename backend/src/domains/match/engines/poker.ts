@@ -2,6 +2,7 @@ import { allInTo, inHand, mayRaise, minRaiseTo, toCall } from '../poker/betting.
 import { apply, autoplay, create, handsToNextLevel, legalMoves, levelOf, standings, type Die } from '../poker/engine.ts';
 import { standing } from '../poker/pots.ts';
 import { SEATS, blindsAt, type PokerAction, type PokerEvent, type PokerState } from '../poker/state.ts';
+import { PAUSES } from '../pauses.ts';
 import { sideOf } from '../sides.ts';
 import type { Draws, Ending, Engine, ForfeitReason, Placement, TableConfig, Tally } from '../engine.ts';
 import type { MatchBoard, MatchLog, MatchPlay } from '../../../schemas.ts';
@@ -69,6 +70,13 @@ export const pokerEngine: Engine<PokerState, PokerAction> = {
     engagement: () => ({ verbs: ['fold', 'check', 'call', 'raise', 'allin'], after: 3 }),
 
     turnKey: (state: PokerState) => `${ state.hand }.${ state.acts.reduce((total, count) => total + count, 0) }`,
+
+    pause: (events: readonly unknown[]) =>
+    {
+        const ended = events as readonly PokerEvent[];
+
+        return (ended.some((one) => one.e === 'show') ? PAUSES.showdown : 0) + (ended.some((one) => one.e === 'pot') ? PAUSES.pot : 0);
+    },
 
     view: (state: PokerState, seat: number | null): MatchBoard =>
     {

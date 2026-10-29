@@ -3,6 +3,7 @@ import { legalCards } from '../hokm/cards.ts';
 import { apply, autoplay, create, dealerSeat, discardDue, legalMoves, SEATS } from '../hokm/engine.ts';
 import { TRIPLE_SWEEP, trickCount, winningTricks } from '../hokm/scoring.ts';
 import { seatsOfSide, sideCount, sideOf, type HokmAction, type HokmEvent, type HokmState } from '../hokm/state.ts';
+import { PAUSES } from '../pauses.ts';
 import { variantOf, type Format } from '../sides.ts';
 import type { Draws, Ending, Engine, ForfeitReason, Placement, TableConfig, Tally } from '../engine.ts';
 import type { MatchBoard, MatchLog, MatchPlay } from '../../../schemas.ts';
@@ -135,6 +136,13 @@ export const hokmEngine: Engine<HokmState, HokmAction> = {
         const played = `${ state.round }.${ state.tricks.reduce((total, count) => total + count, 0) }`;
 
         return state.seats === 2 && state.phase !== 'tricks' ? `${ played }.${ state.phase }.${ state.stock.length }` : played;
+    },
+
+    pause: (events: readonly unknown[]) =>
+    {
+        const ended = events as readonly HokmEvent[];
+
+        return (ended.some((one) => one.e === 'trick') ? PAUSES.trick : 0) + (ended.some((one) => one.e === 'hand') ? PAUSES.hand : 0);
     },
 
     view: (state: HokmState, seat: number | null): MatchBoard =>

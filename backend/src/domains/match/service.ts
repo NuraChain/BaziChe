@@ -451,7 +451,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             {
                 state: next as Record<string, unknown>,
                 rev: revOf(next),
-                ...(rearm ? { deadlineAt: deadlineFrom(limitOf(engine, next, mode)) } : {})
+                ...(rearm ? { deadlineAt: deadlineFrom(limitOf(engine, next, mode) + (engine.pause?.(events) ?? 0)) } : {})
             }
         );
 

@@ -2,6 +2,7 @@ import { OFF, pips } from '../backgammon/board.ts';
 import { mayDouble } from '../backgammon/cube.ts';
 import { SEATS, UNTHROWN, apply, autoplay, create, legalMoves, type Die } from '../backgammon/engine.ts';
 import type { BackgammonAction, BackgammonEvent, BackgammonState } from '../backgammon/state.ts';
+import { PAUSES } from '../pauses.ts';
 import { sideOf } from '../sides.ts';
 import type { Draws, Ending, Engine, ForfeitReason, Placement, TableConfig, Tally } from '../engine.ts';
 import type { MatchBoard, MatchLog, MatchPlay } from '../../../schemas.ts';
@@ -84,6 +85,8 @@ export const backgammonEngine: Engine<BackgammonState, BackgammonAction> = {
     engagement: () => ({ verbs: ['move', 'double', 'take', 'drop'], after: 4 }),
 
     turnKey: (state: BackgammonState) => String(state.turns),
+
+    pause: (events: readonly unknown[]) => ((events as readonly BackgammonEvent[]).some((one) => one.e === 'game') ? PAUSES.game : 0),
 
     view: (state: BackgammonState): MatchBoard =>
     {

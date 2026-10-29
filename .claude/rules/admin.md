@@ -72,7 +72,8 @@ for an agent it does not know) and when it was opened and last used, the browser
 keys, the reports both ways (the other person, the category, the status, never a disclosed message),
 whether they accepted the terms of paid play and any break, their recent games and paid games (read
 by the account's id through the routes that serve a person their own; none when the server keeps
-no vault), and the newest fifty staff actions on them by their id, so a rename does not hide one,
+no vault), the looks they own newest first (`looksOf`: how each came, the handle of the friend who
+gave one, when, and whether they wear it), and the newest fifty staff actions on them by their id, so a rename does not hide one,
 with `historyCursor` when there are more. The account's id never leaves the server. No IP is stored
 or shown.
 
@@ -351,6 +352,21 @@ already on top changes nothing. The newest `featured_at` is on top, and a choice
 `greatest(now(), the newest + 1 µs)`: one that waited for the lock began first, and its own `now()`
 would leave the choice it waited for on top.
 
+**A look given to somebody, and one taken back** (LG-D30, LG-D31): `POST
+/api/admin/people/:handle/looks`, `{ item, reason }`, and `POST .../looks/:item/take`, `{ reason }`,
+for a role that opens the shop, held to the note's rank rule (an admin gives to players and
+moderators, the owner to anybody but themselves). A gift is any look of the catalogue (a bundle is
+not one, and is answered as a page that is not there), written under the person's row lock as an
+`owned_items` row by `grant` with no order and no giver, and `shop-grant` with `{ item }`; one they
+own already changes nothing and writes nothing, and so does one a purchase delivered in that moment
+(the insert is `orIgnore`d and read back, and a look that arrived as bought stays bought). Only a
+look that came by grant is taken back: one bought or given by a friend is theirs for good (SH-D9)
+and is refused `staff-look-kept` (409). The owned row is locked, deleting it takes the look off
+every slot it was worn in (the foreign key), and `shop-revoke` is written with `{ item }`; a look
+they do not own changes nothing. Either way their own pages read the shop again (`selfChanged(…,
+'shop')`), and a look taken off a profile slot rings their profile through `courtesy`, as any
+change to a profile is. Nobody is told (D8).
+
 **A change rings nobody** (LG-D34): a page reads the shop whenever it is opened, an order is quoted
 at the server's price, the look's sheet says at the wallet the price the order carries, and a quote
 at another price than the page showed reads the shop again (`shop.store`).
@@ -364,7 +380,8 @@ id, so the page links a transaction on NuraChain.
 
 `admin-shop.db.spec.ts` holds the list, each change and its row, the refusals, a sale that ran out,
 the locks (two changes to one look, two choices at once), a choice over a later time, the orders,
-their filters and their pages across a millisecond, and who is answered as nothing; `app.spec.ts`
+their filters and their pages across a millisecond, a look given and taken back with what each
+rings and every refusal, and who is answered as nothing; `app.spec.ts`
 the routes and their shapes.
 
 `admin-play.db.spec.ts` holds the list, the switch, the refusals, the row lock (two switches parked
@@ -557,7 +574,8 @@ page joins the day it carries on, which keeps its place. Each entry begins with 
 in a tinted circle (`MARKS` in `log-entry`): a suspension, a clear and a game ended in danger, a lift
 in green, a report, a sign-out, a closed table, an age and a disagreement with NuraChain closed in gold, a note, a role, a game switched,
 an announcement and a change to a look in the shop in blue, the collection put on top of the shop in
-gold, and a suspension that ran out and somebody taken off the staff plain.
+gold, a look given to somebody in green and one taken back in danger, and a suspension that ran out
+and somebody taken off the staff plain.
 The mark is hidden from a screen reader, because the sentence beside it says the same.
 
 **Overview** is the first section, open to every role on the staff, and it is a dashboard. It
@@ -622,17 +640,29 @@ suspended, under 18, how many reports against them), a suspension in danger with
 when, a line of facts (when they joined and were last seen, both exact under a pointer, and how many
 browsers they are signed in on, or "Signed in nowhere"), and their first wallet shortened with a
 button that copies the whole of it. Under it, in tabs kept in the address (`tab`: Overview, the
-default and never written, Reports with how many there are both ways, Games and History; a word the
-page does not know is Overview): their account and paid play, their wallets, where they are signed
-in now ("Chrome on Windows", or "An unknown browser" for an agent `agentOf` does not know) and the
-browsers holding their keys; the reports both ways (each a sentence with the other person's handle
-set apart, `handleParts`); their record (`PersonRecord`: the level, and the ratings once they have
-played, and "No rated games yet." in plain words where a player would be shown its invitation to
-sit down), their recent games and paid games; and what the staff did about them, drawn by the
-log's own `LogEntry`, older pages under "Show older", kept by the first page's cursor and dropped
-once that cursor moves (a new action, read again), so nothing is skipped between the two. All four
-panels are drawn and the three not chosen are hidden, so a note half written survives a change of
-tab. The note form heads History, drawn only for somebody the reader outranks and never on their
+default and never written, Reports with how many there are both ways, Games, Looks with how many
+they own, and History; a word the page does not know is Overview): their account and paid play,
+their wallets, where they are signed in now ("Chrome on Windows", or "An unknown browser" for an
+agent `agentOf` does not know) and the browsers holding their keys; the reports both ways (each a
+sentence with the other person's handle set apart, `handleParts`); their record (`PersonRecord`:
+the level, and the ratings once they have played, and "No rated games yet." in plain words where a
+player would be shown its invitation to sit down), their recent games and paid games; the looks
+they own (`PersonLooks`); and what the staff did about them, drawn by the log's own `LogEntry`,
+older pages under "Show older", kept by the first page's cursor and dropped once that cursor moves
+(a new action, read again), so nothing is skipped between the two. All five panels are drawn and
+the four not chosen are hidden, so a note half written survives a change of tab.
+
+**The looks a person owns** are a list newest first, each its drawing, its name, "In use" while
+they wear it, how it came ("Bought", "A gift from mina" with the handle set apart, or "Given by
+Nura’s team") and when, exact under a pointer. Once they came more than one way, a filter says how
+each came with its count (`via` in the address, All never written), and a long collection turns
+pages of twenty (`page`). A look the team gave offers "Take back" to a reader whose role opens the
+shop and who outranks them: the reason sheet asks it as a question that loses something ("It leaves
+their collection and comes off wherever they wear it. They are not told."), the look leaves the list
+at the press, the toast says so once the server has, and a refusal brings it back in the refusal's
+words with the reason kept for the next sheet. The log says "alex gave sara.k Infernal Sovereign
+dice." and "mina took Infernal Sovereign dice back from sara.k.", under the chips "Looks given" and
+"Looks taken back". The note form heads History, drawn only for somebody the reader outranks and never on their
 own page; a note is shown at the press, said once kept, and taken back with the refusal's words. A
 handle nobody holds is "No one by that name." (a 404 read as missing, never as a failure).
 
@@ -641,8 +671,11 @@ somebody the reader outranks and never on the reader's own page: beside the tabs
 page, held in view while they scroll, and under the summary on a phone. Each row names one thing,
 in danger when it costs the person something: Suspend the account (or Lift the suspension), Mark as
 under 18 (or Mark as an adult), Remove the picture, Reset the name and Clear the bio (each only when
-the profile has one of its own) and Sign them out everywhere (only while they are signed in
-somewhere). A row opens a sheet, and the sheet is the question.
+the profile has one of its own), Sign them out everywhere (only while they are signed in
+somewhere), and Give a look for a role that opens the shop. A row opens a sheet, and the sheet is
+the question. Giving a look (`GiveLookSheet`) asks for the collection and the look (another
+collection keeps the kind chosen), shows the look's drawing, says "They own it already." and gives
+nothing where they do, and asks why; given, the look is at the head of their Looks at the press.
 
 Suspending (`SuspendSheet`) asks for how long (a day, a week, 30 days, for good), what it is for
 (no reason is chosen for the staff: "Choose one" until they do) and why, under a question that names
@@ -802,13 +835,13 @@ open it says the two agree; a server that keeps no contract says it checks nothi
 
 `admin-shell.spec.ts`, `admin-overview.spec.ts`, `admin-live.spec.ts`, `admin-notice.spec.ts`, `admin-staff.spec.ts`, `admin-log.spec.ts`, `admin-people.spec.ts`,
 `admin-person.spec.ts`, `admin-reports.spec.ts`, `admin-report.spec.ts`, `admin-play.spec.ts`,
-`reason-sheet.spec.ts`, `suspend-sheet.spec.ts`, `admin-checks.spec.ts` and `admin-vault.spec.ts` hold the page (`admin-play.spec.ts` its lists, the end of a game and the close of a table as well, `match-result.spec.ts` the card),
+`reason-sheet.spec.ts`, `suspend-sheet.spec.ts`, `give-look-sheet.spec.ts`, `admin-checks.spec.ts` and `admin-vault.spec.ts` hold the page (`admin-play.spec.ts` its lists, the end of a game and the close of a table as well, `match-result.spec.ts` the card),
 `paused-game.spec.ts` what a player sees of a paused game, `play.spec.ts` of a table the staff closed and `notice-strip.spec.ts` the notice on every page and at a table; `app-stores.spec.ts` the guards and `profile-page.spec.ts` the shield.
 
 ## The garbage pass
 
 `tools/qa/garbage-pass.mjs` sends the admin's routes garbage like every other: the staff change, a
-note, a suspension, a lift, a clear, a sign-out, a mark under 18, a report's outcome, a game's switch, a game's end, a table's close, a notice put up and one taken down, a check closed, a look changed in the shop, the collection put on top, and the vault's amounts as bodies, the pause as spared (its body is a
+note, a suspension, a lift, a clear, a sign-out, a mark under 18, a report's outcome, a game's switch, a game's end, a table's close, a notice put up and one taken down, a check closed, a look changed in the shop, the collection put on top, a look given to somebody and one taken back, and the vault's amounts as bodies, the pause as spared (its body is a
 switch), the log's four query words, the people's three, the reports' two, the games being played's
 three, the tables waiting's two, the live list's one, the checks' two and the shop orders' four. Its garbage accounts are not staff, so every one of them is answered as missing; what it
 proves is that none is a 5xx.

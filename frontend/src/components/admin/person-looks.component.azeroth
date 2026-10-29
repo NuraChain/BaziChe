@@ -1,0 +1,112 @@
+import { OWNED_VIA, type OwnedVia } from '../../../../backend/src/domains/shop/policy.ts';
+import { pagingFor, visible } from '../../lib/pagination.ts';
+import { useAddress, usePageParams } from '../../lib/page-param.ts';
+import { itemName } from '../../lib/shop.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import '../../locales/shop-catalogue.ts';
+import { useDevice } from '../../stores/device.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import FilterBar from '../ui/filter-bar.component.azeroth';
+import Pagination from '../ui/pagination.component.azeroth';
+import Panel from '../ui/panel.component.azeroth';
+import PersonLook, { type AdminLook } from './person-look.component.azeroth';
+import ReasonSheet from './reason-sheet.component.azeroth';
+
+const VIA_WORDS: Readonly<Record<OwnedVia | 'all', MessageKey>> = {
+    all: 'admin.person.looks.all',
+    purchase: 'admin.person.looks.purchase',
+    gift: 'admin.person.looks.gift',
+    grant: 'admin.person.looks.grant'
+};
+
+const LOOKS_PAGE = 20;
+
+export default component PersonLooks(props: { looks: AdminLook[]; name: string; mayTake: boolean; onTake: (look: AdminLook, reason: string) => Promise<boolean> })
+{
+    const locale = useLocale();
+    const overlay = useOverlay();
+    const device = useDevice();
+    const address = useAddress();
+    const pages = usePageParams(['page']);
+    const kept = new Map<string, string>();
+
+    derived via = OWNED_VIA.find((one) => one === address.text('via')) ?? 'all';
+
+    derived owns = props.looks.length > 0;
+
+    derived counts = props.looks.reduce((all, look) => ({ ...all, [look.via]: all[look.via] + 1 }), { purchase: 0, gift: 0, grant: 0 });
+
+    derived ways = OWNED_VIA.filter((way) => counts[way] > 0 || way === via);
+
+    derived filtering = ways.length > 1;
+
+    derived filters = [
+        { id: 'all', label: locale.t(VIA_WORDS.all), count: props.looks.length },
+        ...ways.map((way) => ({ id: way, label: locale.t(VIA_WORDS[way]), count: counts[way] }))
+    ];
+
+    derived chosen = via === 'all' ? props.looks : props.looks.filter((look) => look.via === via);
+
+    derived found = chosen.length > 0;
+
+    derived paging = pagingFor(device.posture() === 'phone');
+
+    derived page = pages.page('page');
+
+    derived shown = visible(chosen, LOOKS_PAGE, page, paging);
+
+    const choose = (id: string) =>
+    {
+        pages.reset({ via: id === 'all' ? '' : id });
+    };
+
+    const take = async (look: AdminLook) =>
+    {
+        const typed = kept.get(look.item);
+        const reason = await overlay.open(
+            ReasonSheet,
+            {
+                title: locale.t('admin.look.takeAsk', { look: itemName(look.item, locale), name: props.name }),
+                lead: locale.t('admin.look.takeLead'),
+                confirm: locale.t('admin.look.takeConfirm'),
+                destructive: true,
+                ...(typed === undefined ? {} : { initial: typed })
+            },
+            { label: locale.t('admin.look.takeTitle') }
+        ).closed;
+
+        if (typeof reason !== 'string')
+        {
+            return;
+        }
+
+        if (await props.onTake(look, reason))
+        {
+            kept.delete(look.item);
+        }
+        else
+        {
+            kept.set(look.item, reason);
+        }
+    };
+
+    <Panel pad="md" stack="sm" labelledBy="person-looks">
+        <h2 id="person-looks" class="text-ui-md font-semibold text-text">{ locale.t('admin.person.looks') }</h2>
+        <Show when={ owns } fallback={ <p class="text-ui-sm text-muted" data-looks="none">{ locale.t('admin.person.looks.none') }</p> }>
+            <Show when={ filtering }>
+                <FilterBar items={ filters } value={ via } label={ locale.t('admin.person.looks.filter') } onChange={ choose } />
+            </Show>
+            <Show when={ found } fallback={ <p class="text-ui-sm text-muted" data-looks="none-found">{ locale.t('admin.person.looks.noneFound') }</p> }>
+                <ul class="divide-y divide-line" data-looks>
+                    <For each={ shown } key={ (one) => one.item } let={ look }>
+                        <li>
+                            <PersonLook look={ look } mayTake={ props.mayTake } onTake={ () => void take(look) } />
+                        </li>
+                    </For>
+                </ul>
+                <Pagination total={ chosen.length } size={ LOOKS_PAGE } page={ page } mode={ paging } label={ locale.t('admin.person.looks') } onPage={ (next) => pages.turn('page', next) } />
+            </Show>
+        </Show>
+    </Panel>
+}

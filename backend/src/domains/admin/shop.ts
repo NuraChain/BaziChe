@@ -1,10 +1,10 @@
 import type { DataSource, EntityManager } from 'typeorm';
 
-import { ShopCollection, ShopItem, ShopOrder, User } from '../../entities/index.ts';
+import { EquippedItem, OwnedItem, ShopCollection, ShopItem, ShopOrder, User } from '../../entities/index.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import type { AdminShop, AdminShopOrders } from '../../schemas.ts';
 import { FEATURED_FIRST, LOOKS, SHOP_COLLECTIONS, bundleOf, lookOf, type ShopCollection as Collection } from '../shop/catalogue.ts';
-import type { OrderState, ShopItemStatus } from '../shop/policy.ts';
+import type { OrderState, OwnedVia, ShopItemStatus } from '../shop/policy.ts';
 import { SHOP_ORDERS_PAGE, type SaleHours } from './roles.ts';
 import { record, staffRefusal, type Actor } from './staff.ts';
 
@@ -43,6 +43,22 @@ interface HeldRow
     sale_price: string | null;
     running: boolean;
     status: ShopItemStatus;
+}
+
+interface LookRow
+{
+    item: string;
+    via: OwnedVia;
+    from: string | null;
+    at: Date;
+    worn: boolean;
+}
+
+/** Whom a look is given to or taken back from. */
+export interface Owner
+{
+    id: string;
+    handle: string;
 }
 
 interface OrderRow extends Keyed
@@ -248,6 +264,81 @@ export function createShopAdmin(db: DataSource)
                 await record(tx, actor, { kind: 'shop-feature', reason, details: { from, to: collection } });
 
                 return true;
+            });
+        },
+
+        /** What somebody owns, newest first: how each look came, who gave it when a friend did, and whether they wear it. */
+        async looksOf(userId: string)
+        {
+            const rows = await db.getRepository(OwnedItem).createQueryBuilder('o')
+                .leftJoin(User, 'g', 'g.id = o.giver_id')
+                .select('o.item_id', 'item')
+                .addSelect('o.via', 'via')
+                .addSelect('g.handle', 'from')
+                .addSelect('o.acquired_at', 'at')
+                .addSelect('exists (select 1 from equipped_items e where e.user_id = o.user_id and e.item_id = o.item_id)', 'worn')
+                .where('o.user_id = :userId', { userId })
+                .orderBy('o.acquired_at', 'DESC')
+                .addOrderBy('o.item_id')
+                .getRawMany<LookRow>();
+
+            return rows.map((row) => ({ item: row.item, via: row.via, ...(row.from === null ? {} : { from: row.from }), at: row.at.toISOString(), worn: row.worn }));
+        },
+
+        /** A look of the catalogue given, written as `shop-grant`: `false` when it is theirs already, `null` for no look by that id. */
+        async give(actor: Actor, person: Owner, item: string, reason: string)
+        {
+            if (lookOf(item) === undefined)
+            {
+                return null;
+            }
+
+            return await db.transaction(async (tx) =>
+            {
+                // A delivery's insert takes the foreign key's share lock on this row, so it and this wait for each other.
+                await tx.getRepository(User).createQueryBuilder('u').setLock('pessimistic_write').where('u.id = :id', { id: person.id }).getOne();
+
+                if (await tx.getRepository(OwnedItem).existsBy({ userId: person.id, itemId: item }))
+                {
+                    return false;
+                }
+
+                await tx.getRepository(OwnedItem).insert({ userId: person.id, itemId: item, via: 'grant', orderId: null, giverId: null });
+                await record(tx, actor, { kind: 'shop-grant', person, reason, details: { item } });
+
+                return true;
+            });
+        },
+
+        /**
+         * A look the staff gave taken back, written as `shop-revoke`, and off every place it was worn (the
+         * foreign key): a look bought or given by a friend is its owner's for good (`staff-look-kept`).
+         */
+        async take(actor: Actor, person: Owner, item: string, reason: string)
+        {
+            return await db.transaction(async (tx) =>
+            {
+                const held = await tx.getRepository(OwnedItem).createQueryBuilder('o')
+                    .setLock('pessimistic_write')
+                    .where('o.user_id = :id and o.item_id = :item', { id: person.id, item })
+                    .getOne();
+
+                if (held === null)
+                {
+                    return { taken: false, worn: [] };
+                }
+
+                if (held.via !== 'grant')
+                {
+                    throw staffRefusal('staff-look-kept', 'A look somebody bought, or was given by a friend, is theirs for good.');
+                }
+
+                const worn = (await tx.getRepository(EquippedItem).findBy({ userId: person.id, itemId: item })).map((one) => one.slot);
+
+                await tx.getRepository(OwnedItem).delete({ userId: person.id, itemId: item });
+                await record(tx, actor, { kind: 'shop-revoke', person, reason, details: { item } });
+
+                return { taken: true, worn };
             });
         },
 

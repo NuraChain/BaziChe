@@ -1311,10 +1311,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             return null;
         }
 
-        const [history, games, paid] = await Promise.all([
+        const [history, games, paid, looks] = await Promise.all([
             team.about(found.id, null),
             match.history(found.id, null),
-            vaults.configured ? stakes.games(found.id, null) : { games: [] }
+            vaults.configured ? stakes.games(found.id, null) : { games: [] },
+            shopAdmin.looksOf(found.id)
         ]);
 
         return {
@@ -1322,7 +1323,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             history: history.rows,
             ...(history.cursor === undefined ? {} : { historyCursor: history.cursor }),
             games: games.matches,
-            paidGames: paid.games
+            paidGames: paid.games,
+            looks
         };
     };
 
@@ -2352,6 +2354,56 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             async shopOrders(me, query)
             {
                 return await ableTo(me, 'shop') === null ? null : { ...await shopAdmin.orders(query), ...(looksShop.configured ? { chainId: looksShop.chainId } : {}) };
+            },
+
+            async giveLook(me, handle, input)
+            {
+                const actor = await ableTo(me, 'shop');
+
+                if (actor === null)
+                {
+                    return null;
+                }
+
+                const target = await accounts.reachable(actor, handle);
+                const given = await shopAdmin.give(actor, { id: target.id, handle: target.handle }, input.item, input.reason);
+
+                if (given === null)
+                {
+                    return null;
+                }
+
+                if (given)
+                {
+                    live?.selfChanged(target.id, 'shop');
+                }
+
+                return await personOf(handle);
+            },
+
+            async takeLook(me, handle, item, input)
+            {
+                const actor = await ableTo(me, 'shop');
+
+                if (actor === null)
+                {
+                    return null;
+                }
+
+                const target = await accounts.reachable(actor, handle);
+                const { taken, worn } = await shopAdmin.take(actor, { id: target.id, handle: target.handle }, item, input.reason);
+
+                if (taken)
+                {
+                    live?.selfChanged(target.id, 'shop');
+                }
+
+                if (worn.some((slot) => slot.startsWith('profile.')))
+                {
+                    await courtesy('profile look', () => ringProfile(target.id));
+                }
+
+                return await personOf(handle);
             }
         },
 

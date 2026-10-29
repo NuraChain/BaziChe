@@ -1,0 +1,46 @@
+import type { AdminPerson } from '../../../../backend/src/schemas.ts';
+import { itemName } from '../../lib/shop.ts';
+import { handleParts } from '../../lib/staff-words.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import Said from './said.component.azeroth';
+import When from './when.component.azeroth';
+
+export type AdminLook = AdminPerson['looks'][number];
+
+export default component PersonLook(props: { look: AdminLook; mayTake: boolean; onTake: () => void })
+{
+    const locale = useLocale();
+
+    derived name = itemName(props.look.item, locale);
+
+    derived how = props.look.via === 'gift'
+        ? handleParts(locale.t('admin.person.look.gift', { from: '{from}' }), { from: props.look.from ?? '' })
+        : [{ at: 0, text: locale.t(props.look.via === 'grant' ? 'admin.person.look.grant' : 'admin.person.look.bought'), handle: false }];
+
+    derived worn = props.look.worn;
+
+    derived takeable = props.mayTake && props.look.via === 'grant';
+
+    derived takeLabel = locale.t('admin.person.look.takeLabel', { look: name });
+
+    <div class="flex items-center gap-3 py-2" data-look={ props.look.item } data-via={ props.look.via }>
+        <img src={ `/looks/${ props.look.item }.svg` } alt="" width="48" height="36" loading="lazy" decoding="async" class="h-9 w-12 shrink-0 rounded-tile border border-line bg-sunk object-cover" />
+        <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui-sm font-semibold text-text">
+                <span class="min-w-0" data-name>{ name }</span>
+                <Show when={ worn }>
+                    <Badge text={ locale.t('shop.inUse') } tone="accent" />
+                </Show>
+            </p>
+            <p class="facts text-ui-xs text-faint">
+                <span data-how><Said parts={ how } /></span>
+                <When at={ props.look.at } />
+            </p>
+        </div>
+        <Show when={ takeable }>
+            <Button variant="destructive-ghost" size="sm" class="shrink-0" label={ takeLabel } onClick={ props.onTake }>{ locale.t('admin.person.look.take') }</Button>
+        </Show>
+    </div>
+}

@@ -12,7 +12,8 @@ export const STAFF_REFUSALS = {
     'staff-no-notice': 409,
     'staff-check-closed': 409,
     'staff-shop-one': 422,
-    'staff-shop-sale': 409
+    'staff-shop-sale': 409,
+    'staff-look-kept': 409
 } as const satisfies Record<string, 404 | 409 | 422>;
 
 export type StaffRefusal = keyof typeof STAFF_REFUSALS;

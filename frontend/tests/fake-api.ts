@@ -57,7 +57,7 @@ import type {
     VaultState,
     WalletCall
 } from '../../backend/src/schemas.ts';
-import { BUNDLES, FEATURED_FIRST, LOOKS, SHOP_COLLECTIONS, bundleOf } from '../../backend/src/domains/shop/catalogue.ts';
+import { BUNDLES, FEATURED_FIRST, LOOKS, SHOP_COLLECTIONS, bundleOf, lookOf } from '../../backend/src/domains/shop/catalogue.ts';
 import { ESCROW_STATES, STAKE_LADDER } from '../../backend/src/domains/stake/policy.ts';
 import { STAFF_REFUSALS, type StaffRefusal } from '../../backend/src/domains/admin/refusals.ts';
 import { CHECKS_PAGE, type CheckFamily, type CheckList } from '../../backend/src/domains/reconcile/kinds.ts';
@@ -573,6 +573,7 @@ const accountView = (handle: string): AdminPerson =>
         ...(first.cursor === undefined ? {} : { historyCursor: first.cursor }),
         games: [],
         paidGames: [],
+        looks: [],
         ...structuredClone(server.accounts.about[handle] ?? {})
     };
 };
@@ -1752,6 +1753,55 @@ export const client =
             {
                 server.accounts.about[params.handle] = { ...server.accounts.about[params.handle], minor: input.minor, ...(input.minor ? { strangers: false } : {}) };
                 staffLogged({ at: new Date(runtime().clock.now()).toISOString(), staff: server.me, staffRole: actor, kind: 'minor', person: params.handle, reason: input.reason, details: { to: input.minor ? 'minor' : 'adult' } });
+            }
+
+            return accountView(params.handle);
+        },
+
+        async giveLook({ params, input }: { params: { handle: string }; input: { item: string; reason: string } })
+        {
+            server.calls.push(`admin.giveLook ${ params.handle } ${ input.item } ${ input.reason }`);
+            staffGate('shop');
+
+            const actor = reachedBy(params.handle);
+
+            if (lookOf(input.item) === undefined)
+            {
+                throw new ApiError(404, 'not-found', 'Nothing there.', undefined);
+            }
+
+            const looks = accountView(params.handle).looks;
+
+            if (!looks.some((one) => one.item === input.item))
+            {
+                server.accounts.about[params.handle] = {
+                    ...server.accounts.about[params.handle],
+                    looks: [{ item: input.item, via: 'grant', at: new Date(runtime().clock.now()).toISOString(), worn: false }, ...looks]
+                };
+                staffLogged({ at: new Date(runtime().clock.now()).toISOString(), staff: server.me, staffRole: actor, kind: 'shop-grant', person: params.handle, reason: input.reason, details: { item: input.item } });
+            }
+
+            return accountView(params.handle);
+        },
+
+        async takeLook({ params, input }: { params: { handle: string; item: string }; input: { reason: string } })
+        {
+            server.calls.push(`admin.takeLook ${ params.handle } ${ params.item } ${ input.reason }`);
+            staffGate('shop');
+
+            const actor = reachedBy(params.handle);
+            const looks = accountView(params.handle).looks;
+            const held = looks.find((one) => one.item === params.item);
+
+            if (held !== undefined && held.via !== 'grant')
+            {
+                throw staffRefused('staff-look-kept', 'A look somebody bought, or was given by a friend, is theirs for good.');
+            }
+
+            if (held !== undefined)
+            {
+                server.accounts.about[params.handle] = { ...server.accounts.about[params.handle], looks: looks.filter((one) => one.item !== params.item) };
+                staffLogged({ at: new Date(runtime().clock.now()).toISOString(), staff: server.me, staffRole: actor, kind: 'shop-revoke', person: params.handle, reason: input.reason, details: { item: params.item } });
             }
 
             return accountView(params.handle);

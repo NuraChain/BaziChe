@@ -630,6 +630,9 @@ export const adminPeople = object({ rows: array(object(adminFace)), cursor: stri
 
 export type AdminPeople = Infer<typeof adminPeople>;
 
+/** A look the person owns, as the staff read it: how it came, from whom when a friend gave it, when, and whether they wear it. */
+const adminLook = object({ item: string(), via: enumOf(OWNED_VIA), from: string().optional(), at: string(), worn: boolean() });
+
 export const adminPerson = object({
     ...adminFace,
     bio: string(),
@@ -667,7 +670,8 @@ export const adminPerson = object({
     history: array(staffLogRow),
     historyCursor: string().optional(),
     games: array(matchHistoryEntry),
-    paidGames: array(vaultGame)
+    paidGames: array(vaultGame),
+    looks: array(adminLook)
 });
 
 export type AdminPerson = Infer<typeof adminPerson>;
@@ -685,6 +689,10 @@ export const adminLiftInput = object({ reason: said() });
 export const adminClearInput = object({ part: enumOf(CLEAR_PARTS), reason: said() });
 
 export const adminSignOutInput = object({ reason: said() });
+
+export const adminGiveInput = object({ item: string({ max: 40 }), reason: said() });
+
+export const adminTakeInput = object({ reason: said() });
 
 export const adminMinorInput = object({ minor: boolean(), reason: said() });
 

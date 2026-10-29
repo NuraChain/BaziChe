@@ -1,0 +1,112 @@
+import { untrack } from 'azerothjs';
+
+import { LOOKS, SHOP_COLLECTIONS, lookOf, type ShopKind } from '../../../../backend/src/domains/shop/catalogue.ts';
+import { collectionName, itemName } from '../../lib/shop.ts';
+import '../../locales/shop-catalogue.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import Select from '../ui/select.component.azeroth';
+import TextArea from '../ui/text-area.component.azeroth';
+
+export interface GiveAsk
+{
+    item: string;
+    reason: string;
+}
+
+const REASON_MIN = 3;
+
+export default component GiveLookSheet(props: OverlayProps & { name: string; owned: string[]; initial?: GiveAsk })
+{
+    const locale = useLocale();
+    const first = untrack(() => props.initial);
+
+    state item = first?.item ?? LOOKS[0].id;
+
+    state why = first?.reason ?? '';
+
+    state whyTold = null as string | null;
+
+    derived collection = lookOf(item)?.collection ?? SHOP_COLLECTIONS[0];
+
+    derived collections = SHOP_COLLECTIONS.map((one) => ({ value: one, label: collectionName(one, locale) }));
+
+    /** The collection is chosen beside it, so a look is named by its kind alone, or a phone cuts the kind off. */
+    const kindWord = (kind: ShopKind) =>
+    {
+        const word = locale.t(`shop.kind.${ kind }`);
+
+        return word.charAt(0).toLocaleUpperCase(locale.tag()) + word.slice(1);
+    };
+
+    derived looks = LOOKS.filter((one) => one.collection === collection).map((one) => ({ value: one.id, label: kindWord(one.kind) }));
+
+    derived owned = props.owned.includes(item);
+
+    derived name = itemName(item, locale);
+
+    /** Another collection keeps the kind chosen, so the dice of one collection become the dice of the next. */
+    const chooseCollection = (value: string) =>
+    {
+        const kind = lookOf(item)?.kind;
+
+        item = LOOKS.find((one) => one.collection === value && one.kind === kind)?.id ?? item;
+    };
+
+    const typedWhy = (value: string) =>
+    {
+        why = value;
+        whyTold = null;
+    };
+
+    const send = () =>
+    {
+        const reason = why.trim();
+
+        whyTold = reason.length < REASON_MIN ? locale.t('admin.staff.reasonShort') : null;
+
+        if (whyTold !== null)
+        {
+            return;
+        }
+
+        const ask: GiveAsk = { item, reason };
+
+        props.close(ask);
+    };
+
+    <div class="flex flex-col gap-5 p-5" data-give-sheet>
+        <div>
+            <h2 class="title text-ui-xl text-text">{ locale.t('admin.look.giveTitle', { name: props.name }) }</h2>
+            <p class="mt-2 text-ui-base text-muted">{ locale.t('admin.look.giveLead') }</p>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+            <Select label={ locale.t('admin.shop.collection') } value={ collection } options={ collections } onChange={ chooseCollection } />
+            <Select label={ locale.t('admin.shop.column.look') } value={ item } options={ looks } onChange={ (value) => item = value } />
+        </div>
+        <div class="flex items-center gap-3 rounded-tile border border-line bg-sunk p-3" data-chosen>
+            <img src={ `/looks/${ item }.svg` } alt="" width="64" height="48" class="h-12 w-16 shrink-0 rounded-tile border border-line object-cover" />
+            <div class="flex min-w-0 flex-col gap-0.5">
+                <span class="text-ui-sm font-semibold text-text" data-name>{ name }</span>
+                <Show when={ owned }>
+                    <span class="text-ui-xs text-gold" data-owned>{ locale.t('admin.look.owned') }</span>
+                </Show>
+            </div>
+        </div>
+        <Field id="admin-give-why" label={ locale.t('admin.staff.reason') } hint={ locale.t('admin.staff.reasonHint') } error={ whyTold }>
+            <TextArea
+                id="admin-give-why"
+                value={ why }
+                maxlength={ 500 }
+                describedBy={ whyTold !== null ? 'admin-give-why-error' : 'admin-give-why-hint' }
+                onInput={ typedWhy }
+            />
+        </Field>
+        <div class="flex flex-col gap-2 sm:flex-row-reverse">
+            <Button variant="primary" block disabled={ owned } onClick={ send }>{ locale.t('admin.look.confirm') }</Button>
+            <Button variant="ghost" block onClick={ () => props.close(null) }>{ locale.t('common.cancel') }</Button>
+        </div>
+    </div>
+}

@@ -122,6 +122,12 @@ const shopped = () =>
     staffLogged({ at: hoursAgo(1), staff: 'alex', staffRole: 'owner', kind: 'shop-feature', reason: 'Jade for the new year.', details: { from: 'inferno', to: 'jade' } });
 };
 
+const handedOver = () =>
+{
+    staffLogged({ at: hoursAgo(2), staff: 'alex', staffRole: 'owner', kind: 'shop-grant', person: 'sara.k', reason: 'A prize for the Friday cup.', details: { item: 'dice.inferno' } });
+    staffLogged({ at: hoursAgo(1), staff: 'mina', staffRole: 'admin', kind: 'shop-revoke', person: 'sara.k', reason: 'Given to the wrong person.', details: { item: 'dice.inferno' } });
+};
+
 const was = (root: ParentNode) => [...root.querySelectorAll<HTMLElement>('[data-entry] [data-was]')].map((one) => (one.hidden ? null : one.textContent?.replace(/\s+/g, ' ').trim()));
 
 const story = () =>
@@ -313,6 +319,27 @@ describe('the log', () =>
 
         expect(lines(top.container)).toEqual(['alex put Jade Dragon Dynasty on top of the shop.']);
         expect(entry(top.container, 0).querySelector('[data-mark]')?.className).toContain('text-gold');
+    });
+
+    it('says a look the staff gave somebody and one they took back, the look in the reader\'s words and each handle set apart', async () =>
+    {
+        handedOver();
+        const { container } = await opened('/admin/log?kind=shop-grant');
+
+        expect(lines(container)).toEqual(['alex gave sara.k Infernal Sovereign dice.']);
+        expect(isolated(entry(container, 0), ':scope')).toEqual(['alex', 'sara.k']);
+        expect(container.querySelector('[aria-pressed="true"]')?.textContent?.trim()).toBe('Looks given');
+        expect(entry(container, 0).querySelector('[data-mark]')?.className).toContain('text-live');
+        expect(said(entry(container, 0), '[data-reason]')).toBe('A prize for the Friday cup.');
+
+        cleanup();
+
+        const back = await opened('/admin/log?kind=shop-revoke');
+
+        expect(lines(back.container)).toEqual(['mina took Infernal Sovereign dice back from sara.k.']);
+        expect(isolated(entry(back.container, 0), ':scope')).toEqual(['mina', 'sara.k']);
+        expect(back.container.querySelector('[aria-pressed="true"]')?.textContent?.trim()).toBe('Looks taken back');
+        expect(entry(back.container, 0).querySelector('[data-mark]')?.className).toContain('text-danger');
     });
 
     it('says who put an announcement up and for how long, who took it down, and what it said in the reader\'s own language', async () =>
@@ -563,7 +590,7 @@ describe('the log', () =>
             'alex، mina رو از ناظر کرد ادمین.',
             'alex، mina رو ناظر کرد.'
         ]);
-        expect([...container.querySelectorAll('[aria-pressed]')].map((one) => one.textContent?.trim())).toEqual(['همه', 'اضافه شده', 'عوض شده', 'برداشته شده', 'یادداشت‌ها', 'تعلیق‌ها', 'رفع تعلیق', 'پایان تعلیق', 'پاک شده', 'خارج شده', 'گزارش‌ها', 'بازی‌ها', 'بازی‌های تموم‌شده', 'میزهای بسته‌شده', 'سن', 'اطلاعیه‌ها', 'بررسی‌ها', 'فروشگاه', 'بالای فروشگاه']);
+        expect([...container.querySelectorAll('[aria-pressed]')].map((one) => one.textContent?.trim())).toEqual(['همه', 'اضافه شده', 'عوض شده', 'برداشته شده', 'یادداشت‌ها', 'تعلیق‌ها', 'رفع تعلیق', 'پایان تعلیق', 'پاک شده', 'خارج شده', 'گزارش‌ها', 'بازی‌ها', 'بازی‌های تموم‌شده', 'میزهای بسته‌شده', 'سن', 'اطلاعیه‌ها', 'بررسی‌ها', 'فروشگاه', 'بالای فروشگاه', 'استایل‌های داده‌شده', 'استایل‌های پس‌گرفته']);
         expect(isolated(entry(container, 1), ':scope')).toEqual(['alex', 'mina']);
     });
 
@@ -610,6 +637,15 @@ describe('the log', () =>
             'alex، پشت کارت درخشش نورا رو برای ۳ روز با ۶ NURA گذاشت توی تخفیف.',
             'mina، قیمت تاس درخشش نورا رو از ۱۲ کرد ۷ NURA.'
         ]);
+    });
+
+    it('says a look the staff gave and one they took back in Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+        handedOver();
+        const { container } = await opened();
+
+        expect(lines(container)).toEqual(['mina، تاس سلطان دوزخ رو از sara.k پس گرفت.', 'alex، تاس سلطان دوزخ رو به sara.k داد.']);
     });
 
     it('says a game the staff ended in Persian', async () =>

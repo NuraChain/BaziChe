@@ -80,7 +80,7 @@ import type {
     StaffLog
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
-import type { adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminShopFeatureInput, adminShopItemInput, adminShopOrdersQuery, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
+import type { adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopOrdersQuery, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
 import type { ShopSlot } from './domains/shop/catalogue.ts';
 import type { QuickAsk } from './domains/table/quick.ts';
@@ -771,6 +771,12 @@ export interface AdminPort
     shopFeature(me: string, input: Infer<typeof adminShopFeatureInput>): Promise<AdminShop | null>;
 
     shopOrders(me: string, query: Infer<typeof adminShopOrdersQuery>): Promise<AdminShopOrders | null>;
+
+    /** A look given to somebody the reader outranks, by a role that opens the shop, answered with the person as they now read. */
+    giveLook(me: string, handle: string, input: Infer<typeof adminGiveInput>): Promise<AdminPerson | null>;
+
+    /** A look the staff gave taken back, by the same rule. */
+    takeLook(me: string, handle: string, item: string, input: Infer<typeof adminTakeInput>): Promise<AdminPerson | null>;
 }
 
 /** Every port the API declaration may reach. One member per domain. */

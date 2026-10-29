@@ -405,10 +405,10 @@ describe('a person\'s page, laid out', () =>
 
         await settle();
 
-        expect([...container.querySelectorAll('[role="tab"]')].map((one) => one.textContent?.trim())).toEqual(['Overview', 'Reports2', 'Games', 'History']);
+        expect([...container.querySelectorAll('[role="tab"]')].map((one) => one.textContent?.trim())).toEqual(['Overview', 'Reports2', 'Games', 'Looks', 'History']);
         expect(shown()).toEqual(['overview']);
         expect(tab('overview').getAttribute('aria-selected')).toBe('true');
-        expect([...container.querySelectorAll('[data-panel]')].map((one) => one.getAttribute('role'))).toEqual(['tabpanel', 'tabpanel', 'tabpanel', 'tabpanel']);
+        expect([...container.querySelectorAll('[data-panel]')].map((one) => one.getAttribute('role'))).toEqual(['tabpanel', 'tabpanel', 'tabpanel', 'tabpanel', 'tabpanel']);
 
         tab('reports').click();
         await settle();
@@ -470,22 +470,22 @@ describe('acting on an account, from the person\'s page', () =>
         server.accounts.about['sara.k'] = { avatar: 'http://localhost:1/avatars/abc.webp', bio: 'DM me for seats' };
         const container = await opened();
 
-        expect(acts(container)).toEqual(['suspend', 'minor', 'picture', 'name', 'bio']);
-        expect(labels(container)).toEqual(['Suspend the account', 'Mark as under 18', 'Remove the picture', 'Reset the name', 'Clear the bio']);
+        expect(acts(container)).toEqual(['suspend', 'minor', 'picture', 'name', 'bio', 'give']);
+        expect(labels(container)).toEqual(['Suspend the account', 'Mark as under 18', 'Remove the picture', 'Reset the name', 'Clear the bio', 'Give a look']);
         expect([...container.querySelectorAll('[data-act]')].every((one) => one.getAttribute('aria-haspopup') === 'dialog')).toBe(true);
-        expect([...container.querySelectorAll('[data-act]')].map((one) => one.classList.contains('text-danger'))).toEqual([true, true, true, true, true]);
+        expect([...container.querySelectorAll('[data-act]')].map((one) => one.classList.contains('text-danger'))).toEqual([true, true, true, true, true, false]);
         cleanup();
 
         server.accounts.about['sara.k'] = { displayName: 'sara.k' };
         const bare = await opened();
 
-        expect(acts(bare)).toEqual(['suspend', 'minor']);
+        expect(acts(bare)).toEqual(['suspend', 'minor', 'give']);
         cleanup();
 
         told();
         const signedIn = await opened();
 
-        expect(acts(signedIn)).toEqual(['suspend', 'minor', 'name', 'sign-out']);
+        expect(acts(signedIn)).toEqual(['suspend', 'minor', 'name', 'sign-out', 'give']);
     });
 });
 
@@ -662,7 +662,7 @@ describe('a profile cleared and every session ended, from the person\'s page', (
         server.accounts.about['sara.k'] = { bio: 'DM me for seats', sessions: [{ openedAt: hoursAgo(1), device: false }] };
         const container = await opened();
 
-        expect(labels(container).slice(2)).toEqual(['برگردوندن اسم', 'پاک کردن بیو', 'خارج کردنش از همه‌جا']);
+        expect(labels(container).slice(2)).toEqual(['برگردوندن اسم', 'پاک کردن بیو', 'خارج کردنش از همه‌جا', 'یه استایل بهش بده']);
 
         act(container, 'bio');
         await settle();
@@ -699,7 +699,7 @@ describe('a suspension, from the person\'s page', () =>
         expect(said(container, '[data-standing]')).toBe(`Suspended until ${ longDate(NOW + 7 * 86_400_000) }: Cheating.`);
         expect(all(container, '[data-history] [data-line]')).toEqual(['alex suspended sara.k for a week: Cheating.']);
         expect(said(container, '[data-sessions="none"]')).toBe('Not signed in anywhere.');
-        expect(acts(container)).toEqual(['lift', 'minor', 'name']);
+        expect(acts(container)).toEqual(['lift', 'minor', 'name', 'give']);
         expect(said(container, '[data-flags]')).toContain('Suspended');
         expect(toasts()).toEqual([]);
 
@@ -978,5 +978,306 @@ describe('marking somebody under 18, from the person\'s page', () =>
 
         expect(all(container, '[data-history] [data-line]')).toEqual(['alex، sara.k رو زیر ۱۸ ثبت کرد.']);
         expect(toasts()).toEqual(['Sara Kamali زیر ۱۸ ثبت شد.']);
+    });
+});
+
+describe('a look given and taken back, from the person\'s page', () =>
+{
+    const owns = () =>
+    {
+        server.accounts.about['sara.k'] = {
+            looks: [
+                { item: 'dice.inferno', via: 'grant', at: hoursAgo(1), worn: true },
+                { item: 'pawns.jade', via: 'gift', from: 'mina', at: hoursAgo(5), worn: false },
+                { item: 'back.gold', via: 'purchase', at: hoursAgo(30), worn: false }
+            ]
+        };
+    };
+
+    const rows = (root: ParentNode) => [...root.querySelectorAll<HTMLElement>('[data-panel="looks"] [data-look]')];
+
+    const names = (root: ParentNode) => rows(root).map((one) => said(one, '[data-name]'));
+
+    const takeBack = (root: ParentNode, item: string) => [...root.querySelectorAll<HTMLButtonElement>(`[data-look="${ item }"] button`)].find((one) => one.textContent?.trim() === useLocale().t('admin.person.look.take'))!.click();
+
+    const chips = (root: ParentNode) => all(root, '[data-panel="looks"] [aria-pressed]');
+
+    const presses = (root: ParentNode) => [...root.querySelectorAll('[data-panel="looks"] [data-look] button')].map((one) => one.textContent?.trim());
+
+    const routed = async (at: string) =>
+    {
+        const routes: Route[] = [{ path: '/admin/people/:handle', component: () => PersonPage({}) as unknown as HTMLElement }];
+        const router = createRouter({ routes, history: createMemoryHistory(at), scroll: false });
+        const { container } = renderTest(() => RouterProvider({ router, children: () => Routes({}) }) as HTMLElement);
+
+        await settle();
+        return { container, router };
+    };
+
+    it('lists what they own in a tab of its own, newest first: how each came, whether they wear it, and when', async () =>
+    {
+        owns();
+        const container = await opened('/admin/people/sara.k?tab=looks');
+
+        expect([...container.querySelectorAll('[role="tab"]')].map((one) => one.textContent?.trim())).toEqual(['Overview', 'Reports', 'Games', 'Looks3', 'History']);
+        expect([...container.querySelectorAll<HTMLElement>('[data-panel]')].filter((one) => !one.hidden).map((one) => one.dataset.panel)).toEqual(['looks']);
+        expect(names(container)).toEqual(['Infernal Sovereign dice', 'Jade Dragon Dynasty pawns', 'Royal Gold card back']);
+        expect(rows(container).map((one) => said(one, '[data-how]'))).toEqual(['Given by Nura’s team', 'A gift from mina', 'Bought']);
+        expect(rows(container).map((one) => one.dataset.via)).toEqual(['grant', 'gift', 'purchase']);
+        expect(container.querySelector('[data-look="pawns.jade"] [data-how] [dir="ltr"]')?.textContent).toBe('mina');
+        expect(rows(container).map((one) => one.textContent?.includes('In use'))).toEqual([true, false, false]);
+        expect(rows(container).map((one) => one.querySelector('time')?.getAttribute('datetime'))).toEqual([hoursAgo(1), hoursAgo(5), hoursAgo(30)]);
+        expect(rows(container).map((one) => one.querySelector('img')?.getAttribute('src'))).toEqual(['/looks/dice.inferno.svg', '/looks/pawns.jade.svg', '/looks/back.gold.svg']);
+        cleanup();
+
+        server.accounts.about['sara.k'] = {};
+        const bare = await opened('/admin/people/sara.k?tab=looks');
+
+        expect(said(bare, '[data-panel="looks"] [data-looks="none"]')).toBe('Owns no look yet.');
+        expect(bare.querySelector('[data-panel="looks"] [aria-pressed]')).toBeNull();
+    });
+
+    it('offers to take back only a look the team gave, and only to a role that runs the shop, about somebody below them', async () =>
+    {
+        owns();
+        const container = await opened('/admin/people/sara.k?tab=looks');
+
+        expect(presses(container)).toEqual(['Take back']);
+        expect(container.querySelector('[data-look="dice.inferno"] button')?.getAttribute('aria-label')).toBe('Take Infernal Sovereign dice back');
+        expect(acts(container)).toContain('give');
+        cleanup();
+
+        server.staff.owners = ['reza.t'];
+        server.staff.members = [staffMember('alex', 'moderator', 'reza.t', hoursAgo(20))];
+        as('moderator');
+        const moderator = await opened('/admin/people/sara.k?tab=looks');
+
+        expect(names(moderator)).toHaveLength(3);
+        expect(presses(moderator)).toEqual([]);
+        expect(acts(moderator)).not.toContain('give');
+        cleanup();
+
+        server.staff.members = [staffMember('alex', 'admin', 'reza.t', hoursAgo(20))];
+        server.accounts.about['reza.t'] = { looks: [{ item: 'dice.storm', via: 'grant', at: hoursAgo(2), worn: false }] };
+        as('admin');
+        const above = await opened('/admin/people/reza.t?tab=looks');
+
+        expect(names(above)).toEqual(['Stormforged Monarch dice']);
+        expect(presses(above)).toEqual([]);
+        expect(above.querySelector('[data-actions]')).toBeNull();
+    });
+
+    it('takes a look back at the press after asking why, as a question that loses something, and says so once the server has', async () =>
+    {
+        let answer: () => void = () => undefined;
+        const sent = vi.spyOn(client.admin, 'takeLook');
+        sent.mockImplementationOnce(async (request) =>
+        {
+            await new Promise<void>((resolve) => answer = resolve);
+            return await client.admin.takeLook(request);
+        });
+        owns();
+        const container = await opened('/admin/people/sara.k?tab=looks');
+
+        takeBack(container, 'dice.inferno');
+        await settle();
+
+        expect(asked().props).toMatchObject({
+            title: 'Take Infernal Sovereign dice back from Sara Kamali?',
+            lead: 'It leaves their collection and comes off wherever they wear it. They are not told.',
+            confirm: 'Take it back',
+            destructive: true
+        });
+        expect(asked().props).not.toHaveProperty('initial');
+        expect(sent).not.toHaveBeenCalled();
+
+        await answered('Given to the wrong person.');
+
+        expect(sent).toHaveBeenCalledWith({ params: { handle: 'sara.k', item: 'dice.inferno' }, input: { reason: 'Given to the wrong person.' } });
+        expect(names(container)).toEqual(['Jade Dragon Dynasty pawns', 'Royal Gold card back']);
+        expect(container.querySelector('[role="tab"][data-tab="looks"]')?.textContent?.trim()).toBe('Looks2');
+        expect(all(container, '[data-history] [data-line]')).toEqual(['alex took Infernal Sovereign dice back from sara.k.']);
+        expect(toasts()).toEqual([]);
+
+        answer();
+        await settle();
+
+        expect(names(container)).toEqual(['Jade Dragon Dynasty pawns', 'Royal Gold card back']);
+        expect(toasts()).toEqual(['Sara Kamali no longer has Infernal Sovereign dice.']);
+        expect(server.staff.log.map((row) => `${ row.kind } ${ row.details.item } ${ row.reason }`)).toEqual(['shop-revoke dice.inferno Given to the wrong person.']);
+    });
+
+    it('brings a refused look back in the refusal\'s words, and asks again with the reason it was given', async () =>
+    {
+        vi.spyOn(client.admin, 'takeLook').mockRejectedValueOnce(new ApiError(409, 'staff-look-kept', 'A look somebody bought, or was given by a friend, is theirs for good.', undefined));
+        owns();
+        const container = await opened('/admin/people/sara.k?tab=looks');
+
+        takeBack(container, 'dice.inferno');
+        await settle();
+        await answered('Given to the wrong person.');
+
+        expect(names(container)).toEqual(['Infernal Sovereign dice', 'Jade Dragon Dynasty pawns', 'Royal Gold card back']);
+        expect(said(container, '[data-history="none"]')).toBe('Nothing yet.');
+        expect(toasts()).toEqual(['A look somebody bought, or was given by a friend, is theirs for good.']);
+
+        takeBack(container, 'dice.inferno');
+        await settle();
+
+        expect(asked().props).toMatchObject({ initial: 'Given to the wrong person.' });
+    });
+
+    it('sends nothing when the question is put away', async () =>
+    {
+        const sent = vi.spyOn(client.admin, 'takeLook');
+        owns();
+        const container = await opened('/admin/people/sara.k?tab=looks');
+
+        takeBack(container, 'dice.inferno');
+        await settle();
+        await answered(null);
+
+        expect(sent).not.toHaveBeenCalled();
+        expect(names(container)).toHaveLength(3);
+    });
+
+    it('gives a look at the press after asking which and why, and says so once the server has', async () =>
+    {
+        let answer: () => void = () => undefined;
+        const sent = vi.spyOn(client.admin, 'giveLook');
+        sent.mockImplementationOnce(async (request) =>
+        {
+            await new Promise<void>((resolve) => answer = resolve);
+            return await client.admin.giveLook(request);
+        });
+        owns();
+        const container = await opened('/admin/people/sara.k?tab=looks');
+
+        expect(said(container, '[data-act="give"]')).toBe('Give a look');
+        expect(container.querySelector('[data-act="give"]')?.classList.contains('text-danger')).toBe(false);
+
+        act(container, 'give');
+        await settle();
+
+        expect(asked().props).toMatchObject({ name: 'Sara Kamali', owned: ['dice.inferno', 'pawns.jade', 'back.gold'] });
+        expect(asked().props).not.toHaveProperty('initial');
+
+        await answered({ item: 'dice.storm', reason: 'A prize for the Friday cup.' });
+
+        expect(sent).toHaveBeenCalledWith({ params: { handle: 'sara.k' }, input: { item: 'dice.storm', reason: 'A prize for the Friday cup.' } });
+        expect(names(container)).toEqual(['Stormforged Monarch dice', 'Infernal Sovereign dice', 'Jade Dragon Dynasty pawns', 'Royal Gold card back']);
+        expect(said(container, '[data-look="dice.storm"] [data-how]')).toBe('Given by Nura’s team');
+        expect(all(container, '[data-history] [data-line]')).toEqual(['alex gave sara.k Stormforged Monarch dice.']);
+        expect(toasts()).toEqual([]);
+
+        answer();
+        await settle();
+
+        expect(names(container)[0]).toBe('Stormforged Monarch dice');
+        expect(toasts()).toEqual(['Sara Kamali has Stormforged Monarch dice now.']);
+        expect(server.staff.log.map((row) => `${ row.kind } ${ row.details.item }`)).toEqual(['shop-grant dice.storm']);
+    });
+
+    it('takes a refused gift back in the refusal\'s words, and opens the sheet again on what was asked', async () =>
+    {
+        vi.spyOn(client.admin, 'giveLook').mockRejectedValueOnce(new ApiError(409, 'staff-rank', 'That is above what your role may do.', undefined));
+        const container = await opened('/admin/people/sara.k?tab=looks');
+
+        act(container, 'give');
+        await settle();
+        await answered({ item: 'dice.storm', reason: 'A prize for the Friday cup.' });
+
+        expect(said(container, '[data-panel="looks"] [data-looks="none"]')).toBe('Owns no look yet.');
+        expect(toasts()).toEqual(['That is above what your role may do.']);
+
+        act(container, 'give');
+        await settle();
+
+        expect(asked().props).toMatchObject({ initial: { item: 'dice.storm', reason: 'A prize for the Friday cup.' } });
+    });
+
+    it('narrows the list by how each came once they came more than one way, the choice kept in the address', async () =>
+    {
+        owns();
+        const { container, router } = await routed('/admin/people/sara.k?tab=looks');
+        const chip = (label: string) => [...container.querySelectorAll<HTMLButtonElement>('[data-panel="looks"] [aria-pressed]')].find((one) => one.textContent?.trim().startsWith(label))!;
+
+        expect(chips(container)).toEqual(['All3', 'Bought1', 'From friends1', 'From the team1']);
+
+        chip('From the team').click();
+        await settle();
+
+        expect(router.location().query.via).toBe('grant');
+        expect(names(container)).toEqual(['Infernal Sovereign dice']);
+
+        chip('All').click();
+        await settle();
+
+        expect(router.location().query.via).toBeUndefined();
+        expect(names(container)).toHaveLength(3);
+        cleanup();
+
+        server.accounts.about['sara.k'] = { looks: [{ item: 'back.gold', via: 'purchase', at: hoursAgo(30), worn: false }] };
+        const bought = await opened('/admin/people/sara.k?tab=looks');
+
+        expect(chips(bought)).toEqual([]);
+        expect(names(bought)).toEqual(['Royal Gold card back']);
+        cleanup();
+
+        const gone = await opened('/admin/people/sara.k?tab=looks&via=grant');
+
+        expect(chips(gone)).toEqual(['All1', 'Bought1', 'From the team0']);
+        expect(said(gone, '[data-panel="looks"] [data-looks="none-found"]')).toBe('None came this way.');
+    });
+
+    it('turns the pages of a long collection, twenty at a time, the page kept in the address and the first again for another filter', async () =>
+    {
+        const kinds = ['decoration', 'effect', 'theme', 'nameplate', 'dice', 'pawns', 'yard', 'back', 'face', 'felt', 'chips', 'checkers', 'home', 'pieces', 'celebration'];
+        server.accounts.about['sara.k'] = {
+            looks: [
+                ...kinds.map((kind, at) => ({ item: `${ kind }.inferno`, via: 'purchase' as const, at: hoursAgo(at + 1), worn: false })),
+                ...kinds.slice(0, 9).map((kind, at) => ({ item: `${ kind }.jade`, via: 'purchase' as const, at: hoursAgo(at + 20), worn: false })),
+                { item: 'dice.storm', via: 'grant' as const, at: hoursAgo(40), worn: false }
+            ]
+        };
+        const { container, router } = await routed('/admin/people/sara.k?tab=looks');
+
+        expect(chips(container)).toEqual(['All25', 'Bought24', 'From the team1']);
+        expect(rows(container)).toHaveLength(20);
+        expect(said(container, '[data-panel="looks"] nav p')).toBe('1–20 of 25');
+
+        button(container, '2')!.click();
+        await settle();
+
+        expect(router.location().query.page).toBe('2');
+        expect(rows(container).map((one) => one.dataset.look)).toEqual(['pawns.jade', 'yard.jade', 'back.jade', 'face.jade', 'dice.storm']);
+
+        [...container.querySelectorAll<HTMLButtonElement>('[data-panel="looks"] [aria-pressed]')].find((one) => one.textContent?.trim().startsWith('From the team'))!.click();
+        await settle();
+
+        expect(router.location().query).toMatchObject({ via: 'grant' });
+        expect(router.location().query.page).toBeUndefined();
+        expect(rows(container).map((one) => one.dataset.look)).toEqual(['dice.storm']);
+    });
+
+    it('says it in Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+        owns();
+        const container = await opened('/admin/people/sara.k?tab=looks');
+
+        expect(names(container)).toEqual(['تاس سلطان دوزخ', 'مهره‌های منچ دودمان اژدهای یشم', 'پشت کارت طلای سلطنتی']);
+        expect(rows(container).map((one) => said(one, '[data-how]'))).toEqual(['تیم نورا بهش داده', 'هدیه از طرف mina', 'خودش خریده']);
+        expect(said(container, '[data-act="give"]')).toBe('یه استایل بهش بده');
+
+        takeBack(container, 'dice.inferno');
+        await settle();
+
+        expect(asked().props).toMatchObject({ title: 'تاس سلطان دوزخ رو از Sara Kamali پس بگیری؟', confirm: 'پسش بگیر', destructive: true });
+
+        await answered('اشتباهی بهش داده بودیم.');
+
+        expect(all(container, '[data-history] [data-line]')).toEqual(['alex، تاس سلطان دوزخ رو از sara.k پس گرفت.']);
+        expect(toasts()).toEqual(['Sara Kamali دیگه تاس سلطان دوزخ رو نداره.']);
     });
 });

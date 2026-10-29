@@ -68,6 +68,8 @@ import {
     adminReportsQuery,
     adminReviewInput,
     reportsWaiting,
+    adminGiveInput,
+    adminTakeInput,
     adminShop,
     adminShopFeatureInput,
     adminShopItemInput,
@@ -553,6 +555,12 @@ export function buildApi(ports: Ports)
 
             minor: routes.post('/people/:handle/minor', { input: adminMinorInput, output: adminPerson },
                 async (context) => onlyAdmin(await ports.admin.minor(context.principal.userId, context.params.handle, context.input))),
+
+            giveLook: routes.post('/people/:handle/looks', { input: adminGiveInput, output: adminPerson },
+                async (context) => onlyAdmin(await ports.admin.giveLook(context.principal.userId, context.params.handle, context.input))),
+
+            takeLook: routes.post('/people/:handle/looks/:item/take', { input: adminTakeInput, output: adminPerson },
+                async (context) => onlyAdmin(await ports.admin.takeLook(context.principal.userId, context.params.handle, context.params.item, context.input))),
 
             reports: routes.get('/reports', { query: adminReportsQuery, output: adminReports },
                 async (context) => onlyAdmin(await ports.admin.reports(context.principal.userId, context.query))),

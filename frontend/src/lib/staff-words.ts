@@ -212,6 +212,11 @@ const said = (row: LogRow, locale: LocaleApi) =>
         return locale.t(SHELF_LINES[row.details.to ?? ''] ?? 'admin.log.line.shop.on-sale', { ...slots, look });
     }
 
+    if (row.kind === 'shop-grant' || row.kind === 'shop-revoke')
+    {
+        return locale.t(row.kind === 'shop-grant' ? 'admin.log.line.shop.grant' : 'admin.log.line.shop.revoke', { ...slots, look: itemName(row.details.item ?? '', locale) });
+    }
+
     if (row.kind === 'shop-feature')
     {
         const collection = SHOP_COLLECTIONS.find((one) => one === row.details.to);

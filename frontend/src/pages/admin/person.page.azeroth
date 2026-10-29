@@ -1,10 +1,13 @@
 import { createResource, Link, untrack, useHead, useParams } from 'azerothjs';
 
-import { outranks, type ClearPart } from '../../../../backend/src/domains/admin/roles.ts';
+import { may, outranks, type ClearPart } from '../../../../backend/src/domains/admin/roles.ts';
 import type { AdminPerson } from '../../../../backend/src/schemas.ts';
 import { ApiError, client } from '../../api.ts';
+import type { GiveAsk } from '../../components/admin/give-look-sheet.component.azeroth';
 import LogEntry from '../../components/admin/log-entry.component.azeroth';
 import PersonActions from '../../components/admin/person-actions.component.azeroth';
+import type { AdminLook } from '../../components/admin/person-look.component.azeroth';
+import PersonLooks from '../../components/admin/person-looks.component.azeroth';
 import Said from '../../components/admin/said.component.azeroth';
 import type { SuspendAsk } from '../../components/admin/suspend-sheet.component.azeroth';
 import When from '../../components/admin/when.component.azeroth';
@@ -29,6 +32,7 @@ import { createGuesses, type Guess } from '../../lib/guess.ts';
 import { nuraOf } from '../../lib/nura.ts';
 import { useAddress } from '../../lib/page-param.ts';
 import { runtime } from '../../lib/runtime.ts';
+import { itemName } from '../../lib/shop.ts';
 import { CATEGORY_WORDS, handleParts, ROLE_WORDS, STATUS_TONES, STATUS_WORDS, TERM_WORDS, whyStaffRefused } from '../../lib/staff-words.ts';
 import { shortAddress } from '../../lib/wallet.ts';
 import type { MessageKey } from '../../locales/en.ts';
@@ -78,7 +82,7 @@ const PLAYED: RecordPart[] = ['level', 'record'];
 
 const UNPLAYED: RecordPart[] = ['level'];
 
-const TABS = ['overview', 'reports', 'games', 'history'] as const;
+const TABS = ['overview', 'reports', 'games', 'looks', 'history'] as const;
 
 export default component PersonPage()
 {
@@ -295,6 +299,14 @@ export default component PersonPage()
 
     derived mayAct = person !== null && me !== null && person.handle !== me.handle && outranks(me.staff ?? null, person.staff ?? null);
 
+    derived mayShop = me !== null && may(me.staff ?? null, 'shop');
+
+    derived mayTake = mayAct && mayShop;
+
+    derived looks = person?.looks ?? [];
+
+    derived owned = looks.map((one) => one.item);
+
     derived tab = TABS.find((one) => one === address.text('tab')) ?? 'overview';
 
     derived onOverview = tab === 'overview';
@@ -303,12 +315,15 @@ export default component PersonPage()
 
     derived onGames = tab === 'games';
 
+    derived onLooks = tab === 'looks';
+
     derived onHistory = tab === 'history';
 
     derived tabs = [
         { id: 'overview', label: locale.t('admin.person.tab.overview') },
         { id: 'reports', label: locale.t('admin.person.tab.reports'), count: reports.length },
         { id: 'games', label: locale.t('admin.person.tab.games') },
+        { id: 'looks', label: locale.t('admin.person.tab.looks'), count: looks.length },
         { id: 'history', label: locale.t('admin.person.tab.history') }
     ];
 
@@ -480,6 +495,42 @@ export default component PersonPage()
         return await attempt(sent, locale.t(to ? 'admin.age.doneMinor' : 'admin.age.doneAdult', { name: called }), whyStaffRefused);
     };
 
+    const givenFor = (ask: GiveAsk, at: number): Guess<AdminPerson> => (from) => ({
+        ...from,
+        looks: from.looks.some((one) => one.item === ask.item) ? from.looks : [{ item: ask.item, via: 'grant', at: new Date(at).toISOString(), worn: false }, ...from.looks],
+        history: [
+            { id: `shop-grant-${ at }`, at: new Date(at).toISOString(), staff: me?.handle ?? '', staffRole: me?.staff ?? 'admin', kind: 'shop-grant', person: from.handle, reason: ask.reason, details: { item: ask.item } },
+            ...from.history
+        ]
+    });
+
+    const takenFor = (item: string, reason: string, at: number): Guess<AdminPerson> => (from) => ({
+        ...from,
+        looks: from.looks.filter((one) => one.item !== item),
+        history: [
+            { id: `shop-revoke-${ at }`, at: new Date(at).toISOString(), staff: me?.handle ?? '', staffRole: me?.staff ?? 'admin', kind: 'shop-revoke', person: from.handle, reason, details: { item } },
+            ...from.history
+        ]
+    });
+
+    const giveNow = async (ask: GiveAsk) =>
+    {
+        const about = handle;
+        const said = locale.t('admin.look.done', { name: calledBy, look: itemName(ask.item, locale) });
+        const sent = guesses.during(givenFor(ask, runtime().clock.now()), () => client.admin.giveLook({ params: { handle: about }, input: ask }), reread);
+
+        return await attempt(sent, said, whyStaffRefused);
+    };
+
+    const takeNow = async (look: AdminLook, reason: string) =>
+    {
+        const about = handle;
+        const said = locale.t('admin.look.taken', { name: calledBy, look: itemName(look.item, locale) });
+        const sent = guesses.during(takenFor(look.item, reason, runtime().clock.now()), () => client.admin.takeLook({ params: { handle: about, item: look.item }, input: { reason } }), reread);
+
+        return await attempt(sent, said, whyStaffRefused);
+    };
+
     const olderHistory = async () =>
     {
         const from = firstCursor;
@@ -609,11 +660,14 @@ export default component PersonPage()
                                 named={ named }
                                 described={ described }
                                 signedIn={ signedIn }
+                                giving={ mayShop }
+                                owned={ owned }
                                 onSuspend={ suspendNow }
                                 onLift={ liftNow }
                                 onMark={ markNow }
                                 onClear={ clearNow }
                                 onSignOut={ signOutNow }
+                                onGive={ giveNow }
                             />
                         </div>
                     </Show>
@@ -757,6 +811,10 @@ export default component PersonPage()
                                     </ul>
                                 </Show>
                             </Panel>
+                        </div>
+
+                        <div class="flex flex-col gap-4" role="tabpanel" aria-label={ locale.t('admin.person.tab.looks') } hidden={ !onLooks } data-panel="looks">
+                            <PersonLooks looks={ looks } name={ calledBy } mayTake={ mayTake } onTake={ takeNow } />
                         </div>
 
                         <section class="flex flex-col gap-3" role="tabpanel" aria-labelledby="person-history" hidden={ !onHistory } data-panel="history">

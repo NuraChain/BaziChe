@@ -4,10 +4,11 @@ import type { IconName } from '../../icons/all.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useOverlay } from '../../stores/overlay.store.ts';
+import GiveLookSheet, { type GiveAsk } from './give-look-sheet.component.azeroth';
 import ReasonSheet from './reason-sheet.component.azeroth';
 import SuspendSheet, { type SuspendAsk } from './suspend-sheet.component.azeroth';
 
-type Act = 'suspend' | 'lift' | 'minor' | 'adult' | ClearPart | 'sign-out';
+type Act = 'suspend' | 'lift' | 'minor' | 'adult' | ClearPart | 'sign-out' | 'give';
 
 const PRESS: Readonly<Record<ClearPart, MessageKey>> = {
     picture: 'admin.content.picture',
@@ -35,10 +36,13 @@ const ICONS: Readonly<Record<Act, IconName>> = {
     picture: 'image',
     name: 'edit',
     bio: 'trash',
-    'sign-out': 'sign-out'
+    'sign-out': 'sign-out',
+    give: 'gift'
 };
 
 const isAsk = (value: unknown): value is SuspendAsk => typeof value === 'object' && value !== null && 'reason' in value && 'category' in value;
+
+const isGive = (value: unknown): value is GiveAsk => typeof value === 'object' && value !== null && 'reason' in value && 'item' in value;
 
 export default component PersonActions(props: {
     name: string;
@@ -49,11 +53,14 @@ export default component PersonActions(props: {
     named: boolean;
     described: boolean;
     signedIn: boolean;
+    giving: boolean;
+    owned: string[];
     onSuspend: (ask: SuspendAsk) => Promise<boolean>;
     onLift: (reason: string) => Promise<boolean>;
     onMark: (minor: boolean, reason: string) => Promise<boolean>;
     onClear: (part: ClearPart, reason: string) => Promise<boolean>;
     onSignOut: (reason: string) => Promise<boolean>;
+    onGive: (ask: GiveAsk) => Promise<boolean>;
 })
 {
     const locale = useLocale();
@@ -61,6 +68,8 @@ export default component PersonActions(props: {
     const kept = new Map<Act, string>();
 
     let keptAsk: SuspendAsk | null = null;
+
+    let keptGive: GiveAsk | null = null;
 
     const row = (id: Act, label: MessageKey, danger: boolean) => ({ id, label: locale.t(label), danger });
 
@@ -70,10 +79,11 @@ export default component PersonActions(props: {
         ...(props.pictured ? [row('picture', PRESS.picture, true)] : []),
         ...(props.named ? [row('name', PRESS.name, true)] : []),
         ...(props.described ? [row('bio', PRESS.bio, true)] : []),
-        ...(props.signedIn ? [row('sign-out', 'admin.signOut.title', true)] : [])
+        ...(props.signedIn ? [row('sign-out', 'admin.signOut.title', true)] : []),
+        ...(props.giving ? [row('give', 'admin.look.give', false)] : [])
     ];
 
-    const words = (act: Exclude<Act, 'suspend'>) =>
+    const words = (act: Exclude<Act, 'suspend' | 'give'>) =>
     {
         const name = props.name;
 
@@ -109,7 +119,7 @@ export default component PersonActions(props: {
         return { title: locale.t(ASK[act], { name }), lead: locale.t(ASK_LEAD[act]), confirm: locale.t('admin.content.confirm'), destructive: true, label: locale.t('admin.content.title') };
     };
 
-    const sent = (act: Exclude<Act, 'suspend'>, reason: string) =>
+    const sent = (act: Exclude<Act, 'suspend' | 'give'>, reason: string) =>
     {
         if (act === 'lift')
         {
@@ -138,11 +148,31 @@ export default component PersonActions(props: {
         }
     };
 
+    const give = async () =>
+    {
+        const ask = await overlay.open(
+            GiveLookSheet,
+            { name: props.name, owned: props.owned, ...(keptGive === null ? {} : { initial: keptGive }) },
+            { label: locale.t('admin.look.give') }
+        ).closed;
+
+        if (isGive(ask))
+        {
+            keptGive = await props.onGive(ask) ? null : ask;
+        }
+    };
+
     const run = async (act: Act) =>
     {
         if (act === 'suspend')
         {
             await suspend();
+            return;
+        }
+
+        if (act === 'give')
+        {
+            await give();
             return;
         }
 

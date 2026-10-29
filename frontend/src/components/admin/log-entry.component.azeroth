@@ -27,7 +27,9 @@ const MARKS: Record<ActionKind, { icon: IconName; tone: string }> = {
     notice: { icon: 'megaphone', tone: 'bg-accent/15 text-accent' },
     check: { icon: 'wallet', tone: 'bg-gold/15 text-gold' },
     'shop-item': { icon: 'bag', tone: 'bg-accent/15 text-accent' },
-    'shop-feature': { icon: 'star', tone: 'bg-gold/15 text-gold' }
+    'shop-feature': { icon: 'star', tone: 'bg-gold/15 text-gold' },
+    'shop-grant': { icon: 'gift', tone: 'bg-live/15 text-live' },
+    'shop-revoke': { icon: 'gift', tone: 'bg-danger/15 text-danger' }
 };
 
 export default component LogEntry(props: { row: LogRow; report?: string })

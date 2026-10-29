@@ -1372,7 +1372,7 @@ describe('the owner\'s view of the vault', () =>
             identity: {
                 principal: () => Promise.resolve({ userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' })
             },
-            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice', 'shop', 'shopItem', 'shopFeature', 'shopOrders'].map((verb) => [verb, (...said: unknown[]) =>
+            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice', 'shop', 'shopItem', 'shopFeature', 'shopOrders', 'giveLook', 'takeLook'].map((verb) => [verb, (...said: unknown[]) =>
             {
                 told.push([verb, ...said]);
 
@@ -1746,6 +1746,31 @@ describe('the owner\'s view of the vault', () =>
         expect(bodies).toContain(`'/admin/shop/items/:id': (bad) => [`);
         expect(bodies).toContain(`'/admin/shop/featured': (bad) => [`);
         expect(queries).toContain(`'/admin/shop/orders': ['state', 'item', 'person', 'cursor']`);
+        expect(bodies).toContain(`'/admin/people/:handle/looks': (bad) => [`);
+        expect(bodies).toContain(`'/admin/people/:handle/looks/:item/take': (bad) => [`);
+    });
+
+    it('answers anybody who may not give a look as a page that is not there, and takes a look and a reason only in the shapes the wire offers', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = owned(told, null);
+        const give = { item: 'dice.jade', reason: 'For winning the cup' };
+        const take = { reason: 'Given by mistake' };
+        const answers = [await sent(app, '/people/mina/looks', give), await sent(app, '/people/mina/looks/dice.jade/take', take)];
+
+        for (const response of answers)
+        {
+            const body = await response.json() as { error: { code: string; message: string } };
+
+            expect([response.status, body.error.code, body.error.message]).toEqual([404, 'not-found', 'Nothing there.']);
+        }
+
+        expect(told).toEqual([['giveLook', 'somebody', 'mina', give], ['takeLook', 'somebody', 'mina', 'dice.jade', take]]);
+        expect((await sent(app, '/people/mina/looks', { item: 'x'.repeat(41), reason: give.reason })).status).toBe(422);
+        expect((await sent(app, '/people/mina/looks', { item: 'dice.jade', reason: 'no' })).status).toBe(422);
+        expect((await sent(app, '/people/mina/looks', { reason: give.reason })).status).toBe(422);
+        expect((await sent(app, '/people/mina/looks/dice.jade/take', {})).status).toBe(422);
+        expect(told).toHaveLength(2);
     });
 
     it('answers anybody who may not run the shop as a page that is not there, and takes a price, a sale, a status or a collection only in the shapes the wire offers', async () =>

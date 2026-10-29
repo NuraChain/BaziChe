@@ -6,13 +6,13 @@ import { randomBytes } from 'node:crypto';
 
 import { errorResponse } from '@azerothjs/http';
 
-import { ShopItem, StaffAction, User, entities } from '../src/entities/index.ts';
+import { EquippedItem, OwnedItem, ShopItem, StaffAction, User, entities } from '../src/entities/index.ts';
 import { BUNDLES, FEATURED_FIRST, LOOKS, NURA, SHOP_COLLECTIONS, SHOP_KINDS } from '../src/domains/shop/catalogue.ts';
 import { SHOP_ORDERS_PAGE } from '../src/domains/admin/roles.ts';
 import type { OrderState } from '../src/domains/shop/policy.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
-import { buildPorts, type Services } from '../src/services.ts';
+import { buildPorts, type Services, type WriteListener } from '../src/services.ts';
 
 const url = process.env.TEST_DATABASE_URL;
 
@@ -45,6 +45,26 @@ const CONFIG = {
     vaultAddress: '',
     adminWallet: WALLETS[OWNER]
 } as Parameters<typeof buildPorts>[1];
+
+let rung: [string, string][] = [];
+
+const listener: WriteListener = {
+    chatChanged: () => undefined,
+    chatSeen: () => undefined,
+    socialChanged: () => undefined,
+    edgesChanged: () => undefined,
+    selfChanged: (userId, what) =>
+    {
+        rung.push([userId, what]);
+    },
+    gamePushed: () => undefined,
+    gameWatched: () => undefined,
+    tableChanged: () => undefined,
+    tableViewed: () => undefined,
+    catalogueChanged: () => undefined,
+    sessionsRevoked: () => undefined,
+    seen: () => undefined
+};
 
 let db: DataSource;
 let ports: Services;
@@ -112,7 +132,7 @@ const nura = (whole: bigint) => (whole * NURA).toString();
 const item = (id: string) => db.getRepository(ShopItem).findOneByOrFail({ id });
 
 const shopActions = async () =>
-    (await db.getRepository(StaffAction).find({ where: [{ kind: 'shop-item' }, { kind: 'shop-feature' }], order: { createdAt: 'ASC' } }))
+    (await db.getRepository(StaffAction).find({ where: [{ kind: 'shop-item' }, { kind: 'shop-feature' }, { kind: 'shop-grant' }, { kind: 'shop-revoke' }], order: { createdAt: 'ASC' } }))
         .map((row) => [row.staffHandle, row.staffRole, row.kind, row.personHandle, row.reason, row.details]);
 
 /** An order written by hand in `state`, placed `ago` minutes ago, a gift when it names somebody `for`. */
@@ -194,7 +214,8 @@ describe.skipIf(!active)('Admin › Shop, against a real database', () =>
 
     beforeEach(async () =>
     {
-        ports = buildPorts(db, CONFIG);
+        ports = buildPorts(db, CONFIG, listener);
+        rung = [];
         await db.query('truncate table users cascade');
         await restore();
     });
@@ -442,6 +463,199 @@ describe.skipIf(!active)('Admin › Shop, against a real database', () =>
         expect(choices).toHaveLength(2);
         expect(second?.from).toBe(first?.to);
         expect((await ports.admin.shop(owner.id))?.featured).toBe(second?.to);
+    });
+
+    it('gives somebody the reader outranks a look, which their page then lists and their collection hears of, and nothing for one they own already', async () =>
+    {
+        const { owner, admin } = await staff();
+        const player = await makeUser(null);
+        const wearer = await makeUser(null);
+
+        await db.getRepository(OwnedItem).insert({ userId: wearer.id, itemId: 'dice.jade', via: 'purchase', orderId: null, giverId: null });
+        await db.getRepository(EquippedItem).insert({ userId: wearer.id, slot: 'ludo.dice', itemId: 'dice.jade' });
+
+        const person = await ports.admin.giveLook(admin.id, player.handle, { item: 'dice.jade', reason: 'For winning the cup' });
+
+        expect(person?.looks).toEqual([{ item: 'dice.jade', via: 'grant', at: expect.any(String), worn: false }]);
+        expect(person?.history[0]).toMatchObject({ kind: 'shop-grant', staff: admin.handle, person: player.handle, reason: 'For winning the cup', details: { item: 'dice.jade' } });
+        expect(await db.getRepository(OwnedItem).findOneBy({ userId: player.id, itemId: 'dice.jade' })).toMatchObject({ via: 'grant', orderId: null, giverId: null });
+        expect(rung).toEqual([[player.id, 'shop']]);
+        expect(await shopActions()).toEqual([[admin.handle, 'admin', 'shop-grant', player.handle, 'For winning the cup', { item: 'dice.jade' }]]);
+
+        rung = [];
+
+        const again = await ports.admin.giveLook(owner.id, player.handle, { item: 'dice.jade', reason: 'Pressed it again' });
+
+        expect(again?.looks).toEqual(person?.looks);
+        expect(rung).toEqual([]);
+        expect(await shopActions()).toHaveLength(1);
+    });
+
+    it('gives only a look, never a bundle or a look the catalogue does not have, and nothing over a look they bought', async () =>
+    {
+        const { admin } = await staff();
+        const player = await makeUser(null);
+
+        await db.getRepository(OwnedItem).insert({ userId: player.id, itemId: 'back.oni', via: 'purchase', orderId: null, giverId: null });
+
+        expect(await ports.admin.giveLook(admin.id, player.handle, { item: 'bundle.jade', reason: 'The whole set' })).toBeNull();
+        expect(await ports.admin.giveLook(admin.id, player.handle, { item: 'dice.nothing', reason: 'A look we never drew' })).toBeNull();
+        expect((await ports.admin.giveLook(admin.id, player.handle, { item: 'back.oni', reason: 'They have it' }))?.looks).toEqual([{ item: 'back.oni', via: 'purchase', at: expect.any(String), worn: false }]);
+        expect(await db.getRepository(OwnedItem).findOneBy({ userId: player.id, itemId: 'back.oni' })).toMatchObject({ via: 'purchase' });
+        expect(await shopActions()).toEqual([]);
+    });
+
+    it('gives one look once when two of the staff give it at once', async () =>
+    {
+        const { owner, admin } = await staff();
+        const player = await makeUser(null);
+        const gate = db.createQueryRunner();
+
+        await gate.connect();
+        await gate.startTransaction();
+        await gate.query('select id from users where id = $1 for update', [player.id]);
+
+        const both = Promise.all([
+            ports.admin.giveLook(admin.id, player.handle, { item: 'dice.jade', reason: 'For winning the cup' }),
+            ports.admin.giveLook(owner.id, player.handle, { item: 'dice.jade', reason: 'For the cup as well' })
+        ]);
+        const waited = await parked(2);
+
+        await gate.commitTransaction();
+        await gate.release();
+        await both;
+
+        expect(waited).toBe(2);
+        expect(await db.getRepository(OwnedItem).countBy({ userId: player.id })).toBe(1);
+        expect(await shopActions()).toHaveLength(1);
+    });
+
+    it('leaves a look bought while the gift waited as bought, and writes nothing for the gift', async () =>
+    {
+        const { admin } = await staff();
+        const player = await makeUser(null);
+        const delivery = db.createQueryRunner();
+
+        await delivery.connect();
+        await delivery.startTransaction();
+        await delivery.manager.getRepository(OwnedItem).insert({ userId: player.id, itemId: 'dice.jade', via: 'purchase', orderId: null, giverId: null });
+
+        const gift = ports.admin.giveLook(admin.id, player.handle, { item: 'dice.jade', reason: 'For winning the cup' });
+        const waited = await parked(1);
+
+        await delivery.commitTransaction();
+        await delivery.release();
+
+        expect(waited).toBe(1);
+        expect((await gift)?.looks).toEqual([{ item: 'dice.jade', via: 'purchase', at: expect.any(String), worn: false }]);
+        expect(await shopActions()).toEqual([]);
+    });
+
+    it('takes back a look the staff gave, off everywhere it was worn, and rings the profile when it was worn there', async () =>
+    {
+        const { admin } = await staff();
+        const player = await makeUser(null);
+
+        await ports.admin.giveLook(admin.id, player.handle, { item: 'dice.jade', reason: 'For winning the cup' });
+        await ports.admin.giveLook(admin.id, player.handle, { item: 'decoration.jade', reason: 'For winning the cup' });
+
+        expect((await ports.admin.person(admin.id, player.handle))?.looks.map((one) => one.item)).toEqual(['decoration.jade', 'dice.jade']);
+
+        await db.getRepository(EquippedItem).insert([
+            { userId: player.id, slot: 'ludo.dice', itemId: 'dice.jade' },
+            { userId: player.id, slot: 'backgammon.dice', itemId: 'dice.jade' },
+            { userId: player.id, slot: 'profile.decoration', itemId: 'decoration.jade' }
+        ]);
+        rung = [];
+
+        const dice = await ports.admin.takeLook(admin.id, player.handle, 'dice.jade', { reason: 'Given by mistake' });
+
+        expect(dice?.looks.map((one) => [one.item, one.worn])).toEqual([['decoration.jade', true]]);
+        expect(dice?.history[0]).toMatchObject({ kind: 'shop-revoke', person: player.handle, details: { item: 'dice.jade' } });
+        expect(await db.getRepository(EquippedItem).findBy({ userId: player.id, itemId: 'dice.jade' })).toEqual([]);
+        expect(rung).toEqual([[player.id, 'shop']]);
+
+        rung = [];
+        await ports.admin.takeLook(admin.id, player.handle, 'decoration.jade', { reason: 'Given by mistake' });
+
+        expect(rung).toEqual([[player.id, 'shop'], [player.id, 'profile']]);
+
+        rung = [];
+
+        const none = await ports.admin.takeLook(admin.id, player.handle, 'decoration.jade', { reason: 'Pressed it again' });
+
+        expect(none?.looks).toEqual([]);
+        expect(rung).toEqual([]);
+        expect((await shopActions()).map((row) => [row[2], row[5]])).toEqual([
+            ['shop-grant', { item: 'dice.jade' }],
+            ['shop-grant', { item: 'decoration.jade' }],
+            ['shop-revoke', { item: 'dice.jade' }],
+            ['shop-revoke', { item: 'decoration.jade' }]
+        ]);
+    });
+
+    it('takes a look back once when two of the staff take it at once', async () =>
+    {
+        const { owner, admin } = await staff();
+        const player = await makeUser(null);
+
+        await ports.admin.giveLook(admin.id, player.handle, { item: 'dice.jade', reason: 'For winning the cup' });
+
+        const gate = db.createQueryRunner();
+
+        await gate.connect();
+        await gate.startTransaction();
+        await gate.query(`select item_id from owned_items where user_id = $1 and item_id = 'dice.jade' for update`, [player.id]);
+
+        const both = Promise.all([
+            ports.admin.takeLook(admin.id, player.handle, 'dice.jade', { reason: 'Given by mistake' }),
+            ports.admin.takeLook(owner.id, player.handle, 'dice.jade', { reason: 'Given to the wrong person' })
+        ]);
+        const waited = await parked(2);
+
+        await gate.commitTransaction();
+        await gate.release();
+        await both;
+
+        expect(waited).toBe(2);
+        expect((await shopActions()).map((row) => row[2])).toEqual(['shop-grant', 'shop-revoke']);
+    });
+
+    it('keeps a look bought or given by a friend with its owner for good', async () =>
+    {
+        const { admin } = await staff();
+        const player = await makeUser(null);
+        const friend = await makeUser(null);
+
+        await db.getRepository(OwnedItem).insert([
+            { userId: player.id, itemId: 'back.oni', via: 'purchase', orderId: null, giverId: null },
+            { userId: player.id, itemId: 'felt.frost', via: 'gift', orderId: null, giverId: friend.id }
+        ]);
+
+        expect(await word(ports.admin.takeLook(admin.id, player.handle, 'back.oni', { reason: 'Not theirs' }))).toBe('409 staff-look-kept');
+        expect(await word(ports.admin.takeLook(admin.id, player.handle, 'felt.frost', { reason: 'Not theirs' }))).toBe('409 staff-look-kept');
+        expect(await db.getRepository(OwnedItem).countBy({ userId: player.id })).toBe(2);
+        expect((await ports.admin.person(admin.id, player.handle))?.looks.find((one) => one.item === 'felt.frost')).toEqual({ item: 'felt.frost', via: 'gift', from: friend.handle, at: expect.any(String), worn: false });
+        expect(await shopActions()).toEqual([]);
+    });
+
+    it('answers a moderator as nothing, and refuses the reader\'s own account and somebody at the reader\'s rank', async () =>
+    {
+        const { owner, admin } = await staff();
+        const moderator = await makeUser(2);
+        const other = await makeUser(3);
+        const player = await makeUser(null);
+
+        await ports.admin.setStaff(owner.id, { handle: moderator.handle, role: 'moderator', reason: 'Looks after the reports' });
+        await ports.admin.setStaff(owner.id, { handle: other.handle, role: 'admin', reason: 'Runs the shop too' });
+
+        expect(await ports.admin.giveLook(moderator.id, player.handle, { item: 'dice.jade', reason: 'From a moderator' })).toBeNull();
+        expect(await ports.admin.takeLook(moderator.id, player.handle, 'dice.jade', { reason: 'From a moderator' })).toBeNull();
+        expect(await word(ports.admin.giveLook(admin.id, admin.handle, { item: 'dice.jade', reason: 'For myself' }))).toBe('409 staff-self');
+        expect(await word(ports.admin.giveLook(admin.id, other.handle, { item: 'dice.jade', reason: 'For a colleague' }))).toBe('409 staff-rank');
+        expect(await word(ports.admin.giveLook(admin.id, 'nobody.here', { item: 'dice.jade', reason: 'For nobody' }))).toBe('404 staff-nobody');
+        expect((await ports.admin.giveLook(owner.id, other.handle, { item: 'dice.jade', reason: 'For a colleague' }))?.looks.map((one) => one.item)).toEqual(['dice.jade']);
+        expect(await db.getRepository(OwnedItem).countBy({ userId: player.id })).toBe(0);
     });
 
     it('lists the orders newest first with their state, look and people, and finds them by state, look and person', async () =>

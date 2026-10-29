@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { SIZE, SQUARE, spotOf } from '../src/game/chess-layout.ts';
 import { feltOf, type Told } from '../src/game/chess-felt.ts';
-import { GLIDE_MOST, PROMOTE_MS, ROOK_MS, TIP_MS, createChessTable, type ChessTable, type Lay } from '../src/game/board/chess-table.ts';
+import { END_LEAST, GLIDE_MOST, PROMOTE_MS, ROOK_MS, TIP_MS, createChessTable, type ChessOptions, type ChessTable, type Lay } from '../src/game/board/chess-table.ts';
+import { CELEBRATIONS } from '../src/game/looks/celebrations.ts';
 import { CASTLES, CHECKS, FINALES, LANDING, type Sets } from '../src/game/looks/chess.ts';
 import { CAPTURES, CRITICALS, burstOf, lightOf } from '../src/game/looks/table.ts';
 import { createDirector, type Director } from '../src/game/stage/director.ts';
@@ -13,6 +14,7 @@ import type { Sight } from '../src/game/stage/presenter.ts';
 import { createStage, type Stage } from '../src/game/stage/stage.ts';
 import type { Cue, SoundHandle } from '../src/game/sound.ts';
 import { parseFen, squareNamed } from '../../backend/src/domains/match/chess/board.ts';
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 
 interface Burst
 {
@@ -86,6 +88,7 @@ let table: ChessTable;
 let heard: { cue: Cue; at: number }[];
 let still: boolean;
 let sets: Sets;
+let cheers: ReturnType<NonNullable<ChessOptions['cheers']>>;
 let broke: unknown[];
 
 const elapse = async (ms: number) =>
@@ -138,6 +141,7 @@ beforeEach(() =>
     broke = [];
     still = false;
     sets = { w: null, b: null };
+    cheers = { w: { seat: 0, worn: null }, b: { seat: 1, worn: null } };
     host = document.createElement('div');
     host.className = 'chess-layer';
     Object.defineProperty(host, 'clientWidth', { value: SIZE });
@@ -145,7 +149,7 @@ beforeEach(() =>
 
     stage = createStage({ clock, quiet: () => still, report: (error) => broke.push(error) });
     director = createDirector(stage, clock, (error) => broke.push(error));
-    table = createChessTable({ host, stage, sound: () => sound, animals: () => false, feel: () => undefined, sets: () => sets });
+    table = createChessTable({ host, stage, sound: () => sound, animals: () => false, feel: () => undefined, sets: () => sets, cheers: () => cheers });
 });
 
 afterEach(() =>
@@ -284,5 +288,71 @@ describe('a chess table\'s moments in its players\' sets', () =>
         table.dispose();
 
         expect(engine.disposed).toBe(1);
+    });
+});
+
+describe('a chess winner\'s celebration in the look they chose', () =>
+{
+    const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+    const cheersOf = () => bursts().filter((one) => Object.values(CELEBRATIONS).some((steps) => one.steps === steps));
+
+    const ended = async (finish: Told) =>
+    {
+        table.reset(sight(lay(START_FEN)));
+        await flush();
+        play([act(6, 1, [finish])], sight(lay(START_FEN), 6));
+        await elapse(100);
+    };
+
+    it('rises from the middle of the winner\'s back rank in its light and voice, and holds a resignation for the end of a match', async () =>
+    {
+        cheers = { w: { seat: 0, worn: 'phoenix' }, b: { seat: 1, worn: 'oni' } };
+        await ended({ e: 'finish', reason: 'resign', winner: 0 });
+
+        const [cheered] = cheersOf();
+        const [queen, king] = [middle('d1'), middle('e1')];
+
+        expect(cheersOf()).toHaveLength(1);
+        expect(cheered!.steps).toBe(CELEBRATIONS.phoenix);
+        expect(cheered!.at).toEqual({ x: (queen.x + king.x) / 2, y: (queen.y + king.y) / 2 });
+        expect(cheered!.tune).toMatchObject({ colors: lightOf('phoenix'), scale: Math.min(3, SQUARE * 4 / FITS) });
+        expect(cues()).toContain('phoenix.victory');
+        expect(cues(), 'the side that resigned was heard celebrating').not.toContain('oni.victory');
+
+        await elapse(END_LEAST + 100);
+
+        expect(director.busy(), 'a resignation with a celebration to see was let go at its beat').toBe(true);
+
+        await elapse(PAUSES.end - END_LEAST);
+
+        expect(director.busy()).toBe(false);
+    });
+
+    it('rises from the far back rank for black, the board as the reader\'s colour stands it', async () =>
+    {
+        cheers = { w: { seat: 0, worn: null }, b: { seat: 1, worn: 'oni' } };
+        await ended({ e: 'finish', reason: 'flag', winner: 1 });
+
+        const [queen, king] = [middle('d8'), middle('e8')];
+
+        expect(cheersOf().map((one) => one.steps)).toEqual([CELEBRATIONS.oni]);
+        expect(cheersOf()[0]!.at).toEqual({ x: (queen.x + king.x) / 2, y: (queen.y + king.y) / 2 });
+    });
+
+    it('rises for nobody at a draw, nor for a winner who wears none, and holds such an end only its beat', async () =>
+    {
+        cheers = { w: { seat: 0, worn: null }, b: { seat: 1, worn: 'oni' } };
+        await ended({ e: 'finish', reason: 'resign', winner: 0 });
+        await elapse(END_LEAST + 100);
+
+        expect(cheersOf()).toEqual([]);
+        expect(director.busy()).toBe(false);
+
+        cheers = { w: { seat: 0, worn: 'phoenix' }, b: { seat: 1, worn: 'oni' } };
+        await ended({ e: 'finish', reason: 'stalemate' });
+
+        expect(cheersOf(), 'a draw was celebrated').toEqual([]);
+        expect(cues().filter((cue) => cue.endsWith('.victory'))).toEqual([]);
     });
 });

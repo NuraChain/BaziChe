@@ -104,5 +104,18 @@ export const voice = {
         mix(out, boom({ seconds: 0.5, from: 120, to: 50, tau: 0.15, warmth: 2 }), 0, 0.3);
 
         return reverb(out, { size: 0.7, damp: 0.35, wet: 0.2, tail: 0.4 });
+    },
+
+    victory(random)
+    {
+        const out = silence(2.5);
+
+        mix(out, flutter({ seconds: 0.6, random, rate: 8, low: 400, high: 3200 }), 0, 0.85);
+        mix(out, flare(random, 0.7, 300, 6500), 0.4, 1);
+        mix(out, boom({ seconds: 0.7, from: 110, to: 46, tau: 0.24, warmth: 2 }), 0.55, 0.28);
+        mix(out, chime({ notes: SUN, seconds: 1.7, partials: BELL, decay: 1, spread: 0.028 }), 0.6, 1);
+        mix(out, sparkle({ seconds: 1, random, count: 26, low: 3000, high: 9500, early: 1.5 }), 0.62, 0.65);
+
+        return reverb(out, { size: 0.75, damp: 0.35, wet: 0.24, tail: 0.6 });
     }
 };

@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 import { SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
 import { BORNE, ENTRIES } from '../src/game/looks/backgammon.ts';
+import { cheerAt } from '../src/game/looks/celebrations.ts';
 import { CASTLES, CHECKS, FINALES, LANDING } from '../src/game/looks/chess.ts';
 import { playAt } from '../src/game/looks/cards.ts';
 import { LIGHTS } from '../src/game/looks/lights.ts';
@@ -505,6 +507,30 @@ describe('a stream given an area', () =>
     it('gives off across the same places with the same seed', () =>
     {
         expect(run({ width: 600, height: 100 })).toEqual(run({ width: 600, height: 100 }));
+    });
+});
+
+describe('a celebration, as a table plays it at the end of a match', () =>
+{
+    it.each([...SHOP_COLLECTIONS])('raises one of %s, at the largest scale it is drawn, that is spent before the table lets the end go, whatever its roll', (collection) =>
+    {
+        const { steps, at, tune } = cheerAt(collection, AT, 1_000);
+
+        expect(tune.scale, 'a celebration was drawn past the scale its bolts keep their shape at').toBe(3);
+        expect(tune.colors).toEqual(LIGHTS[collection]);
+
+        for (let seed = 1; seed <= 6; seed += 1)
+        {
+            const vfx = made(recording());
+
+            vfx.signature(steps, at, { ...tune, seed });
+
+            expect(vfx.live()).toBeGreaterThan(0);
+
+            clock.advance(PAUSES.end);
+
+            expect(vfx.live(), `seed ${ seed } was still drawing when the result came`).toBe(0);
+        }
     });
 });
 

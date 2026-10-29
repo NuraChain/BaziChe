@@ -16,7 +16,7 @@ import { useSettings } from '../src/stores/settings.store.ts';
 import type { MatchView } from '../src/api.ts';
 import { parseFen, squareNamed } from '../../backend/src/domains/match/chess/board.ts';
 
-const told = vi.hoisted(() => ({ heard: [] as string[], games: [] as string[] }));
+const told = vi.hoisted(() => ({ heard: [] as string[], games: [] as string[], cheered: [] as string[][] }));
 
 vi.mock('../src/game/sound.ts', async (original) =>
 {
@@ -33,7 +33,10 @@ vi.mock('../src/game/sound.ts', async (original) =>
                 {
                     told.heard.push(cue);
                 },
-                wear: () => undefined,
+                wear: (_collections: readonly string[], cheered: readonly string[] = []) =>
+                {
+                    told.cheered.push([...cheered]);
+                },
                 setEnabled: () => undefined,
                 dispose: () => undefined
             };
@@ -691,6 +694,35 @@ describe('a chess board played from a keyboard', () =>
 
         expect(marks(container, 'held')).toEqual([]);
         expect(stops(container)).toHaveLength(10);
+    });
+});
+
+describe('a chess winner\'s celebration, from the looks the match began with', () =>
+{
+    it('wears the voice of the celebration worn at the table, and says it when its wearer wins with black', async () =>
+    {
+        told.heard.length = 0;
+        told.cheered.length = 0;
+
+        const looked = (over: Partial<MatchView> = {}) => match({}, 0, {
+            players: [0, 1].map((seat) => ({ seat, who: seat === 0 ? 'dana.w' : 'omid.k', timeouts: 0, ...(seat === 1 ? { look: { celebration: 'celebration.phoenix' } } : {}) })) as MatchView['players'],
+            ...over
+        });
+        const { tell } = await live(looked());
+
+        expect(told.cheered.at(-1)).toEqual(['phoenix']);
+
+        tell(looked({ rev: 5, turn: undefined, finishedAt: new Date(401_000).toISOString() }), [happened(5, 0, [{ e: 'finish', reason: 'resign', winner: 1 }])]);
+        await elapse(4000);
+
+        expect(told.heard.filter((cue) => cue.endsWith('.victory'))).toEqual(['phoenix.victory']);
+
+        const next = looked({ id: 'match-next' });
+
+        tell({ ...next, players: next.players.map((player) => ({ ...player, look: player.seat === 0 ? { celebration: 'celebration.frost' } : {} })) }, []);
+        await elapse(10);
+
+        expect(told.cheered.at(-1), 'the next game\'s celebration was not worn').toEqual(['frost']);
     });
 });
 

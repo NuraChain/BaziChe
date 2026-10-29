@@ -49,8 +49,11 @@ export interface SoundHandle
 {
     play(cue: Cue, options?: PlayOptions): void;
 
-    /** The collections whose voices this handle plays: each one's pack for the handle's place is fetched while any handle wears it. */
-    wear(collections: readonly Frame[]): void;
+    /**
+     * The collections whose voices this handle plays: each one's pack for the handle's place is
+     * fetched while any handle wears it, and each one's celebration where somebody wears it.
+     */
+    wear(collections: readonly Frame[], cheered?: readonly Frame[]): void;
 
     /**
      * Settles once the voices this handle wears can be heard on their moment: when their packs have
@@ -1001,9 +1004,12 @@ function handle(enabled: boolean, packs: readonly Pack[], place: Place): SoundHa
             }
         },
 
-        wear: (collections) =>
+        wear: (collections, cheered = []) =>
         {
-            const next = [...new Set(collections)].map((collection): Source => `${ collection }-${ place }`);
+            const next = [
+                ...[...new Set(collections)].map((collection): Source => `${ collection }-${ place }`),
+                ...[...new Set(cheered)].map((collection): Source => `${ collection }-celebration`)
+            ];
 
             if (!live)
             {

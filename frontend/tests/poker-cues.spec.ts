@@ -13,7 +13,7 @@ import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 import type { MatchView } from '../src/api.ts';
 import { BLINDS, EVERYBODY, elapse, heard, match, places, pot, rows, seated, stack, told } from './poker-mounted.ts';
 
-const sounds = vi.hoisted(() => ({ heard: [] as string[], felt: [] as string[], games: [] as string[], worn: [] as string[][] }));
+const sounds = vi.hoisted(() => ({ heard: [] as string[], felt: [] as string[], games: [] as string[], worn: [] as string[][], cheered: [] as string[][] }));
 
 vi.mock('../src/game/sound.ts', async (original) =>
 {
@@ -30,9 +30,10 @@ vi.mock('../src/game/sound.ts', async (original) =>
                 {
                     sounds.heard.push(cue);
                 },
-                wear: (collections: readonly string[]) =>
+                wear: (collections: readonly string[], cheered: readonly string[] = []) =>
                 {
                     sounds.worn.push([...collections]);
+                    sounds.cheered.push([...cheered]);
                 },
                 ready: () => Promise.resolve(),
                 setEnabled: () => undefined,
@@ -331,6 +332,32 @@ describe('what a poker table sounds like', () =>
 
         expect(sounds.heard.filter((cue) => cue.includes('.')), 'each card turned, in the order the hands were shown').toEqual(['oni.card', 'oni.card', 'gold.card', 'gold.card']);
         expect(sounds.heard.indexOf('oni.card'), 'a voice before its hand was turned').toBeGreaterThan(sounds.heard.indexOf('card-fan'));
+    });
+
+    it('says the winner\'s celebration in its voice after the win, none for a seat that lost, and wears every celebration worn at the table', async () =>
+    {
+        sounds.cheered.length = 0;
+
+        const gone = { 2: { stack: 0, out: true }, 3: { stack: 0, out: true }, 4: { stack: 0, out: true }, 5: { stack: 0, out: true } };
+        const dressed = (view: MatchView) => ({ ...view, players: view.players.map((player) => (player.seat === 0 ? { ...player, look: { celebration: 'celebration.phoenix' } } : (player.seat === 1 ? { ...player, look: { celebration: 'celebration.oni' } } : player))) }) as MatchView;
+        const before = dressed(match({ button: 0, turn: 1, pots: [{ amount: 30, eligible: [0, 1] }], seats: rows({ ...gone, 0: { stack: 4490, bet: 10 }, 1: { stack: 4480, bet: 20 } }) }));
+        const after = dressed(match(
+            { button: 0, turn: undefined, pot: 0, pots: [], winner: 0, seats: rows({ ...gone, 0: { stack: 4520 }, 1: { stack: 0, out: true } }), last: { board: [], shown: [], pots: [{ amount: 30, winners: [0] }] } },
+            { rev: 8, turn: undefined, finishedAt: new Date(401_000).toISOString() }
+        ));
+        const { read } = await seated(before);
+
+        expect(sounds.cheered.at(-1), 'the voices of the celebrations at the table were not worn').toEqual(['phoenix', 'oni']);
+
+        await read(after, heard(1, told(8, 1, { e: 'forfeit', seat: 1, reason: 'left', place: 2 }, { e: 'pot', amount: 30, winners: [0] }, { e: 'end', hand: 1, dealt: [0, 1] }, { e: 'finish', seat: 0 })));
+        await elapse(LONG);
+
+        expect(sounds.heard.filter((cue) => cue.endsWith('.victory'))).toEqual(['phoenix.victory']);
+        expect(sounds.heard.indexOf('phoenix.victory'), 'the celebration was heard before the win').toBeGreaterThan(sounds.heard.indexOf('win'));
+
+        await read({ ...before, id: 'match-next', players: before.players.map((player) => ({ ...player, look: player.seat === 1 ? { celebration: 'celebration.frost' } : {} })) });
+
+        expect(sounds.cheered.at(-1), 'the next game\'s celebration was not worn').toEqual(['frost']);
     });
 
     it('is heard by somebody watching, who is buzzed for nothing', async () =>

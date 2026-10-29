@@ -127,5 +127,18 @@ export const voice = {
         mix(out, boom({ seconds: 0.3, from: 150, to: 70, tau: 0.07, warmth: 1.5 }), 0, 0.2);
 
         return reverb(out, { size: 0.75, damp: 0.25, wet: 0.22, tail: 0.4 });
+    },
+
+    victory(random)
+    {
+        const out = silence(2.4);
+
+        mix(out, forming(random, 0.7, 18, 1800, 7200), 0, 0.9);
+        mix(out, crack({ random, seconds: 0.6, low: 2800, high: 9500, shards: 7, bright: 3200 }), 0.72, 0.7);
+        mix(out, shards(random, 12, 2600, 7800), 0.75, 0.9);
+        mix(out, bell({ freq: 1318.5, seconds: 1.4, partials: GLASS, decay: 0.8 }), 0.72, 0.22);
+        mix(out, wind(random, 1.6), 0.6, 0.3);
+
+        return reverb(out, { size: 0.8, damp: 0.25, wet: 0.26, tail: 0.6 });
     }
 };

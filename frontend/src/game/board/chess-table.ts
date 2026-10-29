@@ -2,6 +2,7 @@ import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
 import { SIZE, SQUARE, coordinatesOf, spotOf, type Foot } from '../chess-layout.ts';
 import { boardOf, checkOf, passedOf, rookOf, step, type Felt, type Man, type Told } from '../chess-felt.ts';
 import { colourOf, kindOf, opponent, pieceOf, type Colour, type Kind, type Piece } from '../../../../backend/src/domains/match/chess/board.ts';
+import { cheerAt } from '../looks/celebrations.ts';
 import { CASTLES, CHECKS, FINALES, LANDING, type Sets } from '../looks/chess.ts';
 import { CAPTURES, CRITICALS, burstOf, lightOf, type Collection } from '../looks/table.ts';
 import { clamp } from '../stage/curves.ts';
@@ -41,6 +42,9 @@ export interface ChessOptions
 
     /** Each colour's set, from the looks its player's match began with: what its pieces do is its collection's. */
     sets?: () => Sets;
+
+    /** Each colour's seat and the celebration its player's match began with. */
+    cheers?: () => Record<Colour, { seat: number; worn: Collection | null }>;
 }
 
 export interface ChessTable extends Table<Lay, Told>
@@ -246,6 +250,29 @@ export function createChessTable(options: ChessOptions): ChessTable
     };
 
     const tuneOf = (worn: Collection, squares = 1) => ({ colors: lightOf(worn), scale: px(SQUARE * squares) / EFFECT_FITS });
+
+    /** The winner's celebration in its look, risen from the middle of their back rank, with its voice; whether one plays. */
+    const cheer = (winner: number | undefined) =>
+    {
+        const cheers = options.cheers?.();
+        const colour = (['w', 'b'] as const).find((one) => cheers?.[one].seat === winner);
+        const worn = colour === undefined ? null : cheers?.[colour].worn ?? null;
+
+        if (colour === undefined || worn === null)
+        {
+            return false;
+        }
+
+        const [queen, king] = colour === 'w' ? [3, 4] : [59, 60];
+        const from = middle(queen);
+        const to = middle(king);
+        const { steps, at, tune } = cheerAt(worn, { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }, px(SQUARE * 4));
+
+        options.sound()?.play(`${ worn }.victory`, { pan: pan(spot(queen)) });
+        effects.play((vfx) => vfx.signature(steps, at, tune));
+
+        return true;
+    };
 
     /** One of a set's moments on its square, under every piece, said in its collection's voice. */
     const moment = (worn: Collection, voice: 'pawn' | 'spawn' | 'capture', square: number, steps: readonly Step[], squares = 1) =>
@@ -808,7 +835,9 @@ export function createChessTable(options: ChessOptions): ChessTable
 
                     if (move.e === 'finish' && ctx.live())
                     {
-                        await ctx.linger(move.reason === 'checkmate' ? PAUSES.end : END_LEAST, END_LEAST, true);
+                        const cheered = cheer(move.winner);
+
+                        await ctx.linger(move.reason === 'checkmate' || cheered ? PAUSES.end : END_LEAST, END_LEAST, true);
                     }
                 }
             }

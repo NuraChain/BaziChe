@@ -92,5 +92,17 @@ export const voice = {
         mix(out, sparkle({ seconds: 0.4, random, count: 14, low: 3500, high: 10000, early: 2 }), 0.01, 0.6);
 
         return reverb(out, { size: 0.75, damp: 0.3, wet: 0.22, tail: 0.4 });
+    },
+
+    victory(random)
+    {
+        const out = silence(2.4);
+
+        mix(out, pulse(0.9), 0, 0.35);
+        SEVENTH.forEach((hz, at) => mix(out, bell({ freq: hz, seconds: 1.2, partials: GLASS, decay: 0.6 }), at * 0.07, 0.3));
+        mix(out, chime({ notes: [SEVENTH[0] * 2, SEVENTH[2] * 2, SEVENTH[4] * 2], seconds: 1.6, partials: GLASS, decay: 1, spread: 0.02 }), 0.42, 0.85);
+        mix(out, sparkle({ seconds: 1.4, random, count: 40, low: 3000, high: 10000, early: 1.2 }), 0.3, 0.75);
+
+        return reverb(out, { size: 0.85, damp: 0.3, wet: 0.3, tail: 0.7 });
     }
 };

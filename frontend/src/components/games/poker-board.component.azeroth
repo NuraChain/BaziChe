@@ -13,6 +13,7 @@ import { seatBets, type Box } from '../../game/chip-spot.ts';
 import { aroundStadium, type Spot } from '../../game/poker-seats.ts';
 import { pokerOf } from '../../data/match.ts';
 import { cardsOf as worn, dressCards, lean, playAt, unlean } from '../../game/looks/cards.ts';
+import { celebrationOf, cheerAt } from '../../game/looks/celebrations.ts';
 import { heardAt, wornOf } from '../../game/looks/table.ts';
 import { coachOf, handOf, pressed, priceOf, type PokerVerb } from '../../game/helpers/poker.ts';
 import { EASE, centreOf, rectIn, type Rect } from '../../game/motion.ts';
@@ -201,11 +202,14 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
 
     derived heard = heardAt(game.players.map((player) => player.look), ['face']);
 
+    derived cheered = heardAt(game.players.map((player) => player.look), ['celebration']);
+
     effect
     {
         const collections = heard;
+        const cheering = cheered;
 
-        untrack(() => sound?.wear(collections));
+        untrack(() => sound?.wear(collections, cheering));
     }
 
     let root: HTMLElement | null = null;
@@ -428,6 +432,31 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
     const facesAt = (seat: number | undefined) => (seat === undefined ? null : worn(lookAt(seat)).faces);
 
     const backsAt = (seat: number) => worn(lookAt(seat)).backs;
+
+    /** The winner's celebration in its look, risen from their seat at the table, with its voice. */
+    const cheer = (seat: number | undefined) =>
+    {
+        const won = seat === undefined ? null : celebrationOf(lookAt(seat));
+
+        if (won === null)
+        {
+            return;
+        }
+
+        sound?.play(`${ won }.victory`);
+
+        const chair = find(`.poker-seat[data-seat="${ seat }"]`);
+
+        if (bursts === null || chair === null)
+        {
+            return;
+        }
+
+        const place = rectIn(bursts, chair);
+        const { steps, at, tune } = cheerAt(won, { x: place.x + place.width / 2, y: place.y + place.height / 2 }, place.width);
+
+        effects?.play((vfx) => vfx.signature(steps, at, tune));
+    };
 
     /** The collection of the mat in front of a seat, or null for Classic. */
     const matAt = (seat: number) => wornOf('felt', lookAt(seat)?.felt);
@@ -1113,6 +1142,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                     haptic('win');
                 }
 
+                cheer(move.seat);
                 await ctx.linger(PAUSES.end, WIN_AFTER, true);
             }
         }
@@ -1266,7 +1296,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
         const clock = runtime().clock;
         const report = (error: unknown) => console.error(error);
         sound = createSound(untrack(() => settings.settings().sound), 'poker');
-        sound.wear(untrack(() => heard));
+        sound.wear(untrack(() => heard), untrack(() => cheered));
 
         const made = createPresenter<Felt, Told>({
             stage: createStage({ clock, quiet: () => device.reducedMotion(), report }),

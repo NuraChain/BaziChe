@@ -12,7 +12,7 @@ import { useBoard } from '../src/stores/match.store.ts';
 import type { MatchView } from '../src/api.ts';
 import { act, card, elapse, mounted, type Hokm } from './hokm-mounted.ts';
 
-const told = vi.hoisted(() => ({ heard: [] as string[], felt: [] as string[], games: [] as string[], worn: [] as string[][] }));
+const told = vi.hoisted(() => ({ heard: [] as string[], felt: [] as string[], games: [] as string[], worn: [] as string[][], cheered: [] as string[][] }));
 
 vi.mock('../src/game/sound.ts', async (original) =>
 {
@@ -29,9 +29,10 @@ vi.mock('../src/game/sound.ts', async (original) =>
                 {
                     told.heard.push(cue);
                 },
-                wear: (collections: readonly string[]) =>
+                wear: (collections: readonly string[], cheered: readonly string[] = []) =>
                 {
                     told.worn.push([...collections]);
+                    told.cheered.push([...cheered]);
                 },
                 ready: () => Promise.resolve(),
                 setEnabled: () => undefined,
@@ -131,6 +132,7 @@ beforeEach(() =>
     told.felt.length = 0;
     told.games.length = 0;
     told.worn.length = 0;
+    told.cheered.length = 0;
 });
 
 afterEach(() =>
@@ -697,6 +699,26 @@ describe('what a hokm table is heard to do', () =>
         await elapse(LONG, 5);
 
         expect([count('win'), count('lose')]).toEqual([0, 1]);
+    });
+
+    it('says each winner\'s celebration in its voice after the win, none for the side that lost, and wears every celebration worn at its table', async () =>
+    {
+        const plain = match({});
+        const worn: Record<number, MatchView['players'][number]['look']> = { 0: { celebration: 'celebration.phoenix' }, 1: { celebration: 'celebration.oni' } };
+        const { send, read } = await mounted({ ...plain, players: plain.players.map((one) => ({ ...one, ...(worn[one.seat] === undefined ? {} : { look: worn[one.seat] }) })) });
+
+        expect(told.cheered.at(-1), 'the voices of the celebrations at the table were not worn').toEqual(['phoenix', 'oni']);
+
+        send([act(4, 1, { e: 'forfeit', seat: 1 }, { e: 'finish', side: 0 })]);
+        await elapse(LONG, 5);
+
+        expect(told.heard.filter((cue) => cue.endsWith('.victory'))).toEqual(['phoenix.victory']);
+        expect(order('win', 'phoenix.victory'), 'the celebration was heard before the win').toBe(true);
+
+        read({ ...plain, id: 'match-next', players: plain.players.map((one) => ({ ...one, look: one.seat === 1 ? { celebration: 'celebration.frost' } : {} })) });
+        await elapse(10);
+
+        expect(told.cheered.at(-1), 'the next game\'s celebration was not worn').toEqual(['frost']);
     });
 
     it('ends on a neutral close for somebody watching, whichever side won, and nothing felt', async () =>

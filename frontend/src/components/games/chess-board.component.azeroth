@@ -23,6 +23,7 @@ import { replayOf, type Replayed } from '../../game/chess-replay.ts';
 import { costOf, createChessTable, type ChessFacts, type ChessTable, type Lay } from '../../game/board/chess-table.ts';
 import { SIZE, boxOf, cellOf, placeOf, squareAt, type Foot } from '../../game/chess-layout.ts';
 import { createSound, type SoundHandle } from '../../game/sound.ts';
+import { celebrationOf } from '../../game/looks/celebrations.ts';
 import { dressOf } from '../../game/looks/chess.ts';
 import { heardAt, wornOf } from '../../game/looks/table.ts';
 import type { Ctx } from '../../game/stage/director.ts';
@@ -254,6 +255,8 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
 
     derived setAt = (seat: number) => wornOf('pieces', game.players.find((one) => one.seat === seat)?.look?.pieces);
 
+    derived cheerOf = (seat: number) => celebrationOf(game.players.find((one) => one.seat === seat)?.look);
+
     derived dress = dressOf({ w: setAt(whiteSeat), b: setAt(1 - whiteSeat) });
 
     derived nameOf = (seat: number) =>
@@ -411,11 +414,14 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
 
     derived heard = heardAt(game.players.map((player) => player.look), ['pieces']);
 
+    derived cheered = heardAt(game.players.map((player) => player.look), ['celebration']);
+
     effect
     {
         const collections = heard;
+        const cheering = cheered;
 
-        untrack(() => sound?.wear(collections));
+        untrack(() => sound?.wear(collections, cheering));
     }
 
     mount
@@ -423,7 +429,7 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
         let unwatch: () => void = () => undefined;
 
         sound = createSound(untrack(() => settings.settings().sound), 'chess');
-        sound.wear(untrack(() => heard));
+        sound.wear(untrack(() => heard), untrack(() => cheered));
 
         if (layer !== null)
         {
@@ -447,7 +453,8 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
                 {
                     facts = now;
                 },
-                sets: () => untrack(() => ({ w: setAt(whiteSeat), b: setAt(1 - whiteSeat) }))
+                sets: () => untrack(() => ({ w: setAt(whiteSeat), b: setAt(1 - whiteSeat) })),
+                cheers: () => untrack(() => ({ w: { seat: whiteSeat, worn: cheerOf(whiteSeat) }, b: { seat: 1 - whiteSeat, worn: cheerOf(1 - whiteSeat) } }))
             });
             presenter = createPresenter<Lay, Told>({ stage: rig, clock, table, sight: () => untrack(sightNow), report, lead: () => (resultStands ? RESULT_OUT : 0), due: () => (untrack(() => over) ? RESULT_WAIT : null) });
             presenter.frame(root);

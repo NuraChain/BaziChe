@@ -104,5 +104,19 @@ export const voice = {
         mix(out, boom({ seconds: 0.4, from: 90, to: 40, tau: 0.14 }), 0.22, 0.25);
 
         return reverb(out, { size: 0.75, damp: 0.6, wet: 0.2, tail: 0.4 });
+    },
+
+    victory(random)
+    {
+        const out = silence(2.4);
+
+        mix(out, inhale({ seconds: 0.7, random, low: 200, high: 3200 }), 0, 1);
+        mix(out, crack({ random, seconds: 0.6, low: 2000, high: 7500, shards: 8, bright: 2200 }), 0.7, 0.8);
+        mix(out, dark(random, 1.5, 73), 0.7, 0.8);
+        mix(out, boom({ seconds: 0.8, from: 90, to: 34, tau: 0.3, warmth: 2.6 }), 0.7, 0.4);
+        mix(out, whoosh({ seconds: 1.4, from: 240, to: 3200, random, q: 0.9, rise: 0.15 }), 0.85, 0.85);
+        mix(out, whisper(random, 1.2, 640), 1, 0.3);
+
+        return reverb(out, { size: 0.85, damp: 0.55, wet: 0.28, tail: 0.7 });
     }
 };

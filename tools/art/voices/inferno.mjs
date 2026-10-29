@@ -104,5 +104,18 @@ export const voice = {
         mix(out, sizzle(random, 0.4), 0.05, 0.25);
 
         return reverb(out, { size: 0.55, wet: 0.16, tail: 0.3 });
+    },
+
+    victory(random)
+    {
+        const out = silence(2.4);
+
+        mix(out, boom({ seconds: 1.1, from: 130, to: 36, tau: 0.36, warmth: 3 }), 0, 0.45);
+        mix(out, flame(random, 1.6, 260, 3800, 110), 0.02, 1);
+        mix(out, bell({ freq: between(random, 196, 220), seconds: 1.4, partials: METAL, decay: 0.7 }), 0.1, 0.18);
+        mix(out, shape(crackle({ seconds: 1.4, random, rate: 24, low: 1800, high: 8000 }), strike(0.05, 0.6)), 0.7, 0.5);
+        mix(out, sizzle(random, 0.5), 1.1, 0.25);
+
+        return reverb(out, { size: 0.7, wet: 0.22, tail: 0.6 });
     }
 };

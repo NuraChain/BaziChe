@@ -28,7 +28,8 @@ const MADE = {
     card: { takes: 2, below: 6, most: 0.45, kbps: 64 },
     pawn: { takes: 2, below: 6, most: 0.45, kbps: 64 },
     spawn: { takes: 2, below: 5, most: 0.8, kbps: 64 },
-    capture: { takes: 2, below: 3, most: 1.1, kbps: 64 }
+    capture: { takes: 2, below: 3, most: 1.1, kbps: 64 },
+    victory: { takes: 1, below: 4, most: 2.6, kbps: 64 }
 };
 
 const HERE = dirname(fileURLToPath(import.meta.url));

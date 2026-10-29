@@ -7,6 +7,7 @@ import { seedOf, spentBy, type Felt, type Told } from '../src/game/backgammon-fe
 import { OFF, slotAt } from '../src/game/backgammon-men.ts';
 import { KNOCK_MS, PICK_MS, THROW_MS, WALK_MOST, createBackgammonTable, type BackgammonTable } from '../src/game/board/backgammon-table.ts';
 import { BORNE, ENTRIES } from '../src/game/looks/backgammon.ts';
+import { CELEBRATIONS } from '../src/game/looks/celebrations.ts';
 import { DIE_PROPERTIES, dieDress } from '../src/game/looks/dice.ts';
 import { CAPTURES, CRITICALS, burstOf, lightOf } from '../src/game/looks/table.ts';
 import { restOf } from '../src/game/stage/dice.ts';
@@ -616,5 +617,80 @@ describe('the moments of a backgammon table, in their players’ looks', () =>
         table.dispose();
 
         expect(engine.disposed).toBe(1);
+    });
+});
+
+describe('a backgammon winner’s celebration in the look they chose', () =>
+{
+    const cheersOf = () => bursts().filter((one) => Object.values(CELEBRATIONS).some((steps) => one.steps === steps));
+
+    /** The last game of the match won by `winner`, read by the player in seat 0. */
+    const won = async (winner: 0 | 1) =>
+    {
+        const theirs = winner === 1;
+        const home = row({ 1: 1, 0: 14 });
+        const behind = row({ 20: 15 });
+        const before = felt({ near: theirs ? behind : home, far: theirs ? home : behind, turn: theirs ? 'far' : 'near' });
+        const after = sight(felt({ near: theirs ? behind : row({ 0: 15 }), far: theirs ? row({ 0: 15 }) : behind, score: theirs ? { near: 0, far: 2 } : { near: 2, far: 0 } }), 6);
+
+        table.reset(sight(before));
+        play([act(6, winner, [
+            { e: 'move', seat: winner, from: 1, to: 0, die: 1, hit: false },
+            { e: 'game', seat: winner, how: 'gammon', points: 2, cube: 1 },
+            { e: 'finish', seat: winner }
+        ])], after);
+        await elapse(400 + PICK_MS + 3000);
+    };
+
+    it('rises from the middle of the winner’s home board in its light, sized to the board, with its voice', async () =>
+    {
+        worn = { 0: { celebration: 'celebration.jade' }, 1: { celebration: 'celebration.oni' } };
+        await won(0);
+        await vi.waitFor(() => expect(cheersOf()).toHaveLength(1));
+
+        const [cheered] = cheersOf();
+
+        expect(cheered!.steps).toBe(CELEBRATIONS.jade);
+        expect(cheered!.at.x).toBeCloseTo(BAR_LEFT + BAR_WIDTH + POINT_WIDTH * 3);
+        expect(cheered!.at.y).toBeCloseTo((MIDDLE * 3 - TOP) / 2);
+        expect(cheered!.tune.colors).toEqual(lightOf('jade'));
+        expect(cheered!.tune.scale).toBe(Math.min(3, POINT_WIDTH * 6 / FITS));
+        expect(voiced().filter((cue) => cue.endsWith('.victory')), 'the side that lost was heard celebrating').toEqual(['jade.victory']);
+    });
+
+    it('rises from the far home board for a winner across the table', async () =>
+    {
+        worn = { 1: { celebration: 'celebration.oni' } };
+        await won(1);
+        await vi.waitFor(() => expect(cheersOf()).toHaveLength(1));
+
+        expect(cheersOf()[0]!.steps).toBe(CELEBRATIONS.oni);
+        expect(cheersOf()[0]!.at.y).toBeCloseTo((TOP + MIDDLE) / 2);
+    });
+
+    it('rises for nobody at a game the match goes on after', async () =>
+    {
+        worn = { 0: { celebration: 'celebration.jade' } };
+
+        table.reset(sight(felt({ near: row({ 1: 1, 0: 14 }), far: row({ 20: 15 }), turn: 'near' })));
+        play([act(6, 0, [
+            { e: 'move', seat: 0, from: 1, to: 0, die: 1, hit: false },
+            { e: 'game', seat: 0, how: 'single', points: 1, cube: 1 }
+        ])], sight(felt({ score: { near: 1, far: 0 } }), 6));
+        await elapse(400 + PICK_MS + 3000);
+        await flush();
+
+        expect(cheersOf(), 'a game inside the match was celebrated as its end').toEqual([]);
+        expect(voiced().filter((cue) => cue.endsWith('.victory'))).toEqual([]);
+    });
+
+    it('rises for nobody when the winner wears none', async () =>
+    {
+        worn = { 1: { celebration: 'celebration.oni' } };
+        await won(0);
+        await flush();
+
+        expect(cheersOf()).toEqual([]);
+        expect(voiced().filter((cue) => cue.endsWith('.victory'))).toEqual([]);
     });
 });

@@ -52,6 +52,7 @@ import {
 } from '../backgammon-men.ts';
 import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
 import { BORNE, ENTRIES } from '../looks/backgammon.ts';
+import { celebrationOf, cheerAt } from '../looks/celebrations.ts';
 import { dieDress } from '../looks/dice.ts';
 import { CAPTURES, CRITICALS, burstOf, lightOf, wornOf, type Collection } from '../looks/table.ts';
 import { clamp, seeded } from '../stage/curves.ts';
@@ -426,6 +427,23 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
             node.style.height = down(MIDDLE - TOP);
             homes.set(side, node);
         }
+    };
+
+    /** The winner's celebration in its look, risen from the middle of their home board, with its voice. */
+    const cheer = (side: Side) =>
+    {
+        const worn = celebrationOf(lookOf(side));
+
+        if (worn === null)
+        {
+            return;
+        }
+
+        const home = { x: BAR_LEFT + BAR_WIDTH + POINT_WIDTH * 3, y: side === 'near' ? (MIDDLE * 3 - TOP) / 2 : (TOP + MIDDLE) / 2 };
+        const { steps, at, tune } = cheerAt(worn, pointOf(home), px(POINT_WIDTH * 6));
+
+        options.sound()?.play(`${ worn }.victory`, { pan: pan(home.x) });
+        effects.play((vfx) => vfx.signature(steps, at, tune));
     };
 
     /** A die in the look of the side whose it is, or plain; it is a die of its own, so nothing of a die before it is left on it. */
@@ -1493,6 +1511,11 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
 
             options.onGame?.(beat.side, beat.how, beat.points);
             tell();
+
+            if (beat.last)
+            {
+                cheer(beat.side);
+            }
 
             if (lines.length > 0)
             {

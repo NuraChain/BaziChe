@@ -139,5 +139,17 @@ export const voice = {
         mix(out, chimes(random, 0.2, 3), 0.03, 0.7);
 
         return reverb(out, { size: 0.7, damp: 0.45, wet: 0.2, tail: 0.4 });
+    },
+
+    victory(random)
+    {
+        const out = silence(2.6);
+
+        mix(out, gong(ROOT / 2, 2.4, 1.6), 0, 0.5);
+        [0, 1, 2, 3, 4, 5, 6, 7, 8].forEach((note, at) => mix(out, zheng(random, SCALE[note + 2], 1, at % 3 === 2 ? 0.94 : 0.99), 0.12 + at * 0.06, 0.5));
+        mix(out, bamboo(random, between(random, 620, 700)), 0.12, 0.5);
+        mix(out, chimes(random, 1, 7), 0.6, 0.85);
+
+        return reverb(out, { size: 0.75, damp: 0.45, wet: 0.26, tail: 0.7 });
     }
 };

@@ -38,7 +38,7 @@ import { useSettings } from '../src/stores/settings.store.ts';
 import type { Watched } from '../src/stores/watch.store.ts';
 import type { MatchView } from '../src/api.ts';
 
-const sounds = vi.hoisted(() => ({ games: [] as string[], heard: [] as string[], worn: [] as string[][] }));
+const sounds = vi.hoisted(() => ({ games: [] as string[], heard: [] as string[], worn: [] as string[][], cheered: [] as string[][] }));
 
 vi.mock('../src/game/sound.ts', async (original) =>
 {
@@ -59,10 +59,11 @@ vi.mock('../src/game/sound.ts', async (original) =>
                     sounds.heard.push(asked[0]);
                     handle.play(...asked);
                 },
-                wear: (collections: Parameters<typeof handle.wear>[0]) =>
+                wear: (...args: Parameters<typeof handle.wear>) =>
                 {
-                    sounds.worn.push([...collections]);
-                    handle.wear(collections);
+                    sounds.worn.push([...args[0]]);
+                    sounds.cheered.push([...(args[1] ?? [])]);
+                    handle.wear(...args);
                 }
             };
         }
@@ -2892,13 +2893,15 @@ describe('a backgammon board in its players’ looks', () =>
 
     it('wears the voices of the collections its players’ dice and checkers are in, once each, and those of the next game’s', async () =>
     {
-        const board = await live(match({}, 0, { players: worn({ 0: { checkers: 'checkers.jade', dice: 'dice.storm' }, 1: { checkers: 'checkers.storm', home: 'home.void' } }) }));
+        const board = await live(match({}, 0, { players: worn({ 0: { checkers: 'checkers.jade', dice: 'dice.storm' }, 1: { checkers: 'checkers.storm', home: 'home.void', celebration: 'celebration.void' } }) }));
 
         expect(sounds.worn.at(-1)).toEqual(['storm', 'jade']);
+        expect(sounds.cheered.at(-1), 'the celebration worn at the table was not worn for its voice').toEqual(['void']);
 
-        board.move(match({}, 0, { id: 'match-bg-2', players: worn({ 1: { dice: 'dice.oni' } }) }));
+        board.move(match({}, 0, { id: 'match-bg-2', players: worn({ 1: { dice: 'dice.oni', celebration: 'celebration.frost' } }) }));
         await flush();
 
         expect(sounds.worn.at(-1)).toEqual(['oni']);
+        expect(sounds.cheered.at(-1), 'the next game\'s celebration was not worn').toEqual(['frost']);
     });
 });

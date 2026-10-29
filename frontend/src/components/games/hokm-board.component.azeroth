@@ -15,6 +15,7 @@ import { coachOf, outcomeOf } from '../../game/helpers/hokm.ts';
 import { BANNER_IN, BANNER_LEAST, BANNER_OUT, CARRY, COLLECT_GAP, DRAW_GAP, LIFT, NAMING, PLUS, SHUFFLE, TURN, TURN_GAP, dealGap, dealtIn, gatherOrder, openingPackets, restPackets, spanOf, type Packet } from '../../game/hokm-beats.ts';
 import { EMPTY, HISTORY, before, feltOf, sameAs, step, unplay, type Felt, type Laid, type Told } from '../../game/hokm-felt.ts';
 import { cardsOf, dressCards, lean, playAt, unlean } from '../../game/looks/cards.ts';
+import { celebrationOf, cheerAt } from '../../game/looks/celebrations.ts';
 import { heardAt, wornOf } from '../../game/looks/table.ts';
 import { EASE, TIMING, centreOf, flightFrames, outside, rectIn, type Rect } from '../../game/motion.ts';
 import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
@@ -1002,6 +1003,33 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
 
     const withMe = (side: number | undefined) => mine !== undefined && side !== undefined && sideAt(mine) === side;
 
+    /** Each winner's celebration in its look, risen from their seat at the table, with its voice. */
+    const cheer = (side: number | undefined) =>
+    {
+        for (const seat of untrack(() => seated).filter((one) => sideAt(one) === side))
+        {
+            const worn = celebrationOf(lookAt(seat));
+            const chair = find(`.hokm-seat[data-seat="${ seat }"]`);
+
+            if (worn === null)
+            {
+                continue;
+            }
+
+            sound?.play(`${ worn }.victory`);
+
+            if (bursts === null || chair === null)
+            {
+                continue;
+            }
+
+            const place = rectIn(bursts, chair);
+            const { steps, at, tune } = cheerAt(worn, { x: place.x + place.width / 2, y: place.y + place.height / 2 }, place.width);
+
+            effects?.play((vfx) => vfx.signature(steps, at, tune));
+        }
+    };
+
     /** The reader's own result in the match on the page, else what the end said it was, or nothing for somebody watching. */
     const ownResult = (won: boolean) => untrack(() => mine === undefined ? undefined : game.players.find((player) => player.seat === mine)?.result ?? (won ? 'won' : 'lost'));
 
@@ -1950,6 +1978,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                     haptic('win');
                 }
 
+                cheer(move.side);
                 await ctx.linger(PAUSES.end, BANNER_LEAST, true);
 
                 continue;
@@ -2292,11 +2321,14 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
 
     derived heard = heardAt(game.players.map((player) => player.look), ['face']);
 
+    derived cheered = heardAt(game.players.map((player) => player.look), ['celebration']);
+
     effect
     {
         const collections = heard;
+        const cheering = cheered;
 
-        untrack(() => sound?.wear(collections));
+        untrack(() => sound?.wear(collections, cheering));
     }
 
     state cramped = false;
@@ -2376,7 +2408,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
         let unwatch: () => void = () => undefined;
 
         sound = createSound(untrack(() => settings.settings().sound), 'hokm');
-        sound.wear(untrack(() => heard));
+        sound.wear(untrack(() => heard), untrack(() => cheered));
 
         if (layer !== null)
         {

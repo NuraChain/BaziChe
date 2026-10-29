@@ -627,11 +627,14 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
 
     derived heard = heardAt(game.players.map((player) => player.look), ['dice', 'checkers']);
 
+    derived cheered = heardAt(game.players.map((player) => player.look), ['celebration']);
+
     effect
     {
         const collections = heard;
+        const cheering = cheered;
 
-        untrack(() => sound?.wear(collections));
+        untrack(() => sound?.wear(collections, cheering));
     }
 
     mount
@@ -639,7 +642,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
         let unwatch: () => void = () => undefined;
 
         sound = createSound(untrack(() => settings.settings().sound), 'backgammon');
-        sound.wear(untrack(() => heard));
+        sound.wear(untrack(() => heard), untrack(() => cheered));
 
         if (layer !== null)
         {

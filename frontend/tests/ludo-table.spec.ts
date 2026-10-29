@@ -31,7 +31,7 @@ import { client } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
 import { watchedBoxes } from './fake-boxes.ts';
 
-const sounds = vi.hoisted(() => ({ games: [] as string[], heard: [] as string[], worn: [] as string[][] }));
+const sounds = vi.hoisted(() => ({ games: [] as string[], heard: [] as string[], worn: [] as string[][], cheered: [] as string[][] }));
 
 vi.mock('../src/game/sound.ts', async (original) =>
 {
@@ -55,6 +55,7 @@ vi.mock('../src/game/sound.ts', async (original) =>
                 wear: (...args: Parameters<typeof handle.wear>) =>
                 {
                     sounds.worn.push([...args[0]]);
+                    sounds.cheered.push([...(args[1] ?? [])]);
                     handle.wear(...args);
                 }
             };
@@ -1135,14 +1136,16 @@ describe('the ludo table, played from what happened', () =>
 
             return { ...view, players: view.players.map((player) => (looks[player.seat] === undefined ? player : { ...player, look: looks[player.seat] })) } as MatchView;
         };
-        const { move } = await live(dressed({ 0: { dice: 'dice.storm', pawns: 'pawns.jade' }, 1: { pawns: 'pawns.jade', face: 'face.neon', back: 'back.gold' } }));
+        const { move } = await live(dressed({ 0: { dice: 'dice.storm', pawns: 'pawns.jade', celebration: 'celebration.phoenix' }, 1: { pawns: 'pawns.jade', face: 'face.neon', back: 'back.gold' } }));
 
         expect(sounds.worn.at(-1), 'once each, and nothing a Ludo table does not draw').toEqual(['storm', 'jade']);
+        expect(sounds.cheered.at(-1), 'the celebration worn at the table was not worn for its voice').toEqual(['phoenix']);
 
-        move(dressed({ 1: { dice: 'dice.oni' } }, { id: 'match-next' }));
+        move(dressed({ 1: { dice: 'dice.oni', celebration: 'celebration.frost' } }, { id: 'match-next' }));
         await flush();
 
         expect(sounds.worn.at(-1)).toEqual(['oni']);
+        expect(sounds.cheered.at(-1), 'the next game\'s celebration was not worn').toEqual(['frost']);
     });
 
     it('lets the result leave when another game starts at the table, over a board already set for that game', async () =>

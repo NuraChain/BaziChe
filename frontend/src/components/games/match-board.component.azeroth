@@ -399,17 +399,20 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
 
     derived heard = heardAt(game.players.map((player) => player.look), ['dice', 'pawns']);
 
+    derived cheered = heardAt(game.players.map((player) => player.look), ['celebration']);
+
     effect
     {
         const collections = heard;
+        const cheering = cheered;
 
-        untrack(() => sound?.wear(collections));
+        untrack(() => sound?.wear(collections, cheering));
     }
 
     mount
     {
         sound = createSound(untrack(() => help.sound), 'ludo');
-        sound.wear(untrack(() => heard));
+        sound.wear(untrack(() => heard), untrack(() => cheered));
         presenter.frame(root);
 
         return () =>

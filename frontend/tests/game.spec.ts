@@ -1056,6 +1056,29 @@ describe('the sound layer', () =>
             [profile, table, again].forEach((one) => one.dispose());
         });
 
+        it('fetches a collection\'s celebration only for a table where somebody wears it, and never with its table voices alone', async () =>
+        {
+            stub();
+            const asked = voicing();
+            const table = createSound(true, 'ludo');
+
+            table.wear(['inferno']);
+            await tap();
+            await flush();
+
+            expect(asked).toContain(VOICE_PACKS.inferno.table);
+            expect(asked, 'a look at the table fetched its collection\'s celebration').not.toContain(VOICE_PACKS.inferno.celebration);
+
+            table.wear(['inferno'], ['phoenix']);
+            await flush();
+
+            expect(asked).toContain(VOICE_PACKS.phoenix.celebration);
+            expect(asked, 'a celebration fetched its collection\'s table voices').not.toContain(VOICE_PACKS.phoenix.table);
+            expect(asked).not.toContain(VOICE_PACKS.inferno.celebration);
+
+            table.dispose();
+        });
+
         it('fetches nothing for a look worn where the sound is off, until it is turned on', async () =>
         {
             stub();

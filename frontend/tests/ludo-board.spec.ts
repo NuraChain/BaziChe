@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import type { Haptic } from '../src/lib/haptics.ts';
 import type { LudoBoard, MatchPlayer } from '../src/data/match.ts';
+import { CELEBRATIONS } from '../src/game/looks/celebrations.ts';
 import { TRAILS } from '../src/game/looks/ludo.ts';
 import { PALETTES } from '../src/game/looks/palette.ts';
 import { CAPTURES, CRITICALS, lightOf, wornOf } from '../src/game/looks/table.ts';
@@ -2696,5 +2697,52 @@ describe('ludo pawns in the look their owner chose', () =>
         expect(sprite('0-0')).toBe('/board/pawn-red.svg');
         expect(voiced(), 'a voice for a look nobody wears').toEqual([]);
         expect(cues, 'the table’s own sounds went with the voices').toContain('pawn-hit');
+    });
+});
+
+describe('a ludo winner’s celebration in the look they chose', () =>
+{
+    const wide = (width: number) => Object.defineProperty(host.querySelector('.lb')!, 'clientWidth', { configurable: true, get: () => width });
+
+    const cheersOf = () => engine.bursts.filter((one) => Object.values(CELEBRATIONS).some((steps) => one.steps === steps));
+
+    const won = async () =>
+    {
+        const before = standing([[FINISHED, FINISHED, FINISHED, 54], EMPTY], 2);
+        const { state, act } = stepped(before, { kind: 'move', seat: 0, piece: 3 });
+
+        table.reset(sight(before));
+        wide(600);
+        play([act], sight(state));
+        await elapse(100 + STEP_MS + HOME_MS + 40);
+    };
+
+    it('rises from the yard of the winner’s colour in its light, sized to the yard, with its voice and beside the confetti', async () =>
+    {
+        worn = { 0: { celebration: 'celebration.phoenix' }, 1: { celebration: 'celebration.oni' } };
+        await won();
+        await vi.waitFor(() => expect(cheersOf()).toHaveLength(1));
+
+        const [cheered] = cheersOf();
+        const [left, top] = YARD_AT.red!;
+
+        expect(cheered!.steps, 'the winner’s celebration was another collection’s').toBe(CELEBRATIONS.phoenix);
+        expect(cheered!.at.x).toBeCloseTo((left + YARD_SIZE / 2) * 600);
+        expect(cheered!.at.y).toBeCloseTo((top + YARD_SIZE / 2) * 600);
+        expect(cheered!.tune.colors).toEqual(lightOf('phoenix'));
+        expect(cheered!.tune.scale).toBe(3);
+        expect(cues.filter((cue) => cue.endsWith('.victory')), 'the seat that lost was heard celebrating').toEqual(['phoenix.victory']);
+        expect(flecks().length, 'the celebration took the confetti’s place').toBeGreaterThan(10);
+    });
+
+    it.each([{}, { celebration: 'celebration.ember' }, { celebration: 'dice.storm' }])('rises for nobody who wears %o: none, or a look this build does not draw as one', async (look) =>
+    {
+        worn = { 0: look };
+        await won();
+        await flush();
+
+        expect(cheersOf()).toEqual([]);
+        expect(cues.filter((cue) => cue.endsWith('.victory'))).toEqual([]);
+        expect(cues, 'the win went with the celebration').toContain('win');
     });
 });

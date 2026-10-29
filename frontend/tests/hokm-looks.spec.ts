@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fire } from '@azerothjs/testing';
 
 import { playAt } from '../src/game/looks/cards.ts';
+import { CELEBRATIONS } from '../src/game/looks/celebrations.ts';
 import { lightOf } from '../src/game/looks/table.ts';
 import { TIMING } from '../src/game/motion.ts';
 import { manualClock } from '../src/lib/clock.ts';
@@ -480,5 +481,48 @@ describe('the felt in front of each hokm seat', () =>
         const { container } = await mounted(table({}, null, FELTS));
 
         expect(worn(container)).toEqual([['0', 'inferno'], ['3', 'frost']]);
+    });
+});
+
+describe('a hokm winner\'s celebration in the look they chose', () =>
+{
+    const cheersOf = () => engine.bursts.filter((one) => Object.values(CELEBRATIONS).some((steps) => one.steps === steps));
+
+    const seats = () => boxes((element) => (element.matches('.hokm-seat[data-seat="0"]') ? at(100, 400, 120, 120) : element.matches('.hokm-seat[data-seat="2"]') ? at(100, 0, 120, 120) : null));
+
+    const ended = { finishedAt: new Date(401_000).toISOString() };
+
+    it('rises from each winner\'s seat in its light, sized to the seat, and from no seat that lost', async () =>
+    {
+        seats();
+
+        const { send } = await mounted(table({}, 0, { 0: { celebration: 'celebration.phoenix' }, 1: { celebration: 'celebration.oni' }, 2: { celebration: 'celebration.jade' } }));
+
+        send([act(4, 1, { e: 'forfeit', seat: 1 }, { e: 'finish', side: 0 })], {}, ended);
+        await elapse(LONG, 20);
+        await vi.waitFor(() => expect(cheersOf()).toHaveLength(2));
+
+        const [first, second] = cheersOf();
+
+        expect(first!.steps).toBe(CELEBRATIONS.phoenix);
+        expect(first!.at).toEqual({ x: 160, y: 460 });
+        expect(first!.tune.colors).toEqual(lightOf('phoenix'));
+        expect(first!.tune.scale).toBe(3);
+        expect(second!.steps, 'a partner on the winning side did not celebrate').toBe(CELEBRATIONS.jade);
+        expect(second!.at).toEqual({ x: 160, y: 60 });
+    });
+
+    it('rises from no seat that wears none, and fetches no engine for it', async () =>
+    {
+        seats();
+
+        const { send } = await mounted(table({}, 0, { 1: { celebration: 'celebration.oni' } }));
+
+        send([act(4, 1, { e: 'forfeit', seat: 1 }, { e: 'finish', side: 0 })], {}, ended);
+        await elapse(LONG, 20);
+        await settled();
+
+        expect(cheersOf()).toEqual([]);
+        expect(engine.made, 'an engine was fetched to celebrate nothing').toBe(0);
     });
 });

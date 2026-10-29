@@ -116,5 +116,17 @@ export const voice = {
         mix(out, clink(between(random, 1600, 1800), 0.5, 0.12), 0, 0.35);
 
         return reverb(out, { size: 0.65, damp: 0.4, wet: 0.2, tail: 0.4 });
+    },
+
+    victory(random)
+    {
+        const out = silence(2.4);
+
+        [0, 2, 3, 4, 5, 7, 9, 11].forEach((note, at) => mix(out, santur(random, SHUR[note], 1), at * 0.085, 0.5));
+        [7, 9, 11].forEach((note) => mix(out, santur(random, SHUR[note], 1.6), 0.8, 0.45));
+        mix(out, clink(between(random, 2000, 2300), 0.5, 0.15), 0.8, 0.3);
+        mix(out, sparkle({ seconds: 0.9, random, count: 20, low: 3000, high: 8500 }), 0.8, 0.5);
+
+        return reverb(out, { size: 0.75, damp: 0.35, wet: 0.24, tail: 0.6 });
     }
 };

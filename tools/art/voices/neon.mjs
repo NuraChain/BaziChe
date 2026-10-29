@@ -101,5 +101,17 @@ export const voice = {
         mix(out, shape(filter(crackle({ seconds: 0.2, random, rate: 200, low: 2000, high: 9000 }), { type: 'highpass', freq: 1500 }), strike(0.002, 0.06)), 0, 0.5);
 
         return echo(out, { time: 0.12, feedback: 0.3, level: 0.28, tail: 0.35 });
+    },
+
+    victory(random)
+    {
+        const out = silence(2.2);
+
+        mix(out, hum(random, 0.5), 0, 0.4);
+        [0, 1, 2, 3, 4, 5, 3, 5].forEach((note, at) => mix(out, bleep(MINOR[note], 0.12), 0.2 + at * 0.07, 0.55));
+        mix(out, stab({ notes: [MINOR[3], MINOR[4], MINOR[5]], seconds: 0.9, random, bright: 6500, dark: 600, tau: 0.25 }), 0.78, 0.7);
+        mix(out, zap({ seconds: 0.4, from: 300, to: 3200, wave: 'saw', bright: 7500, dark: 1200, tau: 0.16 }), 0.76, 0.4);
+
+        return echo(out, { time: 0.12, feedback: 0.32, level: 0.32, tail: 0.5 });
     }
 };

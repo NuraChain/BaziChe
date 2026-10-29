@@ -112,5 +112,18 @@ export const voice = {
         mix(out, boom({ seconds: 0.6, from: 110, to: 45, tau: 0.18 }), 0, 0.25);
 
         return reverb(out, { size: 0.55, wet: 0.16, tail: 0.3 });
+    },
+
+    victory(random)
+    {
+        const out = silence(2.4);
+
+        mix(out, charge(random, 0.5, 60, 260), 0, 0.85);
+        mix(out, zapped(random, 0.5, between(random, 140, 170)), 0.5, 1);
+        mix(out, thunder({ seconds: 1.8, random, crack: 0.6 }), 0.5, 0.8);
+        mix(out, shape(crackle({ seconds: 1, random, rate: 80, low: 2500, high: 9000 }), strike(0.01, 0.35)), 0.55, 0.4);
+        mix(out, zapped(random, 0.3, between(random, 200, 230)), 0.95, 0.6);
+
+        return reverb(out, { size: 0.6, wet: 0.16, tail: 0.5 });
     }
 };

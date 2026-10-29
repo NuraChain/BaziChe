@@ -108,5 +108,17 @@ export const voice = {
         mix(out, sparkle({ seconds: 0.45, random, count: 16, low: 3000, high: 10000, early: 2 }), 0.01, 0.7);
 
         return reverb(out, { size: 0.85, wet: 0.28, tail: 0.6 });
+    },
+
+    victory(random)
+    {
+        const out = silence(2.6);
+
+        mix(out, inhale({ seconds: 0.4, random, low: 1200, high: 8000 }), 0, 0.6);
+        mix(out, pad({ notes: [ROOT / 2, LYDIAN[4] / 2, LYDIAN[2]], seconds: 2, random, open: [300, 2000], attack: 0.5, release: 0.8 }), 0.2, 0.45);
+        mix(out, chime({ notes: [...LYDIAN.slice(0, 5), STAR[0], STAR[2]], seconds: 1.8, partials: GLASS, decay: 1.1, spread: 0.045 }), 0.38, 0.9);
+        mix(out, sparkle({ seconds: 1.4, random, count: 34, low: 3000, high: 10000, early: 1.4 }), 0.4, 0.65);
+
+        return reverb(out, { size: 0.9, wet: 0.32, tail: 0.9 });
     }
 };

@@ -1,5 +1,6 @@
 import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
 import { BLOCK, CELL, GRID, HOME_SCALE, MARGIN, YARD_AT, YARD_SIZE, aimNear, stackSpot } from '../layout.ts';
+import { celebrationOf, cheerAt } from '../looks/celebrations.ts';
 import { DIE_PROPERTIES, dieDress } from '../looks/dice.ts';
 import { TRAILS } from '../looks/ludo.ts';
 import { CAPTURES, CRITICALS, burstOf, lightOf, wornOf, type Collection } from '../looks/table.ts';
@@ -1357,6 +1358,28 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         }
     };
 
+    /** Each winner's celebration in its look, risen from the yard of their colour, with its voice. */
+    const cheer = (winners: readonly string[]) =>
+    {
+        for (const winner of winners)
+        {
+            const seat = shown.pawns.find((pawn) => pawn.colour === winner)?.owner;
+            const worn = seat === undefined ? null : celebrationOf(options.looks?.(seat));
+            const [left, top] = YARD_AT[winner] ?? [0, 0];
+
+            if (worn === null)
+            {
+                continue;
+            }
+
+            const yard = { x: (left + YARD_SIZE / 2) * 100, y: (top + YARD_SIZE / 2) * 100 };
+            const { steps, at, tune } = cheerAt(worn, pixels(yard), root.clientWidth * YARD_SIZE);
+
+            effects.play((vfx) => vfx.signature(steps, at, tune));
+            options.sound()?.play(`${ worn }.victory`, { pan: pan(yard.x) });
+        }
+    };
+
     const applaud = async (winners: readonly string[], ctx: Ctx) =>
     {
         const said = winners.join();
@@ -1381,6 +1404,8 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         {
             transient.add(fleck);
         }
+
+        cheer(winners);
 
         if (flecks.length > 0)
         {

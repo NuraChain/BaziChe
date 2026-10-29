@@ -5411,6 +5411,24 @@ switching tables never has to unlock audio again. The spec is
   `collection-page.spec.ts`, `look-sheet.spec.ts`, `ludo-board.spec.ts`, `ludo-table.spec.ts`,
   `hokm-cues.spec.ts`, `poker-cues.spec.ts`, `backgammon-looks.spec.ts` and
   `backgammon-board.spec.ts` hold it.
+- **A winner's celebration rises from their own place at the table while the end of the match is
+  held** (LG10, `game/looks/celebrations.ts`). Every collection has one (`CELEBRATIONS`, the
+  legendary ones built in layers as their reveals are, each ending in a burst), drawn under every
+  piece in the collection's light and at most three times its size (`cheerAt`), and every one is
+  spent before `PAUSES.end` is over: `vfx-families.spec.ts` runs each through the real engine at
+  that size over six rolls. Where it rises: Ludo the middle of the yard of the winner's colour,
+  beside the confetti everybody gets; Hokm every seat of the winning side; poker the winning seat;
+  backgammon the middle of the winner's home board as the last game is called; chess the middle of
+  the winner's back rank, as the reader's colour stands the board. A draw, a game called off and a
+  winner in Classic raise nothing. Chess holds a resignation or a flag `PAUSES.end` rather than its
+  beat when a celebration plays, because then there is something to see. Its voice is `victory`, a
+  place of its own (`MOMENTS.celebration`, `<collection>-celebration.cues`): one long take that is
+  fetched only where somebody at the table wears that celebration (`wear(collections, cheered)`),
+  so a table pack stays under its ceiling and nobody fetches it for a look of another kind; it is
+  said after the end's own `win`, never in its place. `ludo-board.spec.ts`, `hokm-looks.spec.ts`,
+  `poker-looks.spec.ts`, `backgammon-looks.spec.ts` and `chess-moments.spec.ts` hold where each rises,
+  `hokm-cues.spec.ts`, `poker-cues.spec.ts`, `ludo-table.spec.ts` and `backgammon-board.spec.ts` the
+  voice and what is worn for it, `game.spec.ts` the pack fetched only for a celebration worn.
 - **The end is heard as it went for whoever reads it** (`endCue` in `game/sound.ts`). A seat that
   won hears `win` (a pizzicato run that rises), one that lost or walked away `lose` (one that
   falls), a draw and somebody watching `draw` (one that settles where it began), and a game called

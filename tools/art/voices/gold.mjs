@@ -103,5 +103,17 @@ export const voice = {
         mix(out, bell({ freq: MAJOR[0], seconds: 0.8, partials: BELL, decay: 0.45 }), 0, 0.18);
 
         return reverb(out, { size: 0.65, damp: 0.4, wet: 0.2, tail: 0.4 });
+    },
+
+    victory(random)
+    {
+        const out = silence(2.4);
+
+        mix(out, coins(random, 12, 2200, 4600, 0.05), 0, 0.75);
+        MAJOR.slice(0, 4).forEach((hz, at) => mix(out, bell({ freq: hz, seconds: 1.4, partials: BELL, decay: 0.8 }), 0.35 + at * 0.06, 0.2));
+        mix(out, pad({ notes: [MAJOR[0] / 2, MAJOR[1] / 2, MAJOR[2] / 2], seconds: 1.6, random, open: [500, 2600], attack: 0.3, release: 0.6 }), 0.3, 0.35);
+        mix(out, sparkle({ seconds: 0.8, random, count: 16, low: 3500, high: 9000 }), 0.6, 0.45);
+
+        return reverb(out, { size: 0.75, damp: 0.4, wet: 0.24, tail: 0.6 });
     }
 };

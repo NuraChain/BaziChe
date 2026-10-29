@@ -4,8 +4,8 @@ import { PALETTES } from './palette.ts';
 
 export type Collection = keyof typeof PALETTES;
 
-/** The kinds of look a table draws on its players' things. */
-type TableKind = 'dice' | 'pawns' | 'yard' | 'face' | 'back' | 'felt' | 'chips' | 'checkers' | 'home' | 'pieces';
+/** The kinds of look a table draws on its players' things, and the celebration it plays for its winner. */
+type TableKind = 'dice' | 'pawns' | 'yard' | 'face' | 'back' | 'felt' | 'chips' | 'checkers' | 'home' | 'pieces' | 'celebration';
 
 /** The collection a worn look of a kind names, or null for Classic and for anything this build does not draw. */
 export function wornOf(kind: TableKind, look: string | undefined)

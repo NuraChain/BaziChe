@@ -104,5 +104,19 @@ export const voice = {
         mix(out, boom({ seconds: 0.45, from: 120, to: 45, tau: 0.14, warmth: 3 }), 0, 0.35);
 
         return reverb(out, { size: 0.5, damp: 0.5, wet: 0.14, tail: 0.3 });
+    },
+
+    victory(random)
+    {
+        const out = silence(2.2);
+
+        mix(out, scan(0.3, 250, 5000), 0, 0.85);
+        mix(out, glitch({ seconds: 0.4, random, count: 16, low: 200, high: 3800 }), 0.25, 0.75);
+        [0, 2, 3, 4].forEach((note, at) => mix(out, crush(stab({ notes: [MINOR[note] * 2, MINOR[note] * 3], seconds: 0.35, random, tau: 0.08 }), { bits: 6, hold: 2 }), 0.3 + at * 0.11, 0.6));
+        mix(out, crush(stab({ notes: [MINOR[0] * 4, MINOR[2] * 4, MINOR[3] * 4], seconds: 0.9, random, tau: 0.2 }), { bits: 6, hold: 2 }), 0.78, 0.8);
+        mix(out, boom({ seconds: 0.5, from: 100, to: 44, tau: 0.16, warmth: 3 }), 0.78, 0.32);
+        mix(out, blip(0.07, 2600, 800), 1.4, 0.4);
+
+        return reverb(out, { size: 0.55, damp: 0.5, wet: 0.16, tail: 0.4 });
     }
 };

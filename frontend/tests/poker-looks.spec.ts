@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fire } from '@azerothjs/testing';
 
 import { playAt } from '../src/game/looks/cards.ts';
+import { CELEBRATIONS } from '../src/game/looks/celebrations.ts';
 import { lightOf } from '../src/game/looks/table.ts';
 import { CARD_FLY, CARD_GAP, CHIP_FLY, DISC_GAP, GATHER, GATHER_GAP, MUCK, MUCK_GAP, TURN } from '../src/game/poker-beats.ts';
 import { manualClock } from '../src/lib/clock.ts';
@@ -524,5 +525,60 @@ describe('the chips of each poker seat', () =>
 
         expect(discs.length, 'no stack was racked off').toBeGreaterThan(0);
         expect(new Set(discs.map((one) => one.dataset.chips ?? null)), 'a stack walked off the felt in another look').toEqual(new Set(['gold']));
+    });
+});
+
+describe('a poker winner\'s celebration in the look they chose', () =>
+{
+    const cheersOf = () => engine.bursts.filter((one) => Object.values(CELEBRATIONS).some((steps) => one.steps === steps));
+
+    const gone = { 2: { stack: 0, out: true }, 3: { stack: 0, out: true }, 4: { stack: 0, out: true }, 5: { stack: 0, out: true } };
+
+    const dressed = (view: MatchView, worn: Record<number, Look>) => ({ ...view, players: view.players.map((player) => (worn[player.seat] === undefined ? player : { ...player, look: worn[player.seat] })) }) as MatchView;
+
+    const won = async (worn: Record<number, Look>) =>
+    {
+        const placed = vi.mocked(Element.prototype.getBoundingClientRect).getMockImplementation()!;
+
+        vi.mocked(Element.prototype.getBoundingClientRect).mockImplementation(function (this: Element)
+        {
+            if (this.classList.contains('poker-burst'))
+            {
+                return DOMRect.fromRect({ x: 10, y: 20, width: 380, height: 760 });
+            }
+
+            return this.matches('.poker-seat[data-seat="0"]') ? DOMRect.fromRect({ x: 150, y: 600, width: 100, height: 60 }) : placed.call(this);
+        });
+
+        const before = dressed(match({ button: 0, turn: 1, pots: [{ amount: 30, eligible: [0, 1] }], seats: rows({ ...gone, 0: { stack: 4490, bet: 10 }, 1: { stack: 4480, bet: 20 } }) }), worn);
+        const after = dressed(match(
+            { button: 0, turn: undefined, pot: 0, pots: [], winner: 0, seats: rows({ ...gone, 0: { stack: 4520 }, 1: { stack: 0, out: true } }), last: { board: [], shown: [], pots: [{ amount: 30, winners: [0] }] } },
+            { rev: 8, turn: undefined, finishedAt: new Date(401_000).toISOString() }
+        ), worn);
+        const { read } = await seated(before);
+
+        await read(after, heard(1, told(8, 1, { e: 'forfeit', seat: 1, reason: 'left', place: 2 }, { e: 'pot', amount: 30, winners: [0] }, { e: 'end', hand: 1, dealt: [0, 1] }, { e: 'finish', seat: 0 })));
+        await elapse(LONG);
+    };
+
+    it('rises from the winner\'s seat in its light, sized to the seat, and from no seat that lost', async () =>
+    {
+        await won({ 0: { celebration: 'celebration.phoenix' }, 1: { celebration: 'celebration.oni' } });
+        await vi.waitFor(() => expect(cheersOf()).toHaveLength(1));
+
+        const [cheered] = cheersOf();
+
+        expect(cheered!.steps).toBe(CELEBRATIONS.phoenix);
+        expect(cheered!.at).toEqual({ x: 190, y: 610 });
+        expect(cheered!.tune.colors).toEqual(lightOf('phoenix'));
+        expect(cheered!.tune.scale).toBeCloseTo(100 / 40);
+    });
+
+    it('rises from no seat that wears none', async () =>
+    {
+        await won({ 1: { celebration: 'celebration.oni' } });
+        await settled();
+
+        expect(cheersOf()).toEqual([]);
     });
 });

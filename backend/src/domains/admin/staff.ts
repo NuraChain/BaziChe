@@ -1,8 +1,7 @@
 import type { DataSource, EntityManager, ObjectLiteral, SelectQueryBuilder } from 'typeorm';
 import { HttpError } from '@azerothjs/http';
 
-import { StaffAction, StaffMember, User, Wallet } from '../../entities/index.ts';
-import { normalizeAddress } from '../../lib/crypto.ts';
+import { StaffAction, StaffMember, User } from '../../entities/index.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import type { StaffList, StaffLog } from '../../schemas.ts';
 import { STAFF_REFUSALS, type StaffRefusal } from './refusals.ts';
@@ -86,7 +85,7 @@ const wire = (row: LogRow) => ({
 
 const newestFirst = <T extends ObjectLiteral>(query: SelectQueryBuilder<T>) => query.orderBy('a.created_at', 'DESC').addOrderBy('a.id', 'DESC');
 
-export function createStaffService(db: DataSource, ownerWallet: string)
+export function createStaffService(db: DataSource, owners: () => readonly string[])
 {
     const members = (manager: EntityManager) => manager.getRepository(User).createQueryBuilder('u')
         .select('u.id', 'id')
@@ -106,14 +105,13 @@ export function createStaffService(db: DataSource, ownerWallet: string)
         .addSelect('a.reason', 'reason')
         .addSelect('a.details', 'details');
 
-    const ownerOf = async (manager: EntityManager) => ownerWallet === ''
-        ? null
-        : await members(manager)
-            .innerJoin(Wallet, 'w', 'w.user_id = u.id and w.address = :owner', { owner: normalizeAddress(ownerWallet) })
-            .addSelect(`'owner'`, 'role')
-            .addSelect('null', 'granted_at')
-            .addSelect('null', 'granted_by')
-            .getRawOne<MemberRow>() ?? null;
+    const headsOf = async (manager: EntityManager) => await members(manager)
+        .addSelect(`'owner'`, 'role')
+        .addSelect('null', 'granted_at')
+        .addSelect('null', 'granted_by')
+        .where('exists (select 1 from wallets w where w.user_id = u.id and w.address = any(:owners))', { owners: owners() })
+        .orderBy('u.handle', 'ASC')
+        .getRawMany<MemberRow>();
 
     const asMember = (row: MemberRow, role: StaffRole) => ({
         handle: row.handle,
@@ -127,21 +125,21 @@ export function createStaffService(db: DataSource, ownerWallet: string)
 
     const list = async (manager: EntityManager = db.manager): Promise<StaffList> =>
     {
-        const head = await ownerOf(manager);
+        const heads = await headsOf(manager);
         const rest = await members(manager)
             .innerJoin(StaffMember, 'm', 'm.user_id = u.id')
             .leftJoin(User, 'g', 'g.id = m.granted_by')
             .addSelect('m.role', 'role')
             .addSelect('m.granted_at', 'granted_at')
             .addSelect('g.handle', 'granted_by')
-            .where(head === null ? 'true' : 'u.id <> :head', { head: head?.id })
+            .where(heads.length === 0 ? 'true' : 'not (u.id = any(:heads))', { heads: heads.map((one) => one.id) })
             .orderBy(`case m.role when 'admin' then 0 else 1 end`)
             .addOrderBy('m.granted_at', 'ASC')
             .addOrderBy('u.handle', 'ASC')
             .getRawMany<MemberRow>();
 
         return {
-            ...(head === null ? {} : { owner: asMember(head, 'owner') }),
+            owners: heads.map((row) => asMember(row, 'owner')),
             members: rest.map((row) => asMember(row, row.role))
         };
     };
@@ -163,11 +161,9 @@ export function createStaffService(db: DataSource, ownerWallet: string)
                     throw nobody();
                 }
 
-                const head = await ownerOf(tx);
-
-                if (head !== null && head.id === target.id)
+                if ((await headsOf(tx)).some((one) => one.id === target.id))
                 {
-                    throw staffRefusal('staff-owner', 'The owner is the wallet the server’s .env names, and is changed there.');
+                    throw staffRefusal('staff-owner', 'An owner is named by the server itself, and never changed from this page.');
                 }
 
                 if (target.id === actor.id)

@@ -548,7 +548,7 @@ export const staffMember = object({
     grantedAt: string().optional()
 });
 
-export const staffList = object({ owner: staffMember.optional(), members: array(staffMember) });
+export const staffList = object({ owners: array(staffMember), members: array(staffMember) });
 
 export type StaffList = Infer<typeof staffList>;
 

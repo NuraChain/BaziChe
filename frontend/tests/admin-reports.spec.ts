@@ -214,7 +214,7 @@ describe('the reports', () =>
         expect(acted.container.textContent).not.toContain('Every report has been looked at.');
         cleanup();
 
-        server.staff.owner = 'sara.k';
+        server.staff.owners = ['sara.k'];
         const refused = await opened();
 
         expect(refused.container.textContent).toContain('The reports could not be read.');

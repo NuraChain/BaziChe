@@ -193,7 +193,7 @@ describe('the people', () =>
 
     it('says when the people could not be read', async () =>
     {
-        server.staff.owner = 'sara.k';
+        server.staff.owners = ['sara.k'];
         const { container } = await opened();
 
         expect(container.textContent).toContain('The people could not be read.');

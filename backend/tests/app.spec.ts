@@ -1746,12 +1746,13 @@ describe('the owner\'s view of the vault', () =>
 
     it('sends the staff and the log as the wire declares them, and nothing the port added', async () =>
     {
+        const owner = { handle: 'dana.w', displayName: 'Dana', hue: 210, role: 'owner' };
         const member = { handle: 'mina', displayName: 'Mina', hue: 40, role: 'moderator', grantedBy: 'dana.w', grantedAt: '2026-10-22T09:00:00.000Z' };
-        const list = await sent(owned([], { members: [{ ...member, address: '0xsecret' }], secret: 'x' }), '/staff');
+        const list = await sent(owned([], { owners: [{ ...owner, address: '0xsecret' }], members: [{ ...member, address: '0xsecret' }], secret: 'x' }), '/staff');
         const row = { id: 'a-row', at: '2026-10-22T09:00:00.000Z', staff: 'dana.w', staffRole: 'owner', kind: 'grant', person: 'mina', reason: 'Reads the reports', details: { to: 'moderator' } };
         const log = await sent(owned([], { rows: [{ ...row, staffId: 'a-uuid' }] }), '/log');
 
-        expect(await list.json()).toEqual({ members: [member] });
+        expect(await list.json()).toEqual({ owners: [owner], members: [member] });
         expect(await log.json()).toEqual({ rows: [row] });
     });
 });

@@ -1,7 +1,6 @@
 import type { DataSource, EntityManager } from 'typeorm';
 
 import { Escrow, Game, Match, MatchPlayer, Table, TableSeat, User } from '../../entities/index.ts';
-import { normalizeAddress } from '../../lib/crypto.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import type { AdminMatches, AdminPlay, AdminTables } from '../../schemas.ts';
 import { PLAY_PAGE, STUCK_KINDS, outranks, type MatchList, type StaffRole, type StuckKind } from './roles.ts';
@@ -93,7 +92,7 @@ interface TableRow extends Keyed
 const isKind = (value: string): value is StuckKind => STUCK_KINDS.some((kind) => kind === value);
 
 export const STAFF_OF = `case when u.is_suspended then null
-                      when exists (select 1 from wallets o where o.user_id = u.id and o.address = :owner) then 'owner'
+                      when exists (select 1 from wallets o where o.user_id = u.id and o.address = any(:owners)) then 'owner'
                       else (select s.role from staff_members s where s.user_id = u.id) end`;
 
 export const stuckKindOf = (reason: string) =>
@@ -110,22 +109,20 @@ const face = (handle: string, displayName: string, hue: number, avatar: string |
     ...(avatar === null ? {} : { avatar })
 });
 
-export function createPlayService(db: DataSource, ownerWallet: string)
+export function createPlayService(db: DataSource, owners: () => readonly string[])
 {
-    const owner = () => (ownerWallet === '' ? '' : normalizeAddress(ownerWallet));
-
     const seatedIn = (tx: EntityManager, matchId: string) => tx.getRepository(MatchPlayer).createQueryBuilder('p')
         .innerJoin(User, 'u', 'u.id = p.user_id')
         .select('u.id', 'id')
         .addSelect(STAFF_OF, 'staff')
-        .where('p.match_id = :matchId', { matchId, owner: owner() })
+        .where('p.match_id = :matchId', { matchId, owners: owners() })
         .getRawMany<Seated>();
 
     const seatedAt = (tx: EntityManager, tableId: string) => tx.getRepository(TableSeat).createQueryBuilder('s')
         .innerJoin(User, 'u', 'u.id = s.user_id')
         .select('u.id', 'id')
         .addSelect(STAFF_OF, 'staff')
-        .where('s.table_id = :tableId', { tableId, owner: owner() })
+        .where('s.table_id = :tableId', { tableId, owners: owners() })
         .getRawMany<Seated>();
 
     const voided = async (tx: EntityManager, actor: Actor, matchId: string, reason: string, end: Ender) =>
@@ -206,7 +203,7 @@ export function createPlayService(db: DataSource, ownerWallet: string)
                     'players'
                 )
                 .where('m.finished_at is null')
-                .setParameter('owner', owner());
+                .setParameter('owners', owners());
 
             if (list === 'stuck')
             {
@@ -276,7 +273,7 @@ export function createPlayService(db: DataSource, ownerWallet: string)
                        where s.table_id = t.id)`,
                     'people'
                 )
-                .setParameter('owner', owner())
+                .setParameter('owners', owners())
                 .where(`t.status = 'open'`)
                 .andWhere('not exists (select 1 from matches m where m.table_id = t.id and m.finished_at is null)');
 

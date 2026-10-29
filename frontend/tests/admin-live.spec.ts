@@ -217,7 +217,7 @@ describe('who is online now', () =>
     it('answers a moderator, who may read it', async () =>
     {
         crowd();
-        server.staff.owner = 'reza.t';
+        server.staff.owners = ['reza.t'];
         server.staff.members = [staffMember('alex', 'moderator', 'reza.t', minutesAgo(600))];
         useSession().reset();
         useSession().establish({ ...ALEX, staff: 'moderator' });

@@ -1,7 +1,6 @@
 import type { DataSource } from 'typeorm';
 
 import { Table, TableSeat, User } from '../../entities/index.ts';
-import { normalizeAddress } from '../../lib/crypto.ts';
 import type { AdminLive } from '../../schemas.ts';
 import { STAFF_OF } from './play.ts';
 import { LIVE_PAGE, type StaffRole } from './roles.ts';
@@ -39,10 +38,8 @@ interface SeatRow
     playing: boolean;
 }
 
-export function createLiveService(db: DataSource, ownerWallet: string)
+export function createLiveService(db: DataSource, owners: () => readonly string[])
 {
-    const owner = () => (ownerWallet === '' ? '' : normalizeAddress(ownerWallet));
-
     return {
         async now(online: readonly Online[], calls: readonly Call[], cursor: string | null): Promise<AdminLive>
         {
@@ -60,7 +57,7 @@ export function createLiveService(db: DataSource, ownerWallet: string)
                 .addSelect('u.hue', 'hue')
                 .addSelect('u.avatar', 'avatar')
                 .addSelect(STAFF_OF, 'staff')
-                .where('u.id = any(:ids)', { ids, owner: owner() })
+                .where('u.id = any(:ids)', { ids, owners: owners() })
                 .andWhere(cursor === null ? 'true' : 'u.handle > :cursor', { cursor })
                 .orderBy('u.handle', 'ASC')
                 .limit(LIVE_PAGE + 1)

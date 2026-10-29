@@ -106,6 +106,26 @@ describe('the staff', () =>
         expect(said(container, '[data-member="mina"]')).toContain('Moderator');
     });
 
+    it('lists every owner the server names under one heading, by handle, with nothing to change on any of them', async () =>
+    {
+        server.staff.owners = ['reza.t', 'alex'];
+        const both = await shown();
+        const owners = [...both.querySelectorAll<HTMLElement>('[data-owner] [data-member]')].map((row) => row.dataset.member);
+
+        expect(said(both, '#admin-owner')).toBe('Owners');
+        expect(owners).toEqual(['alex', 'reza.t']);
+        expect(both.querySelector('[data-owner] button')).toBeNull();
+        expect(team(both)).toEqual([]);
+        cleanup();
+
+        server.staff.owners = ['alex'];
+        useLocale().setLocale('fa');
+        const one = await shown();
+
+        expect(said(one, '#admin-owner')).toBe('مالک');
+        expect(said(one, '#admin-owner + p')).toBe('خودِ سرور تعیینش می‌کنه و از این صفحه عوض نمی‌شه.');
+    });
+
     it('puts the team and the form side by side once there is room, the form held in view while the team scrolls', async () =>
     {
         server.staff.members = [staffMember('mina', 'moderator', 'alex', ago(1))];
@@ -146,7 +166,7 @@ describe('the staff', () =>
         expect(lonely.querySelector('.empty-art')).toBeNull();
         cleanup();
 
-        server.staff.owner = 'sara.k';
+        server.staff.owners = ['sara.k'];
         as('moderator');
         const refused = await shown();
 
@@ -166,7 +186,7 @@ describe('the staff', () =>
         expect(owner.querySelector('[data-owner] button')).toBeNull();
         cleanup();
 
-        server.staff.owner = 'reza.t';
+        server.staff.owners = ['reza.t'];
         server.staff.members = [staffMember('alex', 'admin', 'reza.t', ago(5)), ...server.staff.members];
         as('admin');
         const admin = await shown();
@@ -226,7 +246,7 @@ describe('the staff', () =>
         button(container, 'Save')!.click();
         await settle();
 
-        expect(toasts()).toEqual(['The owner is named in the server’s .env, and changed only there.']);
+        expect(toasts()).toEqual(['An owner is named by the server itself, and never changed from this page.']);
         expect(server.staff.log).toEqual([]);
     });
 

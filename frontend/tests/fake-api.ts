@@ -429,7 +429,7 @@ export const staffMember = (handle: string, role: StaffRole, grantedBy?: string,
 };
 
 const staffFresh = () => ({
-    owner: 'alex' as string | null,
+    owners: ['alex'] as string[],
     members: [] as StaffMember[],
     log: [] as StaffLogRow[],
     logged: 0
@@ -450,7 +450,7 @@ const pageOf = <T extends { id: string }>(rows: readonly T[], cursor: string | u
     return { rows: structuredClone(page), ...(rows.length > from + PLAY_PAGE && last !== undefined ? { cursor: last.id } : {}) };
 };
 
-const staffRoleOf = (handle: string) => (server.staff.owner === handle ? 'owner' : server.staff.members.find((one) => one.handle === handle)?.role ?? null);
+const staffRoleOf = (handle: string) => (server.staff.owners.includes(handle) ? 'owner' : server.staff.members.find((one) => one.handle === handle)?.role ?? null);
 
 const staffRefused = (word: StaffRefusal, message: string) => new ApiError(STAFF_REFUSALS[word], word, message, undefined);
 
@@ -472,7 +472,7 @@ const staffGate = (ability: Ability) =>
 };
 
 const staffListed = (): StaffList => ({
-    ...(server.staff.owner === null ? {} : { owner: staffMember(server.staff.owner, 'owner') }),
+    owners: [...server.staff.owners].sort().map((handle) => staffMember(handle, 'owner')),
     members: structuredClone(server.staff.members).sort((a, b) =>
         Number(a.role !== 'admin') - Number(b.role !== 'admin')
         || (a.grantedAt ?? '').localeCompare(b.grantedAt ?? '')
@@ -1500,16 +1500,16 @@ export const client =
             staffGate('staff');
 
             const actor = staffRoleOf(server.me);
-            const known = input.handle === server.me || input.handle === server.staff.owner || PEOPLE_FIXTURES.some((one) => one.handle === input.handle);
+            const known = input.handle === server.me || server.staff.owners.includes(input.handle) || PEOPLE_FIXTURES.some((one) => one.handle === input.handle);
 
             if (!known)
             {
                 throw staffRefused('staff-nobody', 'No one by that name.');
             }
 
-            if (input.handle === server.staff.owner)
+            if (server.staff.owners.includes(input.handle))
             {
-                throw staffRefused('staff-owner', 'The owner is the wallet the server’s .env names, and is changed there.');
+                throw staffRefused('staff-owner', 'An owner is named by the server itself, and never changed from this page.');
             }
 
             if (input.handle === server.me)

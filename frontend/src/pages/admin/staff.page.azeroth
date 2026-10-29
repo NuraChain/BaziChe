@@ -83,7 +83,11 @@ export default component StaffPage()
 
     derived listed = shown !== null;
 
-    derived owner = shown?.owner ?? null;
+    derived owners = shown?.owners ?? [];
+
+    derived ownersNamed = owners.length > 0;
+
+    derived ownersTitle = locale.t(owners.length > 1 ? 'admin.staff.owners' : 'admin.role.owner');
 
     derived members = shown?.members ?? [];
 
@@ -194,12 +198,16 @@ export default component StaffPage()
                 <Show when={ listed }>
                     <div class="flex flex-col gap-6">
                         <section class="flex flex-col gap-2" aria-labelledby="admin-owner">
-                            <h2 id="admin-owner" class="text-ui-lg font-semibold text-text">{ locale.t('admin.role.owner') }</h2>
+                            <h2 id="admin-owner" class="text-ui-lg font-semibold text-text">{ ownersTitle }</h2>
                             <p class="text-ui-sm text-muted">{ locale.t('admin.staff.owner') }</p>
-                            <Show when={ owner } let={ head }>
-                                <div class="rounded-panel border border-line bg-field" data-owner>
-                                    <StaffRow member={ head } changeable={ false } onChange={ change } />
-                                </div>
+                            <Show when={ ownersNamed }>
+                                <ul class="divide-y divide-line rounded-panel border border-line bg-field" data-owner>
+                                    <For each={ owners } key={ (one) => one.handle } let={ head }>
+                                        <li>
+                                            <StaffRow member={ head } changeable={ false } onChange={ change } />
+                                        </li>
+                                    </For>
+                                </ul>
                             </Show>
                         </section>
 

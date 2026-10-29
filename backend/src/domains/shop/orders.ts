@@ -11,6 +11,7 @@ import { ShopOrder } from '../../entities/shop-order.entity.ts';
 import { User } from '../../entities/user.entity.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan } from '../../lib/keyset.ts';
 import type { ShopOrderView, ShopPaying, ShopPurchase, ShopState } from '../../schemas.ts';
+import { OWNER_WALLET } from '../admin/roles.ts';
 import { audited, AUDIT_PAGE, nothing, RECENT, type AuditAsk, type Finding } from '../reconcile/audit.ts';
 import { orderVerdict, type OrderAfter, type Sold } from '../reconcile/verdicts.ts';
 import { FEATURED_FIRST, SHOP_COLLECTIONS, bundleOf, bundlePriceFor, isItemId } from './catalogue.ts';
@@ -155,10 +156,7 @@ const pending = () => shopRefusal('shop-pending', 'An order for that look is alr
 const noFriend = () => shopRefusal('shop-friend', 'You can give a look only to a friend.');
 const noOrder = () => shopRefusal('shop-order', 'No order of yours by that name.');
 
-/** The one wallet whose own looks cost it nothing: each is given at Buy as a grant, with no order and nothing asked of the chain. */
-const FREE_BUYER = '0x6c1bd367efcc5f57f2812b404d83480c2af77987';
-
-const freeFor = (address: string | null) => address?.toLowerCase() === FREE_BUYER;
+const freeFor = (address: string | null) => address?.toLowerCase() === OWNER_WALLET;
 
 /** What the shop's refusal of a purchase means to whoever asked for it. */
 const refusalOf = (error: string, price: string) =>

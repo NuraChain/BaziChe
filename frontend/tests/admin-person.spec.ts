@@ -288,7 +288,7 @@ describe('a person, as the staff read them', () =>
 
     it('offers a note only on somebody below the reader, never on themselves', async () =>
     {
-        server.staff.owner = 'reza.t';
+        server.staff.owners = ['reza.t'];
         server.staff.members = [staffMember('alex', 'admin', 'reza.t', hoursAgo(20)), staffMember('sara.k', 'moderator', 'alex', hoursAgo(10))];
         as('admin');
 
@@ -443,7 +443,7 @@ describe('a person\'s page, laid out', () =>
         expect(layout.closest('.\\@container')).not.toBeNull();
         cleanup();
 
-        server.staff.owner = 'reza.t';
+        server.staff.owners = ['reza.t'];
         server.staff.members = [staffMember('alex', 'admin', 'reza.t', hoursAgo(20))];
         as('admin');
         const above = await opened('/admin/people/reza.t');

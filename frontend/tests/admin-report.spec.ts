@@ -284,7 +284,7 @@ describe('one report', () =>
 
     it('offers no close on a report about the reader or about somebody at or above them, and says why', async () =>
     {
-        server.staff.owner = 'sara.k';
+        server.staff.owners = ['sara.k'];
         server.staff.members.push(staffMember('alex', 'moderator'), staffMember('mina', 'admin'));
         as('moderator');
 

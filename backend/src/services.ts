@@ -41,7 +41,7 @@ import { createStakeService, type StakeSweep } from './domains/stake/service.ts'
 import { createIdentityService } from './domains/identity/service.ts';
 import { createInviteService } from './domains/invite/service.ts';
 import { isAdminAddress } from './domains/identity/admin.ts';
-import { may, type Ability, type GrantedRole } from './domains/admin/roles.ts';
+import { may, ownersOf, type Ability, type GrantedRole } from './domains/admin/roles.ts';
 import { createPeopleService } from './domains/admin/people.ts';
 import { createLiveService, type Call, type Online } from './domains/admin/live.ts';
 import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play.ts';
@@ -1059,15 +1059,17 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         }))
     });
 
-    const team = createStaffService(db, config.adminWallet);
+    const owners = () => ownersOf(config.adminWallet);
 
-    const accounts = createPeopleService(db, config.adminWallet, config.origin);
+    const team = createStaffService(db, owners);
 
-    const desk = createReportsService(db, config.adminWallet);
+    const accounts = createPeopleService(db, owners, config.origin);
 
-    const plays = createPlayService(db, config.adminWallet);
+    const desk = createReportsService(db, owners);
 
-    const onlineNow = createLiveService(db, config.adminWallet);
+    const plays = createPlayService(db, owners);
+
+    const onlineNow = createLiveService(db, owners);
 
     const notices = createNoticeService(db);
 

@@ -34,7 +34,7 @@ const settle = async () =>
 
 const as = (staff: StaffRole) =>
 {
-    server.staff.owner = staff === 'owner' ? 'alex' : 'reza.t';
+    server.staff.owners = [staff === 'owner' ? 'alex' : 'reza.t'];
     server.staff.members = staff === 'owner' ? [] : [staffMember('alex', staff, 'reza.t', '2026-10-20T09:00:00.000Z')];
     useSession().reset();
     useSession().establish({ ...ALEX, staff });

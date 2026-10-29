@@ -8,6 +8,7 @@ import { SHOP_ABI, itemOf, orderIdOf } from '../src/chain/shop.ts';
 import { Notification, OwnedItem, Referral, ShopOrder, Table, User, Wallet, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
+import { OWNER_WALLET } from '../src/domains/admin/roles.ts';
 import { BUNDLES, FEATURED_FIRST, LOOKS, NURA, bundleOf, bundlePriceFor, lookOf } from '../src/domains/shop/catalogue.ts';
 import { buildPorts, type WriteListener } from '../src/services.ts';
 import { FAKE_SHOP, fakeShop } from './fake-shop.ts';
@@ -386,7 +387,7 @@ describe.skipIf(!active)('buying a look with NURA, against a real database', () 
 
     describe('the wallet whose own looks are free', () =>
     {
-        const FREE = getAddress('0x6c1bd367efcc5f57f2812b404d83480c2af77987');
+        const FREE = getAddress(OWNER_WALLET);
 
         const freeBuyer = async (options: { minor?: boolean } = {}): Promise<Person> =>
         {

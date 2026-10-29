@@ -1,7 +1,6 @@
 import type { DataSource, EntityManager } from 'typeorm';
 
 import { Avatar, Device, PaidAccount, Report, Session, Suspension, User, Wallet } from '../../entities/index.ts';
-import { normalizeAddress } from '../../lib/crypto.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import type { AdminPeople } from '../../schemas.ts';
 import { avatarHashOf } from '../identity/avatar.ts';
@@ -72,7 +71,7 @@ const LISTED: Record<PeopleList, string> = {
     newest: 'true',
     suspended: 'u.is_suspended = true',
     minors: 'u.is_minor = true',
-    staff: '(exists (select 1 from staff_members m where m.user_id = u.id) or exists (select 1 from wallets o where o.user_id = u.id and o.address = :owner))',
+    staff: '(exists (select 1 from staff_members m where m.user_id = u.id) or exists (select 1 from wallets o where o.user_id = u.id and o.address = any(:owners)))',
     reported: 'exists (select 1 from reports r where r.against = u.id)'
 };
 
@@ -102,10 +101,8 @@ const face = (row: PersonRow) =>
     };
 };
 
-export function createPeopleService(db: DataSource, ownerWallet: string, origin: string)
+export function createPeopleService(db: DataSource, owners: () => readonly string[], origin: string)
 {
-    const owner = () => (ownerWallet === '' ? '' : normalizeAddress(ownerWallet));
-
     const people = (manager: EntityManager) => manager.getRepository(User).createQueryBuilder('u')
         .select('u.id', 'id')
         .addSelect(keyOf('u.created_at'), 'at_key')
@@ -118,9 +115,9 @@ export function createPeopleService(db: DataSource, ownerWallet: string, origin:
         .addSelect('u.is_suspended', 'is_suspended')
         .addSelect('(select w.address::text from wallets w where w.user_id = u.id order by w.last_used_at desc nulls last limit 1)', 'address')
         .addSelect('(select m.role from staff_members m where m.user_id = u.id)', 'staff_role')
-        .addSelect('exists (select 1 from wallets o where o.user_id = u.id and o.address = :owner)', 'owner')
+        .addSelect('exists (select 1 from wallets o where o.user_id = u.id and o.address = any(:owners))', 'owner')
         .addSelect('(select count(*)::int from reports r where r.against = u.id)', 'reports')
-        .setParameter('owner', owner());
+        .setParameter('owners', owners());
 
     const locked = async (tx: EntityManager, handle: string) =>
     {

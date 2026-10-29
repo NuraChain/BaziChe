@@ -1,7 +1,6 @@
 import type { DataSource, EntityManager } from 'typeorm';
 
 import { Match, MatchPlayer, Report, User } from '../../entities/index.ts';
-import { normalizeAddress } from '../../lib/crypto.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import type { AdminReports } from '../../schemas.ts';
 import { REPORTS_PAGE, type GrantedRole, type ReportList, type ReportOutcome, type ReportStatus } from './roles.ts';
@@ -66,10 +65,8 @@ const wire = (row: ReportRow) => ({
     about: face(row.about_handle, row.about_name, row.about_hue, row.about_avatar, row.about_staff, row.about_owner)
 });
 
-export function createReportsService(db: DataSource, ownerWallet: string)
+export function createReportsService(db: DataSource, owners: () => readonly string[])
 {
-    const owner = () => (ownerWallet === '' ? '' : normalizeAddress(ownerWallet));
-
     const reports = (manager: EntityManager) => manager.getRepository(Report).createQueryBuilder('r')
         .innerJoin(User, 'b', 'b.id = r.reporter')
         .innerJoin(User, 'a', 'a.id = r.against')
@@ -85,15 +82,15 @@ export function createReportsService(db: DataSource, ownerWallet: string)
         .addSelect('b.hue', 'by_hue')
         .addSelect('b.avatar', 'by_avatar')
         .addSelect('(select m.role from staff_members m where m.user_id = r.reporter)', 'by_staff')
-        .addSelect('exists (select 1 from wallets o where o.user_id = r.reporter and o.address = :owner)', 'by_owner')
+        .addSelect('exists (select 1 from wallets o where o.user_id = r.reporter and o.address = any(:owners))', 'by_owner')
         .addSelect('r.against', 'about_id')
         .addSelect('a.handle', 'about_handle')
         .addSelect('a.display_name', 'about_name')
         .addSelect('a.hue', 'about_hue')
         .addSelect('a.avatar', 'about_avatar')
         .addSelect('(select m.role from staff_members m where m.user_id = r.against)', 'about_staff')
-        .addSelect('exists (select 1 from wallets o where o.user_id = r.against and o.address = :owner)', 'about_owner')
-        .setParameter('owner', owner());
+        .addSelect('exists (select 1 from wallets o where o.user_id = r.against and o.address = any(:owners))', 'about_owner')
+        .setParameter('owners', owners());
 
     const waiting = async () => await db.getRepository(Report).countBy({ status: 'received' });
 

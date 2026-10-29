@@ -507,7 +507,7 @@ describe('the log', () =>
         expect(filtered.container.textContent).toContain('Nothing in the log matches.');
         cleanup();
 
-        server.staff.owner = 'sara.k';
+        server.staff.owners = ['sara.k'];
         const refused = await opened();
 
         expect(refused.container.textContent).toContain('The log could not be read.');

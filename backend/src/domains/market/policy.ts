@@ -49,10 +49,7 @@ export const MARKET_FEE_BPS = 0;
 /** The amounts the sheet offers, in NURA. */
 export const MARKET_PRESETS_NURA = [1, 5, 10, 25, 50, 100] as const;
 
-/**
- * Whether the reader may take a position: yes, or the refusal one would meet, asked in this order:
- * where they are first, because nothing else matters where markets are not offered.
- */
-export const MARKET_MAY = ['yes', 'market-region', 'market-wallet', 'market-minor', 'market-terms', 'market-break', 'market-disclosure'] as const;
+/** Whether the reader may take a position: yes, or the refusal one would meet, asked in this order. */
+export const MARKET_MAY = ['yes', 'market-wallet', 'market-minor', 'market-terms', 'market-break', 'market-disclosure'] as const;
 
 export type MarketMay = (typeof MARKET_MAY)[number];

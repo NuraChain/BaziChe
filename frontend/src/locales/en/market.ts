@@ -77,7 +77,6 @@ export const market = {
     'market.list.game': '{game}, {when}',
     'market.unreached': 'NuraChain could not be reached just now. Try again in a moment.',
     'market.refused.market-off': 'Markets are not open here.',
-    'market.refused.market-region': 'Markets are not offered where you are.',
     'market.refused.market-wallet': 'Backing a game needs a wallet account.',
     'market.refused.market-minor': 'Markets are for adults only.',
     'market.refused.market-terms': 'Confirm the terms of playing for NURA on your wallet page first.',

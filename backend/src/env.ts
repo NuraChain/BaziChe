@@ -31,41 +31,6 @@ const originOf = (text: string) =>
     }
 };
 
-const REGION = /^[A-Z]{2}$/;
-
-const HEADER = /^[A-Za-z0-9-]+$/;
-
-/** The countries markets are offered in, as written in `MARKET_REGIONS`: two-letter codes, in capitals. */
-export const regionsIn = (text: string) => text.split(',').map((one) => one.trim().toUpperCase()).filter((one) => one !== '');
-
-/**
- * What is wrong with how markets are configured, in any mode: the contract, the countries and the
- * header the country is read from go together, or none of them is written; a country is its ISO
- * 3166 two-letter code, and a header a name a request can carry.
- */
-export function marketsRefused(address: string, regions: string, header: string)
-{
-    const written = [address, regions, header].filter((value) => value !== '').length;
-
-    if (written === 0)
-    {
-        return [];
-    }
-
-    if (written < 3)
-    {
-        return ['NURA_MARKETS_ADDRESS, MARKET_REGIONS and MARKET_COUNTRY_HEADER go together: write all three, or all three empty to leave markets off.'];
-    }
-
-    const codes = regionsIn(regions);
-    const odd = codes.filter((code) => !REGION.test(code));
-
-    return [
-        ...(codes.length === 0 || odd.length > 0 ? [`MARKET_REGIONS takes ISO 3166 two-letter codes separated by commas${ odd.length > 0 ? `, and ${ odd.join(', ') } is not one` : '' }.`] : []),
-        ...(HEADER.test(header) ? [] : ['MARKET_COUNTRY_HEADER has to be the name of a header, such as CF-IPCountry.'])
-    ];
-}
-
 /** What is wrong with the metrics token, in any mode: written, it is at least as long as a session secret, because it is one. */
 export const metricsRefused = (token: string) =>
     (token === '' || token.length >= SECRET_LEAST
@@ -154,13 +119,6 @@ export function loadServerConfig()
             /** `ArcadeMarkets`, where positions on games are held; its operator is the key above. */
             marketsAddress: optional('NURA_MARKETS_ADDRESS'),
 
-            /**
-             * Where markets may be offered, from legal advice and nowhere else, and the header the
-             * proxy writes a reader's country into. Markets are never on for a country nobody named.
-             */
-            marketRegions: optional('MARKET_REGIONS'),
-            marketCountryHeader: optional('MARKET_COUNTRY_HEADER'),
-
             /** The explorer's Etherscan-compatible api, where a wallet's NFT transfers are read. */
             explorerApi: optional('NURA_EXPLORER_API'),
 
@@ -214,7 +172,7 @@ export function loadServerConfig()
         throw new Error(`Configuration is invalid:\n${ missing.join('\n') }\nSet them in the root .env: .env.example says what each one is.`);
     }
 
-    const invalid = [...marketsRefused(config.marketsAddress, config.marketRegions, config.marketCountryHeader), ...metricsRefused(config.metricsToken)];
+    const invalid = metricsRefused(config.metricsToken);
 
     if (invalid.length > 0)
     {
@@ -231,7 +189,7 @@ export function loadServerConfig()
         }
     }
 
-    return Object.assign(config, { env, servePages: env === 'production', databaseSync: env === 'development', marketCountries: regionsIn(config.marketRegions) });
+    return Object.assign(config, { env, servePages: env === 'production', databaseSync: env === 'development' });
 }
 
 export type ServerConfig = ReturnType<typeof loadServerConfig>;

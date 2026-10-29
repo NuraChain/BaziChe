@@ -62,13 +62,6 @@ database says so in its log.
    (`worker_rlimit_nofile 16384;` at the top level). The server itself takes up to 4,000 realtime
    connections and turns the next one away.
 
-   Markets (people watching a game backing its outcomes with NURA) are offered only in the
-   countries `MARKET_REGIONS` names, which come from legal advice, and the server learns a reader's
-   country from the header `MARKET_COUNTRY_HEADER` names. The proxy has to write that header
-   itself, overwriting any a client sent: behind Cloudflare that is `CF-IPCountry` already; with
-   nginx's GeoIP2 module it is a line such as `proxy_set_header X-Country-Code $geoip2_country_code;`.
-   With the three names written empty, nobody is offered a market.
-
    The server watches itself and says in its log when something crosses a line a person should
    act on: one `alert raised` line at warn or error, and one `alert cleared` line when it is over.
    To watch it from outside as well, point Prometheus, or anything that reads its text format, at

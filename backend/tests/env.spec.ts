@@ -8,7 +8,7 @@ const NAMES = [
     'NURA_RPC_URL', 'NURA_PROFILE_ADDRESS', 'NURA_PROFILE_LENS_ADDRESS', 'NURA_EXPLORER_API', 'ADMIN_WALLET_ADDRESS',
     'API_RATE_MAX', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT',
     'NURA_VAULT_ADDRESS', 'NURA_REFEREE_KEY', 'NURA_SHOP_ADDRESS', 'NURA_TIPS_ADDRESS',
-    'NURA_MARKETS_ADDRESS', 'MARKET_REGIONS', 'MARKET_COUNTRY_HEADER', 'METRICS_TOKEN'
+    'NURA_MARKETS_ADDRESS', 'METRICS_TOKEN'
 ];
 
 const NEEDED: Record<string, string> = {
@@ -160,41 +160,6 @@ describe('the environment the server boots from', () =>
 
             expect(loadServerConfig().origin, origin).toBe(origin);
         }
-    });
-
-    it('offers markets nowhere unless the contract, the countries and the header are written together, in either mode', () =>
-    {
-        const MARKETS = { NURA_MARKETS_ADDRESS: '0x5FbDB2315678afecb367f032d93F642f64180aa3', MARKET_REGIONS: 'de, nl,FR', MARKET_COUNTRY_HEADER: 'CF-IPCountry' };
-
-        use({ ...NEEDED, ...MARKETS });
-        expect(loadServerConfig().marketCountries, 'the countries as two capitals each').toEqual(['DE', 'NL', 'FR']);
-
-        use(NEEDED);
-        expect(loadServerConfig().marketCountries, 'written empty, markets are off and no country is named').toEqual([]);
-
-        for (const mode of ['production', 'development'])
-        {
-            for (const name of Object.keys(MARKETS))
-            {
-                use({ ...NEEDED, ...MARKETS, [name]: '', NODE_ENV: mode, PUBLIC_ORIGIN: 'http://localhost:4900' });
-
-                expect(refusal(), `${ mode }: ${ name } empty beside the others`).toMatch(/NURA_MARKETS_ADDRESS, MARKET_REGIONS and MARKET_COUNTRY_HEADER go together/);
-            }
-        }
-    });
-
-    it('refuses a country that is not a two-letter code, a list that names none, and a header nothing can carry', () =>
-    {
-        const MARKETS = { NURA_MARKETS_ADDRESS: '0x5FbDB2315678afecb367f032d93F642f64180aa3', MARKET_COUNTRY_HEADER: 'CF-IPCountry' };
-
-        use({ ...NEEDED, ...MARKETS, MARKET_REGIONS: 'DE, Germany, 4' });
-        expect(refusal()).toMatch(/MARKET_REGIONS takes ISO 3166 two-letter codes separated by commas, and GERMANY, 4 is not one/);
-
-        use({ ...NEEDED, ...MARKETS, MARKET_REGIONS: ' , ,' });
-        expect(refusal()).toMatch(/MARKET_REGIONS takes ISO 3166 two-letter codes separated by commas\./);
-
-        use({ ...NEEDED, ...MARKETS, MARKET_REGIONS: 'DE', MARKET_COUNTRY_HEADER: 'country: DE' });
-        expect(refusal()).toMatch(/MARKET_COUNTRY_HEADER has to be the name of a header/);
     });
 
     it('refuses an empty value where one is needed', () =>

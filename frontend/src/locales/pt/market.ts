@@ -80,7 +80,6 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.list.game': '{game}, {when}',
     'market.unreached': 'Não deu para falar com a NuraChain agora. Tente de novo daqui a pouco.',
     'market.refused.market-off': 'Os palpites não estão abertos aqui.',
-    'market.refused.market-region': 'Os palpites não estão disponíveis onde você está.',
     'market.refused.market-wallet': 'Para dar palpite você precisa de uma conta com carteira.',
     'market.refused.market-minor': 'Os palpites são só para adultos.',
     'market.refused.market-terms': 'Aceite antes os termos de jogar por NURA na página da sua carteira.',

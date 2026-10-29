@@ -80,7 +80,6 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.list.game': '{game}，{when}',
     'market.unreached': '暂时连不上 NuraChain，请稍后再试。',
     'market.refused.market-off': '这里没有开放竞猜。',
-    'market.refused.market-region': '你所在的地区不提供竞猜。',
     'market.refused.market-wallet': '押注需要钱包账户。',
     'market.refused.market-minor': '竞猜仅限成年人。',
     'market.refused.market-terms': '先在钱包页面确认用 NURA 游戏的条款。',

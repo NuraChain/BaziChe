@@ -79,8 +79,7 @@ const CONFIG = {
     vaultAddress: '',
     shopAddress: '',
     tipsAddress: '',
-    adminWallet: OWNER_WALLET,
-    marketCountries: [] as string[]
+    adminWallet: OWNER_WALLET
 } as Parameters<typeof buildPorts>[1];
 
 interface Person

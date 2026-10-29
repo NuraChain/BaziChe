@@ -1207,9 +1207,7 @@ market's ninety seconds then closed on the chain before they opened here (`Marke
 bettor's own transaction). Then `ArcadeMarkets` on it (`node tools/qa/vault-deploy.mjs`, its
 operator hardhat's #9, the referee, and a dispute window of a minute), a database nobody else uses
 given its schema by `sync-cli`, and the built server with `NURA_RPC_URL`, `NURA_CHAIN_ID=31337`,
-`NURA_VAULT_ADDRESS`, `NURA_REFEREE_KEY`, `NURA_MARKETS_ADDRESS`, `MARKET_REGIONS=DE` and
-`MARKET_COUNTRY_HEADER=CF-IPCountry`. Every request names its country in that header, as the proxy
-would. The node is made to mine a block a second (`evm_setIntervalMining`), as a chain with
+`NURA_VAULT_ADDRESS`, `NURA_REFEREE_KEY` and `NURA_MARKETS_ADDRESS`. The node is made to mine a block a second (`evm_setIntervalMining`), as a chain with
 validators does: hardhat otherwise mines only for a transaction, and the server reads the chain's
 clock from its newest block.
 
@@ -1295,8 +1293,7 @@ moves the node's clock past the vault's wait at its end, and has it mine a block
 market pass does), every contract `vault-deploy.mjs` deploys on it, a database nobody else uses
 given its schema by `sync-cli`, and the built server started on it with `NURA_RPC_URL`,
 `NURA_CHAIN_ID=31337`, `NURA_VAULT_ADDRESS`, `NURA_REFEREE_KEY` (#9), `NURA_SHOP_ADDRESS`,
-`NURA_TIPS_ADDRESS`, `NURA_MARKETS_ADDRESS`, `MARKET_REGIONS=DE`, `MARKET_COUNTRY_HEADER=CF-IPCountry`
-and `ADMIN_WALLET_ADDRESS` set to hardhat's #6 (`QA_OWNER_KEY` names another owner's key), its output
+`NURA_TIPS_ADDRESS`, `NURA_MARKETS_ADDRESS` and `ADMIN_WALLET_ADDRESS` set to hardhat's #6 (`QA_OWNER_KEY` names another owner's key), its output
 written to the file `QA_LOG` names, where the pass reads the server's warnings. PGDATABASE names the
 server's database because rows are changed by hand. The reconciliation pass runs once a minute, so
 each part waits up to ninety seconds.

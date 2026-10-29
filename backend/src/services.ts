@@ -67,7 +67,7 @@ import { readSessionToken, SESSION_TTL_SECONDS } from './http/auth.ts';
 import type { OpsReader } from './http/ops.ts';
 import type { Sampled } from './ops/monitor.ts';
 import { createSampler, poolOf } from './ops/sample.ts';
-import type { HeaderOf, MatchEventLog, Ports } from './ports.ts';
+import type { MatchEventLog, Ports } from './ports.ts';
 import type {
     Account,
     ChatMessage,
@@ -1180,7 +1180,6 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         db,
         forecasts,
         ENGINES,
-        new Set(config.marketCountries),
         (me) => stakes.standingOf(me),
         (tableId, userIds) => table.mayWatch(tableId, userIds),
         {
@@ -1193,9 +1192,6 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             }
         }
     );
-
-    /** Where the reader is, by the header the proxy writes, asked only where markets are offered at all. */
-    const countryOf = (header: HeaderOf) => (markets.open ? header(config.marketCountryHeader) : null);
 
     const auditors = new Map<Exclude<CheckFamily, 'contract'>, Auditor>();
     const holders = new Map<Holder, () => Promise<Books>>();
@@ -1883,10 +1879,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         },
 
         markets: {
-            state: (me, header) => markets.state(me, countryOf(header)),
-            disclose: (me, header) => markets.disclose(me, countryOf(header)),
-            view: (me, header, matchId) => markets.view(me, countryOf(header), matchId),
-            place: (me, header, marketId, input) => markets.place(me, countryOf(header), marketId, input),
+            state: (me) => markets.state(me),
+            disclose: (me) => markets.disclose(me),
+            view: (me, matchId) => markets.view(me, matchId),
+            place: (me, marketId, input) => markets.place(me, marketId, input),
             one: (me, id) => markets.one(me, id),
             sent: (me, id, hash) => markets.sent(me, id, hash),
             positions: (me, cursor) => markets.positions(me, cursor),

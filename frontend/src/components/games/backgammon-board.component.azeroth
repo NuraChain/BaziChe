@@ -170,6 +170,8 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
 
     derived whoAt = (seat: number) => game.players.find((one) => one.seat === seat)?.who ?? '';
 
+    derived lookAt = (seat: number) => game.players.find((one) => one.seat === seat)?.look;
+
     derived nameOf = (seat: number) =>
     {
         if (seat === mine)
@@ -1400,6 +1402,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
                                 <div class="bg-rail" data-me={ plate.seat === viewer ? 'true' : undefined }>
                                     <TablePlate
                                         who={ whoAt(plate.seat) }
+                                        look={ lookAt(plate.seat) }
                                         name={ nameOf(plate.seat) }
                                         turn={ plate.seat === onTurn }
                                         remainingMs={ game.remainingMs }

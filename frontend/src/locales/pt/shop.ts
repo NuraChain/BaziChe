@@ -8,6 +8,7 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.inWallet': 'Na sua carteira',
     'shop.yours': 'Sua coleção',
     'shop.strip.title': 'Estilos de {game}',
+    'shop.worn.title': 'Estilos de {name} nesta mesa',
     'shop.failed': 'Não foi possível carregar a loja.',
     'shop.unreached': 'Não foi possível acessar a NuraChain agora. Tente de novo daqui a pouco.',
     'shop.featured': 'Coleção em destaque',

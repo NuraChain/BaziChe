@@ -1,0 +1,26 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+import type { SeatLook } from '../shop/worn-looks.component.azeroth';
+
+type Worn = (props: { look: SeatLook; name: string; onOpen: () => void }) => MountNode;
+
+/** A player's looks in the sheet about them, fetched only when they wear one, so the sheet carries none of the shop. */
+export default component LazyWornLooks(props: { look: SeatLook; name: string; onOpen: () => void })
+{
+    let Worn: Worn | null = null;
+
+    state loaded = false;
+
+    mount
+    {
+        void import('../shop/worn-looks.component.azeroth').then((module) =>
+        {
+            Worn = module.default as Worn;
+            loaded = true;
+        }, () => undefined);
+    }
+
+    <Show when={ loaded }>
+        { () => <Dynamic component={ Worn! } props={ () => ({ look: props.look, name: props.name, onOpen: props.onOpen }) } /> }
+    </Show>
+}

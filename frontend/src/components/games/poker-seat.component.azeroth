@@ -2,6 +2,7 @@ import CardFace from './card-face.component.azeroth';
 import type { PlateTone } from './plate-tag.ts';
 import TablePlate from './table-plate.component.azeroth';
 import TurnClock from './turn-clock.component.azeroth';
+import type { MatchPlayer } from '../../data/match.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 
 export default component PokerSeat(props: {
@@ -28,6 +29,7 @@ export default component PokerSeat(props: {
     bet: string;
     discs: number;
     landing: boolean;
+    look?: MatchPlayer['look'];
 })
 {
     const locale = useLocale();
@@ -65,6 +67,7 @@ export default component PokerSeat(props: {
     <>
         <TablePlate
             who={ props.who }
+            look={ props.look }
             name={ props.name }
             turn={ props.turn }
             remainingMs={ props.remainingMs }

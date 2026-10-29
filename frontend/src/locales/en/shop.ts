@@ -5,6 +5,7 @@ export const shop = {
     'shop.inWallet': 'In your wallet',
     'shop.yours': 'Your collection',
     'shop.strip.title': 'Looks for {game}',
+    'shop.worn.title': 'What {name} wears here',
     'shop.failed': 'The shop could not be loaded.',
     'shop.unreached': 'NuraChain could not be reached just now. Try again in a moment.',
     'shop.featured': 'Featured collection',

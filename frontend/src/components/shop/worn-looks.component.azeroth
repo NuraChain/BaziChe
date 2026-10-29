@@ -1,0 +1,43 @@
+import type { MatchPlayer } from '../../data/match.ts';
+import { openLook } from '../../lib/look-sheet.ts';
+import { itemName } from '../../lib/shop.ts';
+import { lookOf } from '../../../../backend/src/domains/shop/catalogue.ts';
+import '../../locales/shop-catalogue.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+
+export type SeatLook = NonNullable<MatchPlayer['look']>;
+
+/** The looks a player wears at the table, named in the sheet about them, each opening the shop's own sheet for it. */
+export default component WornLooks(props: { look: SeatLook; name: string; onOpen: () => void })
+{
+    const locale = useLocale();
+
+    derived items = Object.values(props.look).filter((id): id is string => id !== undefined && lookOf(id) !== undefined);
+
+    derived worn = items.length > 0;
+
+    <Show when={ worn }>
+        <section class="mx-1 mb-1" aria-labelledby="worn-looks" data-worn-looks>
+            <h3 id="worn-looks" class="px-2 pb-1.5 text-ui-xs font-semibold text-muted" dir="auto">{ locale.t('shop.worn.title', { name: props.name }) }</h3>
+            <ul class="flex gap-2 overflow-x-auto px-1 pb-1">
+                <For each={ items } key={ (id) => id } let={ id }>
+                    <li class="shrink-0">
+                        <button
+                            type="button"
+                            class="flex w-20 flex-col items-center gap-1 rounded-tile border border-line bg-field p-1.5 text-center transition-colors hover:border-line-strong"
+                            data-worn={ id }
+                            onClick={ () =>
+                            {
+                                props.onOpen();
+                                void openLook(id);
+                            } }
+                        >
+                            <img src={ `/looks/${ id }.svg` } alt="" class="size-14" decoding="async" draggable={ false } />
+                            <span class="line-clamp-2 text-ui-2xs leading-tight text-muted">{ itemName(id, locale) }</span>
+                        </button>
+                    </li>
+                </For>
+            </ul>
+        </section>
+    </Show>
+}

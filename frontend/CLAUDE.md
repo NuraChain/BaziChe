@@ -1387,6 +1387,15 @@ the chevron that said a row went somewhere is a quiet "more" mark. `person-press
 `leaderboard.spec.ts` hold them. The leaderboard also marks the reader's own row, a light ground
 and "You" beside the name, because a reader looks for themselves first.
 
+**From a plate at a table the sheet names what that person wears there.** A plate hands
+`aboutPerson` its seat's look from the match (`look` on the plate, from every board), and the sheet
+draws each look in the shop's own drawing with its name, under "What Omid wears here", each opening
+the shop's sheet for it (`openLook`). The strip is a chunk of its own (`LazyWornLooks`, which
+fetches `components/shop/worn-looks`), fetched only when the person wears something, because the
+sheet opens from every friend's row and carries none of the shop. Somebody in Classic, or wearing
+only what this build does not sell, is drawn no strip. `person-actions.spec.ts` (*what somebody
+wears at the table*) and `table-plate.spec.ts` hold it.
+
 **A person's row is the press, and nothing beside it says More.** `FriendRow` - a friend, a
 request, a group's member, a search result, somebody blocked or muted in Settings - linked the
 person to their page, and the friends list and a group's members added a More button beside it

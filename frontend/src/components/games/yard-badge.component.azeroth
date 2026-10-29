@@ -159,6 +159,7 @@ export default component YardBadge(props: {
     <div class="yard-badge flex min-inline-0 data-[corner=top-left]:[grid-area:tl] data-[corner=top-right]:[grid-area:tr] data-[corner=bottom-left]:[grid-area:bl] data-[corner=bottom-right]:[grid-area:br] data-[corner$=left]:justify-start data-[corner$=right]:justify-end fit-wide:data-[corner^=top]:[align-self:start] fit-wide:data-[corner^=bottom]:[align-self:end]" data-corner={ props.corner } style={ paint }>
         <TablePlate
             who={ props.player.who }
+            look={ props.player.look }
             name={ name }
             turn={ turn }
             remainingMs={ props.remainingMs }

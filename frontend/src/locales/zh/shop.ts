@@ -8,6 +8,7 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.inWallet': '钱包余额',
     'shop.yours': '我的收藏',
     'shop.strip.title': '{game}外观',
+    'shop.worn.title': '{name}在这张桌上的外观',
     'shop.failed': '商店加载失败。',
     'shop.unreached': '暂时无法连接 NuraChain。请稍后再试。',
     'shop.featured': '精选系列',

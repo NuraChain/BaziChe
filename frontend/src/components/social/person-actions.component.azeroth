@@ -1,5 +1,6 @@
 import { untrack, useNavigate } from 'azerothjs';
 
+import type { MatchPlayer } from '../../data/match.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import type { IconName } from '../../icons/registry.ts';
 import ConfirmSheet from '../app/confirm-sheet.component.azeroth';
@@ -15,6 +16,7 @@ import { useWatch } from '../../stores/watch.store.ts';
 import Avatar from '../ui/avatar.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
 import Slider from '../ui/slider.component.azeroth';
+import LazyWornLooks from './lazy-worn-looks.component.azeroth';
 import ReportSheet from './report-sheet.component.azeroth';
 import { copyText } from '../../lib/clipboard.ts';
 import { attempt } from '../../lib/attempt.ts';
@@ -41,6 +43,7 @@ interface Action
 export default component PersonActions(props: OverlayProps & {
     personId: string;
     disclose?: { conversationId: string; messageId: string; text: string; frankingKey: string };
+    look?: MatchPlayer['look'];
 })
 {
     const locale = useLocale();
@@ -95,6 +98,8 @@ export default component PersonActions(props: OverlayProps & {
     derived silenced = level === 0;
 
     derived name = person === null ? props.personId : person.displayName.split(' ')[0];
+
+    derived wearing = props.look !== undefined && Object.values(props.look).some((id) => id !== undefined);
 
     derived muted = social.isMuted('person', props.personId);
 
@@ -294,6 +299,9 @@ export default component PersonActions(props: OverlayProps & {
                     onClick={ () => voice.silence(props.personId) }
                 />
             </section>
+        </Show>
+        <Show when={ wearing }>
+            { () => <LazyWornLooks look={ props.look! } name={ name } onOpen={ () => props.close() } /> }
         </Show>
         <ul class="flex flex-col gap-0.5">
             <For each={ actions } key={ (action) => action.id } let={ action }>

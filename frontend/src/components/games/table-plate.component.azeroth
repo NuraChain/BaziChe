@@ -1,5 +1,6 @@
 import { onCleanup, untrack, type Child } from 'azerothjs';
 
+import type { MatchPlayer } from '../../data/match.ts';
 import Avatar from '../ui/avatar.component.azeroth';
 import Icon from '../../icons/icon.component.azeroth';
 import { aboutPerson } from '../../lib/person-menu.ts';
@@ -34,6 +35,7 @@ export default component TablePlate(props: {
     ink?: string;
     trail?: Child;
     team?: PlateTeam;
+    look?: MatchPlayer['look'];
 })
 {
     const people = usePeople();
@@ -172,7 +174,7 @@ export default component TablePlate(props: {
             <span class="table-plate-bubble" dir="auto" role="status">{ said }</span>
         </Show>
         <Show when={ theirs }>
-            { () => <button type="button" class="table-plate-press" tabindex="-1" aria-haspopup="dialog" aria-label={ locale.t('actions.about', { name: props.name }) } onClick={ () => aboutPerson(props.who) }></button> }
+            { () => <button type="button" class="table-plate-press" tabindex="-1" aria-haspopup="dialog" aria-label={ locale.t('actions.about', { name: props.name }) } onClick={ () => aboutPerson(props.who, props.look) }></button> }
         </Show>
     </div>
 }

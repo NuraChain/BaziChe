@@ -16,6 +16,8 @@ import { useRealtime } from '../src/stores/realtime.store.ts';
 import { useSettings } from '../src/stores/settings.store.ts';
 import { setVoiceCall, setVoiceMedia, useVoice } from '../src/stores/voice.store.ts';
 import { useDonations } from '../src/stores/donations.store.ts';
+import { itemName } from '../src/lib/shop.ts';
+import '../src/locales/shop-catalogue.ts';
 import { ApiError, client, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
 
@@ -35,6 +37,16 @@ vi.mock('../src/lib/donate-sheet.ts', () => ({
     }
 }));
 
+const looked = vi.hoisted(() => [] as string[]);
+
+vi.mock('../src/lib/look-sheet.ts', () => ({
+    openLook: (item: string) =>
+    {
+        looked.push(item);
+        return Promise.resolve();
+    }
+}));
+
 let closed: unknown[] = [];
 
 const settle = async () =>
@@ -47,9 +59,9 @@ const settle = async () =>
     await new Promise((resolve) => setTimeout(resolve, 20));
 };
 
-const sheet = async (personId: string) =>
+const sheet = async (personId: string, look?: Record<string, string>) =>
 {
-    const routes: Route[] = [{ path: '/app/friends', component: (): HTMLElement => PersonActions({ overlayId: 'actions', close: (result) => closed.push(result), personId }) as HTMLElement }];
+    const routes: Route[] = [{ path: '/app/friends', component: (): HTMLElement => PersonActions({ overlayId: 'actions', close: (result) => closed.push(result), personId, ...(look === undefined ? {} : { look }) }) as HTMLElement }];
     const router = createRouter({ routes, history: createMemoryHistory('/app/friends'), scroll: false });
     const { container } = renderTest(() => RouterProvider({ router, children: () => Routes({}) }) as Rendered);
 
@@ -93,6 +105,7 @@ beforeEach(async () =>
     useDonations().reset();
     watched.view = null;
     given.length = 0;
+    looked.length = 0;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     await settle();
 });
@@ -105,6 +118,66 @@ afterEach(() =>
     useToasts().reset();
     useSocial().reset();
     usePeople().reset();
+});
+
+describe('what somebody wears at the table, in the sheet about them', () =>
+{
+    const worn = async (container: HTMLElement) =>
+    {
+        await vi.waitFor(() => expect(container.querySelector('[data-worn-looks]')).not.toBeNull(), { timeout: 4000 });
+
+        return [...container.querySelectorAll<HTMLButtonElement>('[data-worn]')];
+    };
+
+    it('names each look they wear there in the shop\'s own drawing, under a heading that says whose', async () =>
+    {
+        const container = await sheet('omid.k', { dice: 'dice.inferno', pawns: 'pawns.storm' });
+        const looks = await worn(container);
+
+        expect(looks.map((one) => one.dataset.worn)).toEqual(['dice.inferno', 'pawns.storm']);
+        expect(looks.map((one) => one.textContent?.trim())).toEqual([itemName('dice.inferno', useLocale()), itemName('pawns.storm', useLocale())]);
+        expect(looks.map((one) => one.querySelector('img')?.getAttribute('src'))).toEqual(['/looks/dice.inferno.svg', '/looks/pawns.storm.svg']);
+        expect(container.querySelector('[data-worn-looks] h3')?.textContent).toMatch(/wears here$/);
+    });
+
+    it('opens the shop\'s own sheet for a look that is pressed, and puts this sheet away', async () =>
+    {
+        const container = await sheet('omid.k', { dice: 'dice.inferno' });
+        const [look] = await worn(container);
+
+        fire(look!, 'click');
+        await settle();
+
+        expect(looked).toEqual(['dice.inferno']);
+        expect(closed).toHaveLength(1);
+    });
+
+    it('draws nothing for somebody in Classic, or wearing only what this build does not sell', async () =>
+    {
+        const classic = await sheet('omid.k', {});
+
+        await settle();
+        expect(classic.querySelector('[data-worn-looks]')).toBeNull();
+
+        cleanup();
+
+        const unsold = await sheet('omid.k', { dice: 'dice.someday' });
+
+        await settle();
+        await settle();
+        expect(unsold.querySelector('[data-worn-looks]')).toBeNull();
+        expect(offered(unsold), 'the actions changed beside an empty strip').toEqual(offered(await sheet('omid.k')));
+    });
+
+    it('says whose they are in Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+
+        const container = await sheet('omid.k', { dice: 'dice.inferno' });
+
+        await worn(container);
+        expect(container.querySelector('[data-worn-looks] h3')?.textContent).toMatch(/سر این میز$/);
+    });
 });
 
 describe('how loud somebody in the call is, from the sheet about them', () =>

@@ -451,6 +451,21 @@ describe('a plate that is pressed', () =>
 
         expect(useOverlay().items().map((entry) => [entry.id, entry.component, entry.label, entry.props.personId]))
             .toEqual([['person-menu', PersonActions, 'More', 'omid.k']]);
+        expect(useOverlay().items()[0]!.props, 'a plate given no look handed one on').not.toHaveProperty('look');
+    });
+
+    it('hands that sheet what the person wears at this table', async () =>
+    {
+        reading();
+
+        const look = { dice: 'dice.inferno', pawns: 'pawns.storm' };
+        const { container } = renderTest(() => TablePlate({ who: 'omid.k', name: 'Omid', look }) as Rendered);
+
+        fire(press(container)!, 'click');
+
+        await vi.waitFor(() => expect(useOverlay().items()).toHaveLength(1), { timeout: 4000 });
+
+        expect(useOverlay().items()[0]!.props.look).toEqual(look);
     });
 
     it('is about whoever the plate is showing now, when the seat it draws changes hands', async () =>

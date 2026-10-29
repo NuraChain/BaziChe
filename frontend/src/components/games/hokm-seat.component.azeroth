@@ -3,6 +3,7 @@ import type { PlateTone } from './plate-tag.ts';
 import TablePlate, { type PlateTeam } from './table-plate.component.azeroth';
 import TurnClock from './turn-clock.component.azeroth';
 import Icon from '../../icons/icon.component.azeroth';
+import type { MatchPlayer } from '../../data/match.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 
 export const SIDE_TONE = ['text-accent', 'text-gold', 'text-live'];
@@ -25,6 +26,7 @@ export default component HokmSeat(props: {
     tricks: number;
     held: number;
     backs: number;
+    look?: MatchPlayer['look'];
 })
 {
     const locale = useLocale();
@@ -36,6 +38,7 @@ export default component HokmSeat(props: {
     <>
         <TablePlate
             who={ props.who }
+            look={ props.look }
             name={ props.name }
             turn={ props.turn }
             remainingMs={ props.remainingMs }

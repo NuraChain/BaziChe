@@ -7,6 +7,7 @@ import { useLocale } from '../../stores/locale.store.ts';
 import type { Colour } from '../../../../backend/src/domains/match/chess/board.ts';
 import type { Tip } from '../../game/helpers/tip.ts';
 import type { PlateTone } from './plate-tag.ts';
+import type { MatchPlayer } from '../../data/match.ts';
 
 export interface TrayGroup
 {
@@ -41,6 +42,7 @@ export default component ChessRail(props: {
     over: boolean;
     yours: boolean;
     tip?: Tip | null;
+    look?: MatchPlayer['look'];
 })
 {
     const locale = useLocale();
@@ -66,6 +68,7 @@ export default component ChessRail(props: {
     <div class="chess-rail" data-me={ props.me ? 'true' : undefined }>
         <TablePlate
             who={ props.who }
+            look={ props.look }
             name={ props.name }
             turn={ props.turn }
             tag={ props.tag }

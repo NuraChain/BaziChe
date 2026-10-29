@@ -1783,6 +1783,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                                 <div class="poker-seat" data-seat={ seat } data-lies={ plateAt(seat).lies } data-backs={ backsAt(seat) ?? undefined } data-faces={ facesAt(seat) ?? undefined } data-chips={ chipsAt(seat) ?? undefined } style={ placed(seat) }>
                                     <PokerSeat
                                         who={ whoAt(seat) }
+                                        look={ lookAt(seat) }
                                         name={ nameOf(seat) }
                                         turn={ !over && turnSeat === seat }
                                         own={ seat === mine }

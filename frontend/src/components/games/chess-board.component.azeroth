@@ -253,7 +253,9 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
 
     derived whoAt = (seat: number) => game.players.find((one) => one.seat === seat)?.who ?? '';
 
-    derived setAt = (seat: number) => wornOf('pieces', game.players.find((one) => one.seat === seat)?.look?.pieces);
+    derived lookAt = (seat: number) => game.players.find((one) => one.seat === seat)?.look;
+
+    derived setAt =(seat: number) => wornOf('pieces', game.players.find((one) => one.seat === seat)?.look?.pieces);
 
     derived cheerOf = (seat: number) => celebrationOf(game.players.find((one) => one.seat === seat)?.look);
 
@@ -1159,6 +1161,7 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
                                 <div class="contents">
                                     <ChessRail
                                         who={ whoAt(seat) }
+                                        look={ lookAt(seat) }
                                         name={ nameOf(seat) }
                                         side={ colourAt(seat) }
                                         me={ seat === viewer }

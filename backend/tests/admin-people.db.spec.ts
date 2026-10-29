@@ -9,7 +9,7 @@ import { errorResponse } from '@azerothjs/http';
 
 import { privateKeyToAccount } from 'viem/accounts';
 
-import { LOG_PAGE, PEOPLE_PAGE } from '../src/domains/admin/roles.ts';
+import { LOG_PAGE, OWNER_WALLET, PEOPLE_PAGE } from '../src/domains/admin/roles.ts';
 import { Avatar, Match, PushSubscription, Session, StaffAction, Suspension, TableSeat, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
@@ -25,10 +25,13 @@ const WALLETS = [
     '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc',
     '0x90f79bf6eb2c4f870365e785982e1f101e93b906',
     '0x15d34aaf54267db7d7c367839aaf71a00a2c6a65',
-    '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc'
+    '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc',
+    OWNER_WALLET
 ];
 
 const OWNER = 5;
+
+const BUILT_IN = 6;
 
 const listener: WriteListener = {
     chatChanged: () => undefined,
@@ -187,6 +190,32 @@ describe.skipIf(!active)('the people, against a real database', () =>
         expect(handles((await ports.admin.people(moderator.id, {}))?.rows)).toHaveLength(4);
         expect((await ports.admin.person(moderator.id, player.handle))?.handle).toBe(player.handle);
         expect(await ports.admin.person(moderator.id, 'nobody-here')).toBeNull();
+    });
+
+    it('shows the owner the server holds of its own as nobody special, answers what anybody else does to them as nobody, and lets them act as an owner', async () =>
+    {
+        const owner = await makeUser(OWNER);
+        const admin = await makeUser(1);
+        const builtIn = await makeUser(BUILT_IN);
+
+        await grant(owner, admin, 'admin');
+
+        const row = (await ports.admin.people(owner.id, {}))?.rows.find((one) => one.handle === builtIn.handle);
+        const page = await ports.admin.person(admin.id, builtIn.handle);
+
+        expect(row?.handle).toBe(builtIn.handle);
+        expect(row, 'listed as an owner').not.toHaveProperty('staff');
+        expect(page?.handle).toBe(builtIn.handle);
+        expect(page, 'read as an owner').not.toHaveProperty('staff');
+        expect(handles((await ports.admin.people(owner.id, { list: 'staff' }))?.rows).sort()).toEqual([admin.handle, owner.handle].sort());
+
+        for (const actor of [admin, owner])
+        {
+            expect(await word(ports.admin.note(actor.id, builtIn.handle, { text: 'Looks like a player' }))).toBe('404 staff-nobody');
+        }
+
+        expect((await ports.admin.note(builtIn.id, admin.handle, { text: 'An owner writes on an admin' }))?.handle).toBe(admin.handle);
+        expect(await word(ports.admin.note(builtIn.id, builtIn.handle, { text: 'A note about myself' }))).toBe('409 staff-self');
     });
 
     it('lists everybody newest first, a page at a time, each once, through rows made in one millisecond', async () =>

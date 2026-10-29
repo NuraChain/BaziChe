@@ -85,7 +85,7 @@ const wire = (row: LogRow) => ({
 
 const newestFirst = <T extends ObjectLiteral>(query: SelectQueryBuilder<T>) => query.orderBy('a.created_at', 'DESC').addOrderBy('a.id', 'DESC');
 
-export function createStaffService(db: DataSource, owners: () => readonly string[])
+export function createStaffService(db: DataSource, owners: () => readonly string[], shown: () => readonly string[])
 {
     const members = (manager: EntityManager) => manager.getRepository(User).createQueryBuilder('u')
         .select('u.id', 'id')
@@ -105,11 +105,11 @@ export function createStaffService(db: DataSource, owners: () => readonly string
         .addSelect('a.reason', 'reason')
         .addSelect('a.details', 'details');
 
-    const headsOf = async (manager: EntityManager) => await members(manager)
+    const headsOf = async (manager: EntityManager, wallets: readonly string[]) => await members(manager)
         .addSelect(`'owner'`, 'role')
         .addSelect('null', 'granted_at')
         .addSelect('null', 'granted_by')
-        .where('exists (select 1 from wallets w where w.user_id = u.id and w.address = any(:owners))', { owners: owners() })
+        .where('exists (select 1 from wallets w where w.user_id = u.id and w.address = any(:owners))', { owners: wallets })
         .orderBy('u.handle', 'ASC')
         .getRawMany<MemberRow>();
 
@@ -125,14 +125,15 @@ export function createStaffService(db: DataSource, owners: () => readonly string
 
     const list = async (manager: EntityManager = db.manager): Promise<StaffList> =>
     {
-        const heads = await headsOf(manager);
+        const heads = await headsOf(manager, shown());
+        const ranked = await headsOf(manager, owners());
         const rest = await members(manager)
             .innerJoin(StaffMember, 'm', 'm.user_id = u.id')
             .leftJoin(User, 'g', 'g.id = m.granted_by')
             .addSelect('m.role', 'role')
             .addSelect('m.granted_at', 'granted_at')
             .addSelect('g.handle', 'granted_by')
-            .where(heads.length === 0 ? 'true' : 'not (u.id = any(:heads))', { heads: heads.map((one) => one.id) })
+            .where(ranked.length === 0 ? 'true' : 'not (u.id = any(:heads))', { heads: ranked.map((one) => one.id) })
             .orderBy(`case m.role when 'admin' then 0 else 1 end`)
             .addOrderBy('m.granted_at', 'ASC')
             .addOrderBy('u.handle', 'ASC')
@@ -161,7 +162,14 @@ export function createStaffService(db: DataSource, owners: () => readonly string
                     throw nobody();
                 }
 
-                if ((await headsOf(tx)).some((one) => one.id === target.id))
+                const ranked = (await headsOf(tx, owners())).some((one) => one.id === target.id);
+
+                if (ranked && target.id !== actor.id && !(await headsOf(tx, shown())).some((one) => one.id === target.id))
+                {
+                    throw nobody();
+                }
+
+                if (ranked)
                 {
                     throw staffRefusal('staff-owner', 'An owner is named by the server itself, and never changed from this page.');
                 }

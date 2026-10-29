@@ -148,7 +148,7 @@ describe.skipIf(!active)('the staff, against a real database', () =>
             expect(await ports.identity.me(player.id)).not.toHaveProperty('staff');
         });
 
-        it('holds the wallet written into the server as an owner beside the one .env names, and alone when .env names nobody', async () =>
+        it('holds the wallet written into the server as an owner beside the one .env names, and alone when .env names nobody, listed nowhere', async () =>
         {
             const named = await makeUser(OWNER);
             const builtIn = await makeUser(BUILT_IN);
@@ -160,7 +160,7 @@ describe.skipIf(!active)('the staff, against a real database', () =>
 
             expect((await unnamed.identity.me(builtIn.id))?.staff).toBe('owner');
             expect(await unnamed.identity.me(named.id)).not.toHaveProperty('staff');
-            expect((await unnamed.admin.staff(builtIn.id))?.owners.map((one) => one.handle)).toEqual([builtIn.handle]);
+            expect((await unnamed.admin.staff(builtIn.id))?.owners).toEqual([]);
             expect(await unnamed.admin.staff(named.id)).toBeNull();
         });
 
@@ -211,10 +211,12 @@ describe.skipIf(!active)('the staff, against a real database', () =>
             await set(owner, moderator, 'moderator');
             await set(owner, admin, 'admin');
             await set(admin, second, 'moderator');
+            await db.getRepository(StaffMember).insert({ userId: builtIn.id, role: 'admin', grantedBy: owner.id });
 
             const list = await ports.admin.staff(owner.id);
 
-            expect(list?.owners.map((one) => [one.handle, one.role])).toEqual([owner.handle, builtIn.handle].sort().map((handle) => [handle, 'owner']));
+            expect(list?.owners.map((one) => [one.handle, one.role]), 'the owner the server holds of its own was listed').toEqual([[owner.handle, 'owner']]);
+            expect(list?.members.map((one) => one.handle)).not.toContain(builtIn.handle);
             expect(list?.owners.some((one) => 'grantedBy' in one || 'grantedAt' in one)).toBe(false);
             expect(list?.members.map((member) => [member.handle, member.role, member.grantedBy])).toEqual([
                 [admin.handle, 'admin', owner.handle],
@@ -281,8 +283,10 @@ describe.skipIf(!active)('the staff, against a real database', () =>
             expect(await word(set(admin, admin, 'moderator'))).toBe('409 staff-self');
             expect(await word(set(admin, owner, 'none'))).toBe('409 staff-owner');
             expect(await word(set(owner, owner, 'admin'))).toBe('409 staff-owner');
-            expect(await word(set(owner, builtIn, 'none'))).toBe('409 staff-owner');
+            expect(await word(set(owner, builtIn, 'none')), 'the owner the server holds of its own was named').toBe('404 staff-nobody');
+            expect(await word(set(admin, builtIn, 'moderator'))).toBe('404 staff-nobody');
             expect(await word(set(builtIn, owner, 'moderator'))).toBe('409 staff-owner');
+            expect(await word(set(builtIn, builtIn, 'admin'))).toBe('409 staff-owner');
 
             const missing = await set(owner, { handle: 'nobody-here' }, 'moderator').then(() => null, (error: unknown) => errorResponse(error));
             const hidden = await set(owner, suspended, 'moderator').then(() => null, (error: unknown) => errorResponse(error));

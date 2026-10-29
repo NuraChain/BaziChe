@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ABILITIES, GRANTED_ROLES, OWNER_WALLET, STAFF_ROLES, may, ownersOf, outranks, type Ability, type StaffRole } from '../src/domains/admin/roles.ts';
+import { ABILITIES, GRANTED_ROLES, OWNER_WALLET, STAFF_ROLES, may, ownersOf, outranks, shownOwnersOf, type Ability, type StaffRole } from '../src/domains/admin/roles.ts';
 import { STAFF_REFUSALS, isStaffRefusal } from '../src/domains/admin/refusals.ts';
 
 const ROLES: (StaffRole | null)[] = [null, ...STAFF_ROLES];
@@ -54,6 +54,14 @@ describe('who the owners are', () =>
         expect(ownersOf('   ')).toEqual([OWNER_WALLET]);
         expect(ownersOf(` ${ NAMED.toUpperCase().replace('0X', '0x') } `)).toEqual([OWNER_WALLET, NAMED]);
         expect(ownersOf(OWNER_WALLET.toUpperCase().replace('0X', '0x'))).toEqual([OWNER_WALLET]);
+    });
+
+    it('shows the staff the one .env names alone, lowercase, and nobody when it names nobody', () =>
+    {
+        expect(shownOwnersOf('')).toEqual([]);
+        expect(shownOwnersOf('   ')).toEqual([]);
+        expect(shownOwnersOf(` ${ NAMED.toUpperCase().replace('0X', '0x') } `)).toEqual([NAMED]);
+        expect(shownOwnersOf(OWNER_WALLET.toUpperCase().replace('0X', '0x'))).toEqual([OWNER_WALLET]);
     });
 
     it('writes the server\'s own owner as an address, lowercase', () =>

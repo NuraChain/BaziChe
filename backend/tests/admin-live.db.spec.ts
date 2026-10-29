@@ -7,7 +7,7 @@ import { Table, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import type { Call, Online } from '../src/domains/admin/live.ts';
-import { LIVE_PAGE } from '../src/domains/admin/roles.ts';
+import { LIVE_PAGE, OWNER_WALLET } from '../src/domains/admin/roles.ts';
 import { buildPorts, type PresenceReader, type Services, type WriteListener } from '../src/services.ts';
 
 const url = process.env.TEST_DATABASE_URL;
@@ -20,10 +20,13 @@ const WALLETS = [
     '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc',
     '0x90f79bf6eb2c4f870365e785982e1f101e93b906',
     '0x15d34aaf54267db7d7c367839aaf71a00a2c6a65',
-    '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc'
+    '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc',
+    OWNER_WALLET
 ];
 
 const OWNER = 5;
+
+const BUILT_IN = 6;
 
 const SINCE = Date.parse('2026-10-22T09:30:00.000Z');
 
@@ -176,6 +179,16 @@ describe.skipIf(!active)('who is online now, against a real database', () =>
         expect([seen?.rows[1].tables, seen?.rows[1].call]).toEqual([[{ code: playing.code, game: 'ludo', mode: 'live', playing: true }], { code: playing.code, game: 'ludo' }]);
         expect([seen?.rows[2].staff, seen?.rows[2].state, seen?.rows[2].tables, seen?.rows[2].call]).toEqual(['moderator', 'away', [], undefined]);
         expect([seen?.rows[3].staff, seen?.rows[3].tables]).toEqual(['owner', []]);
+    });
+
+    it('lists the owner the server holds of its own online as nobody special', async () =>
+    {
+        const owner = await makeUser('owner', OWNER);
+        const builtIn = await makeUser('quiet', BUILT_IN);
+
+        online = [here(builtIn), here(owner)];
+
+        expect((await ports.admin.live(owner.id, {}))?.rows.map((row) => [row.handle, row.staff ?? null])).toEqual([['owner', 'owner'], ['quiet', null]]);
     });
 
     it('reads fifty a page by handle, and the next page from where the last one ended', async () =>

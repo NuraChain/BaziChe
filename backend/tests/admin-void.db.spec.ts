@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 
 import { errorResponse } from '@azerothjs/http';
 
+import { OWNER_WALLET } from '../src/domains/admin/roles.ts';
 import { Conversation, Escrow, Match, MatchAction, MatchPlayer, Message, PlayerStats, StaffAction, Table, TableSeat, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
@@ -22,10 +23,13 @@ const WALLETS = [
     '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc',
     '0x90f79bf6eb2c4f870365e785982e1f101e93b906',
     '0x15d34aaf54267db7d7c367839aaf71a00a2c6a65',
-    '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc'
+    '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc',
+    OWNER_WALLET
 ];
 
 const OWNER = 5;
+
+const BUILT_IN = 6;
 
 const REASON = { reason: 'Stuck after a fault in the sweep' };
 
@@ -371,6 +375,20 @@ describe.skipIf(!active)('ending a game being played as no contest, against a re
         expect(await word(ports.admin.voidMatch(owner.id, game.matchId, REASON))).toBe('409 staff-match-over');
         expect(await rowOf(game.matchId)).toEqual(before);
         expect(await voids()).toBe(0);
+    });
+
+    it('shows the owner the server holds of its own as nobody special in a game, and lets nobody below them end it', async () =>
+    {
+        const owner = await makeUser(OWNER);
+        const admin = await makeUser(1);
+        const builtIn = await makeUser(BUILT_IN);
+
+        await grant(owner, admin, 'admin');
+
+        const theirs = await started([builtIn, await makeUser(null)]);
+
+        expect(await staffOn(admin, theirs.matchId), 'their seat was marked as an owner\'s').toEqual([null, null]);
+        expect(await word(ports.admin.voidMatch(admin.id, theirs.matchId, REASON))).toBe('409 staff-rank');
     });
 
     it('refuses whoever plays in the game and a game with somebody at or above them in it, and lets the owner end an admin\'s game', async () =>

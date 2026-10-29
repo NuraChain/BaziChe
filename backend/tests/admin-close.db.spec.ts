@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 
 import { errorResponse } from '@azerothjs/http';
 
+import { OWNER_WALLET } from '../src/domains/admin/roles.ts';
 import { Conversation, Escrow, Match, StaffAction, Table, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
@@ -21,10 +22,13 @@ const WALLETS = [
     '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc',
     '0x90f79bf6eb2c4f870365e785982e1f101e93b906',
     '0x15d34aaf54267db7d7c367839aaf71a00a2c6a65',
-    '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc'
+    '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc',
+    OWNER_WALLET
 ];
 
 const OWNER = 5;
+
+const BUILT_IN = 6;
 
 const REASON = { reason: 'Left open by a fault, nobody can play here' };
 
@@ -256,6 +260,21 @@ describe.skipIf(!active)('closing a waiting table, against a real database', () 
         expect(await db.getRepository(Match).countBy({ tableId: playing.tableId })).toBe(1);
         expect(await closes()).toBe(0);
         expect([tables, chats]).toEqual([[], []]);
+    });
+
+    it('shows the owner the server holds of its own as nobody special at a waiting table, and lets nobody below them close it', async () =>
+    {
+        const owner = await makeUser(OWNER);
+        const admin = await makeUser(1);
+        const builtIn = await makeUser(BUILT_IN);
+
+        await grant(owner, admin, 'admin');
+
+        const theirs = await waiting([await makeUser(null), builtIn]);
+
+        expect((await ports.admin.waitingTables(admin.id, {}))?.rows.find((row) => row.id === theirs.tableId)?.people.map((one) => one.staff ?? null), 'their chair was marked as an owner\'s').toEqual([null, null]);
+        expect(await word(ports.admin.closeTable(admin.id, theirs.tableId, REASON))).toBe('409 staff-rank');
+        expect((await rowOf(theirs.tableId)).status).toBe('open');
     });
 
     it('refuses whoever sits at the table and a table with somebody at or above them at it, and lets the owner close a table an admin sits at', async () =>

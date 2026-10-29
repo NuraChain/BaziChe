@@ -11,6 +11,13 @@ export function ownersOf(named: string)
     return also === '' || also === OWNER_WALLET ? [OWNER_WALLET] : [OWNER_WALLET, also];
 }
 
+export function shownOwnersOf(named: string)
+{
+    const also = named.trim().toLowerCase();
+
+    return also === '' ? [] : [also];
+}
+
 export const GRANTED_ROLES = ['moderator', 'admin'] as const;
 
 export type GrantedRole = (typeof GRANTED_ROLES)[number];

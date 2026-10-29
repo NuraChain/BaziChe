@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 
 import { errorResponse } from '@azerothjs/http';
 
-import { REPORTS_PAGE } from '../src/domains/admin/roles.ts';
+import { OWNER_WALLET, REPORTS_PAGE } from '../src/domains/admin/roles.ts';
 import { Report, StaffAction, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
@@ -21,10 +21,13 @@ const WALLETS = [
     '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc',
     '0x90f79bf6eb2c4f870365e785982e1f101e93b906',
     '0x15d34aaf54267db7d7c367839aaf71a00a2c6a65',
-    '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc'
+    '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc',
+    OWNER_WALLET
 ];
 
 const OWNER = 5;
+
+const BUILT_IN = 6;
 
 const rung: string[] = [];
 
@@ -150,6 +153,25 @@ describe.skipIf(!active)('the reports, against a real database', () =>
         ports = buildPorts(db, CONFIG, listener);
         rung.length = 0;
         await db.query('truncate table users cascade');
+    });
+
+    it('shows a report about the owner the server holds of its own as about nobody special, and its close as nobody by that name', async () =>
+    {
+        const owner = await makeUser(OWNER);
+        const admin = await makeUser(1);
+        const builtIn = await makeUser(BUILT_IN);
+        const player = await makeUser(null);
+
+        await grant(owner, admin, 'admin');
+
+        const about = await filed(player, builtIn, 5);
+
+        expect((await ports.admin.reports(owner.id, {}))?.rows.map((row) => [row.about.handle, row.about.staff ?? null])).toEqual([[builtIn.handle, null]]);
+
+        for (const actor of [admin, owner])
+        {
+            expect(await word(ports.admin.review(actor.id, about, { outcome: 'reviewed', reason: 'Looks like a player' }))).toBe('404 staff-nobody');
+        }
     });
 
     it('lists the waiting reports newest first a page at a time, each with who filed it and about whom, and counts the waiting', async () =>

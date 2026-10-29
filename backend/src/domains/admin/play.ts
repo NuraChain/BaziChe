@@ -109,7 +109,7 @@ const face = (handle: string, displayName: string, hue: number, avatar: string |
     ...(avatar === null ? {} : { avatar })
 });
 
-export function createPlayService(db: DataSource, owners: () => readonly string[])
+export function createPlayService(db: DataSource, owners: () => readonly string[], shown: () => readonly string[])
 {
     const seatedIn = (tx: EntityManager, matchId: string) => tx.getRepository(MatchPlayer).createQueryBuilder('p')
         .innerJoin(User, 'u', 'u.id = p.user_id')
@@ -203,7 +203,7 @@ export function createPlayService(db: DataSource, owners: () => readonly string[
                     'players'
                 )
                 .where('m.finished_at is null')
-                .setParameter('owners', owners());
+                .setParameter('owners', shown());
 
             if (list === 'stuck')
             {
@@ -273,7 +273,7 @@ export function createPlayService(db: DataSource, owners: () => readonly string[
                        where s.table_id = t.id)`,
                     'people'
                 )
-                .setParameter('owners', owners())
+                .setParameter('owners', shown())
                 .where(`t.status = 'open'`)
                 .andWhere('not exists (select 1 from matches m where m.table_id = t.id and m.finished_at is null)');
 

@@ -258,6 +258,18 @@ A section of its own, `shop`, for an admin and the owner.
 | SH-D13 | Words | The shop in all ten languages; the looks' names in English and Persian | names in ten languages |
 | SH-D14 | Where | `/app/shop` in the sidebar; Shop on every game page; the collection from the profile and from a table's menu; no door while the shop is closed (changed 2026-10-29 at the owner's word: every door is drawn whatever the shop, and a shop that is turned off says so beside its catalogue) | a shop only on game pages |
 | SH-D15 | Not in this work | card or bank payments, a premium currency, subscriptions, loot boxes, trading, looks people make, emotes, chat bubbles, voice effects, a switch that hides other people's looks (the legibility rules instead), seasonal collections (Yalda, Nowruz: the same generators later), anything a level or an achievement unlocks ("a level unlocks nothing" stays true), the NuraChain deploy | |
+| SH-D16 | How the doors know the shop is open (SH5) | `shop: true` on the account while it is open, so a door needs no request | — |
+| SH-D17 | The gift notice (SH5) | "{who} sent you a gift", leading to the collection; under Friends at first, in a category of its own (`gifts`) since donations (DN-D12) | — |
+| SH-D18 | A friend who already owns the look (SH5) | Told by the server at the press | Marked in the list (section 6) |
+| SH-D19 | "Your look here" in a table's menu (SH5) | Left for the celebrations' phase, the play route being at 14.1 of 15 KB; built as a player's looks named from their plate (LG10) | — |
+| SH-D20 | What a card in the shop shows (SH5) | Every look a finished drawing from the start (`tools/art/looks.mjs`), so a card costs no script; the build refuses a look with no drawing, a drawing with no look and one over 16 KB | A live preview drawn from tokens (section 6) |
+| SH-D21 | Which looks "Looks for Ludo" shows (SH5) | The featured collection's looks for that game, its table's then its celebration, four at most; chess, which has two kinds, fills the row with the other collections' sets in the catalogue's order | — |
+| SH-D22 | That strip while the shop is read, or when it cannot be (SH5) | Not drawn: it is a door, and the shop page is where a failure is said | — |
+| SH-D23 | What the chip on `/app/me` says (SH5) | "Your collection" and one plain line | A count, which would put the shop's store in the profile's chunk |
+| SH-D24 | How a frame is drawn (SH6) | CSS on the avatar's root from an SVG file a collection, its motion inside the file and a still twin for less motion, so the shell carries no art | — |
+| SH-D25 | Where a nameplate shows (SH6) | Friend rows (friends, members, search), Discover's cards and the leaderboard | Chat lines, a table's plates and the sidebar, where the room is the table's or too small |
+| SH-D26 | When a profile effect plays (SH6) | Once as the profile opens, on its header only, never under less motion; again on demand in the fitting room | — |
+| SH-D27 | A theme's reach (SH6) | The cover of `/app/me`, a person's page and the public page; the sheet about a person keeps its hue (LG-D10) | — |
 
 ## 10. The order of work
 
@@ -278,3 +290,81 @@ walk in a real browser at 1280 in English and 390 in Persian.
 - **SH12** Admin › Shop.
 - **SH13** proof: `tools/qa/shop-play-pass.mjs` in two browsers on the local chain, the fit and
   garbage passes, every gate, the notes, and the last walk with MetaMask.
+
+## 11. As built
+
+Where the work departed from this design, and why:
+
+- **Twelve collections and five tiers.** The legendary collections' brief
+  (`2026-10-27-legendary-cosmetics-design.md`) added eight collections and the mythic tier at 100
+  NURA, so the shop sells 180 looks and 12 bundles, and a look's tier follows its kind on its
+  collection's line.
+- **Every look is a finished drawing** (section 4, SH-D20). The shop's card is the look's own
+  drawing, and the tables draw a look from files of its own too: yards, felts, checkers, home boards
+  and the chess sets are drawings, not tokens, and only a die and a stack of chips are custom
+  properties a palette gives. Each collection's deck is drawn whole with the standard indices kept,
+  and its chess set on the classic set's footprint (`tools/art/chess-looks.mjs`). Effects and
+  celebrations are the canvas engine's (`docs/vfx.md`). `docs/looks.md` is the whole of the art.
+- **The VFX brief, folded in.** While the profile's art was being committed the owner asked for
+  looks that really move ("also add this to your task ... create also VFX"): frames and auras of
+  fire, lightning, ice, neon and stars, cards that tilt and catch the light, dice and pawns with
+  effects on real events, a particle system with presets, a mythic tier, a showcase and docs; and,
+  while the pawns were walked, sounds of their own. Its decisions, as they were taken and as they
+  ended:
+
+  | | Decision | Taken | As it ended |
+  |---|---|---|---|
+  | VX-D1 | Technology | Canvas 2D for particles, one pooled canvas a host; SVG with SMIL for frames; CSS for tilt and holographic edges; no WebGL, Lottie or Rive | As taken (LG-D3) |
+  | VX-D2 | The elements | Ember, Storm and Frost as new collections, complete across every kind; Glow the cosmic one, Neon the cyberpunk one, Gold the legendary one | Three of the legendary eight, `inferno`, `storm` and `frost` (LG-D1) |
+  | VX-D3 | Mythic | A fifth tier at 100 NURA: the elemental collections' effect and celebration | The legendary line's decoration, profile effect and celebration (LG-D2) |
+  | VX-D4 | Where particles run | A table's stage, a profile's header and a preview; never a list, where a frame is its SVG alone | As taken: a look put on and the fitting room are the previews |
+  | VX-D5 | Less motion | No particle; a frame's still twin; a burst one fade | As taken |
+  | VX-D6 | The showcase | `/admin/looks`, for the staff, with the real components and tuning | The fitting room, `/app/shop/lab`, for everybody signed in (LG-D6) |
+  | VX-D7 | Sound | The cues there were, at the moments there were, and no new recordings | Sounds of their own at the owner's word: a voice for each collection, synthesized here (LG-D4) |
+  | VX-D8 | Ownership | Drawn from the looks the server says a player wears; nothing trusts a client | As taken |
+  | VX-D9 | Trading | Still none (SH-D9); a look's id and its drawing kept apart from who owns it | As taken |
+
+- **A purchase** (section 2), as designed, and:
+  - the wallet's NURA is read before the call is handed over, and a wallet short of the price is
+    told so (`shop-funds`): a local chain answers a call that carries more than its sender holds, and
+    the shop pass's first run handed the purchase to a wallet that could not pay;
+  - an order lapses five minutes after its deadline (`LAPSE`), because a block's clock can run ahead
+    of this server's;
+  - a sale under an order's id that is not that order's wallet at its price is a quote this server
+    never signed: the order fails, nothing is delivered, and the reconciliation keeps it for a person
+    (the money path's audit);
+  - a transaction hash already another order's is refused (`shop-hash`);
+  - a refund is asked from its order in Admin › Shop and written to the staff's log as the request it
+    is; the worker asks about the order for a day, and once NuraChain says it is refunded the order
+    is `refunded` and whatever it delivered is taken back (LG-D37, LG-D38).
+- **The contract** (section 3), as designed. Its Ignition module is `bazicheshop`, because Ignition
+  refuses a hyphen in a module id; 38 Mocha tests, the fuzz and invariant runs and every line and
+  branch covered; `buy` costs 109k gas, 179k with an inviter. It was deployed on NuraChain outside
+  this work: its address is in `.env.example`, and `docs/operations/mainnet.md` says what to do about
+  one wallet holding both its seller's role and its admin's.
+- **Who sees what** (section 5), as designed, and every table plays an entrance from each corner a
+  look dresses as a game opens (LG-D23). A table look chosen during a game is drawn from the next
+  one, and the look's sheet says so beside Use: the owner pressed Use during a game, saw the board
+  unchanged and took it for broken (2026-10-29).
+- **The pages** (section 6):
+  - the shop's sections are Bundles, On sale while one runs, and each kind; there is no New;
+  - the look's sheet shows the look's drawing large, and trying a look on is the fitting room's
+    (`/app/shop/lab`, reached from the shop's header), on the reader's own profile and at a stage of
+    each game;
+  - a friend who owns the look already is told so at the press (SH-D18);
+  - the collection is rows by area and slot, with no card a game gathering what is chosen there;
+  - "Your look here" became the plate: the sheet about a player opened from their plate names their
+    looks at that table, each leading to its sheet, and the reader's own plate lists theirs with the
+    way to the collection (SH-D19);
+  - every door is drawn whatever the shop, and a shop that is turned off says so (SH-D14 as
+    changed);
+  - the gift notice has a category of its own, because a stranger watching a game can send NURA and
+    the Friends switch would have silenced it (SH-D17, DN-D12).
+- **Admin › Shop** (section 7), as designed, with the decisions taken while it was built (LG-D27 to
+  LG-D40 in the legendary design): the money a panel of Money; one field of one look changed at a
+  time under its row's lock; a change rings nobody, and a quote at another price than the page showed
+  reads the shop again; only a look that came by grant is taken back; the overview counts the shop's
+  sales and "Needs you" the paid orders that delivered nothing. `.claude/rules/admin.md` (*The shop*,
+  *Money*) is the whole of it.
+- **The order of work.** SH0 to SH5 went as written. The VFX brief and then the legendary
+  collections' brief took in SH6 to SH13, built as LG0 to LG13 (the legendary design, section 12).

@@ -212,6 +212,8 @@ files, credited as made for this project and given to the public domain like the
 | LG-D7 | Emotes | Not in this work: a sent reaction is a realtime message needing limits and moderation of its own | Emotes now |
 | LG-D8 | Sets | A flourish worked out from what is worn | Stored combinations |
 | LG-D9 | Budget | The effects chunk to 16 KB; every drawing folder keeps a per-file ceiling | No ceiling |
+| LG-D10 | The sheet about a person (LG3) | Keeps its hue: a theme is on the profile reads, not on the person a list carries | The theme on the sheet's head, which would put `theme` on every person every list carries |
+| LG-D11 | A whole set's strike (LG3) | The reveal's own last layer again, at 0.45 of its scale, from the sigil on the frame's crown | The collection's burst, which would put the palette in the header's chunk |
 | LG-D12 | Whose dice at backgammon (LG8) | The dice of whoever throws: each opening die its thrower's; the pair an opening lays, a roll, and a roll drawn from nothing the mover's; the blank dice the reader taps their own | Each opening die kept in its thrower's look through the first move, which a reload could not draw again, since nothing in the board says which die was whose |
 | LG-D13 | Backgammon's voices (LG8) | The table pack's own moments: `die` for a landing, `capture` for a hit, `spawn` for a checker in from the bar, `pawn` for one borne off | New `double` and `off` takes, which would take a table pack past its 64 KB |
 | LG-D14 | One reveal and one capture a collection (LG8) | `CRITICALS` (a six at Ludo, doubles at backgammon) and `CAPTURES` (a pawn taken, a blot hit) in `game/looks/table.ts`, played by both boards | A table of each per game, so one collection's die and capture would look different at two tables |
@@ -224,6 +226,23 @@ files, credited as made for this project and given to the public domain like the
 | LG-D21 | How a chess set reaches its pieces (LG9) | Twelve custom properties on the board's root (`--piece-wk` to `--piece-bp`), written from the match's looks, which every rule that draws a piece reads before the house's drawing: the squares, the trays, the promotion chooser and the rail's side mark follow with nothing of their own | A rule a collection and side in the stylesheet, as the decks and checkers have: 144 declarations every page's sheet would carry for one game |
 | LG-D22 | Chess's moments and their voices (LG9) | A piece set down: the collection's burst, light and under a second, `pawn`; a capture: `CAPTURES` where the taken piece stood, `capture`; castling: `CASTLES` where the rook lands, `pawn`; a promotion: `CRITICALS`, `spawn`; check: `CHECKS` under the king, no voice over the board's chime; mate: `CRITICALS` and its `FINALES` layer, 1.6 squares wide, over the fallen king, `capture`. Every moment in the collection of the side whose piece made it, mate in the winner's | A landing on every move at the weight of a die's, which forty moves a side would make noise of; a voice for check, which the board already chimes |
 | LG-D23 | A player's entrance at a game's start (LG10) | In the collection of the look that dresses their own corner (Ludo's yard, the felt at Hokm and poker, backgammon's home board, the chess set), none for a corner in Classic; the first two layers of that collection's celebration, every layer when every kind the game copies into the seat is that collection; from where the celebration rises, under every piece, with the table pack's `spawn`; played when the presenter takes an opening delivered to this browser, once a match, never on a reload or for a game arrived at in its middle | An entrance from any worn look, which a player in one die and nothing else would make at every start; a sequence of its own per collection, which twelve more signatures would cost for a moment the celebration already says |
+| LG-D24 | Trying on (LG11) | The page's own state, drawn on the reader's own header, picture and name; nothing stored, nothing sent | — |
+| LG-D25 | Previews of table looks (LG11) | Small stages drawn by the boards' own classes and custom properties, the boards' sizes moved into `game/looks/` and the layouts so a stage cannot drift from a table | The boards themselves, which need a match |
+| LG-D26 | The playground (LG11) | For everybody signed in, a lazy chunk, nothing stored; each knob a factor over a moment as its table plays it, with a seed, the quality and less motion | A page of the staff's (`/admin/looks`) |
+| LG-D27 | Who runs the shop (LG12) | A section `shop` for an admin and the owner, in the Platform group after Play; the shop's money a panel of Money (`money` reads it, `wallet`, the owner, acts on it) | — |
+| LG-D28 | A look's price, sale and status (LG12) | One of them a change, of one look, with a reason, under the look's row lock, one `shop-item` row; a sale under the look's price for an hour to thirty days; a bundle is a row like a look | — |
+| LG-D29 | The collection on top (LG12) | Chosen with a reason, `shop-feature` with `{ from, to }`, the shop rung (changed by LG-D34) | — |
+| LG-D30 | Giving a look (LG12) | From a person's page, any look of the catalogue, by the note's rank rule, `shop-grant`; one already owned changes nothing | — |
+| LG-D31 | Taking a look back (LG12) | Only a look that came by grant: one bought or given by a friend is its owner's for good (SH-D9) and goes only through a refund; `shop-revoke`, and the look comes off wherever it was worn | Any look, which would let the staff take back what somebody paid for |
+| LG-D32 | A refund (LG12) | The owner's, of a paid order: `refund(order)` asked of the contract and handed to the owner's wallet (where and when: LG-D37, LG-D38) | — |
+| LG-D33 | The overview's money (LG12) | The shop's sales from the database for the day, the week and all, for a role that opens Money (built as LG-D40) | The contract's books, which would make the overview wait on NuraChain |
+| LG-D34 | A change the staff make, and the pages already open (LG12) | Rings nobody: a page reads the shop whenever it is opened, a purchase is quoted at the server's price and the sheet's wallet step says the order's price, and a quote at another price than the page showed reads the shop again | The shop rung for everybody at every change (LG-D29 as first taken) |
+| LG-D35 | The log's shop rows, and the collection on top (LG12) | `shop-item` with `{ item, field, from?, to?, hours? }` and `shop-feature` with `{ from, to }`; a choice of the collection on top stamped `greatest(now(), the newest + 1 µs)` | `now()` alone, which left a choice that waited for the lock under the one it waited for |
+| LG-D36 | A gift racing a purchase (LG12) | The gift locks the person's row and reads nothing back: a delivery's insert takes the foreign key's share lock on that row, so whichever comes second finds the look owned, and a look that arrived as bought stays bought | A read-back after an insert that ignores a conflict |
+| LG-D37 | Where a refund is asked (LG12) | On any paid order in Shop › Orders, for the owner alone, asked why as a question that costs something; composed as `refund(order)`, asked of the contract first, handed to the owner's wallet; `shop-refund` `{ order, item, price }` about whoever paid, written when the call is composed, as the request it is | — |
+| LG-D38 | When a refund lands (LG12) | The order worker asks about a paid order for a day after a refund was asked; once NuraChain says refunded the order is `refunded` and whatever it delivered is taken back, off every slot it was worn in; the reconciliation puts any paid order NuraChain holds as refunded right the same way | — |
+| LG-D39 | The shop on Money (LG12) | A panel for every role that opens Money: revenue, what inviters are owed, what the contract holds and whether it covers both, the inviters' share, whether it is paused, the seller and its role, the paid orders that delivered nothing; the owner's calls (revenue out, pause and resume, the share from 0 to 30%, a new seller) asked of the contract first | — |
+| LG-D40 | The overview (LG12) | The shop's sales (paid orders not refunded) of the last day, the week and all, from the database, for a role that opens Money; "Needs you" counts the paid orders that delivered nothing, leading to them | — |
 
 ## 12. The order of work
 
@@ -233,3 +252,50 @@ backgammon; LG9 chess; LG10 celebrations and a game's start; LG11 the Lab; LG12 
 proof and `docs/looks.md` and `docs/vfx.md`. Each is its own commits: specs first, faults put in
 one at a time and caught, the gates, the build within budget, and a walk on the built server at 1280
 in English and 390 in Persian with every collection looked at three times larger than life.
+
+## 13. As built
+
+Where the work departed from this design, and why:
+
+- **Twelve collections, one catalogue.** The eight are on sale beside the four the shop opened with:
+  180 looks and 12 bundles in five tiers, Infernal Sovereign first on top.
+- **No identity manifest and no recipes module** (section 4). Each part of a collection lives beside
+  what reads it: its palette, its light, a table for each moment in `game/looks/`, its art module
+  and its voice module, each table held to the catalogue by a `satisfies`, so a collection missing
+  from any of them fails `npm run check`. `identity.ts` would have been a declaration nothing read
+  (LG2). `docs/looks.md` lists every part, every table and every folder.
+- **The engine composes families** (section 5). A family is one function that makes its particles,
+  each with its shape, its envelope and its motion: 22 families and 14 streams beside the presets.
+  A signature is a list of timed steps (`Step`: an effect, when, where from its point, a tune of its
+  own). The emitters, behaviours and renderers of section 5 are the particles' own shapes,
+  envelopes and motion (`shapes.ts`, `motion.ts`), and a stream's point, read every frame, is the
+  node it follows. LG-D9's first cap, at most two canvases drawing at once, became one cap of
+  particles that every canvas of a page shares, because the first would have blanked an aura
+  whenever two bursts played elsewhere. `docs/vfx.md` is the reference.
+- **Three packs a collection, and nine moments** (section 6). A collection's voice is a pack for
+  each place it is heard: the profile (`equip`, `reveal`, `strike`), a table (`die`, `card`, `pawn`,
+  `spawn`, `capture`) and a celebration (`victory`), so a page fetches only what it plays and the
+  celebration's long take only where somebody wears it. There is no voice for a step, which every
+  square of a walk would make noise of: a pawn is heard where it lands. `strike` is a whole set's
+  sigil, struck at the end of the reveal, and the impact is the capture's. Backgammon and chess speak
+  the same moments (LG-D13, LG-D22), and an entrance is `spawn`.
+- **The tables** (section 8). A die leaves no trail in flight: its landing and the reveal of a six or
+  of doubles say the collection, and the pawn's walk has the trail. Chips are not a drawing: a chip
+  is eleven pixels across at a table, so a collection's chips are custom properties from the tones
+  of the shop's own chip (LG7), and there is no `chips/` folder. The turn is the felt's: a light runs
+  round the engraved ring of its owner's mat while it is their turn at Hokm and poker. Effects lie
+  under every piece and card at Hokm, poker, backgammon and chess (LG-D15); at Ludo they play on the
+  board's top layer, over the board round the die or the pawn they are about, for a moment, as they
+  have since the first die was dressed. So the last line of section 8 holds at four tables and not at
+  Ludo.
+- **The Lab is the fitting room** (section 9, LG-D24 to LG-D26): `/app/shop/lab`, "Fitting room"
+  («اتاق پرو»), reached from the shop's header. It shows one collection at a time (`collection` in
+  the address, the featured one first, the twelve as chips with their sigils) and takes the shop's
+  filter by area (`for`); it has none by rarity. The reader's own header wears the collection's
+  frame, cover, nameplate and aura, with Play again for the whole set's reveal and its strike, and
+  every look of the collection follows as the shop's cards, each opening its sheet, where it is
+  used, bought or given. "At the table", a chunk of its own, is a stage for each game drawn by the
+  boards' own classes, with a press for every moment that table plays; "Tune", another, is the
+  playground. There is no sound panel of its own: each press plays its moment with its voice.
+- **The order of work** went as written, with LG8 to LG12 after the first seven phases of the
+  owner's production brief, which the owner put first on 2026-10-28.

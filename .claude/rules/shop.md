@@ -225,12 +225,15 @@ a seed, the quality and less motion; nothing it sets is stored (LG-D26).
 
 The server: `shop-catalogue.spec.ts`, `shop-refusals.spec.ts`, `chain-shop.spec.ts` (the quote's
 digest against the contract's, the calls), `shop-sweep.spec.ts` (the worker's place in `main.ts`),
-`look-palette.spec.ts`, the sheets of each kind of look (`frame-sheet`, `plate-looks`, `card-sheet`,
-`felt-sheet`, `die-sheet`, `yard-sheet`, `shop-sheet`, `keyframes`), `look-pack.spec.ts`, and against
-Postgres `shop.db.spec.ts`, `shop-schema.db.spec.ts` and `shop-order.db.spec.ts` (every refusal, the
-worker against a fake shop, delivery, bundles, gifts, a refund, the looks copied at a start). The
-browser: `shop-store`, `shop-page`, `look-sheet`, `collection-page`, `shop-doors`, `lab-page`,
-`lab-tables`, `look-identity`, `avatar-looks`, `aura`, `equip`, each board's `*-looks` and `*-felt`,
-`entrances`, `chess-moments` and the engine's `vfx-*` specs. The passes, on the built server and a
-local chain: `shop-pass.mjs` (37 checks), `shop-play-pass.mjs` (two browsers, a look bought, used and
-seen on its owner's pawns and plate) and `sound-pass.mjs` part 4 (the voices).
+`look-palette.spec.ts`, the sheets of each kind of look (`frame-sheet`, `plate-sheet`, `plate-looks`,
+`set-sheet`, `card-sheet`, `felt-sheet`, `chip-sheet`, `die-sheet`, `yard-sheet`, `checker-sheet`,
+`piece-sheet`, `shop-sheet`, `keyframes`), `look-pack.spec.ts`, and against Postgres `shop.db.spec.ts`,
+`shop-schema.db.spec.ts` and `shop-order.db.spec.ts` (every refusal, the worker against a fake shop,
+delivery, bundles, gifts, a refund, the looks copied at a start). The browser: `shop-store`,
+`shop-page`, `look-sheet`, `collection-page`, `shop-doors`, `lab-page`, `lab-tables`,
+`look-identity`, `avatar-looks`, `aura`, `equip`, each board's `*-looks` and `*-felt`, `entrances`,
+`chess-moments` and the engine's `vfx-*` specs. The passes, on the built server: `shop-pass.mjs` (37
+checks) and `shop-play-pass.mjs` (two browsers, a look bought, used and seen on its owner's pawns and
+plate) on a local chain, `sound-pass.mjs` part 4 (the voices), and the fit pass's six tables in looks
+(every seat in a legendary collection, measured at every size and asked that each look is drawn:
+`tools/qa/CLAUDE.md`).

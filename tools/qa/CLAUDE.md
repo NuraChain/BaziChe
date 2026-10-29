@@ -117,6 +117,37 @@ page whose player was taken off the table by the pass: a page left open on a tab
 leaves from somewhere else reads the room once more while the leave lands. The pass parks every
 page it holds before its players leave, which is the order a person's own leave has.
 
+**Six tables are played in looks** (`hokm-4-looks`, `poker-6-looks`, `poker-9-looks`,
+`ludo-4-looks`, `backgammon-looks`, `chess-looks`). Every seat is a player made for the run, never
+`dana.w`, in a legendary collection of its own wherever that game draws a look and on its plate:
+owned by hand on the server's database (`PGDATABASE` names it, as for the sound pass) and put on
+through the player's own `POST /shop/chosen` before the game copies it at its start. A seat that
+could not put one on is a failed line that asks whether `PGDATABASE` is the server's. Every cell of
+those tables is measured as every other cell is, and then asked whether the looks are drawn
+(`drawn`): something of each collection worn there fetched from each folder that table draws for
+every seat (the frame on its plate; the mat at Hokm and poker; the yard and the pawns at Ludo; the
+checkers and the home board at backgammon; the set at chess), every look's drawing answered with a
+200, and no mark or drawing of a collection nobody there wears. It reads what the page fetched, so
+every page the pass opens keeps 4,000 resource timings, where a browser keeps 250.
+
+**Their players have no other table waiting**, where every other table's players do, so their
+header carries no chip and their table is a little taller. That is the state most players are in,
+and the first run found three things in it that the plain cells never met: the felt mats making the
+page scroll by what hung below the rail (up to 77px, at twenty cells), a Hokm table beside the chat
+at 1024x768 drawing its played cards at 13% of its height, and on a 360px phone with the chat open
+the backs of a nine-seat table's two end seats lying on the pot's line. A plain table of fresh
+players did the last two as well. Each is fixed: `felt-sheet.spec.ts`, `hokm-table-art.spec.ts`,
+`poker-board.spec.ts` and `poker-showdown.spec.ts` hold them. The whole pass on that build was clean,
+1,461 checks.
+
+**Proved red** against the built client broken five ways and put back from saved copies: Jade's mat
+drawing nothing, Oni's home board drawing Jade's, Void's yard missing from the build, every chess
+set drawing Glow's pieces, and Astral's frame drawing nothing. Five of the tables at two sizes failed
+51 of 97 lines: every cell of each broken table, each fault in its own words, and the consoles that
+logged the 404. A built stylesheet or chunk is sent to a browser that takes them from its
+precompressed twins (`.br`, `.gz`), so a fault put into one has to be written into its twins as well:
+a first red run that broke only the plain files caught the missing yard and nothing else.
+
 ## The responsive matrix
 
 `npm run qa` drives a real browser over every route at 320–1920, portrait and landscape, in both

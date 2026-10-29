@@ -5,7 +5,9 @@ import { play as englishPlay } from '../../frontend/src/locales/en/play.ts';
 import { play as persianPlay } from '../../frontend/src/locales/fa/play.ts';
 import { BASE, clearTables, walletSeat, launch, recorder, seat, waitFor } from './seats.mjs';
 import { tableBody } from './tables.mjs';
+import { sql } from './db.mjs';
 import { squareNamed } from '../../backend/src/domains/match/chess/board.ts';
+import { CELEBRATION_SLOT, GAME_SLOTS, SHOP_SLOTS } from '../../backend/src/domains/shop/catalogue.ts';
 
 const OUT = join(import.meta.dirname, 'out', 'fit', new Date().toISOString().replace(/[:.]/g, '-'));
 
@@ -46,7 +48,37 @@ const GAMES = [
     { id: 'ludo-4-rolled', game: 'ludo', seats: 4, mode: 'turns', target: 0, stop: 'rolled', viewers: ['turn', 'waiting'], also: [BROWSER_BARS] },
     { id: 'ludo-4-teams', game: 'ludo', seats: 4, mode: 'turns', target: 0, teams: true, also: [BROWSER_BARS] },
     { id: 'chess', game: 'chess', seats: 2, mode: 'live', target: 0, stop: 'opened', viewers: ['turn', 'waiting'], also: [BROWSER_BARS] },
-    { id: 'chess-traded', game: 'chess', seats: 2, mode: 'live', target: 0, stop: 'traded', viewers: ['turn', 'waiting'] }
+    { id: 'chess-traded', game: 'chess', seats: 2, mode: 'live', target: 0, stop: 'traded', viewers: ['turn', 'waiting'] },
+    { id: 'hokm-4-looks', game: 'hokm', seats: 4, mode: 'turns', target: 7, tricks: 3, looks: ['inferno', 'storm', 'astral', 'void'] },
+    { id: 'poker-6-looks', game: 'poker', seats: 6, mode: 'live', target: 0, looks: ['jade', 'frost', 'phoenix', 'oni', 'inferno', 'storm'] },
+    { id: 'poker-9-looks', game: 'poker', seats: 9, mode: 'live', target: 0, looks: ['inferno', 'storm', 'astral', 'void', 'jade', 'frost', 'phoenix', 'oni', 'astral'] },
+    { id: 'ludo-4-looks', game: 'ludo', seats: 4, mode: 'turns', target: 0, stop: 'rolled', looks: ['astral', 'void', 'jade', 'frost'] },
+    { id: 'backgammon-looks', game: 'backgammon', seats: 2, mode: 'turns', target: 3, looks: ['phoenix', 'oni'] },
+    { id: 'chess-looks', game: 'chess', seats: 2, mode: 'live', target: 0, stop: 'traded', viewers: ['turn', 'waiting'], looks: ['inferno', 'jade'] }
+];
+
+/** What a table draws for every seat in its look, by the folder the drawing is in: the frame on its plate, and its corner, its pieces or its set. */
+const DRAWN_AT = {
+    hokm: ['frames', 'felts'],
+    poker: ['frames', 'felts'],
+    ludo: ['frames', 'yards', 'pawns'],
+    backgammon: ['frames', 'checkers', 'homes'],
+    chess: ['frames', 'pieces']
+};
+
+const LOOK_FOLDERS = ['frames', 'felts', 'backs', 'decks', 'yards', 'pawns', 'checkers', 'homes', 'pieces'];
+
+/** Every mark that puts a look on a thing, and the attribute that names its collection. */
+const LOOK_MARKS = [
+    ['[data-deco]', 'data-deco'],
+    ['.felt-mat[data-mat]', 'data-mat'],
+    ['[data-faces]', 'data-faces'],
+    ['[data-backs]', 'data-backs'],
+    ['[data-chips]', 'data-chips'],
+    ['[data-yard]', 'data-yard'],
+    ['[data-checkers]', 'data-checkers'],
+    ['.bgt-home[data-home]', 'data-home'],
+    ['.table-stage [data-look]', 'data-look']
 ];
 
 /** What is played before a chess cell is measured: both sides past their first move, so no clock calls the game off while it is measured; or a middle game with pieces taken on both sides and one side seven ahead. */
@@ -145,6 +177,9 @@ const viewerOf = async (player, touch, language) =>
         });
 
         await context.addCookies([{ name: 'locale', value: language, url: BASE }]);
+
+        // A table in looks is judged by what its page fetched, and past 250 resources a browser stops keeping their timings.
+        await context.addInitScript(() => performance.setResourceTimingBufferSize(4000));
 
         const page = await context.newPage();
         const errors = [];
@@ -366,14 +401,55 @@ const ensureWaiting = async (players) =>
     }
 };
 
+const quoted = (text) => `'${ text.replaceAll('\'', '\'\'') }'`;
+
+/**
+ * Every seat of a table in looks wears its own collection everywhere that game draws a look, and on
+ * its plate: owned by hand, as the staff would give it, and put on through the player's own route
+ * before the game copies it at its start.
+ */
+const dress = async (spec, players) =>
+{
+    const slots = [...GAME_SLOTS[spec.game], 'profile.decoration', CELEBRATION_SLOT];
+
+    for (const [index, player] of players.entries())
+    {
+        const collection = spec.looks[index];
+        const items = slots.map((slot) => `${ SHOP_SLOTS[slot] }.${ collection }`);
+
+        sql(`insert into owned_items (user_id, item_id, via) select u.id, item, 'grant' from users u, unnest(array[${ items.map(quoted).join(', ') }]::text[]) item where u.handle = ${ quoted(player.handle) } on conflict do nothing`);
+
+        const refused = [];
+
+        for (const [nth, slot] of slots.entries())
+        {
+            const answer = await player.api('POST', '/shop/chosen', { slot, item: items[nth] });
+
+            if (!answer.ok)
+            {
+                refused.push(`${ slot } ${ answer.status }`);
+            }
+        }
+
+        record(`${ spec.id }: ${ player.handle } wears ${ collection }`, refused.length === 0, refused.length === 0 ? '' : `${ refused.join(', ') }; does PGDATABASE name the server's database?`);
+    }
+};
+
 const openTable = async (spec) =>
 {
     const suffix = Math.floor(Math.random() * 100000);
-    const players = spec.guests === undefined ? [dana] : [];
+    // A table in looks is played by people made for it, so dana.w, who sits at every other table, never wears one.
+    const plain = spec.guests === undefined && spec.looks === undefined;
+    const players = plain ? [dana] : [];
 
     for (let index = players.length; index < spec.seats; index += 1)
     {
         players.push(await walletSeat(browser, spec.guests?.[index] ?? `Fit ${ 'abcdefghi'[index] }${ suffix }`));
+    }
+
+    if (spec.looks !== undefined)
+    {
+        await dress(spec, players);
     }
 
     const [host, ...guests] = players;
@@ -384,7 +460,7 @@ const openTable = async (spec) =>
         await guest.api('POST', `/tables/${ tableId }/seat`);
     }
 
-    if (spec.guests === undefined)
+    if (plain)
     {
         await ensureWaiting(players);
     }
@@ -1393,6 +1469,58 @@ const lift = async (page) => await page.evaluate(async () =>
     return found;
 });
 
+/**
+ * What a table in looks fails to draw: a collection worn there with nothing of it fetched from a
+ * folder that table draws for every seat, a drawing that did not come back, and a look of a
+ * collection nobody there wears. It reads what the page fetched, so a look that is named on a thing
+ * and never painted is found, and it waits a moment for a drawing asked for late.
+ */
+const drawn = async (page, spec) => await page.evaluate(async ({ worn, wanted, folders, marks }) =>
+{
+    const collectionOf = (path) => path.split('/')[2].replace(/\.svg$/, '').split('-')[0];
+    const fetched = () => performance.getEntriesByType('resource')
+        .map((entry) => ({ path: new URL(entry.name, location.href).pathname, status: entry.responseStatus ?? 0 }))
+        .filter((one) => folders.includes(one.path.split('/')[1]));
+    const missing = () => worn.flatMap((collection) => wanted
+        .filter((folder) => !fetched().some((one) => one.path.split('/')[1] === folder && collectionOf(one.path) === collection))
+        .map((folder) => `nothing of ${ collection } is drawn from /${ folder }/`));
+
+    for (let waited = 0; waited < 3000 && missing().length > 0; waited += 100)
+    {
+        await new Promise((done) => setTimeout(done, 100));
+    }
+
+    const found = missing();
+
+    for (const one of fetched())
+    {
+        if (one.status !== 0 && one.status !== 200)
+        {
+            found.push(`${ one.path } answered ${ one.status }`);
+        }
+
+        if (!worn.includes(collectionOf(one.path)))
+        {
+            found.push(`${ one.path } is drawn, and nobody at the table wears it`);
+        }
+    }
+
+    for (const [selector, attribute] of marks)
+    {
+        for (const node of document.querySelectorAll(selector))
+        {
+            const named = node.getAttribute(attribute);
+
+            if (!worn.includes(named))
+            {
+                found.push(`${ selector } names ${ named }, which nobody at the table wears`);
+            }
+        }
+    }
+
+    return [...new Set(found)].map((what) => ({ kind: 'look', what }));
+}, { worn: [...new Set(spec.looks)], wanted: DRAWN_AT[spec.game], folders: LOOK_FOLDERS, marks: LOOK_MARKS });
+
 const cell = async (label, spec, page, url, size, openChat, language, waits, last = true) =>
 {
     const words = LANGUAGES[language];
@@ -1419,6 +1547,11 @@ const cell = async (label, spec, page, url, size, openChat, language, waits, las
     }
 
     const found = await measure(page, { least: USABLE[spec.game], fills: FILLS, openChat, half: size.half === true, waits, sides: spec.teams === true });
+
+    if (spec.looks !== undefined)
+    {
+        found.push(...await drawn(page, spec));
+    }
 
     if (!openChat)
     {

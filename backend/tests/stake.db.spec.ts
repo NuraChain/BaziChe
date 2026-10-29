@@ -579,6 +579,26 @@ describe.skipIf(!active)('a table played for NURA, against a real database', () 
             expect(await escrowOf(tableId)).toMatchObject({ state: 'open' });
         });
 
+        it.each([
+            ['its players in another order', (held: { players: string[]; amount: bigint; feeBps: number }) => ({ ...held, players: [...held.players].reverse() })],
+            ['a player fewer', (held: { players: string[]; amount: bigint; feeBps: number }) => ({ ...held, players: held.players.slice(0, -1) })],
+            ['another stake', (held: { players: string[]; amount: bigint; feeBps: number }) => ({ ...held, amount: held.amount + 1n })],
+            ['another fee', (held: { players: string[]; amount: bigint; feeBps: number }) => ({ ...held, feeBps: held.feeBps + 1 })]
+        ])('fails a lock it finds open on the chain with %s, which only a key it does not hold could have sent, and deals nothing', async (_, other) =>
+        {
+            const { tableId, escrow } = await locked();
+            const id = vaultIdOf(escrow.id);
+
+            await db.getRepository(Escrow).update({ id: escrow.id }, { openTx: null });
+            fake.games.set(id, 'open');
+            fake.stakes.set(id, other(fake.stakes.get(id)!) as never);
+            await sweep();
+
+            expect(fake.opened).toHaveLength(1);
+            expect(await escrowOf(tableId)).toMatchObject({ state: 'failed', error: 'mismatch', matchId: null });
+            expect(await readiness(tableId)).toEqual([false, false]);
+        });
+
         it('waits out a chain it cannot reach, and sends when it can', async () =>
         {
             const { host, guest, tableId } = await seated();

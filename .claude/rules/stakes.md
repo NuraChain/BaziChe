@@ -119,7 +119,10 @@ locks it on the next pass. A fault in a step is reported and the next escrow goe
 logs a fault once for as long as it is the same one.
 
 - **Locking.** Asked of the chain first: a game already open there is a send whose hash was lost,
-  and it is begun, never sent twice. A lock whose stakes have run out is failed, and so is one still
+  and it is begun, never sent twice, but only when it is the lock prepared (its players in seat
+  order, the stake and the fee, `isLockOf`); any other could only have been opened by a key this
+  server does not hold, and the lock fails as `mismatch` with everybody un-readied and nothing
+  dealt. A lock whose stakes have run out is failed, and so is one still
   waiting to be mined after that, because no block can take it then. Otherwise `open` with every
   seat in seat order, and the hash is written down. Mined, `match.begin` deals the game under the
   table's lock, from the chairs the escrow names, and the escrow is `open` with its match; a table

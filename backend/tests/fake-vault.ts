@@ -131,7 +131,7 @@ export function fakeVault(configured = true)
                 return { ok: false, refusal: state.refuse };
             }
 
-            if (state.mine === 'success')
+            if (state.mine !== 'reverted')
             {
                 stakes.set(id, { amount, feeBps, players: seats.map((seat) => seat.player) });
             }

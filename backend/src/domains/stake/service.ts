@@ -2,7 +2,7 @@ import { NotFoundError, type HttpError } from '@azerothjs/http';
 import { IsNull, type DataSource, type EntityManager } from 'typeorm';
 import { getAddress, toHex, type Address, type Hex } from 'viem';
 
-import { commitOf, freshBytes, vaultIdOf, type Refusal, type Stake, type Vault, type VaultCall } from '../../chain/vault.ts';
+import { commitOf, freshBytes, vaultIdOf, type Refusal, type Stake, type Vault, type VaultCall, type VaultGame } from '../../chain/vault.ts';
 import { EscrowSeat } from '../../entities/escrow-seat.entity.ts';
 import { Escrow } from '../../entities/escrow.entity.ts';
 import { Match } from '../../entities/match.entity.ts';
@@ -563,6 +563,19 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
         await db.getRepository(Escrow).update({ id: row.id, state: row.state }, { error: error.slice(0, 64), ...sent, updatedAt: () => 'now()' });
     };
 
+    /**
+     * Whether the game the vault holds open under an escrow's id is the lock prepared for it: its
+     * players in seat order, its stake and its fee. Any other was opened by a key this server does
+     * not hold, with stakes nobody here prepared, so nothing is dealt on it.
+     */
+    const isLockOf = async (row: EscrowRow, there: VaultGame) =>
+    {
+        const seats = await seatsOf(row.id);
+
+        return there.amount === BigInt(row.amount) && there.feeBps === row.fee_bps && there.players.length === seats.length
+            && there.players.every((player, at) => player.toLowerCase() === seats[at]!.address.toLowerCase());
+    };
+
     const locking = async (row: EscrowRow) =>
     {
         const id = vaultIdOf(row.id);
@@ -573,7 +586,7 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
 
             if (there.status === 'open')
             {
-                return await begin(row);
+                return await isLockOf(row, there) ? await begin(row) : await fail(row, { error: 'mismatch', player: null });
             }
 
             if (row.expired)

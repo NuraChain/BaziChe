@@ -119,7 +119,7 @@ the third so nobody re-investigates it.
   `.env` only.
 - No absolute path naming a machine. `~` is fine; `/c/Users/<somebody>` is a person's name.
 - The `0x…` keys in tests, `seed-wallets.ts`, `tools/qa/vault-deploy.mjs`, `tools/qa/admin-pass.mjs`,
-  `tools/qa/reconcile-pass.mjs` and `tools/qa/ops-pass.mjs` are hardhat's published accounts; nothing else here is key material (`recovery.ts`'s look-alike is the P-256 curve order).
+  `tools/qa/reconcile-pass.mjs`, `tools/qa/ops-pass.mjs` and `tools/qa/outage-pass.mjs` are hardhat's published accounts; nothing else here is key material (`recovery.ts`'s look-alike is the P-256 curve order).
 
 **Comment only when the code cannot say it.** Names and structure carry the meaning. A comment
 earns its place when it records something a reader could not work out from the code itself: why a

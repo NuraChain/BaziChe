@@ -14,7 +14,7 @@ import { createPublicClient, createWalletClient, decodeFunctionData, formatEther
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { hardhat } from 'viem/chains';
 
-import { BUNDLES, LOOKS } from '../../backend/src/domains/shop/catalogue.ts';
+import { BUNDLES, FEATURED_FIRST, LOOKS } from '../../backend/src/domains/shop/catalogue.ts';
 import { databaseName, sql } from './db.mjs';
 import { SHOP_REFERRAL_BPS, VAULT_ADMIN_KEY, shopArtifact } from './vault-deploy.mjs';
 import { signInWallet } from './wallets.mjs';
@@ -282,7 +282,7 @@ async function main()
     const state = (await buyer.get('/shop')).body;
 
     ok('the shop is open, on this chain, with every look and every bundle on sale', state?.open === true && state.chainId === 31337 && state.items?.length === LOOKS.length + BUNDLES.length, `${ state?.items?.length } items`);
-    ok('it features a collection and says the buyer may buy', state?.featured === 'glow' && state.may === 'yes', JSON.stringify({ featured: state?.featured, may: state?.may }));
+    ok('it features a collection and says the buyer may buy', state?.featured === FEATURED_FIRST && state.may === 'yes', JSON.stringify({ featured: state?.featured, may: state?.may }));
 
     const price = BigInt(state.items.find((item) => item.id === 'dice.glow').price);
 

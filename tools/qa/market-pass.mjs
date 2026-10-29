@@ -12,8 +12,12 @@
  * is the node, and a new one each run: hardhat gives every block a second of its own, so a few runs
  * put its clock ahead of this machine's by more than a market's window. Four chess games are opened
  * together, so the ninety seconds each market takes positions for, and the minute of its dispute
- * window, are waited out once for all of them.
+ * window, are waited out once for all of them. QA_RESTART is a shell command that starts the server
+ * again, and without it the last part, which stops the server while a market settles and while its
+ * claims land, is left out.
  */
+import { execSync, spawn } from 'node:child_process';
+
 import { createPublicClient, createWalletClient, http, toHex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { hardhat } from 'viem/chains';
@@ -35,6 +39,13 @@ const WEI = 10n ** 18n;
 const CONFIRMED_WITHIN_MS = 20_000;
 
 const RESOLVED_WITHIN_MS = 30_000;
+
+const RESTART = process.env.QA_RESTART;
+
+const BACK_WITHIN_MS = 60_000;
+
+/** The reconciliation runs half a minute after a boot and every minute after it. */
+const RECONCILED_WITHIN_MS = 150_000;
 
 const ABI = marketsArtifact().abi;
 
@@ -308,6 +319,192 @@ const claim = async (who, ids) =>
 
 const admin = createWalletClient({ account: privateKeyToAccount(VAULT_ADMIN_KEY), chain, transport: http(RPC) });
 
+const healthy = () => fetch(`${ BASE }/api/healthz`).then((answer) => answer.ok).catch(() => false);
+
+const stopServer = async () =>
+{
+    const port = Number(new URL(BASE).port || 80);
+    const owners = execSync('netstat -ano', { encoding: 'utf8' }).split('\n')
+        .filter((line) => new RegExp(`[:.]${ port }\\s.*LISTENING`).test(line))
+        .map((line) => line.trim().split(/\s+/).at(-1));
+
+    for (const pid of new Set(owners))
+    {
+        execSync(process.platform === 'win32' ? `taskkill /PID ${ pid } /F` : `kill -9 ${ pid }`);
+    }
+
+    return until(15_000, async () => !await healthy());
+};
+
+const startServer = async () =>
+{
+    spawn(RESTART, { shell: true, detached: true, stdio: 'ignore' }).unref();
+
+    return until(BACK_WITHIN_MS, healthy);
+};
+
+/** What a mined transaction cost its sender in gas. */
+const gasOf = async (hash) =>
+{
+    const receipt = await reader.waitForTransactionReceipt({ hash });
+
+    return receipt.gasUsed * receipt.effectiveGasPrice;
+};
+
+/** Whatever happens, the node mines again, every second, as the rest of the pass wants it to. */
+const mining = async () =>
+{
+    await node('evm_mine');
+    await node('evm_setAutomine', [true]);
+    await node('evm_setIntervalMining', [1000]);
+};
+
+const held = async () =>
+{
+    await node('evm_setIntervalMining', [0]);
+    await node('evm_setAutomine', [false]);
+};
+
+/**
+ * The server stopped while a market's settlement waits for its block and started again under it,
+ * then stopped while a winner's claim, handed in, waits for its block, with a second winner's claim
+ * sent while it is down, so that word of it never reaches the server.
+ */
+async function restarts()
+{
+    console.log('\n[9] the server stopped while a market settles, and while its claims land');
+
+    if (RESTART === undefined)
+    {
+        console.log('  [left out: QA_RESTART is not set]');
+        return;
+    }
+
+    const game = await chessGame('Crash');
+    const backers = [await person('Xi'), await person('Yu'), await person('Wu'), await person('Zo')];
+    const [xi, yu, wu, zo] = backers;
+    const crash = await marketAs(xi, game.id);
+
+    if (!ok('a market on the game the server is stopped under', crash !== null))
+    {
+        return;
+    }
+
+    const winning = 1 - game.whiteSeat;
+    const stakes = [
+        await back(xi, crash.id, winning, 5n),
+        await back(yu, crash.id, winning, 7n),
+        await back(wu, crash.id, winning, 3n),
+        await back(zo, crash.id, game.whiteSeat, 6n)
+    ];
+    const placedAll = await Promise.all(stakes.map((one, index) => confirmed(backers[index], one.id)));
+
+    if (!ok('four positions on the game the server is stopped under, three of them on the outcome that will happen', placedAll.every((one) => one !== null)))
+    {
+        return;
+    }
+
+    await pause(Math.max(0, new Date(crash.closesAt).getTime() - Date.now() + 2000));
+    await held();
+
+    let settlement = null;
+
+    try
+    {
+        await game.resign(game.white);
+
+        const closing = await until(RESOLVED_WITHIN_MS, async () =>
+        {
+            const now = await marketAs(xi, game.id);
+
+            return now?.state === 'closing' && now.hash !== undefined ? now : null;
+        });
+
+        settlement = closing === null ? null : await reader.getTransaction({ hash: closing.hash });
+
+        if (ok('the game ends after the close and the settlement is sent, not yet in a block', settlement !== null && settlement.blockNumber === null))
+        {
+            ok('the server is stopped while the settlement waits for its block', await stopServer() !== null);
+            ok('and started again with the settlement still waiting', await startServer() !== null);
+            await pause(8000);
+            ok('the server that came back sends no second settlement while the first one waits',
+                await reader.getTransactionCount({ address: settlement.from, blockTag: 'pending' }) === settlement.nonce + 1);
+        }
+    }
+    finally
+    {
+        await mining();
+    }
+
+    const settled = await resolved(xi, game.id, 'settled');
+
+    if (!ok('once it is mined the market is settled on the outcome that happened, by the settlement sent before the stop',
+        settled !== null && settled.outcome === winning && settled.hash === settlement?.hash.toLowerCase()))
+    {
+        return;
+    }
+
+    await pause(Math.max(0, new Date(settled.claimableAt).getTime() - Date.now() + 4000));
+
+    const pool = 21n * WEI;
+    const xiShare = (pool * 5n) / 15n;
+    const yuShare = ((pool - xiShare) * 7n) / 10n;
+    const before = await Promise.all([xi, yu].map((one) => balance(one.address)));
+    const xiCall = (await xi.post('/markets/claims', { positions: [stakes[0].id] })).body;
+    const yuCall = (await yu.post('/markets/claims', { positions: [stakes[1].id] })).body;
+    let xiHash = null;
+    let yuHash = null;
+    let downAgain = null;
+
+    await held();
+
+    try
+    {
+        xiHash = await xi.wallet.sendTransaction({ to: xiCall.to, data: xiCall.data, value: BigInt(xiCall.value) });
+        await xi.post('/markets/claims/sent', { hash: xiHash, positions: [stakes[0].id] });
+        downAgain = await stopServer();
+        ok('a winner\'s claim is handed in, and the server is stopped while it waits for its block', downAgain !== null);
+
+        yuHash = await yu.wallet.sendTransaction({ to: yuCall.to, data: yuCall.data, value: BigInt(yuCall.value) });
+        ok('another winner\'s claim is sent while the server is down, so word of it cannot reach the server',
+            await yu.post('/markets/claims/sent', { hash: yuHash, positions: [stakes[1].id] }).then(() => false, () => true));
+    }
+    finally
+    {
+        await mining();
+    }
+
+    ok('both claims are mined while the server is down, and it is started again', downAgain !== null && await startServer() !== null);
+
+    const xiClaimed = await until(RESOLVED_WITHIN_MS, async () =>
+    {
+        const now = await positionOf(xi, stakes[0].id);
+
+        return now?.claimedAt === undefined ? null : now;
+    });
+    const xiGot = (await balance(xi.address)) - before[0] + await gasOf(xiHash);
+
+    ok('the claim handed in before the stop is written down once the server is back, at the amount on its receipt',
+        xiClaimed !== null && xiClaimed.paid === xiShare.toString() && xiGot === xiShare, `${ xiClaimed?.paid } ${ xiGot }`);
+
+    const yuClaimed = await until(RECONCILED_WITHIN_MS, async () =>
+    {
+        const now = await positionOf(yu, stakes[1].id);
+
+        return now?.claimedAt === undefined ? null : now;
+    });
+    const yuGot = (await balance(yu.address)) - before[1] + await gasOf(yuHash);
+
+    ok('the claim the server never heard of is written down from what the contract holds, with no amount it did not see',
+        yuClaimed !== null && yuClaimed.paid === undefined && yuGot === yuShare, `${ yuClaimed?.paid } ${ yuGot }`);
+
+    const last = await claim(wu, [stakes[2].id]);
+
+    ok('the last winner claims as anybody does and is paid what is left, so the pool is paid out whole',
+        last.call.status === 200 && last.received === pool - xiShare - yuShare, `${ last.received }`);
+    ok('the contract still holds what it owes, and its books say so', await read('solvent'));
+}
+
 async function main()
 {
     if (MARKETS === undefined)
@@ -565,6 +762,8 @@ async function main()
 
     ok('and claimed again it pays the stake back', again.call.status === 200 && again.received === 8n * WEI, `${ again.received }`);
     ok('the contract still holds what it owes, and its books say so', await read('solvent'));
+
+    await restarts();
 }
 
 main()

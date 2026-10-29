@@ -1199,8 +1199,8 @@ confirmed.
 ## The market pass
 
 **`tools/qa/market-pass.mjs` backs games with NURA over the api of the built server and a local
-chain**: `QA_BASE=http://localhost:5300 QA_MARKETS=<the markets contract> node
-tools/qa/market-pass.mjs`, about five minutes, 52 checks. It wants a NEW hardhat node for every run
+chain**: `QA_BASE=http://localhost:5300 QA_MARKETS=<the markets contract> QA_RESTART=<a command that
+starts the server again> node tools/qa/market-pass.mjs`, about eight minutes, 63 checks. It wants a NEW hardhat node for every run
 (`npx hardhat node --port 8645` in the SmartContract project): hardhat gives every block a second of
 its own, so the transactions of a few runs put its clock minutes ahead of this machine's, and a
 market's ninety seconds then closed on the chain before they opened here (`MarketClosed` on the
@@ -1212,10 +1212,9 @@ validators does: hardhat otherwise mines only for a transaction, and the server 
 clock from its newest block.
 
 Every bettor is a wallet the pass keeps in memory, given NURA by `hardhat_setBalance`. In order: who
-may take a position (the disclosure and the terms asked for, nothing for no country or a country
-nobody named); four chess games at public live tables, each market a seat each and a draw by handle;
-a player of the game, an outcome the market lacks, too much and a country not named, each refused in
-its word; unequal stakes on all three outcomes from seven wallets, two at once, each read back from
+may take a position (the disclosure and the terms asked for); four chess games at public live
+tables, each market a seat each and a draw by handle; a player of the game, an outcome the market
+lacks and too much, each refused in its word; unequal stakes on all three outcomes from seven wallets, two at once, each read back from
 the contract as placed, the pools and the bettors counted alike by the server and the contract, and
 a bettor past a thousand NURA refused; every other market's stakes placed while its window is open,
 because the waits that follow can outlast one on a slow run; a game resigned inside its window
@@ -1230,6 +1229,17 @@ nothing under either first hash, the server keeps each on its way at first, then
 claimed from what the contract holds (the stake back, and the wallet holds it) and lets the second
 be claimed again, which pays; and the contract solvent. The minute the server gives a vanished hash
 is most of the extra minute this part takes.
+
+**Its last part stops the server twice**, through `QA_RESTART` (left out, and said so, without it).
+A fifth chess game is backed by four wallets, three on the outcome that will happen; mining is held,
+the game is resigned after the close, and the server is stopped while the settlement it sent waits
+for its block and started again under it: the server that comes back sends no second settlement,
+and once the block is mined the market is settled by the one sent before the stop. After the
+dispute window one winner's claim is handed in and the server stopped while it waits for its
+block, and a second winner's claim is sent while the server is down, so word of it never reaches
+it. Both are mined, the server is started again, and the first is written down at the amount on
+its receipt, the second from what the contract holds with no amount the server did not see; the
+last winner is paid what is left, and the contract is solvent.
 
 **Its first run found a fault of the server's**: a quiet chain was read as a clock minutes behind,
 and every market whose game ended after its close was called off (`cde64091`, `BEHIND_MOST_MS`).
@@ -1375,3 +1385,30 @@ backlog read by when an order was made rather than when it was sent, and an aler
 said in the log. It failed 13 of 28 lines, every one a line those faults touch: the endpoint's two;
 the spectator's three; the backlog, never raised, on the overview, beside its queue, in the metrics
 twice and in the line that says it cleared; and the three that read the log for a raise.
+
+## The outage pass
+
+**`tools/qa/outage-pass.mjs` takes NuraChain out of the server's reach while people go on paying on
+it**, over the api of the built server and a local chain: `QA_BASE=http://localhost:5300
+QA_RPC=http://127.0.0.1:8645 QA_PROXY_PORT=8646 QA_LOG=<a file holding the server's output> node
+tools/qa/outage-pass.mjs`, about five minutes, 18 checks. The server reaches the node only through a
+TCP proxy the pass holds (`NURA_RPC_URL` names `http://127.0.0.1:<QA_PROXY_PORT>`), while the
+buyer's wallet reaches the node itself, as a browser's wallet does through its own provider. The
+server runs built, on a database nobody else uses, with the shop deployed on the node
+(`vault-deploy.mjs`), `NURA_CHAIN_ID=31337`, `NURA_SHOP_ADDRESS`, `NURA_REFEREE_KEY`, and
+`ADMIN_WALLET_ADDRESS` set to hardhat's #6 (`QA_OWNER_KEY` names another owner's key). It may be
+started before the pass: until the proxy listens NuraChain is simply out of reach, which the pass
+waits out before it begins.
+
+In order: the shop open and the server reaching NuraChain through the proxy, the owner's overview
+saying so with no alert; the line cut, an order composed while it held, paid on the chain by the
+buyer's own wallet and its hash handed in, and the order kept on its way (not delivered, not
+failed, not run out) with the look not handed over before NuraChain says it was sold; two
+reconciliation passes a minute apart that cannot reach NuraChain raising `chain-down` as an error
+on the owner's overview, the money on its way saying it was not reached, the order still on its way
+under the alert and the log saying it (`QA_LOG`); then the line given back, the order delivered,
+the look the buyer's, the shop holding the sale as it was quoted, and a pass that reaches NuraChain
+clearing the alert on the overview and in the log.
+
+**Its first run found a fault of its own**: it read the shop's `saleOf` as an object, where viem
+answers a function with several outputs as an array.

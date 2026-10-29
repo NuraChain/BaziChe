@@ -101,7 +101,7 @@ export const alertKey = (alert: Pick<Alert, 'alert' | 'about'>) => (alert.about 
 const PAYOUT_WORKERS: ReadonlySet<Worker> = new Set(['stakes', 'markets']);
 
 /** Every alert the measures cross, in the order of `ALERT_KINDS`. */
-export function judge(measures: Measures): Alert[]
+export function judge(measures: Measures)
 {
     const alerts: Alert[] = [];
 

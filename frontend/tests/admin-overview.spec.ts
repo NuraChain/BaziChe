@@ -232,6 +232,52 @@ describe('the overview', () =>
         expect(href(container, 'a[href="/admin/money"]')).toBe('/admin/money');
     });
 
+    it('shows a role that opens Money what the shop sold in the last day, the week and in all, and the paid orders that delivered nothing as a row of what needs them', async () =>
+    {
+        told();
+        server.lookout.overview = { ...server.lookout.overview, shop: { day: '5000000000000000000', week: '12500000000000000000', all: '40000000000000000000', undelivered: 2 } };
+        as('admin');
+        const container = await opened();
+
+        expect([said(container, '#overview-money'), said(container, '#overview-paid'), said(container, '#overview-shop')]).toEqual(['Money', 'Playing for NURA', 'The shop']);
+        expect(all(container, '[data-shop-sales] li')).toEqual(['5 NURA sold in the last day', '12.5 NURA sold in the last week', '40 NURA sold so far', '2 paid orders delivered nothing']);
+        expect(container.querySelector('[data-sold="undelivered"]')?.className).toContain('text-danger');
+        expect(href(container, '[data-shop-sales] a')).toBe('/admin/shop?view=orders');
+        expect(all(container, '[data-needs] li')).toEqual(['2 reports waiting', '1 game stuck', '1 payment stuck on the way', '2 paid orders delivered nothing']);
+        expect(href(container, '[data-undelivered]')).toBe('/admin/shop?view=orders&state=undelivered');
+        expect(container.querySelector('[data-undelivered] .text-danger'), 'in danger').not.toBeNull();
+    });
+
+    it('shows the shop\'s sales where the server keeps no vault, says nothing needs the reader of a shop that delivered everything, and shows a moderator none of it', async () =>
+    {
+        const seen = structuredClone(server.lookout.overview);
+
+        delete seen.money;
+        server.lookout.overview = { ...seen, shop: { day: '0', week: '0', all: '0', undelivered: 0 } };
+        const container = await opened();
+
+        expect(container.querySelector('[data-money]')).toBeNull();
+        expect(container.querySelector('#overview-paid')).toBeNull();
+        expect(all(container, '[data-shop-sales] li')).toEqual(['0 NURA sold in the last day', '0 NURA sold in the last week', '0 NURA sold so far', '0 paid orders delivered nothing']);
+        expect(container.querySelector('[data-sold="undelivered"]')?.className).not.toContain('text-danger');
+        expect(container.querySelector('[data-undelivered]')).toBeNull();
+        expect(said(container, '[data-calm]')).toBe('Nothing needs you right now.');
+        cleanup();
+
+        server.lookout.overview = { ...server.lookout.overview, shop: { day: '0', week: '0', all: '0', undelivered: 1 } };
+        const owed = await opened();
+
+        expect(all(owed, '[data-needs] li')).toEqual(['1 paid order delivered nothing']);
+        expect(owed.querySelector('[data-calm]')).toBeNull();
+        cleanup();
+
+        server.lookout.overview = { ...server.lookout.overview, shop: { day: '1000000000000000000', week: '1000000000000000000', all: '1000000000000000000', undelivered: 3 } };
+        as('moderator');
+        const looked = await opened();
+
+        expect([looked.querySelector('[data-shop-sales]'), looked.querySelector('[data-undelivered]')]).toEqual([null, null]);
+    });
+
     it('says a server up under a minute is, and one up under an hour in minutes alone', async () =>
     {
         told();
@@ -361,6 +407,13 @@ describe('the overview', () =>
         expect(all(container, '[data-tile-title]')).toEqual(['حساب‌ها', 'آنلاین‌ها', 'گزارش‌های منتظر', 'بازی‌های در جریان']);
         expect(container.querySelector('[data-tiles] > li a')?.getAttribute('aria-label')).toBe('حساب‌ها: ۱٬۲۳۴، ۱۲ نفر توی ۲۴ ساعت گذشته عضو شدن');
         expect(said(container, '[data-money] [data-in-play]')).toBe('۴۵ NURA قفل‌شده توی بازی‌ها');
+        cleanup();
+
+        server.lookout.overview = { ...server.lookout.overview, shop: { day: '5000000000000000000', week: '12500000000000000000', all: '40000000000000000000', undelivered: 1 } };
+        const sold = await opened();
+
+        expect(all(sold, '[data-shop-sales] li')).toEqual(['۵ NURA توی ۲۴ ساعت گذشته فروش رفت', '۱۲٫۵ NURA توی هفته‌ی گذشته فروش رفت', '۴۰ NURA تا حالا فروش رفته', '۱ سفارش که پولش داده شده ولی چیزی تحویل نداده']);
+        expect(said(sold, '#overview-shop')).toBe('فروشگاه');
     });
 });
 

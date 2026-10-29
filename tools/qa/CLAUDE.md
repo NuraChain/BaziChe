@@ -1298,7 +1298,7 @@ green. The garbage pass sends every admin route garbage as well (`.claude/rules/
 server record, raise and resolve each disagreement**, over the api of the built server and a local
 chain: `PGDATABASE=<the server's database> QA_BASE=http://localhost:5400 QA_RPC=<the node>
 QA_SHOP=<the shop> QA_MARKETS=<the markets contract> QA_LOG=<a file holding the server's output>
-node tools/qa/reconcile-pass.mjs`, about five minutes, 32 checks. It wants a NEW hardhat node (it
+node tools/qa/reconcile-pass.mjs`, about five minutes, 33 checks. It wants a NEW hardhat node (it
 moves the node's clock past the vault's wait at its end, and has it mine a block a second, as the
 market pass does), every contract `vault-deploy.mjs` deploys on it, a database nobody else uses
 given its schema by `sync-cli`, and the built server started on it with `NURA_RPC_URL`,
@@ -1313,14 +1313,15 @@ money moved for real (two looks bought and delivered, a gift given and another w
 sent, a game for NURA paid out and another locked and being played, its turns played by the pass
 as each runs out because three misses in a row forfeit a seat, a market called off with a stake in
 it); then made to disagree (the shop's owner, hardhat's #8, refunds a delivered order on
-the contract; an order and a gift turned back to `expired` by hand; a gift nobody sent written
+the contract; a look written down as paid for that the shop never sold; an order and a gift turned back to `expired` by hand; a gift nobody sent written
 `confirmed`; a payment's winners changed; a market written `expired`; a stake back claimed straight
 from the bettor's wallet, the server told nothing; the shop's coin taken away); then each read back
-from `GET /admin/checks` as the owner: the refund and the unsent gift, the winners, the market and
-the shop's books kept for a person with what each side says, the order delivered again and the gift
-confirmed again through their workers and kept as put right, the claim written down at its stake;
+from `GET /admin/checks` as the owner: the look nobody paid for and the unsent gift, the winners, the
+market and the shop's books kept for a person with what each side says, the refund (its look taken
+back), the order delivered again and the gift confirmed again through their workers and kept as put
+right, the claim written down at its stake;
 the overview counting them for the owner and showing a moderator nothing; the server's warnings;
-then resolved (the owner closes the refund with a reason, logged as `check`, said in the server's
+then resolved (the owner closes the look nobody paid for with a reason, logged as `check`, said in the server's
 log as a close and never as the two agreeing, and refused a second time; the rest mended by hand or
 the coin given back, each agreeing at the next pass; the closed one still closed after another); and
 last the node's clock moved past the vault's wait, a player taking the stakes of the game still

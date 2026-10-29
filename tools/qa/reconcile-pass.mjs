@@ -470,6 +470,10 @@ async function main()
     const shopCoin = await reader.getBalance({ address: SHOP });
 
     await asOwner(SHOP, shopAbi, 'refund', [idOf(refunded)]);
+
+    const unsold = sql(`insert into shop_orders (buyer_id, recipient_id, item_id, price, buyer_address, deadline, state, paid_at, delivered)
+        select buyer_id, recipient_id, 'pawns.glow', price, buyer_address, deadline, 'paid', now(), true from shop_orders where id = '${ refunded }' returning id`);
+
     sql(`update shop_orders set state = 'expired', paid_at = null, delivered = null where id = '${ lapsed }'; delete from owned_items where order_id = '${ lapsed }'`);
     sql(`update donations set state = 'expired', confirmed_at = null where id = '${ late }'`);
     sql(`update donations set state = 'confirmed', confirmed_at = now() where id = '${ ghost }'`);
@@ -483,9 +487,13 @@ async function main()
 
     console.log('\nrecorded, put right or kept for a person');
 
-    const refund = await recorded(staff, refunded, 'order-state', null);
+    const refund = await recorded(staff, refunded, 'order-state', 'put-right');
 
-    ok('a look the owner refunded on the shop is kept for a person: delivered here, refunded there', refund?.db?.state === 'paid' && refund?.chain?.state === 'refunded', JSON.stringify(refund));
+    ok('a look the owner refunded on the shop is taken back through the shop worker, and kept as put right', refund !== null && stateOf('shop_orders', refunded) === 'refunded' && sql(`select count(*) from owned_items where order_id = '${ refunded }'`) === '0', JSON.stringify(refund));
+
+    const nobodyPaid = await recorded(staff, unsold, 'order-state', null);
+
+    ok('a look delivered here that the shop never sold is kept for a person', nobodyPaid?.db?.state === 'paid' && nobodyPaid?.chain?.state === 'unsold', JSON.stringify(nobodyPaid));
 
     const putOrder = await recorded(staff, lapsed, 'order-state', 'put-right');
 
@@ -526,16 +534,16 @@ async function main()
 
     console.log('\nresolved');
 
-    const closing = await staff.post(`/admin/checks/${ refund.id }/close`, { reason: 'The owner refunded it on purpose' });
+    const closing = await staff.post(`/admin/checks/${ nobodyPaid.id }/close`, { reason: 'A look given by hand before the shop opened' });
 
-    ok('the owner closes the refund with a reason', closing.status === 200 && closing.body?.check?.resolution === 'staff', said(closing));
+    ok('the owner closes the look nobody paid for with a reason', closing.status === 200 && closing.body?.check?.resolution === 'staff', said(closing));
 
     const logRow = (await staff.get('/admin/log?kind=check')).body?.rows?.[0];
 
-    ok('and the staff\'s log says who closed which, and why', logRow?.details?.check === refund.id && logRow?.reason === 'The owner refunded it on purpose');
-    ok('closing it again is refused in its own word', (await staff.post(`/admin/checks/${ refund.id }/close`, { reason: 'Again' })).body?.error?.code === 'staff-check-closed');
+    ok('and the staff\'s log says who closed which, and why', logRow?.details?.check === nobodyPaid.id && logRow?.reason === 'A look given by hand before the shop opened');
+    ok('closing it again is refused in its own word', (await staff.post(`/admin/checks/${ nobodyPaid.id }/close`, { reason: 'Again' })).body?.error?.code === 'staff-check-closed');
 
-    const closedSaid = logged('chain and database disagreement closed', refunded);
+    const closedSaid = logged('chain and database disagreement closed', unsold);
 
     if (closedSaid === null)
     {
@@ -543,7 +551,7 @@ async function main()
     }
     else
     {
-        ok('the server said the close as a line of its own, and never that the two agree again', closedSaid && !logged('chain and database agree again', refunded));
+        ok('the server said the close as a line of its own, and never that the two agree again', closedSaid && !logged('chain and database agree again', unsold));
     }
 
     sql(`update donations set state = 'expired', confirmed_at = null where id = '${ ghost }'`);
@@ -561,9 +569,9 @@ async function main()
 
     await until(PASS_WITHIN_MS, async () => (await staff.get('/admin/checks')).body?.checkedAt !== checkedAt);
 
-    const still = await checksAbout(staff, refunded);
+    const still = await checksAbout(staff, unsold);
 
-    ok('the refund a person closed stays closed while the two sides say what they said', still.length === 1 && still[0].resolution === 'staff', JSON.stringify(still));
+    ok('the look a person closed stays closed while the two sides say what they said', still.length === 1 && still[0].resolution === 'staff', JSON.stringify(still));
 
     console.log('\na game\'s stakes taken back on the chain while it is played here');
 

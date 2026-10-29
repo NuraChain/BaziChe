@@ -4,6 +4,7 @@ import { EquippedItem, OwnedItem, ShopCollection, ShopItem, ShopOrder, User } fr
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import type { AdminShop, AdminShopOrders } from '../../schemas.ts';
 import { FEATURED_FIRST, LOOKS, SHOP_COLLECTIONS, bundleOf, lookOf, type ShopCollection as Collection } from '../shop/catalogue.ts';
+import { refundAsked } from '../shop/orders.ts';
 import type { OrderState, OwnedVia, ShopItemStatus } from '../shop/policy.ts';
 import { SHOP_ORDERS_PAGE, type SaleHours } from './roles.ts';
 import { record, staffRefusal, type Actor } from './staff.ts';
@@ -22,6 +23,7 @@ export interface ShopChange
 export interface OrderFilters
 {
     state?: OrderState;
+    delivered?: 'no';
     item?: string;
     person?: string;
     cursor?: string;
@@ -71,6 +73,7 @@ interface OrderRow extends Keyed
     tx_hash: string | null;
     delivered: boolean | null;
     failure: string | null;
+    refund_asked: Date | null;
     buyer_handle: string;
     buyer_name: string;
     buyer_hue: number;
@@ -359,6 +362,7 @@ export function createShopAdmin(db: DataSource)
                 .addSelect('o.tx_hash', 'tx_hash')
                 .addSelect('o.delivered', 'delivered')
                 .addSelect('o.failure', 'failure')
+                .addSelect(`case when o.state = 'paid' and ${ refundAsked('o.id') } then (select max(a.created_at) from staff_actions a where a.kind = 'shop-refund' and a.details ->> 'order' = o.id::text) end`, 'refund_asked')
                 .addSelect('b.handle', 'buyer_handle')
                 .addSelect('b.display_name', 'buyer_name')
                 .addSelect('b.hue', 'buyer_hue')
@@ -372,6 +376,11 @@ export function createShopAdmin(db: DataSource)
             if (filters.state !== undefined)
             {
                 query.andWhere('o.state = :state', { state: filters.state });
+            }
+
+            if (filters.delivered === 'no')
+            {
+                query.andWhere(`o.state = 'paid' and o.delivered = false`);
             }
 
             if (filters.item !== undefined && filters.item !== '')
@@ -407,7 +416,8 @@ export function createShopAdmin(db: DataSource)
                     ...(row.paid_at === null ? {} : { paidAt: row.paid_at.toISOString() }),
                     ...(row.tx_hash === null ? {} : { hash: row.tx_hash }),
                     ...(row.delivered === null ? {} : { delivered: row.delivered }),
-                    ...(row.failure === null ? {} : { failure: row.failure })
+                    ...(row.failure === null ? {} : { failure: row.failure }),
+                    ...(row.refund_asked === null ? {} : { refundAsked: row.refund_asked.toISOString() })
                 })),
                 ...cursorOf(rows, SHOP_ORDERS_PAGE)
             };

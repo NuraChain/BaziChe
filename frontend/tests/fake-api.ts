@@ -26,6 +26,7 @@ import type {
     AdminReport,
     AdminReports,
     AdminShop,
+    AdminShopMoney,
     AdminShopOrders,
     AdminVault,
     ChainProfile,
@@ -441,6 +442,24 @@ type PlayStatus = AdminPlay['games'][number]['status'];
 
 export type AdminShopItem = AdminShop['items'][number];
 
+/** The shop's contract as Money reads it: revenue and an inviter's credit it covers, selling, its seller in its role, this wallet holding both roles. */
+export const shopMoneyState = (): AdminShopMoney => ({
+    configured: true,
+    shop: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+    chainId: 31337,
+    revenue: '12000000000000000000',
+    owed: '3000000000000000000',
+    held: '15000000000000000000',
+    solvent: true,
+    share: 1_000,
+    maxShare: 3_000,
+    paused: false,
+    seller: { address: '0xa0Ee7A142d267C1f36714E4a8F75612F20a79720', allowed: true, named: '0xa0Ee7A142d267C1f36714E4a8F75612F20a79720' },
+    roles: { owner: true, pauser: true },
+    undelivered: 0,
+    refunding: 0
+});
+
 /** The shop as the staff read it: every look and bundle in the catalogue's order at the catalogue's price, offered, none sold. */
 const shopAdminFresh = () => ({
     shop: {
@@ -450,10 +469,26 @@ const shopAdminFresh = () => ({
     } as AdminShop,
     orders: [] as AdminShopOrders['rows'],
     chainId: null as number | null,
+    money: shopMoneyState(),
+
+    /** The word the contract would refuse the owner's next call with, as the server says it before any wallet is asked. */
+    refuse: null as StaffRefusal | null,
 
     /** A promise a change waits on before it is answered, so a spec can look between the press and the answer. */
     hold: null as Promise<void> | null
 });
+
+const shopCall = (data: string) =>
+{
+    const refused = server.shopAdmin.refuse;
+
+    if (refused !== null)
+    {
+        throw staffRefused(refused, refused);
+    }
+
+    return { ...server.nura.call, data };
+};
 
 const playFresh = (): AdminPlay => ({ games: ['hokm', 'poker', 'backgammon', 'ludo'].map((game) => ({ game, status: 'available' as PlayStatus, matches: 0, tables: 0 })), stuck: 0 });
 
@@ -1833,13 +1868,14 @@ export const client =
             staffGate('overview');
 
             const role = staffRoleOf(server.me);
-            const { money, health, checks, alerts, payouts, ...seen } = structuredClone(server.lookout.overview);
+            const { money, health, checks, alerts, payouts, shop, ...seen } = structuredClone(server.lookout.overview);
 
             return {
                 ...seen,
                 reports: waitingReports(),
                 alerts: alerts.filter((one) => may(role, ALERT_ABILITY[one.alert])),
                 ...(may(role, 'money') && money !== undefined ? { money } : {}),
+                ...(may(role, 'money') && shop !== undefined ? { shop } : {}),
                 ...(may(role, 'money') && checks !== undefined ? { checks } : {}),
                 ...(may(role, 'health') && health !== undefined ? { health } : {}),
                 ...(may(role, 'money') && payouts !== undefined ? { payouts } : {})
@@ -2224,7 +2260,7 @@ export const client =
             return structuredClone(server.shopAdmin.shop);
         },
 
-        async shopOrders({ query }: { query: { state?: AdminShopOrders['rows'][number]['state']; item?: string; person?: string; cursor?: string } })
+        async shopOrders({ query }: { query: { state?: AdminShopOrders['rows'][number]['state']; delivered?: 'no'; item?: string; person?: string; cursor?: string } })
         {
             server.calls.push(`admin.shopOrders ${ JSON.stringify(query) }`);
             staffGate('shop');
@@ -2232,6 +2268,7 @@ export const client =
             const person = (query.person ?? '').replace(/^@/, '').toLowerCase();
             const rows = server.shopAdmin.orders.filter((one) =>
                 (query.state === undefined || one.state === query.state)
+                && (query.delivered === undefined || (one.state === 'paid' && one.delivered === false))
                 && (query.item === undefined || one.item === query.item)
                 && (person === '' || one.buyer.handle.toLowerCase() === person || one.for?.handle.toLowerCase() === person));
             const from = query.cursor === undefined ? 0 : rows.findIndex((one) => one.id === query.cursor) + 1;
@@ -2243,6 +2280,68 @@ export const client =
                 ...(rows.length > from + SHOP_ORDERS_PAGE && last !== undefined ? { cursor: last.id } : {}),
                 ...(server.shopAdmin.chainId === null ? {} : { chainId: server.shopAdmin.chainId })
             };
+        },
+
+        async shopMoney()
+        {
+            server.calls.push('admin.shopMoney');
+            staffGate('money');
+            return structuredClone(server.shopAdmin.money);
+        },
+
+        async shopWithdraw({ input }: { input: { amount: string } })
+        {
+            server.calls.push(`admin.shopWithdraw ${ input.amount }`);
+            staffGate('wallet');
+            return shopCall('0xwithdraw');
+        },
+
+        async shopShare({ input }: { input: { bps: number } })
+        {
+            server.calls.push(`admin.shopShare ${ input.bps }`);
+            staffGate('wallet');
+            return shopCall('0xshare');
+        },
+
+        async shopSeller({ input }: { input: { address: string } })
+        {
+            server.calls.push(`admin.shopSeller ${ input.address }`);
+            staffGate('wallet');
+            return shopCall('0xseller');
+        },
+
+        async shopPause({ input }: { input: { paused: boolean } })
+        {
+            server.calls.push(`admin.shopPause ${ input.paused }`);
+            staffGate('wallet');
+            return shopCall('0xpause');
+        },
+
+        async shopRefund({ params, input }: { params: { id: string }; input: { reason: string } })
+        {
+            server.calls.push(`admin.shopRefund ${ params.id } ${ input.reason }`);
+            staffGate('wallet');
+
+            const order = server.shopAdmin.orders.find((one) => one.id === params.id);
+
+            if (order === undefined)
+            {
+                throw new ApiError(404, 'not-found', 'Nothing there.', undefined);
+            }
+
+            if (order.state !== 'paid')
+            {
+                throw staffRefused('staff-order-unpaid', 'Only a paid order can be refunded.');
+            }
+
+            const call = shopCall('0xrefund');
+            const actor = staffRoleOf(server.me);
+            const at = new Date(runtime().clock.now()).toISOString();
+
+            staffLogged({ at, staff: server.me, ...(actor === null ? {} : { staffRole: actor }), kind: 'shop-refund', person: order.buyer.handle, reason: input.reason, details: { order: order.id, item: order.item, price: order.price } });
+            order.refundAsked = at;
+
+            return call;
         }
     },
 

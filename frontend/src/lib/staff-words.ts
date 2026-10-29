@@ -114,6 +114,8 @@ export function handleParts(said: string, handles: Readonly<Record<string, strin
         });
 }
 
+const nuraIn = (wei: string | undefined, locale: LocaleApi) => (wei !== undefined && /^\d+$/.test(wei) ? locale.n(nuraOf(wei), { maximumFractionDigits: 4 }) : '');
+
 const said = (row: LogRow, locale: LocaleApi) =>
 {
     const named = (role: string | undefined) => (isRole(role) ? locale.t(ROLE_IN[role]) : role ?? '');
@@ -195,18 +197,16 @@ const said = (row: LogRow, locale: LocaleApi) =>
     if (row.kind === 'shop-item')
     {
         const look = itemName(row.details.item ?? '', locale);
-        const nura = (wei: string | undefined) => (wei !== undefined && /^\d+$/.test(wei) ? locale.n(nuraOf(wei), { maximumFractionDigits: 4 }) : '');
-
         if (row.details.field === 'price')
         {
-            return locale.t('admin.log.line.shop.price', { ...slots, look, from: nura(row.details.from), to: nura(row.details.to) });
+            return locale.t('admin.log.line.shop.price', { ...slots, look, from: nuraIn(row.details.from, locale), to: nuraIn(row.details.to, locale) });
         }
 
         if (row.details.field === 'sale')
         {
             return row.details.to === undefined
                 ? locale.t('admin.log.line.shop.end', { ...slots, look })
-                : locale.t('admin.log.line.shop.sale', { ...slots, look, to: nura(row.details.to), term: locale.t(SALE_TERMS[row.details.hours ?? ''] ?? 'admin.shop.term.24') });
+                : locale.t('admin.log.line.shop.sale', { ...slots, look, to: nuraIn(row.details.to, locale), term: locale.t(SALE_TERMS[row.details.hours ?? ''] ?? 'admin.shop.term.24') });
         }
 
         return locale.t(SHELF_LINES[row.details.to ?? ''] ?? 'admin.log.line.shop.on-sale', { ...slots, look });
@@ -215,6 +215,11 @@ const said = (row: LogRow, locale: LocaleApi) =>
     if (row.kind === 'shop-grant' || row.kind === 'shop-revoke')
     {
         return locale.t(row.kind === 'shop-grant' ? 'admin.log.line.shop.grant' : 'admin.log.line.shop.revoke', { ...slots, look: itemName(row.details.item ?? '', locale) });
+    }
+
+    if (row.kind === 'shop-refund')
+    {
+        return locale.t('admin.log.line.shop.refund', { ...slots, look: itemName(row.details.item ?? '', locale), amount: nuraIn(row.details.price, locale) });
     }
 
     if (row.kind === 'shop-feature')

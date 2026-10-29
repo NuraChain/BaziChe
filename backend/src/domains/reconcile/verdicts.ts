@@ -35,7 +35,7 @@ export type Sold = 'unsold' | 'sold' | 'refunded' | 'other';
 export type OrderAfter = Extract<OrderState, 'paid' | 'refunded' | 'expired' | 'failed'>;
 
 const ORDER: Record<OrderAfter, Record<Sold, Verdict>> = {
-    paid: { unsold: 'person', sold: 'agree', refunded: 'person', other: 'person' },
+    paid: { unsold: 'person', sold: 'agree', refunded: 'put-right', other: 'person' },
     refunded: { unsold: 'person', sold: 'person', refunded: 'agree', other: 'person' },
     expired: { unsold: 'agree', sold: 'put-right', refunded: 'put-right', other: 'person' },
     failed: { unsold: 'agree', sold: 'put-right', refunded: 'put-right', other: 'person' }

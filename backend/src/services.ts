@@ -47,6 +47,7 @@ import { createLiveService, type Call, type Online } from './domains/admin/live.
 import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play.ts';
 import { createNoticeService } from './domains/admin/notice.ts';
 import { createShopAdmin } from './domains/admin/shop.ts';
+import { createShopMoney } from './domains/admin/shop-money.ts';
 import { worn, type ProfileLooks } from './domains/shop/looks.ts';
 import { createOrderService, type ShopSweep } from './domains/shop/orders.ts';
 import { donationLineOf } from './domains/donate/line.ts';
@@ -1057,8 +1058,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             actorId: gift.buyer,
             ref: { item: gift.item },
             dedupeKey: `gift:${ gift.order }`
-        }))
+        })),
+        unworn: (userId) => courtesy('profile look', () => ringProfile(userId))
     });
+
+    const shopFunds = createShopMoney(db, looksShop);
 
     const owners = () => ownersOf(config.adminWallet);
 
@@ -2234,13 +2238,14 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     return null;
                 }
 
-                const [people, games, reports, stuck, money, checks] = await Promise.all([
+                const [people, games, reports, stuck, money, checks, shop] = await Promise.all([
                     accounts.counts(),
                     plays.games(),
                     desk.waiting(),
                     stuckNow(),
                     may(actor.role, 'money') && vaults.configured ? vaultAdmin.counts() : null,
-                    may(actor.role, 'money') && reconciler.watching.length > 0 ? reconciler.openCount() : null
+                    may(actor.role, 'money') && reconciler.watching.length > 0 ? reconciler.openCount() : null,
+                    may(actor.role, 'money') && looksShop.configured ? shopFunds.sales() : null
                 ]);
 
                 const health = may(actor.role, 'health');
@@ -2256,6 +2261,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     reports,
                     ...(money === null ? {} : { money }),
                     ...(checks === null ? {} : { checks }),
+                    ...(shop === null ? {} : { shop }),
                     alerts: (watch?.alertsFor({ health, money: funds }) ?? []).map((one) => ({ ...one, since: new Date(one.since).toISOString() })),
                     ...(health && ops !== undefined
                         ? { health: { ...ops.health(), pool: poolOf(db), sockets: presence?.sockets?.() ?? 0, ...(watch === undefined ? {} : { watch: watch.server() }) } }
@@ -2404,6 +2410,48 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 }
 
                 return await personOf(handle);
+            },
+
+            async shopMoney(me)
+            {
+                const actor = await ableTo(me, 'money');
+
+                return actor === null || actor.address === null ? null : await shopFunds.standing(actor.address);
+            },
+
+            async shopWithdraw(me, amount)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null || actor.address === null ? null : await shopFunds.withdraw(actor.address, amount);
+            },
+
+            async shopShare(me, bps)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null || actor.address === null ? null : await shopFunds.share(actor.address, bps);
+            },
+
+            async shopSeller(me, address)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null || actor.address === null ? null : await shopFunds.seller(actor.address, address);
+            },
+
+            async shopPause(me, paused)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null || actor.address === null ? null : await shopFunds.pause(actor.address, paused);
+            },
+
+            async shopRefund(me, order, input)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null || actor.address === null ? null : await shopFunds.refund(actor, actor.address, order, input.reason);
             }
         },
 

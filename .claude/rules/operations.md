@@ -72,8 +72,9 @@ that write is the one the worker makes; or **for a person**.
 - **A shop order** against `saleOf`: a sale to the order's own buyer at its price for an order that
   ran out or failed here is delivered by the worker's own `deliver`, refunded or not as the sale is; a
   sale to anybody else or at another price is a quote this server never signed (`order-sale`) and
-  delivers nothing; a paid order the shop holds as refunded or not at all is a person's (no worker
-  takes a look back: Admin › Shop is not built).
+  delivers nothing; a paid order the shop holds as refunded is put right through the same `deliver`,
+  which marks it refunded and takes back what it delivered (the owner's refund, Admin › Shop, when
+  the worker's day of watching for it had passed); one the shop does not hold at all is a person's.
 - **A gift** against `tipOf(giver, id)`: held as prepared after it was let go of here, it is the
   donation worker's `confirm`, which tells the player once; held as another, its `failed`/`mismatch`.
   Both writes now take any state but the one they write (`confirm` any but `confirmed`, `settleAs` the

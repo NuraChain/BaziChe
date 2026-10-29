@@ -14,6 +14,7 @@ import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
+import { useVault } from '../src/stores/vault.store.ts';
 import { SHOP_COLLECTIONS, SHOP_KINDS } from '../../backend/src/domains/shop/catalogue.ts';
 import { SHOP_ORDERS_PAGE } from '../../backend/src/domains/admin/roles.ts';
 import type { AdminShopOrders } from '../../backend/src/schemas.ts';
@@ -124,6 +125,8 @@ beforeEach(() =>
 afterEach(() =>
 {
     cleanup();
+    vi.restoreAllMocks();
+    useVault().reset();
     useOverlay().reset();
     useSession().reset();
     useLocale().setLocale('en');
@@ -546,7 +549,7 @@ describe('the orders', () =>
         expect(text(orders[1].querySelector('[data-failure]'))).toBe('NuraChain said EnforcedPause');
         expect(text(orders[2].querySelector('[data-price]'))).toBe('50 NURA');
         expect(text(orders[2].querySelector('[data-at]'))).toBe('1 minute ago');
-        expect(text(orders[2].querySelector('[data-standing]'))).toBe('Paid Delivered nothing Transaction');
+        expect(text(orders[2].querySelector('[data-standing]'))).toBe('Paid Delivered nothing Transaction Refund');
         expect(orders[2].querySelector('[data-tx]')?.getAttribute('href')).toBe(`https://explorer.nurachain.net/tx/${ HASH }`);
         expect(orders[2].querySelector('[data-tx]')?.getAttribute('rel')).toBe('noopener noreferrer');
     });
@@ -572,7 +575,7 @@ describe('the orders', () =>
         const { router, container } = await opened('/admin/shop?view=orders');
         const ids = () => [...container.querySelectorAll('[data-order]')].map((one) => one.getAttribute('data-order'));
 
-        expect(chips(container).map(([label]) => label)).toEqual(['Looks', 'Orders', 'All', 'Paid', 'On its way', 'Not paid yet', 'Failed', 'Refunded', 'Ran out']);
+        expect(chips(container).map(([label]) => label)).toEqual(['Looks', 'Orders', 'All', 'Paid', 'Paid, nothing delivered', 'On its way', 'Not paid yet', 'Failed', 'Refunded', 'Ran out']);
 
         chip(container, 'Refunded').click();
         await settle();
@@ -629,5 +632,147 @@ describe('the orders', () =>
         const failed = await opened('/admin/shop?view=orders');
 
         expect(text(failed.container.querySelector('[role="alert"]'))).toContain('The orders could not be read.');
+    });
+
+    it('finds the paid orders that delivered nothing, kept in the address as their own chip', async () =>
+    {
+        server.shopAdmin.orders = [
+            orderOf('o-3', { delivered: false }),
+            orderOf('o-2', { delivered: true }),
+            orderOf('o-1', { state: 'refunded', delivered: false })
+        ];
+
+        const { router, container } = await opened('/admin/shop?view=orders');
+
+        chip(container, 'Paid, nothing delivered').click();
+        await settle();
+
+        expect(router.location().search).toContain('state=undelivered');
+        expect([...container.querySelectorAll('[data-order]')].map((one) => one.getAttribute('data-order'))).toEqual(['o-3']);
+        expect(server.calls.filter((call) => call.startsWith('admin.shopOrders')).at(-1)).toBe('admin.shopOrders {"state":"paid","delivered":"no"}');
+        expect(chip(container, 'Paid, nothing delivered').getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('refunds a paid order from the owner\'s wallet: asks why as a question that costs something, says so once NuraChain has, and draws it refunded at once', async () =>
+    {
+        const send = vi.spyOn(useVault(), 'send').mockImplementation(async (compose) =>
+        {
+            await compose();
+            return null;
+        });
+
+        server.shopAdmin.orders = [orderOf('o-1', { delivered: false })];
+
+        const { container } = await opened('/admin/shop?view=orders');
+        const refund = [...container.querySelectorAll<HTMLButtonElement>('[data-order="o-1"] button')].find((one) => text(one) === 'Refund')!;
+
+        expect(refund.getAttribute('aria-label')).toBe('Refund 50 NURA to sara.k');
+
+        refund.click();
+        await settle();
+
+        expect(asked().component).toBe(ReasonSheet);
+        expect(asked().props).toMatchObject({
+            title: 'Give sara.k their 50 NURA back?',
+            lead: 'Your wallet asks NuraChain to send the price back to the wallet that paid it. Once it has, whatever the order delivered leaves the collection it went to, wherever it is worn.',
+            confirm: 'Refund it',
+            destructive: true
+        });
+        expect(server.calls.filter((call) => call.startsWith('admin.shopRefund'))).toEqual([]);
+
+        await answered('Charged twice for one look');
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(server.calls).toContain('admin.shopRefund o-1 Charged twice for one look');
+        expect(toasts()).toEqual(['NuraChain refunded 50 NURA to sara.k.']);
+        expect(container.querySelector('[data-order="o-1"]')?.getAttribute('data-state')).toBe('refunded');
+        expect(text(container.querySelector('[data-order="o-1"] [data-standing]'))).toBe('Refunded Delivered nothing');
+        expect(server.staff.log[0]).toMatchObject({ kind: 'shop-refund', staff: 'alex', person: 'sara.k', reason: 'Charged twice for one look', details: { order: 'o-1', item: 'dice.inferno', price: nura(50n) } });
+    });
+
+    it('takes a refused refund back in the refusal\'s words, asks no wallet, and opens the sheet again on the reason written', async () =>
+    {
+        const send = vi.spyOn(useVault(), 'send').mockImplementation(async (compose) =>
+        {
+            try
+            {
+                await compose();
+                return null;
+            }
+            catch
+            {
+                return 'common.actionFailed';
+            }
+        });
+
+        server.shopAdmin.orders = [orderOf('o-1')];
+        server.shopAdmin.refuse = 'staff-shop-refunded';
+
+        const { container } = await opened('/admin/shop?view=orders');
+        const refund = () => [...container.querySelectorAll<HTMLButtonElement>('[data-order="o-1"] button')].find((one) => text(one) === 'Refund');
+
+        refund()!.click();
+        await settle();
+        await answered('Charged twice for one look');
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(toasts()).toEqual(['NuraChain has refunded that order already.']);
+        expect(container.querySelector('[data-order="o-1"]')?.getAttribute('data-state')).toBe('paid');
+        expect(server.staff.log).toEqual([]);
+
+        refund()!.click();
+        await settle();
+
+        expect(asked().props).toMatchObject({ initial: 'Charged twice for one look' });
+    });
+
+    it('offers a refund only to the owner, and only on a paid order', async () =>
+    {
+        server.shopAdmin.orders = [orderOf('o-2', { state: 'sent' }), orderOf('o-1')];
+        server.staff.owners = ['reza.t'];
+        server.staff.members = [staffMember('alex', 'admin')];
+        useSession().reset();
+        useSession().establish({ ...ALEX, staff: 'admin' });
+
+        const { container } = await opened('/admin/shop?view=orders');
+
+        expect(container.querySelectorAll('[data-order]')).toHaveLength(2);
+        expect([...container.querySelectorAll('[data-order] button')].filter((one) => text(one) === 'Refund')).toEqual([]);
+        cleanup();
+
+        server.staff.owners = ['alex'];
+        server.staff.members = [];
+        useSession().reset();
+        useSession().establish(ALEX);
+
+        const owned = await opened('/admin/shop?view=orders');
+
+        expect([...owned.container.querySelectorAll('[data-order] button')].filter((one) => text(one) === 'Refund').map((one) => one.closest('[data-order]')?.getAttribute('data-order'))).toEqual(['o-1']);
+    });
+
+    it('says a refund was asked of NuraChain and when, while the order is paid', async () =>
+    {
+        server.shopAdmin.orders = [
+            orderOf('o-2', { refundAsked: new Date(NOW - 5 * 60_000).toISOString() }),
+            orderOf('o-1', { state: 'refunded', refundAsked: new Date(NOW - 5 * 60_000).toISOString() })
+        ];
+
+        const { container } = await opened('/admin/shop?view=orders');
+
+        expect(text(container.querySelector('[data-order="o-2"] [data-refund-asked]'))).toBe('Refund asked 5 minutes ago');
+        expect(container.querySelector('[data-order="o-2"] [data-refund-asked] time')?.getAttribute('datetime')).toBe(new Date(NOW - 5 * 60_000).toISOString());
+        expect(container.querySelector('[data-order="o-1"] [data-refund-asked]')).toBeNull();
+    });
+
+    it('says the refund and the chip in Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+        server.shopAdmin.orders = [orderOf('o-1', { refundAsked: new Date(NOW - 60_000).toISOString() })];
+
+        const { container } = await opened('/admin/shop?view=orders');
+
+        expect(chip(container, 'پرداخت شده، تحویل نشده')).toBeDefined();
+        expect([...container.querySelectorAll('[data-order="o-1"] button')].map((one) => text(one))).toContain('پس دادن پول');
+        expect(text(container.querySelector('[data-order="o-1"] [data-refund-asked]'))).toContain('پس دادن پول درخواست شده');
     });
 });

@@ -73,8 +73,10 @@ import {
     adminShop,
     adminShopFeatureInput,
     adminShopItemInput,
+    adminShopMoney,
     adminShopOrders,
     adminShopOrdersQuery,
+    adminShopRefundInput,
     adminPlay,
     adminGameInput,
     adminMatches,
@@ -623,7 +625,25 @@ export function buildApi(ports: Ports)
                 async (context) => onlyAdmin(await ports.admin.shopFeature(context.principal.userId, context.input))),
 
             shopOrders: routes.get('/shop/orders', { query: adminShopOrdersQuery, output: adminShopOrders },
-                async (context) => onlyAdmin(await ports.admin.shopOrders(context.principal.userId, context.query)))
+                async (context) => onlyAdmin(await ports.admin.shopOrders(context.principal.userId, context.query))),
+
+            shopRefund: routes.post('/shop/orders/:id/refund', { input: adminShopRefundInput, output: walletCall },
+                async (context) => onlyAdmin(await ports.admin.shopRefund(context.principal.userId, context.params.id, context.input))),
+
+            shopMoney: routes.get('/shop/money', { output: adminShopMoney },
+                async (context) => onlyAdmin(await ports.admin.shopMoney(context.principal.userId))),
+
+            shopWithdraw: routes.post('/shop/money/withdraw', { input: vaultAmountInput, output: walletCall },
+                async (context) => onlyAdmin(await ports.admin.shopWithdraw(context.principal.userId, context.input.amount))),
+
+            shopShare: routes.post('/shop/money/share', { input: adminFeeInput, output: walletCall },
+                async (context) => onlyAdmin(await ports.admin.shopShare(context.principal.userId, context.input.bps))),
+
+            shopSeller: routes.post('/shop/money/seller', { input: adminRefereeInput, output: walletCall },
+                async (context) => onlyAdmin(await ports.admin.shopSeller(context.principal.userId, context.input.address))),
+
+            shopPause: routes.post('/shop/money/pause', { input: adminPauseInput, output: walletCall },
+                async (context) => onlyAdmin(await ports.admin.shopPause(context.principal.userId, context.input.paused)))
         })),
 
         vault: feature('/vault', [session], (routes) => ({

@@ -513,18 +513,28 @@ describe.skipIf(!active)('the database and NuraChain, checked against each other
             expect([...await rowsAbout(paid.id), ...await rowsAbout(refunded.id), ...await rowsAbout(lapsed.id)]).toEqual([]);
         });
 
-        it('records a look delivered with no payment the shop holds, and one the owner refunded on the contract, for a person', async () =>
+        it('records a look delivered with no payment the shop holds for a person', async () =>
         {
             const unpaid = await order('paid');
-            const refunded = await order('paid');
 
-            shopSold(refunded, { refunded: true });
             await pass();
 
             expect((await rowsAbout(unpaid.id))[0]).toMatchObject({ kind: 'order-state', db: { state: 'paid' }, chain: { state: 'unsold' }, resolution: null });
-            expect((await rowsAbout(refunded.id))[0]).toMatchObject({ kind: 'order-state', db: { state: 'paid' }, chain: { state: 'refunded' }, resolution: null });
-            expect(await db.getRepository(OwnedItem).countBy({ orderId: refunded.id }), 'nothing here takes a look back').toBe(0);
-            expect(await db.getRepository(ShopOrder).findOneByOrFail({ id: refunded.id })).toMatchObject({ state: 'paid' });
+            expect(await db.getRepository(ShopOrder).findOneByOrFail({ id: unpaid.id })).toMatchObject({ state: 'paid' });
+        });
+
+        it('takes back what a paid order delivered once the owner refunded it on the contract, through the shop worker, and writes it down as put right', async () =>
+        {
+            const refunded = await order('paid');
+
+            await db.getRepository(OwnedItem).insert({ userId: refunded.buyer.id, itemId: LOOK, via: 'purchase', orderId: refunded.id, giverId: null });
+            shopSold(refunded, { refunded: true });
+            await pass();
+
+            expect(await db.getRepository(ShopOrder).findOneByOrFail({ id: refunded.id })).toMatchObject({ state: 'refunded', delivered: true });
+            expect(await db.getRepository(OwnedItem).countBy({ orderId: refunded.id })).toBe(0);
+            expect(await rowsAbout(refunded.id)).toMatchObject([{ kind: 'order-state', db: { state: 'paid' }, chain: { state: 'refunded' }, resolution: 'put-right' }]);
+            expect(rung).toContainEqual([refunded.buyer.id, 'shop']);
         });
 
         it('delivers a sale the shop holds for an order that ran out here, through the shop worker, and writes it down as put right', async () =>
@@ -1053,26 +1063,25 @@ describe.skipIf(!active)('the database and NuraChain, checked against each other
         it('is closed by a role that opens Money with a reason, written to the staff\'s log in the same breath, and said', async () =>
         {
             const { admin } = await owned();
-            const refunded = await order('paid');
+            const unsold = await order('paid');
 
-            shopSold(refunded, { refunded: true });
             await pass();
 
-            const [found] = await rowsAbout(refunded.id);
-            const done = await ports.admin.closeCheck(admin.id, found.id, { reason: 'The owner refunded it on purpose' });
+            const [found] = await rowsAbout(unsold.id);
+            const done = await ports.admin.closeCheck(admin.id, found.id, { reason: 'A look given by hand before the shop opened' });
 
             expect(done?.open).toBe(0);
-            expect(done?.check).toMatchObject({ id: found.id, resolution: 'staff', staff: admin.handle, reason: 'The owner refunded it on purpose' });
+            expect(done?.check).toMatchObject({ id: found.id, resolution: 'staff', staff: admin.handle, reason: 'A look given by hand before the shop opened' });
             expect(done?.check.resolvedAt).toBeDefined();
             expect((await ports.admin.log(admin.id, { kind: 'check' }))?.rows).toMatchObject([{
                 kind: 'check',
                 staff: admin.handle,
                 staffRole: 'admin',
-                reason: 'The owner refunded it on purpose',
-                details: { check: found.id, family: 'order', record: refunded.id, kind: 'order-state' }
+                reason: 'A look given by hand before the shop opened',
+                details: { check: found.id, family: 'order', record: unsold.id, kind: 'order-state' }
             }]);
-            expect(warned('chain and database disagreement closed', refunded.id).map((one) => one.fields)).toEqual([{ family: 'order', record: refunded.id, kind: 'order-state', by: admin.handle }]);
-            expect(warned('chain and database agree again', refunded.id), 'a person closing it is not the two agreeing').toEqual([]);
+            expect(warned('chain and database disagreement closed', unsold.id).map((one) => one.fields)).toEqual([{ family: 'order', record: unsold.id, kind: 'order-state', by: admin.handle }]);
+            expect(warned('chain and database agree again', unsold.id), 'a person closing it is not the two agreeing').toEqual([]);
         });
 
         it('stays closed while the two sides say what they said, and opens again once either moves', async () =>

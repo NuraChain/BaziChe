@@ -1,6 +1,6 @@
 import { encodeFunctionData, keccak256, stringToHex, zeroAddress, type Address, type Hex } from 'viem';
 
-import { SHOP_ABI, type Quote, type Sale, type ShopAsked, type ShopCall, type ShopChain, type ShopEarned } from '../src/chain/shop.ts';
+import { SHOP_ABI, type Quote, type Sale, type ShopAsked, type ShopCall, type ShopChain, type ShopEarned, type ShopLedger } from '../src/chain/shop.ts';
 import type { Mined } from '../src/chain/vault.ts';
 
 export const FAKE_SHOP: Address = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
@@ -8,8 +8,6 @@ export const FAKE_SHOP: Address = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
 export const FAKE_SELLER: Address = '0xa0Ee7A142d267C1f36714E4a8F75612F20a79720';
 
 const NOBODY: Sale = { buyer: null, paidAt: 0n, refunded: false, referrer: null, price: 0n, cut: 0n };
-
-const notHere = (): Promise<never> => Promise.reject(new Error('the fake shop has no owner\'s calls'));
 
 /** A shop a spec steers: what it has sold, what it refuses, what a transaction came to, whether it can be reached. */
 export function fakeShop(configured = true)
@@ -24,7 +22,30 @@ export function fakeShop(configured = true)
         away: false,
         balance: 10n ** 24n,
         earned: { earnings: 0n, referralBps: 1000 } as ShopEarned,
-        books: { held: 0n, owed: 0n, solvent: true }
+        books: { held: 0n, owed: 0n, solvent: true },
+
+        /** What the contract answers the owner's calls with, by its error's name; `null` takes them. */
+        ownerRefuse: null as string | null,
+        ledger: {
+            revenue: 0n,
+            owed: 0n,
+            held: 0n,
+            solvent: true,
+            referralBps: 1000,
+            paused: false,
+            chainSeller: FAKE_SELLER,
+            sellerAllowed: true,
+            ownerAllowed: true,
+            pauserAllowed: true
+        } as ShopLedger
+    };
+
+    const owners = (owner: Address, verb: string, data: Hex, value = 0n): Promise<ShopAsked> =>
+    {
+        reach();
+        asked.push(`${ verb } ${ owner }`);
+
+        return Promise.resolve(state.ownerRefuse === null ? { ok: true, call: callOf(data, value) } : { ok: false, refusal: { error: state.ownerRefuse } });
     };
 
     const reach = () =>
@@ -102,13 +123,25 @@ export function fakeShop(configured = true)
             return Promise.resolve({ ...state.books });
         },
 
-        ledger: notHere,
-        withdrawCall: notHere,
-        fundCall: notHere,
-        refundCall: notHere,
-        sellerCall: notHere,
-        shareCall: notHere,
-        pauseCall: notHere
+        ledger(owner)
+        {
+            reach();
+            asked.push(`ledger ${ owner }`);
+
+            return Promise.resolve({ ...state.ledger });
+        },
+
+        withdrawCall: (owner, to, amount) => owners(owner, `withdraw ${ to } ${ amount }`, encodeFunctionData({ abi: SHOP_ABI, functionName: 'withdraw', args: [to, amount] })),
+
+        fundCall: (owner, amount) => owners(owner, `fund ${ amount }`, encodeFunctionData({ abi: SHOP_ABI, functionName: 'fund' }), amount),
+
+        refundCall: (owner, order) => owners(owner, `refund ${ order }`, encodeFunctionData({ abi: SHOP_ABI, functionName: 'refund', args: [order] })),
+
+        sellerCall: (owner, next) => owners(owner, `seller ${ next }`, encodeFunctionData({ abi: SHOP_ABI, functionName: 'setSeller', args: [next] })),
+
+        shareCall: (owner, bps) => owners(owner, `share ${ bps }`, encodeFunctionData({ abi: SHOP_ABI, functionName: 'setReferralBps', args: [bps] })),
+
+        pauseCall: (owner, paused) => owners(owner, paused ? 'pause' : 'unpause', encodeFunctionData({ abi: SHOP_ABI, functionName: paused ? 'pause' : 'unpause' }))
     };
 
     return {
@@ -136,6 +169,17 @@ export function fakeShop(configured = true)
         mine(hash: Hex, outcome: Mined)
         {
             receipts.set(hash, outcome);
+        },
+
+        /** The owner's `refund` of an order the shop sold, mined. */
+        refund(order: Hex)
+        {
+            const sale = sales.get(order);
+
+            if (sale !== undefined)
+            {
+                sales.set(order, { ...sale, refunded: true });
+            }
         }
     };
 }

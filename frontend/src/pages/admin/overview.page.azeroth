@@ -169,6 +169,22 @@ export default component OverviewPage()
 
     derived owed = paidStuckCount > 0;
 
+    derived shop = held?.shop ?? null;
+
+    derived selling = shop !== null;
+
+    derived moneyShown = funded || selling;
+
+    derived soldToday = locale.n(nuraOf(shop?.day ?? '0'), { maximumFractionDigits: 4 });
+
+    derived soldWeek = locale.n(nuraOf(shop?.week ?? '0'), { maximumFractionDigits: 4 });
+
+    derived soldAll = locale.n(nuraOf(shop?.all ?? '0'), { maximumFractionDigits: 4 });
+
+    derived undelivered = counted(shop?.undelivered ?? 0, 'admin.shopMoney.undelivered');
+
+    derived unpaidFor = (shop?.undelivered ?? 0) > 0;
+
     derived checkCount = held?.checks ?? 0;
 
     derived checks = counted(checkCount, 'admin.overview.checks');
@@ -256,7 +272,7 @@ export default component OverviewPage()
 
     derived alerting = alerts.length > 0;
 
-    derived needed = reported || jammed || owed || disagreeing || alerting;
+    derived needed = reported || jammed || owed || unpaidFor || disagreeing || alerting;
 
     const standingIn = (list: readonly Standing[], kind: AlertKind) => list.some((one) => one.alert === kind);
 
@@ -362,9 +378,9 @@ export default component OverviewPage()
 
     derived paying = payouts !== null;
 
-    derived payoutsSpan = funded ? 'lg:col-span-2' : 'lg:col-span-3';
+    derived payoutsSpan = moneyShown ? 'lg:col-span-2' : 'lg:col-span-3';
 
-    derived serverSpan = funded && !paying ? 'lg:col-span-2' : 'lg:col-span-3';
+    derived serverSpan = moneyShown && !paying ? 'lg:col-span-2' : 'lg:col-span-3';
 
     derived payStuckShown = payouts?.stuck !== undefined;
 
@@ -463,6 +479,15 @@ export default component OverviewPage()
                                     <Link to="/admin/money" class="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-raised" data-owed>
                                         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-danger/15 text-danger" aria-hidden="true"><Icon name="coins" size={ 18 } /></span>
                                         <span class="min-w-0 flex-1 text-ui-base font-semibold text-text"><span class="tally">{ paidStuck.count }</span> { paidStuck.label }</span>
+                                        <Icon name="chevron-right" size={ 16 } class="icon-flip shrink-0 text-faint" />
+                                    </Link>
+                                </li>
+                            </Show>
+                            <Show when={ unpaidFor }>
+                                <li>
+                                    <Link to="/admin/shop?view=orders&state=undelivered" class="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-raised" data-undelivered>
+                                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-danger/15 text-danger" aria-hidden="true"><Icon name="bag" size={ 18 } /></span>
+                                        <span class="min-w-0 flex-1 text-ui-base font-semibold text-text"><span class="tally">{ undelivered.count }</span> { undelivered.label }</span>
                                         <Icon name="chevron-right" size={ 16 } class="icon-flip shrink-0 text-faint" />
                                     </Link>
                                 </li>
@@ -575,17 +600,36 @@ export default component OverviewPage()
                         </ul>
                     </Panel>
 
-                    <Show when={ funded }>
+                    <Show when={ moneyShown }>
                         <Panel pad="none" labelledBy="overview-money">
                             <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-                                <h2 id="overview-money" class="text-ui-md font-semibold text-text">{ locale.t('admin.overview.money') }</h2>
+                                <h2 id="overview-money" class="text-ui-md font-semibold text-text">{ locale.t('admin.section.money') }</h2>
                                 <Link to="/admin/money" class={ LINK }>{ locale.t('admin.overview.openMoney') }</Link>
                             </div>
-                            <ul class="flex flex-col gap-2 px-4 py-3 text-ui-base text-muted" data-money>
-                                <li data-in-play><span class="tally text-ui-xl font-bold text-madder">{ inPlay }</span> { locale.t('admin.overview.inPlay') }</li>
-                                <li data-paid-playing><span class="tally font-semibold text-text">{ paidPlaying.count }</span> { paidPlaying.label }</li>
-                                <li class={ () => (owed ? 'font-semibold text-danger' : '') } data-paid-stuck><span class="tally">{ paidStuck.count }</span> { paidStuck.label }</li>
-                            </ul>
+                            <Show when={ funded }>
+                                <section class="flex flex-col gap-2 px-4 py-3" aria-labelledby="overview-paid">
+                                    <h3 id="overview-paid" class="text-ui-xs font-semibold text-faint">{ locale.t('admin.overview.money') }</h3>
+                                    <ul class="flex flex-col gap-2 text-ui-base text-muted" data-money>
+                                        <li data-in-play><span class="tally text-ui-xl font-bold text-madder">{ inPlay }</span> { locale.t('admin.overview.inPlay') }</li>
+                                        <li data-paid-playing><span class="tally font-semibold text-text">{ paidPlaying.count }</span> { paidPlaying.label }</li>
+                                        <li class={ () => (owed ? 'font-semibold text-danger' : '') } data-paid-stuck><span class="tally">{ paidStuck.count }</span> { paidStuck.label }</li>
+                                    </ul>
+                                </section>
+                            </Show>
+                            <Show when={ selling }>
+                                <section class="flex flex-col gap-2 border-t border-line px-4 py-3 first:border-t-0" aria-labelledby="overview-shop" data-shop-sales>
+                                    <div class="flex items-center justify-between gap-3">
+                                        <h3 id="overview-shop" class="text-ui-xs font-semibold text-faint">{ locale.t('admin.overview.shop') }</h3>
+                                        <Link to="/admin/shop?view=orders" class={ LINK }>{ locale.t('admin.overview.openOrders') }</Link>
+                                    </div>
+                                    <ul class="flex flex-col gap-2 text-ui-base text-muted">
+                                        <li data-sold="day"><span class="tally text-ui-xl font-bold text-text">{ soldToday }</span> { locale.t('admin.overview.soldToday') }</li>
+                                        <li data-sold="week"><span class="tally font-semibold text-text">{ soldWeek }</span> { locale.t('admin.overview.soldWeek') }</li>
+                                        <li data-sold="all"><span class="tally font-semibold text-text">{ soldAll }</span> { locale.t('admin.overview.soldAll') }</li>
+                                        <li class={ () => (unpaidFor ? 'font-semibold text-danger' : '') } data-sold="undelivered"><span class="tally">{ undelivered.count }</span> { undelivered.label }</li>
+                                    </ul>
+                                </section>
+                            </Show>
                         </Panel>
                     </Show>
 

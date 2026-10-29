@@ -3,6 +3,7 @@ import { getAddress, toHex, zeroAddress, type Address, type Hex } from 'viem';
 
 import { itemOf, orderIdOf, type Quote, type ShopAsked, type ShopCall, type ShopChain } from '../../chain/shop.ts';
 import { Friendship } from '../../entities/friendship.entity.ts';
+import { EquippedItem } from '../../entities/equipped-item.entity.ts';
 import { OwnedItem } from '../../entities/owned-item.entity.ts';
 import { Referral } from '../../entities/referral.entity.ts';
 import { ShopCollection } from '../../entities/shop-collection.entity.ts';
@@ -27,6 +28,13 @@ const REUSE_LEAST_S = 120;
 /** How long after its deadline an order the shop never sold is let go of: a block's clock can run ahead of this one. */
 const LAPSE = `interval '5 minutes'`;
 
+/**
+ * A paid order the owner asked NuraChain to refund in the last day, by its id's column: the order worker
+ * asks the shop about it at every pass, so the refund is seen the moment it is mined.
+ */
+export const refundAsked = (order: string) =>
+    `exists (select 1 from staff_actions a where a.kind = 'shop-refund' and a.details ->> 'order' = ${ order }::text and a.created_at > now() - interval '1 day')`;
+
 /** How often an order nobody said they sent is asked about: the wallet may have sent it after its tab closed. */
 const UNSENT_EVERY_MS = 30_000;
 
@@ -44,6 +52,9 @@ export interface OrderHooks
 
     /** A gift has given its recipient a look they lacked; told once, after the delivery commits. */
     gifted(gift: { order: string; buyer: string; recipient: string; item: string }): Promise<void>;
+
+    /** A refund took a look off somebody's profile; told after it commits. */
+    unworn(userId: string): Promise<void>;
 }
 
 export interface ShopSweep
@@ -396,6 +407,23 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
         return asOrder(row);
     };
 
+    /** What a paid order delivered, taken back from its recipient and off every slot it was worn in: whether one of them was a profile's. */
+    const takeBack = async (tx: EntityManager, order: ShopOrder) =>
+    {
+        const given = (await tx.getRepository(OwnedItem).findBy({ orderId: order.id, userId: order.recipientId })).map((one) => one.itemId);
+
+        if (given.length === 0)
+        {
+            return false;
+        }
+
+        const worn = await tx.getRepository(EquippedItem).findBy({ userId: order.recipientId, itemId: In(given) });
+
+        await tx.getRepository(OwnedItem).delete({ userId: order.recipientId, itemId: In(given) });
+
+        return worn.some((one) => one.slot.startsWith('profile.'));
+    };
+
     /** Gives the recipient every look of a sold order they lack, or marks one the shop refunded, under the order's lock. */
     const deliver = async (row: OrderRow, refunded: boolean) =>
     {
@@ -403,16 +431,25 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
         {
             const order = await tx.getRepository(ShopOrder).findOne({ where: { id: row.id }, lock: { mode: 'pessimistic_write' } });
 
-            if (order === null || order.state === 'paid' || order.state === 'refunded')
+            if (order === null || order.state === 'refunded' || (order.state === 'paid' && !refunded))
             {
                 return null;
+            }
+
+            if (refunded && order.state === 'paid')
+            {
+                const unworn = await takeBack(tx, order);
+
+                await tx.getRepository(ShopOrder).update(order.id, { state: 'refunded', refundedAt: () => 'now()' });
+
+                return { state: 'refunded' as const, gave: false, unworn };
             }
 
             if (refunded)
             {
                 await tx.getRepository(ShopOrder).update(order.id, { state: 'refunded', paidAt: () => 'now()', refundedAt: () => 'now()', delivered: false, failure: null });
 
-                return { state: 'refunded' as const, gave: false };
+                return { state: 'refunded' as const, gave: false, unworn: false };
             }
 
             const gift = order.buyerId !== order.recipientId;
@@ -434,7 +471,7 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
 
             await tx.getRepository(ShopOrder).update(order.id, { state: 'paid', paidAt: () => 'now()', delivered, failure: null });
 
-            return { state: 'paid' as const, gave: delivered && gift };
+            return { state: 'paid' as const, gave: delivered && gift, unworn: false };
         });
 
         if (done === null)
@@ -447,6 +484,11 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
         if (done.gave)
         {
             await hooks.gifted({ order: row.id, buyer: row.buyer_id, recipient: row.recipient_id, item: row.item_id });
+        }
+
+        if (done.unworn)
+        {
+            await hooks.unworn(row.recipient_id);
         }
 
         return done.state;
@@ -877,7 +919,7 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
 
             const began = performance.now();
             const rows = await orderQuery(db)
-                .where(`o.state in ('quoted', 'sent') or (o.state = 'failed' and o.deadline + ${ LAPSE } >= now())`)
+                .where(`o.state in ('quoted', 'sent') or (o.state = 'failed' and o.deadline + ${ LAPSE } >= now()) or (o.state = 'paid' and ${ refundAsked('o.id') })`)
                 .orderBy('o.created_at', 'ASC')
                 .limit(SWEEP_MOST)
                 .getRawMany<OrderRow>();

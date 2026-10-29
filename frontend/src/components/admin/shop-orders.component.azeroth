@@ -1,15 +1,22 @@
 import { createResource, untrack } from 'azerothjs';
 
+import { may } from '../../../../backend/src/domains/admin/roles.ts';
 import { isItemId } from '../../../../backend/src/domains/shop/catalogue.ts';
 import type { OrderState } from '../../../../backend/src/domains/shop/policy.ts';
 import type { AdminShopOrders } from '../../../../backend/src/schemas.ts';
 import { client } from '../../api.ts';
 import { attempt } from '../../lib/attempt.ts';
+import { nuraOf } from '../../lib/nura.ts';
+import { ownerSends } from '../../lib/owner-call.ts';
 import { useAddress } from '../../lib/page-param.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { itemName } from '../../lib/shop.ts';
 import { SEARCH_PAUSE_MS } from '../../services/search.service.ts';
 import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { useSession } from '../../stores/session.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+import { useVault } from '../../stores/vault.store.ts';
 import Badge from '../ui/badge.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import ErrorState from '../ui/error-state.component.azeroth';
@@ -18,11 +25,15 @@ import LoadMore from '../ui/load-more.component.azeroth';
 import SearchInput from '../ui/search-input.component.azeroth';
 import Skeleton from '../ui/skeleton.component.azeroth';
 import AdminEmpty from './admin-empty.component.azeroth';
+import ReasonSheet from './reason-sheet.component.azeroth';
 import ShopOrderRow, { ORDER_COLUMNS, ORDER_WORDS, type AdminShopOrder } from './shop-order-row.component.azeroth';
+
+/** A state, or the paid orders that delivered nothing. */
+type Chip = OrderState | 'undelivered';
 
 interface Asked
 {
-    state: OrderState | null;
+    state: Chip | null;
     person: string;
     item: string;
 }
@@ -35,10 +46,12 @@ interface Tail
 }
 
 /** The states in the order the staff look for them: what was paid first, what ran out last. */
-export const STATE_CHIPS = ['paid', 'sent', 'quoted', 'failed', 'refunded', 'expired'] as const satisfies readonly OrderState[];
+export const STATE_CHIPS = ['paid', 'undelivered', 'sent', 'quoted', 'failed', 'refunded', 'expired'] as const satisfies readonly Chip[];
+
+const stateOf = (chip: Chip) => (chip === 'undelivered' ? { state: 'paid' as const, delivered: 'no' as const } : { state: chip });
 
 const queryOf = (asked: Asked) => ({
-    ...(asked.state === null ? {} : { state: asked.state }),
+    ...(asked.state === null ? {} : stateOf(asked.state)),
     ...(asked.person === '' ? {} : { person: asked.person }),
     ...(asked.item === '' ? {} : { item: asked.item })
 });
@@ -47,6 +60,11 @@ export default component ShopOrders()
 {
     const locale = useLocale();
     const address = useAddress();
+    const session = useSession();
+    const vaults = useVault();
+    const overlay = useOverlay();
+    const toasts = useToasts();
+    const kept = new Map<string, string>();
 
     derived state = STATE_CHIPS.find((one) => one === address.text('state')) ?? null;
 
@@ -61,6 +79,8 @@ export default component ShopOrders()
     state tail = null as Tail | null;
 
     state paging = false;
+
+    state landed = [] as readonly string[];
 
     let pending: (() => void) | null = null;
 
@@ -107,8 +127,10 @@ export default component ShopOrders()
 
     derived states = [
         { id: 'all', label: locale.t('admin.shop.orders.state.all') },
-        ...STATE_CHIPS.map((one) => ({ id: one, label: locale.t(ORDER_WORDS[one]) }))
+        ...STATE_CHIPS.map((one) => ({ id: one, label: locale.t(one === 'undelivered' ? 'admin.shop.orders.state.undelivered' : ORDER_WORDS[one]) }))
     ];
+
+    derived owner = may(session.account()?.staff ?? null, 'wallet');
 
     const apply = () =>
     {
@@ -123,6 +145,47 @@ export default component ShopOrders()
         pending?.();
         pending = runtime().clock.after(SEARCH_PAUSE_MS, apply);
     };
+
+    /** A paid order's price asked back of NuraChain: the owner's wallet sends it, and the order worker takes back what it delivered. */
+    const refund = async (order: AdminShopOrder) =>
+    {
+        const said = { amount: locale.n(nuraOf(order.price), { maximumFractionDigits: 4 }), buyer: order.buyer.handle };
+        const typed = kept.get(order.id);
+        const reason = await overlay.open(
+            ReasonSheet,
+            {
+                title: locale.t('admin.shop.refund.ask', said),
+                lead: locale.t('admin.shop.refund.lead'),
+                confirm: locale.t('admin.shop.refund.confirm'),
+                destructive: true,
+                ...(typed === undefined ? {} : { initial: typed })
+            },
+            { label: locale.t('admin.shop.refund.title') }
+        ).closed;
+
+        if (typeof reason !== 'string')
+        {
+            return;
+        }
+
+        const answer = await ownerSends(vaults, () => client.admin.shopRefund({ params: { id: order.id }, input: { reason } }));
+
+        void first.refetch();
+
+        if (answer !== null)
+        {
+            kept.set(order.id, reason);
+            toasts.show({ kind: 'error', text: locale.t(answer) });
+            return;
+        }
+
+        kept.delete(order.id);
+        landed = [...landed, order.id];
+        toasts.show({ kind: 'success', text: locale.t('admin.shop.refund.done', said) });
+    };
+
+    /** An order NuraChain has refunded is drawn so at once: the order worker writes it down at its next beat. */
+    const shown = (order: AdminShopOrder): AdminShopOrder => (order.state === 'paid' && landed.includes(order.id) ? { ...order, state: 'refunded' } : order);
 
     const older = async () =>
     {
@@ -199,7 +262,7 @@ export default component ShopOrders()
                     <ul class="divide-y divide-line" data-orders>
                         <For each={ rows } key={ (one) => one.id } let={ row }>
                             <li>
-                                <ShopOrderRow order={ row } chainId={ chainId } />
+                                <ShopOrderRow order={ shown(row) } chainId={ chainId } mayRefund={ owner } busy={ vaults.busy() } onRefund={ () => void refund(row) } />
                             </li>
                         </For>
                     </ul>

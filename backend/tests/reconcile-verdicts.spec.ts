@@ -41,10 +41,10 @@ describe('a paid game against the vault', () =>
 
 describe('a shop order against the sale the shop holds', () =>
 {
-    it('delivers a sale the shop holds for an order that ran out or failed here, and leaves everything else apart to a person', () =>
+    it('delivers a sale the shop holds for an order that ran out or failed here, takes back what a refunded one delivered, and leaves everything else apart to a person', () =>
     {
         expect(cells(['paid', 'refunded', 'expired', 'failed'] as const, ['unsold', 'sold', 'refunded', 'other'] as const, orderVerdict)).toEqual([
-            'paid unsold person', 'paid sold agree', 'paid refunded person', 'paid other person',
+            'paid unsold person', 'paid sold agree', 'paid refunded put-right', 'paid other person',
             'refunded unsold person', 'refunded sold person', 'refunded refunded agree', 'refunded other person',
             'expired unsold agree', 'expired sold put-right', 'expired refunded put-right', 'expired other person',
             'failed unsold agree', 'failed sold put-right', 'failed refunded put-right', 'failed other person'

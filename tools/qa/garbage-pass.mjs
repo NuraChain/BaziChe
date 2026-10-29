@@ -66,7 +66,7 @@ const QUERIES = {
     '/admin/play/tables': ['game', 'cursor'],
     '/admin/live': ['cursor'],
     '/admin/checks': ['list', 'cursor'],
-    '/admin/shop/orders': ['state', 'item', 'person', 'cursor']
+    '/admin/shop/orders': ['state', 'delivered', 'item', 'person', 'cursor']
 };
 
 const message = (bad) => ({ id: bad, kind: 'text', epoch: 0, seq: 0, iv: 'x', body: 'x', senderDeviceId: bad, signature: 'x', clientAt: bad, commitment: 'x', expiresAt: 0 });
@@ -149,7 +149,11 @@ const BODIES = {
         { sale: { price: bad.slice(0, 24), hours: 24 }, reason: 'garbage' },
         { status: bad.slice(0, 16), reason: 'garbage' }
     ],
-    '/admin/shop/featured': (bad) => [{ collection: bad.slice(0, 16), reason: bad.slice(0, 500).padEnd(3, 'x') }, { collection: 'jade', reason: bad }]
+    '/admin/shop/featured': (bad) => [{ collection: bad.slice(0, 16), reason: bad.slice(0, 500).padEnd(3, 'x') }, { collection: 'jade', reason: bad }],
+    '/admin/shop/orders/:id/refund': (bad) => [{ reason: bad.slice(0, 500).padEnd(3, 'x') }, { reason: bad }],
+    '/admin/shop/money/withdraw': (bad) => [{ amount: bad.slice(0, 40) }],
+    '/admin/shop/money/share': (bad) => [{ bps: bad.length }],
+    '/admin/shop/money/seller': (bad) => [{ address: bad.slice(0, 64) }]
 };
 
 const WOULD_ACT = new Set(['/auth/handle']);
@@ -159,7 +163,7 @@ const SPARED = new Set([
     '/tables/:id/seat', '/tables/:id/leave', '/tables/:id/close', '/tables/:id/voice', '/tables/:id/start', '/tables/:id/stake',
     '/parties/:id/accept', '/parties/:id/decline', '/parties/:id/leave',
     '/notifications/:id/read', '/notifications/read-all', '/notifications/:id/dismiss', '/devices/:id/revoke', '/devices/recovery/off',
-    '/chat/:id/read', '/chat/:id/expiry', '/chat/:id/pin', '/vault/terms', '/vault/break', '/admin/vault/pause',
+    '/chat/:id/read', '/chat/:id/expiry', '/chat/:id/pin', '/vault/terms', '/vault/break', '/admin/vault/pause', '/admin/shop/money/pause',
     '/shop/earnings/claim', '/donations/accepting', '/markets/disclosure'
 ]);
 

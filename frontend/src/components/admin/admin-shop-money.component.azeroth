@@ -1,0 +1,372 @@
+import { createResource, Link } from 'azerothjs';
+
+import { may } from '../../../../backend/src/domains/admin/roles.ts';
+import { client, type WalletCall } from '../../api.ts';
+import { bpsOf, nuraOf, parseNura } from '../../lib/nura.ts';
+import { ownerSends } from '../../lib/owner-call.ts';
+import { shortAddress } from '../../lib/wallet.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { useSession } from '../../stores/session.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+import { useVault } from '../../stores/vault.store.ts';
+import ConfirmSheet from '../app/confirm-sheet.component.azeroth';
+import FeatureOff from '../app/feature-off.component.azeroth';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import Panel from '../ui/panel.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+
+export default component AdminShopMoney()
+{
+    const locale = useLocale();
+    const vaults = useVault();
+    const session = useSession();
+    const toasts = useToasts();
+    const overlay = useOverlay();
+
+    const money = createResource(() => true, () => client.admin.shopMoney(), { name: 'admin.shop.money' });
+
+    state withdrawText = '';
+
+    state withdrawTold = null as string | null;
+
+    state shareText = '';
+
+    state shareTold = null as string | null;
+
+    state sellerText = '';
+
+    state sellerTold = null as string | null;
+
+    const nura = (wei: string | bigint) => locale.n(nuraOf(wei), { maximumFractionDigits: 4 });
+
+    const percent = (bps: number) => locale.n(bps / 10_000, { style: 'percent', maximumFractionDigits: 2 });
+
+    derived held = money.data() ?? null;
+
+    derived trouble = money.error();
+
+    derived waiting = held === null && trouble === null;
+
+    derived failed = held === null && trouble !== null;
+
+    derived off = held !== null && !held.configured;
+
+    derived open = held !== null && held.configured ? held : null;
+
+    derived shown = open !== null;
+
+    derived revenue = open === null ? '' : nura(open.revenue);
+
+    derived owed = open === null ? '' : nura(open.owed);
+
+    derived holds = open === null ? '' : nura(open.held);
+
+    derived solvent = open?.solvent ?? true;
+
+    derived share = open === null ? '' : percent(open.share);
+
+    derived maxShare = open === null ? '' : percent(open.maxShare);
+
+    derived paused = open?.paused ?? false;
+
+    derived seller = open === null ? '' : shortAddress(open.seller.address);
+
+    derived lost = open !== null && !open.seller.allowed;
+
+    derived named = open !== null && open.seller.named.toLowerCase() !== open.seller.address.toLowerCase();
+
+    derived namedWords = open === null ? '' : locale.t('admin.shopMoney.sellerNamed', { address: shortAddress(open.seller.named) });
+
+    derived owner = may(session.account()?.staff ?? null, 'wallet');
+
+    derived mayChange = owner && (open?.roles.owner ?? false);
+
+    derived mayPause = owner && (open?.roles.pauser ?? false);
+
+    derived mayNothing = owner && open !== null && !open.roles.owner && !open.roles.pauser;
+
+    derived undelivered = open?.undelivered ?? 0;
+
+    derived anyUndelivered = undelivered > 0;
+
+    derived undeliveredWords = locale.plural('admin.shopMoney.undelivered', undelivered);
+
+    derived refunding = open?.refunding ?? 0;
+
+    derived anyRefunding = refunding > 0;
+
+    derived refundingWords = locale.plural('admin.shopMoney.refunding', refunding);
+
+    const act = async (compose: () => Promise<WalletCall>, done: string) =>
+    {
+        const answer = await ownerSends(vaults, compose);
+
+        if (answer !== null)
+        {
+            toasts.show({ kind: 'error', text: locale.t(answer) });
+            return false;
+        }
+
+        await money.refetch();
+        toasts.show({ kind: 'success', text: done });
+        return true;
+    };
+
+    const typedWithdraw = (value: string) =>
+    {
+        withdrawText = value;
+        withdrawTold = null;
+    };
+
+    const typedShare = (value: string) =>
+    {
+        shareText = value;
+        shareTold = null;
+    };
+
+    const typedSeller = (value: string) =>
+    {
+        sellerText = value;
+        sellerTold = null;
+    };
+
+    const withdraw = async () =>
+    {
+        const wei = parseNura(withdrawText);
+
+        if (wei === null || wei <= 0n)
+        {
+            withdrawTold = locale.t('admin.shopMoney.withdrawBad');
+            return;
+        }
+
+        if (await act(() => client.admin.shopWithdraw({ input: { amount: wei.toString() } }), locale.t('admin.shopMoney.withdrawDone', { amount: nura(wei) })))
+        {
+            withdrawText = '';
+        }
+    };
+
+    const allRevenue = () =>
+    {
+        withdrawText = open === null ? '' : String(nuraOf(open.revenue));
+        withdrawTold = null;
+    };
+
+    const changeShare = async () =>
+    {
+        const bps = bpsOf(shareText);
+
+        if (bps === null || open === null || bps > open.maxShare)
+        {
+            shareTold = locale.t('admin.shopMoney.shareBad', { max: maxShare });
+            return;
+        }
+
+        if (await act(() => client.admin.shopShare({ input: { bps } }), locale.t('admin.shopMoney.shareDone', { share: percent(bps) })))
+        {
+            shareText = '';
+        }
+    };
+
+    const changeSeller = async () =>
+    {
+        const address = sellerText.trim();
+
+        if (!/^0x[0-9a-fA-F]{40}$/.test(address))
+        {
+            sellerTold = locale.t('admin.shopMoney.sellerBad');
+            return;
+        }
+
+        const yes = await overlay.open(
+            ConfirmSheet,
+            {
+                title: locale.t('admin.shopMoney.sellerAsk', { address: shortAddress(address) }),
+                lead: locale.t('admin.shopMoney.sellerAskLead'),
+                confirm: locale.t('admin.shopMoney.sellerSend'),
+                cancel: locale.t('admin.shopMoney.sellerNo'),
+                destructive: true
+            },
+            { label: locale.t('admin.shopMoney.seller') }
+        ).closed === true;
+
+        if (yes && await act(() => client.admin.shopSeller({ input: { address } }), locale.t('admin.shopMoney.sellerDone', { address: shortAddress(address) })))
+        {
+            sellerText = '';
+        }
+    };
+
+    const pause = async (on: boolean) =>
+    {
+        const yes = !on || await overlay.open(
+            ConfirmSheet,
+            { title: locale.t('admin.shopMoney.pauseAsk'), lead: locale.t('admin.shopMoney.pauseLead'), confirm: locale.t('admin.shopMoney.pauseYes'), cancel: locale.t('admin.shopMoney.pauseNo'), destructive: true },
+            { label: locale.t('admin.shopMoney.pause') }
+        ).closed === true;
+
+        if (yes)
+        {
+            await act(() => client.admin.shopPause({ input: { paused: on } }), locale.t(on ? 'admin.shopMoney.pausedDone' : 'admin.shopMoney.resumed'));
+        }
+    };
+
+    <section class="flex flex-col gap-4 pt-8" aria-labelledby="admin-shop-money" data-shop-money>
+        <div class="flex flex-col gap-1">
+            <h2 id="admin-shop-money" class="title text-ui-2xl text-text">{ locale.t('admin.shopMoney.title') }</h2>
+            <p class="text-ui-md text-muted">{ locale.t('admin.shopMoney.lead') }</p>
+        </div>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 3 } /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState title={ locale.t('admin.shopMoney.failed') } onRetry={ () => void money.refetch() } /> }
+        </Show>
+
+        <Show when={ off }>
+            { () => <FeatureOff feature="shop" /> }
+        </Show>
+
+        <Show when={ shown }>
+            <div class="flex flex-col gap-4">
+                <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div class="flex flex-col gap-1 rounded-tile border border-line bg-field p-3" data-fact="revenue">
+                        <dt class="text-ui-xs text-muted">{ locale.t('admin.shopMoney.revenue') }</dt>
+                        <dd class="text-ui-lg font-semibold text-text"><span class="tally">{ revenue }</span> NURA</dd>
+                    </div>
+                    <div class="flex flex-col gap-1 rounded-tile border border-line bg-field p-3" data-fact="owed">
+                        <dt class="text-ui-xs text-muted">{ locale.t('admin.shopMoney.owed') }</dt>
+                        <dd class="text-ui-lg font-semibold text-text"><span class="tally">{ owed }</span> NURA</dd>
+                    </div>
+                    <div class="flex flex-col gap-1 rounded-tile border border-line bg-field p-3" data-fact="held">
+                        <dt class="text-ui-xs text-muted">{ locale.t('admin.shopMoney.held') }</dt>
+                        <dd class="text-ui-lg font-semibold text-text"><span class="tally">{ holds }</span> NURA</dd>
+                        <dd class="flex" data-solvent={ solvent ? 'yes' : 'no' }>
+                            <Badge dot text={ solvent ? locale.t('admin.shopMoney.solvent') : locale.t('admin.shopMoney.short') } tone={ solvent ? 'live' : 'danger' } />
+                        </dd>
+                    </div>
+                    <div class="flex flex-col gap-1 rounded-tile border border-line bg-field p-3" data-fact="share">
+                        <dt class="text-ui-xs text-muted">{ locale.t('admin.shopMoney.share') }</dt>
+                        <dd class="text-ui-lg font-semibold text-text"><span class="tally">{ share }</span></dd>
+                    </div>
+                </dl>
+
+                <p class="flex" data-paused={ paused ? 'yes' : 'no' }>
+                    <Badge dot text={ paused ? locale.t('admin.shopMoney.paused') : locale.t('admin.shopMoney.selling') } tone={ paused ? 'gold' : 'live' } />
+                </p>
+
+                <Panel pad="md" stack="sm">
+                    <h3 class="text-ui-md font-semibold text-text">{ locale.t('admin.shopMoney.orders') }</h3>
+                    <Show when={ anyUndelivered } fallback={ <p class="text-ui-sm text-text" data-undelivered="none">{ locale.t('admin.shopMoney.undeliveredNone') }</p> }>
+                        <Link to="/admin/shop?view=orders&state=undelivered" class="inline-flex min-h-11 items-center gap-1.5 self-start text-ui-sm font-semibold text-danger hover:underline" data-undelivered>
+                            <span class="tally">{ locale.n(undelivered) }</span> <span>{ undeliveredWords }</span>
+                        </Link>
+                    </Show>
+                    <Show when={ anyRefunding }>
+                        <p class="text-ui-sm text-muted" data-refunding><span class="tally">{ locale.n(refunding) }</span> { refundingWords }</p>
+                    </Show>
+                </Panel>
+
+                <Panel pad="md" stack="sm">
+                    <h3 class="text-ui-md font-semibold text-text">{ locale.t('admin.shopMoney.seller') }</h3>
+                    <p class="text-ui-sm text-muted">{ locale.t('admin.shopMoney.sellerLead') }</p>
+                    <p class="truncate text-ui-sm text-text" dir="ltr" data-seller>{ seller }</p>
+                    <Show when={ lost }>
+                        <p class="text-ui-sm font-semibold text-danger" role="alert" data-lost>{ locale.t('admin.shopMoney.sellerLost') }</p>
+                    </Show>
+                    <Show when={ named }>
+                        <p class="text-ui-sm text-muted" data-named>{ namedWords }</p>
+                    </Show>
+                    <Show when={ mayChange }>
+                        <Field id="admin-shop-seller" label={ locale.t('admin.shopMoney.sellerLabel') } hint={ locale.t('admin.shopMoney.sellerHint') } error={ sellerTold }>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <Input
+                                    id="admin-shop-seller"
+                                    class="min-w-40 flex-1"
+                                    value={ sellerText }
+                                    autocomplete="off"
+                                    enterkeyhint="send"
+                                    invalid={ sellerTold !== null }
+                                    describedBy={ sellerTold !== null ? 'admin-shop-seller-error' : 'admin-shop-seller-hint' }
+                                    onInput={ typedSeller }
+                                    onEnter={ () => void changeSeller() }
+                                />
+                                <Button variant="outline" loading={ vaults.busy() } onClick={ () => void changeSeller() }>{ locale.t('admin.shopMoney.sellerSend') }</Button>
+                            </div>
+                        </Field>
+                    </Show>
+                </Panel>
+
+                <Show when={ owner } fallback={ <p class="text-ui-sm text-muted" data-role="owner-only">{ locale.t('admin.shopMoney.ownerOnly') }</p> }>
+                    <Panel pad="md" stack="sm">
+                        <h3 class="text-ui-md font-semibold text-text">{ locale.t('admin.shopMoney.roles') }</h3>
+                        <Show when={ mayChange }>
+                            <p class="text-ui-sm text-text" data-role="owner">{ locale.t('admin.shopMoney.mayChange') }</p>
+                        </Show>
+                        <Show when={ mayPause }>
+                            <p class="text-ui-sm text-text" data-role="pauser">{ locale.t('admin.shopMoney.mayPause') }</p>
+                        </Show>
+                        <Show when={ mayNothing }>
+                            <p class="text-ui-sm text-muted" data-role="none">{ locale.t('admin.shopMoney.mayNothing') }</p>
+                        </Show>
+                    </Panel>
+                </Show>
+
+                <Show when={ mayChange }>
+                    <Panel pad="md" stack="md">
+                        <Field id="admin-shop-withdraw" label={ locale.t('admin.shopMoney.withdrawLabel') } hint={ locale.t('vault.amountHint') } error={ withdrawTold }>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <Input
+                                    id="admin-shop-withdraw"
+                                    class="min-w-40 flex-1"
+                                    value={ withdrawText }
+                                    inputmode="decimal"
+                                    autocomplete="off"
+                                    enterkeyhint="send"
+                                    invalid={ withdrawTold !== null }
+                                    describedBy={ withdrawTold !== null ? 'admin-shop-withdraw-error' : 'admin-shop-withdraw-hint' }
+                                    onInput={ typedWithdraw }
+                                    onEnter={ () => void withdraw() }
+                                />
+                                <Button variant="ghost" onClick={ allRevenue }>{ locale.t('vault.max') }</Button>
+                                <Button variant="outline" loading={ vaults.busy() } onClick={ () => void withdraw() }>{ locale.t('admin.shopMoney.withdrawSend') }</Button>
+                            </div>
+                        </Field>
+                        <Field id="admin-shop-share" label={ locale.t('admin.shopMoney.shareLabel') } hint={ locale.t('admin.shopMoney.shareHint', { max: maxShare }) } error={ shareTold }>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <Input
+                                    id="admin-shop-share"
+                                    class="min-w-40 flex-1"
+                                    value={ shareText }
+                                    inputmode="decimal"
+                                    autocomplete="off"
+                                    enterkeyhint="send"
+                                    invalid={ shareTold !== null }
+                                    describedBy={ shareTold !== null ? 'admin-shop-share-error' : 'admin-shop-share-hint' }
+                                    onInput={ typedShare }
+                                    onEnter={ () => void changeShare() }
+                                />
+                                <Button variant="outline" loading={ vaults.busy() } onClick={ () => void changeShare() }>{ locale.t('admin.shopMoney.shareSend') }</Button>
+                            </div>
+                        </Field>
+                    </Panel>
+                </Show>
+
+                <Show when={ mayPause }>
+                    <Panel pad="md" stack="sm">
+                        <p class="text-ui-sm text-muted">{ locale.t('admin.shopMoney.pauseLead') }</p>
+                        <Show when={ paused } fallback={ <Button variant="destructive" class="self-start" loading={ vaults.busy() } onClick={ () => void pause(true) }>{ locale.t('admin.shopMoney.pause') }</Button> }>
+                            <Button variant="primary" class="self-start" loading={ vaults.busy() } onClick={ () => void pause(false) }>{ locale.t('admin.shopMoney.resume') }</Button>
+                        </Show>
+                    </Panel>
+                </Show>
+            </div>
+        </Show>
+    </section>
+}

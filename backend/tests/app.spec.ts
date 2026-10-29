@@ -1372,7 +1372,7 @@ describe('the owner\'s view of the vault', () =>
             identity: {
                 principal: () => Promise.resolve({ userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' })
             },
-            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice', 'shop', 'shopItem', 'shopFeature', 'shopOrders', 'giveLook', 'takeLook'].map((verb) => [verb, (...said: unknown[]) =>
+            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice', 'shop', 'shopItem', 'shopFeature', 'shopOrders', 'giveLook', 'takeLook', 'shopMoney', 'shopWithdraw', 'shopShare', 'shopSeller', 'shopPause', 'shopRefund'].map((verb) => [verb, (...said: unknown[]) =>
             {
                 told.push([verb, ...said]);
 
@@ -1745,9 +1745,13 @@ describe('the owner\'s view of the vault', () =>
         expect(bodies).toContain(`'/admin/notice/end': (bad) => [`);
         expect(bodies).toContain(`'/admin/shop/items/:id': (bad) => [`);
         expect(bodies).toContain(`'/admin/shop/featured': (bad) => [`);
-        expect(queries).toContain(`'/admin/shop/orders': ['state', 'item', 'person', 'cursor']`);
+        expect(queries).toContain(`'/admin/shop/orders': ['state', 'delivered', 'item', 'person', 'cursor']`);
         expect(bodies).toContain(`'/admin/people/:handle/looks': (bad) => [`);
         expect(bodies).toContain(`'/admin/people/:handle/looks/:item/take': (bad) => [`);
+        expect(bodies).toContain(`'/admin/shop/orders/:id/refund': (bad) => [`);
+        expect(bodies).toContain(`'/admin/shop/money/withdraw': (bad) => [`);
+        expect(bodies).toContain(`'/admin/shop/money/share': (bad) => [`);
+        expect(bodies).toContain(`'/admin/shop/money/seller': (bad) => [`);
     });
 
     it('answers anybody who may not give a look as a page that is not there, and takes a look and a reason only in the shapes the wire offers', async () =>
@@ -1773,6 +1777,51 @@ describe('the owner\'s view of the vault', () =>
         expect(told).toHaveLength(2);
     });
 
+    it('answers anybody who may not read or move the shop\'s money as a page that is not there, and takes each call only in the shape the wire offers', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = owned(told, null);
+        const order = '0a6a3f0e-1111-4222-8333-444455556666';
+        const answers = [
+            await sent(app, '/shop/money'),
+            await sent(app, '/shop/money/withdraw', { amount: '5000000000000000000' }),
+            await sent(app, '/shop/money/share', { bps: 1500 }),
+            await sent(app, '/shop/money/seller', { address: '0x00000000000000000000000000000000000000aa' }),
+            await sent(app, '/shop/money/pause', { paused: true }),
+            await sent(app, `/shop/orders/${ order }/refund`, { reason: 'It delivered nothing' })
+        ];
+
+        for (const response of answers)
+        {
+            const body = await response.json() as { error: { code: string; message: string } };
+
+            expect([response.status, body.error.code, body.error.message]).toEqual([404, 'not-found', 'Nothing there.']);
+        }
+
+        expect(told).toEqual([
+            ['shopMoney', 'somebody'],
+            ['shopWithdraw', 'somebody', '5000000000000000000'],
+            ['shopShare', 'somebody', 1500],
+            ['shopSeller', 'somebody', '0x00000000000000000000000000000000000000aa'],
+            ['shopPause', 'somebody', true],
+            ['shopRefund', 'somebody', order, { reason: 'It delivered nothing' }]
+        ]);
+        expect((await sent(app, `/shop/orders/${ order }/refund`, { reason: 'no' })).status).toBe(422);
+        expect((await sent(app, '/shop/money/share', { bps: 'all' })).status).toBe(422);
+        expect((await sent(app, '/shop/money/pause', {})).status).toBe(422);
+        expect(told).toHaveLength(6);
+    });
+
+    it('hands the owner\'s wallet the shop\'s call as the port composed it', async () =>
+    {
+        const call = { from: '0x00000000000000000000000000000000000000aa', to: '0x00000000000000000000000000000000000000bb', data: '0x5c975abb', value: '0x0', chainId: 31337 };
+        const app = owned([], call);
+        const response = await sent(app, '/shop/money/pause', { paused: false });
+
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual(call);
+    });
+
     it('answers anybody who may not run the shop as a page that is not there, and takes a price, a sale, a status or a collection only in the shapes the wire offers', async () =>
     {
         const told: unknown[][] = [];
@@ -1789,7 +1838,7 @@ describe('the owner\'s view of the vault', () =>
             await sent(app, '/shop/items/bundle.jade', ended),
             await sent(app, '/shop/items/dice.glow', status),
             await sent(app, '/shop/featured', featured),
-            await sent(app, '/shop/orders?state=paid&item=dice.glow&person=@mina&cursor=abc')
+            await sent(app, '/shop/orders?state=paid&delivered=no&item=dice.glow&person=@mina&cursor=abc')
         ];
 
         for (const response of answers)
@@ -1806,7 +1855,7 @@ describe('the owner\'s view of the vault', () =>
             ['shopItem', 'somebody', 'bundle.jade', ended],
             ['shopItem', 'somebody', 'dice.glow', status],
             ['shopFeature', 'somebody', featured],
-            ['shopOrders', 'somebody', { state: 'paid', item: 'dice.glow', person: '@mina', cursor: 'abc' }]
+            ['shopOrders', 'somebody', { state: 'paid', delivered: 'no', item: 'dice.glow', person: '@mina', cursor: 'abc' }]
         ]);
 
         for (const bad of [
@@ -1829,6 +1878,7 @@ describe('the owner\'s view of the vault', () =>
         expect((await sent(app, '/shop/featured', { collection: 'bronze', reason: featured.reason })).status).toBe(422);
         expect((await sent(app, '/shop/featured', { collection: 'jade', reason: '   ' })).status).toBe(422);
         expect((await sent(app, '/shop/orders?state=lost')).status).toBe(422);
+        expect((await sent(app, '/shop/orders?delivered=yes')).status).toBe(422);
         expect((await sent(app, `/shop/orders?person=${ 'x'.repeat(41) }`)).status).toBe(422);
         expect(told).toHaveLength(7);
     });

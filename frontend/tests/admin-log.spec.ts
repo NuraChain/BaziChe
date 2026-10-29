@@ -342,6 +342,25 @@ describe('the log', () =>
         expect(entry(back.container, 0).querySelector('[data-mark]')?.className).toContain('text-danger');
     });
 
+    it('says a refund the owner asked of NuraChain, with whom it goes back to, how much and for what, in both languages', async () =>
+    {
+        staffLogged({ at: hoursAgo(1), staff: 'alex', staffRole: 'owner', kind: 'shop-refund', person: 'sara.k', reason: 'Charged twice for one look.', details: { order: 'o-1', item: 'dice.inferno', price: '12500000000000000000' } });
+        const { container } = await opened('/admin/log?kind=shop-refund');
+
+        expect(lines(container)).toEqual(['alex asked NuraChain to refund sara.k 12.5 NURA for Infernal Sovereign dice.']);
+        expect(isolated(entry(container, 0), ':scope')).toEqual(['alex', 'sara.k']);
+        expect(container.querySelector('[aria-pressed="true"]')?.textContent?.trim()).toBe('Refunds');
+        expect(entry(container, 0).querySelector('[data-mark]')?.className).toContain('text-gold');
+        expect(said(entry(container, 0), '[data-reason]')).toBe('Charged twice for one look.');
+        cleanup();
+
+        useLocale().setLocale('fa');
+        const persian = await opened('/admin/log?kind=shop-refund');
+
+        expect(lines(persian.container)).toEqual(['alex، از نوراچین خواست ۱۲٫۵ NURA پول تاس سلطان دوزخ رو به sara.k برگردونه.']);
+        expect(persian.container.querySelector('[aria-pressed="true"]')?.textContent?.trim()).toBe('برگشت پول‌ها');
+    });
+
     it('says who put an announcement up and for how long, who took it down, and what it said in the reader\'s own language', async () =>
     {
         announced();
@@ -590,7 +609,7 @@ describe('the log', () =>
             'alex، mina رو از ناظر کرد ادمین.',
             'alex، mina رو ناظر کرد.'
         ]);
-        expect([...container.querySelectorAll('[aria-pressed]')].map((one) => one.textContent?.trim())).toEqual(['همه', 'اضافه شده', 'عوض شده', 'برداشته شده', 'یادداشت‌ها', 'تعلیق‌ها', 'رفع تعلیق', 'پایان تعلیق', 'پاک شده', 'خارج شده', 'گزارش‌ها', 'بازی‌ها', 'بازی‌های تموم‌شده', 'میزهای بسته‌شده', 'سن', 'اطلاعیه‌ها', 'بررسی‌ها', 'فروشگاه', 'بالای فروشگاه', 'استایل‌های داده‌شده', 'استایل‌های پس‌گرفته']);
+        expect([...container.querySelectorAll('[aria-pressed]')].map((one) => one.textContent?.trim())).toEqual(['همه', 'اضافه شده', 'عوض شده', 'برداشته شده', 'یادداشت‌ها', 'تعلیق‌ها', 'رفع تعلیق', 'پایان تعلیق', 'پاک شده', 'خارج شده', 'گزارش‌ها', 'بازی‌ها', 'بازی‌های تموم‌شده', 'میزهای بسته‌شده', 'سن', 'اطلاعیه‌ها', 'بررسی‌ها', 'فروشگاه', 'بالای فروشگاه', 'استایل‌های داده‌شده', 'استایل‌های پس‌گرفته', 'برگشت پول‌ها']);
         expect(isolated(entry(container, 1), ':scope')).toEqual(['alex', 'mina']);
     });
 

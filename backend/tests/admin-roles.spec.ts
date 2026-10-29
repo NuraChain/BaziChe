@@ -74,7 +74,7 @@ describe('what the staff are refused in words', () =>
 {
     it('lists each word once with its status, and answers a word it does not have as none', () =>
     {
-        expect(STAFF_REFUSALS).toEqual({ 'staff-nobody': 404, 'staff-owner': 409, 'staff-self': 409, 'staff-rank': 409, 'staff-not-suspended': 409, 'staff-match-over': 409, 'staff-in-game': 409, 'staff-seated': 409, 'staff-table-closed': 409, 'staff-table-playing': 409, 'staff-no-notice': 409, 'staff-check-closed': 409, 'staff-shop-one': 422, 'staff-shop-sale': 409, 'staff-look-kept': 409 });
+        expect(STAFF_REFUSALS).toEqual({ 'staff-nobody': 404, 'staff-owner': 409, 'staff-self': 409, 'staff-rank': 409, 'staff-not-suspended': 409, 'staff-match-over': 409, 'staff-in-game': 409, 'staff-seated': 409, 'staff-table-closed': 409, 'staff-table-playing': 409, 'staff-no-notice': 409, 'staff-check-closed': 409, 'staff-shop-one': 422, 'staff-shop-sale': 409, 'staff-look-kept': 409, 'staff-shop-off': 409, 'staff-order-unpaid': 409, 'staff-shop-share': 422, 'staff-shop-address': 422, 'staff-shop-amount': 422, 'staff-shop-role': 409, 'staff-shop-paused': 409, 'staff-shop-running': 409, 'staff-shop-revenue': 409, 'staff-shop-refunded': 409, 'staff-shop-refused': 409 });
         expect(isStaffRefusal('staff-rank')).toBe(true);
         expect(isStaffRefusal('toString')).toBe(false);
         expect(isStaffRefusal('not-found')).toBe(false);

@@ -6,6 +6,7 @@ import { handleParts } from '../../lib/staff-words.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
 import type { Tone } from '../ui/variants.ts';
 import Said from './said.component.azeroth';
 import When from './when.component.azeroth';
@@ -32,7 +33,7 @@ const ORDER_TONES: Record<OrderState, Tone> = {
     refunded: 'gold'
 };
 
-export default component ShopOrderRow(props: { order: AdminShopOrder; chainId: number | null })
+export default component ShopOrderRow(props: { order: AdminShopOrder; chainId: number | null; mayRefund: boolean; busy: boolean; onRefund: () => void })
 {
     const locale = useLocale();
 
@@ -64,6 +65,14 @@ export default component ShopOrderRow(props: { order: AdminShopOrder; chainId: n
 
     derived href = link ?? '';
 
+    derived refundable = props.mayRefund && props.order.state === 'paid';
+
+    derived asked = props.order.state === 'paid' && props.order.refundAsked !== undefined;
+
+    derived askedAt = props.order.refundAsked ?? '';
+
+    derived refundLabel = locale.t('admin.shop.order.refundLabel', { amount: price, buyer: props.order.buyer.handle });
+
     <div class={ `flex items-center gap-3 px-4 py-3 @2xl:grid @2xl:gap-4 ${ ORDER_COLUMNS }` } data-order={ props.order.id } data-state={ props.order.state }>
         <img src={ `/looks/${ props.order.item }.svg` } alt="" width="48" height="36" loading="lazy" decoding="async" class="h-9 w-12 shrink-0 rounded-tile border border-line bg-sunk object-cover" />
         <div class="flex min-w-0 flex-1 flex-col gap-0.5 @2xl:contents">
@@ -84,6 +93,15 @@ export default component ShopOrderRow(props: { order: AdminShopOrder; chainId: n
             </Show>
             <Show when={ linked }>
                 <a href={ href } target="_blank" rel="noopener noreferrer" class="text-ui-xs font-semibold text-accent underline-offset-2 hover:underline" data-tx>{ locale.t('admin.shop.order.tx') }</a>
+            </Show>
+            <Show when={ asked }>
+                <span class="flex flex-wrap items-center gap-1.5 text-ui-2xs text-faint" data-refund-asked>
+                    <Badge text={ locale.t('admin.shop.order.refundAsked') } tone="gold" />
+                    <When at={ askedAt } />
+                </span>
+            </Show>
+            <Show when={ refundable }>
+                <Button variant="destructive-ghost" size="sm" label={ refundLabel } loading={ props.busy } onClick={ props.onRefund }>{ locale.t('admin.shop.order.refund') }</Button>
             </Show>
         </div>
     </div>

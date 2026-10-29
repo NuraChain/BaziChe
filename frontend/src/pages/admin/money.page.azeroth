@@ -2,6 +2,7 @@ import { Link, useHead } from 'azerothjs';
 
 import AdminVault from '../../components/admin/admin-vault.component.azeroth';
 import AdminHead from '../../components/admin/admin-head.component.azeroth';
+import AdminShopMoney from '../../components/admin/admin-shop-money.component.azeroth';
 import Icon from '../../icons/icon.component.azeroth';
 import { useLocale } from '../../stores/locale.store.ts';
 
@@ -22,5 +23,6 @@ export default component MoneyPage()
             ) }
         />
         <AdminVault />
+        <AdminShopMoney />
     </div>
 }

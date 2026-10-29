@@ -21,6 +21,7 @@ import type {
     AdminOverview,
     AdminPlay,
     AdminShop,
+    AdminShopMoney,
     AdminShopOrders,
     AdminTables,
     AdminReport,
@@ -80,7 +81,7 @@ import type {
     StaffLog
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
-import type { adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopOrdersQuery, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
+import type { adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
 import type { ShopSlot } from './domains/shop/catalogue.ts';
 import type { QuickAsk } from './domains/table/quick.ts';
@@ -777,6 +778,21 @@ export interface AdminPort
 
     /** A look the staff gave taken back, by the same rule. */
     takeLook(me: string, handle: string, item: string, input: Infer<typeof adminTakeInput>): Promise<AdminPerson | null>;
+
+    /** The shop's books and roles as the reader's wallet holds them, for a role that opens Money. */
+    shopMoney(me: string): Promise<AdminShopMoney | null>;
+
+    /** Revenue to the owner's own wallet, composed for it and asked of the shop first: the owner's alone, as each call below is. */
+    shopWithdraw(me: string, amount: string): Promise<WalletCall | null>;
+
+    shopShare(me: string, bps: number): Promise<WalletCall | null>;
+
+    shopSeller(me: string, address: string): Promise<WalletCall | null>;
+
+    shopPause(me: string, paused: boolean): Promise<WalletCall | null>;
+
+    /** A paid order's price asked back of NuraChain for its payer, written to the log as the request it is. */
+    shopRefund(me: string, order: string, input: Infer<typeof adminShopRefundInput>): Promise<WalletCall | null>;
 }
 
 /** Every port the API declaration may reach. One member per domain. */

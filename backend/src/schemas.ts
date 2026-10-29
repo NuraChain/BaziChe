@@ -581,6 +581,33 @@ export type StaffLog = Infer<typeof staffLog>;
 
 export const adminPauseInput = object({ paused: boolean() });
 
+/** The shop's money as the reader's wallet holds its roles: the contract's books, this server's seller, and what waits for a person. */
+export const adminShopMoney = union([
+    object({ configured: literal(false) }),
+    object({
+        configured: literal(true),
+        shop: string(),
+        chainId: number(),
+        revenue: string(),
+        owed: string(),
+        held: string(),
+        solvent: boolean(),
+        share: number(),
+        maxShare: number(),
+        paused: boolean(),
+
+        /** This server's quote key, whether it holds the seller role, and the seller the contract names. */
+        seller: object({ address: string(), allowed: boolean(), named: string() }),
+        roles: object({ owner: boolean(), pauser: boolean() }),
+        undelivered: number(),
+        refunding: number()
+    })
+]);
+
+export type AdminShopMoney = Infer<typeof adminShopMoney>;
+
+export const adminShopRefundInput = object({ reason: said() });
+
 export const vaultAmountInput = object({ amount: string({ max: 40 }) });
 
 export const vaultGame = object({
@@ -1644,6 +1671,9 @@ export const adminOverview = object({
     stuck: number(),
     reports: number(),
     money: object({ playing: number(), inPlay: string(), stuck: number() }).optional(),
+
+    /** What paid orders not refunded came to, in wei, over the last day, the week and in all, and how many delivered nothing, for a role that opens Money where the shop runs. */
+    shop: object({ day: string(), week: string(), all: string(), undelivered: number() }).optional(),
 
     /** The disagreements with NuraChain still open, for a role that opens Money where this server checks any. */
     checks: number().optional(),
@@ -3199,6 +3229,9 @@ export const adminShopFeatureInput = object({ collection: enumOf(SHOP_COLLECTION
 
 export const adminShopOrdersQuery = object({
     state: enumOf(ORDER_STATES).optional(),
+
+    /** `no` keeps the paid orders that delivered nothing. */
+    delivered: enumOf(['no']).optional(),
     item: string({ max: 40 }).optional(),
     person: string({ max: 40 }).optional(),
     cursor: string({ max: 80 }).optional()
@@ -3216,7 +3249,10 @@ const adminShopOrder = object({
     paidAt: string().optional(),
     hash: string().optional(),
     delivered: boolean().optional(),
-    failure: string().optional()
+    failure: string().optional(),
+
+    /** When the owner last asked NuraChain to refund it, while the order worker still watches for the refund. */
+    refundAsked: string().optional()
 });
 
 /** The orders a page at a time, and the chain they were paid on while the shop runs here, so a transaction can be linked. */

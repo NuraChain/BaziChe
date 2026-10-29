@@ -371,18 +371,37 @@ change to a profile is. Nobody is told (D8).
 at the server's price, the look's sheet says at the wallet the price the order carries, and a quote
 at another price than the page showed reads the shop again (`shop.store`).
 
-**The orders** (`GET /api/admin/shop/orders?state=&item=&person=&cursor=`), newest first, fifty a page
+**The orders** (`GET /api/admin/shop/orders?state=&delivered=&item=&person=&cursor=`), newest first, fifty a page
 by the microsecond keyset over `(created_at, id)`: the look, the price, how it stands, who paid and,
 for a gift, who was given it, when, when it was paid, its hash, whether it delivered anything and
-NuraChain's word for a failure; by state, by look and by the handle (a leading @ dropped, whatever
-its case) of whoever paid or was given it. While the shop runs here the answer carries the chain's
-id, so the page links a transaction on NuraChain.
+NuraChain's word for a failure, and for a paid order a refund was asked for in the last day, when
+(`refundAsked`); by state (with `delivered=no`, the paid orders that delivered nothing), by look and
+by the handle (a leading @ dropped, whatever its case) of whoever paid or was given it. While the
+shop runs here the answer carries the chain's id, so the page links a transaction on NuraChain.
+
+**A refund is the owner's** (`POST /api/admin/shop/orders/:id/refund`, `{ reason }`, `wallet`,
+LG-D37), and only of a paid order (`staff-order-unpaid`, 409, said before NuraChain is asked anything).
+It is composed as the contract's `refund(order)` for the owner's own wallet and asked of the contract
+first (`staff-shop-refunded` when NuraChain has refunded it already); then, under the order's row
+lock and only while it is still paid, one row of kind `shop-refund` is written about whoever paid,
+`{ order, item, price }`, as the request it is: the wallet may still say no, and the order says a
+refund was asked. The order worker asks the shop about a paid order for a day after a refund was
+asked of it (`refundAsked` in `domains/shop/orders.ts`), and once NuraChain says refunded the order is
+`refunded` (whether it delivered kept) and whatever it delivered is taken back from whoever it was
+given to, off every slot it was worn in (the foreign key), their profile rung through `courtesy` when
+one of those slots was a profile's (LG-D38). The reconciliation puts right the same way any paid
+order NuraChain holds as refunded, a refund sent from outside this page or one met after that day
+included (*paid × refunded*, `.claude/rules/operations.md`).
 
 `admin-shop.db.spec.ts` holds the list, each change and its row, the refusals, a sale that ran out,
 the locks (two changes to one look, two choices at once), a choice over a later time, the orders,
 their filters and their pages across a millisecond, a look given and taken back with what each
-rings and every refusal, and who is answered as nothing; `app.spec.ts`
-the routes and their shapes.
+rings and every refusal, and who is answered as nothing; `admin-shop-money.db.spec.ts` the shop's
+money: its books with the reader's roles, the owner's calls and their refusals, a refund asked, its
+row and every refusal (an order the worker refunded while NuraChain was asked among them), the worker
+taking back what a refunded order delivered (a gift from whoever was given it, a profile rung only for
+a profile's look, asked about for a day), the paid orders that delivered nothing, and the sales on the
+overview; `app.spec.ts` the routes and their shapes.
 
 `admin-play.db.spec.ts` holds the list, the switch, the refusals, the row lock (two switches parked
 on a held row) and everything new refused while a live game plays on; `admin-void.db.spec.ts` the
@@ -409,6 +428,22 @@ money record: it says somebody looked. The close locks the row, writes the staff
 `staff-check-closed` (409); an id that is not one, or names nothing, is the page that is not
 there, and so is everybody whose role does not open Money.
 
+**The shop's money is Money's too** (`GET /api/admin/shop/money`, `money`, LG-D39): `configured:
+false` where the shop is off; otherwise its contract's books as the reader's own wallet holds them
+(`ledger`): the revenue it holds, what inviters have still to claim, what it holds and whether that
+covers both, the inviters' share and its ceiling (`MAX_SHARE_BPS`, 30%), whether it is paused, this
+server's seller with whether it holds its role and the seller the contract names, the wallet's two
+roles, and from the database how many paid orders delivered nothing and how many refunds are on their
+way. The owner's calls (`wallet`; an admin asking is answered as a page that is not there) take
+revenue out to the owner's own wallet (`/shop/money/withdraw`, `{ amount }`), set the share
+(`/share`, `{ bps }`, 0 to 3,000), name a new seller (`/seller`, `{ address }`, never the zero
+address), and pause and resume (`/pause`, `{ paused }`), each asked of the contract first and refused
+in the staff's own words before any wallet is: NuraChain's errors are words of their own (`REFUSED`
+in `domains/admin/shop-money.ts`: `staff-shop-role`, `-paused`, `-running`, `-revenue`, `-refunded`,
+and `-refused` for anything else), what is no share, address or amount is `staff-shop-share`,
+`-address` or `-amount` (422), and a shop that is off `staff-shop-off`. None of them writes a row of
+the log: the contract's own events are their record, as the vault's calls are.
+
 ## The overview, and who is online
 
 **The overview is counted, never estimated** (D11), and every member of the staff reads it
@@ -419,7 +454,10 @@ game with how many are being played and how many tables wait (Play's own read), 
 could not play, and the reports waiting. For a role that opens Money it adds the money from the
 database alone, so the page never waits on the chain: the paid games being played, the NURA locked
 in games (every stake of an escrow locking, open or settling) and the payments stuck on the way, by
-the vault panel's own rule (`vaultAdmin.counts`). For an admin and the owner (`health`) it adds this
+the vault panel's own rule (`vaultAdmin.counts`), and where the shop is open the shop's sales from
+the database (`shop`, LG-D40): what the paid orders not refunded came to by when each was paid over
+the last day, the week and in all, and how many paid orders delivered nothing. For an admin and the
+owner (`health`) it adds this
 server's health: how long it has run, its memory, how much of the last full minute its event loop
 was busy and the longest it waited past its own tick, the database pool, the sockets open, the
 requests of the last hour and how many of them failed, and the last fifty failures by method, path
@@ -572,7 +610,7 @@ The log is grouped under the reader's own days ("Today", "Yesterday", then the d
 by its heading, and the heading is held at the top of the screen while its day is read. An older
 page joins the day it carries on, which keeps its place. Each entry begins with a mark for its kind
 in a tinted circle (`MARKS` in `log-entry`): a suspension, a clear and a game ended in danger, a lift
-in green, a report, a sign-out, a closed table, an age and a disagreement with NuraChain closed in gold, a note, a role, a game switched,
+in green, a report, a sign-out, a closed table, an age, a disagreement with NuraChain closed and a refund asked in gold, a note, a role, a game switched,
 an announcement and a change to a look in the shop in blue, the collection put on top of the shop in
 gold, a look given to somebody in green and one taken back in danger, and a suspension that ran out
 and somebody taken off the staff plain.
@@ -580,9 +618,10 @@ The mark is hidden from a screen reader, because the sentence beside it says the
 
 **Overview** is the first section, open to every role on the staff, and it is a dashboard. It
 opens with what needs the reader ("Needs you", with when it was read): the reports waiting in
-gold, and the games the sweep cannot play, the payments stuck on the way and the disagreements
-with NuraChain still open in danger, each only when there are some and each leading to its place
-(stuck games for a role that opens Play alone, the disagreements for one that opens Money, to
+gold, and the games the sweep cannot play, the payments stuck on the way, the paid orders that
+delivered nothing and the disagreements with NuraChain still open in danger, each only when there
+are some and each leading to its place (stuck games for a role that opens Play alone, the orders and
+the disagreements for one that opens Money, to `/admin/shop?view=orders&state=undelivered` and
 `/admin/money/checks`);
 when nothing does it says so, "Nothing needs you right now.". Then four tiles, two to a row on a
 phone and four from 1024px, each leading to its section and each named to a screen reader as one
@@ -594,7 +633,10 @@ many are being played and how many tables wait, the way into Play only for a rol
 and beside it the rest of the accounts (new in the last week, the suspended and those under 18 as
 links to People's own lists). A role that opens Money also sees the NURA locked in games in
 madder, the paid games being played and the payments stuck on the way (in danger when there are
-some), with the way to Money; an admin and the owner see this server: how long it has been up
+some) under "Playing for NURA", and where the shop is open, under "The shop" in the same panel
+(Money), the NURA it sold in the last day, the week and so far and the paid orders that delivered
+nothing (in danger when there are some), with the ways to Money and to the orders; a server with no
+vault draws the shop alone there. An admin and the owner see this server: how long it has been up
 ("less than a minute" when it is, minutes alone under an hour) and, as a grid of figures, its
 memory, how busy the event loop was and its longest wait (with a meter), the database
 connections (a meter of those in use), the sockets, the hour's requests and failures (in danger
@@ -806,12 +848,29 @@ look opening on what was asked. Orders (`view=orders`) lists them by the order r
 Who, Price, Asked, How it stands), a gift's two handles set apart, a paid order that delivered
 nothing in danger, a failed one with NuraChain's word; the states are chips and the person a search
 written once the typing pauses, and a look's sales lead there with "Only …" and the way back to every
-look (`state`, `person`, `item`). The log says "mina set the price of Nura Glow dice at 7 NURA, from
-12." and "alex put Jade Dragon Dynasty on top of the shop.", under the chips "Shop" and "On top".
+look (`state`, `person`, `item`), "Paid, nothing delivered" a chip of its own (`state=undelivered`).
+A paid order offers the owner Refund ("Refund 50 NURA to sara.k" to a screen reader), which asks
+why in the reason sheet as a question that costs something ("Give sara.k their 50 NURA back?");
+said yes to, the owner's wallet sends it, the order reads Refunded the moment NuraChain has it (the
+worker writes it down at its next beat), and the toast says so ("NuraChain refunded 50 NURA to
+sara.k."); a refusal says why in its own words, and the next sheet opens on the reason written. A
+paid order a refund was asked for says "Refund asked" and when. The log says "mina set the price of
+Nura Glow dice at 7 NURA, from 12.", "alex put Jade Dragon Dynasty on top of the shop." and "alex
+asked NuraChain to refund sara.k 12.5 NURA for Infernal Sovereign dice.", under the chips "Shop",
+"On top" and "Refunds".
 
 **Money** is the vault panel, and its calls are drawn for the owner alone (`may(role, 'wallet')`):
 an admin whose wallet happens to hold a role on the vault is told that only the owner changes it
 from here, because the server would refuse the call. Its head leads to the checks against NuraChain.
+Under the vault stands the shop (`AdminShopMoney`, or `FeatureOff` where the shop is off): its
+figures as tiles (the revenue it holds, what inviters are owed, what it holds and whether that covers
+both, the inviters' share), selling or paused, the paid orders that delivered nothing (in danger,
+leading to them) and the refunds on their way, its seller (shortened, left to right; in danger out of
+its role, and the seller the contract names where that is another), what the reader's wallet may do,
+and for the owner alone the calls: revenue taken out (All of it fills the revenue), the share in
+percent, a new seller asked first as a question that loses something, a pause asked first and a
+resume at once. Each is said once the shop has been read again, and a refusal says why in the
+staff's own words, keeping what was typed.
 
 **The checks against NuraChain** (`/admin/money/checks`, Money lit, a way back to Money in its
 head) say when this server last finished a pass and which families it checks, then list the
@@ -835,13 +894,13 @@ open it says the two agree; a server that keeps no contract says it checks nothi
 
 `admin-shell.spec.ts`, `admin-overview.spec.ts`, `admin-live.spec.ts`, `admin-notice.spec.ts`, `admin-staff.spec.ts`, `admin-log.spec.ts`, `admin-people.spec.ts`,
 `admin-person.spec.ts`, `admin-reports.spec.ts`, `admin-report.spec.ts`, `admin-play.spec.ts`,
-`reason-sheet.spec.ts`, `suspend-sheet.spec.ts`, `give-look-sheet.spec.ts`, `admin-checks.spec.ts` and `admin-vault.spec.ts` hold the page (`admin-play.spec.ts` its lists, the end of a game and the close of a table as well, `match-result.spec.ts` the card),
+`reason-sheet.spec.ts`, `suspend-sheet.spec.ts`, `give-look-sheet.spec.ts`, `admin-checks.spec.ts`, `admin-vault.spec.ts` and `admin-shop-money.spec.ts` hold the page (`admin-play.spec.ts` its lists, the end of a game and the close of a table as well, `match-result.spec.ts` the card),
 `paused-game.spec.ts` what a player sees of a paused game, `play.spec.ts` of a table the staff closed and `notice-strip.spec.ts` the notice on every page and at a table; `app-stores.spec.ts` the guards and `profile-page.spec.ts` the shield.
 
 ## The garbage pass
 
 `tools/qa/garbage-pass.mjs` sends the admin's routes garbage like every other: the staff change, a
-note, a suspension, a lift, a clear, a sign-out, a mark under 18, a report's outcome, a game's switch, a game's end, a table's close, a notice put up and one taken down, a check closed, a look changed in the shop, the collection put on top, a look given to somebody and one taken back, and the vault's amounts as bodies, the pause as spared (its body is a
+note, a suspension, a lift, a clear, a sign-out, a mark under 18, a report's outcome, a game's switch, a game's end, a table's close, a notice put up and one taken down, a check closed, a look changed in the shop, the collection put on top, a look given to somebody and one taken back, a refund asked, the shop's revenue taken out, its share and its seller, and the vault's amounts as bodies, the two pauses as spared (each body is a
 switch), the log's four query words, the people's three, the reports' two, the games being played's
-three, the tables waiting's two, the live list's one, the checks' two and the shop orders' four. Its garbage accounts are not staff, so every one of them is answered as missing; what it
+three, the tables waiting's two, the live list's one, the checks' two and the shop orders' five. Its garbage accounts are not staff, so every one of them is answered as missing; what it
 proves is that none is a 5xx.

@@ -842,6 +842,8 @@ try
 
     console.log('\n[7] a table for nine: two seats all in, and the table held at six sizes');
     {
+        // Left on the table, the page reads its game once more as the last chair goes, and the closed table answers that read 404.
+        await dana.page.goto('about:blank');
         await clearTables(...table);
 
         const guests = [];

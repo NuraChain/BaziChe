@@ -932,13 +932,15 @@ html:has(.site-drawer[open])
  * a stadium's end, under every plate, card and chip. While it is its owner's turn a light of the
  * collection's glint (`--felt-light`) runs round the ring its drawing engraves at 84% of its
  * radius; with less motion asked for the ring is lit and still. A mat grows out of its seat when
- * the table is drawn for a game.
+ * the table is drawn for a game. A mat reaches past the rail: the clip-path hides that from the eye
+ * and not from the page's overflow, so without `overflow: clip` the page would scroll by it.
  */
 .felt-mats
 {
     position: absolute;
     inset: 0;
     z-index: 0;
+    overflow: clip;
     clip-path: inset(var(--cloth-in) round var(--cloth-round));
     pointer-events: none;
 }

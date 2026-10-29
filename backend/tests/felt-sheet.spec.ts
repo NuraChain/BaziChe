@@ -52,6 +52,11 @@ describe('a player’s felt in a look, in the stylesheet', () =>
         expect(rule('.felt-mat')).toContain('background: var(--felt) center / 100% 100% no-repeat;');
     });
 
+    it('keeps every mat inside its table, so a mat reaching past the rail never makes the page scroll', () =>
+    {
+        expect(rule('.felt-mats')).toContain('overflow: clip;');
+    });
+
     it('clips the mats to each table’s own cloth', () =>
     {
         expect(rule('.hokm-table > .felt-mats'), 'Hokm’s cloth begins where its rail’s drawing ends').toContain('--cloth-in: 6.1cqmin;');

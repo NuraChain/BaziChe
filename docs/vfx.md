@@ -138,6 +138,22 @@ face.
 - **It takes no press and says nothing.** The canvas lets every pointer through and is `aria-hidden`;
   the event it decorates is said by the board as it always was.
 
+**Measured** (2026-10-29, the built server and headless Chromium on one development machine, at
+1280x720, where the browser paints as fast as it can rather than at a screen's 60 Hz): a live poker
+table of six where every seat wears a whole legendary set, so the opening plays six entrances at once,
+each with every layer of its celebration, timed over the opening's first five seconds by a probe run
+by hand for this measure (it is not one of the repository's passes):
+
+| The opening | Frames a second | Slowest frame | Long tasks |
+|---|---|---|---|
+| in looks, the engine and the drawings already in the browser | 163 | 36 ms | none |
+| in looks, the first table a browser opens | 145 | 236 ms | one, about 90 ms |
+| in Classic, the first table a browser opens | 158 to 159 | 91 to 121 ms | one of 131 ms in one run of two |
+
+So six entrances at once cost the page nothing it notices once the engine is loaded. What a first
+table in looks pays once is what only looks bring: the engine, the voices and six sets of drawings
+painted for the first time.
+
 ## How it is held
 
 `vfx-engine.spec.ts` (the canvas, the pool, nothing drawn while idle, the ceiling, a stream let go,

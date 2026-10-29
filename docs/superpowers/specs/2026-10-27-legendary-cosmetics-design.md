@@ -299,3 +299,13 @@ Where the work departed from this design, and why:
   playground. There is no sound panel of its own: each press plays its moment with its voice.
 - **The order of work** went as written, with LG8 to LG12 after the first seven phases of the
   owner's production brief, which the owner put first on 2026-10-28.
+- **Measured against section 10's performance.** The probe this design asked for, a poker table of
+  six where every seat wears a whole legendary set, opened at 1280x720: with the engine loaded, six
+  entrances at once ran at 163 frames a second with no long task and no frame over 36 ms; the first
+  table in looks a browser opens had one frame of 236 ms and one long task of about 90 ms, where the
+  same first table in Classic had one of 91 to 121 ms and in one run a long task of 131 ms
+  (`docs/vfx.md`, *What it costs*). Headless Chromium on one development machine; no phone was
+  measured.
+- **The fit pass plays six tables in looks**, every seat in a legendary collection, at every size,
+  and asks of every cell that each look is drawn (`tools/qa/CLAUDE.md`). Their first runs found the
+  felt mats making the page scroll and two layout edges of plain tables, all fixed.

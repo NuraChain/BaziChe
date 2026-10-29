@@ -1,0 +1,125 @@
+import { useHead } from 'azerothjs';
+
+import { FEATURED_FIRST, LOOKS, SHOP_COLLECTIONS, type ShopCollection } from '../../../../backend/src/domains/shop/catalogue.ts';
+import Page from '../../components/app/page.component.azeroth';
+import PageHeader from '../../components/app/page-header.component.azeroth';
+import LookCard from '../../components/shop/look-card.component.azeroth';
+import FriendRow from '../../components/social/friend-row.component.azeroth';
+import ProfileHeader from '../../components/social/profile-header.component.azeroth';
+import Button from '../../components/ui/button.component.azeroth';
+import FilterBar from '../../components/ui/filter-bar.component.azeroth';
+import SectionHeading from '../../components/ui/section-heading.component.azeroth';
+import { GAMES } from '../../data/games.ts';
+import { openLook } from '../../lib/look-sheet.ts';
+import { useAddress } from '../../lib/page-param.ts';
+import { SHOP_FILTERS, collectionName, isShopFilter, kindsFor } from '../../lib/shop.ts';
+import '../../locales/shop-catalogue.ts';
+import { useAccount } from '../../stores/account.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useShop } from '../../stores/shop.store.ts';
+
+const isCollection = (word: string): word is ShopCollection => (SHOP_COLLECTIONS as readonly string[]).includes(word);
+
+export default component LabPage()
+{
+    const locale = useLocale();
+    const shop = useShop();
+    const account = useAccount();
+    const address = useAddress();
+
+    useHead({ title: () => locale.t('shop.lab.title') });
+
+    derived asked = address.text('collection');
+
+    derived featured = shop.state()?.featured ?? FEATURED_FIRST;
+
+    derived collection = isCollection(asked) ? asked : featured;
+
+    derived name = collectionName(collection, locale);
+
+    derived word = address.text('for');
+
+    derived filter = isShopFilter(word) ? word : 'all';
+
+    derived looks = LOOKS.filter((look) => look.collection === collection && kindsFor(filter).includes(look.kind)).map((look) => look.id);
+
+    derived collections = SHOP_COLLECTIONS.map((id) => ({ id, label: collectionName(id, locale) }));
+
+    derived areas = SHOP_FILTERS.map((id) => ({
+        id,
+        label: id === 'all' ? locale.t('shop.for.all') : id === 'profile' ? locale.t('shop.for.profile') : locale.t(GAMES.find((game) => game.id === id)?.nameKey ?? 'shop.for.all')
+    }));
+
+    derived me = account.user();
+
+    derived seen = me !== null;
+
+    state round = 0;
+
+    derived showing = me === null ? [] : [`${ collection }:${ round }`];
+
+    derived worn = me === null ? null : { ...me, deco: `decoration.${ collection }`, nameplate: `nameplate.${ collection }` };
+
+    const see = async (item: string) =>
+    {
+        address.write({ item });
+        await openLook(item);
+        address.write({ item: '' });
+    };
+
+    mount
+    {
+        const item = address.text('item');
+
+        if (item !== '')
+        {
+            void see(item);
+        }
+
+        return shop.listen();
+    }
+
+    <Page label={ locale.t('shop.lab.title') }>
+        <PageHeader
+            title={ locale.t('shop.lab.title') }
+            lead={ locale.t('shop.lab.lead') }
+            actions={ <Button variant="outline" leading="bag" to="/app/shop">{ locale.t('shop.title') }</Button> }
+        />
+
+        <div class="flex flex-col gap-8">
+            <FilterBar items={ collections } value={ collection } label={ locale.t('shop.lab.collections') } onChange={ (id) => address.write({ collection: id === featured ? '' : id }) } />
+
+            <Show when={ seen }>
+                <section aria-labelledby="lab-profile" data-lab-profile={ collection }>
+                    <SectionHeading
+                        id="lab-profile"
+                        title={ locale.t('shop.lab.profile') }
+                        actions={ <Button variant="ghost" size="sm" leading="refresh" onClick={ () => round += 1 }>{ locale.t('shop.lab.again') }</Button> }
+                    />
+                    <For each={ showing } key={ (one) => one } let={ one }>
+                        <div class="flex flex-col gap-4" data-round={ one }>
+                            <ProfileHeader person={ worn! } presence={ null } stats={ [] } theme={ `theme.${ collection }` } effect={ `effect.${ collection }` } />
+                            <div class="flex flex-col gap-2">
+                                <p class="text-ui-sm font-semibold text-muted">{ locale.t('shop.lab.inLists') }</p>
+                                <div class="rounded-panel border border-line bg-field">
+                                    <FriendRow person={ worn! } />
+                                </div>
+                            </div>
+                        </div>
+                    </For>
+                    <p class="mt-3 text-ui-xs text-faint">{ locale.t('shop.lab.trying') }</p>
+                </section>
+            </Show>
+
+            <section aria-labelledby="lab-looks" data-lab-looks={ collection }>
+                <SectionHeading id="lab-looks" title={ locale.t('shop.lab.looks', { collection: name }) } />
+                <FilterBar items={ areas } value={ filter } label={ locale.t('shop.lab.title') } onChange={ (id) => address.write({ for: id === 'all' ? '' : id }) } />
+                <ul class="mt-4 grid grid-cols-2 gap-3 @xl:grid-cols-3 @3xl:grid-cols-4">
+                    <For each={ looks } key={ (item) => item } let={ item }>
+                        <li class="min-w-0"><LookCard item={ item } onOpen={ (picked) => void see(picked) } /></li>
+                    </For>
+                </ul>
+            </section>
+        </div>
+    </Page>
+}

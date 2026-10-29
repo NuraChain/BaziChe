@@ -126,6 +126,18 @@ describe('the shop page', () =>
         expect(sections(root)).toEqual([...SHOP_KINDS]);
     });
 
+    it('leads to the fitting room beside the reader’s collection, in both languages', async () =>
+    {
+        const root = await page();
+
+        expect(root.querySelector('a[href="/app/shop/lab"]')?.textContent?.trim()).toBe('Try them on');
+
+        cleanup();
+        useLocale().setLocale('fa');
+
+        expect((await page()).querySelector('a[href="/app/shop/lab"]')?.textContent?.trim()).toBe('امتحانشون کن');
+    });
+
     it('reads a word it does not know as All', async () =>
     {
         const root = await page('/app/shop?for=roulette');

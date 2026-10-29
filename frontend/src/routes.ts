@@ -69,6 +69,7 @@ export const routes: PageRoute[] = [
             { path: 'discover', lazy: chunk(() => import('./pages/app/discover.page.azeroth')), meta: defineMeta({ title: 'app.nav.discover', tab: 'discover' }) },
             { path: 'shop', lazy: chunk(() => import('./pages/app/shop.page.azeroth')), meta: defineMeta({ title: 'shop.title', tab: 'shop' }) },
             { path: 'shop/collection', lazy: chunk(() => import('./pages/app/collection.page.azeroth')), meta: defineMeta({ title: 'shop.collection.title', tab: 'shop', parent: '/app/shop' }) },
+            { path: 'shop/lab', lazy: chunk(() => import('./pages/app/lab.page.azeroth')), meta: defineMeta({ title: 'shop.lab.title', tab: 'shop', parent: '/app/shop' }) },
             { path: 'search', lazy: chunk(() => import('./pages/app/search.page.azeroth')), meta: defineMeta({ title: 'app.nav.search', tab: 'search' }) },
             { path: 'notifications', lazy: chunk(() => import('./pages/app/notifications.page.azeroth')), meta: defineMeta({ title: 'app.nav.notifications', tab: 'notifications', parent: '/app' }) },
             { path: 'me', lazy: chunk(() => import('./pages/app/me.page.azeroth')), meta: defineMeta({ title: 'app.nav.profile', tab: 'me' }) },

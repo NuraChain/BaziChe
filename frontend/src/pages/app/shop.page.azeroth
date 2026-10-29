@@ -105,6 +105,7 @@ export default component ShopPage()
                         { locale.t('shop.getNura') }
                         <Icon name="forward" size={ 14 } class="icon-flip" />
                     </a>
+                    <Button variant="outline" leading="palette" to="/app/shop/lab">{ locale.t('shop.lab.door') }</Button>
                     <Button variant="outline" leading="sparkles" to="/app/shop/collection">{ locale.t('shop.yours') }</Button>
                 </div>
             }

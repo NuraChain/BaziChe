@@ -59,7 +59,7 @@ const GROUND = `--c:${ CELL_SHOWN.toFixed(4) }cqw;background:url('/board/ludo-bo
 const YARD = `left:${ shown(YARD_AT.red[0]).toFixed(3) }%;top:${ shown(YARD_AT.red[1]).toFixed(3) }%;width:${ shown(YARD_SIZE).toFixed(3) }%;height:${ shown(YARD_SIZE).toFixed(3) }%`;
 
 /** The keyframes of a walk from `from` through `stops`, as offsets in pixels for a corner `unit` pixels to a percent, lifted `lift` percent between two. */
-function hops(from: Point, stops: readonly Point[], unit: number, lift: number): Keyframe[]
+function hops(from: Point, stops: readonly Point[], unit: number, lift: number)
 {
     const offset = (to: Point) => `${ ((to.x - from.x) * unit).toFixed(2) }px ${ ((to.y - from.y) * unit).toFixed(2) }px`;
     const frames: Keyframe[] = [{ offset: 0, translate: '0px 0px' }];

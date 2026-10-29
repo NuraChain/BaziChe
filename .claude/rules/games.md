@@ -4531,6 +4531,28 @@ kind, the root kept through a re-read and following the next game, and the trays
 inside it; `piece-sheet.spec.ts` (server suite) every rule reading its side's property and every
 property naming a drawing the build ships.
 
+**Its moments are each on a real event, in the collection of the side whose piece made it, and
+never over a piece or a mark**: the engine's canvas lies on `LAYER.glow`, under the pieces and the
+board's marks, and it is fetched only once a side wears a set (the table hands the renderer each
+colour's set, `sets`). A piece set down plays its collection's burst at a square's size, lightly and
+over within a second (`LANDING`: a game is forty moves a side), with the voice `pawn`; a capture is the
+taker's `CAPTURES` where the piece it takes stood (a pawn taken in passing where that pawn stood), as
+the two meet, with `capture`, and no landing of its own; castling is the collection's flourish
+(`CASTLES` in `game/looks/chess.ts`) where the rook is set down beside its king, with `pawn`, the king
+set down plainly; a promotion is the collection's critical reveal (`CRITICALS`, a six's at Ludo and
+doubles' at backgammon) on the square as the pawn turns, with `spawn`; check is a warning in the
+collection of the side that gave it under the checked king (`CHECKS`), with no voice over the board's
+own chime; and mate is the winner's critical reveal and one layer more (`FINALES`), 1.6 squares wide,
+over the king once it is laid down, with `capture`. The voices are the table packs' own moments, as
+backgammon's are (LG-D13). Somebody who asked for less motion sees one soft fade where each would
+play. `chess-moments.spec.ts` holds each moment's recipe, square, size, colours, voice and time against
+the real renderer on the manual clock, the engine fetched or not, its layer, less motion and letting
+it go; `chess-looks.spec.ts` the board handing its table each colour's set and wearing their voices;
+`look-identity.spec.ts` each legendary collection's castling and check its own, castling no capture
+and a mate going on after its promotion; `vfx-families.spec.ts` every landing spent within a second,
+check within two, castling within two and a half and mate within four, through the real engine over
+six rolls.
+
 ## Drawing the board
 
 The Ludo board and its pieces are **vector art drawn from the rules' own geometry**, all of it by

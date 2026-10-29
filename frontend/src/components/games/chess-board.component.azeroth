@@ -24,7 +24,7 @@ import { costOf, createChessTable, type ChessFacts, type ChessTable, type Lay } 
 import { SIZE, boxOf, cellOf, placeOf, squareAt, type Foot } from '../../game/chess-layout.ts';
 import { createSound, type SoundHandle } from '../../game/sound.ts';
 import { dressOf } from '../../game/looks/chess.ts';
-import { wornOf } from '../../game/looks/table.ts';
+import { heardAt, wornOf } from '../../game/looks/table.ts';
 import type { Ctx } from '../../game/stage/director.ts';
 import { createPresenter, type Presenter, type Sight } from '../../game/stage/presenter.ts';
 import { createStage } from '../../game/stage/stage.ts';
@@ -409,11 +409,21 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
         }
     }
 
+    derived heard = heardAt(game.players.map((player) => player.look), ['pieces']);
+
+    effect
+    {
+        const collections = heard;
+
+        untrack(() => sound?.wear(collections));
+    }
+
     mount
     {
         let unwatch: () => void = () => undefined;
 
         sound = createSound(untrack(() => settings.settings().sound), 'chess');
+        sound.wear(untrack(() => heard));
 
         if (layer !== null)
         {
@@ -436,7 +446,8 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
                 onFacts: (now) =>
                 {
                     facts = now;
-                }
+                },
+                sets: () => untrack(() => ({ w: setAt(whiteSeat), b: setAt(1 - whiteSeat) }))
             });
             presenter = createPresenter<Lay, Told>({ stage: rig, clock, table, sight: () => untrack(sightNow), report, lead: () => (resultStands ? RESULT_OUT : 0), due: () => (untrack(() => over) ? RESULT_WAIT : null) });
             presenter.frame(root);

@@ -14,11 +14,41 @@ import { useSettings } from '../src/stores/settings.store.ts';
 import type { MatchView } from '../src/api.ts';
 import { parseFen, squareNamed } from '../../backend/src/domains/match/chess/board.ts';
 
+const voices = vi.hoisted(() => ({ worn: [] as (readonly string[])[] }));
+
 vi.mock('../src/game/sound.ts', async (original) =>
 {
     const real = await original<typeof import('../src/game/sound.ts')>();
 
-    return { ...real, createSound: () => ({ play: () => undefined, setEnabled: () => undefined, dispose: () => undefined }) };
+    return {
+        ...real,
+        createSound: () => ({
+            play: () => undefined,
+            wear: (collections: readonly string[]) =>
+            {
+                voices.worn.push([...collections]);
+            },
+            setEnabled: () => undefined,
+            dispose: () => undefined
+        })
+    };
+});
+
+const handed = vi.hoisted(() => ({ sets: [] as (() => unknown)[] }));
+
+vi.mock('../src/game/board/chess-table.ts', async (original) =>
+{
+    const real = await original<typeof import('../src/game/board/chess-table.ts')>();
+
+    return {
+        ...real,
+        createChessTable: (options: Parameters<typeof real.createChessTable>[0]) =>
+        {
+            handed.sets.push(() => options.sets?.());
+
+            return real.createChessTable(options);
+        }
+    };
 });
 
 type Chess = Extract<MatchView['view'], { kind: 'chess' }>;
@@ -121,6 +151,8 @@ beforeEach(() =>
     setRuntime({ clock: manualClock(400_000), seed: 3 });
     useLocale().setLocale('en');
     useSettings().reset();
+    voices.worn = [];
+    handed.sets = [];
 });
 
 afterEach(() =>
@@ -143,6 +175,18 @@ describe('each side\'s pieces in the set its player wears', () =>
         const { container } = await live(match([{ pieces: 'pieces.inferno' }, { pieces: 'pieces.jade' }], { white: 1 }, 1));
 
         expect(drawn(container)).toEqual({ ...setOf('jade', 'w'), ...setOf('inferno', 'b') });
+    });
+
+    it('hands its table each colour\'s set, so what the pieces do is the set they are drawn in', async () =>
+    {
+        const board = await live(match([{ pieces: 'pieces.inferno' }, { pieces: 'pieces.jade' }], { white: 1 }, 0));
+
+        expect(handed.sets).toHaveLength(1);
+        expect(handed.sets[0]!()).toEqual({ w: 'jade', b: 'inferno' });
+
+        await board.move(match([undefined, { pieces: 'pieces.frost' }], {}, 0, 'match-next'));
+
+        expect(handed.sets[0]!()).toEqual({ w: null, b: 'frost' });
     });
 
     it('draws a side in Classic as the board\'s own, and keeps the other side\'s set off it', async () =>
@@ -203,5 +247,21 @@ describe('each side\'s pieces in the set its player wears', () =>
         expect(dressOf({ w: null, b: null })).toBe('');
         expect(dressOf({ w: 'glow', b: null }).split('; ')).toEqual(['k', 'q', 'r', 'b', 'n', 'p'].map((kind) => `--piece-w${ kind }: url('/pieces/glow-w${ kind }.svg')`));
         expect(dressOf({ w: 'glow', b: 'oni' }).split('; ')).toHaveLength(12);
+    });
+
+    it('wears the voices of the sets its players\' pieces are in, once each, none at a table in Classic, and the next game\'s', async () =>
+    {
+        const board = await live(match([{ pieces: 'pieces.inferno' }, { pieces: 'pieces.storm', dice: 'dice.jade' } as Look]));
+
+        expect(voices.worn.at(-1)).toEqual(['inferno', 'storm']);
+
+        await board.move(match([{ pieces: 'pieces.oni' }, { pieces: 'pieces.oni' }], {}, 0, 'match-next'));
+
+        expect(voices.worn.at(-1)).toEqual(['oni']);
+        board.unmount();
+
+        await live(match([undefined, { checkers: 'checkers.gold' } as Look]));
+
+        expect(voices.worn.at(-1)).toEqual([]);
     });
 });

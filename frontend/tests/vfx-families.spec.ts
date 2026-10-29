@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
 import { BORNE, ENTRIES } from '../src/game/looks/backgammon.ts';
+import { CASTLES, CHECKS, FINALES, LANDING } from '../src/game/looks/chess.ts';
 import { playAt } from '../src/game/looks/cards.ts';
 import { LIGHTS } from '../src/game/looks/lights.ts';
-import { CAPTURES, CRITICALS } from '../src/game/looks/table.ts';
+import { CAPTURES, CRITICALS, burstOf } from '../src/game/looks/table.ts';
 import { createVfx, PAGE_CEILING, qualityOf, type Quality, type Vfx, type VfxOptions } from '../src/game/vfx/engine.ts';
 import { FAMILIES, FAMILY_STREAMS, type Family, type FamilyStream } from '../src/game/vfx/families.ts';
 import { make, radial, rolling, seeded, TRAIL_EVERY, type Shape } from '../src/game/vfx/presets.ts';
@@ -578,6 +579,44 @@ describe('a backgammon moment\'s signature, as the table plays it', () =>
                 clock.advance(spent);
 
                 expect(vfx.live(), `seed ${ seed } was still drawing`).toBe(0);
+            }
+        }
+    });
+});
+
+describe('a chess moment\'s signature, as the table plays it', () =>
+{
+    /** A piece set down is a game's commonest moment, forty a side, so it is over within a second; check within two, castling within two and a half, a mate within four. */
+    const LANDING_MS = 1_000;
+
+    const CHECK_MS = 2_000;
+
+    const CASTLE_MS = 2_500;
+
+    const MATE_MS = 4_000;
+
+    it.each([...SHOP_COLLECTIONS])('sets a piece of %s down, castles, gives check and mates with signatures spent in their time, whatever their roll', (collection) =>
+    {
+        const moments = [
+            [[{ effect: burstOf(collection).effect, tune: LANDING }], LANDING_MS],
+            [CHECKS[collection], CHECK_MS],
+            [CASTLES[collection], CASTLE_MS],
+            [[...CRITICALS[collection], FINALES[collection]], MATE_MS]
+        ] as const;
+
+        for (const [steps, spent] of moments)
+        {
+            for (let seed = 1; seed <= 6; seed += 1)
+            {
+                const vfx = made(recording());
+
+                vfx.signature(steps, AT, { colors: LIGHTS[collection], scale: 1, seed });
+
+                expect(vfx.live()).toBeGreaterThan(0);
+
+                clock.advance(spent);
+
+                expect(vfx.live(), `${ steps[0].effect }, seed ${ seed }, was still drawing`).toBe(0);
             }
         }
     });

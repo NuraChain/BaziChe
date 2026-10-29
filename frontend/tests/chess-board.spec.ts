@@ -33,6 +33,7 @@ vi.mock('../src/game/sound.ts', async (original) =>
                 {
                     told.heard.push(cue);
                 },
+                wear: () => undefined,
                 setEnabled: () => undefined,
                 dispose: () => undefined
             };

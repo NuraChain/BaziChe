@@ -1,12 +1,16 @@
 import { SIZE, SQUARE, coordinatesOf, spotOf, type Foot } from '../chess-layout.ts';
 import { boardOf, checkOf, passedOf, rookOf, step, type Felt, type Man, type Told } from '../chess-felt.ts';
-import { colourOf, kindOf, pieceOf, type Colour, type Kind, type Piece } from '../../../../backend/src/domains/match/chess/board.ts';
+import { colourOf, kindOf, opponent, pieceOf, type Colour, type Kind, type Piece } from '../../../../backend/src/domains/match/chess/board.ts';
+import { CASTLES, CHECKS, FINALES, LANDING, type Sets } from '../looks/chess.ts';
+import { CAPTURES, CRITICALS, burstOf, lightOf, type Collection } from '../looks/table.ts';
 import { clamp } from '../stage/curves.ts';
 import { LAYER, layered } from '../stage/layers.ts';
 import type { Table } from '../stage/presenter.ts';
 import { arc, type Point } from '../stage/route.ts';
 import type { Run, Stage } from '../stage/stage.ts';
 import { endCue, type Cue, type SoundHandle } from '../sound.ts';
+import type { Step } from '../vfx/engine.ts';
+import { lazyVfx } from '../vfx/lazy.ts';
 import type { Haptic } from '../../lib/haptics.ts';
 
 /** What the table is told to show: the felt, whose colour stands at the foot, and a king mated on it. */
@@ -33,6 +37,9 @@ export interface ChessOptions
     animals: () => boolean;
     feel: (kind: Haptic) => void;
     onFacts?: (facts: ChessFacts) => void;
+
+    /** Each colour's set, from the looks its player's match began with: what its pieces do is its collection's. */
+    sets?: () => Sets;
 }
 
 export interface ChessTable extends Table<Lay, Told>
@@ -96,6 +103,12 @@ const BACK_MS = 220;
 const SET_DOWN = 'cubic-bezier(0.2, 0.7, 0.3, 1)';
 
 const QUIET_MOST = 10;
+
+/** How many pixels of the host one effect's scale stands for, as at every board. */
+const EFFECT_FITS = 40;
+
+/** How many squares wide a mate's reveal is over the king laid down. */
+const MATE_SQUARES = 1.6;
 
 const cq = (units: number) => `${ (units / SIZE * 100).toFixed(3) }cqw`;
 
@@ -202,6 +215,7 @@ export function createChessTable(options: ChessOptions): ChessTable
     let carried: { key: string; x: number; y: number } | null = null;
     let returning: Run | null = null;
     let labelled: Foot | null = null;
+    const effects = lazyVfx(host, { layer: LAYER.glow, quiet: () => stage.quiet() });
 
     for (const mark of lastMarks)
     {
@@ -215,6 +229,26 @@ export function createChessTable(options: ChessOptions): ChessTable
     host.style.setProperty('--sq', cq(SQUARE));
 
     const spot = (square: number) => spotOf(square, shown.foot);
+
+    const setOf = (colour: Colour) => options.sets?.()[colour] ?? null;
+
+    const px = (units: number) => units * host.clientWidth / SIZE;
+
+    const middle = (square: number) =>
+    {
+        const corner = spot(square);
+
+        return { x: px(corner.x + SQUARE / 2), y: px(corner.y + SQUARE / 2) };
+    };
+
+    const tuneOf = (worn: Collection, squares = 1) => ({ colors: lightOf(worn), scale: px(SQUARE * squares) / EFFECT_FITS });
+
+    /** One of a set's moments on its square, under every piece, said in its collection's voice. */
+    const moment = (worn: Collection, voice: 'pawn' | 'spawn' | 'capture', square: number, steps: readonly Step[], squares = 1) =>
+    {
+        options.sound()?.play(`${ worn }.${ voice }`, { pan: pan(spot(square)) });
+        effects.play((vfx) => vfx.signature(steps, middle(square), tuneOf(worn, squares)));
+    };
 
     const place = (el: HTMLElement, square: number | null) =>
     {
@@ -238,6 +272,11 @@ export function createChessTable(options: ChessOptions): ChessTable
         }
 
         el.dataset.piece = nameOf(piece);
+
+        if (setOf(colourOf(piece)) !== null)
+        {
+            effects.warm();
+        }
 
         return el;
     };
@@ -426,6 +465,7 @@ export function createChessTable(options: ChessOptions): ChessTable
 
     const promote = async (man: Man) =>
     {
+        const worn = setOf(colourOf(man.piece));
         const el = ensure(man, pieceOf(colourOf(man.piece), 'p'));
         const run = stage.animate(el, [
             { offset: 0, scale: '1' },
@@ -437,6 +477,11 @@ export function createChessTable(options: ChessOptions): ChessTable
         {
             ensure(man);
             options.sound()?.play('promote');
+
+            if (worn !== null)
+            {
+                moment(worn, 'spawn', man.square, CRITICALS[worn]);
+            }
         });
 
         await run.done;
@@ -464,6 +509,13 @@ export function createChessTable(options: ChessOptions): ChessTable
         ], { duration: TIP_MS, easing: 'cubic-bezier(0.45, 0, 0.55, 1)' }).done;
 
         options.sound()?.play('king-fall');
+
+        const worn = setOf(opponent(colour));
+
+        if (worn !== null)
+        {
+            moment(worn, 'capture', king.square, [...CRITICALS[worn], FINALES[worn]], MATE_SQUARES);
+        }
     };
 
     /** One logged move, played from where the table shows it: the piece travels, and whatever it takes goes as it arrives. */
@@ -500,13 +552,15 @@ export function createChessTable(options: ChessOptions): ChessTable
         }
 
         const colour = colourOf(mover.piece);
+        const worn = setOf(colour);
         const takenAt = move.enPassant === true ? passedOf(move.to, colour) : (move.captured === undefined ? null : move.to);
         const victim = takenAt === null ? undefined : before.men.find((man) => man.square === takenAt && man !== mover);
         const rook = move.castle === undefined ? null : rookOf(move.to, move.castle);
         const rookMan = rook === null ? undefined : before.men.find((man) => man.square === rook.from);
         const next = step(before, move);
         const arrived = next.men.find((man) => man.key === mover.key) ?? mover;
-        const landing = spot(move.to);
+        const to = move.to;
+        const landing = spot(to);
         const promoted = move.promotion !== undefined;
         const animal = options.animals() ? ANIMALS[kindOf(mover.piece)] : undefined;
 
@@ -516,7 +570,16 @@ export function createChessTable(options: ChessOptions): ChessTable
 
         const el = ensure(arrived, promoted ? mover.piece : arrived.piece);
         const from = letGo(mover.key);
-        const click = () => options.sound()?.play(animal?.step ?? 'piece-move', { pan: pan(landing), rate: victim === undefined || animal !== undefined ? 1 : 0.9 });
+        const plain = victim === undefined && rook === null && !promoted;
+        const click = () =>
+        {
+            options.sound()?.play(animal?.step ?? 'piece-move', { pan: pan(landing), rate: victim === undefined || animal !== undefined ? 1 : 0.9 });
+
+            if (worn !== null && plain)
+            {
+                moment(worn, 'pawn', to, [{ effect: burstOf(worn).effect, tune: LANDING }]);
+            }
+        };
         const run = from === null
             ? glide(el, spot(move.from), landing, kindOf(mover.piece) === 'n', 0, click)
             : setDown(el, from, landing, DROP_BASE, DROP_PACE, DROP_MOST, click);
@@ -544,6 +607,11 @@ export function createChessTable(options: ChessOptions): ChessTable
                 }
 
                 options.feel(colour === shown.foot ? 'capture' : 'hit');
+
+                if (worn !== null)
+                {
+                    moment(worn, 'capture', victim.square, CAPTURES[worn]);
+                }
             });
         }
 
@@ -555,7 +623,15 @@ export function createChessTable(options: ChessOptions): ChessTable
             const rookEl = ensure(moved);
 
             flying.add(rookMan.key);
-            rookRun = hop(rookEl, spot(rook.from), spot(rook.to), run.length * ROOK_LAG, () => options.sound()?.play('piece-move', { pan: pan(spot(rook.to)), rate: 0.92 }));
+            rookRun = hop(rookEl, spot(rook.from), spot(rook.to), run.length * ROOK_LAG, () =>
+            {
+                options.sound()?.play('piece-move', { pan: pan(spot(rook.to)), rate: 0.92 });
+
+                if (worn !== null)
+                {
+                    moment(worn, 'pawn', rook.to, CASTLES[worn]);
+                }
+            });
             rookEl.style.translate = at(spot(rook.to));
         }
 
@@ -589,6 +665,11 @@ export function createChessTable(options: ChessOptions): ChessTable
         if (check !== null)
         {
             options.sound()?.play('check');
+
+            if (worn !== null)
+            {
+                effects.play((vfx) => vfx.signature(CHECKS[worn], middle(check), tuneOf(worn)));
+            }
         }
 
         tell();
@@ -853,6 +934,7 @@ export function createChessTable(options: ChessOptions): ChessTable
         dispose()
         {
             strip();
+            effects.dispose();
 
             for (const el of [...lastMarks, checkMark, heldMark, overMark, ...labels])
             {

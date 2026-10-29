@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { LEGENDARY_COLLECTIONS, SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
 import { AURAS, REVEALS } from '../src/game/looks/aura.ts';
 import { BORNE, ENTRIES } from '../src/game/looks/backgammon.ts';
+import { CASTLES, CHECKS, FINALES } from '../src/game/looks/chess.ts';
 import { playAt } from '../src/game/looks/cards.ts';
 import { LIGHTS } from '../src/game/looks/lights.ts';
 import { TRAILS } from '../src/game/looks/ludo.ts';
@@ -83,5 +84,28 @@ describe('a collection’s moments at a backgammon table', () =>
     it.each([...SHOP_COLLECTIONS])('brings a checker of %s in from the bar otherwise than it takes a blot', (collection) =>
     {
         expect(ENTRIES[collection].map((step) => step.effect)).not.toEqual(CAPTURES[collection].map((step) => step.effect));
+    });
+});
+
+describe('a collection’s moments at a chess table', () =>
+{
+    const others = (collection: (typeof SHOP_COLLECTIONS)[number]) => SHOP_COLLECTIONS.filter((one) => one !== collection);
+
+    it.each([...LEGENDARY_COLLECTIONS])('castles in %s and gives check in it with signatures whose first layers no other collection opens with', (collection) =>
+    {
+        expect(others(collection).map((one) => CASTLES[one][0].effect)).not.toContain(CASTLES[collection][0].effect);
+        expect(others(collection).map((one) => CHECKS[one][0].effect)).not.toContain(CHECKS[collection][0].effect);
+    });
+
+    it.each([...SHOP_COLLECTIONS])('castles in %s otherwise than it takes a piece', (collection) =>
+    {
+        expect(CASTLES[collection].map((step) => step.effect)).not.toEqual(CAPTURES[collection].map((step) => step.effect));
+    });
+
+    it.each([...SHOP_COLLECTIONS])('ends a mate in %s one layer after its promotion has played its last', (collection) =>
+    {
+        const last = Math.max(...CRITICALS[collection].map((step: { after?: number }) => step.after ?? 0));
+
+        expect(FINALES[collection].after).toBeGreaterThan(last);
     });
 });

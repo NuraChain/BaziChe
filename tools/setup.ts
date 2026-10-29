@@ -17,6 +17,7 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
+import { Writable } from 'node:stream';
 import { parseEnv } from 'node:util';
 
 import { DEV_ORIGIN } from '../backend/src/dev-origin.ts';
@@ -106,6 +107,8 @@ async function reach(url: string)
     }
     catch (error)
     {
+        await target.end().catch(() => undefined);
+
         if ((error as { code?: string }).code !== '3D000')
         {
             throw error;
@@ -132,6 +135,36 @@ async function reach(url: string)
     return 'made';
 }
 
+/** What somebody typed for the database, as a url: a whole url as it is, or a database's bare name on the offered server. */
+export function databaseUrlOf(answer: string, offered: string)
+{
+    const said = answer.trim();
+
+    if (said === '' || said.includes('://'))
+    {
+        return said === '' ? offered : said;
+    }
+
+    const url = new URL(offered);
+
+    url.pathname = `/${ encodeURIComponent(said) }`;
+
+    return url.toString();
+}
+
+export function withPassword(url: string, password: string)
+{
+    const next = new URL(url);
+
+    next.password = password;
+
+    return next.toString();
+}
+
+/** Whether Postgres turned the connection away for a password: none given (pg says so before it sends one), or a wrong one. */
+export const wantsPassword = (error: unknown) =>
+    (error as { code?: string }).code === '28P01' || /client password must be a string/.test(error instanceof Error ? error.message : '');
+
 export function whyNot(error: unknown)
 {
     const code = (error as { code?: string }).code ?? '';
@@ -141,9 +174,19 @@ export function whyNot(error: unknown)
         return 'nothing answers at that host and port: is Postgres running?';
     }
 
-    if (code === '28P01' || code === '28000')
+    if (code === '28P01')
     {
-        return 'Postgres refused that user or its password: write the password into the url, postgres://user:password@host:port/name';
+        return 'Postgres refused that user or its password (on most machines the user is postgres)';
+    }
+
+    if (wantsPassword(error))
+    {
+        return 'Postgres wants a password for that user: type it when asked, or put it in the url, postgres://user:password@host:port/name';
+    }
+
+    if (code === '28000')
+    {
+        return 'Postgres does not let that user in from here';
     }
 
     if (code === '42501')
@@ -162,7 +205,7 @@ async function ask(question: string, offered: string)
 
     try
     {
-        return (await reader.question(`${ question } [${ offered }]: `)).trim() || offered;
+        return (await reader.question(`${ question } [${ offered }]: `)).trim();
     }
     finally
     {
@@ -170,17 +213,79 @@ async function ask(question: string, offered: string)
     }
 }
 
-async function database()
+/** A question whose answer is not echoed: what is typed is written to nothing until Enter. */
+async function askHidden(question: string)
 {
-    for (let tries = 0; tries < (process.stdin.isTTY === true ? 3 : 1); tries += 1)
-    {
-        const url = await ask('Which Postgres database should it use?', process.env.DATABASE_URL ?? DATABASE_OFFERED);
+    let hidden = false;
+    const output = new Writable({
+        write: (chunk, _encoding, done) =>
+        {
+            if (!hidden)
+            {
+                process.stdout.write(chunk);
+            }
 
+            done();
+        }
+    });
+    const reader = createInterface({ input: process.stdin, output, terminal: true });
+
+    try
+    {
+        process.stdout.write(question);
+        hidden = true;
+
+        return await reader.question('');
+    }
+    finally
+    {
+        hidden = false;
+        reader.close();
+        process.stdout.write('\n');
+    }
+}
+
+/** The database as it was given, or with the password Postgres asked for once it asks: null when neither can be used. */
+async function reached(given: string)
+{
+    let url = given;
+
+    for (;;)
+    {
         try
         {
             say(await reach(url) === 'made' ? `Made the database ${ nameOf(url) }.` : `Reached the database ${ nameOf(url) }.`);
 
             return url;
+        }
+        catch (error)
+        {
+            if (!wantsPassword(error) || url !== given || process.stdin.isTTY !== true)
+            {
+                say(`That one cannot be used: ${ whyNot(error) }.`);
+
+                return null;
+            }
+
+            url = withPassword(url, await askHidden(`The password of the Postgres user ${ decodeURIComponent(new URL(url).username) }: `));
+        }
+    }
+}
+
+async function database()
+{
+    const offered = process.env.DATABASE_URL ?? DATABASE_OFFERED;
+
+    for (let tries = 0; tries < (process.stdin.isTTY === true ? 3 : 1); tries += 1)
+    {
+        try
+        {
+            const url = await reached(databaseUrlOf(await ask('Which database should it use? Its name on this machine\'s Postgres, or a whole url', nameOf(offered)), offered));
+
+            if (url !== null)
+            {
+                return url;
+            }
         }
         catch (error)
         {

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { parseEnv } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DATABASE_OFFERED, NO_ENV, NUMBERS, addedLines, before, machineValues, missingNames, namesIn, wholeEnv, whyNot } from '../../tools/setup.ts';
+import { DATABASE_OFFERED, NO_ENV, NUMBERS, addedLines, before, databaseUrlOf, machineValues, missingNames, namesIn, wantsPassword, wholeEnv, whyNot, withPassword } from '../../tools/setup.ts';
 import { DEV_ORIGIN, DEV_PORT } from '../src/dev-origin.ts';
 import { SECRET_LEAST, loadServerConfig, unsafeForProduction } from '../src/env.ts';
 
@@ -148,13 +148,39 @@ describe('the .env setup writes for this machine', () =>
         expect(missingNames('A=1\n', null, {})).toEqual(['A']);
     });
 
+    it('takes a database\'s bare name on the offered server, a whole url as it is, and nothing typed as the offer', () =>
+    {
+        expect(databaseUrlOf('baziche', DATABASE_OFFERED)).toBe('postgres://postgres@127.0.0.1:5432/baziche');
+        expect(databaseUrlOf('  my_games ', DATABASE_OFFERED)).toBe('postgres://postgres@127.0.0.1:5432/my_games');
+        expect(databaseUrlOf('', DATABASE_OFFERED)).toBe(DATABASE_OFFERED);
+        expect(databaseUrlOf('postgres://root@10.0.0.2:5433/games', DATABASE_OFFERED)).toBe('postgres://root@10.0.0.2:5433/games');
+        expect(new URL(DATABASE_OFFERED).hostname).toBe('127.0.0.1');
+    });
+
+    it('writes the password Postgres asked for into the url, whatever it holds', () =>
+    {
+        const url = withPassword(databaseUrlOf('baziche', DATABASE_OFFERED), 'p@ss:w/rd');
+
+        expect(new URL(url).username).toBe('postgres');
+        expect(decodeURIComponent(new URL(url).password)).toBe('p@ss:w/rd');
+        expect(new URL(url).pathname).toBe('/baziche');
+    });
+
+    it('asks for a password when Postgres wants one, given none or a wrong one, and for nothing else', () =>
+    {
+        expect(wantsPassword(new Error('SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string'))).toBe(true);
+        expect(wantsPassword({ code: '28P01' })).toBe(true);
+        expect(wantsPassword({ code: 'ECONNREFUSED' })).toBe(false);
+        expect(wantsPassword({ code: '3D000' })).toBe(false);
+    });
+
     it('says in words why a database cannot be used', () =>
     {
         expect(whyNot({ code: 'ECONNREFUSED' })).toMatch(/is Postgres running/);
-        expect(whyNot({ code: '28P01' })).toMatch(/write the password into the url/);
+        expect(whyNot(new Error('SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string'))).toMatch(/^Postgres wants a password for that user: type it when asked/);
+        expect(whyNot({ code: '28P01' })).toMatch(/refused that user or its password \(on most machines the user is postgres\)/);
         expect(whyNot({ code: '42501' })).toMatch(/create database/);
         expect(whyNot(new TypeError('Invalid URL'))).toBe('Invalid URL');
-        expect(new URL(DATABASE_OFFERED).hostname).toBe('127.0.0.1');
     });
 });
 

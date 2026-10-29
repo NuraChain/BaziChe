@@ -218,6 +218,9 @@ Loaded only when a session touches the matching code:
   and the payout.
 - `.claude/rules/markets.md` - backing a game's outcome with NURA: where markets are offered, who
   may take a position, the tickets, the worker that settles or calls a market off, and the claims.
+- `.claude/rules/shop.md` - looks bought with NURA: what is sold, owning and choosing, the looks on
+  the wire and at the tables, a purchase, gifts, inviters, a refund, the contract, the art and the
+  voices, and the pages.
 - `.claude/rules/admin.md` - running the platform: the staff and their roles, and the log every
   change writes.
 - `.claude/rules/operations.md` - the server watched: what it measures and the alerts it raises; and

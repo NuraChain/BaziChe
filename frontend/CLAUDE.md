@@ -567,16 +567,19 @@ is the one query that joins the wallet address in and a second composition would
 to disagree with it; and it rings `socialChanged`, because the display name travels on every person
 payload the graph sends.
 
-**What the sheet deliberately does NOT have is anything to buy or earn.** A profile effect somebody
-unlocks is a claim about an economy this product does not have - no inventory, no balance, nothing
-that grants one - and it is the same judgement that removed the invented levels and the
-provably-fair badge. The customisation is real because it is stored; the shop would be decoration
-with nothing behind it.
+**The profile sheet holds what a person writes, and the shop holds what they buy.** A frame, a
+nameplate, a theme and an effect are looks bought with NURA, owned for good and chosen in the
+collection (`.claude/rules/shop.md`): rows of `owned_items` and `equipped_items`, paid through the
+shop's contract and delivered when NuraChain says they were sold. Before that existed, a profile
+effect somebody "unlocked" was a claim about an economy this product did not have, and it was taken
+out with the invented levels and the provably-fair badge; what came back is the economy itself, not
+the claim. Nothing is earned by playing: a level unlocks nothing.
 
 The settings page carried a "Nura Premium" card for a while - a monthly price, four perks, a refund
 policy and a Subscribe button that was disabled - for a subscription with no payment provider, no
-entitlement anywhere in the schema and no skin to unlock. It is gone for the same reason. A price is
-a promise, and a refund policy for something nobody can buy is copy standing in for a product.
+entitlement anywhere in the schema and no skin to unlock. It is gone, and the shop sells no
+subscription: a price is a promise, and a refund policy for something nobody can buy is copy standing
+in for a product.
 
 **A suggestion has one reason left, and it is checkable**: how many friends you already share, from
 the real graph. "Plays the same game" and "same region" compared two fixture literals.

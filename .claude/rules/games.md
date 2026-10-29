@@ -4171,16 +4171,17 @@ with a disc in the air, and the pot to count the chips only once they have lande
   not a case of its own: an opening is set down and dealt before the page is drawn again
   (`play` waits one microtask and `newHand` steps the model), and a clause for it changed
   nothing any test or browser could see. The ring and the seconds never wait. After
-  `BETWEEN_CAP` (2500 ms on the clock from the moment the wait began) it is over whatever
-  the table shows: a reader whose turn it is has their cards shown from the view, and is
-  asked. `show()` writes its three states in ONE `batch`: written one after another, the
+  `BETWEEN_CAP` (7000 ms on the clock from the moment the wait began: 2500, and the
+  showdown and the pot the server gives back, `PAUSES`) it is over whatever the table
+  shows: a reader whose turn it is has their cards shown from the view, and is asked. `show()` writes its three states in ONE `batch`: written one after another, the
   wait ended for the length of a write in the middle of a deal and the cap was armed afresh.
-- **The usual chain fits the cap, and only just.** "Fold, chips back, gather, pot, sweep,
-  deal" for a reader who is dealt first and acts first is about 2400 ms: that is why a fold
-  does not hold the next move, `POT_SPAN` is 300, `DEAL_LEAD` 150, and the reader's old hand
-  is not turned over before it is swept at a deal. A hand that ends in a showdown is longer
-  and the cap ends its wait: its holds are at their least for a reader who is to act, that
-  reader is asked while the hands are still being paid, and the table then catches up.
+- **The usual chain fits the cap.** "Fold, chips back, gather, pot, the pot held on its
+  winner, sweep, deal" for a reader who is dealt first and acts first is about 3900 ms: a
+  fold does not hold the next move, `POT_SPAN` is 300, `DEAL_LEAD` 150, and the reader's old
+  hand is not turned over before it is swept at a deal. A hand that ends in a showdown is
+  longer, and its two moments are held in full for a reader who is to act as for anybody,
+  because the server gave that time back to their turn; the cap ends the wait only for a
+  table that has fallen behind, which then catches up.
 - **A batch that holds two deals or more** is set down as it stood just before the newest and
   played from there (`latest`), and its length is counted from there.
 - **A refused fold** brings the two cards back from the dealer to the hand, turning up, with

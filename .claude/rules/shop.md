@@ -85,8 +85,10 @@ stock, poker's board and pot, backgammon's cube, the chess board and its coordin
 **Legible whoever mixes what.** Pawns keep their seat's colour as the body; a checker or chess set
 has a light and a dark side whose luminances stay far apart; card faces keep the standard indices,
 ink at 4.5:1; dice pips 4.5:1 to their face; a plate's ink 4.5:1. `look-palette.spec.ts` measures
-every collection's tokens. Nothing moves for somebody who asked for less motion, nothing is drawn in
-a hidden tab, and no effect covers a cell, a card, a die, a face or a control.
+every collection's tokens. Nothing moves for somebody who asked for less motion and nothing is drawn
+in a hidden tab. An effect takes no press and keeps off a picture's face; it lies under the cards at
+Hokm and poker and under every piece at backgammon and chess, and at Ludo it plays over the board
+round the die or the pawn it is about, for a moment (`docs/vfx.md`, *Where an effect lies*).
 
 ## Buying
 

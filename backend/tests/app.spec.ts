@@ -1114,11 +1114,12 @@ describe('the shop', () =>
         expect(await (await app.handle(new Request('http://local/api/shop'))).json()).toEqual({ ...(ANSWERS.state as object), free: true });
     });
 
-    it('says a shop that is not open here, and nothing more', async () =>
+    it('says a shop that is turned off with its catalogue, and nothing that names a chain', async () =>
     {
-        const app = shopAs([], undefined, { ...ANSWERS, state: { open: false, chainId: 1020, items: [] } });
+        const catalogue = { items: [{ id: 'dice.glow', price: '5000000000000000000' }], featured: 'glow', may: 'yes' };
+        const app = shopAs([], undefined, { ...ANSWERS, state: { open: false, chainId: 1020, ...catalogue } });
 
-        expect(await (await app.handle(new Request('http://local/api/shop'))).json()).toEqual({ open: false });
+        expect(await (await app.handle(new Request('http://local/api/shop'))).json()).toEqual({ open: false, ...catalogue });
     });
 
     it('refuses what is no order and no transaction before the port is asked', async () =>

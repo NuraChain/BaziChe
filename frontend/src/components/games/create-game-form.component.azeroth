@@ -6,7 +6,7 @@ import type { Game } from '../../data/games.ts';
 import type { Person } from '../../data/person.ts';
 import { cubeLive } from '../../../../backend/src/domains/match/backgammon/cube.ts';
 import { teamsOf } from '../../../../backend/src/domains/table/teams.ts';
-import { cutOf, feeFor, potOf, shareOf } from '../../../../backend/src/domains/stake/policy.ts';
+import { STAKE_LADDER, cutOf, feeFor, potOf, shareOf } from '../../../../backend/src/domains/stake/policy.ts';
 import { TEAMS_HINT, formatsOf, isValidTable, type Blinds, type TableConfig, type TableFormat, type TableMode, type TablePrivacy } from '../../data/tables.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { faceOf, paceOf } from '../../lib/clocks.ts';
@@ -20,6 +20,7 @@ import { useLocale } from '../../stores/locale.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
 import { usePresence } from '../../stores/presence.store.ts';
 import { useVault } from '../../stores/vault.store.ts';
+import FeatureOff from '../app/feature-off.component.azeroth';
 import Avatar from '../ui/avatar.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import Chip from '../ui/chip.component.azeroth';
@@ -82,11 +83,15 @@ export default component CreateGameForm(props: { game: Game; onCreated: (tableId
 
     derived vault = held !== null && held.configured ? held : null;
 
+    derived paidOff = held !== null && !held.configured;
+
     derived paying = vault !== null && mode === 'live';
+
+    derived offering = (vault !== null || paidOff) && mode === 'live';
 
     derived payable = vault?.may === 'yes';
 
-    derived ladder = vault?.ladder ?? [];
+    derived ladder = vault?.ladder ?? (paidOff ? [...STAKE_LADDER] : []);
 
     derived wager = paying && payable && stake !== null && ladder.includes(stake) ? stake : null;
 
@@ -231,7 +236,7 @@ export default component CreateGameForm(props: { game: Game; onCreated: (tableId
             </fieldset>
         </Show>
 
-        <Show when={ paying }>
+        <Show when={ offering }>
             <fieldset class="flex flex-col gap-2">
                 <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('create.stake') }</legend>
                 <ul class="flex flex-wrap gap-2">
@@ -248,6 +253,9 @@ export default component CreateGameForm(props: { game: Game; onCreated: (tableId
                         </li>
                     </For>
                 </ul>
+                <Show when={ paidOff }>
+                    <FeatureOff feature="paid" brief />
+                </Show>
                 <Show when={ staked }>
                     <p class="text-ui-xs text-faint">{ potLine }</p>
                 </Show>

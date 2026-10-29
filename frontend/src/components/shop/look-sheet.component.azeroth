@@ -16,6 +16,7 @@ import { usePeople } from '../../stores/people.store.ts';
 import { useSettings } from '../../stores/settings.store.ts';
 import { useShop } from '../../stores/shop.store.ts';
 import { useSocial } from '../../stores/social.store.ts';
+import FeatureOff from '../app/feature-off.component.azeroth';
 import Avatar from '../ui/avatar.component.azeroth';
 import Badge from '../ui/badge.component.azeroth';
 import Button from '../ui/button.component.azeroth';
@@ -67,9 +68,11 @@ export default component LookSheet(props: OverlayProps & { item: string })
 
     derived held = shop.state();
 
-    derived may = held !== null && held.open ? held.may : null;
+    derived may = held?.may ?? null;
 
-    derived free = held !== null && held.open && held.free === true;
+    derived free = held?.free === true;
+
+    derived shut = held !== null && !held.open && !free;
 
     derived asked = shop.priceFor(props.item);
 
@@ -117,9 +120,13 @@ export default component LookSheet(props: OverlayProps & { item: string })
 
     derived refusedMinor = may === 'shop-minor';
 
-    derived buyable = may === 'yes' && !owned && asked !== null && !working && !elsewhere;
+    derived buyable = may === 'yes' && !shut && !owned && asked !== null && !working && !elsewhere;
 
-    derived givable = may === 'yes' && asked !== null && !working && !elsewhere && !finished;
+    derived givable = may === 'yes' && held?.open === true && asked !== null && !working && !elsewhere && !finished;
+
+    derived priced = (buyable || shut) && !owned && asked !== null;
+
+    derived closedHere = shut && !owned;
 
     derived usable = open && owned && !bundled && !working;
 
@@ -290,7 +297,7 @@ export default component LookSheet(props: OverlayProps & { item: string })
                             </div>
                         </Show>
 
-                        <Show when={ buyable }>
+                        <Show when={ priced }>
                             <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                                 <span class="text-ui-2xl font-bold text-text"><span class="tally">{ price }</span> NURA</span>
                                 <Show when={ onSale }>
@@ -302,6 +309,10 @@ export default component LookSheet(props: OverlayProps & { item: string })
 
                         <Show when={ wholly }>
                             <p class="flex items-center gap-2 text-ui-sm font-semibold text-live"><Icon name="selected" size={ 15 } />{ locale.t('shop.owned') }</p>
+                        </Show>
+
+                        <Show when={ closedHere }>
+                            <FeatureOff feature="shop" brief />
                         </Show>
 
                         <Show when={ refusedWallet }>

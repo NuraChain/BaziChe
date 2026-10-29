@@ -5,6 +5,7 @@ import { useLocale } from '../../stores/locale.store.ts';
 import { useMarkets } from '../../stores/markets.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useRealtime } from '../../stores/realtime.store.ts';
+import FeatureOff from '../app/feature-off.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import EmptyState from '../ui/empty-state.component.azeroth';
 import ErrorState from '../ui/error-state.component.azeroth';
@@ -30,6 +31,8 @@ export default component MarketPositions(props: { class?: string })
     const figure = (wei: bigint) => locale.n(nuraOf(wei), { maximumFractionDigits: 4 });
 
     derived open = markets.state()?.open === true;
+
+    derived off = markets.state()?.open === false;
 
     derived now = markets.now();
 
@@ -124,7 +127,7 @@ export default component MarketPositions(props: { class?: string })
         ? locale.t('market.claimTo', { amount: figure(total), address: shortAddress(address) })
         : locale.t('market.claim', { amount: figure(total) }));
 
-    <Show when={ open }>
+    <Show when={ open } fallback={ <Show when={ off }><FeatureOff feature="markets" class={ props.class } /></Show> }>
         <section class={ () => [ 'flex flex-col gap-3', props.class ?? '' ].join(' ') } aria-labelledby="markets-title" data-markets>
             <SectionHeading id="markets-title" title={ locale.t('market.list.title') } />
             <p class="-mt-2 text-ui-sm text-muted">{ locale.t('market.list.lead') }</p>

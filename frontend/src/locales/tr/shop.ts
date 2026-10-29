@@ -8,8 +8,6 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.inWallet': 'Cüzdanında',
     'shop.yours': 'Koleksiyonun',
     'shop.strip.title': '{game} görünümleri',
-    'shop.closed': 'Mağaza burada açık değil',
-    'shop.closedLead': 'Bu sunucu henüz görünüm satmıyor.',
     'shop.failed': 'Mağaza yüklenemedi.',
     'shop.unreached': 'Şu an NuraChain’e ulaşılamadı. Biraz sonra yeniden dene.',
     'shop.featured': 'Öne çıkan koleksiyon',

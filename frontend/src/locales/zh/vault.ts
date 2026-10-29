@@ -19,8 +19,6 @@ export const vault: Pick<Dictionary, keyof typeof reference> = {
     'vault.inPlay': '牌局中',
     'vault.inWallet': '钱包中',
     'vault.failed': '无法读取你的 NURA。',
-    'vault.off': '这里没有开放押注 NURA',
-    'vault.offLead': '此服务器没有金库，所以这里的每张牌桌都是免费的。',
     'vault.move': '转移 NURA',
     'vault.in': '存入',
     'vault.out': '取出',

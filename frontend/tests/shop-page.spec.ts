@@ -14,7 +14,7 @@ import { useSession } from '../src/stores/session.store.ts';
 import { useShop } from '../src/stores/shop.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
 import type { Account } from '../../backend/src/schemas.ts';
-import { server } from './fake-api.ts';
+import { closedShop, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
@@ -186,13 +186,17 @@ describe('the shop page', () =>
         expect(useOverlay().items().map((one) => one.props.item)).toEqual(['bundle.gold']);
     });
 
-    it('says a closed shop as closed', async () =>
+    it('says a shop that is turned off as that, above the whole of its catalogue, and asks the wallet nothing', async () =>
     {
-        server.shop.state = { open: false };
+        server.shop.state = closedShop();
         const closed = await page();
+        const note = closed.querySelector('[data-off="shop"]');
 
-        expect(closed.textContent).toContain('The shop is not open here');
-        expect(sections(closed)).toEqual([]);
+        expect(note?.textContent).toContain('The shop is turned off right now');
+        expect(note?.querySelector('[data-off-how]'), 'a player was told what the server is set up with').toBeNull();
+        expect(sections(closed).length).toBeGreaterThan(0);
+        expect(closed.querySelector('[data-look="dice.glow"]')).not.toBeNull();
+        expect(server.calls, 'a wallet was asked what it holds for a shop that sells nothing').not.toContain('shop.balance');
     });
 
     it('says a refused read as a failure with a way to try again, and NuraChain out of reach as that', async () =>

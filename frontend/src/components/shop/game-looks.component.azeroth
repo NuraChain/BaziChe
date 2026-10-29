@@ -14,9 +14,9 @@ export default component GameLooks(props: { game: GameId })
 
     derived held = shop.state();
 
-    derived open = held !== null && held.open;
+    derived open = held !== null;
 
-    derived looks = held !== null && held.open ? looksForGame(props.game, held.featured) : [];
+    derived looks = held === null ? [] : looksForGame(props.game, held.featured);
 
     derived name = locale.t(GAMES.find((game) => game.id === props.game)?.nameKey ?? 'app.nav.games');
 

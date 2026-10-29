@@ -683,6 +683,9 @@ export const NURA_SHOP = '0x8A791620dd6260079BF849Dc5567aDC3F2FdC318';
 
 const SHOP_BUYER = '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
 
+/** What the server answers for its shop when it runs none: the catalogue, and nothing that asks the chain. */
+export const closedShop = (): ShopState => ({ open: false, items: [...LOOKS, ...BUNDLES].map((item) => ({ id: item.id, price: item.price.toString() })), featured: 'glow', may: 'yes' });
+
 const shopFresh = () => ({
     state: { open: true, chainId: 31337, items: [...LOOKS, ...BUNDLES].map((item) => ({ id: item.id, price: item.price.toString() })), featured: 'glow', may: 'yes' } as ShopState,
     owned: [] as ShopCollectionView['owned'],
@@ -2097,7 +2100,7 @@ export const client =
             server.calls.push(`shop.order ${ input.item }${ input.for === undefined ? '' : ` for ${ input.for }` }`);
             shopRefusal();
 
-            if (server.shop.state.open && server.shop.state.free === true && input.for === undefined)
+            if (server.shop.state.free === true && input.for === undefined)
             {
                 for (const look of bundleOf(input.item)?.looks ?? [input.item])
                 {
@@ -2110,9 +2113,14 @@ export const client =
                 return { given: true as const };
             }
 
+            if (!server.shop.state.open)
+            {
+                throw new ApiError(404, 'shop-off', 'The shop is not open here.', undefined);
+            }
+
             server.shop.seq += 1;
 
-            const listed = server.shop.state.open ? server.shop.state.items.find((one) => one.id === input.item) : undefined;
+            const listed = server.shop.state.items.find((one) => one.id === input.item);
             const price = listed?.sale?.price ?? listed?.price ?? '0';
             const order: ShopOrderView = {
                 id: `order-${ server.shop.seq }`,

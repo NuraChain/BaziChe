@@ -501,7 +501,7 @@ describe('sending NURA to a player, from the sheet about them', () =>
         expect(server.calls.filter((call) => call.startsWith('donations.players')), 'asked about a game nobody here plays in').toEqual([]);
     });
 
-    it('offers nothing for a player the server says cannot be given NURA, a game that is over, a reader who cannot give, or donations that are closed', async () =>
+    it('offers nothing for a player the server says cannot be given NURA, a game that is over, or a reader who cannot give', async () =>
     {
         const answering = (state: typeof server.donate.state) => () =>
         {
@@ -511,8 +511,7 @@ describe('sending NURA to a player, from the sheet about them', () =>
             ['a player who may not be given', () => undefined, 'reza.t'],
             ['a game that is over', () => watching(false), 'sara.k'],
             ['a reader without a wallet', answering({ ...OPEN, may: 'donate-wallet' }), 'sara.k'],
-            ['a reader under 18', answering({ ...OPEN, may: 'donate-minor' }), 'sara.k'],
-            ['donations closed', answering({ open: false }), 'sara.k']
+            ['a reader under 18', answering({ ...OPEN, may: 'donate-minor' }), 'sara.k']
         ];
 
         for (const [what, arrange, who] of cases)
@@ -527,6 +526,25 @@ describe('sending NURA to a player, from the sheet about them', () =>
             cleanup();
             useDonations().reset();
         }
+    });
+
+    it('says sending NURA is turned off where it is, on a row of its own that does nothing', async () =>
+    {
+        watching();
+        server.donate.state = { open: false };
+
+        const container = await sheet('sara.k');
+        const row = container.querySelector<HTMLButtonElement>('button[data-off="donations"]');
+
+        expect(row?.textContent).toContain('Send NURA to Sara');
+        expect(row?.textContent).toContain('Sending NURA is turned off right now');
+        expect(row?.getAttribute('aria-disabled')).toBe('true');
+
+        row!.click();
+        await settle();
+
+        expect(given, 'a gift was begun where none can be sent').toEqual([]);
+        expect(closed, 'the sheet went for a row that does nothing').toEqual([]);
     });
 
     it('says it in Persian too', async () =>

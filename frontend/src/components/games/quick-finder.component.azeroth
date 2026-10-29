@@ -1,9 +1,11 @@
 import { useNavigate } from 'azerothjs';
 
+import FeatureOff from '../app/feature-off.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import Chip from '../ui/chip.component.azeroth';
 import Segmented from '../ui/segmented.component.azeroth';
 import SheetHeader from '../ui/sheet-header.component.azeroth';
+import { STAKE_LADDER } from '../../../../backend/src/domains/stake/policy.ts';
 import type { GameId } from '../../data/games.ts';
 import { formatsOf, type TableMode } from '../../data/tables.ts';
 import { faceOf, paceOf } from '../../lib/clocks.ts';
@@ -63,9 +65,13 @@ export default component QuickFinder(props: OverlayProps & { game: GameId })
 
     derived vault = held !== null && held.configured ? held : null;
 
+    derived paidOff = held !== null && !held.configured;
+
     derived paying = vault !== null && vault.may === 'yes' && mode === 'live';
 
-    derived ladder = vault?.ladder ?? [];
+    derived offering = mode === 'live' && (paying || paidOff);
+
+    derived ladder = vault?.ladder ?? (paidOff ? [...STAKE_LADDER] : []);
 
     derived staking = paying && stake !== null && ladder.includes(stake) ? stake : null;
 
@@ -212,7 +218,7 @@ export default component QuickFinder(props: OverlayProps & { game: GameId })
                 </fieldset>
             </Show>
 
-            <Show when={ paying }>
+            <Show when={ offering }>
                 <fieldset class="flex flex-col gap-2">
                     <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('create.stake') }</legend>
                     <ul class="flex flex-wrap gap-2">
@@ -223,12 +229,15 @@ export default component QuickFinder(props: OverlayProps & { game: GameId })
                         </li>
                         <For each={ ladder } key={ (amount) => amount } let={ amount }>
                             <li>
-                                <Chip icon="coins" selected={ staking === amount } onClick={ () => stake = amount }>
+                                <Chip icon="coins" selected={ staking === amount } disabled={ !paying } onClick={ () => stake = amount }>
                                     <span><span class="tally">{ locale.n(nuraOf(amount)) }</span> NURA</span>
                                 </Chip>
                             </li>
                         </For>
                     </ul>
+                    <Show when={ paidOff }>
+                        <FeatureOff feature="paid" brief />
+                    </Show>
                     <Show when={ wagering }>
                         <p class="text-ui-xs text-faint">{ locale.t('quickMatch.stakeHint') }</p>
                     </Show>

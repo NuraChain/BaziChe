@@ -97,7 +97,7 @@ export interface Price
 /** What the shop asks for an item now, or null for one it does not sell. */
 export function priceOf(state: ShopState | null, id: string): Price | null
 {
-    if (state === null || !state.open)
+    if (state === null)
     {
         return null;
     }

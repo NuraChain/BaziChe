@@ -129,7 +129,7 @@ export const useShop = createStore((): ShopApi =>
 
     const earnings = createResource(wants('earnings'), () => client.shop.earnings(), { name: 'shop.earnings' });
 
-    const balance = createResource(wants('balance'), () => client.shop.balance(), { name: 'shop.balance' });
+    const balance = createResource(() => (state.data()?.open === true ? wants('balance')() : null), () => client.shop.balance(), { name: 'shop.balance' });
 
     const guesses = createGuesses<ShopCollectionView | null>();
 

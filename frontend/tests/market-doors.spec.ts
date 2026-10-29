@@ -223,7 +223,7 @@ describe('the way to a watched game\'s market', () =>
         expect(sheet.querySelector('[data-market-when]')?.textContent).toBe('Taking positions for 1:29');
     });
 
-    it('is drawn for nobody markets are not offered to, and for no game without a market', async () =>
+    it('is drawn for nobody markets are not offered to and for no game without a market, and says where markets are turned off', async () =>
     {
         server.markets.state = { ...OPEN, may: 'market-minor' };
         let root = await door();
@@ -244,9 +244,14 @@ describe('the way to a watched game\'s market', () =>
         useMarkets().reset();
         server.markets.state = { open: false };
         server.markets.view = structuredClone(MARKET);
+        server.calls.length = 0;
         root = await door();
 
-        expect(root.querySelector('[data-market-door]')).toBeNull();
+        const off = root.querySelector('[data-market-door]');
+
+        expect(off?.getAttribute('data-market-door')).toBe('off');
+        expect(off?.textContent).toContain('Backing a winner is turned off right now');
+        expect(server.calls.filter((call) => call.startsWith('markets.game')), 'a market was asked for where markets are turned off').toEqual([]);
     });
 
     it('keeps its node while the market is read again', async () =>
@@ -400,12 +405,13 @@ describe('the wallet page\'s markets', () =>
         expect(root.textContent).not.toContain('You have not backed a game yet.');
     });
 
-    it('draws nothing and asks for nothing where markets are off', async () =>
+    it('says markets are turned off where they are, and asks for nothing', async () =>
     {
         server.markets.state = { open: false };
         const root = await positions();
 
         expect(root.querySelector('[data-markets]')).toBeNull();
+        expect(root.querySelector('[data-off="markets"]')?.textContent).toContain('Backing a winner is turned off right now');
         expect(server.calls.filter((call) => call.startsWith('markets.positions'))).toEqual([]);
     });
 });

@@ -14,7 +14,7 @@ import { useSettings } from '../src/stores/settings.store.ts';
 import { useShop } from '../src/stores/shop.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
 import type { Account } from '../../backend/src/schemas.ts';
-import { server } from './fake-api.ts';
+import { closedShop, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
 import { forgetVoices, voices } from './fake-voices.ts';
 
@@ -189,16 +189,16 @@ describe('the reader\'s collection', () =>
         expect(voices.made[0]!.disposed).toBe(true);
     });
 
-    it('asks what the shop owes for the people the reader invited only while the shop is open', async () =>
+    it('asks what the shop owes for the people the reader invited only while the shop is open, and leads to the shop either way', async () =>
     {
         const opened = server.shop.state;
-        server.shop.state = { open: false };
+        server.shop.state = closedShop();
         const root = await page();
 
         expect(server.calls, 'a closed shop was asked, and answered as missing').not.toContain('shop.earnings');
         expect(root.querySelector('#collection-earnings')).toBeNull();
         expect(root.querySelector('[data-slot="ludo.dice"]'), 'what the reader owns is still theirs to choose').not.toBeNull();
-        expect(root.querySelector('a[href^="/app/shop?for="]'), 'a way into a shop that is closed').toBeNull();
+        expect(root.querySelector('a[href="/app/shop?for=ludo"]')?.textContent?.trim(), 'no way to a shop that is turned off, where it says so').toBe('Find more');
 
         cleanup();
         useShop().reset();

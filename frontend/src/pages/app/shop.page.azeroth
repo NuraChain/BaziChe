@@ -1,11 +1,11 @@
 import { useHead } from 'azerothjs';
 
 import { BUNDLES, COLLECTION_BLURBS } from '../../../../backend/src/domains/shop/catalogue.ts';
+import FeatureOff from '../../components/app/feature-off.component.azeroth';
 import Page from '../../components/app/page.component.azeroth';
 import PageHeader from '../../components/app/page-header.component.azeroth';
 import LookCard from '../../components/shop/look-card.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
-import EmptyState from '../../components/ui/empty-state.component.azeroth';
 import ErrorState from '../../components/ui/error-state.component.azeroth';
 import FilterBar from '../../components/ui/filter-bar.component.azeroth';
 import SectionHeading from '../../components/ui/section-heading.component.azeroth';
@@ -43,15 +43,15 @@ export default component ShopPage()
 
     derived closed = held !== null && !held.open;
 
-    derived open = held !== null && held.open;
+    derived listed = held !== null;
 
-    derived featured = held !== null && held.open ? held.featured : 'glow';
+    derived featured = held === null ? 'glow' : held.featured;
 
     derived featuredName = collectionName(featured, locale);
 
     derived blurb = locale.text(COLLECTION_BLURBS[featured]);
 
-    derived onSale = held !== null && held.open ? held.items.filter((item) => item.sale !== undefined).map((item) => item.id) : [];
+    derived onSale = held === null ? [] : held.items.filter((item) => item.sale !== undefined).map((item) => item.id);
 
     derived selling = onSale.length > 0;
 
@@ -124,10 +124,10 @@ export default component ShopPage()
         </Show>
 
         <Show when={ closed }>
-            <EmptyState icon="sparkles" title={ locale.t('shop.closed') } lead={ locale.t('shop.closedLead') } />
+            <FeatureOff feature="shop" class="mb-6" />
         </Show>
 
-        <Show when={ open }>
+        <Show when={ listed }>
             <div class="flex flex-col gap-8">
                 <section class="hero-surface overflow-hidden rounded-hero" aria-labelledby="shop-featured" data-featured={ featured }>
                     <div class="grid gap-5 p-5 @xl:grid-cols-[minmax(0,1fr)_minmax(0,15rem)] @xl:items-center @xl:p-7">

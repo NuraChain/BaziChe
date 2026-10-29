@@ -16,8 +16,6 @@ export const vault = {
     'vault.inPlay': 'In play',
     'vault.inWallet': 'In your wallet',
     'vault.failed': 'Your NURA could not be read.',
-    'vault.off': 'Playing for NURA is not open here',
-    'vault.offLead': 'This server keeps no vault, so every table here is free.',
     'vault.move': 'Move NURA',
     'vault.in': 'Put in',
     'vault.out': 'Take out',

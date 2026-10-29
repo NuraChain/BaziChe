@@ -428,14 +428,16 @@ describe('NURA from people watching', () =>
         expect(donationsSwitch(container, 'Let people watching send you NURA')?.getAttribute('aria-checked')).toBe('false');
     });
 
-    it('is not drawn while donations are not open here', async () =>
+    it('is not drawn while donations are turned off here, which the section says in its place', async () =>
     {
+        server.donate.state = { open: false };
         signedIn();
 
         const container = await show(SettingsPage as unknown as () => HTMLElement, '/app/me/settings');
 
         expect(container.querySelector('#settings-safety')).not.toBeNull();
         expect(donationsSwitch(container, 'Let people watching send you NURA')).toBeUndefined();
+        expect(container.querySelector('#settings-safety [data-off="donations"]')?.textContent).toContain('Sending NURA is turned off right now');
     });
 
     it('says it in Persian', async () =>

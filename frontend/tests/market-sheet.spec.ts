@@ -330,6 +330,16 @@ describe('the market on a watched game', () =>
         expect(text(again.root, '[data-market-when]')).toBe('Called off: every stake goes back.');
     });
 
+    it('says markets are turned off where they are, and offers nothing to back', async () =>
+    {
+        server.markets.state = { open: false };
+        const { root } = await sheet();
+
+        expect(root.querySelector('[data-off="markets"]')?.textContent).toContain('Backing a winner is turned off right now');
+        expect(root.textContent, 'a market turned off was said to be missing').not.toContain('There is no market on this game.');
+        expect(root.querySelector('[data-outcomes]')).toBeNull();
+    });
+
     it('says there is no market where the game has none', async () =>
     {
         server.markets.view = null;

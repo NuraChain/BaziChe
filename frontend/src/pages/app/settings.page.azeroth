@@ -17,6 +17,7 @@ import type { Person } from '../../data/person.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import type { IconName } from '../../icons/registry.ts';
 import DeviceNotices from '../../components/app/device-notices.component.azeroth';
+import FeatureOff from '../../components/app/feature-off.component.azeroth';
 import VoiceInputSettings from '../../components/voice/voice-input-settings.component.azeroth';
 import VoiceOutputSettings from '../../components/voice/voice-output-settings.component.azeroth';
 import { signOut } from '../../components/app/sign-out.ts';
@@ -125,6 +126,8 @@ export default component SettingsPage()
     derived privacy = social.privacy();
 
     derived donating = donations.state()?.open === true;
+
+    derived donationsOff = donations.state()?.open === false;
 
     derived muted = visible(allMuted, SAFETY_PAGE, mutedPage, paging);
 
@@ -316,6 +319,9 @@ export default component SettingsPage()
                                         description={ locale.t('settings.safety.donationsHint') }
                                         onChange={ (checked) => void donations.accept(checked) }
                                     />
+                                </Show>
+                                <Show when={ donationsOff }>
+                                    <FeatureOff feature="donations" brief />
                                 </Show>
                             </div>
 

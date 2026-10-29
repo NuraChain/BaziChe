@@ -1,16 +1,10 @@
 import Icon from '../../icons/icon.component.azeroth';
-import { useAccount } from '../../stores/account.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import Panel from '../ui/panel.component.azeroth';
 
 export default component ShopChip(props: { class?: string })
 {
     const locale = useLocale();
-    const account = useAccount();
-
-    derived shown = account.shopOpen();
-
-    <Show when={ shown }>
         <Panel to="/app/shop/collection" pad="sm" class={ `flex items-center gap-3 ${ props.class ?? '' }` }>
             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent" aria-hidden="true">
                 <Icon name="bag" size={ 18 } />
@@ -21,5 +15,4 @@ export default component ShopChip(props: { class?: string })
             </span>
             <Icon name="chevron-right" size={ 18 } class="icon-flip shrink-0 text-faint" />
         </Panel>
-    </Show>
 }

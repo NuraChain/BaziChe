@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fire, renderTest } from '@azerothjs/testing';
 import { RouterProvider, Routes, createMemoryHistory, createRouter } from 'azerothjs';
 
+import { STAKE_LADDER } from '../../backend/src/domains/stake/policy.ts';
 import CreateGameForm from '../src/components/games/create-game-form.component.azeroth';
 import LobbyPanel from '../src/components/games/lobby-panel.component.azeroth';
 import QuickFinder from '../src/components/games/quick-finder.component.azeroth';
@@ -235,13 +236,18 @@ describe('a table opened at a stake', () =>
         expect(server.tables.at(-1)).not.toHaveProperty('stake');
     });
 
-    it('offers nothing to play for where the server keeps no vault', async () =>
+    it('offers every stake and none of them where the server keeps no vault, and says why', async () =>
     {
         await vaultWith(null);
         const { container } = form();
         await settle();
 
-        expect(group(container, 'Played for')).toBeNull();
+        const played = group(container, 'Played for');
+
+        expect(chosen(container, 'Played for')).toEqual(['Free']);
+        expect(offered(container, 'Played for')).toHaveLength(STAKE_LADDER.length + 1);
+        expect([...played!.querySelectorAll<HTMLButtonElement>('button')].filter((one) => !one.disabled).map((one) => one.textContent?.trim()), 'a stake was offered where nothing can be staked').toEqual(['Free']);
+        expect(played?.querySelector('[data-off="paid"]')?.textContent).toContain('Playing for NURA is turned off right now');
     });
 
     it('says what the chips are at a poker table played for NURA', async () =>
@@ -345,7 +351,7 @@ describe('quick play at a stake', () =>
         expect(server.sought.at(-1)).not.toHaveProperty('signature');
     });
 
-    it('offers no stake for a turn-based search, to somebody on a break, or where the server keeps no vault', async () =>
+    it('offers no stake for a turn-based search or to somebody on a break, and none to press where the server keeps no vault', async () =>
     {
         const first = finder();
         await settle();
@@ -369,7 +375,10 @@ describe('quick play at a stake', () =>
         const third = finder();
         await settle();
 
-        expect(group(third.container, 'Played for')).toBeNull();
+        const played = group(third.container, 'Played for');
+
+        expect(played?.querySelector('[data-off="paid"]')?.textContent).toContain('Playing for NURA is turned off right now');
+        expect([...played!.querySelectorAll<HTMLButtonElement>('button')].filter((one) => !one.disabled).map((one) => one.textContent?.trim()), 'a stake was offered where nothing can be staked').toEqual(['Free']);
     });
 });
 

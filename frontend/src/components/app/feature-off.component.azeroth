@@ -1,0 +1,52 @@
+import { may } from '../../../../backend/src/domains/admin/roles.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import type { IconName } from '../../icons/registry.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useSession } from '../../stores/session.store.ts';
+
+export type Feature = 'shop' | 'paid' | 'donations' | 'markets';
+
+const ICONS: Record<Feature, IconName> = { shop: 'bag', paid: 'coins', donations: 'gift', markets: 'trophy' };
+
+/** The names in the server's `.env` that turn each feature on, all of them together. */
+export const SWITCHED_BY: Record<Feature, readonly string[]> = {
+    shop: ['NURA_SHOP_ADDRESS', 'NURA_REFEREE_KEY', 'NURA_RPC_URL', 'NURA_CHAIN_ID'],
+    paid: ['NURA_VAULT_ADDRESS', 'NURA_REFEREE_KEY', 'NURA_RPC_URL', 'NURA_CHAIN_ID'],
+    donations: ['NURA_TIPS_ADDRESS', 'NURA_RPC_URL', 'NURA_CHAIN_ID'],
+    markets: ['NURA_MARKETS_ADDRESS', 'NURA_REFEREE_KEY', 'NURA_RPC_URL', 'NURA_CHAIN_ID']
+};
+
+/**
+ * Where a feature this server does not run would be: it is turned off right now, said beside what it would
+ * be, and whoever runs the money is told which settings turn it on.
+ */
+export default component FeatureOff(props: { feature: Feature; brief?: boolean; class?: string })
+{
+    const locale = useLocale();
+    const session = useSession();
+
+    derived operator = may(session.account()?.staff ?? null, 'money');
+
+    derived told = props.brief !== true;
+
+    derived title = locale.t(`off.${ props.feature }`);
+
+    derived lead = locale.t(`off.${ props.feature }.lead`);
+
+    derived how = locale.t('off.how', { names: locale.list([...SWITCHED_BY[props.feature]]) });
+
+    <div role="note" data-off={ props.feature } class={ `flex items-start gap-3 rounded-panel border border-gold/40 bg-gold/10 p-3 ${ props.class ?? '' }` }>
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold/20 text-gold" aria-hidden="true">
+            <Icon name={ ICONS[props.feature] } size={ 18 } />
+        </span>
+        <span class="flex min-w-0 flex-col gap-0.5">
+            <span class="text-ui-sm font-semibold text-text">{ title }</span>
+            <Show when={ told }>
+                <span class="text-ui-sm text-muted">{ lead }</span>
+            </Show>
+            <Show when={ operator }>
+                <span class="text-ui-xs text-faint [overflow-wrap:anywhere]" data-off-how>{ how }</span>
+            </Show>
+        </span>
+    </div>
+}

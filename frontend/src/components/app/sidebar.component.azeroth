@@ -10,7 +10,7 @@ import BrandMark from '../layout/brand-mark.component.azeroth';
 import Avatar from '../ui/avatar.component.azeroth';
 import Badge from '../ui/badge.component.azeroth';
 import { useNavCounts } from './nav-counts.ts';
-import { ACTIVE_ROW, lit, railFor } from './nav-items.ts';
+import { ACTIVE_ROW, RAIL, lit } from './nav-items.ts';
 
 export default component Sidebar()
 {
@@ -21,8 +21,6 @@ export default component Sidebar()
     const match = useMatch();
 
     derived tab = routeMeta(match()).tab;
-
-    derived items = railFor(account.shopOpen());
 
     derived user = account.user();
 
@@ -37,7 +35,7 @@ export default component Sidebar()
         </Link>
 
         <ul class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 pt-3">
-            <For each={ items } key={ (item) => item.to } let={ item }>
+            <For each={ RAIL } key={ (item) => item.to } let={ item }>
                 <li>
                     <Link to={ item.to } prefetch="hover" aria-current={ lit(item, tab) ? 'page' : undefined } class={ () => [ 'nav-row', ACTIVE_ROW, 'flex h-11 items-center gap-3 rounded-tile px-3 text-ui-md font-semibold text-muted transition-colors duration-150 hover:bg-raised hover:text-text', lit(item, tab) ? 'is-active' : '' ].join(' ') }>
                         <Icon name={ item.icon } size={ 20 } />

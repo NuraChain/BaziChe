@@ -121,15 +121,17 @@ afterEach(() =>
 
 describe('the page of a player\'s NURA', () =>
 {
-    it('says playing for NURA is not open on a server that keeps no vault, and offers nothing to do', async () =>
+    it('says playing for NURA, and sending it, are turned off on a server that keeps neither, and offers nothing to do', async () =>
     {
         server.nura.state = { configured: false };
+        server.donate.state = { open: false };
         signIn();
 
         const container = await page();
 
-        expect(container.textContent).toContain('Playing for NURA is not open here');
-        expect(container.textContent).toContain('This server keeps no vault, so every table here is free.');
+        expect(container.querySelector('[data-off="paid"]')?.textContent).toContain('Playing for NURA is turned off right now');
+        expect(container.textContent).toContain('Every table on this server is free until it is turned on.');
+        expect(container.querySelector('[data-off="donations"]')?.textContent).toContain('Sending NURA is turned off right now');
         expect(container.textContent).not.toContain('Move NURA');
         expect(server.calls.filter((call) => call.startsWith('vault.games'))).toEqual([]);
     });

@@ -256,7 +256,7 @@ A section of its own, `shop`, for an admin and the owner.
 | SH-D11 | Refunds | None for a look that arrived; a payment that delivered nothing is refunded by the owner from Admin › Shop, on the contract | refunds on request |
 | SH-D12 | Launch | Four collections across fifteen kinds with bundles, drawn by our own generators | third-party art |
 | SH-D13 | Words | The shop in all ten languages; the looks' names in English and Persian | names in ten languages |
-| SH-D14 | Where | `/app/shop` in the sidebar; Shop on every game page; the collection from the profile and from a table's menu; no door while the shop is closed | a shop only on game pages |
+| SH-D14 | Where | `/app/shop` in the sidebar; Shop on every game page; the collection from the profile and from a table's menu; no door while the shop is closed (changed 2026-10-29 at the owner's word: every door is drawn whatever the shop, and a shop that is turned off says so beside its catalogue) | a shop only on game pages |
 | SH-D15 | Not in this work | card or bank payments, a premium currency, subscriptions, loot boxes, trading, looks people make, emotes, chat bubbles, voice effects, a switch that hides other people's looks (the legibility rules instead), seasonal collections (Yalda, Nowruz: the same generators later), anything a level or an achievement unlocks ("a level unlocks nothing" stays true), the NuraChain deploy | |
 
 ## 10. The order of work

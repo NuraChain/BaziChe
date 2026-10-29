@@ -139,7 +139,10 @@ carries none of it. It reads `GET /markets` once an account and the game's marke
 markets are open and the reader is not `market-minor` or `market-wallet`; a game
 with no market (404) is nothing, not a failure. It says how long the market takes positions ("1:12
 left", the server's time put on this device's clock by `toLocal`) and what is in it, and opens the
-sheet (`openMarket`, `lib/market-sheet.ts`).
+sheet (`openMarket`, `lib/market-sheet.ts`). Where this server runs no markets at all (`GET
+/markets` answers `open: false`) the door is drawn for that watcher all the same and says backing a
+winner is turned off, as its sheet and the wallet page's Markets do (`FeatureOff`, *A feature this
+server does not run* in `frontend/CLAUDE.md`), and no game's market is asked for.
 
 **The sheet** (`MarketSheet`) shows each outcome with what the chain holds on it and its share of
 the pool, a player by their first name (by handle where nobody described them, two partners

@@ -44,8 +44,6 @@ export default component GamePage()
 
     derived me = account.user()?.handle ?? '';
 
-    derived shopOpen = account.shopOpen();
-
     derived name = game === null ? locale.t('game.notFound') : locale.t(game.nameKey);
 
     useHead({ title: () => name });
@@ -92,9 +90,7 @@ export default component GamePage()
                                 </ol>
                             </section>
 
-                            <Show when={ shopOpen }>
-                                { () => <LazyGameLooks game={ game!.id } /> }
-                            </Show>
+                            <LazyGameLooks game={ game!.id } />
 
                             <WatchableList game={ game!.id } />
 
@@ -119,9 +115,7 @@ export default component GamePage()
                             <div class="bleed-pad fixed inset-x-0 bottom-(--nav-room) z-nav flex gap-2 border-t border-line bg-void/92 py-3 backdrop-blur-md sm:hidden">
                                 <Button variant="primary" size="lg" leading="play" class="flex-1" loading={ finding } onClick={ quickPlay }>{ locale.t('app.nav.quickPlay') }</Button>
                                 <IconButton icon="add" label={ locale.t('games.create') } variant="outline" size="lg" to={ `/app/games/${ game!.slug }/create` } />
-                                <Show when={ shopOpen }>
-                                    { () => <IconButton icon="bag" label={ locale.t('app.nav.shop') } variant="outline" size="lg" to={ `/app/shop?for=${ game!.id }` } /> }
-                                </Show>
+                                <IconButton icon="bag" label={ locale.t('app.nav.shop') } variant="outline" size="lg" to={ `/app/shop?for=${ game!.id }` } />
                             </div>
                         }
                     </Show>

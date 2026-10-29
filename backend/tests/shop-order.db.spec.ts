@@ -210,7 +210,11 @@ describe.skipIf(!active)('buying a look with NURA, against a real database', () 
 
             const closed = door(fakeShop(false)).ports;
 
-            expect(await closed.shop.state(adult.id)).toEqual({ open: false });
+            const shut = await closed.shop.state(adult.id);
+
+            expect(shut).toMatchObject({ open: false, featured: FEATURED_FIRST, may: 'yes' });
+            expect(shut, 'a shop that is turned off named a chain').not.toHaveProperty('chainId');
+            expect(shut.items, 'a shop that is turned off kept its catalogue to itself').toEqual((await ports.shop.state(adult.id)).items);
             expect(await refusal(closed.shop.order(adult.id, 'dice.shiraz', undefined))).toEqual({ status: 404, code: 'shop-off' });
             expect(await refusal(closed.shop.balance(adult.id))).toEqual({ status: 404, code: 'shop-off' });
             expect(await refusal(closed.shop.earnings(adult.id))).toEqual({ status: 404, code: 'shop-off' });
@@ -374,17 +378,6 @@ describe.skipIf(!active)('buying a look with NURA, against a real database', () 
         });
     });
 
-    describe('the account', () =>
-    {
-        it('says the shop is open here while it is, so its doors are drawn without asking, and nothing while it is not', async () =>
-        {
-            const buyer = await person();
-
-            expect((await door().ports.identity.me(buyer.id))?.shop).toBe(true);
-            expect(await door(fakeShop(false)).ports.identity.me(buyer.id)).not.toHaveProperty('shop');
-        });
-    });
-
     describe('the wallet whose own looks are free', () =>
     {
         const FREE = getAddress(OWNER_WALLET);
@@ -415,6 +408,17 @@ describe.skipIf(!active)('buying a look with NURA, against a real database', () 
             expect(fake.quotes, 'a quote was signed for a free look').toEqual([]);
             expect(fake.asked, 'the chain was asked about a free look').toEqual([]);
             expect(rung).toContainEqual([owner.id, 'shop']);
+        });
+
+        it('is given its looks though the shop is turned off, and told the shop gives them free', async () =>
+        {
+            const { ports, fake } = door(fakeShop(false));
+            const owner = await freeBuyer();
+
+            expect(await ports.shop.state(owner.id)).toMatchObject({ open: false, may: 'yes', free: true });
+            expect(await ports.shop.purchase(owner.id, 'dice.shiraz', undefined)).toEqual({ given: true });
+            expect(await ownedBy(owner.id)).toEqual([{ item: 'dice.shiraz', via: 'grant', order: null, giver: null }]);
+            expect(fake.asked, 'the chain was asked about a free look').toEqual([]);
         });
 
         it('is refused what is not on sale, already its own or held by an order of its own, as anybody is', async () =>
@@ -449,6 +453,7 @@ describe.skipIf(!active)('buying a look with NURA, against a real database', () 
 
             expect(await ports.shop.purchase(owner.id, 'back.gold', friend.handle)).toMatchObject({ order: { item: 'back.gold', for: friend.handle, state: 'quoted' } });
             expect(await ownedBy(friend.id), 'a gift from the free wallet arrived unpaid').toEqual([]);
+            expect(await refusal(door(fakeShop(false)).ports.shop.purchase(owner.id, 'back.gold', friend.handle)), 'a gift was given where nothing can be paid').toEqual({ status: 404, code: 'shop-off' });
 
             await db.getRepository(User).delete({ id: owner.id });
 

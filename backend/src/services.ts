@@ -1663,7 +1663,6 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             joinedAt: row.created_at.toISOString(),
             address: row.address ?? undefined,
             ...(role === null ? {} : { staff: role }),
-            ...(looksShop.configured ? { shop: true as const } : {}),
             ...worn('deco', row.deco),
             ...worn('nameplate', row.nameplate),
             ...worn('theme', row.theme),

@@ -5,7 +5,7 @@ import { createMemoryHistory, createRouter, RouterProvider, Routes, type MountNo
 import { lookOf, SHOP_COLLECTIONS, type ShopCollection, type ShopGame } from '../../backend/src/domains/shop/catalogue.ts';
 import type { Account } from '../../backend/src/schemas.ts';
 import NavRail from '../src/components/app/nav-rail.component.azeroth';
-import { lit, RAIL, railFor } from '../src/components/app/nav-items.ts';
+import { lit, RAIL } from '../src/components/app/nav-items.ts';
 import Sidebar from '../src/components/app/sidebar.component.azeroth';
 import TopBar from '../src/components/app/top-bar.component.azeroth';
 import GameHero from '../src/components/games/game-hero.component.azeroth';
@@ -24,7 +24,7 @@ import { useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useShell } from '../src/stores/shell.store.ts';
 import { useShop } from '../src/stores/shop.store.ts';
-import { establishAccount, server } from './fake-api.ts';
+import { closedShop, establishAccount, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
@@ -55,10 +55,10 @@ const shown = async (children: () => MountNode, at = '/app') =>
 
 let seq = 0;
 
-const signIn = (open: boolean) =>
+const signIn = () =>
 {
     seq += 1;
-    const account: Account = establishAccount('alex', { id: `u-doors-${ seq }`, address: '0x71c7656ec7ab88b098defb751b7401b5f6d8976f', ...(open ? { shop: true as const } : {}) });
+    const account: Account = establishAccount('alex', { id: `u-doors-${ seq }`, address: '0x71c7656ec7ab88b098defb751b7401b5f6d8976f' });
     useSession().establish(account);
     return account;
 };
@@ -86,46 +86,38 @@ afterEach(() =>
 
 describe('the shop among the rail’s destinations', () =>
 {
-    it('is the rail itself while the shop is closed, and puts Shop after Discover and before Settings while it is open', () =>
+    it('puts Shop after Discover and before Settings, whatever the server runs', () =>
     {
-        expect(railFor(false)).toBe(RAIL);
-        expect(railFor(true).map((item) => item.to)).toEqual([...RAIL.slice(0, -1).map((item) => item.to), '/app/shop', '/app/me/settings']);
-        expect(railFor(true), 'a keyed list handed a new list each time would draw its rows again').toBe(railFor(true));
+        expect(RAIL.map((item) => item.to).slice(-3)).toEqual(['/app/discover', '/app/shop', '/app/me/settings']);
     });
 
-    it.each([['the sidebar', Sidebar], ['the rail', NavRail]] as const)('%s draws Shop only for an account the shop is open to', async (_, Nav) =>
+    it.each([['the sidebar', Sidebar], ['the rail', NavRail]] as const)('%s draws Shop for every account, beside a shop that is turned off too', async (_, Nav) =>
     {
-        signIn(false);
-        const closed = await shown(() => Nav({}));
-
-        expect(hrefs(closed)).not.toContain('/app/shop');
-
-        cleanup();
-        signIn(true);
-        const open = await shown(() => Nav({}));
-        const links = hrefs(open);
+        server.shop.state = closedShop();
+        signIn();
+        const nav = await shown(() => Nav({}));
+        const links = hrefs(nav);
 
         expect(links.indexOf('/app/shop')).toBe(links.indexOf('/app/discover') + 1);
-        expect(open.querySelector('a[href="/app/shop"]')?.getAttribute('aria-label') ?? open.querySelector('a[href="/app/shop"]')?.textContent?.trim()).toBe('Shop');
+        expect(nav.querySelector('a[href="/app/shop"]')?.getAttribute('aria-label') ?? nav.querySelector('a[href="/app/shop"]')?.textContent?.trim()).toBe('Shop');
     });
 
-    it('lights Shop on the shop and on the collection, and lights nothing in a rail that has no Shop', () =>
+    it('lights Shop on the shop and on the collection', () =>
     {
         const app = routes.find((route) => route.path === '/app')!;
         const tabOf = (path: string) => routeMeta({ route: (app.children ?? []).find((child) => child.path === path)! } as never).tab;
 
         for (const path of ['shop', 'shop/collection'])
         {
-            expect(railFor(true).find((item) => lit(item, tabOf(path)))?.to, path).toBe('/app/shop');
-            expect(RAIL.find((item) => lit(item, tabOf(path)))?.to, path).toBeUndefined();
+            expect(RAIL.find((item) => lit(item, tabOf(path)))?.to, path).toBe('/app/shop');
         }
     });
 
-    it('draws no way back on the shop beside the sidebar that lists it, and one where the sidebar does not', async () =>
+    it('draws no way back on the shop beside the sidebar that lists it', async () =>
     {
-        const page = async (open: boolean) =>
+        const page = async () =>
         {
-            signIn(open);
+            signIn();
             const table: Route[] = [{ path: '/app', component: stub, children: [{ path: 'shop', component: stub, meta: { tab: 'shop', parent: '/app/games' } }] }];
             const router = createRouter({ routes: table, history: createMemoryHistory('/app/shop'), scroll: false });
             const { container } = renderTest(() => RouterProvider({ router, children: () => TopBar({}) }) as HTMLElement);
@@ -136,11 +128,7 @@ describe('the shop among the rail’s destinations', () =>
         useShell().reset();
         useDevice().override('sidebar');
 
-        expect(await page(true)).toBeNull();
-
-        cleanup();
-
-        expect(await page(false)).not.toBeNull();
+        expect(await page()).toBeNull();
     });
 });
 
@@ -168,25 +156,18 @@ describe('what a game’s page offers of the shop', () =>
         }
     });
 
-    it('puts Shop beside Quick play and Create in the hero only while the shop is open, leading to the shop for that game', async () =>
+    it('puts Shop beside Quick play and Create in the hero, leading to the shop for that game', async () =>
     {
         const ludo = GAMES.find((one) => one.id === 'ludo')!;
 
-        signIn(false);
+        signIn();
         const container = await shown(() => GameHero({ game: ludo, onQuickPlay: () => undefined }), '/');
         const create = container.querySelector('a[href="/app/games/ludo/create"]');
-
-        expect(create).not.toBeNull();
-        expect(hrefs(container).filter((href) => href?.startsWith('/app/shop'))).toEqual([]);
-
-        signIn(true);
-        await settle();
-
         const shop = container.querySelector('a[href="/app/shop?for=ludo"]');
 
+        expect(create).not.toBeNull();
         expect(shop?.textContent?.trim()).toBe('Shop');
         expect(shop?.parentElement).toBe(create?.parentElement);
-        expect(container.querySelector('a[href="/app/games/ludo/create"]'), 'the row was drawn again when the shop opened').toBe(create);
     });
 
     const gamePage = async (slug = 'ludo') =>
@@ -200,18 +181,14 @@ describe('what a game’s page offers of the shop', () =>
         return container;
     };
 
-    it('shows a closed shop no door at all: no Shop in the hero or the phone’s bar, and no looks', async () =>
+    it.each([['open', false], ['turned off', true]] as const)('offers the shop three ways while it is %s: the hero, a bag in the phone’s bar and the game’s looks', async (_, off) =>
     {
-        signIn(false);
-        const container = await gamePage();
+        if (off)
+        {
+            server.shop.state = closedShop();
+        }
 
-        expect(hrefs(container).filter((href) => href?.startsWith('/app/shop'))).toEqual([]);
-        expect(container.querySelector('[data-game-looks]')).toBeNull();
-    });
-
-    it('offers the shop three ways while it is open: the hero, a bag in the phone’s bar and the game’s looks', async () =>
-    {
-        signIn(true);
+        signIn();
         const container = await gamePage();
 
         await vi.waitFor(() => expect(container.querySelector('[data-game-looks="ludo"]')).not.toBeNull(), { timeout: 4000 });
@@ -232,7 +209,7 @@ describe('what a game’s page offers of the shop', () =>
 
     it('opens a look’s sheet over the game’s page, so it is bought without leaving', async () =>
     {
-        signIn(true);
+        signIn();
         const container = await gamePage();
 
         await vi.waitFor(() => expect(container.querySelector('[data-look="pawns.glow"]')).not.toBeNull(), { timeout: 4000 });
@@ -247,7 +224,7 @@ describe('what a game’s page offers of the shop', () =>
     it('follows the collection the staff feature', async () =>
     {
         server.shop.state = { ...server.shop.state, featured: 'neon' } as typeof server.shop.state;
-        signIn(true);
+        signIn();
         const container = await gamePage('chess');
 
         await vi.waitFor(() => expect(container.querySelector('[data-game-looks="chess"]')).not.toBeNull(), { timeout: 4000 });
@@ -258,7 +235,7 @@ describe('what a game’s page offers of the shop', () =>
     it('says nothing where the shop could not be read: the shop’s own page says why', async () =>
     {
         server.shop.refuse = { status: 503, code: 'chain-unreachable' };
-        signIn(true);
+        signIn();
         const container = await shown(() => GameLooks({ game: 'ludo' }));
 
         await vi.waitFor(() => expect(server.calls).toContain('shop.state'), { timeout: 4000 });
@@ -267,22 +244,21 @@ describe('what a game’s page offers of the shop', () =>
         expect(container.querySelector('[data-game-looks]')).toBeNull();
     });
 
-    it('says nothing where the shop says it is closed', async () =>
+    it('shows the looks of a shop that is turned off, each opening its sheet, which says so', async () =>
     {
-        server.shop.state = { open: false } as typeof server.shop.state;
-        signIn(true);
+        server.shop.state = closedShop();
+        signIn();
         const container = await shown(() => GameLooks({ game: 'ludo' }));
 
-        await vi.waitFor(() => expect(server.calls).toContain('shop.state'), { timeout: 4000 });
-        await settle();
+        await vi.waitFor(() => expect(container.querySelector('[data-game-looks="ludo"]')).not.toBeNull(), { timeout: 4000 });
 
-        expect(container.querySelector('[data-game-looks]')).toBeNull();
+        expect([...container.querySelectorAll('[data-look]')].map((one) => one.getAttribute('data-look'))).toEqual(looksForGame('ludo', 'glow'));
     });
 
     it('says the game’s name in the reader’s words', async () =>
     {
         useLocale().setLocale('fa');
-        signIn(true);
+        signIn();
         const container = await gamePage();
 
         await vi.waitFor(() => expect(container.querySelector('[data-game-looks="ludo"] h2')).not.toBeNull(), { timeout: 4000 });
@@ -318,23 +294,33 @@ describe('the reader’s own page', () =>
         return container;
     };
 
-    it('leads to the reader’s collection beside the vault’s chip while the shop is open, and nowhere while it is closed', async () =>
+    it.each([['open', false], ['turned off', true]] as const)('leads to the reader’s collection beside the vault’s chip while the shop is %s', async (_, off) =>
     {
-        signIn(true);
-        const open = await mePage();
-        const chip = open.querySelector<HTMLAnchorElement>('a[href="/app/shop/collection"]');
+        if (off)
+        {
+            server.shop.state = closedShop();
+        }
+
+        signIn();
+        const page = await mePage();
+        const chip = page.querySelector<HTMLAnchorElement>('a[href="/app/shop/collection"]');
 
         expect(chip?.textContent).toContain('Your collection');
         expect(chip?.textContent).toContain('Looks for your profile and your tables');
-
-        cleanup();
-        signIn(false);
-        const closed = await mePage();
-
-        expect(hrefs(closed)).not.toContain('/app/shop/collection');
     });
 
-    it('carries nothing of the shop but the chip, which asks the account and nothing else', () =>
+    it('leads to the vault\'s page, saying playing for NURA is turned off where the server keeps no vault', async () =>
+    {
+        server.nura.state = { configured: false };
+        signIn();
+        const page = await mePage();
+
+        await vi.waitFor(() => expect(page.querySelector('a[href="/app/me/wallet"] [data-off="paid"]')).not.toBeNull(), { timeout: 4000 });
+
+        expect(page.querySelector('a[href="/app/me/wallet"]')?.textContent).toContain('Playing for NURA is turned off right now');
+    });
+
+    it('carries nothing of the shop but the chip, which asks nothing', () =>
     {
         const chip = SOURCES['../src/components/shop/shop-chip.component.azeroth'];
 

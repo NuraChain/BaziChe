@@ -11,6 +11,7 @@ import { useMarkets } from '../../stores/markets.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useRealtime } from '../../stores/realtime.store.ts';
+import FeatureOff from '../app/feature-off.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
 import Input from '../ui/input.component.azeroth';
@@ -61,7 +62,9 @@ export default component MarketSheet(props: OverlayProps & { match: string })
 
     derived awaited = market === null && markets.viewLoading();
 
-    derived missing = market === null && !markets.viewLoading();
+    derived off = markets.state()?.open === false;
+
+    derived missing = market === null && !markets.viewLoading() && !off;
 
     derived held = markets.state();
 
@@ -314,6 +317,10 @@ export default component MarketSheet(props: OverlayProps & { match: string })
 
         <Show when={ awaited }>
             <Skeleton lines={ 3 } class="rounded-panel border border-line bg-field p-4" />
+        </Show>
+
+        <Show when={ off }>
+            <FeatureOff feature="markets" />
         </Show>
 
         <Show when={ missing }>

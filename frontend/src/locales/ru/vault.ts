@@ -19,8 +19,6 @@ export const vault: Pick<Dictionary, keyof typeof reference> = {
     'vault.inPlay': 'В игре',
     'vault.inWallet': 'В кошельке',
     'vault.failed': 'Не удалось прочитать твои NURA.',
-    'vault.off': 'Игра на NURA здесь недоступна',
-    'vault.offLead': 'На этом сервере нет хранилища, поэтому все столы здесь бесплатные.',
     'vault.move': 'Перевести NURA',
     'vault.in': 'Внести',
     'vault.out': 'Вывести',

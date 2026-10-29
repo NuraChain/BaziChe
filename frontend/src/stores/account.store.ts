@@ -45,9 +45,6 @@ export interface AccountApi
     user: Getter<Person | null>;
     address: Getter<string | null>;
 
-    /** Whether the shop is open here, as the account says; every door to it asks this. */
-    shopOpen: Getter<boolean>;
-
     /**
      * Writes the display name and the bio, and adopts what the server answers with.
      *
@@ -76,7 +73,6 @@ export const useAccount = createStore((): AccountApi =>
     return {
         user: () => personFor(session.account()),
         address: () => session.account()?.address ?? null,
-        shopOpen: () => session.account()?.shop === true,
 
         adoptWallet(account)
         {

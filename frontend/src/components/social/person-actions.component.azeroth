@@ -27,6 +27,8 @@ interface Action
     icon: IconName;
     label: string;
     danger?: boolean;
+    /** Why the row is drawn and does nothing: what it would do is turned off here. */
+    off?: string;
     run: () => void;
 }
 
@@ -66,6 +68,8 @@ export default component PersonActions(props: OverlayProps & {
     })();
 
     derived offered = givable && (readerMay === 'yes' || readerMay === 'donate-terms' || readerMay === 'donate-break');
+
+    derived donationsOff = donations?.state()?.open === false;
 
     mount
     {
@@ -152,7 +156,7 @@ export default component PersonActions(props: OverlayProps & {
                     void giveTo(matchId, props.personId, name);
                 }
             }]
-            : [];
+            : (donationsOff ? [{ id: 'donate', icon: 'coins', label: locale.t('donate.action', { name }), off: locale.t('off.donations'), run: () => undefined }] : []);
         const play: Action[] = relation === 'friend'
             ? [{
                 id: 'play',
@@ -297,9 +301,12 @@ export default component PersonActions(props: OverlayProps & {
                     <button
                         type="button"
                         class={ () => [
-                            'flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-tile px-3 text-start text-ui-md transition-colors hover:bg-raised/70',
+                            'flex min-h-12 w-full items-center gap-3 rounded-tile px-3 text-start text-ui-md transition-colors',
+                            action.off === undefined ? 'cursor-pointer hover:bg-raised/70' : 'cursor-default opacity-70',
                             action.danger === true ? 'text-danger' : 'text-text'
                         ].join(' ') }
+                        aria-disabled={ action.off === undefined ? undefined : 'true' }
+                        data-off={ action.off === undefined ? undefined : 'donations' }
                         onClick={ () =>
                         {
                             action.run();
@@ -310,7 +317,12 @@ export default component PersonActions(props: OverlayProps & {
                         } }
                     >
                         <Icon name={ action.icon } size={ 18 } />
-                        { action.label }
+                        <span class="flex min-w-0 flex-col">
+                            <span>{ action.label }</span>
+                            <Show when={ action.off !== undefined }>
+                                <span class="text-ui-xs text-gold">{ action.off }</span>
+                            </Show>
+                        </span>
                     </button>
                 </li>
             </For>

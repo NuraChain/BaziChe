@@ -19,8 +19,6 @@ export const vault: Pick<Dictionary, keyof typeof reference> = {
     'vault.inPlay': 'Em jogo',
     'vault.inWallet': 'Na sua carteira',
     'vault.failed': 'Não deu para ler os seus NURA.',
-    'vault.off': 'Jogar valendo NURA não está disponível aqui',
-    'vault.offLead': 'Este servidor não tem cofre, então todas as mesas daqui são grátis.',
     'vault.move': 'Movimentar NURA',
     'vault.in': 'Depositar',
     'vault.out': 'Sacar',

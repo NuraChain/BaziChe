@@ -1,6 +1,7 @@
 import { useHead } from 'azerothjs';
 
 import ConfirmSheet from '../../components/app/confirm-sheet.component.azeroth';
+import FeatureOff from '../../components/app/feature-off.component.azeroth';
 import Page from '../../components/app/page.component.azeroth';
 import PageHeader from '../../components/app/page-header.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
@@ -64,6 +65,8 @@ export default component WalletPage()
     derived open = vault !== null;
 
     derived donating = donations.state()?.open === true;
+
+    derived donationsOff = donations.state()?.open === false;
 
     derived may = vault?.may ?? null;
 
@@ -177,7 +180,7 @@ export default component WalletPage()
         </Show>
 
         <Show when={ off }>
-            <EmptyState icon="coins" title={ locale.t('vault.off') } lead={ locale.t('vault.offLead') } />
+            <FeatureOff feature="paid" />
         </Show>
 
         <Show when={ open }>
@@ -250,6 +253,10 @@ export default component WalletPage()
 
         <Show when={ donating }>
             <DonationsHistory class="mt-6" />
+        </Show>
+
+        <Show when={ donationsOff }>
+            <FeatureOff feature="donations" class="mt-6" />
         </Show>
 
         <LazyMarketPositions class="mt-6" />

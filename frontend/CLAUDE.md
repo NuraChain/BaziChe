@@ -675,6 +675,23 @@ itself through `strips-loader.ts`, the cues loader's shape. The shell stood at 1
 12,288 bytes, neither strip is drawn unless something is wrong, and a direct `import()` in the
 shell would have put the chunk table back into it, which is what a loader module is for.
 
+**A feature this server does not run is drawn where it would be, and says it is turned off.** The
+owner (2026-10-29): "i should see ui also when i didnt put NURA_SHOP_ADDRESS or other things such as
+paid games or tips". The shop, playing for NURA, sending NURA and backing a winner each answer
+`open: false` (or `configured: false`) when their contract is not written, and the browser draws
+every door it would draw anyway: Shop in the sidebar, the rail and a game's page, the game's looks,
+the collection's chip and the vault's on `/app/me`, the stakes of the create form and of quick play
+(Free chosen, the rest not to be pressed), the gift row in the sheet about a player, the market door,
+and the wallet page's sections. In each place `FeatureOff` (`components/app/feature-off`) says the
+feature is turned off right now, in the app catalogue's words (`off.*`, ten languages), as a gold
+note with nothing in it to press; a role that opens Money is also told which `.env` names turn it on
+(`SWITCHED_BY`). A shop that is turned off answers its whole catalogue, so its page, its sheets and
+the game's looks draw as they would with a price on every look, and only Buy and the gift are not
+offered. Nothing that asks the chain is read for a feature that is off (the wallet's balance waits
+for an open shop). `feature-off.spec.ts`, `shop-doors.spec.ts`, `shop-page.spec.ts`,
+`look-sheet.spec.ts`, `stake-choice.spec.ts`, `wallet-page.spec.ts`, `settings.spec.ts`,
+`person-actions.spec.ts`, `market-doors.spec.ts` and `market-sheet.spec.ts` hold it.
+
 **A `<Show>`'s `fallback` is built exactly when the guard is FALSE**, which is precisely the moment
 the thing the guard protects may be gone. Closing a table did it: `table` went null, `seated` flipped
 false in the same tick, the inner Show reached for its fallback, and `table!.taken` sent the entire

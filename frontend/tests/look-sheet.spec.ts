@@ -16,7 +16,7 @@ import { SETTLE_MS, useShop } from '../src/stores/shop.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
 import { useWallet } from '../src/stores/wallet.store.ts';
-import { sellShopOrder, server } from './fake-api.ts';
+import { closedShop, sellShopOrder, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
 import { forgetVoices, voices } from './fake-voices.ts';
 
@@ -324,6 +324,37 @@ describe('the sheet about a look', () =>
         expect(button(root, 'Use at Ludo')).toBeDefined();
         expect(server.calls).toContain('shop.order dice.glow');
         expect(server.shop.orders, 'a free look left an order').toEqual([]);
+    });
+
+    it('says a shop that is turned off as that, beside what the look would cost, and offers neither Buy nor a gift', async () =>
+    {
+        walletWith();
+        server.shop.state = closedShop();
+
+        const { root } = await sheet('dice.glow');
+
+        expect(root.querySelector('[data-off="shop"]')?.textContent).toContain('The shop is turned off right now');
+        expect(root.textContent).toContain('12 NURA');
+        expect(button(root, 'Buy for 12 NURA'), 'a shop that is turned off was offered to buy from').toBeUndefined();
+        expect(button(root, 'Send as a gift')).toBeUndefined();
+    });
+
+    it('gives the wallet whose own looks are free its look though the shop is turned off', async () =>
+    {
+        walletWith();
+        server.shop.state = { ...closedShop(), free: true };
+
+        const { root } = await sheet('dice.glow');
+
+        expect(root.querySelector('[data-off="shop"]'), 'the free wallet was told the shop is off').toBeNull();
+        expect(button(root, 'Send as a gift'), 'a gift is paid for, and nothing is paid for here').toBeUndefined();
+
+        fire(button(root, 'Get it free')!, 'click');
+        await settle();
+        await settle();
+
+        expect(root.querySelector('[data-buy-step]')?.getAttribute('data-buy-step')).toBe('done');
+        expect(server.shop.owned.map((one) => one.item)).toContain('dice.glow');
     });
 
     it('says a no in the wallet in its own words, and offers Buy again', async () =>

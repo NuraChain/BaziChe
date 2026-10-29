@@ -310,7 +310,6 @@ export const account = object({
     staff: enumOf(STAFF_ROLES).optional(),
 
     /** Present while the shop is open here, so every door to it is drawn without asking. */
-    shop: literal(true).optional(),
 
     /** The reader's own profile looks, as everybody else is shown them; absent for Classic. */
     deco: string().optional(),
@@ -728,7 +727,13 @@ const shopPrice = object({
 
 /** The shop as the reader finds it: not open here, or what is on sale, the featured collection, whether they may buy, and whether their own looks cost them nothing. */
 export const shopState = union([
-    object({ open: literal(false) }),
+    object({
+        open: literal(false),
+        items: array(shopPrice),
+        featured: enumOf(SHOP_COLLECTIONS),
+        may: enumOf(SHOP_MAY),
+        free: literal(true).optional()
+    }),
     object({
         open: literal(true),
         chainId: number(),

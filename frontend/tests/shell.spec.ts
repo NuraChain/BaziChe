@@ -895,9 +895,9 @@ describe('which destination every page belongs to', () =>
 
 describe('the shell’s destinations', () =>
 {
-    it('lists the design’s seven in the sidebar, plus notifications,, Tournaments not among them', () =>
+    it('lists the design’s seven in the sidebar, plus notifications and the shop, Tournaments not among them', () =>
     {
-        expect(RAIL.map((item) => item.to)).toEqual(['/app', '/app/games', '/app/watch', '/app/friends', '/app/chats', '/app/notifications', '/app/leaderboard', '/app/discover', '/app/me/settings']);
+        expect(RAIL.map((item) => item.to)).toEqual(['/app', '/app/games', '/app/watch', '/app/friends', '/app/chats', '/app/notifications', '/app/leaderboard', '/app/discover', '/app/shop', '/app/me/settings']);
     });
 
     it('calls the fifth phone tab Profile', async () =>

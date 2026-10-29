@@ -206,8 +206,11 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
             throw notOpen();
         }
 
-        const buyer = await buyerOf(me);
+        return addressOf(await buyerOf(me));
+    };
 
+    const addressOf = (buyer: Awaited<ReturnType<typeof buyerOf>>) =>
+    {
         if (buyer.may === 'shop-wallet' || buyer.address === null)
         {
             throw shopRefusal('shop-wallet', 'Buying a look needs a wallet account.');
@@ -664,11 +667,6 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
     return {
         async state(me: string): Promise<ShopState>
         {
-            if (!shop.configured)
-            {
-                return { open: false };
-            }
-
             const [items, featured, buyer] = await Promise.all([
                 db.getRepository(ShopItem)
                     .createQueryBuilder('s')
@@ -690,9 +688,7 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
                 buyerOf(me)
             ]);
 
-            return {
-                open: true,
-                chainId: shop.chainId,
+            const catalogue = {
                 items: items.map((row) => ({
                     id: row.id,
                     price: row.price,
@@ -704,6 +700,8 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
                 may: buyer.may,
                 ...(buyer.may === 'yes' && freeFor(buyer.address) ? { free: true as const } : {})
             };
+
+            return shop.configured ? { open: true as const, chainId: shop.chainId, ...catalogue } : { open: false as const, ...catalogue };
         },
 
         async balance(me: string)
@@ -718,11 +716,16 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
         /** What Buy does: the free buyer's own look given at once, anybody else's purchase an order to pay. */
         async purchase(me: string, item: string, recipient: string | undefined): Promise<ShopPurchase>
         {
-            const buyer = await mustBuy(me);
+            const buyer = await buyerOf(me);
 
-            if (recipient !== undefined || !freeFor(buyer))
+            if (recipient !== undefined || buyer.may !== 'yes' || !freeFor(buyer.address))
             {
-                return await orderAs(me, buyer, item, recipient);
+                if (!shop.configured)
+                {
+                    throw notOpen();
+                }
+
+                return await orderAs(me, addressOf(buyer), item, recipient);
             }
 
             if (!isItemId(item))

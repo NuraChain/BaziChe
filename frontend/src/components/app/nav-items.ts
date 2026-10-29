@@ -38,12 +38,8 @@ export const RAIL: NavItem[] = [
     { tab: 'notifications', lights: [], to: '/app/notifications', icon: 'bell', labelKey: 'app.nav.notifications' },
     { tab: 'leaderboard', lights: [], to: '/app/leaderboard', icon: 'trophy', labelKey: 'app.nav.leaderboard' },
     { tab: 'discover', lights: [], to: '/app/discover', icon: 'discover', labelKey: 'app.nav.discover' },
+    { tab: 'shop', lights: [], to: '/app/shop', icon: 'bag', labelKey: 'app.nav.shop' },
     { tab: 'settings', lights: [], to: '/app/me/settings', icon: 'settings', labelKey: 'app.nav.settings' }
 ];
-
-const SHOPPING: NavItem[] = [...RAIL.slice(0, -1), { tab: 'shop', lights: [], to: '/app/shop', icon: 'bag', labelKey: 'app.nav.shop' }, ...RAIL.slice(-1)];
-
-/** The rail's destinations: the shop is one of them only while it is open here. */
-export const railFor = (shop: boolean) => (shop ? SHOPPING : RAIL);
 
 export const ACTIVE_ROW = '[&.is-active]:[background:linear-gradient(90deg,var(--accent-fill),color-mix(in_oklab,var(--accent-fill)_72%,var(--field)))] [&.is-active]:text-accent-ink [&.is-active]:[box-shadow:0_8px_24px_-12px_color-mix(in_oklab,var(--accent)_70%,transparent),inset_0_1px_0_rgb(255_255_255/0.12)]';

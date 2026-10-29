@@ -13,7 +13,11 @@ export default component VaultChip(props: { class?: string })
 
     derived free = held !== null && held.configured ? held.balances?.free ?? null : null;
 
-    derived shown = free !== null;
+    derived off = held !== null && !held.configured;
+
+    derived counted = free !== null;
+
+    derived shown = counted || off;
 
     derived figure = locale.n(nuraOf(free ?? '0'), { maximumFractionDigits: 4 });
 
@@ -24,10 +28,15 @@ export default component VaultChip(props: { class?: string })
             </span>
             <span class="flex min-w-0 flex-1 flex-col">
                 <span class="text-ui-md font-semibold text-text">{ locale.t('vault.title') }</span>
-                <span class="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-ui-sm text-muted">
-                    <span>{ locale.t('vault.free') }</span>
-                    <span class="font-semibold text-text"><span class="tally">{ figure }</span> NURA</span>
-                </span>
+                <Show when={ counted }>
+                    <span class="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-ui-sm text-muted">
+                        <span>{ locale.t('vault.free') }</span>
+                        <span class="font-semibold text-text"><span class="tally">{ figure }</span> NURA</span>
+                    </span>
+                </Show>
+                <Show when={ off }>
+                    <span class="text-ui-sm text-gold" data-off="paid">{ locale.t('off.paid') }</span>
+                </Show>
             </span>
             <Icon name="chevron-right" size={ 18 } class="icon-flip shrink-0 text-faint" />
         </Panel>

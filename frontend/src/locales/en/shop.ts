@@ -5,8 +5,6 @@ export const shop = {
     'shop.inWallet': 'In your wallet',
     'shop.yours': 'Your collection',
     'shop.strip.title': 'Looks for {game}',
-    'shop.closed': 'The shop is not open here',
-    'shop.closedLead': 'This server sells no looks yet.',
     'shop.failed': 'The shop could not be loaded.',
     'shop.unreached': 'NuraChain could not be reached just now. Try again in a moment.',
     'shop.featured': 'Featured collection',

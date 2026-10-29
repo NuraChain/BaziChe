@@ -6,11 +6,13 @@ import { createVoices, type SoundHandle } from '../../game/sound.ts';
 import type { Voiced } from '../../game/sound-files.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useSettings } from '../../stores/settings.store.ts';
+import Button from '../ui/button.component.azeroth';
 import SectionHeading from '../ui/section-heading.component.azeroth';
 import LabBackgammon from './lab-backgammon.component.azeroth';
 import LabChess from './lab-chess.component.azeroth';
 import LabFelt from './lab-felt.component.azeroth';
 import LabLudo from './lab-ludo.component.azeroth';
+import LazyLabPlayground from './lazy-lab-playground.component.azeroth';
 
 /**
  * The fitting room's tables: a stage for each game drawn in the collection's looks, and every moment
@@ -22,6 +24,8 @@ export default component LabTables(props: { collection: Collection })
     const settings = useSettings();
 
     let voices: SoundHandle | null = null;
+
+    state tuning = false;
 
     derived silent = !settings.settings().sound;
 
@@ -59,9 +63,15 @@ export default component LabTables(props: { collection: Collection })
 
     <section aria-labelledby="lab-tables" data-lab-tables={ props.collection }>
         <SectionHeading id="lab-tables" title={ locale.t('shop.lab.tables') } />
-        <p class="text-ui-sm text-muted">{ locale.t('shop.lab.tablesLead') }</p>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <p class="min-w-0 flex-[1_1_16rem] text-ui-sm text-muted">{ locale.t('shop.lab.tablesLead') }</p>
+            <Button variant="outline" size="sm" leading="sparkles" pressed={ tuning } onClick={ () => tuning = !tuning }>{ locale.t('shop.lab.tune') }</Button>
+        </div>
         <Show when={ silent }>
             <p class="mt-1 text-ui-xs text-faint" data-lab-silent="">{ locale.t('shop.lab.soundOff') }</p>
+        </Show>
+        <Show when={ tuning }>
+            { () => <div class="mt-4"><LazyLabPlayground collection={ props.collection } say={ say } /></div> }
         </Show>
         <ul class="mt-4 grid grid-cols-1 gap-3 @5xl:grid-cols-2">
             <LabLudo collection={ props.collection } title={ nameOf('ludo') } say={ say } />

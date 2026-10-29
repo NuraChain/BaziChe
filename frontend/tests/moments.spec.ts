@@ -6,7 +6,7 @@ import { cheerAt } from '../src/game/looks/celebrations.ts';
 import { CASTLES, CHECKS, FINALES, LANDING, MATE_SQUARES } from '../src/game/looks/chess.ts';
 import { enterAt } from '../src/game/looks/entrances.ts';
 import { ARRIVAL_CELLS, TRAILS, TRAIL_CELLS, TRAIL_DENSITY } from '../src/game/looks/ludo.ts';
-import { momentOf, STAGES, trailOf, type TableMoment } from '../src/game/looks/moments.ts';
+import { momentOf, retune, STAGES, trailOf, type TableMoment } from '../src/game/looks/moments.ts';
 import { PALETTES } from '../src/game/looks/palette.ts';
 import { burstOf, CAPTURES, CRITICALS, lightOf, type Collection } from '../src/game/looks/table.ts';
 import { MOMENTS } from '../src/game/sound-files.ts';
@@ -126,4 +126,30 @@ describe('the moments a fitting room plays at its tables', () =>
         expect(momentOf('set', 'phoenix', PLACE)).toEqual({ ...enterAt({ collection: 'phoenix', full: true }, MIDDLE, PLACE.width), voice: 'spawn' });
         expect(momentOf('win', 'phoenix', PLACE)).toEqual({ ...cheerAt('phoenix', MIDDLE, PLACE.width), voice: 'victory' });
     });
+
+    it('take the playground’s knobs as factors over every layer, so that at one a moment plays as its table plays it', () =>
+    {
+        const six = momentOf('six', 'storm', PLACE);
+        const even = retune(six, { intensity: 1, speed: 1, density: 1, size: 1 });
+
+        expect(even.steps.map((step) => step.effect)).toEqual(six.steps.map((step) => step.effect));
+        expect(even.steps.map((step) => step.after)).toEqual(six.steps.map((step) => step.after));
+        expect(even.tune).toEqual({ ...six.tune, intensity: 1, speed: 1, density: 1 });
+        expect('seed' in even.tune, 'a seed was laid on a moment nobody asked to repeat').toBe(false);
+        expect(even.voice).toBe(six.voice);
+
+        const castle = momentOf('castle', 'jade', PLACE);
+        const strong = retune(castle, { intensity: 2, speed: 0.5, density: 3, size: 1.5, seed: 7 });
+
+        expect(strong.tune).toMatchObject({ intensity: 2, speed: 0.5, density: 3, scale: castle.tune.scale! * 1.5, seed: 7, colors: castle.tune.colors });
+        expect(strong.steps[0], 'a layer of its own strength lost it beside the others').toEqual({ effect: 'sigil', tune: { intensity: 1.6, speed: 0.5, density: 3 } });
+        expect(strong.steps[1]).toEqual({ effect: 'orbs', after: 200, tune: { intensity: 1.4, speed: 0.5, density: 3 } });
+        expect(retune(momentOf('die', 'gold', PLACE), { intensity: 2, speed: 1, density: 1, size: 1 }).steps, 'a layer with nothing of its own was given numbers it should take from the moment').toEqual([{ effect: 'burst' }]);
+
+        const rift = retune(momentOf('six', 'astral', PLACE), { intensity: 1, speed: 2, density: 0.5, size: 1 });
+
+        expect(rift.steps[0], 'a layer’s own speed was thrown away').toEqual({ effect: 'rift', tune: { intensity: 1, speed: 3, density: 0.5 } });
+        expect(retune(momentOf('six', 'glow', PLACE), { intensity: 1, speed: 1, density: 0.5, size: 1 }).steps[1], 'a layer’s own density was thrown away').toEqual({ effect: 'stars', after: 60, tune: { intensity: 1, speed: 1, density: 0.9 } });
+    });
+
 });

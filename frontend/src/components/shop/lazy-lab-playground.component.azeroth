@@ -1,0 +1,27 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+import type { Collection } from '../../game/looks/table.ts';
+import type { Voiced } from '../../game/sound-files.ts';
+
+type Playground = (props: { collection: Collection; say: (voiced: Voiced) => void }) => MountNode;
+
+/** The fitting room's playground, a chunk of its own, fetched the first time somebody asks to tune a moment. */
+export default component LazyLabPlayground(props: { collection: Collection; say: (voiced: Voiced) => void })
+{
+    let Playground: Playground | null = null;
+
+    state loaded = false;
+
+    mount
+    {
+        void import('./lab-playground.component.azeroth').then((module) =>
+        {
+            Playground = module.default as Playground;
+            loaded = true;
+        }, () => undefined);
+    }
+
+    <Show when={ loaded }>
+        { () => <Dynamic component={ Playground! } props={ () => ({ collection: props.collection, say: props.say }) } /> }
+    </Show>
+}

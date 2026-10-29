@@ -87,3 +87,30 @@ export function trailOf(collection: Collection, cell: number): { flows: readonly
 {
     return { flows: TRAILS[collection], tune: { colors: lightOf(collection), scale: cell * TRAIL_CELLS / FITS, density: TRAIL_DENSITY } };
 }
+
+/** The playground's knobs: each a factor over a moment as its table plays it, and a seed that plays it the same way every time. */
+export interface Knobs
+{
+    intensity: number;
+    speed: number;
+    density: number;
+    size: number;
+    seed?: number;
+}
+
+/** A moment played with the playground's knobs, laid on every layer of it, so that a layer of its own strength keeps its strength beside the others. */
+export function retune(played: Played, knobs: Knobs): Played
+{
+    const over = (tune: Tune = {}): Tune => ({
+        ...tune,
+        intensity: (tune.intensity ?? 1) * knobs.intensity,
+        speed: (tune.speed ?? 1) * knobs.speed,
+        density: (tune.density ?? 1) * knobs.density
+    });
+
+    return {
+        ...played,
+        steps: played.steps.map((step) => (step.tune === undefined ? step : { ...step, tune: over(step.tune) })),
+        tune: { ...over(played.tune), scale: (played.tune.scale ?? 1) * knobs.size, ...(knobs.seed === undefined ? {} : { seed: knobs.seed }) }
+    };
+}

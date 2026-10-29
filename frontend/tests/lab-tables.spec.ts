@@ -4,10 +4,11 @@ import { createSignal } from 'azerothjs';
 
 import LabTables from '../src/components/shop/lab-tables.component.azeroth';
 import { CELL, MARGIN } from '../src/game/layout.ts';
-import { MATE_SQUARES } from '../src/game/looks/chess.ts';
+import { FINALES, MATE_SQUARES } from '../src/game/looks/chess.ts';
 import { dieDress } from '../src/game/looks/dice.ts';
+import { CRITICALS } from '../src/game/looks/table.ts';
 import { ARRIVAL_CELLS, TRAILS } from '../src/game/looks/ludo.ts';
-import { momentOf, STAGES, type TableMoment } from '../src/game/looks/moments.ts';
+import { momentOf, retune, STAGES, type TableMoment } from '../src/game/looks/moments.ts';
 import type { Collection } from '../src/game/looks/table.ts';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
@@ -25,6 +26,7 @@ interface Signed
     host: HTMLElement;
     steps: readonly { effect: string }[];
     scale: number | undefined;
+    tune: Record<string, unknown>;
 }
 
 interface Streamed
@@ -35,7 +37,7 @@ interface Streamed
 }
 
 /** Every effect the stages' engines were asked for, and how each engine was made and let go. */
-const engine = vi.hoisted(() => ({ made: [] as { host: HTMLElement; layer?: number; quiet?: () => boolean }[], signed: [] as Signed[], streams: [] as Streamed[], disposed: 0, warmed: 0 }));
+const engine = vi.hoisted(() => ({ made: [] as { host: HTMLElement; layer?: number; quiet?: () => boolean; quality?: string; disposed?: boolean }[], signed: [] as Signed[], streams: [] as Streamed[], disposed: 0, warmed: 0 }));
 
 vi.mock('../src/game/vfx/lazy.ts', () => ({
     lazyVfx: (host: HTMLElement, options: { layer?: number; quiet?: () => boolean } = {}) =>
@@ -43,7 +45,7 @@ vi.mock('../src/game/vfx/lazy.ts', () => ({
         engine.made.push({ host, ...options });
 
         const vfx = {
-            signature: (steps: readonly { effect: string }[], _at: unknown, tune: { scale?: number }) => engine.signed.push({ host, steps, scale: tune.scale }),
+            signature: (steps: readonly { effect: string }[], _at: unknown, tune: { scale?: number }) => engine.signed.push({ host, steps, scale: tune.scale, tune }),
             stream: (kind: string, at: Streamed['at']) =>
             {
                 const running = { kind, at, stopped: false };
@@ -71,6 +73,7 @@ vi.mock('../src/game/vfx/lazy.ts', () => ({
             dispose: () =>
             {
                 engine.disposed += 1;
+                engine.made.find((one) => one.host === host && one.disposed !== true)!.disposed = true;
             }
         };
     }
@@ -408,5 +411,153 @@ describe('the fitting room’s tables', () =>
         expect(root.querySelector('#lab-tables')?.textContent).toBe('سر میز');
         expect([...stage(root, 'backgammon').querySelectorAll('button')].map((one) => one.textContent?.trim())).toEqual(['تاس ریختن', 'جفت آوردن', 'زدن مهره‌ی تک', 'برگشتن از وسط', 'جمع کردن مهره', 'ورود', 'ورود با ست کامل', 'بردن']);
         expect(stage(root, 'cards').querySelector('h3')?.textContent).toBe('حکم و پوکر');
+    });
+});
+
+describe('the fitting room’s playground', () =>
+{
+    const tuneButton = (root: ParentNode) => [...root.querySelectorAll<HTMLButtonElement>('button')].find((one) => one.textContent?.trim() === 'Tune')!;
+
+    const opened = async (collection: Collection = 'void') =>
+    {
+        const root = await tables(collection);
+
+        fire(tuneButton(root), 'click');
+        await vi.waitFor(() => expect(root.querySelector('[data-lab-playground]')).not.toBeNull());
+        await mounted();
+
+        return root;
+    };
+
+    const ground = (root: ParentNode) => root.querySelector<HTMLElement>('[data-lab-playground]')!;
+
+    const pressIn = (root: ParentNode, words: string) =>
+    {
+        const button = [...ground(root).querySelectorAll<HTMLButtonElement>('button')].find((one) => one.textContent?.trim() === words);
+
+        expect(button, `the playground offered no “${ words }”`).toBeDefined();
+        fire(button!, 'click');
+    };
+
+    /** Picks `words` from the playground's `nth` select: the moment's is the first, the quality's the second. */
+    const choose = (root: ParentNode, nth: number, words: string) =>
+    {
+        fire(ground(root).querySelectorAll<HTMLButtonElement>('[aria-haspopup="listbox"]')[nth]!, 'click');
+
+        const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((one) => one.textContent?.trim() === words);
+
+        expect(option, `“${ words }” could not be chosen`).toBeDefined();
+        fire(option!, 'click');
+    };
+
+    const stageEngine = () => engine.made.filter((one) => one.host.getAttribute('data-lab-scene') === 'playground').at(-1)!;
+
+    const played = () => engine.signed.filter((one) => one.host.getAttribute('data-lab-scene') === 'playground');
+
+    it('opens from Tune as a chunk of its own, above the tables, and closes from the same press', async () =>
+    {
+        const root = await tables('void');
+        const tune = tuneButton(root);
+
+        expect(tune.getAttribute('aria-pressed')).toBe('false');
+        expect(root.querySelector('[data-lab-playground]')).toBeNull();
+
+        fire(tune, 'click');
+        await vi.waitFor(() => expect(root.querySelector('[data-lab-playground]')).not.toBeNull());
+
+        expect(tuneButton(root), 'the press was drawn again').toBe(tune);
+        expect(tune.getAttribute('aria-pressed')).toBe('true');
+        expect(ground(root).compareDocumentPosition(root.querySelector('[data-lab-stage="ludo"]')!), 'the playground was not above the tables').toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+        await mounted();
+        fire(tune, 'click');
+
+        expect(root.querySelector('[data-lab-playground]')).toBeNull();
+        expect(stageEngine().disposed, 'the playground’s engine outlived it').toBe(true);
+    });
+
+    it('plays the moment chosen on its own stage, in the collection’s recipe and voice, at one as its table plays it', async () =>
+    {
+        const root = await opened('void');
+
+        pressIn(root, 'Play');
+
+        expect(played().at(-1)?.steps).toEqual(retune(momentOf('six', 'void', { x: 0, y: 0, width: 1, height: 1 }), { intensity: 1, speed: 1, density: 1, size: 1 }).steps);
+        expect(played().at(-1)?.tune).toMatchObject({ intensity: 1, speed: 1, density: 1 });
+        expect(said().at(-1)).toBe('void.die');
+
+        choose(root, 0, 'Checkmate');
+        pressIn(root, 'Play');
+
+        expect(played().at(-1)?.steps.map((step) => step.effect)).toEqual([...CRITICALS.void, FINALES.void].map((step) => step.effect));
+        expect(said().at(-1)).toBe('void.capture');
+    });
+
+    it('lays its knobs over the moment as factors, plays it the same way once asked, and goes back to how a table plays it', async () =>
+    {
+        const root = await opened('frost');
+        const [strength, speed] = [...ground(root).querySelectorAll<HTMLElement>('[role="slider"]')];
+
+        expect(strength?.getAttribute('aria-label')).toBe('Intensity');
+        expect(strength?.getAttribute('aria-valuetext')).toBe('100%');
+        const key = (slider: HTMLElement | undefined, name: string) => slider?.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true }));
+
+        key(strength, 'ArrowRight');
+        key(strength, 'ArrowRight');
+        key(speed, 'ArrowLeft');
+        pressIn(root, 'Play');
+
+        expect(played().at(-1)?.tune.intensity as number).toBeCloseTo(1.1, 5);
+        expect(played().at(-1)?.tune.speed as number).toBeCloseTo(0.95, 5);
+        expect('seed' in played().at(-1)!.tune, 'a seed was laid on a moment nobody asked to repeat').toBe(false);
+
+        pressIn(root, 'Another way');
+
+        expect(played().at(-1)?.tune.seed, 'another way played no seed').toBe(2);
+        expect(ground(root).querySelector('[role="switch"]')?.getAttribute('aria-checked'), 'another way did not keep its seed').toBe('true');
+
+        pressIn(root, 'As a table plays it');
+        pressIn(root, 'Play');
+
+        expect(played().at(-1)?.tune).toMatchObject({ intensity: 1, speed: 1, density: 1 });
+        expect('seed' in played().at(-1)!.tune).toBe(false);
+    });
+
+    it('makes its engine again at a quality chosen, and draws as less motion does once asked', async () =>
+    {
+        const root = await opened('oni');
+        const first = stageEngine();
+
+        expect(first.quality, 'the device’s own quality was overruled').toBeUndefined();
+
+        choose(root, 1, 'Low');
+
+        expect(first.disposed).toBe(true);
+        expect(stageEngine().quality).toBe('low');
+        expect(stageEngine().quiet?.()).toBe(false);
+
+        fire([...ground(root).querySelectorAll<HTMLElement>('[role="switch"]')][1]!, 'click');
+
+        expect(stageEngine().quiet?.(), 'less motion was not drawn').toBe(true);
+
+        choose(root, 1, 'This device');
+
+        expect(stageEngine().quality).toBeUndefined();
+        expect(stageEngine().quiet?.(), 'a new engine forgot less motion').toBe(true);
+    });
+
+    it('says everything in Persian for a Persian reader', async () =>
+    {
+        useLocale().setLocale('fa');
+
+        const root = await tables('jade');
+        const tune = [...root.querySelectorAll<HTMLButtonElement>('button')].find((one) => one.textContent?.trim() === 'تنظیم')!;
+
+        fire(tune, 'click');
+        await vi.waitFor(() => expect(root.querySelector('[data-lab-playground]')).not.toBeNull());
+
+        expect(ground(root).querySelector('h3')?.textContent).toBe('تنظیم جلوه‌ها');
+        expect([...ground(root).querySelectorAll('[role="slider"]')].map((one) => one.getAttribute('aria-label'))).toEqual(['شدت', 'سرعت', 'تراکم', 'اندازه']);
+        expect(ground(root).querySelector('[role="slider"]')?.getAttribute('aria-valuetext'), 'a knob did not say its share in the reader’s own digits').toContain('۱۰۰');
     });
 });

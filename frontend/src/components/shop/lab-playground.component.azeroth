@@ -1,0 +1,157 @@
+import { untrack } from 'azerothjs';
+
+import { momentOf, retune, STAGES, type TableMoment } from '../../game/looks/moments.ts';
+import type { Collection } from '../../game/looks/table.ts';
+import type { Voiced } from '../../game/sound-files.ts';
+import { lazyVfx } from '../../game/vfx/lazy.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Select from '../ui/select.component.azeroth';
+import Slider from '../ui/slider.component.azeroth';
+import Toggle from '../ui/switch.component.azeroth';
+
+/** Every moment the tables play, once each, in the order their tables offer them. */
+const MOMENTS = [...new Set(Object.values(STAGES).flat())];
+
+/** How much of the stage a moment's place is across: a die or a square at a table, and a seat's whole corner for what rises from it. */
+const PLACE_SHARE = 0.16;
+
+const CORNER_SHARE = 0.5;
+
+const CORNERED: readonly TableMoment[] = ['entrance', 'set', 'win'];
+
+/** The device's own quality, or one the reader chose: the engine's own tiers. */
+const QUALITIES = ['device', 'low', 'medium', 'high'] as const;
+
+type Chosen = (typeof QUALITIES)[number];
+
+const isChosen = (word: string): word is Chosen => (QUALITIES as readonly string[]).includes(word);
+
+const isMoment = (word: string): word is TableMoment => (MOMENTS as readonly string[]).includes(word);
+
+/**
+ * The fitting room's playground: any moment a table plays a look at, played on a stage with the
+ * engine's own numbers, each a factor over the moment as its table plays it; nothing it sets is kept.
+ */
+export default component LabPlayground(props: { collection: Collection; say: (voiced: Voiced) => void })
+{
+    const locale = useLocale();
+
+    let stage: HTMLElement | null = null;
+    let effects: ReturnType<typeof lazyVfx> | null = null;
+    let made: Chosen | null = null;
+
+    state moment: TableMoment = 'six';
+    state intensity = 1;
+    state speed = 1;
+    state density = 1;
+    state size = 1;
+    state fixed = false;
+    state seed = 1;
+    state quality: Chosen = 'device';
+    state still = false;
+
+    derived options = MOMENTS.map((one) => ({ value: one, label: locale.t(`shop.lab.moment.${ one }`) }));
+
+    derived qualities = QUALITIES.map((id) => ({ value: id, label: locale.t(`shop.lab.quality.${ id }`) }));
+
+    const factor = (value: number) => locale.n(value, { style: 'percent', maximumFractionDigits: 0 });
+
+    /** The engine over the stage, made again whenever the quality it draws at is chosen, since an engine keeps the quality it was made with. */
+    const remake = (chosen: Chosen) =>
+    {
+        if (stage === null || chosen === made)
+        {
+            return;
+        }
+
+        made = chosen;
+        effects?.dispose();
+        effects = lazyVfx(stage, chosen === 'device' ? { quiet: () => still } : { quiet: () => still, quality: chosen });
+    };
+
+    const play = () =>
+    {
+        if (stage === null)
+        {
+            return;
+        }
+
+        const collection = props.collection;
+        const across = stage.clientWidth * (CORNERED.includes(moment) ? CORNER_SHARE : PLACE_SHARE);
+        const place = { x: stage.clientWidth / 2 - across / 2, y: stage.clientHeight / 2 - across / 2, width: across, height: across };
+        const played = retune(momentOf(moment, collection, place), fixed ? { intensity, speed, density, size, seed } : { intensity, speed, density, size });
+
+        void effects?.play((vfx) =>
+        {
+            vfx.signature(played.steps, played.at, played.tune);
+
+            if (played.voice !== null)
+            {
+                props.say(`${ collection }.${ played.voice }`);
+            }
+        });
+    };
+
+    const another = () =>
+    {
+        seed += 1;
+        fixed = true;
+        play();
+    };
+
+    const reset = () =>
+    {
+        intensity = 1;
+        speed = 1;
+        density = 1;
+        size = 1;
+        fixed = false;
+        quality = 'device';
+        still = false;
+    };
+
+    mount
+    {
+        remake(untrack(() => quality));
+
+        return () =>
+        {
+            effects?.dispose();
+            effects = null;
+        };
+    }
+
+    effect
+    {
+        const chosen = quality;
+
+        untrack(() => remake(chosen));
+    }
+
+    <section class="rounded-panel border border-line bg-field p-3" aria-labelledby="lab-playground" data-lab-playground={ props.collection }>
+        <h3 id="lab-playground" class="text-ui-md font-semibold">{ locale.t('shop.lab.playground') }</h3>
+        <p class="mt-1 text-ui-sm text-muted">{ locale.t('shop.lab.playgroundLead') }</p>
+        <div
+            class="relative mt-3 aspect-[16/9] overflow-hidden rounded-tile border border-line bg-[radial-gradient(ellipse_at_50%_45%,var(--raised),var(--sunk)_70%)]"
+            aria-hidden="true"
+            data-lab-scene="playground"
+            ref={ (element) => stage = element }
+        ></div>
+        <div class="mt-3 flex flex-wrap gap-2">
+            <Button variant="primary" leading="play" onClick={ play }>{ locale.t('shop.lab.play') }</Button>
+            <Button variant="outline" leading="dice" onClick={ another }>{ locale.t('shop.lab.knob.newSeed') }</Button>
+            <Button variant="ghost" leading="undo" onClick={ reset }>{ locale.t('shop.lab.reset') }</Button>
+        </div>
+        <div class="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 @xl:grid-cols-2">
+            <Select label={ locale.t('shop.lab.knob.moment') } value={ moment } options={ options } onChange={ (word) => moment = isMoment(word) ? word : moment } />
+            <Select label={ locale.t('shop.lab.knob.quality') } value={ quality } options={ qualities } onChange={ (word) => quality = isChosen(word) ? word : quality } />
+            <Slider label={ locale.t('shop.lab.knob.intensity') } min={ 0.25 } max={ 3 } step={ 0.05 } value={ intensity } valueText={ factor(intensity) } onChange={ (value) => intensity = value } />
+            <Slider label={ locale.t('shop.lab.knob.speed') } min={ 0.25 } max={ 3 } step={ 0.05 } value={ speed } valueText={ factor(speed) } onChange={ (value) => speed = value } />
+            <Slider label={ locale.t('shop.lab.knob.density') } min={ 0.25 } max={ 3 } step={ 0.05 } value={ density } valueText={ factor(density) } onChange={ (value) => density = value } />
+            <Slider label={ locale.t('shop.lab.knob.size') } min={ 0.25 } max={ 3 } step={ 0.05 } value={ size } valueText={ factor(size) } onChange={ (value) => size = value } />
+            <Toggle checked={ fixed } label={ locale.t('shop.lab.knob.seed') } description={ locale.t('shop.lab.knob.seedHint') } onChange={ (on) => fixed = on } />
+            <Toggle checked={ still } label={ locale.t('shop.lab.knob.still') } description={ locale.t('shop.lab.knob.stillHint') } onChange={ (on) => still = on } />
+        </div>
+    </section>
+}

@@ -941,10 +941,10 @@ export function createSound(enabled: boolean, game?: GameId)
     return handle(enabled, game === undefined ? ALONE : TABLE_PACKS[game], 'table');
 }
 
-/** A handle for a page that plays nothing but the voices of the looks it shows: a profile's, or the collection's. */
-export function createVoices(enabled: boolean)
+/** A handle for a page that plays nothing but the voices of the looks it shows: a profile's and the collection's, or a table's moments in the fitting room. */
+export function createVoices(enabled: boolean, place: Place = 'profile')
 {
-    return handle(enabled, [], 'profile');
+    return handle(enabled, [], place);
 }
 
 function handle(enabled: boolean, packs: readonly Pack[], place: Place): SoundHandle

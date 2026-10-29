@@ -1,0 +1,28 @@
+import type { Child } from 'azerothjs';
+
+import type { TableMoment } from '../../game/looks/moments.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Button from '../ui/button.component.azeroth';
+
+/**
+ * One table of the fitting room: its name, its scene, and a press for every moment that table plays a
+ * look at, beside the scene once the card is wide enough that a press and what it plays are in view together.
+ */
+export default component LabStage(props: { game: string; title: string; moments: readonly TableMoment[]; onPlay: (moment: TableMoment) => void; children?: Child })
+{
+    const locale = useLocale();
+
+    <li class="@container min-w-0 rounded-panel border border-line bg-field p-3" data-lab-stage={ props.game }>
+        <h3 class="mb-3 text-ui-md font-semibold">{ props.title }</h3>
+        <div class="grid gap-3 @lg:grid-cols-[minmax(0,1fr)_auto] @lg:items-start">
+            { props.children }
+            <ul class="flex flex-wrap gap-2 @lg:flex-col" aria-label={ locale.t('shop.lab.momentsAt', { game: props.title }) }>
+                <For each={ [...props.moments] } key={ (one) => one } let={ one }>
+                    <li class="flex">
+                        <Button variant="outline" size="sm" leading="play" class="whitespace-nowrap @lg:w-full @lg:justify-start" onClick={ () => props.onPlay(one) }>{ locale.t(`shop.lab.moment.${ one }`) }</Button>
+                    </li>
+                </For>
+            </ul>
+        </div>
+    </li>
+}

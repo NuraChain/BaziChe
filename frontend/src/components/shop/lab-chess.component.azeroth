@@ -1,0 +1,256 @@
+import { dressOf } from '../../game/looks/chess.ts';
+import { momentOf, STAGES, type TableMoment } from '../../game/looks/moments.ts';
+import type { Rect } from '../../game/motion.ts';
+import { LAYER } from '../../game/stage/layers.ts';
+import { lazyVfx } from '../../game/vfx/lazy.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { useDevice } from '../../stores/device.store.ts';
+import LabStage from './lab-stage.component.azeroth';
+import { landOn, move, REST_MS, type StageProps } from './lab-stage.ts';
+
+/** The board's drawing is a thousand units across, its squares 112 from 52 in; the scene is black's corner, files e to h and half of d, where a king laid down falls, ranks 6 to 8, with the frame. */
+const SQUARE = 112;
+
+const CROP = { x: 444, width: 556, height: 412 };
+
+const FILES = 'abcdefgh';
+
+/** Where a square begins on the drawing, as `e8` names it. */
+const squareAt = (name: string) => ({ x: 52 + FILES.indexOf(name[0]) * SQUARE, y: 836 - (Number(name[1]) - 1) * SQUARE });
+
+const placed = (name: string) =>
+{
+    const { x, y } = squareAt(name);
+
+    return `left:${ ((x - CROP.x) / CROP.width * 100).toFixed(3) }%;top:${ (y / CROP.height * 100).toFixed(3) }%`;
+};
+
+/** The layers a board stacks its pieces and effects in, written with the scene's look so that a new look keeps them. */
+const LAYERS = Object.entries(LAYER).map(([name, value]) => `--layer-${ name }:${ value }`).join(';');
+
+const GROUND = `--sq:${ (SQUARE / CROP.width * 100).toFixed(3) }cqw;background:url('/board/chess/board.svg') 100% 0 / ${ (1000 / CROP.width * 100).toFixed(3) }% ${ (1000 / CROP.height * 100).toFixed(3) }% no-repeat`;
+
+/** A position the moments are played in: black castles, a knight checks, captures and returns, a pawn is promoted, and the king is mated. */
+const PIECES = [
+    { square: 'e8', piece: 'bk' },
+    { square: 'h8', piece: 'br' },
+    { square: 'g7', piece: 'bp' },
+    { square: 'h7', piece: 'bp' },
+    { square: 'f6', piece: 'wn' },
+    { square: 'f7', piece: 'wp' }
+] as const;
+
+const TRAVEL_MS = 320;
+
+/** A chess corner in a collection, its set on both sides and on both colours of square. */
+export default component LabChess(props: StageProps)
+{
+    const device = useDevice();
+    const stops: (() => void)[] = [];
+    const busy = new Set<TableMoment>();
+    const pieces = new Map<string, HTMLElement>();
+
+    let scene: HTMLElement | null = null;
+    let effects: ReturnType<typeof lazyVfx> | null = null;
+
+    derived dress = `${ GROUND };${ LAYERS };${ dressOf({ w: props.collection, b: props.collection }) }`;
+
+    const still = () => device.reducedMotion();
+
+    const later = (ms: number, run: () => void) =>
+    {
+        stops.push(runtime().clock.after(ms, run));
+    };
+
+    /** A square of the scene, in its pixels, `wide` squares across round its middle. */
+    const squareIn = (name: string, wide = 1): Rect =>
+    {
+        const unit = (scene?.clientWidth ?? 0) / CROP.width;
+        const { x, y } = squareAt(name);
+        const middle = { x: (x - CROP.x + SQUARE / 2) * unit, y: (y + SQUARE / 2) * unit };
+        const size = SQUARE * wide * unit;
+
+        return { x: middle.x - size / 2, y: middle.y - size / 2, width: size, height: size };
+    };
+
+    const land = (moment: TableMoment, place: Rect) =>
+    {
+        const collection = props.collection;
+        const { steps, at, tune, voice } = momentOf(moment, collection, place);
+
+        void effects?.play((vfx) =>
+        {
+            vfx.signature(steps, at, tune);
+
+            if (voice !== null)
+            {
+                props.say(`${ collection }.${ voice }`);
+            }
+        });
+    };
+
+    /** Pieces slid by whole squares, `moment` played on `at` as they land, and every one put back a rest later. */
+    const slide = (moment: TableMoment, moves: readonly { from: string; by: readonly [number, number] }[], at: string, then?: () => void, back?: () => void) =>
+    {
+        if (scene === null || busy.has(moment))
+        {
+            return;
+        }
+
+        busy.add(moment);
+
+        const unit = scene.clientWidth / CROP.width * SQUARE;
+        const runs = moves.map(({ from, by }) =>
+        {
+            const node = pieces.get(from);
+            const to = `${ (by[0] * unit).toFixed(1) }px ${ (-by[1] * unit).toFixed(1) }px`;
+            const run = move(node, [{ translate: '0px 0px' }, { translate: to }], { duration: TRAVEL_MS, easing: 'cubic-bezier(0.3, 0, 0.2, 1)' }, still());
+
+            if (run === null && node !== undefined)
+            {
+                node.style.translate = to;
+            }
+
+            return { node, run };
+        });
+
+        later(runs.some(({ run }) => run !== null) ? TRAVEL_MS : 0, () =>
+        {
+            then?.();
+            land(moment, squareIn(at));
+
+            later(REST_MS, () =>
+            {
+                for (const { node, run } of runs)
+                {
+                    run?.cancel();
+                    node?.style.removeProperty('translate');
+                }
+
+                back?.();
+                busy.delete(moment);
+            });
+        });
+    };
+
+    const promote = (to: string) =>
+    {
+        const pawn = pieces.get('f7');
+
+        if (pawn !== undefined)
+        {
+            pawn.dataset.piece = to;
+        }
+    };
+
+    const mate = () =>
+    {
+        const king = pieces.get('e8');
+
+        if (king === undefined || busy.has('mate'))
+        {
+            return;
+        }
+
+        busy.add('mate');
+
+        const run = move(king, [{ rotate: '0deg' }, { rotate: '-76deg' }], { duration: 420, easing: 'cubic-bezier(0.5, 0, 0.75, 0)' }, still());
+
+        if (run === null)
+        {
+            king.dataset.tipped = '';
+        }
+
+        later(run === null ? 0 : 420, () =>
+        {
+            land('mate', squareIn('e8', 1));
+
+            later(REST_MS, () =>
+            {
+                run?.cancel();
+                delete king.dataset.tipped;
+                busy.delete('mate');
+            });
+        });
+    };
+
+    const play = (moment: TableMoment) =>
+    {
+        if (scene === null)
+        {
+            return;
+        }
+
+        switch (moment)
+        {
+            case 'piece':
+            {
+                const knight = pieces.get('f6');
+                const unit = scene.clientWidth / CROP.width * SQUARE;
+
+                move(knight, [{ translate: `${ unit.toFixed(1) }px ${ (2 * unit).toFixed(1) }px` }, { translate: '0px 0px' }], { duration: TRAVEL_MS, easing: 'cubic-bezier(0.3, 0, 0.2, 1)', fill: 'none' }, still());
+                later(still() ? 0 : TRAVEL_MS, () =>
+                {
+                    land('piece', squareIn('f6'));
+                    landOn(knight, still());
+                });
+                return;
+            }
+            case 'castle':
+                slide('castle', [{ from: 'e8', by: [2, 0] }, { from: 'h8', by: [-2, 0] }], 'f8');
+                return;
+            case 'check':
+                land('check', squareIn('e8'));
+                return;
+            case 'capture':
+            {
+                const pawn = pieces.get('h7');
+
+                slide('capture', [{ from: 'f6', by: [2, 1] }], 'h7', () => pawn?.setAttribute('data-gone', ''), () => pawn?.removeAttribute('data-gone'));
+                return;
+            }
+            case 'promotion':
+                slide('promotion', [{ from: 'f7', by: [0, 1] }], 'f8', () => promote('wq'), () => promote('wp'));
+                return;
+            case 'mate':
+                mate();
+                return;
+            default:
+            {
+                const left = squareIn('e8');
+                const right = squareIn('h8');
+
+                land(moment, { x: left.x, y: left.y, width: right.x + right.width - left.x, height: left.height });
+            }
+        }
+    };
+
+    mount
+    {
+        if (scene === null)
+        {
+            return;
+        }
+
+        effects = lazyVfx(scene, { layer: LAYER.glow, quiet: still });
+        effects.warm();
+
+        return () =>
+        {
+            for (const stop of stops)
+            {
+                stop();
+            }
+
+            effects?.dispose();
+        };
+    }
+
+    <LabStage game="chess" title={ props.title } moments={ STAGES.chess } onPlay={ play }>
+        <div class="@container relative overflow-hidden rounded-tile [aspect-ratio:556/412]" dir="ltr" aria-hidden="true" data-lab-scene="chess" style={ dress } ref={ (element) => scene = element }>
+            <For each={ [...PIECES] } key={ (one) => one.square } let={ one }>
+                <span class="cp" data-piece={ one.piece } data-lab-piece={ one.square } style={ placed(one.square) } ref={ (element) => pieces.set(one.square, element) }></span>
+            </For>
+        </div>
+    </LabStage>
+}

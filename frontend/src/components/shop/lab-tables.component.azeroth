@@ -1,0 +1,73 @@
+import { untrack } from 'azerothjs';
+
+import { GAMES, type GameId } from '../../data/games.ts';
+import type { Collection } from '../../game/looks/table.ts';
+import { createVoices, type SoundHandle } from '../../game/sound.ts';
+import type { Voiced } from '../../game/sound-files.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useSettings } from '../../stores/settings.store.ts';
+import SectionHeading from '../ui/section-heading.component.azeroth';
+import LabBackgammon from './lab-backgammon.component.azeroth';
+import LabChess from './lab-chess.component.azeroth';
+import LabFelt from './lab-felt.component.azeroth';
+import LabLudo from './lab-ludo.component.azeroth';
+
+/**
+ * The fitting room's tables: a stage for each game drawn in the collection's looks, and every moment
+ * a table plays a look at with its recipe and its voice, the voices under the device's sound switch.
+ */
+export default component LabTables(props: { collection: Collection })
+{
+    const locale = useLocale();
+    const settings = useSettings();
+
+    let voices: SoundHandle | null = null;
+
+    derived silent = !settings.settings().sound;
+
+    const nameOf = (game: GameId) => locale.t(GAMES.find((one) => one.id === game)?.nameKey ?? 'shop.lab.tables');
+
+    const say = (voiced: Voiced) => voices?.play(voiced);
+
+    mount
+    {
+        const collection = untrack(() => props.collection);
+
+        voices = createVoices(untrack(() => settings.settings().sound), 'table');
+        voices.wear([collection], [collection]);
+
+        return () =>
+        {
+            voices?.dispose();
+            voices = null;
+        };
+    }
+
+    effect
+    {
+        const collection = props.collection;
+
+        untrack(() => voices?.wear([collection], [collection]));
+    }
+
+    effect
+    {
+        const on = settings.settings().sound;
+
+        untrack(() => voices?.setEnabled(on));
+    }
+
+    <section aria-labelledby="lab-tables" data-lab-tables={ props.collection }>
+        <SectionHeading id="lab-tables" title={ locale.t('shop.lab.tables') } />
+        <p class="text-ui-sm text-muted">{ locale.t('shop.lab.tablesLead') }</p>
+        <Show when={ silent }>
+            <p class="mt-1 text-ui-xs text-faint" data-lab-silent="">{ locale.t('shop.lab.soundOff') }</p>
+        </Show>
+        <ul class="mt-4 grid grid-cols-1 gap-3 @5xl:grid-cols-2">
+            <LabLudo collection={ props.collection } title={ nameOf('ludo') } say={ say } />
+            <LabFelt collection={ props.collection } title={ locale.t('shop.lab.cards') } say={ say } />
+            <LabBackgammon collection={ props.collection } title={ nameOf('backgammon') } say={ say } />
+            <LabChess collection={ props.collection } title={ nameOf('chess') } say={ say } />
+        </ul>
+    </section>
+}

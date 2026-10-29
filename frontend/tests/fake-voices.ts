@@ -1,11 +1,14 @@
 import type { SoundHandle } from '../src/game/sound.ts';
+import type { Place } from '../src/game/sound-files.ts';
 
 /** A voices handle a page made: what it was made with, and everything it was told since. */
 export interface MadeVoices
 {
     on: boolean;
+    place: Place;
     turned: boolean[];
     worn: string[][];
+    cheered: string[][];
     played: { cue: string; after?: number }[];
     disposed: boolean;
     handle: SoundHandle;
@@ -37,12 +40,14 @@ export const holdVoices = () =>
  * Stands in for the engine's `createVoices` in a spec that asks what a page did with its voices:
  * `vi.mock('../src/game/sound.ts', ...)` hands it out beside the real module.
  */
-export function createVoices(on: boolean)
+export function createVoices(on: boolean, place: Place = 'profile')
 {
     const made: MadeVoices = {
         on,
+        place,
         turned: [],
         worn: [],
+        cheered: [],
         played: [],
         disposed: false,
         handle: {
@@ -50,9 +55,10 @@ export function createVoices(on: boolean)
             {
                 made.played.push(options?.after === undefined ? { cue } : { cue, after: options.after });
             },
-            wear: (collections) =>
+            wear: (collections, cheered = []) =>
             {
                 made.worn.push([...collections]);
+                made.cheered.push([...cheered]);
             },
             ready: () => voices.ready,
             setEnabled: (next) =>

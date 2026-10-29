@@ -22,6 +22,9 @@ export function dressOf(sets: Sets)
     }).join('; ');
 }
 
+/** How many squares wide a mate's reveal is over the king laid down. */
+export const MATE_SQUARES = 1.6;
+
 /** How lightly a piece in a set is set down: a game is forty moves a side, so its landing is the least of its moments and over within a second. */
 export const LANDING = { intensity: 0.45, density: 0.6, duration: 600 } as const;
 

@@ -1,0 +1,325 @@
+import { untrack } from 'azerothjs';
+
+import { cellAt, type Cell } from '../../../../backend/src/domains/match/ludo/board.ts';
+import { pathBetween } from '../../game/board/path.ts';
+import { CELL, DIE_SIZE, DROP, MARGIN, NEST, NEST_SPREAD, NEST_WELLS, YARD_AT, YARD_SIZE } from '../../game/layout.ts';
+import { dieDress } from '../../game/looks/dice.ts';
+import { momentOf, STAGES, trailOf, type TableMoment } from '../../game/looks/moments.ts';
+import type { Collection } from '../../game/looks/table.ts';
+import type { Rect } from '../../game/motion.ts';
+import { createDie, type Die } from '../../game/stage/die.ts';
+import type { Point } from '../../game/vfx/engine.ts';
+import { lazyVfx } from '../../game/vfx/lazy.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { useDevice } from '../../stores/device.store.ts';
+import LabPawn from './lab-pawn.component.azeroth';
+import LabStage from './lab-stage.component.azeroth';
+import { landOn, move, placeIn, REST_MS, type StageProps } from './lab-stage.ts';
+
+/** How much of the board the corner shows, as a share of it: red's yard, the two arms beside it and the middle, nine cells and the rim. */
+const SHOWN = MARGIN + 9 * CELL;
+
+/** A share of the board, as a percentage of the corner. */
+const shown = (share: number) => share / SHOWN * 100;
+
+const CELL_SHOWN = shown(CELL);
+
+const footAt = (col: number, row: number): Point => ({ x: shown(MARGIN + (col + 0.5) * CELL), y: shown(MARGIN + (row + 0.5 + DROP) * CELL) });
+
+/** Where a pawn stands in a well of red's nest. */
+const wellAt = (seat: number) => footAt(NEST.red[0] + NEST_WELLS[seat][0] * NEST_SPREAD - 0.5, NEST.red[1] + NEST_WELLS[seat][1] * NEST_SPREAD - 0.5);
+
+/** A walk along red's own track, round the corner into the top arm. */
+const START = cellAt('red', 2) ?? { col: 3, row: 6 };
+
+const WALK = pathBetween('red', 2, 7);
+
+const ENTRY = cellAt('red', 0) ?? { col: 1, row: 6 };
+
+/** Somebody else's pawn the capture is played on, in Classic, as everybody else's things are. */
+const VICTIM: Cell = { col: 8, row: 3 };
+
+/** The die rests in the corner of the yard nearest the middle, clear of the nest. */
+const DIE_AT = { x: shown(MARGIN + 4.95 * CELL), y: shown(MARGIN + 4.95 * CELL) };
+
+/** A hop of the walk, a little slower than a table's step, so that the trail is seen. */
+const HOP_MS = 150;
+
+const ENTER_MS = 360;
+
+const THROW_MS = 260;
+
+/** How high a pawn is lifted between two cells, and leaving its nest, in cells. */
+const HOP_LIFT = 0.35;
+
+const ENTER_LIFT = 1.2;
+
+const GROUND = `--c:${ CELL_SHOWN.toFixed(4) }cqw;background:url('/board/ludo-board.svg') 0 0 / ${ (100 / SHOWN).toFixed(3) }% no-repeat`;
+
+const YARD = `left:${ shown(YARD_AT.red[0]).toFixed(3) }%;top:${ shown(YARD_AT.red[1]).toFixed(3) }%;width:${ shown(YARD_SIZE).toFixed(3) }%;height:${ shown(YARD_SIZE).toFixed(3) }%`;
+
+/** The keyframes of a walk from `from` through `stops`, as offsets in pixels for a corner `unit` pixels to a percent, lifted `lift` percent between two. */
+function hops(from: Point, stops: readonly Point[], unit: number, lift: number): Keyframe[]
+{
+    const offset = (to: Point) => `${ ((to.x - from.x) * unit).toFixed(2) }px ${ ((to.y - from.y) * unit).toFixed(2) }px`;
+    const frames: Keyframe[] = [{ offset: 0, translate: '0px 0px' }];
+    let last = from;
+
+    stops.forEach((next, index) =>
+    {
+        frames.push({ offset: (index + 0.5) / stops.length, translate: offset({ x: (last.x + next.x) / 2, y: (last.y + next.y) / 2 - lift }) });
+        frames.push({ offset: (index + 1) / stops.length, translate: offset(next) });
+        last = next;
+    });
+
+    return frames;
+}
+
+/** A Ludo corner in a collection: its yard, its pawns in the nest and on the track, its die, and somebody else's pawn in Classic. */
+export default component LabLudo(props: StageProps)
+{
+    const device = useDevice();
+    const stops: (() => void)[] = [];
+    const busy = new Set<string>();
+
+    let scene: HTMLElement | null = null;
+    let yard: HTMLElement | null = null;
+    let holder: HTMLElement | null = null;
+    let walker: HTMLElement | null = null;
+    let leaver: HTMLElement | null = null;
+    let victim: HTMLElement | null = null;
+    let die: Die | null = null;
+    let effects: ReturnType<typeof lazyVfx> | null = null;
+    let thrown = 0;
+
+    derived pawn = `/pawns/${ props.collection }-red.svg`;
+
+    const still = () => device.reducedMotion();
+
+    const later = (ms: number, run: () => void) =>
+    {
+        stops.push(runtime().clock.after(ms, run));
+    };
+
+    const cellIn = (cell: Cell): Rect =>
+    {
+        const unit = (scene?.clientWidth ?? 0) / 100;
+
+        return { x: shown(MARGIN + cell.col * CELL) * unit, y: shown(MARGIN + cell.row * CELL) * unit, width: CELL_SHOWN * unit, height: CELL_SHOWN * unit };
+    };
+
+    const dress = (collection: Collection) =>
+    {
+        if (die === null)
+        {
+            return;
+        }
+
+        for (const [name, value] of Object.entries(dieDress(collection)))
+        {
+            die.node.style.setProperty(name, value);
+        }
+
+        die.node.dataset.look = collection;
+    };
+
+    /** What the moment plays where it happens, and its voice as it plays, in the collection the corner is drawn in now. */
+    const land = (moment: TableMoment, place: Rect) =>
+    {
+        const collection = props.collection;
+        const { steps, at, tune, voice } = momentOf(moment, collection, place);
+
+        void effects?.play((vfx) =>
+        {
+            vfx.signature(steps, at, tune);
+
+            if (voice !== null)
+            {
+                props.say(`${ collection }.${ voice }`);
+            }
+        });
+    };
+
+    const throwDie = (moment: TableMoment, face: number) =>
+    {
+        if (die === null || holder === null || scene === null)
+        {
+            return;
+        }
+
+        thrown += 1;
+        die.show(face, thrown);
+
+        const run = move(holder, [{ scale: '1.35', opacity: 0.4 }, { scale: '1', opacity: 1 }], { duration: THROW_MS, easing: 'cubic-bezier(0.4, 0, 0.9, 0.6)', fill: 'none' }, still());
+
+        later(run === null ? 0 : THROW_MS, () =>
+        {
+            if (scene !== null)
+            {
+                land(moment, placeIn(scene, die?.node));
+            }
+        });
+    };
+
+    const trail = (node: HTMLElement) =>
+    {
+        const { flows, tune } = trailOf(props.collection, CELL_SHOWN * (scene?.clientWidth ?? 0) / 100);
+
+        void effects?.play((vfx) =>
+        {
+            for (const kind of flows)
+            {
+                const stop = vfx.stream(kind, () =>
+                {
+                    if (scene === null || !node.hasAttribute('data-moving'))
+                    {
+                        stop();
+
+                        return null;
+                    }
+
+                    const at = placeIn(scene, node);
+
+                    return { x: at.x, y: at.y };
+                }, tune);
+            }
+        });
+    };
+
+    /** A pawn taken along `frames` with its trail behind it; where it arrives `moment` plays, and a rest later it is back where it was. */
+    const travel = (node: HTMLElement | null, moment: TableMoment, frames: Keyframe[], duration: number, end: Cell) =>
+    {
+        if (node === null || scene === null || busy.has(moment))
+        {
+            return;
+        }
+
+        busy.add(moment);
+
+        const run = move(node, frames, { duration, easing: 'linear' }, still());
+
+        if (run === null)
+        {
+            node.style.translate = String(frames[frames.length - 1].translate);
+        }
+
+        node.setAttribute('data-moving', '');
+        trail(node);
+
+        later(run === null ? 0 : duration, () =>
+        {
+            node.removeAttribute('data-moving');
+            land(moment, cellIn(end));
+            landOn(node.querySelector<HTMLElement>('[data-body]'), still());
+
+            later(REST_MS, () =>
+            {
+                run?.cancel();
+                node.style.translate = '';
+                move(node, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, fill: 'none' }, still());
+                busy.delete(moment);
+            });
+        });
+    };
+
+    const capture = () =>
+    {
+        if (scene === null || busy.has('capture'))
+        {
+            return;
+        }
+
+        busy.add('capture');
+        land('capture', cellIn(VICTIM));
+
+        const run = move(victim, [{ scale: '1' }, { scale: '1.2', filter: 'brightness(0) invert(1)', offset: 0.3 }, { scale: '0.3', opacity: 0 }], { duration: 420, easing: 'ease-in' }, still());
+
+        later(REST_MS, () =>
+        {
+            run?.cancel();
+            move(victim, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, fill: 'none' }, still());
+            busy.delete('capture');
+        });
+    };
+
+    const play = (moment: TableMoment) =>
+    {
+        const unit = (scene?.clientWidth ?? 0) / 100;
+
+        switch (moment)
+        {
+            case 'die':
+                throwDie(moment, 1 + (thrown % 5));
+                return;
+            case 'six':
+                throwDie(moment, 6);
+                return;
+            case 'walk':
+            {
+                const from = footAt(START.col, START.row);
+
+                travel(walker, moment, hops(from, WALK.map((cell) => footAt(cell.col, cell.row)), unit, HOP_LIFT * CELL_SHOWN), HOP_MS * WALK.length, WALK[WALK.length - 1] ?? START);
+                return;
+            }
+            case 'spawn':
+                travel(leaver, moment, hops(wellAt(3), [footAt(ENTRY.col, ENTRY.row)], unit, ENTER_LIFT * CELL_SHOWN), ENTER_MS, ENTRY);
+                return;
+            case 'capture':
+                capture();
+                return;
+            default:
+                if (scene !== null)
+                {
+                    land(moment, placeIn(scene, yard));
+                }
+        }
+    };
+
+    mount
+    {
+        if (scene === null || holder === null)
+        {
+            return;
+        }
+
+        effects = lazyVfx(scene, { layer: 4, quiet: still });
+        effects.warm();
+
+        die = createDie({ flat: true });
+        die.node.style.setProperty('--die', `calc(var(--c) * ${ DIE_SIZE })`);
+        holder.append(die.node);
+        die.show(5, 0);
+        dress(untrack(() => props.collection));
+
+        return () =>
+        {
+            for (const stop of stops)
+            {
+                stop();
+            }
+
+            effects?.dispose();
+            die?.dispose();
+        };
+    }
+
+    effect
+    {
+        const collection = props.collection;
+
+        untrack(() => dress(collection));
+    }
+
+    <LabStage game="ludo" title={ props.title } moments={ STAGES.ludo } onPlay={ play }>
+        <div class="lb @container relative aspect-square overflow-hidden rounded-tile" dir="ltr" aria-hidden="true" data-lab-scene="ludo" style={ GROUND } ref={ (element) => scene = element }>
+            <span class="lb-yard" data-yard={ props.collection } style={ YARD } ref={ (element) => yard = element }></span>
+            <LabPawn at={ wellAt(0) } sprite={ pawn } />
+            <LabPawn at={ wellAt(1) } sprite={ pawn } />
+            <LabPawn at={ wellAt(2) } sprite={ pawn } />
+            <LabPawn at={ wellAt(3) } sprite={ pawn } name="leaver" onNode={ (node) => leaver = node } />
+            <LabPawn at={ footAt(VICTIM.col, VICTIM.row) } sprite="/board/pawn-blue.svg" name="victim" onNode={ (node) => victim = node } />
+            <LabPawn at={ footAt(START.col, START.row) } sprite={ pawn } name="walker" onNode={ (node) => walker = node } />
+            <span class="absolute z-[3]" style={ `left:${ DIE_AT.x.toFixed(3) }%;top:${ DIE_AT.y.toFixed(3) }%` } ref={ (element) => holder = element }></span>
+        </div>
+    </LabStage>
+}

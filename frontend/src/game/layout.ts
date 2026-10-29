@@ -47,6 +47,17 @@ export const NEST_WELLS: readonly (readonly [number, number])[] = [[-1, -1], [1,
 
 export const HOME_SCALE = 0.62;
 
+/** Where a pawn's foot stands in its cell: this far below the cell's middle, in cells. */
+export const DROP = 0.10;
+
+/** How wide a die is on the board, in cells. */
+export const DIE_SIZE = 1.2;
+
+/** The box a pawn's sprite is drawn in round its foot, and the one its shadow is, `--c` being a cell. */
+export const PAWN_BOX = 'inset-s-[calc(var(--c)*-0.8435)] inset-bs-[calc(var(--c)*-1.3114)] inline-[calc(var(--c)*1.687)] block-[calc(var(--c)*1.687)]';
+
+export const SHADOW_BOX = 'inset-s-[calc(var(--c)*-0.753)] inset-bs-[calc(var(--c)*-0.2588)] inline-[calc(var(--c)*1.506)] block-[calc(var(--c)*0.753)]';
+
 const ACROSS = [6.78, 7.26, 7.74, 8.22];
 
 export const HOME_SLOTS: Record<string, readonly (readonly [number, number])[]> = {

@@ -1,0 +1,26 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+import type { Collection } from '../../game/looks/table.ts';
+
+type Tables = (props: { collection: Collection }) => MountNode;
+
+/** The fitting room's tables, a chunk of their own, fetched once the room is open, so the room's own chunk carries none of the boards' drawing. */
+export default component LazyLabTables(props: { collection: Collection })
+{
+    let Tables: Tables | null = null;
+
+    state loaded = false;
+
+    mount
+    {
+        void import('./lab-tables.component.azeroth').then((module) =>
+        {
+            Tables = module.default as Tables;
+            loaded = true;
+        }, () => undefined);
+    }
+
+    <Show when={ loaded }>
+        { () => <Dynamic component={ Tables! } props={ () => ({ collection: props.collection }) } /> }
+    </Show>
+}

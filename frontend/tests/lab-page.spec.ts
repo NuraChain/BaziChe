@@ -114,7 +114,26 @@ describe('the fitting room', () =>
         expect(wearing(root).collection).toBe('glow');
     });
 
+    it('sets the chosen collection’s tables out under the reader’s profile, fetched as a chunk of their own', async () =>
+    {
+        const root = await page('/app/shop/lab?collection=void');
+
+        await vi.waitFor(() => expect(root.querySelector('[data-lab-tables]')?.getAttribute('data-lab-tables')).toBe('void'));
+
+        const yard = root.querySelector('[data-lab-tables] .lb-yard');
+
+        expect(yard?.getAttribute('data-yard')).toBe('void');
+        expect(root.querySelector('[data-lab-profile]')?.compareDocumentPosition(root.querySelector('[data-lab-tables]')!), 'the tables were not under the profile').toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+        fire(chip(root, 'Frost Revenant')!, 'click');
+        await settle();
+
+        expect(root.querySelector('[data-lab-tables] .lb-yard'), 'the tables were drawn again for another collection').toBe(yard);
+        expect(yard?.getAttribute('data-yard')).toBe('frost');
+    });
+
     it('opens on the collection the address names, and on the featured one for a word it does not know', async () =>
+
     {
         expect(wearing(await page('/app/shop/lab?collection=storm')).collection).toBe('storm');
 

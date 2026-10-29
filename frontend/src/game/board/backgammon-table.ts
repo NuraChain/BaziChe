@@ -8,10 +8,10 @@ import {
     MIDDLE,
     POINT_WIDTH,
     RADIUS,
-    SLAB,
+    SLAB_HEIGHT,
+    SLAB_WIDTH,
     STACK_SHOWN,
     TOP,
-    TRAY,
     WIDTH,
     columnOf,
     cubeY
@@ -51,7 +51,7 @@ import {
     type Transfer
 } from '../backgammon-men.ts';
 import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
-import { BORNE, ENTRIES } from '../looks/backgammon.ts';
+import { BORNE, ENTRIES, PAIR } from '../looks/backgammon.ts';
 import { celebrationOf, cheerAt } from '../looks/celebrations.ts';
 import { dieDress } from '../looks/dice.ts';
 import { enterAt, entranceOf } from '../looks/entrances.ts';
@@ -162,10 +162,6 @@ export const FLAG_MS = 180;
 
 const UNIT = 100 / WIDTH;
 
-const SLAB_WIDTH = TRAY - 18;
-
-const SLAB_HEIGHT = SLAB - 2;
-
 const RACK_MOST = 30;
 
 const QUIET_MOST = 8;
@@ -222,9 +218,6 @@ const SET_DOWN = 'cubic-bezier(0.2, 0.7, 0.3, 1)';
 
 /** How wide a thing on the board is, in CSS pixels, that an effect played at a scale of 1 suits. */
 const EFFECT_FITS = 40;
-
-/** A double's critical reveal over the pair, as wide as this many dice. */
-const PAIR = 1.6;
 
 const BAR_X = BAR_LEFT + BAR_WIDTH / 2;
 

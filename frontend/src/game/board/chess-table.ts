@@ -4,7 +4,7 @@ import { boardOf, checkOf, passedOf, rookOf, step, type Felt, type Man, type Tol
 import { colourOf, kindOf, opponent, pieceOf, type Colour, type Kind, type Piece } from '../../../../backend/src/domains/match/chess/board.ts';
 import { cheerAt } from '../looks/celebrations.ts';
 import { enterAt, type Entrance } from '../looks/entrances.ts';
-import { CASTLES, CHECKS, FINALES, LANDING, type Sets } from '../looks/chess.ts';
+import { CASTLES, CHECKS, FINALES, LANDING, MATE_SQUARES, type Sets } from '../looks/chess.ts';
 import { CAPTURES, CRITICALS, burstOf, lightOf, type Collection } from '../looks/table.ts';
 import { clamp } from '../stage/curves.ts';
 import { LAYER, layered } from '../stage/layers.ts';
@@ -123,9 +123,6 @@ const QUIET_MOST = 10;
 
 /** How many pixels of the host one effect's scale stands for, as at every board. */
 const EFFECT_FITS = 40;
-
-/** How many squares wide a mate's reveal is over the king laid down. */
-const MATE_SQUARES = 1.6;
 
 const cq = (units: number) => `${ (units / SIZE * 100).toFixed(3) }cqw`;
 

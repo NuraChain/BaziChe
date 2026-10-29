@@ -1,6 +1,9 @@
 import type { Step } from '../vfx/engine.ts';
 import type { Collection } from './table.ts';
 
+/** A double's critical reveal over the pair, as wide as this many dice. */
+export const PAIR = 1.6;
+
 /**
  * A checker in a look coming back in from the bar: its collection's signature where it lands, a
  * return to the game, as Phoenix's wings and Void's release say it.

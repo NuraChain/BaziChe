@@ -1,0 +1,302 @@
+import { untrack } from 'azerothjs';
+
+import {
+    BAR_LEFT,
+    BAR_WIDTH,
+    BOTTOM,
+    DICE_X,
+    FIELD_LEFT,
+    FIELD_RIGHT,
+    FRAME,
+    HEIGHT,
+    MIDDLE,
+    POINT_WIDTH,
+    RADIUS,
+    SLAB,
+    SLAB_HEIGHT,
+    SLAB_WIDTH,
+    SPIKES,
+    TOP,
+    TRAY,
+    TRAY_LEFT,
+    WIDTH,
+    columnOf,
+    stackAt
+} from '../../game/backgammon-layout.ts';
+import { dieDress } from '../../game/looks/dice.ts';
+import { momentOf, STAGES, type TableMoment } from '../../game/looks/moments.ts';
+import type { Collection } from '../../game/looks/table.ts';
+import type { Rect } from '../../game/motion.ts';
+import { createDie, type Die } from '../../game/stage/die.ts';
+import { LAYER, layered } from '../../game/stage/layers.ts';
+import { lazyVfx } from '../../game/vfx/lazy.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { useDevice } from '../../stores/device.store.ts';
+import LabStage from './lab-stage.component.azeroth';
+import { landOn, move, placeIn, REST_MS, type StageProps } from './lab-stage.ts';
+
+/** The part of the board the scene shows, in the board's own units: the bar, the reader's home board and the tray, under the middle. */
+const CROP = { x: BAR_LEFT, y: MIDDLE - 50, width: WIDTH - BAR_LEFT, height: HEIGHT - (MIDDLE - 50) };
+
+const ax = (x: number) => (x - CROP.x) / CROP.width * 100;
+
+const ay = (y: number) => (y - CROP.y) / CROP.height * 100;
+
+/** A length in the board's units, as a share of the scene's width. */
+const aw = (w: number) => w / CROP.width * 100;
+
+const box = (x: number, y: number, width: number, height: number) => `left:${ ax(x).toFixed(3) }%;top:${ ay(y).toFixed(3) }%;width:${ aw(width).toFixed(3) }%;height:${ (height / CROP.height * 100).toFixed(3) }%`;
+
+type Tone = 'light' | 'dark';
+
+/** The checkers standing in the reader's home: theirs on three points, the other side's two back checkers and a blot to hit. */
+const MEN = [
+    { key: '6-0', point: 6, index: 0, tone: 'light' },
+    { key: '6-1', point: 6, index: 1, tone: 'light' },
+    { key: '6-2', point: 6, index: 2, tone: 'light' },
+    { key: '5-0', point: 5, index: 0, tone: 'light', name: 'entry' },
+    { key: '4-0', point: 4, index: 0, tone: 'light' },
+    { key: '4-1', point: 4, index: 1, tone: 'light' },
+    { key: '3-0', point: 3, index: 0, tone: 'dark', name: 'blot' },
+    { key: '1-0', point: 1, index: 0, tone: 'dark' },
+    { key: '1-1', point: 1, index: 1, tone: 'dark' }
+] as const satisfies readonly { key: string; point: number; index: number; tone: Tone; name?: string }[];
+
+const manAt = (point: number, index: number) =>
+{
+    const x = columnOf(point).x + POINT_WIDTH / 2;
+    const y = stackAt('bottom', index);
+
+    return `--man:${ aw(RADIUS * 2).toFixed(3) }cqw;left:${ ax(x - RADIUS).toFixed(3) }%;top:${ ay(y - RADIUS).toFixed(3) }%`;
+};
+
+/** Three checkers borne off, lying in the tray as slabs, the newest on top. */
+const SLABS = [0, 1, 2].map((index) => box(TRAY_LEFT + (TRAY - SLAB_WIDTH) / 2, BOTTOM - 8 - SLAB * (index + 1), SLAB_WIDTH, SLAB_HEIGHT));
+
+const DICE = [{ x: DICE_X - 42, y: MIDDLE + 138 }, { x: DICE_X + 42, y: MIDDLE + 146 }];
+
+const DIE_SIZE = 52;
+
+const THROW_MS = 280;
+
+/** The second die comes to rest a moment after the first, as a throw's two dice do, so that each landing is heard. */
+const SECOND_DIE_MS = 90;
+
+/** A backgammon home board in a collection: its six points, its checkers of both sides, its dice and a tray of checkers borne off. */
+export default component LabBackgammon(props: StageProps)
+{
+    const device = useDevice();
+    const stops: (() => void)[] = [];
+    const dice: Die[] = [];
+
+    let scene: HTMLElement | null = null;
+    let home: HTMLElement | null = null;
+    let tray: HTMLElement | null = null;
+    let effects: ReturnType<typeof lazyVfx> | null = null;
+    let thrown = 0;
+    let blotGone = false;
+
+    const holders: (HTMLElement | null)[] = [null, null];
+    const men = new Map<string, HTMLElement>();
+
+    const still = () => device.reducedMotion();
+
+    const later = (ms: number, run: () => void) =>
+    {
+        stops.push(runtime().clock.after(ms, run));
+    };
+
+    const dress = (collection: Collection) =>
+    {
+        for (const die of dice)
+        {
+            for (const [name, value] of Object.entries(dieDress(collection)))
+            {
+                die.node.style.setProperty(name, value);
+            }
+
+            die.node.dataset.look = collection;
+        }
+    };
+
+    const land = (moment: TableMoment, place: Rect) =>
+    {
+        const collection = props.collection;
+        const { steps, at, tune, voice } = momentOf(moment, collection, place);
+
+        void effects?.play((vfx) =>
+        {
+            vfx.signature(steps, at, tune);
+
+            if (voice !== null)
+            {
+                props.say(`${ collection }.${ voice }`);
+            }
+        });
+    };
+
+    /** Both dice thrown to `faces` and set down; a double is revealed over the pair, and every other throw lands on each die. */
+    const throwDice = (faces: readonly [number, number]) =>
+    {
+        thrown += 1;
+        dice.forEach((die, index) => die.show(faces[index], thrown * 2 + index));
+
+        const run = holders.map((holder) => move(holder, [{ scale: '1.4', opacity: 0.35 }, { scale: '1', opacity: 1 }], { duration: THROW_MS, easing: 'cubic-bezier(0.4, 0, 0.9, 0.6)', fill: 'none' }, still()));
+
+        later(run[0] === null ? 0 : THROW_MS, () =>
+        {
+            const where = scene;
+
+            if (where === null || dice.length < 2)
+            {
+                return;
+            }
+
+            const [one, two] = dice.map((die) => placeIn(where, die.node));
+
+            if (faces[0] === faces[1])
+            {
+                land('doubles', { x: (one.x + two.x) / 2, y: (one.y + two.y) / 2, width: one.width, height: one.height });
+                return;
+            }
+
+            land('die', one);
+            later(SECOND_DIE_MS, () => land('die', two));
+        });
+    };
+
+    /** The blot taken: the collection's capture where it stands, and the checker off to the bar until the next press. */
+    const hit = () =>
+    {
+        const blot = men.get('3-0');
+
+        if (scene === null || blot === undefined || blotGone)
+        {
+            return;
+        }
+
+        blotGone = true;
+        land('hit', placeIn(scene, blot));
+
+        const run = move(blot, [{ scale: '1' }, { scale: '1.18', offset: 0.3 }, { scale: '0.4', opacity: 0 }], { duration: 380, easing: 'ease-in' }, still());
+
+        later(REST_MS, () =>
+        {
+            run?.cancel();
+            move(blot, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, fill: 'none' }, still());
+            blotGone = false;
+        });
+    };
+
+    const play = (moment: TableMoment) =>
+    {
+        if (scene === null)
+        {
+            return;
+        }
+
+        switch (moment)
+        {
+            case 'die':
+                throwDice([1 + (thrown % 3), 4 + (thrown % 3)]);
+                return;
+            case 'doubles':
+                throwDice([6 - (thrown % 6), 6 - (thrown % 6)]);
+                return;
+            case 'hit':
+                hit();
+                return;
+            case 'entry':
+            {
+                const entered = men.get('5-0');
+
+                land('entry', placeIn(scene, entered));
+                landOn(entered, still());
+                return;
+            }
+            case 'borne':
+            {
+                const top = tray?.lastElementChild as HTMLElement | null | undefined;
+
+                land('borne', placeIn(scene, top));
+                landOn(top, still());
+                return;
+            }
+            default:
+                land(moment, placeIn(scene, home));
+        }
+    };
+
+    mount
+    {
+        if (scene === null)
+        {
+            return;
+        }
+
+        layered(scene);
+        effects = lazyVfx(scene, { layer: LAYER.glow, quiet: still });
+        effects.warm();
+
+        holders.forEach((holder, index) =>
+        {
+            const die = createDie();
+
+            die.node.style.setProperty('--die', `${ aw(DIE_SIZE).toFixed(3) }cqw`);
+            holder?.append(die.node);
+            die.show(index === 0 ? 3 : 5, index);
+            dice.push(die);
+        });
+
+        dress(untrack(() => props.collection));
+
+        return () =>
+        {
+            for (const stop of stops)
+            {
+                stop();
+            }
+
+            effects?.dispose();
+
+            for (const die of dice)
+            {
+                die.dispose();
+            }
+        };
+    }
+
+    effect
+    {
+        const collection = props.collection;
+
+        untrack(() => dress(collection));
+    }
+
+    <LabStage game="backgammon" title={ props.title } moments={ STAGES.backgammon } onPlay={ play }>
+        <div class="@container relative overflow-hidden rounded-tile [aspect-ratio:577/460]" dir="ltr" aria-hidden="true" data-lab-scene="backgammon" ref={ (element) => scene = element }>
+            <svg class="absolute inset-0 block size-full" viewBox={ `${ CROP.x } ${ CROP.y } ${ CROP.width } ${ CROP.height }` }>
+                <rect x="0" y="0" width={ WIDTH } height={ HEIGHT } rx="22" fill="var(--nard-frame)" />
+                <rect x={ FIELD_LEFT } y={ TOP } width={ FIELD_RIGHT - FIELD_LEFT } height={ BOTTOM - TOP } rx="6" fill="var(--nard-field)" />
+                <rect x={ BAR_LEFT } y={ TOP - 6 } width={ BAR_WIDTH } height={ BOTTOM - TOP + 12 } fill="var(--nard-frame)" />
+                <rect x={ TRAY_LEFT } y={ TOP } width={ TRAY } height={ BOTTOM - TOP } rx="8" fill="var(--nard-tray)" />
+                <line x1={ TRAY_LEFT + 8 } y1={ MIDDLE } x2={ TRAY_LEFT + TRAY - 8 } y2={ MIDDLE } stroke="var(--nard-frame)" stroke-width="4" />
+                <For each={ [...SPIKES] } key={ (spike) => spike.point } let={ spike }>
+                    <polygon points={ spike.path } fill={ spike.shade === 'a' ? 'var(--nard-point-a)' : 'var(--nard-point-b)' } />
+                </For>
+                <rect x={ FRAME / 2 } y={ FRAME / 2 } width={ WIDTH - FRAME } height={ HEIGHT - FRAME } rx="16" fill="none" stroke="var(--nard-inlay)" stroke-width="3" />
+            </svg>
+            <span class="bgt-home" data-home={ props.collection } data-side="near" style={ box(BAR_LEFT + BAR_WIDTH, MIDDLE, POINT_WIDTH * 6, MIDDLE - TOP) } ref={ (element) => home = element }></span>
+            <For each={ [...MEN] } key={ (man) => man.key } let={ man }>
+                <span class="man z-[10]" data-checkers={ props.collection } data-tone={ man.tone } data-lab-piece={ 'name' in man ? man.name : undefined } style={ manAt(man.point, man.index) } ref={ (element) => men.set(man.key, element) }></span>
+            </For>
+            <div class="absolute inset-0 z-[10]" ref={ (element) => tray = element }>
+                <For each={ SLABS } key={ (slab) => slab } let={ slab }>
+                    <span class="man" data-off="" data-checkers={ props.collection } data-tone="light" style={ `${ slab };--man:${ aw(RADIUS * 2).toFixed(3) }cqw;border-radius:${ aw(3).toFixed(3) }cqw` }></span>
+                </For>
+            </div>
+            <span class="absolute z-[60]" style={ `left:${ ax(DICE[0].x).toFixed(3) }%;top:${ ay(DICE[0].y).toFixed(3) }%` } ref={ (element) => holders[0] = element }></span>
+            <span class="absolute z-[60]" style={ `left:${ ax(DICE[1].x).toFixed(3) }%;top:${ ay(DICE[1].y).toFixed(3) }%` } ref={ (element) => holders[1] = element }></span>
+        </div>
+    </LabStage>
+}

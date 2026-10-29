@@ -1,0 +1,16 @@
+import { PAWN_BOX, SHADOW_BOX } from '../../game/layout.ts';
+import type { Point } from '../../game/vfx/engine.ts';
+
+/** A Ludo pawn standing on its foot at `at`, a percentage of the corner, drawn in the board's own sprite box and shadow. */
+export default component LabPawn(props: { at: Point; sprite: string; name?: string; onNode?: (node: HTMLElement) => void })
+{
+    <span
+        class="absolute z-[2]"
+        style={ `left:${ props.at.x.toFixed(3) }%;top:${ props.at.y.toFixed(3) }%` }
+        data-lab-piece={ props.name }
+        ref={ (element) => props.onNode?.(element) }
+    >
+        <img class={ `absolute block max-inline-none select-none [-webkit-user-drag:none] opacity-[0.6] ${ SHADOW_BOX }` } src="/board/pawn-shadow.svg" alt="" />
+        <img class={ `absolute block max-inline-none select-none [-webkit-user-drag:none] ${ PAWN_BOX }` } src={ props.sprite } alt="" data-body="" />
+    </span>
+}

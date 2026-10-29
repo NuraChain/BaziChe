@@ -1,9 +1,9 @@
 import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
-import { BLOCK, CELL, GRID, HOME_SCALE, MARGIN, YARD_AT, YARD_SIZE, aimNear, stackSpot } from '../layout.ts';
+import { BLOCK, CELL, DIE_SIZE, DROP, GRID, HOME_SCALE, MARGIN, PAWN_BOX, SHADOW_BOX, YARD_AT, YARD_SIZE, aimNear, stackSpot } from '../layout.ts';
 import { celebrationOf, cheerAt } from '../looks/celebrations.ts';
 import { DIE_PROPERTIES, dieDress } from '../looks/dice.ts';
 import { enterAt, entranceOf } from '../looks/entrances.ts';
-import { TRAILS } from '../looks/ludo.ts';
+import { ARRIVAL_CELLS, TRAILS, TRAIL_CELLS, TRAIL_DENSITY } from '../looks/ludo.ts';
 import { CAPTURES, CRITICALS, burstOf, lightOf, wornOf, type Collection } from '../looks/table.ts';
 import { HISTORY, beatsOf, placeOf, sameAs, shownOf, step, type Beat, type Felt, type Pawn, type Rolled, type Shown } from '../ludo-felt.ts';
 import { celebrate } from '../stage/celebrate.ts';
@@ -19,8 +19,6 @@ import { FINISHED, RING_STEPS, YARD, pathBetween } from './path.ts';
 import type { BoardGoal, BoardHandle, BoardOptions } from '../bridge.ts';
 
 const C = CELL * 100;
-
-export const DROP = 0.10;
 
 const BAND = 2000;
 
@@ -72,8 +70,6 @@ const HAND_MS = 180;
 
 const LIFT_MS = 120;
 
-export const DIE_SIZE = 1.2;
-
 const DIE_INSET = 1.01;
 
 export const HAND = 1.67;
@@ -86,14 +82,6 @@ const DIE_LEAVE = 2.2;
 
 /** How wide a thing on the board is, in CSS pixels, that an effect played at a scale of 1 suits. */
 const EFFECT_FITS = 40;
-
-/** A worn pawn's trail, as wide as this many cells and this much denser than the engine's own, so it reads behind a pawn. */
-const TRAIL_CELLS = 1.8;
-
-const TRAIL_DENSITY = 1.4;
-
-/** The puff where a worn pawn lands and the ring where it leaves its yard, as wide as this many cells. */
-const ARRIVAL_CELLS = 1.4;
 
 const HAND_FACE = 5;
 
@@ -241,8 +229,6 @@ const BURST = `<svg viewBox="-60 -30 120 60" aria-hidden="true" class="lg-art"><
 const SPRITE = 'absolute max-inline-none select-none [-webkit-user-drag:none]';
 
 const STILL = '[.lb[data-still]_&]:animate-none';
-
-const PAWN_BOX = 'inset-s-[calc(var(--c)*-0.8435)] inset-bs-[calc(var(--c)*-1.3114)] inline-[calc(var(--c)*1.687)] block-[calc(var(--c)*1.687)]';
 
 export async function createLudoBoard(options: BoardOptions): Promise<BoardHandle>
 {
@@ -503,7 +489,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
     const mint = (pawn: Pawn) =>
     {
         const node = element('div', 'lp absolute inset-s-0 inset-bs-0 inline-0 block-0', root);
-        const shadow = element('img', `lp-shadow ${ SPRITE } block [.lp[data-stacked]_&]:hidden inset-s-[calc(var(--c)*-0.753)] inset-bs-[calc(var(--c)*-0.2588)] inline-[calc(var(--c)*1.506)] block-[calc(var(--c)*0.753)] opacity-[0.6] origin-[50%_34.375%] ${ STILL }`, node);
+        const shadow = element('img', `lp-shadow ${ SPRITE } block [.lp[data-stacked]_&]:hidden ${ SHADOW_BOX } opacity-[0.6] origin-[50%_34.375%] ${ STILL }`, node);
         const ring = element('span', `lp-ring ${ SPRITE } hidden inset-s-[calc(var(--c)*-0.6)] inset-bs-[calc(var(--c)*-0.3)] inline-[calc(var(--c)*1.2)] block-[calc(var(--c)*0.6)] bg-[radial-gradient(closest-side,rgb(255_255_255/0.3),rgb(255_255_255/0.3)_40%,transparent_42%)] [.lp[data-movable]_&]:block`, node);
         const lift = element('span', `lp-lift absolute inset-s-0 inset-bs-0 ${ STILL } [.lb[data-still]_.lp[data-movable]_&]:[translate:0_calc(var(--c)*-0.06)]`, node);
         const body = element('img', `lp-pawn ${ SPRITE } block ${ PAWN_BOX } origin-[50%_77.73%] [.lp[data-movable]_&]:pointer-events-auto [.lp[data-movable]_&]:cursor-pointer [.lp[data-movable]:hover_&]:[filter:brightness(1.08)] ${ STILL }`, lift);

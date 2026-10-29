@@ -32,6 +32,11 @@ export const STACK_SHOWN = 5;
 
 export const SLAB = (HEIGHT - FRAME * 2 - 40) / 30;
 
+/** A checker borne off, lying in the tray as a slab. */
+export const SLAB_WIDTH = TRAY - 18;
+
+export const SLAB_HEIGHT = SLAB - 2;
+
 export const CUBE = 48;
 
 export const BAR_GAP = CUBE / 2 + 2;

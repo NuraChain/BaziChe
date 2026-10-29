@@ -1,0 +1,138 @@
+import { momentOf, STAGES, type TableMoment } from '../../game/looks/moments.ts';
+import type { Rect } from '../../game/motion.ts';
+import { lazyVfx } from '../../game/vfx/lazy.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { useDevice } from '../../stores/device.store.ts';
+import LabStage from './lab-stage.component.azeroth';
+import { move, placeIn, type StageProps } from './lab-stage.ts';
+
+/** How long a card takes from the hand to the felt. */
+const FLIGHT_MS = 380;
+
+const CLOTH = 'background:radial-gradient(ellipse 80% 70% at 50% 42%, color-mix(in oklab, var(--poker-felt) 82%, #FFFFFF) 0%, var(--poker-felt) 52%, color-mix(in oklab, var(--poker-felt) 62%, #000000) 100%);box-shadow:inset 0 0 0 0.8cqw var(--poker-rail), inset 0 0 6cqw rgb(0 0 0 / 0.5)';
+
+/** The reader's place at a Hokm or poker table in a collection: their felt lit for their turn, a hand of its faces, a trick of its backs, its chips, and the card they play. */
+export default component LabFelt(props: StageProps)
+{
+    const device = useDevice();
+    const stops: (() => void)[] = [];
+
+    let scene: HTMLElement | null = null;
+    let mat: HTMLElement | null = null;
+    let hand: HTMLElement | null = null;
+    let lead: HTMLElement | null = null;
+    let laid: HTMLElement | null = null;
+    let effects: ReturnType<typeof lazyVfx> | null = null;
+    let flying = false;
+
+    const still = () => device.reducedMotion();
+
+    const land = (moment: TableMoment, place: Rect) =>
+    {
+        const collection = props.collection;
+        const { steps, at, tune, voice } = momentOf(moment, collection, place);
+
+        void effects?.play((vfx) =>
+        {
+            vfx.signature(steps, at, tune);
+
+            if (voice !== null)
+            {
+                props.say(`${ collection }.${ voice }`);
+            }
+        });
+    };
+
+    /** The card in the middle played again from the hand: it leaves the hand's middle card and lands where it lies. */
+    const playCard = () =>
+    {
+        if (scene === null || laid === null || flying)
+        {
+            return;
+        }
+
+        flying = true;
+
+        const from = placeIn(scene, lead);
+        const to = placeIn(scene, laid.firstElementChild);
+        const dx = from.x + from.width / 2 - (to.x + to.width / 2);
+        const dy = from.y + from.height / 2 - (to.y + to.height / 2);
+        const run = move(laid, [
+            { translate: `${ dx.toFixed(1) }px ${ dy.toFixed(1) }px`, rotate: '-6deg', scale: '0.96' },
+            { translate: '0px 0px', rotate: '0deg', scale: '1' }
+        ], { duration: FLIGHT_MS, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'none' }, still());
+
+        stops.push(runtime().clock.after(run === null ? 0 : FLIGHT_MS, () =>
+        {
+            flying = false;
+
+            if (scene !== null)
+            {
+                land('card', placeIn(scene, laid?.firstElementChild));
+            }
+        }));
+    };
+
+    const play = (moment: TableMoment) =>
+    {
+        if (moment === 'card')
+        {
+            playCard();
+            return;
+        }
+
+        if (scene === null)
+        {
+            return;
+        }
+
+        const seat = placeIn(scene, hand);
+        const width = placeIn(scene, mat).width;
+
+        land(moment, { x: seat.x + seat.width / 2 - width / 2, y: seat.y + seat.height / 2 - width / 2, width, height: width });
+    };
+
+    mount
+    {
+        if (scene === null)
+        {
+            return;
+        }
+
+        effects = lazyVfx(scene, { layer: 1, quiet: still });
+        effects.warm();
+
+        return () =>
+        {
+            for (const stop of stops)
+            {
+                stop();
+            }
+
+            effects?.dispose();
+        };
+    }
+
+    <LabStage game="cards" title={ props.title } moments={ STAGES.cards } onPlay={ play }>
+        <div class="@container relative aspect-[16/10] overflow-hidden rounded-tile" dir="ltr" aria-hidden="true" data-lab-scene="cards" style={ CLOTH } ref={ (element) => scene = element }>
+            <span class="felt-mat" data-mat={ props.collection } data-turn="" style="--mat:64cqw;left:50%;top:100%" ref={ (element) => mat = element }></span>
+            <div class="absolute z-[2] -translate-1/2" data-backs={ props.collection } style="--back-w:9cqw;left:14%;top:70%">
+                <span class="card-back rotate-[-14deg]"></span>
+                <span class="card-back absolute inset-0 translate-x-[1.2cqw] -translate-y-[0.6cqw] rotate-[-4deg]"></span>
+            </div>
+            <div class="absolute z-[2] -translate-1/2" data-faces={ props.collection } style="--card-w:12cqw;left:50%;top:74%" ref={ (element) => hand = element }>
+                <div class="relative flex">
+                    <span class="card-face translate-x-[3.4cqw] translate-y-[1.2cqw] rotate-[-12deg]" style="--at-rank:10;--at-suit:2"></span>
+                    <span class="card-face relative z-[1]" style="--at-rank:11;--at-suit:2" ref={ (element) => lead = element }></span>
+                    <span class="card-face -translate-x-[3.4cqw] translate-y-[1.2cqw] rotate-[12deg]" style="--at-rank:12;--at-suit:2"></span>
+                </div>
+            </div>
+            <span class="absolute z-[2] flex" style="font-size:8cqw;left:82%;top:66%">
+                <span class="chip-stack" data-chips={ props.collection } data-discs="5"></span>
+            </span>
+            <div class="absolute z-[2]" data-faces={ props.collection } style="--card-w:12cqw;left:50%;top:30%" data-lab-piece="laid" ref={ (element) => laid = element }>
+                <span class="card-face block -translate-1/2 rotate-[5deg]" style="--at-rank:12;--at-suit:3"></span>
+            </div>
+        </div>
+    </LabStage>
+}

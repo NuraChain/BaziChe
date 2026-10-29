@@ -22,17 +22,19 @@ it.
   game, is 5% of the pot as deployed.
 - **Offered in every region the server can be reached from.** Paid tables do not ask where a reader
   is. If counsel says they must be limited to some countries, that gate has to be built before real
-  value, as markets have one.
+  value.
 
 ### Who may back a game's outcome (markets)
 
 - A wallet account, not marked under 18, the terms of paid play and the markets' own disclosure
   accepted, not on a break, not suspended, and not a player of that game.
-- **A listed country.** `MARKET_REGIONS` names the ISO 3166 codes allowed, with no wildcard, and the
-  server learns a reader's country from the header `MARKET_COUNTRY_HEADER` names, which the proxy
-  writes itself, overwriting any a client sent. A reader with no country or one not listed is
-  refused (`market-region`, 451) and is not offered markets at all; with the three names written
-  empty nobody is. A claim of what somebody already won is never refused for where they are.
+- **Offered in every region the server can be reached from.** Markets asked a reader's country
+  until 2026-10-28, when the owner took that gate out (`MARKET_REGIONS`, `MARKET_COUNTRY_HEADER` and
+  the refusal `market-region` went with it). A market is offered wherever `NURA_MARKETS_ADDRESS` is
+  written beside the server's key and the chain's names, and nothing asks where a reader is. Until
+  counsel has answered for every region the server can be reached from, the one way to keep markets
+  from a region is to write `NURA_MARKETS_ADDRESS` empty on the server that serves it; a gate that
+  offers them in some countries alone has to be built again.
 - Limits: 1 to 500 NURA a position, 1,000 a bettor in one market, 2,000 a bettor a day, 100,000 a
   pool; a market with fewer than two bettors or two backed outcomes gives every stake back; the fee
   is nought. The estimated payout is shown before the bettor confirms.
@@ -75,17 +77,17 @@ it.
 
 ## Questions for qualified legal counsel
 
-To be answered for each country before any region is named, and before any paid feature runs with
+To be answered for each country the server can be reached from before any paid feature runs with
 real value there:
 
 1. **Paid tables.** Is playing Hokm, Ludo, backgammon, poker or chess for stakes between players,
    with a fee to the operator, lawful? Is it gaming, gambling or a skill competition there, and does
    the answer differ by game (Ludo's dice, poker's cards)? Does it need a licence?
 2. **Markets.** Is backing a game's outcome with NURA, pooled and paid in proportion (pari-mutuel),
-   betting there? Which licence would it need? Which countries may be written in `MARKET_REGIONS`?
-3. **A region gate for paid tables and donations.** Must they, too, be limited to some countries,
-   and is a country read from the proxy's GeoIP enough, or is more needed (a declared residence,
-   checks against VPNs)?
+   betting there? Which licence would it need? In which countries may markets be offered at all?
+3. **A region gate.** Must paid tables, markets and donations be limited to some countries, and is
+   a country read from the proxy's GeoIP enough, or is more needed (a declared residence, checks
+   against VPNs)? Nothing in the product asks where a reader is today.
 4. **NURA.** How is NuraChain's coin treated: money, a virtual asset, a security? Does holding
    players' stakes in a contract whose admin takes a fee make the operator a custodian or a money
    transmitter?
@@ -107,5 +109,6 @@ real value there:
 12. **Tax and advertising.** The operator's and the players' tax obligations, and what may be said
     when advertising paid play or markets.
 
-Until these are answered for a country, the safe settings are the ones the server starts with: the
-chain's names written empty (no paid tables, no markets, no donations, no shop).
+Until these are answered for every region the server can be reached from, the safe settings leave
+each paid feature off: `NURA_REFEREE_KEY` written empty (no paid tables, no shop and no markets, which
+all sign with the server's key) and `NURA_TIPS_ADDRESS` written empty (no donations).

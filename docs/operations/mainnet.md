@@ -5,19 +5,19 @@ repository sends a transaction to NuraChain on anybody's behalf, deploys a contr
 the server composes calls for a wallet to send and signs only with its own key. Each step says what
 to send, from which wallet, and how to check it landed.
 
-## Where things stand (read from NuraChain on 2026-10-28)
+## Where things stand (read from NuraChain on 2026-10-28 and 2026-10-29)
 
-ArcadeVault, ArcadeShop and ArcadeTips are deployed on NuraChain (chain 1020) at the addresses
-`.env.example` names (`NURA_VAULT_ADDRESS`, `NURA_SHOP_ADDRESS`, `NURA_TIPS_ADDRESS`). ArcadeMarkets
-is not deployed (`NURA_MARKETS_ADDRESS` empty). The deployed code carries every function the server
-calls (`chain/vault.ts`, `chain/shop.ts`, `chain/tips.ts`), and the gifts contract is the version
-whose `tip` carries a deadline.
+ArcadeVault, ArcadeShop, ArcadeTips and ArcadeMarkets are deployed on NuraChain (chain 1020) at the
+addresses `.env.example` names (`NURA_VAULT_ADDRESS`, `NURA_SHOP_ADDRESS`, `NURA_TIPS_ADDRESS`,
+`NURA_MARKETS_ADDRESS`). The deployed code carries every function the server calls
+(`chain/vault.ts`, `chain/shop.ts`, `chain/tips.ts`, `chain/markets.ts`), the gifts contract is the
+version whose `tip` carries a deadline, and the markets contract's dispute window is 900 seconds.
 
-**One wallet holds every role.** The vault's referee, the shop's seller and the admin of all three
-contracts are the same address, the one `ADMIN_WALLET_ADDRESS` names. The server signs with
-`NURA_REFEREE_KEY`, so as deployed it could only run holding the admin's key: the key that sets
-fees, pauses, takes the fees and replaces the referee would sit on a server that answers the
-internet. Separate them before anything else.
+**One wallet holds every role.** The vault's referee, the shop's seller, the markets contract's
+operator and the admin of all four contracts are the same address, the one `ADMIN_WALLET_ADDRESS`
+names. The server signs with `NURA_REFEREE_KEY`, so as deployed it could only run holding the
+admin's key: the key that sets fees, pauses, takes the fees, overturns a market and replaces the
+referee would sit on a server that answers the internet. Separate them before anything else.
 
 ## 1. Give the server a key of its own
 
@@ -28,14 +28,14 @@ internet. Separate them before anything else.
 3. From the admin wallet, in one call each:
    - ArcadeVault: `setReferee(<server address>)`;
    - ArcadeShop: `setSeller(<server address>)`;
-   - ArcadeMarkets, once deployed (step 3): it is deployed with the server as `operator`, or
-     `setOperator(<server address>)` after.
+   - ArcadeMarkets: `setOperator(<server address>)`.
 
    Each moves the role in one call: the old holder loses it in the same transaction.
 4. Write the new key's secret as `NURA_REFEREE_KEY` in the server's `.env`, and restart the server.
 5. Check, with view calls anybody can make: `referee()` on the vault and `seller()` on the shop
-   answer the server's address; `hasRole(REFEREE_ROLE, <admin>)` on the vault and
-   `hasRole(SELLER_ROLE, <admin>)` on the shop answer `false`.
+   answer the server's address; `hasRole(REFEREE_ROLE, <admin>)` on the vault,
+   `hasRole(SELLER_ROLE, <admin>)` on the shop and `hasRole(OPERATOR_ROLE, <admin>)` on the markets
+   contract answer `false`.
 
 The calls can be sent with the SmartContract project's console (`npx hardhat console --network
 nurachain`, with the admin's key in its keystore) or any wallet that can call a contract.
@@ -55,27 +55,20 @@ server's key. One key that can do that is one key to lose. For each of the four 
    `ADMIN_WALLET_ADDRESS`. That name is who the server treats as its owner when they sign in; the
    page composes the vault's calls for that wallet to send.
 
-## 3. Deploy ArcadeMarkets, if markets are to be offered
+## 3. Decide where markets are offered
 
-Only once the questions in `compliance.md` are answered for the regions it would be offered in.
+ArcadeMarkets is deployed, and the server offers markets wherever `NURA_MARKETS_ADDRESS` is written
+beside `NURA_REFEREE_KEY`, `NURA_RPC_URL` and `NURA_CHAIN_ID`. Nothing asks where a reader is: the
+owner took the country gate out on 2026-10-28 (`MARKET_REGIONS` and `MARKET_COUNTRY_HEADER` went
+with it). So the one switch is the address itself:
 
-1. `npm run preflight:nurachain` in the SmartContract project measures every contract's deploy
-   against the node and that the chain has what the contracts use.
-2. A parameters file, `ignition/params.json`:
-
-   ```json
-   { "bazichemarkets": { "admin": "<multisig>", "operator": "<server address>", "disputeWindow": 900 } }
-   ```
-
-   The dispute window is how long the admin may overturn a settled market before its winners can
-   claim (at most a day): it is the time anybody has to notice a market settled wrongly.
-3. `npm run deploy:nurachain:bazichemarkets -- --parameters ./ignition/params.json`.
-4. In the server's `.env`: `NURA_MARKETS_ADDRESS` the address it printed, `MARKET_REGIONS` the
-   ISO 3166 codes legal advice allows (no wildcard: an empty name offers markets nowhere), and
-   `MARKET_COUNTRY_HEADER` the header the proxy writes. The proxy must write it itself, overwriting
-   any a client sent (`README.md`, the proxy's section).
-5. Restart the server, and check: Admin › Money lists the markets contract, `solvent()` answers
-   true, and a reader in a region not named is refused.
+1. Until the questions in `compliance.md` are answered for every region the server can be reached
+   from, write `NURA_MARKETS_ADDRESS` empty in the server's `.env`, and markets are off.
+2. Once they are, write the address and restart the server, and check: the contract's `solvent()`
+   answers true, and Admin › Overview's money on its way shows the markets' row.
+3. The dispute window is how long the admin may overturn a settled market before its winners can
+   claim: it is the time anybody has to notice a market settled wrongly. The admin changes it
+   (`setDisputeWindow`, at most a day).
 
 ## 4. Before real value
 

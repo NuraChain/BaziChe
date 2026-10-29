@@ -5397,8 +5397,9 @@ switching tables never has to unlock audio again. The spec is
   a look's burst plays (measured on the built server: 12 ms after the press, with the burst), and the
   profile header says `reveal` the moment its reveal begins and, for a profile worn whole, `strike`
   at `struckAt`, each under the device's sound switch. **A table wears the voices its match's looks
-  are in** (`heardAt` in `game/looks/table.ts`: Ludo's dice and pawns, Hokm's and poker's faces,
-  backgammon's dice and checkers; a back, chips, felt, yard or home board has no voice), once each,
+  are in** (`heardAt` in `game/looks/table.ts`: Ludo's dice, pawns and yard, Hokm's and poker's
+  faces and felt, backgammon's dice, checkers and home board, chess's sets; a back or chips has no
+  voice, and a yard, a felt or a home board is heard only as its entrance), once each,
   and its board says each where its effect already plays, never in its place: Ludo `die` as a worn
   die lands, `pawn` where a worn pawn's walk ends and `spawn` where it leaves its yard, and `capture`
   with the capture's burst, laid over the table's own `pawn-step` and `pawn-hit` as those already lie
@@ -5429,6 +5430,28 @@ switching tables never has to unlock audio again. The spec is
   `poker-looks.spec.ts`, `backgammon-looks.spec.ts` and `chess-moments.spec.ts` hold where each rises,
   `hokm-cues.spec.ts`, `poker-cues.spec.ts`, `ludo-table.spec.ts` and `backgammon-board.spec.ts` the
   voice and what is worn for it, `game.spec.ts` the pack fetched only for a celebration worn.
+- **Each player enters a game in the look of their own corner, as the game opens in front of this
+  browser** (LG10, LG-D23, `game/looks/entrances.ts`). The corner is the look that dresses the
+  seat's own place: Ludo's yard, the felt at Hokm and poker, backgammon's home board, the chess
+  set (`SET_KINDS`, the corner first); a seat whose corner is Classic has no entrance. It plays the
+  first two layers of that collection's celebration, the gathering and the impact, and every layer
+  when the seat wears that collection in every kind the game copies into its seats, the
+  celebration included (a set, worked out from the match's look and stored nowhere), at most 2.4
+  times its size (`enterAt`), under every piece, from where the celebration rises: the yard of the
+  seat's colour, its chair, the middle of its home board, the middle of its back rank. Its voice is
+  the table pack's `spawn`, which is why a corner look's collection is worn with the rest. The
+  presenter says when (`opening` in `PresenterOptions`): an opening delivered to this browser and
+  taken while the page is seen, once a match, never on a reload, a game arrived at in its middle,
+  or one the board has already moved past; a board told it after it has drawn the table as it stood
+  before, and an entrance that throws is reported and the opening plays. Ludo's board takes the
+  opening before its renderer's chunk has come (the walk found every Ludo entrance lost to that), so
+  the match board keeps one asked for with no renderer and plays it as the renderer attaches
+  (`ludo-table.spec.ts`). `entrances.spec.ts` holds
+  the corner, the set and the kinds to the catalogue's; `vfx-families.spec.ts` every collection's,
+  short and whole, spent within `PAUSES.end` through the real engine; `presenter.spec.ts` when it is
+  told; `ludo-board.spec.ts`, `backgammon-looks.spec.ts` and `chess-moments.spec.ts` where each
+  rises and its voice; `hokm-looks.spec.ts` and `poker-looks.spec.ts` an opening through the board;
+  `entrance-hooks.spec.ts` (server suite) every board's presenter handed the hook.
 - **The end is heard as it went for whoever reads it** (`endCue` in `game/sound.ts`). A seat that
   won hears `win` (a pizzicato run that rises), one that lost or walked away `lose` (one that
   falls), a draw and somebody watching `draw` (one that settles where it began), and a game called

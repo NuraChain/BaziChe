@@ -627,7 +627,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
         untrack(() => sound?.setEnabled(on));
     }
 
-    derived heard = heardAt(game.players.map((player) => player.look), ['dice', 'checkers']);
+    derived heard = heardAt(game.players.map((player) => player.look), ['dice', 'checkers', 'home']);
 
     derived cheered = heardAt(game.players.map((player) => player.look), ['celebration']);
 
@@ -692,7 +692,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
                         : locale.t('backgammon.passed.them', { name: nameOf(side === 'near' ? viewer : 1 - viewer), dice });
                 }
             });
-            presenter = createPresenter<Felt, Told>({ stage: rig, clock, table: men, sight: () => untrack(sightNow), report, lead: () => (resultStands ? RESULT_OUT : 0), due: () => (over ? RESULT_WAIT : null) });
+            presenter = createPresenter<Felt, Told>({ stage: rig, clock, table: men, sight: () => untrack(sightNow), report, lead: () => (resultStands ? RESULT_OUT : 0), due: () => (over ? RESULT_WAIT : null), opening: () => men?.enter() });
             presenter.frame(root);
             unwatch = presenter.watch((busy) =>
             {

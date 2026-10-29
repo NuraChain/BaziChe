@@ -226,6 +226,7 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
         .map((seat) => seat.colour);
 
     let table: BoardHandle | null = null;
+    let entering = false;
     let sound: SoundHandle | null = null;
     let keyed = false;
     let rollButton: HTMLButtonElement | null = null;
@@ -256,7 +257,7 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
         estimate: (acts) => table?.estimate(acts) ?? 0
     };
 
-    const presenter = createPresenter<Felt, Told>({ stage, clock: runtime().clock, table: proxy, sight: () => untrack(sightNow), report, due: () => (over ? RESULT_WAIT : null) });
+    const presenter = createPresenter<Felt, Told>({ stage, clock: runtime().clock, table: proxy, sight: () => untrack(sightNow), report, due: () => (over ? RESULT_WAIT : null), opening: () => enter() });
 
     const level = () =>
     {
@@ -283,6 +284,13 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
 
     const offering = () => (handed ? mine ?? null : null);
 
+    /** The entrances of a game opening here, played once the board has arrived: its chunk can come after the opening does. */
+    const enter = () =>
+    {
+        entering = table === null;
+        table?.enter();
+    };
+
     const attach = (made: BoardHandle | null) =>
     {
         table = made;
@@ -297,6 +305,13 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
         }
 
         made.reset(untrack(sightNow));
+
+        if (entering)
+        {
+            entering = false;
+            made.enter();
+        }
+
         made.offer(untrack(offering));
         made.lit(untrack(() => (landed ? movable : NOTHING)), untrack(() => help.hintMoves), untrack(() => goals));
     };
@@ -397,7 +412,7 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
         untrack(() => sound?.setEnabled(on));
     }
 
-    derived heard = heardAt(game.players.map((player) => player.look), ['dice', 'pawns']);
+    derived heard = heardAt(game.players.map((player) => player.look), ['dice', 'pawns', 'yard']);
 
     derived cheered = heardAt(game.players.map((player) => player.look), ['celebration']);
 

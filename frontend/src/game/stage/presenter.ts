@@ -38,6 +38,7 @@ export interface PresenterOptions<V, M>
     report: (error: unknown) => void;
     lead?: () => number;
     due?: () => number | null;
+    opening?: (sight: Sight<V>) => void;
 }
 
 export interface Presenter<M>
@@ -220,12 +221,29 @@ export function createPresenter<V, M>(options: PresenterOptions<V, M>): Presente
         return true;
     };
 
-    const opened = (sight: Sight<V>, batch: Batch) =>
+    const current = (sight: Sight<V>, batch: Batch) =>
     {
         const fresh = actsOf<M>(batch.events, table.kind, 0, sight.rev);
         const last = fresh.acts[fresh.acts.length - 1];
 
-        if (table.before === undefined || hidden() || last === undefined || !fresh.whole || last.rev !== sight.rev)
+        return !hidden() && last !== undefined && fresh.whole && last.rev === sight.rev;
+    };
+
+    const enter = (sight: Sight<V>) =>
+    {
+        try
+        {
+            options.opening?.(sight);
+        }
+        catch (error)
+        {
+            options.report(error);
+        }
+    };
+
+    const opened = (sight: Sight<V>, batch: Batch) =>
+    {
+        if (table.before === undefined || !current(sight, batch))
         {
             return false;
         }
@@ -336,13 +354,18 @@ export function createPresenter<V, M>(options: PresenterOptions<V, M>): Presente
             heard = batch.seq;
             prediction = null;
 
-            if (first && opened(sight, batch))
+            const entering = first && current(sight, batch);
+
+            if (!(first && opened(sight, batch)))
             {
-                return;
+                cursor = sight.rev;
+                snap(sight);
             }
 
-            cursor = sight.rev;
-            snap(sight);
+            if (entering)
+            {
+                enter(sight);
+            }
 
             return;
         }

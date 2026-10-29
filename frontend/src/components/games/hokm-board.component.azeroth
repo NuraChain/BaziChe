@@ -16,6 +16,7 @@ import { BANNER_IN, BANNER_LEAST, BANNER_OUT, CARRY, COLLECT_GAP, DRAW_GAP, LIFT
 import { EMPTY, HISTORY, before, feltOf, sameAs, step, unplay, type Felt, type Laid, type Told } from '../../game/hokm-felt.ts';
 import { cardsOf, dressCards, lean, playAt, unlean } from '../../game/looks/cards.ts';
 import { celebrationOf, cheerAt } from '../../game/looks/celebrations.ts';
+import { enterAt, entranceOf } from '../../game/looks/entrances.ts';
 import { heardAt, wornOf } from '../../game/looks/table.ts';
 import { EASE, TIMING, centreOf, flightFrames, outside, rectIn, type Rect } from '../../game/motion.ts';
 import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
@@ -1025,6 +1026,33 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
 
             const place = rectIn(bursts, chair);
             const { steps, at, tune } = cheerAt(worn, { x: place.x + place.width / 2, y: place.y + place.height / 2 }, place.width);
+
+            effects?.play((vfx) => vfx.signature(steps, at, tune));
+        }
+    };
+
+    /** Each seat's entrance in the look of its felt, risen from its chair as the game opens, with its voice. */
+    const enter = () =>
+    {
+        for (const seat of untrack(() => seated))
+        {
+            const entrance = entranceOf('hokm', lookAt(seat));
+            const chair = find(`.hokm-seat[data-seat="${ seat }"]`);
+
+            if (entrance === null)
+            {
+                continue;
+            }
+
+            sound?.play(`${ entrance.collection }.spawn`);
+
+            if (bursts === null || chair === null)
+            {
+                continue;
+            }
+
+            const place = rectIn(bursts, chair);
+            const { steps, at, tune } = enterAt(entrance, { x: place.x + place.width / 2, y: place.y + place.height / 2 }, place.width);
 
             effects?.play((vfx) => vfx.signature(steps, at, tune));
         }
@@ -2319,7 +2347,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
         untrack(() => sound?.setEnabled(on));
     }
 
-    derived heard = heardAt(game.players.map((player) => player.look), ['face']);
+    derived heard = heardAt(game.players.map((player) => player.look), ['face', 'felt']);
 
     derived cheered = heardAt(game.players.map((player) => player.look), ['celebration']);
 
@@ -2415,7 +2443,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             const clock = runtime().clock;
             const report = (error: unknown) => console.error(error);
             rig = createStage({ clock, quiet: () => device.reducedMotion(), report });
-            presenter = createPresenter<Felt, Told>({ stage: rig, clock, table: staging, sight: () => untrack(sightNow), report, lead: () => (resultStands ? RESULT_OUT : 0), due: () => (over ? RESULT_WAIT : null) });
+            presenter = createPresenter<Felt, Told>({ stage: rig, clock, table: staging, sight: () => untrack(sightNow), report, lead: () => (resultStands ? RESULT_OUT : 0), due: () => (over ? RESULT_WAIT : null), opening: enter });
             presenter.frame(arena);
             unwatch = presenter.watch((busy) =>
             {

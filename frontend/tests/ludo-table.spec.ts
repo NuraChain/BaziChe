@@ -905,10 +905,10 @@ describe('the ludo table, played from what happened', () =>
         await flush();
     };
 
-    const live = async (first: MatchView, wait = true, extra: { onPresenting?: (busy: boolean) => void } = {}) =>
+    const live = async (first: MatchView, wait = true, extra: { onPresenting?: (busy: boolean) => void } = {}, opening: EventBatch = NO_EVENTS) =>
     {
         const [current, setCurrent] = createSignal(first);
-        const [told, setTold] = createSignal<EventBatch>(NO_EVENTS);
+        const [told, setTold] = createSignal<EventBatch>(opening);
 
         matches.view = async () => current();
         useBoard().open(first.id);
@@ -1125,7 +1125,33 @@ describe('the ludo table, played from what happened', () =>
         expect(counts.mock.calls.filter(([ms]) => ms === RESULT_WAIT), 'a game that is going on was given only so long to be shown').toHaveLength(0);
     });
 
-    it('wears the voices of the dice and pawns its players wear, and the next game’s when it starts', async () =>
+    it('plays each seat’s entrance in the look of its yard as a game opens here, once its board has arrived after the opening', async () =>
+    {
+        quiet();
+        sounds.heard.length = 0;
+
+        const opening = ludo({ players: [{ seat: 0, who: 'alex', timeouts: 0, look: { yard: 'yard.inferno' } }, { seat: 1, who: 'sara.k', timeouts: 0 }] as MatchView['players'] });
+
+        await live(opening, true, {}, { seq: 1, id: opening.id, events: [happened(1, 0, [])], live: true, jump: false, opens: () => true });
+        await vi.waitFor(() => expect(sounds.heard).toContain('inferno.spawn'));
+
+        expect(sounds.heard.filter((cue) => cue.endsWith('.spawn')), 'an entrance for a yard in Classic, or one played twice').toEqual(['inferno.spawn']);
+    });
+
+    it('plays no entrance for a game this browser did not see open', async () =>
+    {
+        quiet();
+        sounds.heard.length = 0;
+
+        const opening = ludo({ players: [{ seat: 0, who: 'alex', timeouts: 0, look: { yard: 'yard.inferno' } }, { seat: 1, who: 'sara.k', timeouts: 0 }] as MatchView['players'] });
+
+        await live(opening, true, {}, { seq: 1, id: opening.id, events: [happened(1, 0, [])], live: true, jump: false, opens: () => false });
+        await flush();
+
+        expect(sounds.heard.filter((cue) => cue.endsWith('.spawn'))).toEqual([]);
+    });
+
+    it('wears the voices of the dice, pawns and yards its players wear, and the next game’s when it starts', async () =>
     {
         quiet();
         sounds.worn.length = 0;
@@ -1136,9 +1162,9 @@ describe('the ludo table, played from what happened', () =>
 
             return { ...view, players: view.players.map((player) => (looks[player.seat] === undefined ? player : { ...player, look: looks[player.seat] })) } as MatchView;
         };
-        const { move } = await live(dressed({ 0: { dice: 'dice.storm', pawns: 'pawns.jade', celebration: 'celebration.phoenix' }, 1: { pawns: 'pawns.jade', face: 'face.neon', back: 'back.gold' } }));
+        const { move } = await live(dressed({ 0: { dice: 'dice.storm', pawns: 'pawns.jade', celebration: 'celebration.phoenix' }, 1: { pawns: 'pawns.jade', yard: 'yard.void', face: 'face.neon', back: 'back.gold' } }));
 
-        expect(sounds.worn.at(-1), 'once each, and nothing a Ludo table does not draw').toEqual(['storm', 'jade']);
+        expect(sounds.worn.at(-1), 'once each, the yard’s for its entrance, and nothing a Ludo table does not draw').toEqual(['storm', 'jade', 'void']);
         expect(sounds.cheered.at(-1), 'the celebration worn at the table was not worn for its voice').toEqual(['phoenix']);
 
         move(dressed({ 1: { dice: 'dice.oni', celebration: 'celebration.frost' } }, { id: 'match-next' }));

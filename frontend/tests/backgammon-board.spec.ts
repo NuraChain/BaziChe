@@ -2891,11 +2891,11 @@ describe('a backgammon board in its players’ looks', () =>
         expect([rail(undefined).dataset.tone, rail(undefined).hasAttribute('data-checkers')]).toEqual(['dark', false]);
     });
 
-    it('wears the voices of the collections its players’ dice and checkers are in, once each, and those of the next game’s', async () =>
+    it('wears the voices of the collections its players’ dice, checkers and home boards are in, once each, and those of the next game’s', async () =>
     {
         const board = await live(match({}, 0, { players: worn({ 0: { checkers: 'checkers.jade', dice: 'dice.storm' }, 1: { checkers: 'checkers.storm', home: 'home.void', celebration: 'celebration.void' } }) }));
 
-        expect(sounds.worn.at(-1)).toEqual(['storm', 'jade']);
+        expect(sounds.worn.at(-1), 'the home board’s, for its entrance, was not worn').toEqual(['storm', 'jade', 'void']);
         expect(sounds.cheered.at(-1), 'the celebration worn at the table was not worn for its voice').toEqual(['void']);
 
         board.move(match({}, 0, { id: 'match-bg-2', players: worn({ 1: { dice: 'dice.oni', celebration: 'celebration.frost' } }) }));

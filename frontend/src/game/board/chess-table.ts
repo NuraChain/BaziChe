@@ -3,6 +3,7 @@ import { SIZE, SQUARE, coordinatesOf, spotOf, type Foot } from '../chess-layout.
 import { boardOf, checkOf, passedOf, rookOf, step, type Felt, type Man, type Told } from '../chess-felt.ts';
 import { colourOf, kindOf, opponent, pieceOf, type Colour, type Kind, type Piece } from '../../../../backend/src/domains/match/chess/board.ts';
 import { cheerAt } from '../looks/celebrations.ts';
+import { enterAt, type Entrance } from '../looks/entrances.ts';
 import { CASTLES, CHECKS, FINALES, LANDING, type Sets } from '../looks/chess.ts';
 import { CAPTURES, CRITICALS, burstOf, lightOf, type Collection } from '../looks/table.ts';
 import { clamp } from '../stage/curves.ts';
@@ -45,10 +46,15 @@ export interface ChessOptions
 
     /** Each colour's seat and the celebration its player's match began with. */
     cheers?: () => Record<Colour, { seat: number; worn: Collection | null }>;
+
+    /** Each colour's entrance, from the looks its player's match began with. */
+    entrances?: () => Record<Colour, Entrance | null>;
 }
 
 export interface ChessTable extends Table<Lay, Told>
 {
+    /** Plays each colour's entrance in its look, as a game opens in front of this browser. */
+    enter(): void;
     advance(told: Told): Promise<boolean>;
     hold(square: number | null): void;
     aim(targets: ReadonlyMap<number, boolean>): void;
@@ -60,6 +66,9 @@ export interface ChessTable extends Table<Lay, Told>
 }
 
 export const HISTORY = 4000;
+
+/** Each colour's queen on its back rank: a celebration and an entrance rise from between her and her king. */
+const QUEENS = { w: 3, b: 59 } as const;
 
 export const GLIDE_LEAST = 170;
 
@@ -251,6 +260,14 @@ export function createChessTable(options: ChessOptions): ChessTable
 
     const tuneOf = (worn: Collection, squares = 1) => ({ colors: lightOf(worn), scale: px(SQUARE * squares) / EFFECT_FITS });
 
+    const rankOf = (colour: Colour) =>
+    {
+        const from = middle(QUEENS[colour]);
+        const to = middle(QUEENS[colour] + 1);
+
+        return { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+    };
+
     /** The winner's celebration in its look, risen from the middle of their back rank, with its voice; whether one plays. */
     const cheer = (winner: number | undefined) =>
     {
@@ -263,15 +280,33 @@ export function createChessTable(options: ChessOptions): ChessTable
             return false;
         }
 
-        const [queen, king] = colour === 'w' ? [3, 4] : [59, 60];
-        const from = middle(queen);
-        const to = middle(king);
-        const { steps, at, tune } = cheerAt(worn, { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }, px(SQUARE * 4));
+        const { steps, at, tune } = cheerAt(worn, rankOf(colour), px(SQUARE * 4));
 
-        options.sound()?.play(`${ worn }.victory`, { pan: pan(spot(queen)) });
+        options.sound()?.play(`${ worn }.victory`, { pan: pan(spot(QUEENS[colour])) });
         effects.play((vfx) => vfx.signature(steps, at, tune));
 
         return true;
+    };
+
+    /** Each colour's entrance in the look of its set, risen from the middle of its back rank as the game opens, with its voice. */
+    const enter = () =>
+    {
+        const entrances = options.entrances?.();
+
+        for (const colour of ['w', 'b'] as const)
+        {
+            const entrance = entrances?.[colour] ?? null;
+
+            if (entrance === null)
+            {
+                continue;
+            }
+
+            const { steps, at, tune } = enterAt(entrance, rankOf(colour), px(SQUARE * 4));
+
+            options.sound()?.play(`${ entrance.collection }.spawn`, { pan: pan(spot(QUEENS[colour])) });
+            effects.play((vfx) => vfx.signature(steps, at, tune));
+        }
     };
 
     /** One of a set's moments on its square, under every piece, said in its collection's voice. */
@@ -795,6 +830,8 @@ export function createChessTable(options: ChessOptions): ChessTable
         kind: 'chess',
 
         history: HISTORY,
+
+        enter,
 
         reset(sight)
         {

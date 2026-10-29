@@ -168,9 +168,9 @@ describe('what a hokm table is heard to do', () =>
     it('says a card’s look in its voice as the card lands, and wears the faces worn at its table', async () =>
     {
         const plain = match({});
-        const { send } = await mounted({ ...plain, players: plain.players.map((player) => (player.seat === 1 ? { ...player, look: { face: 'face.neon', back: 'back.gold', dice: 'dice.oni' } } : player)) });
+        const { send } = await mounted({ ...plain, players: plain.players.map((player) => (player.seat === 1 ? { ...player, look: { face: 'face.neon', back: 'back.gold', felt: 'felt.void', dice: 'dice.oni' } } : player)) });
 
-        expect(told.worn.at(-1), 'the faces alone: a back or a die has no voice at a Hokm table').toEqual(['neon']);
+        expect(told.worn.at(-1), 'the faces and the felt, for its entrance: a back or a die has no voice at a Hokm table').toEqual(['neon', 'void']);
 
         send(TRICK(2));
         await elapse(LONG, 5);

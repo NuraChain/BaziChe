@@ -8,6 +8,7 @@ import { OFF, slotAt } from '../src/game/backgammon-men.ts';
 import { KNOCK_MS, PICK_MS, THROW_MS, WALK_MOST, createBackgammonTable, type BackgammonTable } from '../src/game/board/backgammon-table.ts';
 import { BORNE, ENTRIES } from '../src/game/looks/backgammon.ts';
 import { CELEBRATIONS } from '../src/game/looks/celebrations.ts';
+import { ENTER_MOST } from '../src/game/looks/entrances.ts';
 import { DIE_PROPERTIES, dieDress } from '../src/game/looks/dice.ts';
 import { CAPTURES, CRITICALS, burstOf, lightOf } from '../src/game/looks/table.ts';
 import { restOf } from '../src/game/stage/dice.ts';
@@ -692,5 +693,41 @@ describe('a backgammon winner’s celebration in the look they chose', () =>
 
         expect(cheersOf()).toEqual([]);
         expect(voiced().filter((cue) => cue.endsWith('.victory'))).toEqual([]);
+    });
+});
+
+describe('a backgammon side’s entrance in the look of its home board, as a game opens', () =>
+{
+    const entrancesOf = () => bursts().filter((one) => one.steps !== undefined && one.steps.length > 0 && Object.values(CELEBRATIONS).some((steps) => one.steps!.every((step, index) => step === steps[index])));
+
+    it('rises from the middle of each side’s home board, the first layers of its collection, every layer for a whole set, in its light and with its voice', async () =>
+    {
+        worn = { 0: { home: 'home.frost', dice: 'dice.storm' }, 1: { home: 'home.void', dice: 'dice.void', checkers: 'checkers.void', celebration: 'celebration.void' } };
+        table.reset(sight(felt()));
+        table.enter();
+        await vi.waitFor(() => expect(entrancesOf()).toHaveLength(2));
+
+        const near = entrancesOf().find((one) => one.steps![0] === CELEBRATIONS.frost[0])!;
+        const far = entrancesOf().find((one) => one.steps![0] === CELEBRATIONS.void[0])!;
+
+        expect(near.steps).toEqual(CELEBRATIONS.frost.slice(0, 2));
+        expect(near.at.x).toBeCloseTo(BAR_LEFT + BAR_WIDTH + POINT_WIDTH * 3);
+        expect(near.at.y).toBeCloseTo((MIDDLE * 3 - TOP) / 2);
+        expect(near.tune.colors).toEqual(lightOf('frost'));
+        expect(near.tune.scale).toBe(Math.min(ENTER_MOST, POINT_WIDTH * 6 / FITS));
+        expect(far.steps, 'a whole set was played short').toEqual(CELEBRATIONS.void);
+        expect(far.at.y, 'the far side entered from the near home board').toBeCloseTo((TOP + MIDDLE) / 2);
+        expect(voiced().filter((cue) => cue.endsWith('.spawn')).sort()).toEqual(['frost.spawn', 'void.spawn']);
+    });
+
+    it.each([{}, { dice: 'dice.void', checkers: 'checkers.void' }, { home: 'home.ember' }])('rises for nobody whose home board is %o', async (look) =>
+    {
+        worn = { 0: look, 1: look };
+        table.reset(sight(felt()));
+        table.enter();
+        await flush();
+
+        expect(entrancesOf()).toEqual([]);
+        expect(voiced().filter((cue) => cue.endsWith('.spawn'))).toEqual([]);
     });
 });

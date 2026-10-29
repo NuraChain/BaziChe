@@ -2,6 +2,7 @@ import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
 import { BLOCK, CELL, GRID, HOME_SCALE, MARGIN, YARD_AT, YARD_SIZE, aimNear, stackSpot } from '../layout.ts';
 import { celebrationOf, cheerAt } from '../looks/celebrations.ts';
 import { DIE_PROPERTIES, dieDress } from '../looks/dice.ts';
+import { enterAt, entranceOf } from '../looks/entrances.ts';
 import { TRAILS } from '../looks/ludo.ts';
 import { CAPTURES, CRITICALS, burstOf, lightOf, wornOf, type Collection } from '../looks/table.ts';
 import { HISTORY, beatsOf, placeOf, sameAs, shownOf, step, type Beat, type Felt, type Pawn, type Rolled, type Shown } from '../ludo-felt.ts';
@@ -1358,6 +1359,13 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         }
     };
 
+    const yardOf = (colour: string) =>
+    {
+        const [left, top] = YARD_AT[colour] ?? [0, 0];
+
+        return { x: (left + YARD_SIZE / 2) * 100, y: (top + YARD_SIZE / 2) * 100 };
+    };
+
     /** Each winner's celebration in its look, risen from the yard of their colour, with its voice. */
     const cheer = (winners: readonly string[]) =>
     {
@@ -1365,18 +1373,39 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         {
             const seat = shown.pawns.find((pawn) => pawn.colour === winner)?.owner;
             const worn = seat === undefined ? null : celebrationOf(options.looks?.(seat));
-            const [left, top] = YARD_AT[winner] ?? [0, 0];
 
             if (worn === null)
             {
                 continue;
             }
 
-            const yard = { x: (left + YARD_SIZE / 2) * 100, y: (top + YARD_SIZE / 2) * 100 };
+            const yard = yardOf(winner);
             const { steps, at, tune } = cheerAt(worn, pixels(yard), root.clientWidth * YARD_SIZE);
 
             effects.play((vfx) => vfx.signature(steps, at, tune));
             options.sound()?.play(`${ worn }.victory`, { pan: pan(yard.x) });
+        }
+    };
+
+    /** Each seat's entrance in the look of its yard, risen from the yard of its colour as the game opens, with its voice. */
+    const enter = () =>
+    {
+        const owners = new Map(shown.pawns.map((pawn) => [pawn.colour, pawn.owner]));
+
+        for (const [colour, seat] of owners)
+        {
+            const entrance = entranceOf('ludo', options.looks?.(seat));
+
+            if (entrance === null)
+            {
+                continue;
+            }
+
+            const yard = yardOf(colour);
+            const { steps, at, tune } = enterAt(entrance, pixels(yard), root.clientWidth * YARD_SIZE);
+
+            effects.play((vfx) => vfx.signature(steps, at, tune));
+            options.sound()?.play(`${ entrance.collection }.spawn`, { pan: pan(yard.x) });
         }
     };
 
@@ -1772,6 +1801,8 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         },
 
         estimate: (acts) => beatsOf(acts, WAITING).flat().reduce((sum, beat) => sum + costOf(beat), 0),
+
+        enter,
 
         offer(seat)
         {

@@ -4,6 +4,7 @@ import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import type { Haptic } from '../src/lib/haptics.ts';
 import type { LudoBoard, MatchPlayer } from '../src/data/match.ts';
 import { CELEBRATIONS } from '../src/game/looks/celebrations.ts';
+import { ENTER_MOST } from '../src/game/looks/entrances.ts';
 import { TRAILS } from '../src/game/looks/ludo.ts';
 import { PALETTES } from '../src/game/looks/palette.ts';
 import { CAPTURES, CRITICALS, lightOf, wornOf } from '../src/game/looks/table.ts';
@@ -2744,5 +2745,56 @@ describe('a ludo winner’s celebration in the look they chose', () =>
         expect(cheersOf()).toEqual([]);
         expect(cues.filter((cue) => cue.endsWith('.victory'))).toEqual([]);
         expect(cues, 'the win went with the celebration').toContain('win');
+    });
+});
+
+describe('a seat’s entrance in the look of its yard, as a game opens', () =>
+{
+    const wide = (width: number) => Object.defineProperty(host.querySelector('.lb')!, 'clientWidth', { configurable: true, get: () => width });
+
+    const entrancesOf = () => engine.bursts.filter((one) => one.steps !== undefined && one.steps.length > 0 && Object.values(CELEBRATIONS).some((steps) => one.steps!.every((step, index) => step === steps[index])));
+
+    const centre = (colour: string) =>
+    {
+        const [left, top] = YARD_AT[colour]!;
+
+        return { x: (left + YARD_SIZE / 2) * 600, y: (top + YARD_SIZE / 2) * 600 };
+    };
+
+    const opened = () =>
+    {
+        table.reset(sight(standing([EMPTY, EMPTY], null)));
+        wide(600);
+        table.enter();
+    };
+
+    it('rises from the yard of each seat’s colour, the first layers of its yard’s collection, every layer for a whole set, in its light and with its voice', async () =>
+    {
+        worn = { 0: { yard: 'yard.inferno', dice: 'dice.storm' }, 1: { yard: 'yard.jade', dice: 'dice.jade', pawns: 'pawns.jade', celebration: 'celebration.jade' } };
+        opened();
+        await vi.waitFor(() => expect(entrancesOf()).toHaveLength(2));
+
+        const red = entrancesOf().find((one) => one.steps![0] === CELEBRATIONS.inferno[0])!;
+        const set = entrancesOf().find((one) => one.steps![0] === CELEBRATIONS.jade[0])!;
+        const theirs = Object.keys(YARD_AT).filter((colour) => colour !== 'red').map(centre);
+
+        expect(red.steps).toEqual(CELEBRATIONS.inferno.slice(0, 2));
+        expect(red.at.x).toBeCloseTo(centre('red').x);
+        expect(red.at.y).toBeCloseTo(centre('red').y);
+        expect(red.tune.colors).toEqual(lightOf('inferno'));
+        expect(red.tune.scale).toBe(ENTER_MOST);
+        expect(set.steps, 'a whole set was played short').toEqual(CELEBRATIONS.jade);
+        expect(theirs.some((spot) => Math.abs(spot.x - set.at.x) < 0.01 && Math.abs(spot.y - set.at.y) < 0.01), 'the second seat entered from a yard that is not its colour’s').toBe(true);
+        expect(cues.filter((cue) => cue.endsWith('.spawn')).sort()).toEqual(['inferno.spawn', 'jade.spawn']);
+    });
+
+    it.each([{}, { dice: 'dice.jade', pawns: 'pawns.jade' }, { yard: 'yard.ember' }, { yard: 'dice.storm' }])('rises for nobody whose yard is %o: Classic, or a look this build does not draw there', async (look) =>
+    {
+        worn = { 0: look, 1: look };
+        opened();
+        await flush();
+
+        expect(entrancesOf()).toEqual([]);
+        expect(cues.filter((cue) => cue.endsWith('.spawn'))).toEqual([]);
     });
 });

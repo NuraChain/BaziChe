@@ -3,6 +3,7 @@ import { cleanup, fire } from '@azerothjs/testing';
 
 import { playAt } from '../src/game/looks/cards.ts';
 import { CELEBRATIONS } from '../src/game/looks/celebrations.ts';
+import { ENTER_MOST } from '../src/game/looks/entrances.ts';
 import { lightOf } from '../src/game/looks/table.ts';
 import { CARD_FLY, CARD_GAP, CHIP_FLY, DISC_GAP, GATHER, GATHER_GAP, MUCK, MUCK_GAP, TURN } from '../src/game/poker-beats.ts';
 import { manualClock } from '../src/lib/clock.ts';
@@ -580,5 +581,56 @@ describe('a poker winner\'s celebration in the look they chose', () =>
         await settled();
 
         expect(cheersOf()).toEqual([]);
+    });
+});
+
+describe('a poker seat’s entrance in the look of its felt, as a game opens', () =>
+{
+    const entrancesOf = () => engine.bursts.filter((one) => one.steps !== undefined && one.steps.length > 0 && Object.values(CELEBRATIONS).some((steps) => one.steps!.every((step, index) => step === steps[index])));
+
+    const chairs = () =>
+    {
+        const placed = vi.mocked(Element.prototype.getBoundingClientRect).getMockImplementation()!;
+
+        vi.mocked(Element.prototype.getBoundingClientRect).mockImplementation(function (this: Element)
+        {
+            if (this.classList.contains('poker-burst'))
+            {
+                return DOMRect.fromRect({ x: 10, y: 20, width: 380, height: 760 });
+            }
+
+            return this.matches('.poker-seat[data-seat="1"]') ? DOMRect.fromRect({ x: 150, y: 600, width: 100, height: 60 }) : placed.call(this);
+        });
+    };
+
+    it('rises from each seat in a felt look as the game opens here, the first layers of its collection, every layer for a whole set', async () =>
+    {
+        chairs();
+        await seated(looked({}, { rev: 1 }, { 1: { felt: 'felt.void' }, 2: { felt: 'felt.gold', back: 'back.gold', face: 'face.gold', chips: 'chips.gold', celebration: 'celebration.gold' } }), opening());
+        await vi.waitFor(() => expect(entrancesOf()).toHaveLength(2));
+
+        const one = entrancesOf().find((burst) => burst.steps![0] === CELEBRATIONS.void[0])!;
+        const set = entrancesOf().find((burst) => burst.steps![0] === CELEBRATIONS.gold[0])!;
+
+        expect(one.steps).toEqual(CELEBRATIONS.void.slice(0, 2));
+        expect(one.at).toEqual({ x: 190, y: 610 });
+        expect(one.tune.colors).toEqual(lightOf('void'));
+        expect(one.tune.scale).toBeCloseTo(Math.min(ENTER_MOST, 100 / 40));
+        expect(set.steps, 'a whole set was played short').toEqual(CELEBRATIONS.gold);
+    });
+
+    it('rises for nobody when a seat’s felt is Classic, or the game was already open', async () =>
+    {
+        await seated(looked({}, { rev: 1 }, { 1: { back: 'back.void' } }), opening());
+        await settled();
+
+        expect(entrancesOf()).toEqual([]);
+
+        cleanup();
+        engine.bursts = [];
+        await seated(looked({}, { rev: 1 }, { 1: { felt: 'felt.void' } }), { ...opening(), opens: () => false });
+        await settled();
+
+        expect(entrancesOf(), 'a game already open was entered again').toEqual([]);
     });
 });

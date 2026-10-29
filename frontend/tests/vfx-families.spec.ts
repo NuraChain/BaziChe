@@ -4,6 +4,7 @@ import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 import { SHOP_COLLECTIONS } from '../../backend/src/domains/shop/catalogue.ts';
 import { BORNE, ENTRIES } from '../src/game/looks/backgammon.ts';
 import { cheerAt } from '../src/game/looks/celebrations.ts';
+import { ENTER_MOST, enterAt } from '../src/game/looks/entrances.ts';
 import { CASTLES, CHECKS, FINALES, LANDING } from '../src/game/looks/chess.ts';
 import { playAt } from '../src/game/looks/cards.ts';
 import { LIGHTS } from '../src/game/looks/lights.ts';
@@ -530,6 +531,33 @@ describe('a celebration, as a table plays it at the end of a match', () =>
             clock.advance(PAUSES.end);
 
             expect(vfx.live(), `seed ${ seed } was still drawing when the result came`).toBe(0);
+        }
+    });
+});
+
+describe('an entrance, as a table plays it at a game’s start', () =>
+{
+    it.each([...SHOP_COLLECTIONS])('raises one of %s, short and as a whole set, at the largest scale it is drawn, spent within the hold a celebration has, whatever its roll', (collection) =>
+    {
+        for (const full of [false, true])
+        {
+            const { steps, at, tune } = enterAt({ collection, full }, AT, 1_000);
+
+            expect(tune.scale, 'an entrance was drawn past the scale its bolts keep their shape at').toBe(ENTER_MOST);
+            expect(tune.colors).toEqual(LIGHTS[collection]);
+
+            for (let seed = 1; seed <= 6; seed += 1)
+            {
+                const vfx = made(recording());
+
+                vfx.signature(steps, at, { ...tune, seed });
+
+                expect(vfx.live()).toBeGreaterThan(0);
+
+                clock.advance(PAUSES.end);
+
+                expect(vfx.live(), `seed ${ seed } of ${ full ? 'a set' : 'a short entrance' } was still drawing`).toBe(0);
+            }
         }
     });
 });

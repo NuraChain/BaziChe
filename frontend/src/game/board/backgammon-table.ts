@@ -54,6 +54,7 @@ import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
 import { BORNE, ENTRIES } from '../looks/backgammon.ts';
 import { celebrationOf, cheerAt } from '../looks/celebrations.ts';
 import { dieDress } from '../looks/dice.ts';
+import { enterAt, entranceOf } from '../looks/entrances.ts';
 import { CAPTURES, CRITICALS, burstOf, lightOf, wornOf, type Collection } from '../looks/table.ts';
 import { clamp, seeded } from '../stage/curves.ts';
 import { restOf } from '../stage/dice.ts';
@@ -104,6 +105,8 @@ export interface Facts
 
 export interface BackgammonTable extends Table<Felt, Told>
 {
+    /** Plays each side's entrance in its look, as a game opens in front of this browser. */
+    enter(): void;
     hop(move: Move, onward?: boolean): Promise<boolean>;
     unhop(move: Move): Promise<boolean>;
     lit(spots: ReadonlySet<number>): void;
@@ -429,6 +432,8 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         }
     };
 
+    const homeOf = (side: Side) => ({ x: BAR_LEFT + BAR_WIDTH + POINT_WIDTH * 3, y: side === 'near' ? (MIDDLE * 3 - TOP) / 2 : (TOP + MIDDLE) / 2 });
+
     /** The winner's celebration in its look, risen from the middle of their home board, with its voice. */
     const cheer = (side: Side) =>
     {
@@ -439,11 +444,31 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
             return;
         }
 
-        const home = { x: BAR_LEFT + BAR_WIDTH + POINT_WIDTH * 3, y: side === 'near' ? (MIDDLE * 3 - TOP) / 2 : (TOP + MIDDLE) / 2 };
+        const home = homeOf(side);
         const { steps, at, tune } = cheerAt(worn, pointOf(home), px(POINT_WIDTH * 6));
 
         options.sound()?.play(`${ worn }.victory`, { pan: pan(home.x) });
         effects.play((vfx) => vfx.signature(steps, at, tune));
+    };
+
+    /** Each side's entrance in the look of its home board, risen from its middle as the game opens, with its voice. */
+    const enter = () =>
+    {
+        for (const side of ['near', 'far'] as const)
+        {
+            const entrance = entranceOf('backgammon', lookOf(side));
+
+            if (entrance === null)
+            {
+                continue;
+            }
+
+            const home = homeOf(side);
+            const { steps, at, tune } = enterAt(entrance, pointOf(home), px(POINT_WIDTH * 6));
+
+            options.sound()?.play(`${ entrance.collection }.spawn`, { pan: pan(home.x) });
+            effects.play((vfx) => vfx.signature(steps, at, tune));
+        }
     };
 
     /** A die in the look of the side whose it is, or plain; it is a die of its own, so nothing of a die before it is left on it. */
@@ -1583,6 +1608,8 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
         kind: 'backgammon',
 
         history: HISTORY,
+
+        enter,
 
         before: (sight) => ({ ...sight, view: { ...sight.view, dice: [], opening: [], spent: [], turn: null } }),
 

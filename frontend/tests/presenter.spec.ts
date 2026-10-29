@@ -26,7 +26,7 @@ const flush = async () =>
 
 const cost = (acts: readonly { moves: readonly Move[] }[]) => acts.reduce((sum, act) => sum + act.moves.length * ACT_MS, 0);
 
-const setup = (hooked = true, lead?: () => number, due?: () => number | null) =>
+const setup = (hooked = true, lead?: () => number, due?: () => number | null, opening?: (sight: Sight<null>) => void) =>
 {
     const clock = manualClock(1000);
     const stage = createStage({ clock, quiet: () => false });
@@ -81,7 +81,8 @@ const setup = (hooked = true, lead?: () => number, due?: () => number | null) =>
         sight: () => sight,
         report: (error) => reported.push(error),
         ...(lead === undefined ? {} : { lead }),
-        ...(due === undefined ? {} : { due })
+        ...(due === undefined ? {} : { due }),
+        ...(opening === undefined ? {} : { opening })
     });
 
     presenter.watch((busy) => told.push(busy));
@@ -726,6 +727,78 @@ describe('a table that is given only so long', () =>
         await elapse(ACT_MS * 4 - 10);
 
         expect(calls).toEqual(['play 6:e6 7:e7 8:e8 9:e9']);
+    });
+});
+
+describe('the moment a game opens here', () =>
+{
+    const once = () =>
+    {
+        let asked = 0;
+
+        return () => (asked += 1) === 1;
+    };
+
+    it('is told once, as an opening delivered to this browser is taken, and not for the moves after it nor on a second board', () =>
+    {
+        const told: string[] = [];
+        const first = setup(true, undefined, undefined, (sight) => told.push(`first ${ sight.id }@${ sight.rev }`));
+        const second = setup(true, undefined, undefined, (sight) => told.push(`second ${ sight.id }@${ sight.rev }`));
+        const opening = first.batch([1], { opens: once() });
+
+        first.at(1);
+        first.presenter.see(opening);
+        second.at(1);
+        second.presenter.see(opening);
+        first.at(2);
+        first.presenter.see(first.batch([2]));
+
+        expect(told).toEqual(['first m1@1']);
+    });
+
+    it('is told for a game with nothing to deal before it, as Ludo has, and again for the next game at the table', () =>
+    {
+        const told: string[] = [];
+        const { presenter, batch, at } = setup(false, undefined, undefined, (sight) => told.push(sight.id));
+
+        at(1);
+        presenter.see(batch([1], { opens: once() }));
+        at(1, 'm2');
+        presenter.see(batch([1], { opens: once(), id: 'm2' }));
+
+        expect(told).toEqual(['m1', 'm2']);
+    });
+
+    it('is not told for a game this browser arrived in the middle of, one the board has moved past, nor in a tab nobody is looking at', () =>
+    {
+        const told: string[] = [];
+        const middle = setup(true, undefined, undefined, () => told.push('middle'));
+        const past = setup(true, undefined, undefined, () => told.push('past'));
+        const away = setup(true, undefined, undefined, () => told.push('away'));
+
+        middle.at(5);
+        middle.presenter.see(middle.batch([5]));
+        past.at(2);
+        past.presenter.see(past.batch([1], { opens: once() }));
+        hide();
+        away.at(1);
+        away.presenter.see(away.batch([1], { opens: once() }));
+
+        expect(told).toEqual([]);
+    });
+
+    it('plays the opening all the same when what it tells throws, and reports what was thrown', () =>
+    {
+        const { presenter, batch, at, calls, reported } = setup(true, undefined, undefined, () =>
+        {
+            throw new Error('an entrance that broke');
+        });
+
+        at(1);
+        presenter.see(batch([1], { opens: once() }));
+
+        expect(calls).toEqual(['reset m1@0', 'play 1:e1']);
+        expect(reported.map(String)).toEqual(['Error: an entrance that broke']);
     });
 });
 

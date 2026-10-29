@@ -3,6 +3,7 @@ import { cleanup, fire } from '@azerothjs/testing';
 
 import { playAt } from '../src/game/looks/cards.ts';
 import { CELEBRATIONS } from '../src/game/looks/celebrations.ts';
+import { ENTER_MOST } from '../src/game/looks/entrances.ts';
 import { lightOf } from '../src/game/looks/table.ts';
 import { TIMING } from '../src/game/motion.ts';
 import { manualClock } from '../src/lib/clock.ts';
@@ -524,5 +525,50 @@ describe('a hokm winner\'s celebration in the look they chose', () =>
 
         expect(cheersOf()).toEqual([]);
         expect(engine.made, 'an engine was fetched to celebrate nothing').toBe(0);
+    });
+});
+
+describe('a hokm seat’s entrance in the look of its felt, as a game opens', () =>
+{
+    const entrancesOf = () => engine.bursts.filter((one) => one.steps !== undefined && one.steps.length > 0 && Object.values(CELEBRATIONS).some((steps) => one.steps!.every((step, index) => step === steps[index])));
+
+    const seats = () => boxes((element) => (element.matches('.hokm-seat[data-seat="0"]') ? at(100, 400, 120, 120) : element.matches('.hokm-seat[data-seat="2"]') ? at(100, 0, 120, 120) : null));
+
+    const opening = (worn: Record<number, Look>) => ({ ...table({ phase: 'trump', trump: undefined, turn: 0, lead: 0, hand: [1, 14, 27, 40, 50], plays: [] }, 0, worn), rev: 1, turn: 0 });
+
+    const dealt = { seq: 1, id: 'match-1', events: [act(1, 0, { e: 'deal', hakem: 0 })], live: true, jump: false, opens: () => true };
+
+    it('rises from each seat in a felt look as the game opens here, the first layers of its collection, every layer for a whole set', async () =>
+    {
+        seats();
+        await mounted(opening({ 0: { felt: 'felt.storm' }, 2: { felt: 'felt.astral', back: 'back.astral', face: 'face.astral', celebration: 'celebration.astral' } }), dealt);
+        await vi.waitFor(() => expect(entrancesOf()).toHaveLength(2));
+
+        const mine = entrancesOf().find((one) => one.steps![0] === CELEBRATIONS.storm[0])!;
+        const theirs = entrancesOf().find((one) => one.steps![0] === CELEBRATIONS.astral[0])!;
+
+        expect(mine.steps).toEqual(CELEBRATIONS.storm.slice(0, 2));
+        expect(mine.at).toEqual({ x: 160, y: 460 });
+        expect(mine.tune.colors).toEqual(lightOf('storm'));
+        expect(mine.tune.scale).toBe(ENTER_MOST);
+        expect(theirs.steps, 'a whole set was played short').toEqual(CELEBRATIONS.astral);
+        expect(theirs.at).toEqual({ x: 160, y: 60 });
+    });
+
+    it('rises for nobody when the game was not opened here, nor for a seat whose felt is Classic', async () =>
+    {
+        seats();
+        await mounted(opening({ 0: { felt: 'felt.storm' } }), { ...dealt, opens: () => false });
+        await settled();
+
+        expect(entrancesOf(), 'a game already open was entered again').toEqual([]);
+
+        cleanup();
+        engine.bursts = [];
+        seats();
+        await mounted(opening({ 0: { back: 'back.storm' } }), dealt);
+        await settled();
+
+        expect(entrancesOf()).toEqual([]);
     });
 });

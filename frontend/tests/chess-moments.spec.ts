@@ -5,6 +5,7 @@ import { SIZE, SQUARE, spotOf } from '../src/game/chess-layout.ts';
 import { feltOf, type Told } from '../src/game/chess-felt.ts';
 import { END_LEAST, GLIDE_MOST, PROMOTE_MS, ROOK_MS, TIP_MS, createChessTable, type ChessOptions, type ChessTable, type Lay } from '../src/game/board/chess-table.ts';
 import { CELEBRATIONS } from '../src/game/looks/celebrations.ts';
+import { ENTER_MOST } from '../src/game/looks/entrances.ts';
 import { CASTLES, CHECKS, FINALES, LANDING, type Sets } from '../src/game/looks/chess.ts';
 import { CAPTURES, CRITICALS, burstOf, lightOf } from '../src/game/looks/table.ts';
 import { createDirector, type Director } from '../src/game/stage/director.ts';
@@ -89,6 +90,7 @@ let heard: { cue: Cue; at: number }[];
 let still: boolean;
 let sets: Sets;
 let cheers: ReturnType<NonNullable<ChessOptions['cheers']>>;
+let entrances: ReturnType<NonNullable<ChessOptions['entrances']>>;
 let broke: unknown[];
 
 const elapse = async (ms: number) =>
@@ -142,6 +144,7 @@ beforeEach(() =>
     still = false;
     sets = { w: null, b: null };
     cheers = { w: { seat: 0, worn: null }, b: { seat: 1, worn: null } };
+    entrances = { w: null, b: null };
     host = document.createElement('div');
     host.className = 'chess-layer';
     Object.defineProperty(host, 'clientWidth', { value: SIZE });
@@ -149,7 +152,7 @@ beforeEach(() =>
 
     stage = createStage({ clock, quiet: () => still, report: (error) => broke.push(error) });
     director = createDirector(stage, clock, (error) => broke.push(error));
-    table = createChessTable({ host, stage, sound: () => sound, animals: () => false, feel: () => undefined, sets: () => sets, cheers: () => cheers });
+    table = createChessTable({ host, stage, sound: () => sound, animals: () => false, feel: () => undefined, sets: () => sets, cheers: () => cheers, entrances: () => entrances });
 });
 
 afterEach(() =>
@@ -354,5 +357,42 @@ describe('a chess winner\'s celebration in the look they chose', () =>
 
         expect(cheersOf(), 'a draw was celebrated').toEqual([]);
         expect(cues().filter((cue) => cue.endsWith('.victory'))).toEqual([]);
+    });
+});
+
+describe('a chess side’s entrance in the look of its set, as a game opens', () =>
+{
+    const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+    const entrancesOf = () => bursts().filter((one) => one.steps !== undefined && one.steps.length > 0 && Object.values(CELEBRATIONS).some((steps) => one.steps!.every((step, index) => step === steps[index])));
+
+    it('rises from the middle of each side’s back rank, the first layers of its set’s collection, every layer for a whole set, in its light and with its voice', async () =>
+    {
+        entrances = { w: { collection: 'phoenix', full: false }, b: { collection: 'oni', full: true } };
+        table.reset(sight(lay(START_FEN)));
+        table.enter();
+        await vi.waitFor(() => expect(entrancesOf()).toHaveLength(2));
+
+        const white = entrancesOf().find((one) => one.steps![0] === CELEBRATIONS.phoenix[0])!;
+        const black = entrancesOf().find((one) => one.steps![0] === CELEBRATIONS.oni[0])!;
+        const [queen, king] = [middle('d1'), middle('e1')];
+        const [theirs, their] = [middle('d8'), middle('e8')];
+
+        expect(white.steps).toEqual(CELEBRATIONS.phoenix.slice(0, 2));
+        expect(white.at).toEqual({ x: (queen.x + king.x) / 2, y: (queen.y + king.y) / 2 });
+        expect(white.tune).toMatchObject({ colors: lightOf('phoenix'), scale: Math.min(ENTER_MOST, SQUARE * 4 / FITS) });
+        expect(black.steps, 'a whole set was played short').toEqual(CELEBRATIONS.oni);
+        expect(black.at).toEqual({ x: (theirs.x + their.x) / 2, y: (theirs.y + their.y) / 2 });
+        expect(cues().filter((cue) => cue.endsWith('.spawn')).sort()).toEqual(['oni.spawn', 'phoenix.spawn']);
+    });
+
+    it('rises for neither side in a set this build does not draw or Classic', async () =>
+    {
+        table.reset(sight(lay(START_FEN)));
+        table.enter();
+        await flush();
+
+        expect(entrancesOf()).toEqual([]);
+        expect(cues().filter((cue) => cue.endsWith('.spawn'))).toEqual([]);
     });
 });

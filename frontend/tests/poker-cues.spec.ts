@@ -295,7 +295,7 @@ describe('what a poker table sounds like', () =>
     {
         sounds.worn.length = 0;
 
-        const dressed = (view: MatchView) => ({ ...view, players: view.players.map((player) => (player.seat === 1 ? { ...player, look: { face: 'face.oni' } } : (player.seat === 2 ? { ...player, look: { face: 'face.gold', chips: 'chips.storm' } } : player))) }) as MatchView;
+        const dressed = (view: MatchView) => ({ ...view, players: view.players.map((player) => (player.seat === 1 ? { ...player, look: { face: 'face.oni' } } : (player.seat === 2 ? { ...player, look: { face: 'face.gold', chips: 'chips.storm', felt: 'felt.frost' } } : player))) }) as MatchView;
         const river = dressed(match(
             {
                 street: 'river',
@@ -314,7 +314,7 @@ describe('what a poker table sounds like', () =>
         ));
         const { read } = await seated(river);
 
-        expect(sounds.worn.at(-1)).toEqual(['oni', 'gold']);
+        expect(sounds.worn.at(-1), 'the faces and the felt, for its entrance, and never the chips').toEqual(['oni', 'gold', 'frost']);
 
         await read(after, heard(1, told(
             8,

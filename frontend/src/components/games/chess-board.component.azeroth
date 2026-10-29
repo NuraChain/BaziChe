@@ -25,6 +25,7 @@ import { SIZE, boxOf, cellOf, placeOf, squareAt, type Foot } from '../../game/ch
 import { createSound, type SoundHandle } from '../../game/sound.ts';
 import { celebrationOf } from '../../game/looks/celebrations.ts';
 import { dressOf } from '../../game/looks/chess.ts';
+import { entranceOf } from '../../game/looks/entrances.ts';
 import { heardAt, wornOf } from '../../game/looks/table.ts';
 import type { Ctx } from '../../game/stage/director.ts';
 import { createPresenter, type Presenter, type Sight } from '../../game/stage/presenter.ts';
@@ -456,9 +457,10 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
                     facts = now;
                 },
                 sets: () => untrack(() => ({ w: setAt(whiteSeat), b: setAt(1 - whiteSeat) })),
-                cheers: () => untrack(() => ({ w: { seat: whiteSeat, worn: cheerOf(whiteSeat) }, b: { seat: 1 - whiteSeat, worn: cheerOf(1 - whiteSeat) } }))
+                cheers: () => untrack(() => ({ w: { seat: whiteSeat, worn: cheerOf(whiteSeat) }, b: { seat: 1 - whiteSeat, worn: cheerOf(1 - whiteSeat) } })),
+                entrances: () => untrack(() => ({ w: entranceOf('chess', lookAt(whiteSeat)), b: entranceOf('chess', lookAt(1 - whiteSeat)) }))
             });
-            presenter = createPresenter<Lay, Told>({ stage: rig, clock, table, sight: () => untrack(sightNow), report, lead: () => (resultStands ? RESULT_OUT : 0), due: () => (untrack(() => over) ? RESULT_WAIT : null) });
+            presenter = createPresenter<Lay, Told>({ stage: rig, clock, table, sight: () => untrack(sightNow), report, lead: () => (resultStands ? RESULT_OUT : 0), due: () => (untrack(() => over) ? RESULT_WAIT : null), opening: () => table?.enter() });
             presenter.frame(root);
             unwatch = presenter.watch((busy) =>
             {

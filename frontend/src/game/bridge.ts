@@ -68,6 +68,9 @@ export interface BoardOptions
 
 export interface BoardHandle extends Table<Felt, Told>
 {
+    /** Plays each seat's entrance in its look, as a game opens in front of this browser. */
+    enter(): void;
+
     lit(keys: ReadonlySet<string>, hints: boolean, goals: readonly BoardGoal[]): void;
 
     advance(key: string, to: number): Promise<boolean>;

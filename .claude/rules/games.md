@@ -6787,11 +6787,15 @@ neither restarts it nor adds to it, and a table that has caught up keeps none (t
 dropped at idle, or it would run out on a table with nothing to show and say it was busy for a
 moment).
 
-**The count is 12 000 ms, and it is a net, not a pace.** The longest endings are poker's, and
+**The count is 17 000 ms, and it is a net, not a pace.** The longest endings are poker's, and
 they were measured on the production build from the revision that ended the match to the
 result: 8400 ms with two players all in before the flop, and 9400 ms with six, each action
 given time to be shown (the chips, the hands tabled, three streets run, 2200 ms for the hands
-to be read, the pot pushed, five seats racked). The first draft said 6000, "under the eight
+to be read, the pot pushed, five seats racked). The end of a match is held longer since
+(*A moment is `ctx.linger(ms, least, true)`*): the hands 3000 ms, the pot on its winner 1500,
+the end itself 2800, about 14 500 ms with six. At 12 000 the walk of the change cut a heads-up
+ending's last hold a second short, the result arriving twelve seconds to the millisecond after
+the revision that ended the match. The first draft said 6000, "under the eight
 seconds the play passes give a finished game to appear". Against the heads-up ending it would
 have cut the reading of the last hand to 900 ms and pushed its pot at four times the pace, the
 one moment of a match nobody wants hurried, and the passes' eight seconds turned out to be

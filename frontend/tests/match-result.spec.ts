@@ -6,6 +6,7 @@ import MatchResult from '../src/components/games/match-result.component.azeroth'
 import Icon from '../src/icons/icon.component.azeroth';
 import '../src/icons/all.ts';
 import TableResult, { RESULT_OUT, RESULT_WAIT } from '../src/components/games/table-result.component.azeroth';
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 import { rematchOf, type Rematch } from '../src/components/games/boards.ts';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetRuntime, runtime, setRuntime } from '../src/lib/runtime.ts';
@@ -682,10 +683,11 @@ describe('how long a table may keep a result waiting', () =>
 {
     it('is longer than the longest ending a table plays at its own pace, and is still a bound', () =>
     {
-        const SIX_ALL_IN_BEFORE_THE_FLOP = 9400;
+        // Measured at 9400 ms when the hands were read for 2200 ms and nothing after the pot was held; what is held now is added to it.
+        const SIX_ALL_IN_BEFORE_THE_FLOP = 9400 + (PAUSES.showdown - 2200) + PAUSES.pot + PAUSES.end;
 
         expect(RESULT_WAIT).toBeGreaterThanOrEqual(SIX_ALL_IN_BEFORE_THE_FLOP + 2000);
-        expect(RESULT_WAIT).toBeLessThanOrEqual(15_000);
+        expect(RESULT_WAIT).toBeLessThanOrEqual(20_000);
     });
 });
 

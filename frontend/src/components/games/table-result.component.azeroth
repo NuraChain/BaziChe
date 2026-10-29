@@ -9,7 +9,7 @@ import type { Rematch, Staked } from './boards.ts';
 
 export const RESULT_OUT = 240;
 
-export const RESULT_WAIT = 12_000;
+export const RESULT_WAIT = 17_000;
 
 export default component TableResult(props: { match: MatchView; shown: boolean; mine?: number; busy?: boolean; fold?: boolean; onAgain?: () => void; rematch?: Rematch; stake?: Staked; onStand?: (stands: boolean) => void })
 {

@@ -132,6 +132,16 @@ over the first one with a negative inline start and a `clip-path` on the side th
 so whichever fact begins a line shows no dot, in either direction. `facts-line.spec.ts` (server
 suite) holds the rule and its one caller.
 
+**Whatever a press acts on shows the hand, from one rule.** Tailwind 4 leaves a button the browser's
+arrow, and the classes that gave one back were added a button at a time: the owner found the look
+cards, the achievement ladders, the collection's choices and the two-way choices (Week and Month,
+Sent and Received) all showing the arrow. `base.css` gives the hand to every button and every
+pressable role (`button`, `tab`, `menuitem`, `option`, `switch`, `radio`, `checkbox`, a `summary`)
+that is not disabled, at no specificity and in the base layer, so a component sets a cursor only to
+differ from it: a card that cannot be played, a pawn the move hints keep plain, a drag's grab. A
+pressable thing that is not one of those (a board's piece, a `div` with a handler) still says so
+itself. `cursor-sheet.spec.ts` (server suite) holds the rule.
+
 **There is one theme and nothing that could hold a second.** No `data-theme`, no theme store, no
 switch, no `prefers-color-scheme` branch, no light block. The pre-paint script in `index.html`
 stamps the language and direction and nothing else, and `theme-color` is `#0B1220`. A second theme

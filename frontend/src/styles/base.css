@@ -64,6 +64,16 @@
         min-inline-size: 0;
     }
 
+    /*
+     * Tailwind 4 leaves a button the browser's arrow, so whatever a press acts on shows the hand here,
+     * once. At no specificity and in this layer, so a component's own cursor still wins: a card that
+     * cannot be played, a pawn the move hints keep plain, a drag's grab.
+     */
+    :where(button, [role='button'], [role='tab'], [role='menuitem'], [role='menuitemradio'], [role='menuitemcheckbox'], [role='option'], [role='switch'], [role='radio'], [role='checkbox'], summary):where(:not(:disabled, [aria-disabled='true']))
+    {
+        cursor: pointer;
+    }
+
     :where(.truncate[dir='auto'], .truncate[dir='ltr'], .table-plate-name)
     {
         text-align: -webkit-match-parent;

@@ -19,6 +19,7 @@ import { watchedBoxes } from './fake-boxes.ts';
 import { elapse } from './poker-mounted.ts';
 import type { MatchView } from '../src/api.ts';
 import { seatBets, type Box } from '../src/game/chip-spot.ts';
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 
 type Rendered = HTMLElement;
 
@@ -1274,7 +1275,11 @@ describe('a table that shows what has happened on it', () =>
         expect(container.querySelector('.table-result'), 'the result stood over a table that was still showing how the game ended').toBeNull();
         expect(tagOf(0), 'a plate called the game before the table had shown it').toBe('');
 
-        await elapse(1200);
+        await elapse(1200 + PAUSES.pot);
+
+        expect([presenting(container), container.querySelector('.table-result')], 'the result came before the end of the game had been seen').toEqual(['true', null]);
+
+        await elapse(PAUSES.end + 100);
 
         expect(busy).toEqual([true, false]);
         expect(presenting(container)).toBeNull();
@@ -1437,7 +1442,7 @@ describe('a table that shows what has happened on it', () =>
         expect(back()).toBe(false);
         expect(container.querySelector('.table-result')).toBeNull();
 
-        await elapse(1200);
+        await elapse(1200 + PAUSES.pot + PAUSES.end + 100);
 
         expect(presenting(container)).toBeNull();
         expect(over()).toBe(true);

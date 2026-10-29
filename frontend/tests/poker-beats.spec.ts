@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
     BOARD_GAP, BOARD_OUT, CARD_FLY, CARD_GAP, CARD_OUT, CHIP_FLY, COLLECT, COLLECT_GAP, COLLECT_MOST, DEAL_LEAD, DEAL_MOST, DISC_GAP, GATHER, GATHER_GAP, KNOCK, MUCK,
-    MUCK_GAP, POT_FLY, POT_GAP, POT_SPAN, RACK, RUN_OUT, RUN_OUT_LEAST, SHOW_LEAST, SHOW_LINGER, TURN, WIN_AFTER, collectGap, dealGap, dealLength, heldBefore, slides, spanOf,
+    MUCK_GAP, POT_FLY, POT_GAP, POT_LEAST, POT_SPAN, RACK, RUN_OUT, RUN_OUT_LEAST, SHOW_LEAST, TURN, WIN_AFTER, collectGap, dealGap, dealLength, heldBefore, slides, spanOf,
     streetLength, tabling
 } from '../src/game/poker-beats.ts';
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 
 describe('how long a poker table takes to show what it is told', () =>
 {
@@ -41,19 +42,22 @@ describe('how long a poker table takes to show what it is told', () =>
         expect(POT_FLY + 4 * POT_GAP, 'five discs are still in the air when the beat of the pot is over').toBeLessThan(POT_SPAN);
     });
 
-    it('holds a table that has been shown down before each street of a run-out and before its first pot, and nowhere else', () =>
+    it('holds a table that has been shown down before each street of a run-out and before its first pot, every hand\'s pot on its winner before the next, and nowhere else', () =>
     {
         const shown = [{ e: 'show' }, { e: 'show' }];
         const street = { e: 'board', cards: [1] };
 
         expect([heldBefore(false, { e: 'pot' }), heldBefore(false, street), heldBefore(true, { e: 'show' }), heldBefore(true, { e: 'end' })]).toEqual([null, null, null, null]);
         expect(heldBefore(true, street)).toEqual({ ms: RUN_OUT, least: RUN_OUT_LEAST });
-        expect(heldBefore(true, { e: 'pot' })).toEqual({ ms: SHOW_LINGER, least: SHOW_LEAST });
+        expect(heldBefore(true, { e: 'pot' })).toEqual({ ms: PAUSES.showdown, least: SHOW_LEAST, moment: true });
+        expect([heldBefore(false, { e: 'end' }, { e: 'pot' }), heldBefore(true, { e: 'end' }, { e: 'pot' })], 'a pot was not held on its winner, or held only after a showdown').toEqual([{ ms: PAUSES.pot, least: POT_LEAST, moment: true }, { ms: PAUSES.pot, least: POT_LEAST, moment: true }]);
+        expect(heldBefore(false, { e: 'end' }, { e: 'fold' }), 'a hand that ended with no pot paid was held').toBeNull();
         expect([{ e: 'show' }, street, { e: 'pot' }, { e: 'end' }, { e: 'deal' }].map((move) => tabling(true, move))).toEqual([true, true, false, false, false]);
         expect([{ e: 'show' }, street, { e: 'pot' }].map((move) => tabling(false, move))).toEqual([true, false, false]);
         expect(spanOf([...shown, { e: 'pot' }, { e: 'pot' }], 2) - spanOf(shown, 2) - 2 * spanOf([{ e: 'pot' }], 2), 'the second pot of a hand was held as the first is').toBe(SHOW_LEAST);
         expect(spanOf([...shown, street, street, { e: 'pot' }], 2) - spanOf(shown, 2) - 2 * spanOf([street], 2) - spanOf([{ e: 'pot' }], 2)).toBe(2 * RUN_OUT_LEAST + SHOW_LEAST);
-        expect([RUN_OUT_LEAST < RUN_OUT, SHOW_LEAST < SHOW_LINGER]).toEqual([true, true]);
+        expect(spanOf([{ e: 'fold' }, { e: 'pot' }, { e: 'end' }], 2), 'a hand won by folds was not given its pot on its winner').toBe(TURN + MUCK + MUCK_GAP + POT_SPAN + POT_LEAST);
+        expect([RUN_OUT_LEAST < RUN_OUT, SHOW_LEAST < PAUSES.showdown, POT_LEAST < PAUSES.pot]).toEqual([true, true, true]);
     });
 
     it('deals two cards a seat one after another, and closes the gap so a full table is dealt in the time a deal is allowed', () =>
@@ -98,7 +102,7 @@ describe('how long a poker table takes to show what it is told', () =>
     {
         const hand = [{ e: 'call' }, { e: 'board', cards: [9] }, { e: 'show' }, { e: 'show' }, { e: 'pot' }, { e: 'end' }, { e: 'finish' }];
 
-        expect(spanOf(hand, 2)).toBe((CHIP_FLY + 4 * DISC_GAP) + (GATHER + GATHER_GAP + streetLength(1)) + 2 * (CARD_GAP + TURN) + SHOW_LEAST + POT_SPAN + WIN_AFTER);
+        expect(spanOf(hand, 2)).toBe((CHIP_FLY + 4 * DISC_GAP) + (GATHER + GATHER_GAP + streetLength(1)) + 2 * (CARD_GAP + TURN) + SHOW_LEAST + POT_SPAN + POT_LEAST + WIN_AFTER);
         expect(spanOf([...hand, { e: 'deal' }], 2)).toBe(spanOf(hand, 2) + spanOf([{ e: 'deal' }], 2));
     });
 });

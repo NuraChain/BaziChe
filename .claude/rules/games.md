@@ -4239,10 +4239,16 @@ the order they are played in is `staged`'s.
   the thing to watch when the pot lands. It turns gold when its seat has been paid
   (`winnersOf`).
 - **The table is held to be read** (`heldBefore`, `tabling` in `poker-beats.ts`): 500 ms
-  before each street of a run-out and 2200 ms before the first pot of a hand that was shown
-  down, as `ctx.linger`, so a batch that follows cuts them to 150 and 900. For a reader who
-  is to act they are at their least from the start. Nothing is held when a fold ended the
-  hand. With less motion they are as long: they are time to read, not motion.
+  before each street of a run-out, as `ctx.linger`, which a batch that follows cuts to 150; and
+  two moments, which nothing that follows cuts: the hands shown down `PAUSES.showdown` (3000 ms)
+  before the first pot, and every hand's pot on its winner `PAUSES.pot` (1500 ms) before the
+  next hand is dealt, a hand won by folds included. Only the reader's own press takes them to
+  their least (900 and 400), and a table catching up halves them. The owner, 2026-10-29: "on
+  poker when you win it fast go to the next round and i cannot see the cards". The server gives
+  both back to whoever acts first in the next hand (`Engine.pause`, below), so a reader who is
+  to act sees them in full and loses none of their turn, and the cap that keeps their bar back
+  (`BETWEEN_CAP`) is longer by the same. With less motion they are as long: they are time to
+  read, not motion.
 - **`pot`**: its discs leave the middle for each winner's plate (`POT_FLY` 180, 20 ms apart),
   a split pot to each of its winners at once, side pots one after another. The total drops
   as they leave and each stack counts its share when they land (`air.stacks`, `sharesOf`,
@@ -5543,10 +5549,12 @@ nothing in flight can widen a page the matrix measures.
   showing the present. Under reduced motion a card is a 140ms fade where it lands and is shown after
   the fade; the gather, the deal and the draw are `quiet: 'skip'`, so their foley is heard and no
   copy is made; the "+1" is not made at all.
-- **A trick that ends a batch is a `linger`, not a wait.** `ctx.linger(HOLD, HOLD_MIN)` ends at
-  900ms with nothing behind it and at 450ms, counted from when the trick was taken, when a later
-  batch arrives. A trick with something after it in the same batch waits `holdBefore(next)`: the
-  whole hold before a hand is called or the match ends, the short one before anything else.
+- **A trick is a moment, whatever follows it.** `ctx.linger(HOLD, HOLD_MIN, true)` lies the four
+  cards on the felt `PAUSES.trick` (1100 ms) from when the trick was taken, whether the next lead
+  is in the same batch or arrives in a later one; only the reader's own press takes it to 450. A
+  hand's result is called for `PAUSES.hand` (2600 ms, `TIMING.BANNER`) and the end of the match is
+  held `PAUSES.end` before its result. The server gives a trick and a hand back to whoever plays
+  next (`Engine.pause`). The estimate counts each at its least, as every hold is counted.
 - **A press is answered at once, and hurries what is in front of it.** `playCard` records `sent`
   (the match, the card, the revision), tells the presenter what its echo will cover and queues an
   urgent scene. On an idle felt the scene runs in the same tick. On a busy one what is in front
@@ -5755,6 +5763,21 @@ at twelve times the pace; nothing but its own spec ever called it.
 - **A hold on the felt is `ctx.linger(ms, least)`.** It lasts `ms`, or ends at `least` once
   something that may cut it is waiting or arrives (`cuts`), or at once if it is already past its
   least. At double speed both numbers halve, never under 300 ms. A press takes it to its least.
+- **A moment is `ctx.linger(ms, least, true)`**: something the table has just ENDED, which people
+  have to see (a trick, the hands shown down, a pot on its winner, a hand's result, a roll nobody
+  can play, a game inside a match, the end of the match). Nothing that arrives after it cuts it,
+  in the same batch or a later one; the reader's own press takes it to its least, and a table
+  catching up halves it like any hold. Every board holds the end of a match `PAUSES.end`
+  (2800 ms) before its result card, so a win's confetti, a mated king and its finale, the last pot
+  and the last game's banner are seen before the card covers them (chess holds a resignation, a
+  flag or a draw 700 ms, `END_LEAST`: nothing new is on the board). The owner, 2026-10-29: "when
+  you win that modal popup quaickly so i cannot see that animations or what happen on games".
+- **What a moment holds is given back to whoever plays next.** `backend/src/domains/match/
+  pauses.ts` imports nothing and both halves read it (`PAUSES`); `Engine.pause(events)` says how
+  long the boards hold what an action ended (poker: the showdown and the pot; Hokm: a trick and a
+  hand; backgammon: a game inside the match), and `commit` adds it to the deadline it arms, so a
+  player whose turn begins as the table finishes showing the last hand still has the whole of it.
+  `match-pauses.spec.ts` and `match-clock.db.spec.ts` hold the server's half.
 - **How far behind the table is** (`backlog`) counts what is queued and what the scene in hand has
   left, at the pace it is played and with a hold counted at its least.
 - **A scene that never ends is given up on**: three times its estimate and four seconds on, it is

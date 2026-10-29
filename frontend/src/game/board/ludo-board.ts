@@ -1,3 +1,4 @@
+import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
 import { BLOCK, CELL, GRID, HOME_SCALE, MARGIN, YARD_AT, YARD_SIZE, aimNear, stackSpot } from '../layout.ts';
 import { DIE_PROPERTIES, dieDress } from '../looks/dice.ts';
 import { TRAILS } from '../looks/ludo.ts';
@@ -96,7 +97,7 @@ const HAND_FACE = 5;
 
 const HAND_SEED = 5;
 
-export const WIN_MS = 1300;
+export const WIN_MS = PAUSES.end;
 
 export const WIN_LEAST = 700;
 
@@ -140,7 +141,6 @@ interface Moment
 {
     sight: Sight<Felt>;
     ctx: Ctx;
-    more: boolean;
     seed: number;
 }
 
@@ -1188,7 +1188,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         dieRuns = [stage.animate(holder, [{ rotate: '0deg' }, { rotate: '-8deg' }, { rotate: '8deg' }, { rotate: '-8deg' }, { rotate: '8deg' }, { rotate: '0deg' }], { duration: SPENT_MS, quiet: 'skip' })];
         tell();
         options.onPass?.(beat.seat, beat.face, beat.fate);
-        await moment.ctx.linger(moment.more ? PASS_LEAST : PASS_MS, PASS_LEAST);
+        await moment.ctx.linger(PASS_MS, PASS_LEAST, true);
 
         if (moment.ctx.live())
         {
@@ -1384,7 +1384,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
         if (flecks.length > 0)
         {
-            await ctx.linger(WIN_MS, WIN_LEAST);
+            await ctx.linger(WIN_MS, WIN_LEAST, true);
         }
     };
 
@@ -1736,7 +1736,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
                         return;
                     }
 
-                    await perform(beat, { sight, ctx, more: index < beats.length - 1, seed: hashOf(sight.id, acts[index].rev) });
+                    await perform(beat, { sight, ctx, seed: hashOf(sight.id, acts[index].rev) });
                 }
             }
 

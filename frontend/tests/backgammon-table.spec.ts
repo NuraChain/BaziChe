@@ -13,6 +13,7 @@ import type { Sight } from '../src/game/stage/presenter.ts';
 import { createStage, type Stage } from '../src/game/stage/stage.ts';
 import type { Cue, SoundHandle, endCue } from '../src/game/sound.ts';
 import { START } from '../../backend/src/domains/match/backgammon/board.ts';
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 
 interface Drawn
 {
@@ -701,7 +702,7 @@ describe('what happened, played on the table', () =>
             expect(racking(), 'the checkers were racked under the banner').toBe(false);
             expect(host.querySelectorAll('.man[data-off]')).toHaveLength(15);
 
-            await elapse(GAME_MS - 200);
+            await elapse(PAUSES.game - 200);
 
             expect(flag(), 'the banner came down before its hold was over').not.toBeNull();
             expect(racking()).toBe(false);
@@ -718,13 +719,18 @@ describe('what happened, played on the table', () =>
             expect(director.busy()).toBe(false);
         });
 
-        it('is held a shorter while when something is already waiting behind it', async () =>
+        it('is held its whole while even when something is already waiting behind it', async () =>
         {
             flagged = ['You win the game', 'Gammon · 4 points'];
             won();
             director.enqueue(() => undefined, { cuts: true });
 
             await elapse(400 + PICK_MS + 60 + GAME_LEAST + FLAG_MS + 120);
+
+            expect(flag(), 'the game was taken down before it could be read, because something waited behind it').not.toBeNull();
+            expect(racking()).toBe(false);
+
+            await elapse(GAME_MS - GAME_LEAST);
 
             expect(flag()).toBeNull();
             expect(racking()).toBe(true);
@@ -741,7 +747,11 @@ describe('what happened, played on the table', () =>
             expect(flag()).not.toBeNull();
             expect(cues).toContain('hand-won');
 
-            await elapse(LAST_MS + FLAG_MS + 200);
+            await elapse(PAUSES.end - 200);
+
+            expect(flag(), 'the last game was taken down before the end of a match had been seen').not.toBeNull();
+
+            await elapse(200 + FLAG_MS + 200);
 
             expect(flag()).toBeNull();
             expect(racking()).toBe(false);
@@ -1018,13 +1028,17 @@ describe('what happened, played on the table', () =>
         expect(dice().map((die) => die.dataset.face)).toEqual(['3', '1']);
     });
 
-    it('cuts that hold to its least when the next thing is already waiting', async () =>
+    it('holds that roll its whole while even when the next thing is already waiting', async () =>
     {
         table.reset(sight(felt()));
         play([act(6, 0, [{ e: 'roll', seat: 0, dice: [6, 6] }, { e: 'pass', seat: 0 }])], sight(felt(), 6));
         director.enqueue(() => undefined, { cuts: true });
 
         await elapse(1300 + PASS_LEAST + PICK_MS + 100);
+
+        expect(director.busy(), 'a roll nobody could play was cut short by what waited behind it').toBe(true);
+
+        await elapse(PASS_MS - PASS_LEAST);
 
         expect(director.busy()).toBe(false);
     });

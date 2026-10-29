@@ -25,6 +25,7 @@ import {
     patchOf,
     pointAt
 } from '../src/game/backgammon-layout.ts';
+import { LAST_MS } from '../src/game/board/backgammon-table.ts';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetRuntime, runtime, setRuntime } from '../src/lib/runtime.ts';
 import '../src/locales/app-catalogue.ts';
@@ -678,7 +679,7 @@ describe('the backgammon table on the page', () =>
 
         expect(container.querySelector('.table-result')).toBeNull();
 
-        await elapse(3000);
+        await elapse(LAST_MS + 1700);
 
         expect(container.querySelector('.table-result')).not.toBeNull();
         expect(dice(container)).toEqual([]);
@@ -913,7 +914,7 @@ describe('the backgammon table on the page', () =>
         const clock = runtime().clock as ManualClock;
         let early = 0;
 
-        for (let step = 0; step < 300; step += 1)
+        for (let step = 0; step < (LAST_MS + 1700) / 10; step += 1)
         {
             clock.advance(10);
             await flush();
@@ -1215,7 +1216,7 @@ describe('a game that ends on the board', () =>
         expect(reads(table.container, 'omid.k', 'Won'), 'a plate said who had won the match while the game was still being called').toBe(false);
         expect(reads(table.container, 'You', 'Lost')).toBe(false);
 
-        await elapse(2400);
+        await elapse(LAST_MS + 1100);
 
         expect(flag(table.container)).toBeNull();
         expect(table.container.querySelector('.table-result')).not.toBeNull();

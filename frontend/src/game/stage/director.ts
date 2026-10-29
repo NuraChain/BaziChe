@@ -5,7 +5,12 @@ export interface Ctx
 {
     readonly stage: Stage;
     live(): boolean;
-    linger(ms: number, least: number): Promise<void>;
+    /**
+     * Holds the table still for `ms`, cut to `least` by a later answer or by the reader's own press.
+     * A `moment` is something the table has just ended (a trick, a showdown, a game), which people
+     * have to see: only the reader's own press cuts it, never what arrives after it.
+     */
+    linger(ms: number, least: number, moment?: boolean): Promise<void>;
 }
 
 export type Scene = (ctx: Ctx) => Promise<void> | void;
@@ -32,6 +37,7 @@ interface Hold
 {
     started: number;
     short: number;
+    moment: boolean;
     cut(): void;
     drop(): void;
 }
@@ -164,7 +170,7 @@ export function createDirector(stage: Stage, clock: Clock, onError: (error: unkn
         }
     };
 
-    const linger = (entry: Entry, round: number, ms: number, least: number) => new Promise<void>((resolve) =>
+    const linger = (entry: Entry, round: number, ms: number, least: number, moment: boolean) => new Promise<void>((resolve) =>
     {
         if (round !== generation)
         {
@@ -204,8 +210,8 @@ export function createDirector(stage: Stage, clock: Clock, onError: (error: unkn
             cancel = clock.after(left, end);
         };
 
-        entry.hold = { started, short, cut: () => until(short), drop: () => cancel() };
-        until(entry.rushed || queue.some((next) => next.cuts) ? short : full);
+        entry.hold = { started, short, moment, cut: () => until(short), drop: () => cancel() };
+        until(entry.rushed || (!moment && queue.some((next) => next.cuts)) ? short : full);
     });
 
     const pump = async () =>
@@ -227,7 +233,7 @@ export function createDirector(stage: Stage, clock: Clock, onError: (error: unkn
                 await entry.scene({
                     stage,
                     live: () => round === generation,
-                    linger: (ms, least) => linger(entry, round, ms, least)
+                    linger: (ms, least, moment) => linger(entry, round, ms, least, moment === true)
                 });
             }
             catch (error)
@@ -281,7 +287,7 @@ export function createDirector(stage: Stage, clock: Clock, onError: (error: unkn
 
                 running.hold?.cut();
             }
-            else if (entry.cuts)
+            else if (entry.cuts && running?.hold?.moment !== true)
             {
                 running?.hold?.cut();
             }

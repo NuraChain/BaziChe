@@ -1,3 +1,4 @@
+import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
 import { SIZE, SQUARE, coordinatesOf, spotOf, type Foot } from '../chess-layout.ts';
 import { boardOf, checkOf, passedOf, rookOf, step, type Felt, type Man, type Told } from '../chess-felt.ts';
 import { colourOf, kindOf, opponent, pieceOf, type Colour, type Kind, type Piece } from '../../../../backend/src/domains/match/chess/board.ts';
@@ -70,6 +71,9 @@ export const PROMOTE_MS = 280;
 
 export const TIP_MS = 560;
 
+/** How long a game's end that leaves nothing new on the board (a resignation, a flag, a draw) is held before its result. */
+export const END_LEAST = 700;
+
 export const MEND_MS = 260;
 
 const GLIDE_BASE = 120;
@@ -133,7 +137,7 @@ export function costOf(told: Told)
 {
     if (told.e === 'finish')
     {
-        return told.reason === 'checkmate' ? TIP_MS : 0;
+        return (told.reason === 'checkmate' ? TIP_MS : 0) + END_LEAST;
     }
 
     if (told.e !== 'move')
@@ -800,6 +804,11 @@ export function createChessTable(options: ChessOptions): ChessTable
                         await mend(sight.view);
 
                         return;
+                    }
+
+                    if (move.e === 'finish' && ctx.live())
+                    {
+                        await ctx.linger(move.reason === 'checkmate' ? PAUSES.end : END_LEAST, END_LEAST, true);
                     }
                 }
             }

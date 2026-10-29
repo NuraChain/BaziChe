@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
-import { CARRY, COLLECT_GAP, DRAW_GAP, LIFT, NAMING, ROUND, SHUFFLE, TURN, TURN_GAP, collectLength, dealGap, dealLength, dealtIn, gatherLength, gatherOrder, holdBefore, openLength, openingPackets, restPackets, spanOf } from '../src/game/hokm-beats.ts';
+import { BANNER_LEAST, CARRY, COLLECT_GAP, DRAW_GAP, LIFT, NAMING, ROUND, SHUFFLE, TURN, TURN_GAP, collectLength, dealGap, dealLength, dealtIn, gatherLength, gatherOrder, openLength, openingPackets, restPackets, spanOf } from '../src/game/hokm-beats.ts';
 import type { Told } from '../src/game/hokm-felt.ts';
 import { TIMING } from '../src/game/motion.ts';
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 
 const card = (seat: number, at: number): Told => ({ e: 'card', seat, card: at });
 
@@ -31,10 +32,10 @@ describe('how long a felt takes to show what happened', () =>
         expect(spanOf(TRICK, 4, 0)).toBe(TAKEN);
     });
 
-    it('counts the whole hold and the gather when the hand ends on that trick, and the short hold when a card follows', () =>
+    it('counts a trick\'s hold at its least and the gather, whatever follows it, and a hand\'s result at its least', () =>
     {
-        expect(spanOf([...TRICK, { e: 'hand', side: 0, points: 1, kot: false }], 4, 0)).toBe(TAKEN + TIMING.HOLD + gatherLength(4) + TIMING.BANNER);
-        expect(spanOf([...TRICK, { e: 'finish', side: 0 }], 4, 0)).toBe(TAKEN + TIMING.HOLD + gatherLength(4));
+        expect(spanOf([...TRICK, { e: 'hand', side: 0, points: 1, kot: false }], 4, 0)).toBe(TAKEN + TIMING.HOLD_MIN + gatherLength(4) + BANNER_LEAST);
+        expect(spanOf([...TRICK, { e: 'finish', side: 0 }], 4, 0)).toBe(TAKEN + TIMING.HOLD_MIN + gatherLength(4));
         expect(spanOf([...TRICK, card(2, 30)], 4, 0)).toBe(TAKEN + TIMING.HOLD_MIN + gatherLength(4) + TIMING.FLY_THEIRS);
     });
 
@@ -85,8 +86,8 @@ describe('how long a felt takes to show what happened', () =>
     {
         const ending: Told[] = [...TRICK, { e: 'hand', side: 0, points: 1, kot: false }, { e: 'deal', hakem: 0 }];
 
-        expect(spanOf(ending, 4, null)).toBe(3 * TIMING.SEQ_GAP + TIMING.FLY_THEIRS + TIMING.SETTLE + TIMING.HOLD + gatherLength(4) + TIMING.BANNER + collectLength(4, false) + CARRY + SHUFFLE + TIMING.DEAL_FLY);
-        expect(spanOf(ending, 4, 0), 'the new Hâkem\'s five turn up at the end of it').toBe(TAKEN + TIMING.HOLD + gatherLength(4) + TIMING.BANNER + collectLength(4, true) + CARRY + SHUFFLE + TIMING.DEAL_FLY + openLength(5));
+        expect(spanOf(ending, 4, null)).toBe(3 * TIMING.SEQ_GAP + TIMING.FLY_THEIRS + TIMING.SETTLE + TIMING.HOLD_MIN + gatherLength(4) + BANNER_LEAST + collectLength(4, false) + CARRY + SHUFFLE + TIMING.DEAL_FLY);
+        expect(spanOf(ending, 4, 0), 'the new Hâkem\'s five turn up at the end of it').toBe(TAKEN + TIMING.HOLD_MIN + gatherLength(4) + BANNER_LEAST + collectLength(4, true) + CARRY + SHUFFLE + TIMING.DEAL_FLY + openLength(5));
         expect(spanOf([], 4, 0)).toBe(0);
     });
 
@@ -102,8 +103,8 @@ describe('how long a felt takes to show what happened', () =>
         expect(collectLength(1, false), 'one seat is one packet, and nothing waits for another').toBe(TIMING.DEAL_FLY);
         expect(collectLength(4, true), 'a reader closes the hand first, which takes longer than the others take to leave').toBe(TIMING.DEAL_FLY + TURN);
         expect(collectLength(2, true)).toBe(TIMING.DEAL_FLY + TURN);
-        expect(spanOf([called, dealt], 4, null)).toBe(TIMING.BANNER + collectLength(4, false) + CARRY + SHUFFLE + TIMING.DEAL_FLY);
-        expect(spanOf([called, dealt], 2, 1)).toBe(TIMING.BANNER + collectLength(2, true) + CARRY + SHUFFLE + dealGap(2) + TIMING.DEAL_FLY + openLength(5));
+        expect(spanOf([called, dealt], 4, null)).toBe(BANNER_LEAST + collectLength(4, false) + CARRY + SHUFFLE + TIMING.DEAL_FLY);
+        expect(spanOf([called, dealt], 2, 1)).toBe(BANNER_LEAST + collectLength(2, true) + CARRY + SHUFFLE + dealGap(2) + TIMING.DEAL_FLY + openLength(5));
         expect(spanOf([called, dealt, named, called, dealt], 4, null), 'the second hand of a batch was not gathered').toBe(2 * spanOf([called, dealt], 4, null) + spanOf([named], 4, null));
         expect(spanOf([dealt, dealt], 4, null), 'a deal with no hand before it was given a gather').toBe(2 * (SHUFFLE + TIMING.DEAL_FLY));
         expect(spanOf([called, dealt, dealt], 4, null), 'one hand was gathered twice').toBe(spanOf([called, dealt], 4, null) + SHUFFLE + TIMING.DEAL_FLY);
@@ -128,12 +129,9 @@ describe('a trick on its way to whoever took it', () =>
         expect(gatherLength(0)).toBe(TIMING.GATHER);
     });
 
-    it('lies there for the whole hold before a hand is called or the match ends, and briefly before anything else', () =>
+    it('lies there as long as the server gives back for a trick, and a hand\'s result as long as it gives back for a hand, shorter only for a reader who presses on', () =>
     {
-        expect(holdBefore({ e: 'hand', side: 0, points: 1, kot: false })).toBe(TIMING.HOLD);
-        expect(holdBefore({ e: 'finish', side: 0 })).toBe(TIMING.HOLD);
-        expect(holdBefore(card(2, 30))).toBe(TIMING.HOLD_MIN);
-        expect(holdBefore({ e: 'deal', hakem: 0 })).toBe(TIMING.HOLD_MIN);
+        expect([TIMING.HOLD, TIMING.BANNER]).toEqual([PAUSES.trick, PAUSES.hand]);
         expect(TIMING.HOLD_MIN).toBeLessThan(TIMING.HOLD);
     });
 });

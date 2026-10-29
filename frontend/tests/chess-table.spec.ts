@@ -4,7 +4,7 @@ import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import type { Haptic } from '../src/lib/haptics.ts';
 import { SIZE, SQUARE, spotOf, type Foot } from '../src/game/chess-layout.ts';
 import { feltOf, type Told } from '../src/game/chess-felt.ts';
-import { GLIDE_MOST, HISTORY, KNIGHT_MS, PROMOTE_MS, ROOK_MS, TAKE_MS, TIP_MS, costOf, createChessTable, type ChessFacts, type ChessTable, type Lay } from '../src/game/board/chess-table.ts';
+import { END_LEAST, GLIDE_MOST, HISTORY, KNIGHT_MS, PROMOTE_MS, ROOK_MS, TAKE_MS, TIP_MS, costOf, createChessTable, type ChessFacts, type ChessTable, type Lay } from '../src/game/board/chess-table.ts';
 import { createDirector, type Director } from '../src/game/stage/director.ts';
 import type { Act } from '../src/game/stage/feed.ts';
 import { LAYER } from '../src/game/stage/layers.ts';
@@ -12,6 +12,7 @@ import type { Sight } from '../src/game/stage/presenter.ts';
 import { createStage, type Stage } from '../src/game/stage/stage.ts';
 import type { Cue, SoundHandle } from '../src/game/sound.ts';
 import { parseFen, squareNamed } from '../../backend/src/domains/match/chess/board.ts';
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 
 interface Drawn
 {
@@ -395,7 +396,11 @@ describe('a chess move, played', () =>
             play([act(6, 1, [finish])], sight(START_LAY, 6, seat));
             await elapse(100);
 
-            return cues;
+            const heard = [...cues];
+
+            await elapse(END_LEAST);
+
+            return heard;
         };
 
         expect(await ended({ e: 'finish', reason: 'resign', winner: 0 }, 0)).toEqual(['win']);
@@ -421,6 +426,15 @@ describe('a chess move, played', () =>
         expect(king.hasAttribute('data-tipped')).toBe(true);
         expect(of(king).at(-1)?.frames.at(-1)?.rotate).toBe('-76deg');
         expect(cues.slice(-2), 'the king is heard falling, from chess\'s own pack, and then the loss').toEqual(['king-fall', 'lose']);
+        expect(director.busy(), 'the table was done the moment the king was down, so its result would cover it').toBe(true);
+
+        await elapse(PAUSES.end - 600);
+
+        expect(director.busy(), 'the mate was let go before the end of a match had been seen').toBe(true);
+
+        await elapse(600);
+
+        expect(director.busy(), 'the end of the game was held past its own time').toBe(false);
         expect(table.same(sight(lay('rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3', { mated: 'w', last: { from: sq('d8'), to: sq('h4') } })))).toBe(true);
     });
 
@@ -448,7 +462,8 @@ describe('a chess move, played', () =>
         expect(costOf(move('g1', 'f3', 'N'))).toBe(KNIGHT_MS);
         expect(costOf(move('e1', 'g1', 'K', { castle: 'k' }))).toBeGreaterThan(GLIDE_MOST);
         expect(costOf(move('e7', 'e8', 'P', { promotion: 'q' }))).toBe(GLIDE_MOST + PROMOTE_MS);
-        expect(costOf({ e: 'finish', reason: 'checkmate', winner: 1 })).toBe(TIP_MS);
+        expect(costOf({ e: 'finish', reason: 'checkmate', winner: 1 }), 'a mate is the king laid down and the end held at its least').toBe(TIP_MS + END_LEAST);
+        expect(costOf({ e: 'finish', reason: 'resign', winner: 0 }), 'an end that leaves nothing new on the board is held a beat').toBe(END_LEAST);
         expect(costOf({ e: 'offer', seat: 0 })).toBe(0);
         expect(HISTORY).toBeGreaterThan(GLIDE_MOST * 4);
     });

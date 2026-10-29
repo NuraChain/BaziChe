@@ -5,6 +5,7 @@ import { createSignal } from 'azerothjs';
 import { dealerOf } from '../../backend/src/domains/match/hokm/scoring.ts';
 import HokmBoard from '../src/components/games/hokm-board.component.azeroth';
 import { RESULT_OUT, RESULT_WAIT } from '../src/components/games/table-result.component.azeroth';
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 import { DRAW_GAP, LIFT, NAMING, PLUS, SHUFFLE, TURN, TURN_GAP, dealGap, gatherLength } from '../src/game/hokm-beats.ts';
 import { EASE, TIMING } from '../src/game/motion.ts';
 import { FAST, HASTE } from '../src/game/stage/director.ts';
@@ -415,14 +416,14 @@ describe('the table in motion', () =>
         expect(still.container.querySelector('.board-flight')?.children.length).toBe(0);
     });
 
-    it('gathers a held trick after the short hold when the next lead arrives in a later batch', async () =>
+    it('holds a trick its whole time when the next lead arrives in a later batch, and gathers it then', async () =>
     {
         const { container, send } = await mounted(playing());
 
         send(TRICK);
         await elapse(TOOK);
         send([card(8, 2, 30)]);
-        await elapse(TIMING.HOLD_MIN - 1);
+        await elapse(TIMING.HOLD - 1);
 
         expect(container.querySelectorAll('.hokm-trick').length, 'the trick was swept away before anybody could read it').toBe(4);
 
@@ -474,14 +475,14 @@ describe('the table in motion', () =>
         }
     });
 
-    it('holds a trick only briefly when the next lead is already known', async () =>
+    it('holds a trick its whole time when the next lead is already known', async () =>
     {
         const { container, send } = await mounted(playing());
 
         send([...TRICK, card(8, 2, 30)]);
-        await elapse(TOOK + TIMING.HOLD_MIN - 1);
+        await elapse(TOOK + TIMING.HOLD - 1);
 
-        expect(container.querySelectorAll('.hokm-trick').length).toBe(4);
+        expect(container.querySelectorAll('.hokm-trick').length, 'the trick was swept away early because the next lead was already known').toBe(4);
 
         await elapse(1);
 
@@ -517,6 +518,31 @@ describe('the table in motion', () =>
         await elapse(TIMING.BANNER);
 
         expect(container.querySelector('.hokm-banner')).toBeNull();
+    });
+
+    it('holds the end of the match on the table a while after the last hand is called, and only then shows the result', async () =>
+    {
+        const { container, send } = await mounted(playing());
+        const ended: Partial<MatchView> = {
+            finishedAt: new Date(900_000).toISOString(),
+            outcome: 'won',
+            winner: 0,
+            players: [0, 1, 2, 3].map((seat) => ({ seat, who: `سارا${ seat }`, timeouts: 0, result: seat % 2 === 0 ? 'won' : 'lost' })) as MatchView['players']
+        };
+
+        send([...TRICK.slice(0, 3), act(7, 0, { e: 'card', seat: 0, card: 4 }, { e: 'trick', seat: 2 }, { e: 'hand', side: 0, points: 1, kot: false }, { e: 'finish', side: 0 })], { plays: [40, 41] }, ended);
+        await elapse(TOOK + TIMING.HOLD + gatherLength(4) + TIMING.BANNER + 200, 5);
+
+        expect(container.querySelector('.table-result'), 'the result came the moment the last hand had been called').toBeNull();
+        expect(container.querySelector('.hokm-stage')?.getAttribute('data-presenting')).toBe('true');
+
+        await elapse(PAUSES.end - 600, 5);
+
+        expect(container.querySelector('.table-result'), 'the result covered the table before the end of a match had been seen').toBeNull();
+
+        await elapse(600, 5);
+
+        expect(container.querySelector('.table-result')).not.toBeNull();
     });
 
     it('keeps the result, who won and the row under the table back until the last trick has been played out', async () =>

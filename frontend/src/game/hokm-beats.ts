@@ -30,6 +30,9 @@ export const BANNER_IN = 360;
 
 export const BANNER_OUT = 200;
 
+/** A hand's result at its shortest, when the reader presses on. */
+export const BANNER_LEAST = 1400;
+
 export const PLUS = 900;
 
 export const gatherOrder = (cards: readonly Laid[], took: number): Laid[] =>
@@ -70,8 +73,6 @@ export function dealtIn(cards: readonly number[], sizes: readonly number[], seed
     return sizes.map((size, nth) => order.slice(starts[nth], starts[nth] + size));
 }
 
-export const holdBefore = (next: Told) => (next.e === 'hand' || next.e === 'finish' ? TIMING.HOLD : TIMING.HOLD_MIN);
-
 export function spanOf(moves: readonly Told[], seats: number, mine: number | null)
 {
     let at = 0;
@@ -94,11 +95,11 @@ export function spanOf(moves: readonly Told[], seats: number, mine: number | nul
 
         if (move.e === 'trick')
         {
-            at += TIMING.SETTLE + (next === undefined ? 0 : holdBefore(next) + gatherLength(seats));
+            at += TIMING.SETTLE + (next === undefined ? 0 : TIMING.HOLD_MIN + gatherLength(seats));
         }
         else if (move.e === 'hand')
         {
-            at += TIMING.BANNER;
+            at += BANNER_LEAST;
             ended = true;
         }
         else if (move.e === 'deal')

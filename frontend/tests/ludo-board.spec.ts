@@ -22,6 +22,7 @@ import { ludoEngine } from '../../backend/src/domains/match/engines/ludo.ts';
 import { apply } from '../../backend/src/domains/match/ludo/engine.ts';
 import { FINISHED, RING_STEPS, YARD, cellAt, coloursFor, ringIndex, type LudoColour } from '../../backend/src/domains/match/ludo/board.ts';
 import type { EngineAction, LudoState } from '../../backend/src/domains/match/ludo/state.ts';
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 
 interface Drawn
 {
@@ -669,9 +670,9 @@ describe('a ludo move, played', () =>
         expect(lastFacts().home[0]).toBe(4);
         expect(director.busy(), 'the table was done while its confetti was still in the air').toBe(true);
 
-        await elapse(WIN_MS - 200);
+        await elapse(PAUSES.end - 200);
 
-        expect(director.busy()).toBe(true);
+        expect(director.busy(), 'the last pawn home was let go before the end of a match had been seen').toBe(true);
 
         await elapse(2000);
 
@@ -680,7 +681,7 @@ describe('a ludo move, played', () =>
         expect(table.same(sight(state))).toBe(true);
     });
 
-    it('holds the end no longer than its least when something waits, and not at all when nothing is thrown', async () =>
+    it('holds the end its whole time when something waits, and not at all when nothing is thrown', async () =>
     {
         const before = standing([[FINISHED, FINISHED, FINISHED, 54], EMPTY], 2);
         const { state, act } = stepped(before, { kind: 'move', seat: 0, piece: 3 });
@@ -691,7 +692,11 @@ describe('a ludo move, played', () =>
         director.enqueue(() => undefined, { cuts: true });
         await elapse(WIN_LEAST + 20);
 
-        expect(director.busy(), 'the celebration held up what was waiting behind it').toBe(false);
+        expect(director.busy(), 'the end was cut short by what waited behind it').toBe(true);
+
+        await elapse(WIN_MS - WIN_LEAST);
+
+        expect(director.busy()).toBe(false);
 
         still = true;
         table.reset(sight(before));
@@ -1280,7 +1285,7 @@ describe('a ludo roll, played', () =>
         expect(passes).toEqual([[0, 6, 'wasted']]);
     });
 
-    it('cuts the hold on a spent roll to its least when more of the same batch waits', async () =>
+    it('holds a spent roll its whole time even when more of the same batch waits', async () =>
     {
         const from = standing([EMPTY, [10, YARD, YARD, YARD]], null);
         const first = stepped(from, { kind: 'roll', seat: 0, die: 3 });
@@ -1290,7 +1295,11 @@ describe('a ludo roll, played', () =>
         play([first.act, second.act], sight(second.state));
         await elapse(thrown(first.act).duration + PASS_LEAST + 60);
 
-        expect(die().style.translate, 'the next roll waited out the whole hold').toBe(spotOf('yellow'));
+        expect(cube().hasAttribute('data-spent'), 'a roll nobody could play was taken away before it could be read').toBe(true);
+
+        await elapse(PASS_MS - PASS_LEAST);
+
+        expect(die().style.translate, 'the next roll did not come once the hold was over').toBe(spotOf('yellow'));
         expect(cube().hasAttribute('data-spent')).toBe(false);
         expect(director.busy()).toBe(true);
     });

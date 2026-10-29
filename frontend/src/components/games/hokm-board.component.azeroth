@@ -12,11 +12,12 @@ import { FACE_KEY, SUITS, SUIT_ICON, arrangeHand, rankOf, suitOf, type Suit } fr
 import { aroundTable, type Chair } from './table-seats.ts';
 import { hokmOf } from '../../data/match.ts';
 import { coachOf, outcomeOf } from '../../game/helpers/hokm.ts';
-import { BANNER_IN, BANNER_OUT, CARRY, COLLECT_GAP, DRAW_GAP, LIFT, NAMING, PLUS, SHUFFLE, TURN, TURN_GAP, dealGap, dealtIn, gatherOrder, holdBefore, openingPackets, restPackets, spanOf, type Packet } from '../../game/hokm-beats.ts';
+import { BANNER_IN, BANNER_LEAST, BANNER_OUT, CARRY, COLLECT_GAP, DRAW_GAP, LIFT, NAMING, PLUS, SHUFFLE, TURN, TURN_GAP, dealGap, dealtIn, gatherOrder, openingPackets, restPackets, spanOf, type Packet } from '../../game/hokm-beats.ts';
 import { EMPTY, HISTORY, before, feltOf, sameAs, step, unplay, type Felt, type Laid, type Told } from '../../game/hokm-felt.ts';
 import { cardsOf, dressCards, lean, playAt, unlean } from '../../game/looks/cards.ts';
 import { heardAt, wornOf } from '../../game/looks/table.ts';
 import { EASE, TIMING, centreOf, flightFrames, outside, rectIn, type Rect } from '../../game/motion.ts';
+import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
 import { createSound, endCue, type SoundHandle } from '../../game/sound.ts';
 import { anchor, cardAt, cardNode, drawn, stackNode, turnNode } from '../../game/stage/cards.ts';
 import { hashOf } from '../../game/stage/curves.ts';
@@ -1209,7 +1210,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
         ], { duration: PLUS, easing: 'ease-out', fill: 'both', landed: () => plus.remove() });
     };
 
-    const take = async (seat: number, next: Told | undefined, ctx: Ctx) =>
+    const take = async (seat: number, ctx: Ctx) =>
     {
         const cards = gatherOrder(held.cards, seat);
         const ours = withMe(sideAt(seat));
@@ -1221,7 +1222,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             haptic('select');
         }
 
-        await (next === undefined ? ctx.linger(TIMING.HOLD, TIMING.HOLD_MIN) : ctx.stage.wait(holdBefore(next)));
+        await ctx.linger(TIMING.HOLD, TIMING.HOLD_MIN, true);
 
         const plate = plateOf(seat);
         const to = plate === null || layer === null ? null : rectIn(layer, plate);
@@ -1297,7 +1298,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             ctx.stage.animate(sign, kot ? KOT_IN : SIGN_IN, { duration: BANNER_IN, easing: EASE.pop });
         }
 
-        await ctx.stage.wait(TIMING.BANNER - BANNER_OUT);
+        await ctx.linger(TIMING.BANNER - BANNER_OUT, BANNER_LEAST - BANNER_OUT, true);
 
         if (sign !== null)
         {
@@ -1923,7 +1924,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             if (move.e === 'trick' && move.seat !== undefined)
             {
                 await ctx.stage.wait(TIMING.SETTLE);
-                await take(move.seat, next, ctx);
+                await take(move.seat, ctx);
 
                 continue;
             }
@@ -1948,6 +1949,8 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                 {
                     haptic('win');
                 }
+
+                await ctx.linger(PAUSES.end, BANNER_LEAST, true);
 
                 continue;
             }

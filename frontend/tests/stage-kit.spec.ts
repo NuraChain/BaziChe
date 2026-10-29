@@ -748,7 +748,7 @@ describe('the director', () =>
 
 describe('a hold on the felt', () =>
 {
-    const held = (cue: { fast?: boolean } = {}, ms = 900, least = 450) =>
+    const held = (cue: { fast?: boolean } = {}, ms = 900, least = 450, moment = false) =>
     {
         const { stage, clock, elapse } = rig();
         const director = createDirector(stage, clock);
@@ -756,7 +756,7 @@ describe('a hold on the felt', () =>
 
         director.enqueue(async (ctx) =>
         {
-            await ctx.linger(ms, least);
+            await ctx.linger(ms, least, moment);
             mark('held');
         }, { ...cue, estimate: 1000 });
 
@@ -853,6 +853,58 @@ describe('a hold on the felt', () =>
         short.director.enqueue(() => undefined, { cuts: true });
         await short.elapse(900);
         expect(short.seen).toEqual([['held', 200]]);
+    });
+
+    it('holds a moment whole whatever arrives behind it, before its least or after', async () =>
+    {
+        const early = held({}, 900, 450, true);
+
+        await early.elapse(200);
+        early.director.enqueue(() => undefined, { cuts: true });
+        await early.elapse(700);
+        expect(early.seen, 'a moment was cut by an answer that came after it').toEqual([['held', 900]]);
+
+        const late = held({}, 900, 450, true);
+
+        await late.elapse(600);
+        late.director.enqueue(() => undefined, { cuts: true });
+        await late.elapse(300);
+        expect(late.seen).toEqual([['held', 900]]);
+    });
+
+    it('holds a moment whole when what may cut a hold was already waiting', async () =>
+    {
+        const { stage, clock, elapse } = rig();
+        const director = createDirector(stage, clock);
+        const { seen, mark } = timed(clock);
+
+        director.enqueue(async (ctx) =>
+        {
+            await ctx.stage.wait(100);
+            await ctx.linger(900, 450, true);
+            mark('held');
+        });
+        director.enqueue(() => undefined, { cuts: true });
+
+        await elapse(1000);
+
+        expect(seen).toEqual([['held', 1000]]);
+    });
+
+    it('takes a moment to its least for the reader\'s own press, and halves it at double speed', async () =>
+    {
+        const pressed = held({}, 900, 450, true);
+
+        await pressed.elapse(100);
+        pressed.director.enqueue(() => pressed.mark('pressed'), { urgent: true });
+        await pressed.elapse(400);
+        expect(pressed.seen).toEqual([['held', 450], ['pressed', 450]]);
+
+        const behind = held({ fast: true }, 900, 450, true);
+
+        behind.director.enqueue(() => undefined, { cuts: true });
+        await behind.elapse(900);
+        expect(behind.seen, 'a table catching up held a moment at its whole length').toEqual([['held', 900 / FAST]]);
     });
 
     it('counts for no more than its least when the next thing asks how far behind the table is', async () =>

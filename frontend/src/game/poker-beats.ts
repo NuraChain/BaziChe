@@ -1,3 +1,5 @@
+import { PAUSES } from '../../../backend/src/domains/match/pauses.ts';
+
 export const CHIP_FLY = 300;
 
 export const DISC_GAP = 45;
@@ -44,9 +46,9 @@ export const POT_GAP = 20;
 
 export const POT_SPAN = 300;
 
-export const SHOW_LINGER = 2200;
-
 export const SHOW_LEAST = 900;
+
+export const POT_LEAST = 400;
 
 export const RUN_OUT = 500;
 
@@ -56,7 +58,8 @@ export const RACK = 320;
 
 export const WIN_AFTER = 400;
 
-export const BETWEEN_CAP = 2500;
+/** How long the reader to act may be kept from their bar while the table finishes a hand: what the server gives back for the hand, and as long again as a deal takes. */
+export const BETWEEN_CAP = PAUSES.showdown + PAUSES.pot + 2500;
 
 const MOST_DISCS = 5;
 
@@ -74,16 +77,24 @@ export interface Hold
 {
     ms: number;
     least: number;
+    moment?: true;
 }
 
 const BEFORE_STREET: Hold = { ms: RUN_OUT, least: RUN_OUT_LEAST };
 
-const BEFORE_POT: Hold = { ms: SHOW_LINGER, least: SHOW_LEAST };
+const BEFORE_POT: Hold = { ms: PAUSES.showdown, least: SHOW_LEAST, moment: true };
+
+const AFTER_POT: Hold = { ms: PAUSES.pot, least: POT_LEAST, moment: true };
 
 export const tabling = (shown: boolean, move: Beat) => move.e === 'show' || (shown && move.e === 'board');
 
-export function heldBefore(shown: boolean, move: Beat)
+export function heldBefore(shown: boolean, move: Beat, previous?: Beat)
 {
+    if (move.e === 'end' && previous?.e === 'pot')
+    {
+        return AFTER_POT;
+    }
+
     if (!shown || (move.e !== 'board' && move.e !== 'pot'))
     {
         return null;
@@ -162,11 +173,13 @@ export function spanOf(moves: readonly Beat[], seats: number)
 {
     let shown = false;
     let span = 0;
+    let previous: Beat | undefined;
 
     for (const move of moves)
     {
-        span += (heldBefore(shown, move)?.least ?? 0) + spanOne(move, seats);
+        span += (heldBefore(shown, move, previous)?.least ?? 0) + spanOne(move, seats);
         shown = tabling(shown, move);
+        previous = move;
     }
 
     return span;

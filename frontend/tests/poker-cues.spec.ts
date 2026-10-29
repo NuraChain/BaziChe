@@ -9,6 +9,7 @@ import { useLocale } from '../src/stores/locale.store.ts';
 import { useBoard } from '../src/stores/match.store.ts';
 import { useSettings } from '../src/stores/settings.store.ts';
 import { POT_FLY, POT_GAP, POT_SPAN } from '../src/game/poker-beats.ts';
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 import type { MatchView } from '../src/api.ts';
 import { BLINDS, EVERYBODY, elapse, heard, match, places, pot, rows, seated, stack, told } from './poker-mounted.ts';
 
@@ -241,9 +242,9 @@ describe('what a poker table sounds like', () =>
         expect(sounds.heard, 'the chips landed in silence').toEqual(['card-gather', 'chips-gather', 'hand-won', 'chips-stack']);
         expect(sounds.felt).toEqual(['hand']);
 
-        await elapse(POT_SPAN - POT_FLY - POT_GAP - 10);
+        await elapse(POT_SPAN + PAUSES.pot - POT_FLY - POT_GAP - 10);
 
-        expect(sounds.heard, 'the next hand was shuffled on top of the chips').toEqual(['card-gather', 'chips-gather', 'hand-won', 'chips-stack']);
+        expect(sounds.heard, 'the next hand was shuffled on top of the chips, or before the pot could be seen on its winner').toEqual(['card-gather', 'chips-gather', 'hand-won', 'chips-stack']);
 
         await elapse(10);
 

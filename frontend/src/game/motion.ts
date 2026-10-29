@@ -1,3 +1,5 @@
+import { PAUSES } from '../../../backend/src/domains/match/pauses.ts';
+
 export interface Rect
 {
     x: number;
@@ -35,14 +37,14 @@ export const TIMING = {
     DEAL_FLY: 260,
     DEAL_GAP_MAX: 110,
     DEAL_TOTAL_MAX: 1300,
-    HOLD: 900,
+    HOLD: PAUSES.trick,
     HOLD_MIN: 450,
     GATHER: 420,
     GATHER_GAP: 35,
     SEQ_GAP: 180,
     FADE: 140,
     SETTLE: 120,
-    BANNER: 1400
+    BANNER: PAUSES.hand
 } as const;
 
 export const centreOf = (rect: Rect): { x: number; y: number } => ({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });

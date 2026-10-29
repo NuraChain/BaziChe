@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { cleanup, fire } from '@azerothjs/testing';
 
 import { BETWEEN_CAP, BOARD_GAP, BOARD_OUT, CARD_FLY, COLLECT, DEAL_LEAD, GATHER, GATHER_GAP, KNOCK, MUCK, MUCK_GAP, POT_SPAN, PUCK, TURN, collectGap, dealGap } from '../src/game/poker-beats.ts';
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 import { manualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import '../src/locales/app-catalogue.ts';
@@ -159,7 +160,7 @@ describe('cards on a poker table', () =>
         expect(puck.dataset.placed, 'the mark was not laid on the dealer').toBe('true');
 
         await read(next(), won());
-        await elapse(GATHER + GATHER_GAP + POT_SPAN);
+        await elapse(GATHER + GATHER_GAP + POT_SPAN + PAUSES.pot);
 
         expect(pocketed(container), 'the hand that was over stayed in the reader’s hand when the next was dealt').toBe(0);
         expect(flown(container).map((one) => [one.style.width, one.querySelector('.card-face') !== null]), 'the old hand did not leave for the dealer face up, at the size it had').toEqual([['36px', true], ['36px', true]]);
@@ -187,7 +188,7 @@ describe('cards on a poker table', () =>
 
     it('wait for the cards no longer than the reader can be kept from their turn: after that they are shown and the reader is asked', async () =>
     {
-        const checks = Array.from({ length: 8 }, (): Parameters<typeof told>[2] => ({ e: 'check', seat: 1, amount: 0 }));
+        const checks = Array.from({ length: Math.ceil(BETWEEN_CAP / KNOCK) }, (): Parameters<typeof told>[2] => ({ e: 'check', seat: 1, amount: 0 }));
         const { container, read } = await seated(alone());
 
         await read(next(), won(...checks));

@@ -50,6 +50,7 @@ import {
     type Table as Men,
     type Transfer
 } from '../backgammon-men.ts';
+import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
 import { BORNE, ENTRIES } from '../looks/backgammon.ts';
 import { dieDress } from '../looks/dice.ts';
 import { CAPTURES, CRITICALS, burstOf, lightOf, wornOf, type Collection } from '../looks/table.ts';
@@ -145,11 +146,11 @@ export const PASS_LEAST = 500;
 
 export const GAME_GAP = 260;
 
-export const GAME_MS = 1800;
+export const GAME_MS = PAUSES.game;
 
 export const GAME_LEAST = 900;
 
-export const LAST_MS = 1300;
+export const LAST_MS = PAUSES.end;
 
 export const LAST_LEAST = 700;
 
@@ -1443,7 +1444,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
                 options.sound()?.play('pass');
             }
 
-            await at.ctx.linger(PASS_MS, PASS_LEAST);
+            await at.ctx.linger(PASS_MS, PASS_LEAST, true);
         }
         else if (beat.kind === 'clear')
         {
@@ -1496,7 +1497,7 @@ export function createBackgammonTable(options: TableOptions): BackgammonTable
             if (lines.length > 0)
             {
                 raise(lines, beat.side);
-                await at.ctx.linger(beat.last ? LAST_MS : GAME_MS, beat.last ? LAST_LEAST : GAME_LEAST);
+                await at.ctx.linger(beat.last ? LAST_MS : GAME_MS, beat.last ? LAST_LEAST : GAME_LEAST, true);
                 await lower();
             }
             else if (beat.last)

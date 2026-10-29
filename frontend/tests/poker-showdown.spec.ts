@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { cleanup } from '@azerothjs/testing';
 
-import { BETWEEN_CAP, CARD_FLY, CARD_GAP, CHIP_FLY, DISC_GAP, GATHER, GATHER_GAP, POT_FLY, POT_GAP, RACK, RUN_OUT, SHOW_LEAST, SHOW_LINGER, TURN } from '../src/game/poker-beats.ts';
+import { BETWEEN_CAP, CARD_FLY, CARD_GAP, CHIP_FLY, DISC_GAP, GATHER, GATHER_GAP, POT_FLY, POT_GAP, RACK, RUN_OUT, TURN } from '../src/game/poker-beats.ts';
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 import { manualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import '../src/locales/app-catalogue.ts';
@@ -263,7 +264,7 @@ describe('a hand of poker that ends in front of the table', () =>
 
         expect(shownAt(container, 2)).toEqual([7, 20]);
 
-        await elapse(SHOW_LINGER - 10);
+        await elapse(PAUSES.showdown - 10);
 
         expect([pot(container), discs(container).length], 'the pot was pushed before the hands could be read').toEqual(['Total pot 310', 0]);
 
@@ -272,18 +273,18 @@ describe('a hand of poker that ends in front of the table', () =>
         expect(pot(container)).toBe('Total pot 0');
     });
 
-    it('holds it for less when the reader is to act in the hand after', async () =>
+    it('holds it as long when the reader is to act in the hand after, whose clock the server gives the time back to', async () =>
     {
         const { container, read } = await seated(river());
 
         await read(second(0), tabled([2]));
-        await elapse(CALLED + GATHERED + 2 * HAND + SHOW_LEAST - 10);
+        await elapse(CALLED + GATHERED + 2 * HAND + PAUSES.showdown - 10);
 
-        expect([pot(container), shownAt(container, 2)], 'a reader who is to act was not shown the hands at all').toEqual(['Total pot 310', [7, 20]]);
+        expect([pot(container), shownAt(container, 2)], 'a reader who is to act was shown the hands for less time than anybody else').toEqual(['Total pot 310', [7, 20]]);
 
         await elapse(10);
 
-        expect(pot(container), 'a reader who is to act waited as long as one who is not').toBe('Total pot 0');
+        expect(pot(container)).toBe('Total pot 0');
     });
 
     it('lets the table catch up at four times its pace when a reader who is to act has waited as long as they may', async () =>
@@ -302,7 +303,7 @@ describe('a hand of poker that ends in front of the table', () =>
         const rest = await until(() => presenting(container) === null);
 
         expect(rest, 'the table took its own time over the hand that was finished, in front of a reader who had been asked about the next').toBeLessThanOrEqual(700);
-        expect(rest, 'the table was set down as it stands and not played').toBeGreaterThan(300);
+        expect(rest, 'the table was set down as it stands and not played').toBeGreaterThan(150);
         expect([pocketed(container), [1, 2, 3, 4, 5].map((seat) => backs(container, seat)), stack(container, 2)]).toEqual([2, [2, 2, 2, 2, 2], '1,670']);
     });
 
@@ -315,7 +316,7 @@ describe('a hand of poker that ends in front of the table', () =>
 
         const rest = await until(() => presenting(container) === null);
 
-        expect(rest, 'a table nobody is waiting on was hurried').toBeGreaterThan(2000);
+        expect(rest, 'a table nobody is waiting on was hurried').toBeGreaterThan(800);
     });
 
     it('lets it catch up as well when the reader’s turn comes after the wait was over, over a table that is still behind', async () =>
@@ -343,7 +344,7 @@ describe('a hand of poker that ends in front of the table', () =>
         const { container, read } = await seated(river());
 
         await read(second(1), tabled([2]));
-        await elapse(CALLED + GATHERED + 2 * HAND + SHOW_LINGER - 10);
+        await elapse(CALLED + GATHERED + 2 * HAND + PAUSES.showdown - 10);
 
         expect([namedAt(container, 1), namedAt(container, 2)], 'a hand was marked as the winner before the pot was pushed').toEqual(['a pair', 'two pair']);
         expect(said(container)[1], 'somebody who cannot see the table was told who won before the pot was pushed').toBe('');
@@ -372,7 +373,7 @@ describe('a hand of poker that ends in front of the table', () =>
         const share = Array.from({ length: 4 }, (_, at) => at);
 
         await read(second(1, { 1: 1515, 2: 1515 }), tabled([1, 2]));
-        await elapse(CALLED + GATHERED + 2 * HAND + SHOW_LINGER);
+        await elapse(CALLED + GATHERED + 2 * HAND + PAUSES.showdown);
 
         expect(discs(container).map(placed)).toEqual([...share.map(() => ['135px', '615px', '10px']), ...share.map(() => ['195px', '515px', '10px'])]);
         expect([namedAt(container, 1), namedAt(container, 2)]).toEqual(['a pair (won)', 'two pair (won)']);
@@ -437,7 +438,7 @@ describe('a hand of poker that ends in front of the table', () =>
 
         expect(seen).toEqual(['chips back', 'first hand', 'second hand', 'flop', 'turn', 'river', 'pot']);
         expect([Math.abs(when.turn - when.flop - street), Math.abs(when.river - when.turn - street)].every((off) => off <= 10), `a street of a run-out came ${ when.turn - when.flop } and ${ when.river - when.turn } ms after the one before, not a beat and its own time`).toBe(true);
-        expect(Math.abs(when.pot - when.river - SHOW_LINGER), 'the pot of a run-out was pushed before its board could be read').toBeLessThanOrEqual(10);
+        expect(Math.abs(when.pot - when.river - PAUSES.showdown), 'the pot of a run-out was pushed before its board could be read').toBeLessThanOrEqual(10);
 
         await elapse(LONG);
 

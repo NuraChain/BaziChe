@@ -24,6 +24,7 @@ import { ludoEngine } from '../../backend/src/domains/match/engines/ludo.ts';
 import { FINISHED, YARD, cellAt, coloursFor } from '../../backend/src/domains/match/ludo/board.ts';
 import { apply } from '../../backend/src/domains/match/ludo/engine.ts';
 import type { EngineAction, LudoState } from '../../backend/src/domains/match/ludo/state.ts';
+import { PAUSES } from '../../backend/src/domains/match/pauses.ts';
 import * as turns from '../../backend/src/domains/match/turns.ts';
 import { matchView } from '../../backend/src/schemas.ts';
 import { client } from './fake-api.ts';
@@ -1057,7 +1058,7 @@ describe('the ludo table, played from what happened', () =>
         expect(container.querySelector('.table-result'), 'the result was shown over the celebration').toBeNull();
         expect(tags(container), 'a plate said who won while the confetti was still in the air').toEqual([null, null]);
 
-        await elapse(2000);
+        await elapse(PAUSES.end + 700);
 
         expect(stageOf(container).hasAttribute('data-presenting')).toBe(false);
         expect(container.querySelector('.table-result')).not.toBeNull();
@@ -1226,7 +1227,7 @@ describe('the ludo table, played from what happened', () =>
         expect(stageOf(container).getAttribute('data-presenting')).toBe('true');
         expect(tags(container), 'the winner was named while the table was still playing').toEqual([useLocale().t('card.gaveUp'), null]);
 
-        await elapse(2500);
+        await elapse(PAUSES.end + 1200);
 
         expect(stageOf(container).hasAttribute('data-presenting')).toBe(false);
         expect(tags(container)).toEqual([useLocale().t('card.gaveUp'), useLocale().t('card.won')]);
@@ -2221,7 +2222,7 @@ describe('the ludo table, played from what happened', () =>
         const clock = runtime().clock as ManualClock;
         let early = 0;
 
-        for (let step = 0; step < 200; step += 1)
+        for (let step = 0; step < (PAUSES.end + 700) / 10; step += 1)
         {
             clock.advance(10);
             await flush();

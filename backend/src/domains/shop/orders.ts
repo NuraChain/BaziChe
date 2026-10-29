@@ -508,14 +508,51 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
         return 'failed' as const;
     };
 
-    /** One order asked of the shop: delivered once sold, failed when its transaction was refused, expired once it can never be paid. */
-    const settle = async (row: OrderRow) =>
+    /**
+     * An order the shop holds a sale of that is not the one quoted, to another wallet or at another
+     * price: only a quote nobody here signed can make one, so nothing is delivered and the order is
+     * left failed for a person, which the reconciliation then finds.
+     */
+    const mismatched = async (row: OrderRow) =>
+    {
+        const { affected } = await db.getRepository(ShopOrder)
+            .createQueryBuilder()
+            .update()
+            .set({ state: 'failed', failure: 'mismatch' })
+            .where('id = :id', { id: row.id })
+            .andWhere(`state in ('quoted', 'sent')`)
+            .execute();
+
+        if (affected === 0)
+        {
+            return null;
+        }
+
+        hooks.changed([row.buyer_id]);
+
+        return 'failed' as const;
+    };
+
+    /** One order asked of the shop: delivered once sold as it was quoted, failed when its transaction was refused, expired once it can never be paid. */
+    const settle = async (row: OrderRow, tally: ShopSweep) =>
     {
         const sale = await shop.saleOf(orderIdOf(row.id));
 
         if (sale.buyer !== null)
         {
-            return await deliver(row, sale.refunded);
+            if (sale.buyer.toLowerCase() === row.buyer_address && sale.price === BigInt(row.price))
+            {
+                return await deliver(row, sale.refunded);
+            }
+
+            const step = await mismatched(row);
+
+            if (step !== null)
+            {
+                tally.faults.push({ order: row.id, error: `mismatch:${ row.id }` });
+            }
+
+            return step;
         }
 
         if (row.state === 'sent' && row.tx_hash !== null && await shop.mined(row.tx_hash as Hex) === 'reverted')
@@ -871,7 +908,7 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
 
                 try
                 {
-                    const step = await settle(row);
+                    const step = await settle(row, tally);
 
                     if (step !== null)
                     {

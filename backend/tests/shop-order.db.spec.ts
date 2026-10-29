@@ -660,6 +660,28 @@ describe.skipIf(!active)('buying a look with NURA, against a real database', () 
             expect(await ownedBy(buyer.id)).toEqual([]);
         });
 
+        it('gives nothing for a sale the shop holds under an order at another price or to another wallet, which needs a quote nobody here signed, and says so once', async () =>
+        {
+            const { ports, fake } = door();
+            const buyer = await person();
+            const cheap = (await ports.shop.order(buyer.id, 'dice.gold', undefined)).order;
+
+            fake.sell({ ...fake.last(), price: 1n });
+
+            expect(await ports.jobs.sweepShop(10_000)).toEqual({ paid: 0, refunded: 0, failed: 1, expired: 0, faults: [{ order: cheap.id, error: `mismatch:${ cheap.id }` }] });
+            expect(await orderRow(cheap.id)).toMatchObject({ state: 'failed', failure: 'mismatch', delivered: null });
+            expect(await ownedBy(buyer.id)).toEqual([]);
+            expect(await ports.jobs.sweepShop(10_000), 'a mismatch said again at every pass').toEqual({ paid: 0, refunded: 0, failed: 0, expired: 0, faults: [] });
+
+            const elsewhere = (await ports.shop.order(buyer.id, 'pawns.gold', undefined)).order;
+
+            fake.sell({ ...fake.last(), buyer: '0x00000000000000000000000000000000000000ad' });
+
+            expect((await ports.jobs.sweepShop(10_000)).faults).toEqual([{ order: elsewhere.id, error: `mismatch:${ elsewhere.id }` }]);
+            expect(await orderRow(elsewhere.id)).toMatchObject({ state: 'failed', failure: 'mismatch' });
+            expect(await ownedBy(buyer.id)).toEqual([]);
+        });
+
         it('reads a transaction the chain refused as failed in the shop\'s own word, and hands that order back to be paid again', async () =>
         {
             const { ports, fake } = door();

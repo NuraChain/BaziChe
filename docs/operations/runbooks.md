@@ -169,9 +169,9 @@ the log keeps who closed it and why.
 The server signs with one key, `NURA_REFEREE_KEY`: it is the vault's referee, the shop's seller and
 the markets contract's operator. What it can do without anybody else: open a paid game only with
 stakes its players signed and pay a locked pot only to that game's players; sign shop quotes at a
-price of its choosing, which a buyer pays from their own wallet (a sale at a price the server never
-quoted is a disagreement the reconciliation finds); sign market tickets and settle markets. It holds
-nobody's NURA.
+price of its choosing, which a buyer pays from their own wallet (a sale the server never quoted
+delivers nothing: the shop's worker says `mismatch` and the reconciliation lists it); sign market
+tickets and settle markets. It holds nobody's NURA.
 
 1. From the admin wallet, move each role to a new key in one call each: `setReferee(new)` on
    ArcadeVault, `setSeller(new)` on ArcadeShop, `setOperator(new)` on ArcadeMarkets. Whatever the

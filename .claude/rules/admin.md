@@ -357,9 +357,10 @@ would leave the choice it waited for on top.
 for a role that opens the shop, held to the note's rank rule (an admin gives to players and
 moderators, the owner to anybody but themselves). A gift is any look of the catalogue (a bundle is
 not one, and is answered as a page that is not there), written under the person's row lock as an
-`owned_items` row by `grant` with no order and no giver, and `shop-grant` with `{ item }`; one they
-own already changes nothing and writes nothing, and so does one a purchase delivered in that moment
-(the insert is `orIgnore`d and read back, and a look that arrived as bought stays bought). Only a
+`owned_items` row that came by grant, with no order and no giver, and `shop-grant` with `{ item }`;
+one they own already changes nothing and writes nothing, and so does one a purchase delivered in
+that moment: a delivery's insert takes the foreign key's share lock on the person's row, so the gift
+waits for it, finds the look owned and leaves it as bought, with nothing read back (LG-D36). Only a
 look that came by grant is taken back: one bought or given by a friend is theirs for good (SH-D9)
 and is refused `staff-look-kept` (409). The owned row is locked, deleting it takes the look off
 every slot it was worn in (the foreign key), and `shop-revoke` is written with `{ item }`; a look

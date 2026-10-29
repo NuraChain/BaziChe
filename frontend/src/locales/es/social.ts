@@ -365,6 +365,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'seal.noDevice': 'Aquí todavía no puede escribir nadie. {who} no ha dado claves a ninguno de sus navegadores, así que no hay nada para lo que cifrar un mensaje.',
     'seal.noDeviceMine': 'Todavía no puedes escribir aquí. Ninguno de tus navegadores tiene claves, así que no hay nada para lo que cifrar un mensaje.',
     'seal.noKeysHere': 'Este navegador aún no está añadido a tu cuenta, así que no puede enviar aquí. Conecta tu billetera para añadirlo. Tus otros navegadores no se ven afectados.',
+    'seal.keyless.title': 'Este navegador aún no puede enviar mensajes',
+    'seal.keyless.body': 'Conecta tu billetera para añadirlo a tu cuenta. Tus otros navegadores no se ven afectados.',
     'seal.deviceUnsupported': 'No puedes escribir desde este navegador. No tiene ningún sitio seguro donde guardar claves, así que no se puede cifrar nada desde él.',
     'seal.needsChain': 'Aquí todavía no puede escribir nadie. {who} usa una billetera de contrato, y este navegador no puede comprobarla sin conectarse a la red.',
     'seal.needsChainMine': 'Todavía no puedes escribir aquí. La tuya es una billetera de contrato, y este navegador no puede comprobarla sin conectarse a la red.',

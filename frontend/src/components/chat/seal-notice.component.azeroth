@@ -50,6 +50,8 @@ export default component SealNotice(props: { stop: SendBlock | null })
 
     derived keyless = shown !== null && shown.reason === 'browser' && shown.readiness === 'absent';
 
+    derived plain = keyless ? null : shown;
+
     <>
         <Show when={ clear }>
             { () =>
@@ -60,7 +62,26 @@ export default component SealNotice(props: { stop: SendBlock | null })
             }
         </Show>
 
-        <Show when={ shown } let={ sealed }>
+        <Show when={ keyless }>
+            <div class="@container rounded-tile border border-line bg-field" data-keyless>
+                <div class="flex flex-col gap-3 p-3 @sm:flex-row @sm:items-center">
+                    <div class="flex min-w-0 flex-1 items-start gap-3">
+                        <span class="grid size-9 shrink-0 place-items-center rounded-full bg-accent/15 text-accent" aria-hidden="true">
+                            <Icon name="key" size={ 18 } />
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-ui-sm font-semibold text-text">{ locale.t('seal.keyless.title') }</p>
+                            <p class="mt-0.5 text-ui-xs text-muted">{ locale.t('seal.keyless.body') }</p>
+                        </div>
+                    </div>
+                    <Button variant="primary" size="sm" leading="wallet" class="w-full shrink-0 @sm:w-auto" loading={ devices.busy() } onClick={ () => void enrolment.give() }>
+                        { locale.t('devices.enrol') }
+                    </Button>
+                </div>
+            </div>
+        </Show>
+
+        <Show when={ plain } let={ sealed }>
             <div
                 class={ () => [
                     'flex flex-wrap items-start gap-2 rounded-tile border px-3 py-2 text-ui-sm',
@@ -82,13 +103,6 @@ export default component SealNotice(props: { stop: SendBlock | null })
                             ? locale.t(SAYS_MINE[sealed.member.state])
                             : locale.t(SAYS[sealed.member.state], { who: sealed.member.handle })) }
                 </span>
-                <Show when={ keyless }>
-                    <span class="shrink-0">
-                        <Button variant="primary" size="sm" leading="wallet" loading={ devices.busy() } onClick={ () => void enrolment.give() }>
-                            { locale.t('devices.enrol') }
-                        </Button>
-                    </span>
-                </Show>
             </div>
         </Show>
     </>

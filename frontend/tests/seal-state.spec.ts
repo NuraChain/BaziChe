@@ -324,8 +324,8 @@ describe('what the thread says about it', () =>
                 .container.textContent ?? '';
         };
 
-        expect(said('absent')).toContain('not added to your account yet');
-        expect(said('absent')).toContain('Connect your wallet');
+        expect(said('absent')).toContain('This browser can’t send messages yet');
+        expect(said('absent')).toContain('Connect your wallet to add it to your account');
         expect(said('unsupported')).toContain('nowhere secure');
     });
 
@@ -368,6 +368,37 @@ describe('what the thread says about it', () =>
 
         expect(container.querySelector('button')).toBeNull();
         expect(container.textContent).toContain('nowhere secure');
+    });
+
+    it('asks a keyless browser in a card of its own: a headline, one line under it, then the button, which nothing else here offers', () =>
+    {
+        const { container } = renderTest(() => SealNotice({ stop: { reason: 'browser', readiness: 'absent' } }) as unknown as HTMLElement);
+        const card = container.querySelector<HTMLElement>('[data-keyless]');
+        const said = [...(card?.querySelectorAll('p') ?? [])].map((line) => line.textContent);
+        const button = card?.querySelector('button');
+
+        expect(said).toEqual(['This browser can’t send messages yet', 'Connect your wallet to add it to your account. Your other browsers are unaffected.']);
+        expect(button?.textContent).toContain('Connect wallet');
+        expect(card!.querySelector('p')!.compareDocumentPosition(button!) & Node.DOCUMENT_POSITION_FOLLOWING, 'the button came before what it is for').toBeTruthy();
+        expect(container.querySelectorAll('button')).toHaveLength(1);
+        expect(container.textContent, 'the old sentence was drawn beside the card').not.toContain('not added to your account yet');
+    });
+
+    it('asks it in Persian', () =>
+    {
+        useLocale().setLocale('fa');
+
+        try
+        {
+            const { container } = renderTest(() => SealNotice({ stop: { reason: 'browser', readiness: 'absent' } }) as unknown as HTMLElement);
+
+            expect([...container.querySelectorAll('[data-keyless] p')].map((line) => line.textContent)).toEqual(['این مرورگر هنوز نمی‌تونه پیام بفرسته', 'کیف پولت رو وصل کن تا به حسابت اضافه بشه. مرورگرهای دیگه‌ت هیچ فرقی نمی‌کنن.']);
+            expect(container.querySelector('[data-keyless] button')?.textContent).toContain('وصل کردن کیف پول');
+        }
+        finally
+        {
+            useLocale().setLocale('en');
+        }
     });
 
     it('is never an alarm for anything about this browser', () =>

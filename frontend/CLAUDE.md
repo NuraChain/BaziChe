@@ -676,6 +676,14 @@ signature), and `give` NEVER rejects: `enrol` reports through `failure()`, so ev
 read back and spoken. A browser is live the moment it is added, so there is no second step to
 point anybody at.
 
+**Above a composer it is a card of its own** (`SealNotice`, `data-keyless`): a headline that says
+what cannot be done here ("This browser can't send messages yet"), one muted line on how and that
+the other browsers are unaffected, and Connect wallet, under them in a narrow chat and beside them
+once the card is 24rem wide (its own container, `@sm`). It was one row, three sentences beside the
+button, which a table's chat panel drew as six lines in a column a third of its width; the owner
+called it bad (2026-10-29). The whole sentence stays for a send that fails for want of keys
+(`seal.noKeysHere`, `chat-title.ts`). `seal-state.spec.ts` holds the card in both languages.
+
 **The status strips are a chunk of their own.** `strips.component` draws the connection strip,
 the strip that says a search for players is on (`looking-strip`, *A waiting table IS the
 search* in `games.md`) and the notice the staff put up (`notice-strip`, *The notice everybody sees*

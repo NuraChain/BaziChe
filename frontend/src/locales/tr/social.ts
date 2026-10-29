@@ -366,6 +366,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'seal.noDeviceMine': 'Buraya henüz yazamazsın. Tarayıcılarından hiçbirine anahtar verilmedi, bu yüzden mesajı şifreleyecek bir şey yok.',
 
     'seal.noKeysHere': 'Bu tarayıcı henüz hesabına eklenmedi, bu yüzden buraya gönderemez. Eklemek için cüzdanını bağla. Diğer tarayıcıların etkilenmez.',
+    'seal.keyless.title': 'Bu tarayıcı henüz mesaj gönderemiyor',
+    'seal.keyless.body': 'Hesabına eklemek için cüzdanını bağla. Diğer tarayıcıların etkilenmez.',
     'seal.deviceUnsupported': 'Bu tarayıcıdan yazamazsın. Anahtar saklayacak güvenli bir yeri yok, bu yüzden buradan hiçbir şey şifrelenemez.',
     'seal.needsChain': 'Buraya henüz kimse yazamaz. {who} bir sözleşme cüzdanı kullanıyor ve bu tarayıcı ağa ulaşmadan onu kontrol edemez.',
     'seal.needsChainMine': 'Buraya henüz yazamazsın. Seninki bir sözleşme cüzdanı ve bu tarayıcı ağa ulaşmadan onu kontrol edemez.',

@@ -365,6 +365,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'seal.noDevice': '这里还没有人能写消息。{who} 还没有给任何浏览器设置密钥，所以消息没有可以加密发送的对象。',
     'seal.noDeviceMine': '你还不能在这里写消息。你的浏览器都还没有设置密钥，所以消息没有可以加密发送的对象。',
     'seal.noKeysHere': '此浏览器还没有添加到你的账户，所以不能在这里发送消息。连接你的钱包来添加它。你的其他浏览器不受影响。',
+    'seal.keyless.title': '此浏览器还不能发送消息',
+    'seal.keyless.body': '连接你的钱包，把它添加到你的账户。你的其他浏览器不受影响。',
     'seal.deviceUnsupported': '你无法在此浏览器上写消息。它没有安全存放密钥的地方，所以无法从这里加密任何内容。',
     'seal.needsChain': '这里还没有人能写消息。{who} 使用的是合约钱包，此浏览器不连接网络就无法核验它。',
     'seal.needsChainMine': '你还不能在这里写消息。你的是合约钱包，此浏览器不连接网络就无法核验它。',

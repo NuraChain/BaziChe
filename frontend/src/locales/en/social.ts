@@ -369,6 +369,8 @@ export const social = {
      * time somebody opens the product on a second browser.
      */
     'seal.noKeysHere': 'This browser is not added to your account yet, so it cannot send here. Connect your wallet to add it. Your other browsers are unaffected.',
+    'seal.keyless.title': 'This browser can’t send messages yet',
+    'seal.keyless.body': 'Connect your wallet to add it to your account. Your other browsers are unaffected.',
     'seal.deviceUnsupported': 'You cannot write from this browser. It has nowhere secure to keep keys, so nothing can be sealed from it.',
     'seal.needsChain': 'Nobody can write here yet. {who} uses a contract wallet, and this browser cannot check one without reaching the network.',
     'seal.needsChainMine': 'You cannot write here yet. Yours is a contract wallet, and this browser cannot check one without reaching the network.',

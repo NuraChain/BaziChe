@@ -65,7 +65,8 @@ const QUERIES = {
     '/admin/play/matches': ['list', 'game', 'cursor'],
     '/admin/play/tables': ['game', 'cursor'],
     '/admin/live': ['cursor'],
-    '/admin/checks': ['list', 'cursor']
+    '/admin/checks': ['list', 'cursor'],
+    '/admin/shop/orders': ['state', 'item', 'person', 'cursor']
 };
 
 const message = (bad) => ({ id: bad, kind: 'text', epoch: 0, seq: 0, iv: 'x', body: 'x', senderDeviceId: bad, signature: 'x', clientAt: bad, commitment: 'x', expiresAt: 0 });
@@ -140,7 +141,13 @@ const BODIES = {
     '/admin/play/tables/:id/close': (bad) => [{ reason: bad.slice(0, 500).padEnd(3, 'x') }, { reason: bad }],
     '/admin/notice': (bad) => [{ en: bad.slice(0, 200).padEnd(3, 'x'), fa: bad.slice(0, 200).padEnd(3, 'x'), hours: 6, reason: bad.slice(0, 500).padEnd(3, 'x') }, { en: bad, fa: bad, hours: bad.length, reason: 'garbage' }],
     '/admin/notice/end': (bad) => [{ id: bad.slice(0, 36), reason: bad.slice(0, 500).padEnd(3, 'x') }, { id: bad, reason: bad }],
-    '/admin/checks/:id/close': (bad) => [{ reason: bad.slice(0, 500).padEnd(3, 'x') }, { reason: bad }]
+    '/admin/checks/:id/close': (bad) => [{ reason: bad.slice(0, 500).padEnd(3, 'x') }, { reason: bad }],
+    '/admin/shop/items/:id': (bad) => [
+        { price: bad.slice(0, 24), reason: bad.slice(0, 500).padEnd(3, 'x') },
+        { sale: { price: bad.slice(0, 24), hours: 24 }, reason: 'garbage' },
+        { status: bad.slice(0, 16), reason: 'garbage' }
+    ],
+    '/admin/shop/featured': (bad) => [{ collection: bad.slice(0, 16), reason: bad.slice(0, 500).padEnd(3, 'x') }, { collection: 'jade', reason: bad }]
 };
 
 const WOULD_ACT = new Set(['/auth/handle']);

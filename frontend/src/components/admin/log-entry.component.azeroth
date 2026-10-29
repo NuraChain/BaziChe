@@ -4,6 +4,7 @@ import type { ActionKind } from '../../../../backend/src/domains/admin/roles.ts'
 import Icon from '../../icons/icon.component.azeroth';
 import type { IconName } from '../../icons/all.ts';
 import { logParts, ROLE_WORDS, type LogRow } from '../../lib/staff-words.ts';
+import '../../locales/shop-catalogue.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import Said from './said.component.azeroth';
 import When from './when.component.azeroth';
@@ -24,7 +25,9 @@ const MARKS: Record<ActionKind, { icon: IconName; tone: string }> = {
     close: { icon: 'lock', tone: 'bg-gold/15 text-gold' },
     minor: { icon: 'calendar', tone: 'bg-gold/15 text-gold' },
     notice: { icon: 'megaphone', tone: 'bg-accent/15 text-accent' },
-    check: { icon: 'wallet', tone: 'bg-gold/15 text-gold' }
+    check: { icon: 'wallet', tone: 'bg-gold/15 text-gold' },
+    'shop-item': { icon: 'bag', tone: 'bg-accent/15 text-accent' },
+    'shop-feature': { icon: 'star', tone: 'bg-gold/15 text-gold' }
 };
 
 export default component LogEntry(props: { row: LogRow; report?: string })

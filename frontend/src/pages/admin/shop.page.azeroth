@@ -1,0 +1,259 @@
+import { createResource, useHead } from 'azerothjs';
+
+import { SHOP_COLLECTIONS, bundleOf, lookOf, type ShopCollection } from '../../../../backend/src/domains/shop/catalogue.ts';
+import type { AdminShop } from '../../../../backend/src/schemas.ts';
+import { client } from '../../api.ts';
+import AdminEmpty from '../../components/admin/admin-empty.component.azeroth';
+import AdminHead from '../../components/admin/admin-head.component.azeroth';
+import ReasonSheet from '../../components/admin/reason-sheet.component.azeroth';
+import ShopGroup from '../../components/admin/shop-group.component.azeroth';
+import ShopItemSheet, { type ShopAsk, type ShopChange } from '../../components/admin/shop-item-sheet.component.azeroth';
+import type { AdminShopItem } from '../../components/admin/shop-item-row.component.azeroth';
+import ShopOrders from '../../components/admin/shop-orders.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
+import FilterBar from '../../components/ui/filter-bar.component.azeroth';
+import Select from '../../components/ui/select.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
+import { attempt } from '../../lib/attempt.ts';
+import { createGuesses, type Guess } from '../../lib/guess.ts';
+import { nuraOf } from '../../lib/nura.ts';
+import { useAddress } from '../../lib/page-param.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { collectionName, itemName } from '../../lib/shop.ts';
+import { whyStaffRefused } from '../../lib/staff-words.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import '../../locales/shop-catalogue.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+
+const VIEWS = ['looks', 'orders'] as const;
+
+const LISTS = ['all', 'sale', 'hidden', 'retired'] as const;
+
+type ItemList = (typeof LISTS)[number];
+
+const LIST_WORDS: Record<ItemList, MessageKey> = {
+    all: 'admin.shop.list.all',
+    sale: 'admin.shop.list.sale',
+    hidden: 'admin.shop.list.hidden',
+    retired: 'admin.shop.list.retired'
+};
+
+const HOUR_MS = 3_600_000;
+
+const collectionOf = (id: string) => lookOf(id)?.collection ?? bundleOf(id)?.collection ?? null;
+
+const keeps = (list: ItemList, item: AdminShopItem) => (list === 'sale' ? item.sale !== undefined : list === 'all' || item.status === list);
+
+const isAsk = (value: unknown): value is ShopAsk => typeof value === 'object' && value !== null && 'change' in value && 'reason' in value;
+
+/** The item as the change leaves it, drawn at the press. */
+const changed = (item: AdminShopItem, change: ShopChange): AdminShopItem =>
+{
+    if ('price' in change)
+    {
+        return { ...item, price: change.price };
+    }
+
+    if ('status' in change)
+    {
+        return { ...item, status: change.status };
+    }
+
+    return change.sale === false
+        ? { id: item.id, price: item.price, listed: item.listed, status: item.status, sold: item.sold }
+        : { ...item, sale: { price: change.sale.price, until: new Date(runtime().clock.now() + change.sale.hours * HOUR_MS).toISOString() } };
+};
+
+export default component ShopAdminPage()
+{
+    const locale = useLocale();
+    const overlay = useOverlay();
+    const address = useAddress();
+
+    useHead({ title: () => locale.t('admin.section.shop') });
+
+    const read = createResource(() => client.admin.shop(), { name: 'admin.shop' });
+
+    const guesses = createGuesses<AdminShop>();
+
+    const refused = new Map<string, ShopAsk>();
+
+    derived shown = VIEWS.find((one) => one === address.text('view')) ?? 'looks';
+
+    derived list = LISTS.find((one) => one === address.text('list')) ?? 'all';
+
+    derived only = SHOP_COLLECTIONS.find((one) => one === address.text('collection')) ?? null;
+
+    derived held = read.data() ?? null;
+
+    derived trouble = read.error();
+
+    derived waiting = held === null && trouble === null;
+
+    derived failed = held === null && trouble !== null;
+
+    derived shop = held === null ? null : guesses.over(held);
+
+    derived featured = shop?.featured ?? null;
+
+    derived inCollection = shop === null ? [] : shop.items.filter((one) => only === null || collectionOf(one.id) === only);
+
+    derived groups = SHOP_COLLECTIONS
+        .map((collection) => ({ collection, items: inCollection.filter((one) => collectionOf(one.id) === collection && keeps(list, one)) }))
+        .filter((group) => group.items.length > 0);
+
+    derived ready = shop !== null;
+
+    derived listed = groups.length > 0;
+
+    derived empty = shop !== null && groups.length === 0;
+
+    derived onLooks = shown === 'looks';
+
+    derived onOrders = shown === 'orders';
+
+    derived views = VIEWS.map((id) => ({ id, label: locale.t(`admin.shop.view.${ id }`) }));
+
+    derived lists = LISTS.map((id) => ({ id, label: locale.t(LIST_WORDS[id]), ...(shop === null ? {} : { count: inCollection.filter((one) => keeps(id, one)).length }) }));
+
+    derived collections = [
+        { value: '', label: locale.t('admin.shop.everyCollection') },
+        ...SHOP_COLLECTIONS.map((one) => ({ value: one, label: collectionName(one, locale) }))
+    ];
+
+    const amount = (wei: string) => locale.n(nuraOf(wei), { maximumFractionDigits: 4 });
+
+    const reread = async () =>
+    {
+        await read.refetch();
+
+        if (read.error() !== null)
+        {
+            throw read.error();
+        }
+
+        guesses.landed();
+    };
+
+    const doneOf = (name: string, change: ShopChange) =>
+    {
+        if ('price' in change)
+        {
+            return locale.t('admin.shop.done.price', { look: name, amount: amount(change.price) });
+        }
+
+        if ('status' in change)
+        {
+            return locale.t(`admin.shop.done.${ change.status }`, { look: name });
+        }
+
+        return change.sale === false
+            ? locale.t('admin.shop.done.end', { look: name })
+            : locale.t('admin.shop.done.sale', { look: name, amount: amount(change.sale.price) });
+    };
+
+    const change = async (item: AdminShopItem) =>
+    {
+        const name = itemName(item.id, locale);
+        const kept = refused.get(item.id);
+        const asked = await overlay.open(
+            ShopItemSheet,
+            { item, name, ...(kept === undefined ? {} : { initial: kept }) },
+            { label: locale.t('admin.section.shop') }
+        ).closed;
+
+        if (!isAsk(asked))
+        {
+            return;
+        }
+
+        const guess: Guess<AdminShop> = (from) => ({ ...from, items: from.items.map((one) => (one.id === item.id ? changed(one, asked.change) : one)) });
+        const sent = guesses.during(guess, () => client.admin.shopItem({ params: { id: item.id }, input: { ...asked.change, reason: asked.reason } }), reread);
+
+        if (await attempt(sent, doneOf(name, asked.change), whyStaffRefused))
+        {
+            refused.delete(item.id);
+        }
+        else
+        {
+            refused.set(item.id, asked);
+        }
+    };
+
+    const feature = async (collection: ShopCollection) =>
+    {
+        const name = collectionName(collection, locale);
+        const reason = await overlay.open(
+            ReasonSheet,
+            {
+                title: locale.t('admin.shop.top.ask', { collection: name }),
+                lead: locale.t('admin.shop.top.askLead', { from: featured === null ? '' : collectionName(featured, locale) }),
+                confirm: locale.t('admin.shop.top.confirm')
+            },
+            { label: locale.t('admin.section.shop') }
+        ).closed;
+
+        if (typeof reason !== 'string')
+        {
+            return;
+        }
+
+        const sent = guesses.during((from) => ({ ...from, featured: collection }), () => client.admin.shopFeature({ input: { collection, reason } }), reread);
+
+        await attempt(sent, locale.t('admin.shop.top.done', { collection: name }), whyStaffRefused);
+    };
+
+    const ordersOf = (item: AdminShopItem) =>
+    {
+        address.write({ view: 'orders', item: item.id, state: '', person: '' });
+    };
+
+    <div class="flex flex-col gap-6 @container">
+        <AdminHead title={ locale.t('admin.section.shop') } lead={ locale.t('admin.shop.lead') } how={ locale.t('admin.shop.how') } />
+
+        <FilterBar items={ views } value={ shown } label={ locale.t('admin.shop.views') } onChange={ (id) => address.write({ view: id === 'looks' ? '' : id }) } />
+
+        <Show when={ onLooks }>
+            <Show when={ waiting }>
+                { () => <Skeleton lines={ 6 } avatar /> }
+            </Show>
+
+            <Show when={ failed }>
+                { () => <ErrorState title={ locale.t('admin.shop.failed') } onRetry={ () => void read.refetch() } /> }
+            </Show>
+
+            <Show when={ ready }>
+                <div class="flex flex-col gap-3 @2xl:flex-row @2xl:items-end @2xl:gap-4" data-toolbar>
+                    <Select class="@2xl:w-72 @2xl:shrink-0" label={ locale.t('admin.shop.collection') } value={ only ?? '' } options={ collections } onChange={ (value) => address.write({ collection: value }) } />
+                    <FilterBar class="min-w-0 @2xl:flex-1" items={ lists } value={ list } label={ locale.t('admin.shop.lists') } onChange={ (id) => address.write({ list: id === 'all' ? '' : id }) } />
+                </div>
+            </Show>
+
+            <Show when={ empty }>
+                { () => <AdminEmpty icon="bag" title={ locale.t('admin.shop.noneFound') } /> }
+            </Show>
+
+            <Show when={ listed }>
+                <div class="flex flex-col gap-8" data-groups>
+                    <For each={ groups } key={ (group) => group.collection } let={ group }>
+                        <div>
+                            <ShopGroup
+                                collection={ group.collection }
+                                items={ group.items }
+                                featured={ featured === group.collection }
+                                onChange={ (item) => void change(item) }
+                                onOrders={ ordersOf }
+                                onFeature={ () => void feature(group.collection) }
+                            />
+                        </div>
+                    </For>
+                </div>
+            </Show>
+        </Show>
+
+        <Show when={ onOrders }>
+            <ShopOrders />
+        </Show>
+    </div>
+}

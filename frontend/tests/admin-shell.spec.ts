@@ -174,7 +174,7 @@ describe('the admin', () =>
     {
         signIn('owner');
         const { router, container } = await opened('/admin/overview');
-        const all = ['/admin/overview', '/admin/live', '/admin/people', '/admin/reports', '/admin/play', '/admin/notice', '/admin/money', '/admin/staff', '/admin/log'];
+        const all = ['/admin/overview', '/admin/live', '/admin/people', '/admin/reports', '/admin/play', '/admin/shop', '/admin/notice', '/admin/money', '/admin/staff', '/admin/log'];
         const side = container.querySelector('[data-side]')!;
 
         expect(side.className).toContain('md:block');
@@ -187,7 +187,7 @@ describe('the admin', () =>
         expect([...container.querySelectorAll('[data-group]')].map((group) => [group.getAttribute('data-group'), group.querySelector('p')?.textContent, hrefs(group, 'a')])).toEqual([
             ['now', 'Now', ['/admin/overview', '/admin/live']],
             ['moderation', 'Moderation', ['/admin/people', '/admin/reports']],
-            ['platform', 'Platform', ['/admin/play', '/admin/notice', '/admin/money']],
+            ['platform', 'Platform', ['/admin/play', '/admin/shop', '/admin/notice', '/admin/money']],
             ['team', 'Team', ['/admin/staff', '/admin/log']]
         ]);
         expect(hrefs(container.querySelector('[data-tabs]')!, 'a')).toEqual(['/admin/overview', '/admin/people', '/admin/reports', '/admin/play']);
@@ -216,6 +216,7 @@ describe('the admin', () =>
         expect(sheet.props).toMatchObject({ here: 'staff' });
         expect((sheet.props as unknown as { items: { to: string; label: string }[] }).items.map((item) => [item.to, item.label])).toEqual([
             ['/admin/live', 'Online now'],
+            ['/admin/shop', 'Shop'],
             ['/admin/notice', 'Announcement'],
             ['/admin/money', 'Money'],
             ['/admin/staff', 'Staff'],
@@ -317,7 +318,7 @@ describe('the admin', () =>
 
         expect(container.querySelector('[data-top]')?.textContent).toContain('مدیریت');
         expect(container.querySelector('[data-staff-role]')?.textContent).toBe('مالک');
-        expect([...container.querySelectorAll('[data-groups] a')].map((link) => link.textContent?.trim())).toEqual(['نمای کلی', 'آنلاین‌ها', 'کاربرها', 'گزارش‌ها', 'بازی‌ها', 'اطلاعیه', 'پول', 'تیم', 'تاریخچه']);
+        expect([...container.querySelectorAll('[data-groups] a')].map((link) => link.textContent?.trim())).toEqual(['نمای کلی', 'آنلاین‌ها', 'کاربرها', 'گزارش‌ها', 'بازی‌ها', 'فروشگاه', 'اطلاعیه', 'پول', 'تیم', 'تاریخچه']);
         expect([...container.querySelectorAll('[data-group] p')].map((label) => label.textContent)).toEqual(['الان', 'رسیدگی', 'پلتفرم', 'همکارها']);
         expect(container.querySelector('[data-more-tab]')?.textContent?.trim()).toBe('بیشتر');
         expect(container.querySelector('#admin-main h1')?.textContent).toBe('پول');

@@ -22,7 +22,7 @@ export const GRANTED_ROLES = ['moderator', 'admin'] as const;
 
 export type GrantedRole = (typeof GRANTED_ROLES)[number];
 
-export const ACTION_KINDS = ['grant', 'change', 'revoke', 'note', 'suspend', 'lift', 'expire', 'clear', 'sign-out', 'report', 'game', 'void', 'close', 'minor', 'notice', 'check'] as const;
+export const ACTION_KINDS = ['grant', 'change', 'revoke', 'note', 'suspend', 'lift', 'expire', 'clear', 'sign-out', 'report', 'game', 'void', 'close', 'minor', 'notice', 'check', 'shop-item', 'shop-feature'] as const;
 
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
@@ -76,12 +76,20 @@ export type NoticeHours = (typeof NOTICE_HOURS)[number];
 
 export const NOTICE_MAX = 200;
 
+/** How long a sale the staff put on a look runs: an hour to thirty days. */
+export const SALE_HOURS = [1, 6, 24, 72, 168, 336, 720] as const;
+
+export type SaleHours = (typeof SALE_HOURS)[number];
+
+export const SHOP_ORDERS_PAGE = 50;
+
 export const ABILITIES = {
     overview: 'moderator',
     live: 'moderator',
     people: 'moderator',
     reports: 'moderator',
     play: 'admin',
+    shop: 'admin',
     notice: 'admin',
     money: 'admin',
     staff: 'admin',

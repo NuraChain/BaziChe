@@ -1,11 +1,11 @@
 import { array, boolean, enumOf, literal, number, object, record, string as text, union, type Infer, type StringOptions } from '@azerothjs/schema';
-import { ACTION_KINDS, CLEAR_PARTS, GRANTED_ROLES, MATCH_LISTS, NOTICE_HOURS, NOTICE_MAX, PEOPLE_LISTS, REPORT_LISTS, REPORT_OUTCOMES, REPORT_STATUSES, STAFF_ROLES, STUCK_KINDS, SUSPEND_CATEGORIES, SUSPEND_DAYS } from './domains/admin/roles.ts';
+import { ACTION_KINDS, CLEAR_PARTS, GRANTED_ROLES, MATCH_LISTS, NOTICE_HOURS, NOTICE_MAX, PEOPLE_LISTS, REPORT_LISTS, REPORT_OUTCOMES, REPORT_STATUSES, SALE_HOURS, STAFF_ROLES, STUCK_KINDS, SUSPEND_CATEGORIES, SUSPEND_DAYS } from './domains/admin/roles.ts';
 import { RARITY_IDS } from './domains/achieve/rarity.ts';
 import { PARTY_ENDS, PARTY_STAGES } from './domains/party/rules.ts';
 import { SHOP_COLLECTIONS, SLOT_IDS } from './domains/shop/catalogue.ts';
 import { DONATE_MAY, DONATION_STATES } from './domains/donate/policy.ts';
 import { MARKET_MAY, MARKET_STATES, POSITION_STATES } from './domains/market/policy.ts';
-import { ORDER_STATES, OWNED_VIA, SHOP_MAY } from './domains/shop/policy.ts';
+import { ORDER_STATES, OWNED_VIA, SHOP_ITEM_STATUSES, SHOP_MAY } from './domains/shop/policy.ts';
 import { CHECK_FAMILIES, CHECK_KINDS, CHECK_LISTS, CHECK_RESOLUTIONS } from './domains/reconcile/kinds.ts';
 import { VARIANTS } from './domains/match/sides.ts';
 import { BREAK_DAYS, ELIGIBILITIES, ESCROW_STATES } from './domains/stake/policy.ts';
@@ -3160,6 +3160,61 @@ export const adminTables = object({ rows: array(adminTableRow), cursor: string()
 export type AdminTables = Infer<typeof adminTables>;
 
 export const adminTablesQuery = object({ game: string({ max: 32 }).optional(), cursor: string({ max: 80 }).optional() });
+
+/** A price the staff set, in wei: a whole number, under a million NURA. */
+const WEI = /^[1-9][0-9]{0,23}$/;
+
+/** A look or a bundle as the staff run it: its price and the catalogue's own, its sale while one runs, its status and how many were sold. */
+const adminShopItem = object({
+    id: string(),
+    price: string(),
+    listed: string(),
+    sale: object({ price: string(), until: string() }).optional(),
+    status: enumOf(SHOP_ITEM_STATUSES),
+    sold: number()
+});
+
+/** The shop as the staff run it: the featured collection, and every look and bundle in the catalogue's order. */
+export const adminShop = object({ featured: enumOf(SHOP_COLLECTIONS), items: array(adminShopItem) });
+
+export type AdminShop = Infer<typeof adminShop>;
+
+/** One change to a look or a bundle, with its reason: its price, a sale for a time or none, or its status. */
+export const adminShopItemInput = object({
+    price: string({ pattern: WEI }).optional(),
+    sale: union([object({ price: string({ pattern: WEI }), hours: union(SALE_HOURS.map((hours) => literal(hours))) }), literal(false)]).optional(),
+    status: enumOf(SHOP_ITEM_STATUSES).optional(),
+    reason: said()
+});
+
+export const adminShopFeatureInput = object({ collection: enumOf(SHOP_COLLECTIONS), reason: said() });
+
+export const adminShopOrdersQuery = object({
+    state: enumOf(ORDER_STATES).optional(),
+    item: string({ max: 40 }).optional(),
+    person: string({ max: 40 }).optional(),
+    cursor: string({ max: 80 }).optional()
+});
+
+/** An order as the staff read it: what, who paid, for whom when it was a gift, its price in wei, where it stands and its transaction. */
+const adminShopOrder = object({
+    id: string(),
+    item: string(),
+    price: string(),
+    state: enumOf(ORDER_STATES),
+    buyer: playFace,
+    for: playFace.optional(),
+    at: string(),
+    paidAt: string().optional(),
+    hash: string().optional(),
+    delivered: boolean().optional(),
+    failure: string().optional()
+});
+
+/** The orders a page at a time, and the chain they were paid on while the shop runs here, so a transaction can be linked. */
+export const adminShopOrders = object({ rows: array(adminShopOrder), cursor: string().optional(), chainId: number().optional() });
+
+export type AdminShopOrders = Infer<typeof adminShopOrders>;
 
 export const adminLiveRow = object({
     handle: string(),

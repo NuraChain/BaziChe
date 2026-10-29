@@ -134,8 +134,12 @@ export default component LookSheet(props: OverlayProps & { item: string })
 
     derived wholly = bundled && owned;
 
+    derived quoted = mine ? buying!.order?.price ?? null : null;
+
+    derived paying = quoted === null ? price : locale.n(nuraOf(quoted), { maximumFractionDigits: 4 });
+
     derived stepWords = step === 'wallet'
-        ? locale.t('shop.step.wallet', { price, address: shortAddress(buying?.from ?? '') })
+        ? locale.t('shop.step.wallet', { price: paying, address: shortAddress(buying?.from ?? '') })
         : locale.t(step === 'chain' ? 'shop.step.chain' : 'shop.step.preparing');
 
     derived link = buying?.hash === null || buying?.hash === undefined || buying.chainId === null ? null : explorerTx(buying.chainId, buying.hash);

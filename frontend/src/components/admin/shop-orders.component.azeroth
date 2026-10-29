@@ -1,0 +1,213 @@
+import { createResource, untrack } from 'azerothjs';
+
+import { isItemId } from '../../../../backend/src/domains/shop/catalogue.ts';
+import type { OrderState } from '../../../../backend/src/domains/shop/policy.ts';
+import type { AdminShopOrders } from '../../../../backend/src/schemas.ts';
+import { client } from '../../api.ts';
+import { attempt } from '../../lib/attempt.ts';
+import { useAddress } from '../../lib/page-param.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { itemName } from '../../lib/shop.ts';
+import { SEARCH_PAUSE_MS } from '../../services/search.service.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import FilterBar from '../ui/filter-bar.component.azeroth';
+import LoadMore from '../ui/load-more.component.azeroth';
+import SearchInput from '../ui/search-input.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import AdminEmpty from './admin-empty.component.azeroth';
+import ShopOrderRow, { ORDER_COLUMNS, ORDER_WORDS, type AdminShopOrder } from './shop-order-row.component.azeroth';
+
+interface Asked
+{
+    state: OrderState | null;
+    person: string;
+    item: string;
+}
+
+interface Tail
+{
+    from: AdminShopOrders;
+    rows: AdminShopOrder[];
+    cursor: string | undefined;
+}
+
+/** The states in the order the staff look for them: what was paid first, what ran out last. */
+export const STATE_CHIPS = ['paid', 'sent', 'quoted', 'failed', 'refunded', 'expired'] as const satisfies readonly OrderState[];
+
+const queryOf = (asked: Asked) => ({
+    ...(asked.state === null ? {} : { state: asked.state }),
+    ...(asked.person === '' ? {} : { person: asked.person }),
+    ...(asked.item === '' ? {} : { item: asked.item })
+});
+
+export default component ShopOrders()
+{
+    const locale = useLocale();
+    const address = useAddress();
+
+    derived state = STATE_CHIPS.find((one) => one === address.text('state')) ?? null;
+
+    derived person = address.text('person').trim();
+
+    derived asked = address.text('item');
+
+    derived item = isItemId(asked) ? asked : '';
+
+    state typed = untrack(() => address.text('person'));
+
+    state tail = null as Tail | null;
+
+    state paging = false;
+
+    let pending: (() => void) | null = null;
+
+    const first = createResource(() => ({ state, person, item }), (query) => client.admin.shopOrders({ query: queryOf(query) }), { name: 'admin.shop.orders' });
+
+    mount
+    {
+        return () =>
+        {
+            pending?.();
+            pending = null;
+        };
+    }
+
+    derived page = first.data() ?? null;
+
+    derived trouble = first.error();
+
+    derived waiting = page === null && trouble === null;
+
+    derived failed = page === null && trouble !== null;
+
+    derived continued = tail !== null && tail.from === page ? tail : null;
+
+    derived rows = page === null ? [] : [...page.rows, ...(continued?.rows ?? [])];
+
+    derived cursor = continued === null ? page?.cursor : continued.cursor;
+
+    derived more = cursor !== undefined;
+
+    derived listed = rows.length > 0;
+
+    derived filtered = state !== null || person !== '' || item !== '';
+
+    derived none = page !== null && rows.length === 0 && !filtered;
+
+    derived noneFound = page !== null && rows.length === 0 && filtered;
+
+    derived chainId = page?.chainId ?? null;
+
+    derived only = item !== '';
+
+    derived onlyWords = item === '' ? '' : locale.t('admin.shop.orders.only', { look: itemName(item, locale) });
+
+    derived states = [
+        { id: 'all', label: locale.t('admin.shop.orders.state.all') },
+        ...STATE_CHIPS.map((one) => ({ id: one, label: locale.t(ORDER_WORDS[one]) }))
+    ];
+
+    const apply = () =>
+    {
+        pending?.();
+        pending = null;
+        address.write({ person: typed.trim() });
+    };
+
+    const search = (value: string) =>
+    {
+        typed = value;
+        pending?.();
+        pending = runtime().clock.after(SEARCH_PAUSE_MS, apply);
+    };
+
+    const older = async () =>
+    {
+        const from = page;
+        const after = cursor;
+        const kept = continued?.rows ?? [];
+
+        if (from === null || after === undefined || paging)
+        {
+            return;
+        }
+
+        paging = true;
+
+        await attempt((async () =>
+        {
+            const next = await client.admin.shopOrders({ query: { ...queryOf({ state, person, item }), cursor: after } });
+
+            if (first.data() === from)
+            {
+                tail = { from, rows: [...kept, ...next.rows], cursor: next.cursor };
+            }
+        })());
+
+        paging = false;
+    };
+
+    <div class="flex flex-col gap-4" data-shop-orders>
+        <div class="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:gap-4" data-toolbar>
+            <SearchInput
+                class="@2xl:w-80 @2xl:shrink-0"
+                value={ typed }
+                label={ locale.t('admin.shop.orders.person') }
+                placeholder={ locale.t('admin.shop.orders.person') }
+                onInput={ search }
+                onEnter={ apply }
+            />
+            <FilterBar class="min-w-0 @2xl:flex-1" items={ states } value={ state ?? 'all' } label={ locale.t('admin.shop.orders.states') } onChange={ (id) => address.write({ state: id === 'all' ? '' : id }) } />
+        </div>
+
+        <Show when={ only }>
+            <div class="flex flex-wrap items-center gap-2" data-only>
+                <Badge text={ onlyWords } tone="accent" />
+                <Button variant="ghost" size="sm" leading="close" onClick={ () => address.write({ item: '' }) }>{ locale.t('admin.shop.orders.every') }</Button>
+            </div>
+        </Show>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 5 } avatar /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState title={ locale.t('admin.shop.orders.failed') } onRetry={ () => void first.refetch() } /> }
+        </Show>
+
+        <Show when={ none }>
+            { () => <AdminEmpty icon="bag" title={ locale.t('admin.shop.orders.none') } lead={ locale.t('admin.shop.orders.noneLead') } /> }
+        </Show>
+
+        <Show when={ noneFound }>
+            { () => <AdminEmpty icon="bag" title={ locale.t('admin.shop.orders.noneFound') } /> }
+        </Show>
+
+        <Show when={ listed }>
+            <div class="flex flex-col">
+                <div class="overflow-hidden rounded-panel border border-line bg-field">
+                    <div class={ `hidden gap-4 border-b border-line px-4 py-2.5 text-ui-xs font-semibold text-faint @2xl:grid ${ ORDER_COLUMNS }` } aria-hidden="true" data-columns>
+                        <span class="col-start-2">{ locale.t('admin.shop.orders.column.look') }</span>
+                        <span>{ locale.t('admin.shop.orders.column.who') }</span>
+                        <span>{ locale.t('admin.shop.orders.column.price') }</span>
+                        <span>{ locale.t('admin.shop.orders.column.when') }</span>
+                        <span>{ locale.t('admin.shop.orders.column.state') }</span>
+                    </div>
+                    <ul class="divide-y divide-line" data-orders>
+                        <For each={ rows } key={ (one) => one.id } let={ row }>
+                            <li>
+                                <ShopOrderRow order={ row } chainId={ chainId } />
+                            </li>
+                        </For>
+                    </ul>
+                </div>
+                <Show when={ more }>
+                    <LoadMore label={ locale.t('admin.shop.orders.more') } loading={ paging } onMore={ () => void older() } />
+                </Show>
+            </div>
+        </Show>
+    </div>
+}

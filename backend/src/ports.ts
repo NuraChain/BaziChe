@@ -20,6 +20,8 @@ import type {
     AdminNotice,
     AdminOverview,
     AdminPlay,
+    AdminShop,
+    AdminShopOrders,
     AdminTables,
     AdminReport,
     AdminReports,
@@ -78,7 +80,7 @@ import type {
     StaffLog
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
-import type { adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
+import type { adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminShopFeatureInput, adminShopItemInput, adminShopOrdersQuery, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
 import type { ShopSlot } from './domains/shop/catalogue.ts';
 import type { QuickAsk } from './domains/table/quick.ts';
@@ -761,6 +763,14 @@ export interface AdminPort
     putNotice(me: string, input: Infer<typeof adminNoticeInput>): Promise<AdminNotice | null>;
 
     endNotice(me: string, input: Infer<typeof adminNoticeEnd>): Promise<AdminNotice | null>;
+
+    shop(me: string): Promise<AdminShop | null>;
+
+    shopItem(me: string, id: string, input: Infer<typeof adminShopItemInput>): Promise<AdminShop | null>;
+
+    shopFeature(me: string, input: Infer<typeof adminShopFeatureInput>): Promise<AdminShop | null>;
+
+    shopOrders(me: string, query: Infer<typeof adminShopOrdersQuery>): Promise<AdminShopOrders | null>;
 }
 
 /** Every port the API declaration may reach. One member per domain. */

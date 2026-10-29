@@ -68,6 +68,11 @@ import {
     adminReportsQuery,
     adminReviewInput,
     reportsWaiting,
+    adminShop,
+    adminShopFeatureInput,
+    adminShopItemInput,
+    adminShopOrders,
+    adminShopOrdersQuery,
     adminPlay,
     adminGameInput,
     adminMatches,
@@ -598,7 +603,19 @@ export function buildApi(ports: Ports)
                 async (context) => onlyAdmin(await ports.admin.putNotice(context.principal.userId, context.input))),
 
             endNotice: routes.post('/notice/end', { input: adminNoticeEnd, output: adminNotice },
-                async (context) => onlyAdmin(await ports.admin.endNotice(context.principal.userId, context.input)))
+                async (context) => onlyAdmin(await ports.admin.endNotice(context.principal.userId, context.input))),
+
+            shop: routes.get('/shop', { output: adminShop },
+                async (context) => onlyAdmin(await ports.admin.shop(context.principal.userId))),
+
+            shopItem: routes.post('/shop/items/:id', { input: adminShopItemInput, output: adminShop },
+                async (context) => onlyAdmin(await ports.admin.shopItem(context.principal.userId, context.params.id, context.input))),
+
+            shopFeature: routes.post('/shop/featured', { input: adminShopFeatureInput, output: adminShop },
+                async (context) => onlyAdmin(await ports.admin.shopFeature(context.principal.userId, context.input))),
+
+            shopOrders: routes.get('/shop/orders', { query: adminShopOrdersQuery, output: adminShopOrders },
+                async (context) => onlyAdmin(await ports.admin.shopOrders(context.principal.userId, context.query)))
         })),
 
         vault: feature('/vault', [session], (routes) => ({

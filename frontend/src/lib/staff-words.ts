@@ -1,12 +1,15 @@
 import { ApiError } from '../api.ts';
 import { isStaffRefusal } from '../../../backend/src/domains/admin/refusals.ts';
 import { STAFF_ROLES, type ReportStatus, type StaffRole } from '../../../backend/src/domains/admin/roles.ts';
+import { SHOP_COLLECTIONS } from '../../../backend/src/domains/shop/catalogue.ts';
 import { normalizeName } from '../../../backend/src/lib/naming.ts';
 import type { StaffLog } from '../../../backend/src/schemas.ts';
 import type { Tone } from '../components/ui/variants.ts';
 import { GAMES } from '../data/games.ts';
 import type { MessageKey } from '../locales/en.ts';
 import type { LocaleApi } from '../stores/locale.store.ts';
+import { nuraOf } from './nura.ts';
+import { collectionName, itemName } from './shop.ts';
 
 export type LogRow = StaffLog['rows'][number];
 
@@ -69,6 +72,22 @@ const CHECK_LINES: Readonly<Record<string, MessageKey>> = {
     market: 'admin.log.line.check.market',
     position: 'admin.log.line.check.position',
     contract: 'admin.log.line.check.contract'
+};
+
+const SALE_TERMS: Readonly<Record<string, MessageKey>> = {
+    1: 'admin.shop.term.1',
+    6: 'admin.shop.term.6',
+    24: 'admin.shop.term.24',
+    72: 'admin.shop.term.72',
+    168: 'admin.shop.term.168',
+    336: 'admin.shop.term.336',
+    720: 'admin.shop.term.720'
+};
+
+const SHELF_LINES: Readonly<Record<string, MessageKey>> = {
+    'on-sale': 'admin.log.line.shop.on-sale',
+    hidden: 'admin.log.line.shop.hidden',
+    retired: 'admin.log.line.shop.retired'
 };
 
 const isRole = (value: string | undefined): value is StaffRole => STAFF_ROLES.some((role) => role === value);
@@ -171,6 +190,33 @@ const said = (row: LogRow, locale: LocaleApi) =>
     if (row.kind === 'check')
     {
         return locale.t(CHECK_LINES[row.details.family ?? ''] ?? 'admin.log.line.check.contract', slots);
+    }
+
+    if (row.kind === 'shop-item')
+    {
+        const look = itemName(row.details.item ?? '', locale);
+        const nura = (wei: string | undefined) => (wei !== undefined && /^\d+$/.test(wei) ? locale.n(nuraOf(wei), { maximumFractionDigits: 4 }) : '');
+
+        if (row.details.field === 'price')
+        {
+            return locale.t('admin.log.line.shop.price', { ...slots, look, from: nura(row.details.from), to: nura(row.details.to) });
+        }
+
+        if (row.details.field === 'sale')
+        {
+            return row.details.to === undefined
+                ? locale.t('admin.log.line.shop.end', { ...slots, look })
+                : locale.t('admin.log.line.shop.sale', { ...slots, look, to: nura(row.details.to), term: locale.t(SALE_TERMS[row.details.hours ?? ''] ?? 'admin.shop.term.24') });
+        }
+
+        return locale.t(SHELF_LINES[row.details.to ?? ''] ?? 'admin.log.line.shop.on-sale', { ...slots, look });
+    }
+
+    if (row.kind === 'shop-feature')
+    {
+        const collection = SHOP_COLLECTIONS.find((one) => one === row.details.to);
+
+        return locale.t('admin.log.line.shop.feature', { ...slots, collection: collection === undefined ? row.details.to ?? '' : collectionName(collection, locale) });
     }
 
     if (row.kind === 'void' || row.kind === 'close')

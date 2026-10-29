@@ -1,0 +1,95 @@
+import type { ShopItemStatus } from '../../../../backend/src/domains/shop/policy.ts';
+import type { AdminShop } from '../../../../backend/src/schemas.ts';
+import { nuraOf } from '../../lib/nura.ts';
+import { itemName } from '../../lib/shop.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import type { Tone } from '../ui/variants.ts';
+import When from './when.component.azeroth';
+
+export type AdminShopItem = AdminShop['items'][number];
+
+export const ITEM_COLUMNS = '@2xl:grid-cols-[4rem_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.3fr)_4.5rem_7rem]';
+
+export const STATUS_WORDS: Record<ShopItemStatus, MessageKey> = {
+    'on-sale': 'admin.shop.status.on-sale',
+    hidden: 'admin.shop.status.hidden',
+    retired: 'admin.shop.status.retired'
+};
+
+const STATUS_TONES: Record<ShopItemStatus, Tone> = {
+    'on-sale': 'live',
+    hidden: 'gold',
+    retired: 'neutral'
+};
+
+export default component ShopItemRow(props: { item: AdminShopItem; onChange: () => void; onOrders: () => void })
+{
+    const locale = useLocale();
+
+    const amount = (wei: string) => locale.n(nuraOf(wei), { maximumFractionDigits: 4 });
+
+    derived name = itemName(props.item.id, locale);
+
+    derived price = amount(props.item.price);
+
+    derived moved = props.item.price !== props.item.listed;
+
+    derived listed = locale.t('admin.shop.listed', { amount: amount(props.item.listed) });
+
+    derived sale = props.item.sale ?? null;
+
+    derived onSale = sale !== null;
+
+    derived saleWords = sale === null ? '' : locale.t('admin.shop.saleShort', { amount: amount(sale.price) });
+
+    derived until = sale?.until ?? '';
+
+    derived ends = sale === null ? '' : locale.t('admin.shop.ends', { when: locale.relative(Date.parse(sale.until)) });
+
+    derived withheld = props.item.status !== 'on-sale';
+
+    derived status = locale.t(STATUS_WORDS[props.item.status]);
+
+    derived tone = STATUS_TONES[props.item.status];
+
+    derived sold = props.item.sold;
+
+    derived soldWord = locale.plural('admin.shop.sold', sold);
+
+    derived soldLabel = locale.t('admin.shop.soldLabel', { look: name });
+
+    derived changeLabel = locale.t('admin.shop.changeLabel', { look: name });
+
+    <div class={ `flex items-center gap-3 px-4 py-3 @2xl:grid @2xl:gap-4 ${ ITEM_COLUMNS }` } data-item={ props.item.id } data-status={ props.item.status }>
+        <img src={ `/looks/${ props.item.id }.svg` } alt="" width="64" height="48" loading="lazy" decoding="async" class="h-12 w-16 shrink-0 rounded-tile border border-line bg-sunk object-cover" />
+        <div class="flex min-w-0 flex-1 flex-col gap-1 @2xl:contents">
+            <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <span class="min-w-0 text-ui-sm font-semibold text-text" data-name>{ name }</span>
+                <Show when={ withheld }>
+                    <Badge dot text={ status } tone={ tone } />
+                </Show>
+            </div>
+            <p class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-ui-xs text-muted @2xl:contents">
+                <span class="flex flex-col @2xl:text-ui-sm" data-price>
+                    <span class="text-text" data-now><span class="tally">{ price }</span> NURA</span>
+                    <span class="text-ui-2xs text-faint" hidden={ !moved } data-listed>{ listed }</span>
+                </span>
+                <span class="flex flex-col @2xl:text-ui-sm" data-sale>
+                    <Show when={ onSale } fallback={ <span class="hidden text-faint @2xl:inline">{ locale.t('admin.shop.noSale') }</span> }>
+                        <span class="tally text-gold">{ saleWords }</span>
+                        <span class="text-ui-2xs text-faint"><When at={ until } said={ ends } /></span>
+                    </Show>
+                </span>
+                <button type="button" class="inline-flex min-h-11 items-center gap-1 text-start text-accent underline-offset-2 hover:underline @2xl:text-ui-sm" aria-label={ soldLabel } data-sold onClick={ props.onOrders }>
+                    <span class="tally">{ locale.n(sold) }</span> <span class="@2xl:sr-only">{ soldWord }</span>
+                </button>
+            </p>
+        </div>
+        <div class="flex shrink-0 items-center @2xl:justify-end">
+            <Button variant="secondary" size="sm" label={ changeLabel } onClick={ props.onChange }>{ locale.t('admin.shop.change') }</Button>
+        </div>
+    </div>
+}

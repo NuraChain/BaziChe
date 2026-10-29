@@ -109,6 +109,19 @@ const announced = () =>
     staffLogged({ at: hoursAgo(1), staff: 'mina', staffRole: 'admin', kind: 'notice', reason: 'The restart is done.', details: { to: 'down', en: 'Nura restarts at 22:00.', fa: 'نورا ساعت ۲۲ ری‌استارت می‌شه.' } });
 };
 
+const shopped = () =>
+{
+    const wei = (whole: number) => (BigInt(whole) * 10n ** 18n).toString();
+
+    staffLogged({ at: hoursAgo(7), staff: 'mina', staffRole: 'admin', kind: 'shop-item', reason: 'Cheaper for the launch.', details: { item: 'dice.glow', field: 'price', from: wei(12), to: wei(7) } });
+    staffLogged({ at: hoursAgo(6), staff: 'alex', staffRole: 'owner', kind: 'shop-item', reason: 'A weekend sale.', details: { item: 'back.glow', field: 'sale', to: wei(6), hours: '72' } });
+    staffLogged({ at: hoursAgo(5), staff: 'mina', staffRole: 'admin', kind: 'shop-item', reason: 'The weekend is over.', details: { item: 'back.glow', field: 'sale', from: wei(6) } });
+    staffLogged({ at: hoursAgo(4), staff: 'mina', staffRole: 'admin', kind: 'shop-item', reason: 'Redrawn.', details: { item: 'chips.neon', field: 'status', from: 'hidden', to: 'on-sale' } });
+    staffLogged({ at: hoursAgo(3), staff: 'mina', staffRole: 'admin', kind: 'shop-item', reason: 'Redrawing the chips.', details: { item: 'chips.neon', field: 'status', from: 'on-sale', to: 'hidden' } });
+    staffLogged({ at: hoursAgo(2), staff: 'mina', staffRole: 'admin', kind: 'shop-item', reason: 'Not coming back.', details: { item: 'felt.gold', field: 'status', from: 'on-sale', to: 'retired' } });
+    staffLogged({ at: hoursAgo(1), staff: 'alex', staffRole: 'owner', kind: 'shop-feature', reason: 'Jade for the new year.', details: { from: 'inferno', to: 'jade' } });
+};
+
 const was = (root: ParentNode) => [...root.querySelectorAll<HTMLElement>('[data-entry] [data-was]')].map((one) => (one.hidden ? null : one.textContent?.replace(/\s+/g, ' ').trim()));
 
 const story = () =>
@@ -275,6 +288,31 @@ describe('the log', () =>
         await settle();
 
         expect(lines(container)).toEqual(['alex یه ناهمخوانی با نوراچین رو درباره‌ی حساب‌وکتاب یه قرارداد بست.', 'mina یه ناهمخوانی با نوراچین رو درباره‌ی یه سفارش فروشگاه بست.']);
+    });
+
+    it('says what the staff changed in the shop, naming the look and the collection in the reader\'s words and the amounts in NURA', async () =>
+    {
+        shopped();
+        const { container } = await opened('/admin/log?kind=shop-item');
+
+        expect(lines(container)).toEqual([
+            'mina retired Royal Gold felt from the shop.',
+            'mina hid Midnight Neon chips from the shop.',
+            'mina put Midnight Neon chips back in the shop.',
+            'mina ended the sale on Nura Glow card back.',
+            'alex put Nura Glow card back on sale at 6 NURA for 3 days.',
+            'mina set the price of Nura Glow dice at 7 NURA, from 12.'
+        ]);
+        expect(isolated(entry(container, 0), ':scope')).toEqual(['mina']);
+        expect(container.querySelector('[aria-pressed="true"]')?.textContent?.trim()).toBe('Shop');
+        expect(entry(container, 0).querySelector('[data-mark]')?.className).toContain('text-accent');
+
+        cleanup();
+
+        const top = await opened('/admin/log?kind=shop-feature');
+
+        expect(lines(top.container)).toEqual(['alex put Jade Dragon Dynasty on top of the shop.']);
+        expect(entry(top.container, 0).querySelector('[data-mark]')?.className).toContain('text-gold');
     });
 
     it('says who put an announcement up and for how long, who took it down, and what it said in the reader\'s own language', async () =>
@@ -525,7 +563,7 @@ describe('the log', () =>
             'alex، mina رو از ناظر کرد ادمین.',
             'alex، mina رو ناظر کرد.'
         ]);
-        expect([...container.querySelectorAll('[aria-pressed]')].map((one) => one.textContent?.trim())).toEqual(['همه', 'اضافه شده', 'عوض شده', 'برداشته شده', 'یادداشت‌ها', 'تعلیق‌ها', 'رفع تعلیق', 'پایان تعلیق', 'پاک شده', 'خارج شده', 'گزارش‌ها', 'بازی‌ها', 'بازی‌های تموم‌شده', 'میزهای بسته‌شده', 'سن', 'اطلاعیه‌ها', 'بررسی‌ها']);
+        expect([...container.querySelectorAll('[aria-pressed]')].map((one) => one.textContent?.trim())).toEqual(['همه', 'اضافه شده', 'عوض شده', 'برداشته شده', 'یادداشت‌ها', 'تعلیق‌ها', 'رفع تعلیق', 'پایان تعلیق', 'پاک شده', 'خارج شده', 'گزارش‌ها', 'بازی‌ها', 'بازی‌های تموم‌شده', 'میزهای بسته‌شده', 'سن', 'اطلاعیه‌ها', 'بررسی‌ها', 'فروشگاه', 'بالای فروشگاه']);
         expect(isolated(entry(container, 1), ':scope')).toEqual(['alex', 'mina']);
     });
 
@@ -554,6 +592,23 @@ describe('the log', () =>
         expect(lines(container)).toEqual([
             'alex، منچ رو دوباره فعال کرد.',
             'mina، منچ رو متوقف کرد.'
+        ]);
+    });
+
+    it('says what the staff changed in the shop in Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+        shopped();
+        const { container } = await opened();
+
+        expect(lines(container)).toEqual([
+            'alex، کلکسیون دودمان اژدهای یشم رو برد بالای فروشگاه.',
+            'mina، ماهوت طلای سلطنتی رو از فروش خارج کرد.',
+            'mina، ژتون نئون نیمه‌شب رو از فروشگاه پنهان کرد.',
+            'mina، ژتون نئون نیمه‌شب رو برگردوند توی فروشگاه.',
+            'mina، تخفیف پشت کارت درخشش نورا رو تموم کرد.',
+            'alex، پشت کارت درخشش نورا رو برای ۳ روز با ۶ NURA گذاشت توی تخفیف.',
+            'mina، قیمت تاس درخشش نورا رو از ۱۲ کرد ۷ NURA.'
         ]);
     });
 

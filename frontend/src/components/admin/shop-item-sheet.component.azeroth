@@ -1,0 +1,301 @@
+import { untrack } from 'azerothjs';
+
+import { SALE_HOURS, type SaleHours } from '../../../../backend/src/domains/admin/roles.ts';
+import { SHOP_ITEM_STATUSES, type ShopItemStatus } from '../../../../backend/src/domains/shop/policy.ts';
+import { nuraOf, parseNura, typedNura } from '../../lib/nura.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import Segmented from '../ui/segmented.component.azeroth';
+import Select from '../ui/select.component.azeroth';
+import TextArea from '../ui/text-area.component.azeroth';
+import { STATUS_WORDS, type AdminShopItem } from './shop-item-row.component.azeroth';
+
+export type ShopChange = { price: string } | { sale: { price: string; hours: SaleHours } } | { sale: false } | { status: ShopItemStatus };
+
+export interface ShopAsk
+{
+    change: ShopChange;
+    reason: string;
+}
+
+type Part = 'price' | 'sale' | 'end' | 'status';
+
+const PARTS = ['price', 'sale', 'status'] as const;
+
+const REASON_MIN = 3;
+
+/** A price is written to four places at most, as every NURA figure here is said. */
+const PLACE = 10n ** 14n;
+
+/** Under a million NURA, as the wire takes it. */
+const MOST = 10n ** 24n;
+
+const STATUS_LEADS: Record<ShopItemStatus, MessageKey> = {
+    'on-sale': 'admin.shop.sheet.statusLead.on-sale',
+    hidden: 'admin.shop.sheet.statusLead.hidden',
+    retired: 'admin.shop.sheet.statusLead.retired'
+};
+
+const CONFIRMS: Record<Part, MessageKey> = {
+    price: 'admin.shop.sheet.savePrice',
+    sale: 'admin.shop.sheet.startSale',
+    end: 'admin.shop.sheet.endSale',
+    status: 'admin.shop.sheet.saveStatus'
+};
+
+const partOf = (change: ShopChange | undefined): Part =>
+{
+    if (change === undefined || 'price' in change)
+    {
+        return 'price';
+    }
+
+    if ('status' in change)
+    {
+        return 'status';
+    }
+
+    return change.sale === false ? 'end' : 'sale';
+};
+
+const weiOf = (typed: string) =>
+{
+    const wei = parseNura(typed);
+
+    return wei === null || wei % PLACE !== 0n || wei >= MOST ? null : wei;
+};
+
+export default component ShopItemSheet(props: OverlayProps & { item: AdminShopItem; name: string; initial?: ShopAsk })
+{
+    const locale = useLocale();
+    const first = untrack(() => props.initial?.change);
+    const held = untrack(() => props.item);
+    const sale = first !== undefined && 'sale' in first && first.sale !== false ? first.sale : null;
+
+    state part = partOf(first);
+
+    state priceTyped = first !== undefined && 'price' in first ? typedNura(BigInt(first.price)) : '';
+
+    state saleTyped = sale === null ? '' : typedNura(BigInt(sale.price));
+
+    state hours = (sale?.hours ?? 24) as SaleHours;
+
+    state status = (first !== undefined && 'status' in first ? first.status : held.status) as ShopItemStatus;
+
+    state why = untrack(() => props.initial?.reason ?? '');
+
+    state told = null as string | null;
+
+    state whyTold = null as string | null;
+
+    const amount = (wei: string | bigint) => locale.n(nuraOf(wei), { maximumFractionDigits: 4 });
+
+    derived running = props.item.sale ?? null;
+
+    derived runs = running !== null;
+
+    derived shown = part === 'end' ? 'sale' : part;
+
+    derived onPrice = part === 'price';
+
+    derived onSale = part === 'sale';
+
+    derived onEnd = part === 'end';
+
+    derived onStatus = part === 'status';
+
+    derived telling = told !== null;
+
+    derived toldWords = told ?? '';
+
+    derived parts = PARTS.map((id) => ({ id, label: locale.t(`admin.shop.sheet.${ id }`) }));
+
+    derived statuses = SHOP_ITEM_STATUSES.map((id) => ({ id, label: locale.t(STATUS_WORDS[id]) }));
+
+    derived terms = SALE_HOURS.map((one) => ({ value: String(one), label: locale.t(`admin.shop.hours.${ one }`) }));
+
+    derived priceHint = locale.t('admin.shop.sheet.priceHint', { price: amount(props.item.price), listed: amount(props.item.listed) });
+
+    derived saleHint = locale.t('admin.shop.sheet.saleHint', { price: amount(props.item.price) });
+
+    derived runningWords = running === null
+        ? ''
+        : locale.t('admin.shop.sheet.running', { amount: amount(running.price), until: locale.date(Date.parse(running.until), { dateStyle: 'long', timeStyle: 'short' }) });
+
+    derived endingWords = running === null ? '' : locale.t('admin.shop.sheet.ending', { amount: amount(running.price), price: amount(props.item.price) });
+
+    derived statusLead = locale.t(STATUS_LEADS[status]);
+
+    derived confirm = locale.t(CONFIRMS[part]);
+
+    const choose = (id: string) =>
+    {
+        part = PARTS.find((one) => one === id) ?? 'price';
+        told = null;
+    };
+
+    const typedPrice = (value: string) =>
+    {
+        priceTyped = value;
+        told = null;
+    };
+
+    const typedSale = (value: string) =>
+    {
+        saleTyped = value;
+        told = null;
+    };
+
+    const typedWhy = (value: string) =>
+    {
+        why = value;
+        whyTold = null;
+    };
+
+    const ending = () =>
+    {
+        part = 'end';
+        told = null;
+    };
+
+    const chooseStatus = (id: string) =>
+    {
+        status = SHOP_ITEM_STATUSES.find((one) => one === id) ?? status;
+        told = null;
+    };
+
+    const changeOf = (): ShopChange | null =>
+    {
+        if (part === 'end')
+        {
+            return { sale: false };
+        }
+
+        if (part === 'status')
+        {
+            told = status === props.item.status ? locale.t('admin.shop.sheet.statusSame') : null;
+
+            return told === null ? { status } : null;
+        }
+
+        if (part === 'sale')
+        {
+            const wei = weiOf(saleTyped);
+
+            told = wei === null
+                ? locale.t('admin.shop.sheet.saleBad')
+                : wei < BigInt(props.item.price) ? null : locale.t('admin.shop.sheet.saleOver', { price: amount(props.item.price) });
+
+            return wei === null || told !== null ? null : { sale: { price: wei.toString(), hours } };
+        }
+
+        const wei = weiOf(priceTyped);
+
+        if (wei === null || wei.toString() === props.item.price)
+        {
+            told = locale.t(wei === null ? 'admin.shop.sheet.priceBad' : 'admin.shop.sheet.priceSame');
+            return null;
+        }
+
+        told = running !== null && wei <= BigInt(running.price) ? locale.t('admin.shop.sheet.priceUnder', { sale: amount(running.price) }) : null;
+
+        return told === null ? { price: wei.toString() } : null;
+    };
+
+    const send = () =>
+    {
+        const change = changeOf();
+        const reason = why.trim();
+
+        whyTold = reason.length < REASON_MIN ? locale.t('admin.staff.reasonShort') : null;
+
+        if (change === null || whyTold !== null)
+        {
+            return;
+        }
+
+        const ask: ShopAsk = { change, reason };
+
+        props.close(ask);
+    };
+
+    <div class="flex flex-col gap-5 p-5" data-shop-sheet>
+        <div class="flex items-center gap-3">
+            <img src={ `/looks/${ props.item.id }.svg` } alt="" width="64" height="48" class="h-12 w-16 shrink-0 rounded-tile border border-line bg-sunk object-cover" />
+            <h2 class="title min-w-0 text-ui-xl text-text" data-ask>{ props.name }</h2>
+        </div>
+
+        <Segmented block items={ parts } value={ shown } label={ locale.t('admin.shop.sheet.what') } onChange={ choose } />
+
+        <Show when={ onPrice }>
+            <Field id="admin-shop-price" label={ locale.t('admin.shop.sheet.priceLabel') } hint={ priceHint } error={ told }>
+                <Input
+                    id="admin-shop-price"
+                    value={ priceTyped }
+                    inputmode="decimal"
+                    autocomplete="off"
+                    describedBy={ telling ? 'admin-shop-price-error' : 'admin-shop-price-hint' }
+                    onInput={ typedPrice }
+                />
+            </Field>
+        </Show>
+
+        <Show when={ onSale }>
+            <div class="flex flex-col gap-4" data-sale-part>
+                <Show when={ runs }>
+                    <div class="flex flex-col items-start gap-1 rounded-tile border border-gold/40 bg-gold/10 p-3" data-running>
+                        <p class="text-ui-sm text-text">{ runningWords }</p>
+                        <button type="button" class="min-h-11 text-ui-sm font-semibold text-accent underline-offset-2 hover:underline" data-end-instead onClick={ ending }>{ locale.t('admin.shop.sheet.endInstead') }</button>
+                    </div>
+                </Show>
+                <Field id="admin-shop-sale" label={ locale.t('admin.shop.sheet.saleLabel') } hint={ saleHint } error={ told }>
+                    <Input
+                        id="admin-shop-sale"
+                        value={ saleTyped }
+                        inputmode="decimal"
+                        autocomplete="off"
+                        describedBy={ telling ? 'admin-shop-sale-error' : 'admin-shop-sale-hint' }
+                        onInput={ typedSale }
+                    />
+                </Field>
+                <Select label={ locale.t('admin.shop.sheet.saleFor') } value={ String(hours) } options={ terms } onChange={ (value) => hours = SALE_HOURS.find((one) => String(one) === value) ?? 24 } />
+            </div>
+        </Show>
+
+        <Show when={ onEnd }>
+            <div class="flex flex-col items-start gap-1 rounded-tile border border-line bg-sunk p-3" data-ending>
+                <p class="text-ui-sm text-text">{ endingWords }</p>
+                <button type="button" class="min-h-11 text-ui-sm font-semibold text-accent underline-offset-2 hover:underline" data-sale-instead onClick={ () => part = 'sale' }>{ locale.t('admin.shop.sheet.saleInstead') }</button>
+            </div>
+        </Show>
+
+        <Show when={ onStatus }>
+            <div class="flex flex-col gap-2" data-status-part>
+                <Segmented block items={ statuses } value={ status } label={ locale.t('admin.shop.sheet.status') } onChange={ chooseStatus } />
+                <p class="text-ui-sm text-muted" data-status-lead>{ statusLead }</p>
+                <Show when={ telling }>
+                    <p class="text-ui-xs font-medium text-danger" role="alert">{ toldWords }</p>
+                </Show>
+            </div>
+        </Show>
+
+        <Field id="admin-shop-why" label={ locale.t('admin.staff.reason') } hint={ locale.t('admin.staff.reasonHint') } error={ whyTold }>
+            <TextArea
+                id="admin-shop-why"
+                value={ why }
+                maxlength={ 500 }
+                describedBy={ whyTold !== null ? 'admin-shop-why-error' : 'admin-shop-why-hint' }
+                onInput={ typedWhy }
+            />
+        </Field>
+
+        <div class="flex flex-col gap-2 sm:flex-row-reverse">
+            <Button variant="primary" block onClick={ send }>{ confirm }</Button>
+            <Button variant="ghost" block onClick={ () => props.close(null) }>{ locale.t('common.cancel') }</Button>
+        </div>
+    </div>
+}

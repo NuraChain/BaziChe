@@ -43,6 +43,9 @@ const OWNER = '0x71c7656ec7ab88b098defb751b7401b5f6d8976f';
 let clock: ManualClock;
 let stopWallet: (() => void) | null = null;
 
+/** What a purchase waits on in the wallet, so a spec can look at the sheet while the wallet is asked. */
+let sending: Promise<void> | null = null;
+
 const settle = async () =>
 {
     for (let step = 0; step < 16; step += 1)
@@ -74,6 +77,8 @@ const walletWith = (refuse: string[] = []) =>
 
             if (method === 'eth_sendTransaction')
             {
+                await sending;
+
                 return `0x${ 'ab'.repeat(32) }`;
             }
 
@@ -127,6 +132,7 @@ beforeEach(() =>
     clock = manualClock(Date.parse('2026-10-27T12:00:00.000Z'));
     setRuntime({ clock, seed: 3 });
     equipped.length = 0;
+    sending = null;
     handed.length = 0;
     forgetVoices();
     useSettings().reset();
@@ -333,6 +339,37 @@ describe('the sheet about a look', () =>
         expect(root.textContent).toContain('It’s yours.');
         expect(button(root, 'Use at Ludo')).toBeDefined();
         expect(useToasts().items(), 'the sheet says it; no toast as well').toEqual([]);
+    });
+
+    it('says at the wallet the price the server quoted, though the staff changed it after the sheet was drawn', async () =>
+    {
+        let release = () => undefined as void;
+
+        sending = new Promise((resolve) =>
+        {
+            release = () => resolve();
+        });
+        walletWith();
+
+        const { root } = await sheet('dice.glow');
+        let read = () => undefined as void;
+
+        server.shop.holdState = new Promise((resolve) =>
+        {
+            read = () => resolve();
+        });
+        server.shop.state.items.find((one) => one.id === 'dice.glow')!.price = (7n * 10n ** 18n).toString();
+        fire(button(root, 'Buy for 12 NURA')!, 'click');
+        await settle();
+        await settle();
+
+        expect(root.querySelector('[data-buy-step]')?.getAttribute('data-buy-step')).toBe('wallet');
+        expect(useShop().priceFor('dice.glow')?.price, 'the page has not read the shop again yet').toBe(12n * 10n ** 18n);
+        expect(root.textContent).toContain('Confirm in your wallet: 7 NURA from');
+
+        read();
+        release();
+        await settle();
     });
 
     it('offers the wallet whose own looks are free the look for nothing, and gives it at the press with no wallet asked', async () =>

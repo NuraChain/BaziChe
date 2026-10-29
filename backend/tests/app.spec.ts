@@ -1372,7 +1372,7 @@ describe('the owner\'s view of the vault', () =>
             identity: {
                 principal: () => Promise.resolve({ userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' })
             },
-            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice'].map((verb) => [verb, (...said: unknown[]) =>
+            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice', 'shop', 'shopItem', 'shopFeature', 'shopOrders'].map((verb) => [verb, (...said: unknown[]) =>
             {
                 told.push([verb, ...said]);
 
@@ -1743,6 +1743,91 @@ describe('the owner\'s view of the vault', () =>
         expect(bodies).toContain(`'/admin/play/tables/:id/close': (bad) => [`);
         expect(bodies).toContain(`'/admin/notice': (bad) => [`);
         expect(bodies).toContain(`'/admin/notice/end': (bad) => [`);
+        expect(bodies).toContain(`'/admin/shop/items/:id': (bad) => [`);
+        expect(bodies).toContain(`'/admin/shop/featured': (bad) => [`);
+        expect(queries).toContain(`'/admin/shop/orders': ['state', 'item', 'person', 'cursor']`);
+    });
+
+    it('answers anybody who may not run the shop as a page that is not there, and takes a price, a sale, a status or a collection only in the shapes the wire offers', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = owned(told, null);
+        const price = { price: '7000000000000000000', reason: 'Seven for the launch' };
+        const sale = { sale: { price: '5000000000000000000', hours: 72 }, reason: 'A weekend sale' };
+        const ended = { sale: false, reason: 'The weekend is over' };
+        const status = { status: 'hidden', reason: 'Off the shelf for now' };
+        const featured = { collection: 'jade', reason: 'Jade for the new year' };
+        const answers = [
+            await sent(app, '/shop'),
+            await sent(app, '/shop/items/dice.glow', price),
+            await sent(app, '/shop/items/dice.glow', sale),
+            await sent(app, '/shop/items/bundle.jade', ended),
+            await sent(app, '/shop/items/dice.glow', status),
+            await sent(app, '/shop/featured', featured),
+            await sent(app, '/shop/orders?state=paid&item=dice.glow&person=@mina&cursor=abc')
+        ];
+
+        for (const response of answers)
+        {
+            const body = await response.json() as { error: { code: string; message: string } };
+
+            expect([response.status, body.error.code, body.error.message]).toEqual([404, 'not-found', 'Nothing there.']);
+        }
+
+        expect(told).toEqual([
+            ['shop', 'somebody'],
+            ['shopItem', 'somebody', 'dice.glow', price],
+            ['shopItem', 'somebody', 'dice.glow', sale],
+            ['shopItem', 'somebody', 'bundle.jade', ended],
+            ['shopItem', 'somebody', 'dice.glow', status],
+            ['shopFeature', 'somebody', featured],
+            ['shopOrders', 'somebody', { state: 'paid', item: 'dice.glow', person: '@mina', cursor: 'abc' }]
+        ]);
+
+        for (const bad of [
+            { price: '0', reason: price.reason },
+            { price: '07', reason: price.reason },
+            { price: '1.5', reason: price.reason },
+            { price: '1'.repeat(25), reason: price.reason },
+            { price: 7, reason: price.reason },
+            { sale: { price: '5', hours: 2 }, reason: sale.reason },
+            { sale: { price: '0', hours: 24 }, reason: sale.reason },
+            { sale: true, reason: sale.reason },
+            { status: 'gone', reason: status.reason },
+            { price: price.price, reason: 'ok' },
+            { price: price.price }
+        ])
+        {
+            expect((await sent(app, '/shop/items/dice.glow', bad)).status, JSON.stringify(bad)).toBe(422);
+        }
+
+        expect((await sent(app, '/shop/featured', { collection: 'bronze', reason: featured.reason })).status).toBe(422);
+        expect((await sent(app, '/shop/featured', { collection: 'jade', reason: '   ' })).status).toBe(422);
+        expect((await sent(app, '/shop/orders?state=lost')).status).toBe(422);
+        expect((await sent(app, `/shop/orders?person=${ 'x'.repeat(41) }`)).status).toBe(422);
+        expect(told).toHaveLength(7);
+    });
+
+    it('sends the shop and its orders as the wire declares them, and nothing the port added', async () =>
+    {
+        const item = { id: 'dice.glow', price: '7', listed: '12', sale: { price: '5', until: '2026-10-30T09:00:00.000Z' }, status: 'on-sale', sold: 3 };
+        const order = {
+            id: 'o-1',
+            item: 'dice.glow',
+            price: '7',
+            state: 'paid',
+            buyer: { handle: 'sara.k', displayName: 'Sara', hue: 20 },
+            for: { handle: 'mina', displayName: 'Mina', hue: 40 },
+            at: '2026-10-29T09:00:00.000Z',
+            paidAt: '2026-10-29T09:01:00.000Z',
+            hash: `0x${ 'ab'.repeat(32) }`,
+            delivered: true
+        };
+        const shop = await sent(owned([], { featured: 'jade', items: [{ ...item, salePrice: '5' }], secret: 'x' }), '/shop');
+        const orders = await sent(owned([], { rows: [{ ...order, buyerId: 'a-uuid', buyer: { ...order.buyer, id: 'a-uuid' } }], cursor: 'c' }), '/shop/orders');
+
+        expect(await shop.json()).toEqual({ featured: 'jade', items: [item] });
+        expect(await orders.json()).toEqual({ rows: [order], cursor: 'c' });
     });
 
     it('sends the staff and the log as the wire declares them, and nothing the port added', async () =>

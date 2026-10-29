@@ -1,0 +1,53 @@
+import type { ShopCollection } from '../../../../backend/src/domains/shop/catalogue.ts';
+import { collectionName } from '../../lib/shop.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import ShopItemRow, { ITEM_COLUMNS, type AdminShopItem } from './shop-item-row.component.azeroth';
+
+export default component ShopGroup(props: {
+    collection: ShopCollection;
+    items: AdminShopItem[];
+    featured: boolean;
+    onChange: (item: AdminShopItem) => void;
+    onOrders: (item: AdminShopItem) => void;
+    onFeature: () => void;
+})
+{
+    const locale = useLocale();
+
+    derived name = collectionName(props.collection, locale);
+
+    derived onTop = props.featured;
+
+    derived putLabel = locale.t('admin.shop.putOnTopLabel', { collection: name });
+
+    derived heading = `admin-shop-${ props.collection }`;
+
+    <section aria-labelledby={ heading } class="flex flex-col gap-3" data-collection={ props.collection }>
+        <div class="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2">
+            <img src={ `/sigils/${ props.collection }.svg` } alt="" width="28" height="28" class="h-7 w-7 shrink-0" />
+            <h2 id={ heading } class="text-ui-lg font-semibold text-text">{ name }</h2>
+            <div class="ms-auto flex items-center" data-top>
+                <Show when={ onTop } fallback={ <Button variant="ghost" size="sm" leading="star" label={ putLabel } onClick={ props.onFeature }>{ locale.t('admin.shop.putOnTop') }</Button> }>
+                    <Badge dot text={ locale.t('admin.shop.onTop') } tone="gold" />
+                </Show>
+            </div>
+        </div>
+        <div class="overflow-hidden rounded-panel border border-line bg-field">
+            <div class={ `hidden gap-4 border-b border-line px-4 py-2.5 text-ui-xs font-semibold text-faint @2xl:grid ${ ITEM_COLUMNS }` } aria-hidden="true" data-columns>
+                <span class="col-start-2">{ locale.t('admin.shop.column.look') }</span>
+                <span>{ locale.t('admin.shop.column.price') }</span>
+                <span>{ locale.t('admin.shop.column.sale') }</span>
+                <span>{ locale.t('admin.shop.column.sold') }</span>
+            </div>
+            <ul class="divide-y divide-line">
+                <For each={ props.items } key={ (one) => one.id } let={ row }>
+                    <li>
+                        <ShopItemRow item={ row } onChange={ () => props.onChange(row) } onOrders={ () => props.onOrders(row) } />
+                    </li>
+                </For>
+            </ul>
+        </div>
+    </section>
+}

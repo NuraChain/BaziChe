@@ -46,6 +46,7 @@ import { createPeopleService } from './domains/admin/people.ts';
 import { createLiveService, type Call, type Online } from './domains/admin/live.ts';
 import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play.ts';
 import { createNoticeService } from './domains/admin/notice.ts';
+import { createShopAdmin } from './domains/admin/shop.ts';
 import { worn, type ProfileLooks } from './domains/shop/looks.ts';
 import { createOrderService, type ShopSweep } from './domains/shop/orders.ts';
 import { donationLineOf } from './domains/donate/line.ts';
@@ -1074,6 +1075,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const onlineNow = createLiveService(db, shownOwners);
 
     const notices = createNoticeService(db);
+
+    const shopAdmin = createShopAdmin(db);
 
     const liveNow = async () =>
     {
@@ -2313,6 +2316,42 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 live?.catalogueChanged();
 
                 return standing;
+            },
+
+            async shop(me)
+            {
+                return await ableTo(me, 'shop') === null ? null : await shopAdmin.read();
+            },
+
+            async shopItem(me, id, input)
+            {
+                const actor = await ableTo(me, 'shop');
+
+                if (actor === null || await shopAdmin.change(actor, id, input, input.reason) === null)
+                {
+                    return null;
+                }
+
+                return await shopAdmin.read();
+            },
+
+            async shopFeature(me, input)
+            {
+                const actor = await ableTo(me, 'shop');
+
+                if (actor === null)
+                {
+                    return null;
+                }
+
+                await shopAdmin.feature(actor, input.collection, input.reason);
+
+                return await shopAdmin.read();
+            },
+
+            async shopOrders(me, query)
+            {
+                return await ableTo(me, 'shop') === null ? null : { ...await shopAdmin.orders(query), ...(looksShop.configured ? { chainId: looksShop.chainId } : {}) };
             }
         },
 

@@ -167,6 +167,21 @@ export const useShop = createStore((): ShopApi =>
 
     const owned = (look: string) => collection()?.owned.some((one) => one.item === look) === true;
 
+    const priceNow = (item: string) =>
+    {
+        const asked = priceOf(state.data() ?? null, item);
+        const bundle = bundleOf(item);
+
+        if (asked === null || bundle === undefined)
+        {
+            return asked;
+        }
+
+        const looks = bundle.looks.map((look) => ({ price: priceOf(state.data() ?? null, look)?.price ?? 0n, owned: owned(look) }));
+
+        return { ...asked, price: bundlePriceFor(asked.price, looks) };
+    };
+
     const readAgain = async () =>
     {
         await held.refetch();
@@ -359,6 +374,12 @@ export const useShop = createStore((): ShopApi =>
 
         set({ order, chainId: call.chainId });
 
+        // The staff may have changed the price since the page read the shop: the quote is the server's word.
+        if (recipient === null && untrack(() => priceNow(item))?.price !== BigInt(order.price))
+        {
+            void state.refetch();
+        }
+
         const blocked = await readyToSend(wallet, account.address(), call.chainId);
 
         if (blocked !== null)
@@ -428,20 +449,7 @@ export const useShop = createStore((): ShopApi =>
 
         inUse: (item) => collection()?.chosen.some((one) => one.item === item) === true,
 
-        priceFor(item)
-        {
-            const asked = priceOf(state.data() ?? null, item);
-            const bundle = bundleOf(item);
-
-            if (asked === null || bundle === undefined)
-            {
-                return asked;
-            }
-
-            const looks = bundle.looks.map((look) => ({ price: priceOf(state.data() ?? null, look)?.price ?? 0n, owned: owned(look) }));
-
-            return { ...asked, price: bundlePriceFor(asked.price, looks) };
-        },
+        priceFor: priceNow,
 
         chosen: (slot) => collection()?.chosen.find((one) => one.slot === slot)?.item ?? null,
 

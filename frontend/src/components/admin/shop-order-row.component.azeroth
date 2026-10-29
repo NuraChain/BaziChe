@@ -1,0 +1,90 @@
+import type { OrderState } from '../../../../backend/src/domains/shop/policy.ts';
+import type { AdminShopOrders } from '../../../../backend/src/schemas.ts';
+import { explorerTx, nuraOf } from '../../lib/nura.ts';
+import { itemName } from '../../lib/shop.ts';
+import { handleParts } from '../../lib/staff-words.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import type { Tone } from '../ui/variants.ts';
+import Said from './said.component.azeroth';
+import When from './when.component.azeroth';
+
+export type AdminShopOrder = AdminShopOrders['rows'][number];
+
+export const ORDER_COLUMNS = '@2xl:grid-cols-[3rem_minmax(0,1.4fr)_minmax(0,1.3fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,1.2fr)]';
+
+export const ORDER_WORDS: Record<OrderState, MessageKey> = {
+    quoted: 'admin.shop.orders.state.quoted',
+    sent: 'admin.shop.orders.state.sent',
+    paid: 'admin.shop.orders.state.paid',
+    expired: 'admin.shop.orders.state.expired',
+    failed: 'admin.shop.orders.state.failed',
+    refunded: 'admin.shop.orders.state.refunded'
+};
+
+const ORDER_TONES: Record<OrderState, Tone> = {
+    quoted: 'neutral',
+    sent: 'accent',
+    paid: 'live',
+    expired: 'neutral',
+    failed: 'danger',
+    refunded: 'gold'
+};
+
+export default component ShopOrderRow(props: { order: AdminShopOrder; chainId: number | null })
+{
+    const locale = useLocale();
+
+    derived name = itemName(props.order.item, locale);
+
+    derived gift = props.order.for !== undefined;
+
+    derived who = gift
+        ? handleParts(locale.t('admin.shop.order.gift', { buyer: '{buyer}', for: '{for}' }), { buyer: props.order.buyer.handle, for: props.order.for?.handle ?? '' })
+        : [{ at: 0, text: props.order.buyer.handle, handle: true }];
+
+    derived price = locale.n(nuraOf(props.order.price), { maximumFractionDigits: 4 });
+
+    derived state = locale.t(ORDER_WORDS[props.order.state]);
+
+    derived tone = ORDER_TONES[props.order.state];
+
+    derived nothing = props.order.delivered === false;
+
+    derived failure = props.order.failure ?? '';
+
+    derived failed = failure !== '';
+
+    derived said = handleParts(locale.t('admin.shop.order.said', { word: '{word}' }), { word: failure });
+
+    derived link = props.order.hash === undefined || props.chainId === null ? null : explorerTx(props.chainId, props.order.hash);
+
+    derived linked = link !== null;
+
+    derived href = link ?? '';
+
+    <div class={ `flex items-center gap-3 px-4 py-3 @2xl:grid @2xl:gap-4 ${ ORDER_COLUMNS }` } data-order={ props.order.id } data-state={ props.order.state }>
+        <img src={ `/looks/${ props.order.item }.svg` } alt="" width="48" height="36" loading="lazy" decoding="async" class="h-9 w-12 shrink-0 rounded-tile border border-line bg-sunk object-cover" />
+        <div class="flex min-w-0 flex-1 flex-col gap-0.5 @2xl:contents">
+            <span class="min-w-0 text-ui-sm font-semibold text-text" data-name>{ name }</span>
+            <span class="min-w-0 truncate text-ui-xs text-muted @2xl:text-ui-sm" data-who><Said parts={ who } /></span>
+            <p class="flex flex-wrap items-center gap-x-2 text-ui-xs @2xl:contents">
+                <span class="text-text @2xl:text-ui-sm" data-price><span class="tally">{ price }</span> NURA</span>
+                <span class="text-faint @2xl:text-ui-sm" data-at><When at={ props.order.at } /></span>
+            </p>
+        </div>
+        <div class="flex max-w-[45%] shrink-0 flex-col items-end gap-1 @2xl:max-w-none @2xl:items-start" data-standing>
+            <Badge dot text={ state } tone={ tone } />
+            <Show when={ nothing }>
+                <Badge text={ locale.t('admin.shop.order.nothing') } tone="danger" />
+            </Show>
+            <Show when={ failed }>
+                <span class="text-ui-2xs text-faint" data-failure><Said parts={ said } /></span>
+            </Show>
+            <Show when={ linked }>
+                <a href={ href } target="_blank" rel="noopener noreferrer" class="text-ui-xs font-semibold text-accent underline-offset-2 hover:underline" data-tx>{ locale.t('admin.shop.order.tx') }</a>
+            </Show>
+        </div>
+    </div>
+}

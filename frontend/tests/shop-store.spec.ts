@@ -252,6 +252,37 @@ describe('buying a look', () =>
         watched();
     });
 
+    it('reads the shop again when the server quotes another price than the page showed, and not when it quotes the same', async () =>
+    {
+        const wallet = walletAt(OWNER, '0x1');
+
+        await signIn(wallet);
+        await settle();
+
+        const reads = () => server.calls.filter((call) => call === 'shop.state').length;
+        const before = reads();
+        const first = useShop().buy('dice.glow');
+
+        await settle();
+        await settle();
+
+        expect(reads(), 'quoted at the price the page showed').toBe(before);
+
+        sellShopOrder(server.shop.orders[0].id);
+        await tick();
+        await first;
+
+        const repriced = server.shop.state.items.find((one) => one.id === 'back.glow')!;
+
+        repriced.price = (7n * 10n ** 18n).toString();
+        void useShop().buy('back.glow');
+        await settle();
+        await settle();
+
+        expect(reads(), 'quoted at a price the staff set meanwhile').toBe(before + 1);
+        expect(useShop().priceFor('back.glow')?.price).toBe(7n * 10n ** 18n);
+    });
+
     it('takes a look given at Buy as the reader\'s at once, asking the wallet nothing', async () =>
     {
         const wallet = walletAt(OWNER);

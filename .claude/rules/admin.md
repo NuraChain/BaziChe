@@ -8,7 +8,7 @@ design, with the decisions and what was not chosen, is
 
 **Three roles, each above the last: moderator, admin, owner.** `domains/admin/roles.ts` imports
 nothing and both halves read it: `ABILITIES` says which role a section needs (`overview`, `live`,
-`people` and `reports` a moderator, `play`, `notice`, `money`, `staff`, `log` and `health` an admin,
+`people` and `reports` a moderator, `play`, `shop`, `notice`, `money`, `staff`, `log` and `health` an admin,
 `wallet` the owner), `may(role, ability)` answers, and `outranks(actor, other)` is
 the one rule about rank. Nobody outranks their own role, and every role outranks somebody who holds
 none. The browser draws a section only where `may` says so; the server asks the same function on
@@ -325,6 +325,48 @@ reads `closedBy: 'staff'` (`closed_by_staff` in the table query, so `tables` tak
 and its page says "Nura’s team closed it. Open another whenever you like." where a table its host
 closed says whoever opened it ended it. Nobody is sent a notification (D8).
 
+## The shop
+
+**An admin and the owner run the shop's catalogue** (`shop`, `domains/admin/shop.ts`, LG-D27).
+`GET /api/admin/shop` lists every look and bundle in the catalogue's order (each collection's looks,
+then its bundle) with its price, the catalogue's own (`listed`), a sale while one runs (its end after
+Postgres's `now()`), its status and how many were sold (paid orders), and the collection on top.
+`POST /api/admin/shop/items/:id`, `{ price | sale | status, reason }`, changes ONE of them
+(`staff-shop-one`, 422, for none or two) under the look's row lock (`pessimistic_write`) and writes one
+row of kind `shop-item`, `{ item, field, from?, to?, hours? }`, in that transaction:
+
+- a price, which a sale that runs must stay under (`staff-shop-sale`, 409), and which lets go of a
+  stored sale that ran out, since the row's CHECK would refuse a price under it;
+- a sale under the price for one of `SALE_HOURS` (an hour to 30 days), ending that many hours after
+  `now()`, or `false` to end the one that runs (a first sale has no `from`, an ended one no `to`);
+- `on-sale`, `hidden` or `retired`: the last two take the look out of the shop's state, and whoever
+  owns it keeps it (SH-D9).
+
+A change to what the look already is, and ending a sale when none runs, change nothing and write
+nothing; an id the shop does not hold is the page that is not there.
+
+**The collection on top** (`POST /api/admin/shop/featured`, `{ collection, reason }`) is chosen under
+a lock on every collection's row, in id order, and written as `shop-feature`, `{ from, to }`; the one
+already on top changes nothing. The newest `featured_at` is on top, and a choice is stamped
+`greatest(now(), the newest + 1 µs)`: one that waited for the lock began first, and its own `now()`
+would leave the choice it waited for on top.
+
+**A change rings nobody** (LG-D34): a page reads the shop whenever it is opened, an order is quoted
+at the server's price, the look's sheet says at the wallet the price the order carries, and a quote
+at another price than the page showed reads the shop again (`shop.store`).
+
+**The orders** (`GET /api/admin/shop/orders?state=&item=&person=&cursor=`), newest first, fifty a page
+by the microsecond keyset over `(created_at, id)`: the look, the price, how it stands, who paid and,
+for a gift, who was given it, when, when it was paid, its hash, whether it delivered anything and
+NuraChain's word for a failure; by state, by look and by the handle (a leading @ dropped, whatever
+its case) of whoever paid or was given it. While the shop runs here the answer carries the chain's
+id, so the page links a transaction on NuraChain.
+
+`admin-shop.db.spec.ts` holds the list, each change and its row, the refusals, a sale that ran out,
+the locks (two changes to one look, two choices at once), a choice over a later time, the orders,
+their filters and their pages across a millisecond, and who is answered as nothing; `app.spec.ts`
+the routes and their shapes.
+
 `admin-play.db.spec.ts` holds the list, the switch, the refusals, the row lock (two switches parked
 on a held row) and everything new refused while a live game plays on; `admin-void.db.spec.ts` the
 end of a game: what is written and what is not, who is told, a seat that had walked out, the
@@ -452,8 +494,8 @@ first:
 - **A tablet** (768 to 1023): a rail of icons down the start side, each named under a pointer or a
   held finger, the way back at its foot.
 - **A desktop** (1024 and up): the sections down the side in four groups (`groupsFor`): Now
-  (Overview, Online now), Moderation (People, Reports), Platform (Play, Announcement, Money) and
-  Team (Staff, Log); a group the role opens nothing of is not drawn. At the foot, the reader's
+  (Overview, Online now), Moderation (People, Reports), Platform (Play, Shop, Announcement,
+  Money) and Team (Staff, Log); a group the role opens nothing of is not drawn. At the foot, the reader's
   picture, handle and role, and the way back to the app.
 
 The content is at most 80rem wide, and the foot of a phone's page keeps the tab bar's room. Every
@@ -513,8 +555,9 @@ The log is grouped under the reader's own days ("Today", "Yesterday", then the d
 by its heading, and the heading is held at the top of the screen while its day is read. An older
 page joins the day it carries on, which keeps its place. Each entry begins with a mark for its kind
 in a tinted circle (`MARKS` in `log-entry`): a suspension, a clear and a game ended in danger, a lift
-in green, a report, a sign-out, a closed table, an age and a disagreement with NuraChain closed in gold, a note, a role, a game switched
-and an announcement in blue, and a suspension that ran out and somebody taken off the staff plain.
+in green, a report, a sign-out, a closed table, an age and a disagreement with NuraChain closed in gold, a note, a role, a game switched,
+an announcement and a change to a look in the shop in blue, the collection put on top of the shop in
+gold, and a suspension that ran out and somebody taken off the staff plain.
 The mark is hidden from a screen reader, because the sentence beside it says the same.
 
 **Overview** is the first section, open to every role on the staff, and it is a dashboard. It
@@ -715,6 +758,24 @@ keyed browsers and their reports, who made a member of the staff and when, and a
 the way each use it, because the staff ask "when exactly" of exactly these. A report's status on a
 person is a status badge (waiting in gold, reviewed plain, acted on in green).
 
+**Shop** opens on the looks, each collection a section of its own under its name and sigil, the one
+on top marked so and the rest offering "Put on top" (a question that loses nothing, in the reason
+sheet). A look is a row: its drawing, its name (the shop's own words for it), whether it is hidden or
+retired, its price and the catalogue's when they differ, a sale and when it ends, and how many were
+sold, which leads to that look's orders; wide, those are the columns Look, Price, Sale and Sold.
+The collection (a select) and the looks with a sale, hidden or retired (chips with counts) narrow
+it, both in the address (`collection`, `list`). Change opens `ShopItemSheet`: Price, Sale or In the
+shop, each asked in the reader's NURA (four places, the sheet saying what is wrong before the server
+is asked), a sale's length from `SALE_HOURS`, "End the sale instead" while one runs, what hidden and
+retired mean, and why. Said yes to, it is shown at the press, said once the server has ("Nura Glow
+dice costs 7 NURA now."), and a refusal takes it back in the refusal's words, the next sheet for that
+look opening on what was asked. Orders (`view=orders`) lists them by the order row's columns (Look,
+Who, Price, Asked, How it stands), a gift's two handles set apart, a paid order that delivered
+nothing in danger, a failed one with NuraChain's word; the states are chips and the person a search
+written once the typing pauses, and a look's sales lead there with "Only …" and the way back to every
+look (`state`, `person`, `item`). The log says "mina set the price of Nura Glow dice at 7 NURA, from
+12." and "alex put Jade Dragon Dynasty on top of the shop.", under the chips "Shop" and "On top".
+
 **Money** is the vault panel, and its calls are drawn for the owner alone (`may(role, 'wallet')`):
 an admin whose wallet happens to hold a role on the vault is told that only the owner changes it
 from here, because the server would refuse the call. Its head leads to the checks against NuraChain.
@@ -747,7 +808,7 @@ open it says the two agree; a server that keeps no contract says it checks nothi
 ## The garbage pass
 
 `tools/qa/garbage-pass.mjs` sends the admin's routes garbage like every other: the staff change, a
-note, a suspension, a lift, a clear, a sign-out, a mark under 18, a report's outcome, a game's switch, a game's end, a table's close, a notice put up and one taken down, a check closed, and the vault's amounts as bodies, the pause as spared (its body is a
+note, a suspension, a lift, a clear, a sign-out, a mark under 18, a report's outcome, a game's switch, a game's end, a table's close, a notice put up and one taken down, a check closed, a look changed in the shop, the collection put on top, and the vault's amounts as bodies, the pause as spared (its body is a
 switch), the log's four query words, the people's three, the reports' two, the games being played's
-three, the tables waiting's two, the live list's one and the checks' two. Its garbage accounts are not staff, so every one of them is answered as missing; what it
+three, the tables waiting's two, the live list's one, the checks' two and the shop orders' four. Its garbage accounts are not staff, so every one of them is answered as missing; what it
 proves is that none is a 5xx.

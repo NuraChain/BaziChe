@@ -51,7 +51,9 @@ const KIND_WORDS: Record<ActionKind | 'all', MessageKey> = {
     close: 'admin.log.kind.close',
     minor: 'admin.log.kind.minor',
     notice: 'admin.log.kind.notice',
-    check: 'admin.log.kind.check'
+    check: 'admin.log.kind.check',
+    'shop-item': 'admin.log.kind.shop-item',
+    'shop-feature': 'admin.log.kind.shop-feature'
 };
 
 const queryOf = (asked: Asked) => ({

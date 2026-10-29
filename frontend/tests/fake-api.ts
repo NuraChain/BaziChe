@@ -25,6 +25,8 @@ import type {
     AdminTables,
     AdminReport,
     AdminReports,
+    AdminShop,
+    AdminShopOrders,
     AdminVault,
     ChainProfile,
     ChatMessage,
@@ -55,11 +57,11 @@ import type {
     VaultState,
     WalletCall
 } from '../../backend/src/schemas.ts';
-import { BUNDLES, LOOKS, bundleOf } from '../../backend/src/domains/shop/catalogue.ts';
+import { BUNDLES, FEATURED_FIRST, LOOKS, SHOP_COLLECTIONS, bundleOf } from '../../backend/src/domains/shop/catalogue.ts';
 import { ESCROW_STATES, STAKE_LADDER } from '../../backend/src/domains/stake/policy.ts';
 import { STAFF_REFUSALS, type StaffRefusal } from '../../backend/src/domains/admin/refusals.ts';
 import { CHECKS_PAGE, type CheckFamily, type CheckList } from '../../backend/src/domains/reconcile/kinds.ts';
-import { LIVE_PAGE, LOG_PAGE, may, outranks, PEOPLE_PAGE, PLAY_PAGE, REPORTS_PAGE, type Ability, type ActionKind, type ClearPart, type GrantedRole, type PeopleList, type ReportList, type ReportOutcome, type ReportStatus, type StaffRole, type SuspendCategory, type SuspendDays } from '../../backend/src/domains/admin/roles.ts';
+import { LIVE_PAGE, LOG_PAGE, may, outranks, PEOPLE_PAGE, PLAY_PAGE, REPORTS_PAGE, SHOP_ORDERS_PAGE, type Ability, type ActionKind, type ClearPart, type GrantedRole, type PeopleList, type ReportList, type ReportOutcome, type ReportStatus, type StaffRole, type SuspendCategory, type SuspendDays } from '../../backend/src/domains/admin/roles.ts';
 import { ALERT_ABILITY } from '../../backend/src/ops/measures.ts';
 import {
     FRIENDSHIP_FIXTURES,
@@ -437,6 +439,22 @@ const staffFresh = () => ({
 
 type PlayStatus = AdminPlay['games'][number]['status'];
 
+export type AdminShopItem = AdminShop['items'][number];
+
+/** The shop as the staff read it: every look and bundle in the catalogue's order at the catalogue's price, offered, none sold. */
+const shopAdminFresh = () => ({
+    shop: {
+        featured: FEATURED_FIRST,
+        items: SHOP_COLLECTIONS.flatMap((collection) => [...LOOKS.filter((look) => look.collection === collection), ...BUNDLES.filter((bundle) => bundle.collection === collection)])
+            .map((item) => ({ id: item.id, price: item.price.toString(), listed: item.price.toString(), status: 'on-sale', sold: 0 }))
+    } as AdminShop,
+    orders: [] as AdminShopOrders['rows'],
+    chainId: null as number | null,
+
+    /** A promise a change waits on before it is answered, so a spec can look between the press and the answer. */
+    hold: null as Promise<void> | null
+});
+
 const playFresh = (): AdminPlay => ({ games: ['hokm', 'poker', 'backgammon', 'ludo'].map((game) => ({ game, status: 'available' as PlayStatus, matches: 0, tables: 0 })), stuck: 0 });
 
 const playingFresh = () => ({ matches: [] as AdminMatches['rows'], tables: [] as AdminTables['rows'], over: [] as string[], shut: [] as string[] });
@@ -697,6 +715,9 @@ const shopFresh = () => ({
 
     /** A promise a choice waits on before it is answered, so a spec can look between the press and the answer. */
     hold: null as Promise<void> | null,
+
+    /** A promise a read of the shop waits on, so a spec can look at a page that has not read it again yet. */
+    holdState: null as Promise<void> | null,
     seq: 0
 });
 
@@ -1021,6 +1042,7 @@ export const server =
     playing: playingFresh(),
     lookout: lookoutFresh(),
     checks: checksFresh(),
+    shopAdmin: shopAdminFresh(),
 
     /** The notice everybody sees, as the staff put it up: none until a spec or a press puts one there. */
     notice: null as NoticeShown | null,
@@ -1212,6 +1234,7 @@ export const server =
         server.playing = playingFresh();
         server.lookout = lookoutFresh();
         server.checks = checksFresh();
+        server.shopAdmin = shopAdminFresh();
         server.notice = null;
         server.noticeSeq = 0;
         server.archive = [];
@@ -2054,6 +2077,122 @@ export const client =
             });
 
             return {};
+        },
+
+        async shop()
+        {
+            server.calls.push('admin.shop');
+            staffGate('shop');
+
+            return structuredClone(server.shopAdmin.shop);
+        },
+
+        async shopItem({ params, input }: { params: { id: string }; input: { price?: string; sale?: { price: string; hours: number } | false; status?: AdminShopItem['status']; reason: string } })
+        {
+            server.calls.push(`admin.shopItem ${ params.id } ${ JSON.stringify(input) }`);
+            staffGate('shop');
+
+            if (server.shopAdmin.hold !== null)
+            {
+                await server.shopAdmin.hold;
+            }
+
+            if ([input.price, input.sale, input.status].filter((one) => one !== undefined).length !== 1)
+            {
+                throw staffRefused('staff-shop-one', 'Change one thing at a time: the price, the sale or whether it is offered.');
+            }
+
+            const held = server.shopAdmin.shop.items.find((one) => one.id === params.id);
+
+            if (held === undefined)
+            {
+                throw new ApiError(404, 'not-found', 'Nothing there.', undefined);
+            }
+
+            const actor = staffRoleOf(server.me);
+            const running = held.sale?.price ?? null;
+            const log = (details: Record<string, string>) => staffLogged({
+                at: new Date(runtime().clock.now()).toISOString(),
+                staff: server.me,
+                ...(actor === null ? {} : { staffRole: actor }),
+                kind: 'shop-item',
+                reason: input.reason,
+                details: { item: held.id, ...details }
+            });
+
+            if (input.price !== undefined && input.price !== held.price)
+            {
+                if (running !== null && BigInt(input.price) <= BigInt(running))
+                {
+                    throw staffRefused('staff-shop-sale', 'A look on sale has to cost more than its sale. End the sale first.');
+                }
+
+                log({ field: 'price', from: held.price, to: input.price });
+                held.price = input.price;
+            }
+
+            if (input.sale === false && running !== null)
+            {
+                log({ field: 'sale', from: running });
+                delete held.sale;
+            }
+
+            if (input.sale !== undefined && input.sale !== false)
+            {
+                if (BigInt(input.sale.price) >= BigInt(held.price))
+                {
+                    throw staffRefused('staff-shop-sale', 'A sale has to cost less than the look.');
+                }
+
+                log({ field: 'sale', ...(running === null ? {} : { from: running }), to: input.sale.price, hours: String(input.sale.hours) });
+                held.sale = { price: input.sale.price, until: new Date(runtime().clock.now() + input.sale.hours * 3_600_000).toISOString() };
+            }
+
+            if (input.status !== undefined && input.status !== held.status)
+            {
+                log({ field: 'status', from: held.status, to: input.status });
+                held.status = input.status;
+            }
+
+            return structuredClone(server.shopAdmin.shop);
+        },
+
+        async shopFeature({ input }: { input: { collection: AdminShop['featured']; reason: string } })
+        {
+            server.calls.push(`admin.shopFeature ${ input.collection } ${ input.reason }`);
+            staffGate('shop');
+
+            const from = server.shopAdmin.shop.featured;
+            const actor = staffRoleOf(server.me);
+
+            if (from !== input.collection)
+            {
+                staffLogged({ at: new Date(runtime().clock.now()).toISOString(), staff: server.me, ...(actor === null ? {} : { staffRole: actor }), kind: 'shop-feature', reason: input.reason, details: { from, to: input.collection } });
+                server.shopAdmin.shop.featured = input.collection;
+            }
+
+            return structuredClone(server.shopAdmin.shop);
+        },
+
+        async shopOrders({ query }: { query: { state?: AdminShopOrders['rows'][number]['state']; item?: string; person?: string; cursor?: string } })
+        {
+            server.calls.push(`admin.shopOrders ${ JSON.stringify(query) }`);
+            staffGate('shop');
+
+            const person = (query.person ?? '').replace(/^@/, '').toLowerCase();
+            const rows = server.shopAdmin.orders.filter((one) =>
+                (query.state === undefined || one.state === query.state)
+                && (query.item === undefined || one.item === query.item)
+                && (person === '' || one.buyer.handle.toLowerCase() === person || one.for?.handle.toLowerCase() === person));
+            const from = query.cursor === undefined ? 0 : rows.findIndex((one) => one.id === query.cursor) + 1;
+            const page = rows.slice(from, from + SHOP_ORDERS_PAGE);
+            const last = page.at(-1);
+
+            return {
+                rows: structuredClone(page),
+                ...(rows.length > from + SHOP_ORDERS_PAGE && last !== undefined ? { cursor: last.id } : {}),
+                ...(server.shopAdmin.chainId === null ? {} : { chainId: server.shopAdmin.chainId })
+            };
         }
     },
 
@@ -2062,6 +2201,12 @@ export const client =
         async state()
         {
             server.calls.push('shop.state');
+
+            if (server.shop.holdState !== null)
+            {
+                await server.shop.holdState;
+            }
+
             shopRefusal();
             return structuredClone(server.shop.state);
         },

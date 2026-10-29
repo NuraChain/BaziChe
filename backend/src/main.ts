@@ -14,7 +14,7 @@ import { buildPorts } from './services.ts';
 import { dataSource } from './data-source.ts';
 import { seedWalletFixtures } from './db/seed-wallets.ts';
 import { seedReference } from './db/seed-reference.ts';
-import { syncSchema } from './db/schema.ts';
+import { behindTheEntities, holdsNothing, syncSchema } from './db/schema.ts';
 import { loadServerConfig } from './env.ts';
 import { gzipOnTheWay, precompressed } from './http/compression.ts';
 import { headersFor } from './http/headers.ts';
@@ -45,7 +45,7 @@ const log = createServerLogger(config);
 await dataSource.initialize();
 log.info('database ready', { pool: config.databasePoolMax });
 
-if (config.databaseSync)
+if (config.databaseSync || await holdsNothing(dataSource))
 {
     try
     {
@@ -64,13 +64,30 @@ if (config.databaseSync)
         process.exit(1);
     }
 
-    log.info('schema synced from the entities');
+    log.info(config.databaseSync ? 'schema synced from the entities' : 'schema built onto an empty database');
 }
 
 // The catalogue is part of the product, not development data: every environment needs identical
 // rows and the app is broken without them. The upsert is idempotent, so running it on every boot
 // is how a deploy picks up a changed blurb without a migration.
-await seedReference(dataSource);
+try
+{
+    await seedReference(dataSource);
+}
+catch (error)
+{
+    if (behindTheEntities(error))
+    {
+        log.error('this database is behind the entities', {
+            reason: error instanceof Error ? error.message : String(error),
+            fix: 'an update changed the entities: take a dump of the database (README), then run npm run schema:sync and start again'
+        });
+        process.exit(1);
+    }
+
+    throw error;
+}
+
 log.info('reference catalogue seeded');
 
 // Development only, and it refuses to run anywhere else. Real accounts, signing in through the

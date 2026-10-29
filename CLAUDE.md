@@ -9,6 +9,7 @@ disagrees with the code, the code is right and this file needs fixing.
 ## Commands
 
 ```sh
+npm run setup          # write the root .env for this machine, asking only for the database
 npm run dev            # tsc -w on the server, node --watch on .dist-backend, vite on 3100
 npm run check          # typecheck and eslint on both halves, then the server test typecheck — the gate
 npm run build          # server tsc, client bundle, SSR bundle, prerender, budgets
@@ -33,7 +34,10 @@ because two files truncating the same tables deadlock. Every claim about the DAT
 
 **Development is two processes.** vite on `127.0.0.1:3100` owns the browser and proxies `/api`,
 `/ws` and `/avatars` to the api on `127.0.0.1:4900`, which answers no pages. Open
-`http://localhost:3100`.
+`http://localhost:3100`. The api takes that address as the browser's origin in development
+(`DEV_ORIGIN`, `backend/src/dev-origin.ts`) whatever `PUBLIC_ORIGIN` says, and vite refuses any
+other port (`strictPort`), so the `.env` written for a local `npm start` (`http://localhost:4900`)
+serves `npm run dev` unchanged.
 
 **Production is one process.** `npm run build` then `npm start`: the api in `.dist-backend/`, the client
 in `.dist-frontend/`, the SSR bundle in `.dist-server/`. Production serves the client from this
@@ -45,8 +49,13 @@ emitting, and Node cannot run decorators), so always build before `npm start`.
 development, vitest declares test, and anything else is production: `npm start`.
 `env-file.ts` takes the root `.env` in for every name but `NODE_ENV`, so a `.env` copied from
 a laptop cannot put a server into development, where the wallet fixtures, whose keys are public,
-are seeded. Production serves the pages and never syncs the schema; development is the other way
-round. **A `.env` writes every name in `.env.example`**, and in production the three that matter
+are seeded. Production serves the pages and changes no schema it finds: it builds one only onto a
+database holding none of the entities' tables (`holdsNothing`), so a first start needs no separate
+step, and a database an update left behind is `npm run schema:sync`'s, after a dump. Development
+syncs at every start. **A `.env` writes every name in `.env.example`**: `npm run setup`
+(`tools/setup.ts`) writes one for this machine, or adds what an existing one lacks (a feature's
+empty), and `npm run dev` and `npm start` ask it first, so a missing name, or a start with nothing
+built, is one sentence before anything runs. In production the three that matter
 most are `DATABASE_URL`, a real `SESSION_SECRET`, and `PUBLIC_ORIGIN` set to the origin the browser
 uses - it is the site in every sign-in text, the
 WebSocket origin check, the check every write is held to and the cookie's site at once. In

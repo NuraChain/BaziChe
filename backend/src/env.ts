@@ -1,5 +1,7 @@
 import { loadConfig, num, oneOf, str, type ConfigVar } from '@azerothjs/http';
 
+import { DEV_ORIGIN } from './dev-origin.ts';
+
 /**
  * A feature's key: the name must be written, and written empty it turns the feature off. The
  * framework reads an empty value as an absent one, so the empty string here is what lets `NAME=`
@@ -91,7 +93,9 @@ export function loadServerConfig()
             /**
              * The origin the browser actually uses. It is the SIWE `domain`/`URI`, the WebSocket
              * origin check and the cookie's site. It is NOT derived from a request header - a
-             * header is attacker-controlled and this value decides what a signature means.
+             * header is attacker-controlled and this value decides what a signature means. In
+             * development the browser is on the dev server, so it is `DEV_ORIGIN` whatever is
+             * written here.
              */
             origin: str('PUBLIC_ORIGIN'),
 
@@ -189,7 +193,12 @@ export function loadServerConfig()
         }
     }
 
-    return Object.assign(config, { env, servePages: env === 'production', databaseSync: env === 'development' });
+    return Object.assign(config, {
+        env,
+        servePages: env === 'production',
+        databaseSync: env === 'development',
+        ...(env === 'development' ? { origin: DEV_ORIGIN } : {})
+    });
 }
 
 export type ServerConfig = ReturnType<typeof loadServerConfig>;

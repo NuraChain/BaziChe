@@ -11,12 +11,15 @@
         "backend"
     ],
     "scripts": {
+        "setup": "node tools/setup.ts",
+        "predev": "node tools/setup.ts --before dev",
         "dev": "azeroth dev",
         "build": "npm run build --workspace backend && npm run build --workspace frontend && node tools/prerender-locales.mjs && node tools/precompress.mjs && node tools/budgets.mjs",
         "check": "azeroth check && npm run check:tests --workspace backend",
         "test": "azeroth test",
         "test:watch": "npm run test:watch --workspace frontend",
         "test:shuffle": "npm run test:shuffle --workspaces --if-present",
+        "prestart": "node tools/setup.ts --before start",
         "start": "npm start --workspace backend",
         "schema:sync": "npm run schema:sync --workspace backend",
         "assets": "node tools/blender/build.mjs",

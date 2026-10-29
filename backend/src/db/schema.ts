@@ -120,3 +120,33 @@ export async function syncSchema(db: DataSource)
     await createUnexpressibleIndexes(db);
     await rewriteChecks(db);
 }
+
+/** Whether a query failed on a table or a column the entities have and the database does not: an update the database was not synced to. */
+export const behindTheEntities = (error: unknown) => ['42P01', '42703'].includes((error as { driverError?: { code?: string } } | null)?.driverError?.code ?? '');
+
+/**
+ * Whether the database holds none of the entities' tables: one nothing was built in yet, which a
+ * production start builds without losing anything. One that holds any of them is changed only by
+ * `npm run schema:sync`, which can drop a column with its data, so it waits for a person and a dump.
+ */
+export async function holdsNothing(db: DataSource)
+{
+    const runner = db.createQueryRunner();
+
+    try
+    {
+        for (const entity of db.entityMetadatas)
+        {
+            if (await runner.hasTable(entity.tablePath))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+    finally
+    {
+        await runner.release();
+    }
+}

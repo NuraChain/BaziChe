@@ -1,7 +1,24 @@
 # Nura Arcade
 
-A place to play Ludo, Hokm, Backgammon and Poker with friends, or with anyone looking for a game.
-Make friends, start groups and chat privately, in English or Persian.
+A place to play Ludo, Hokm, Backgammon, Poker and Chess with friends, or with anyone looking for a
+game. Make friends, start groups and chat privately, in English or Persian.
+
+## Running it on your own machine
+
+It needs Node 24.11 or newer and PostgreSQL. At the root of the repository:
+
+1. `npm ci`
+2. `npm run dev`, then open http://localhost:3100. The first time it asks which database to use
+   (Enter takes `postgres://postgres@127.0.0.1:5432/baziche`; put the password in the url if
+   Postgres wants one), makes that database if Postgres has none of that name, and writes the root
+   `.env` for this machine. `npm run setup` does the same on its own.
+3. Or the way a server runs it: `npm run build`, then `npm start`, and open http://localhost:4900.
+   A first start on an empty database builds it.
+
+The same `.env` serves both. Playing for NURA, the shop and markets stay off until the server is
+given a NuraChain key, and each says so where it would be. When an update adds a name to
+`.env.example`, `npm run dev` and `npm start` say which, and `npm run setup` adds it to `.env`,
+empty, changing nothing else.
 
 ## Running it on a server
 
@@ -25,13 +42,14 @@ database says so in its log.
    `PUBLIC_ORIGIN` that carries a path or an ending slash, or is plain http anywhere but this
    machine, and says which. The optional features (push notifications,
    the chain, the admin) stay off while their values are empty, and a name taken out of the file
-   stops the server, which names it. It listens on `HOST` (`127.0.0.1` in the example) at `PORT`
-   (4900) for the proxy. The server runs as production whenever it is not started by `npm run dev`.
+   stops the server, which names it. It listens on `HOST` at `PORT` (4900) for the proxy: write
+   `127.0.0.1` on the machine the proxy runs on, so nothing reaches the server any other way (the
+   example's `0.0.0.0` is for a container, whose own `127.0.0.1` nothing outside it reaches). The
+   server runs as production whenever it is not started by `npm run dev`.
 3. `npm run build`
-4. `npm run schema:sync` builds the database from the entities. Run it before the first start and
-   after every update that changes them. It makes the database match the entities exactly, so a
-   column an entity no longer has is dropped with everything in it: once the database holds
-   anything, take a dump first (below).
+4. The first start builds an empty database from the entities. After every update that changes
+   them, `npm run schema:sync` makes the database match the entities exactly, so a column an
+   entity no longer has is dropped with everything in it: take a dump first (below).
 5. `npm start` runs the server; keep it running with whatever supervises processes on the
    machine. The logs are in `.logs/`.
 6. Point the proxy at `http://127.0.0.1:4900` (or the `PORT` you wrote), upgrading the WebSocket
@@ -68,8 +86,9 @@ database says so in its log.
    `GET /api/metrics` with `Authorization: Bearer` and the token written in `METRICS_TOKEN` (32
    characters or more); with the name written empty the endpoint is off.
 
-To update: `git pull`, `npm ci`, `npm run build`, `pg_dump` the database, `npm run schema:sync`,
-then restart the server.
+To update: `git pull`, `npm ci`, `npm run build`, `npm run setup` (it adds any name the update put
+in `.env.example`, a feature's empty), `pg_dump` the database, `npm run schema:sync`, then restart
+the server.
 
 Back up the database, because it is the only thing here that cannot be built again: every
 account, friendship, table, game, sealed message and uploaded picture lives in it. The build, the

@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { loadEnv, type Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 
+import { DEV_PORT } from '../backend/src/dev-origin.ts';
+
 process.env.VITE_USER_NODE_ENV ??= '';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -136,8 +138,11 @@ export default defineConfig(({ command, isSsrBuild, mode }) =>
         server:
         {
             // Declared rather than inherited: 3100 keeps this app clear of Explorer (3001) and its
-            // api (3000) when both dev servers are up. Vite still steps on if the port is taken.
-            port: 3100,
+            // api (3000) when both dev servers are up. Strict, because the api takes this address
+            // as the browser's origin in development: on a port vite stepped on to, every sign-in
+            // message would name another site.
+            port: DEV_PORT,
+            strictPort: true,
             host: '127.0.0.1',
             cors: false,
 

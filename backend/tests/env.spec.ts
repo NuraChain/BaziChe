@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { DEV_ORIGIN } from '../src/dev-origin.ts';
 import { adopt } from '../src/env-file.ts';
 import { loadServerConfig } from '../src/env.ts';
 
@@ -83,6 +84,15 @@ describe('the environment the server boots from', () =>
         expect(config.env).toBe('development');
         expect([config.servePages, config.databaseSync]).toEqual([false, true]);
         expect(config.secret).toBe('short');
+    });
+
+    it('takes development\'s origin from the dev server whatever is written, so one .env serves npm run dev and npm start', () =>
+    {
+        use({ ...NEEDED, NODE_ENV: 'development', PUBLIC_ORIGIN: 'http://localhost:4900' });
+        expect(loadServerConfig().origin).toBe(DEV_ORIGIN);
+
+        use({ ...NEEDED, PUBLIC_ORIGIN: 'http://localhost:4900' });
+        expect(loadServerConfig().origin, 'production').toBe('http://localhost:4900');
     });
 
     it('refuses to boot with any name missing, in either mode, naming every one', () =>

@@ -88,7 +88,11 @@ database says so in its log.
 
 To update: `git pull`, `npm ci`, `npm run build`, `npm run setup` (it adds any name the update put
 in `.env.example`, a feature's empty), `pg_dump` the database, `npm run schema:sync`, then restart
-the server.
+the server. A running server serves the pages of the build it started on, and a build in its folder
+deletes the files those pages name, so from the build until the restart most pages a browser has
+not opened before fail. The server notices when a build is finished under it, says so in its log
+and stops with exit code 75, for whatever supervises it to start it again on the new build; started
+by hand, start it again.
 
 Back up the database, because it is the only thing here that cannot be built again: every
 account, friendship, table, game, sealed message and uploaded picture lives in it. The build, the

@@ -14,7 +14,7 @@
         "setup": "node tools/setup.ts",
         "predev": "node tools/setup.ts --before dev",
         "dev": "azeroth dev",
-        "build": "npm run build --workspace backend && npm run build --workspace frontend && node tools/prerender-locales.mjs && node tools/precompress.mjs && node tools/budgets.mjs",
+        "build": "npm run build --workspace backend && npm run build --workspace frontend && node tools/prerender-locales.mjs && node tools/precompress.mjs && node tools/budgets.mjs && node tools/built.mjs",
         "check": "azeroth check && npm run check:tests --workspace backend",
         "test": "azeroth test",
         "test:watch": "npm run test:watch --workspace frontend",

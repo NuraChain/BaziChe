@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import './env-file.ts';
 
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 import { logRequests, pipeline, requestId } from '@azerothjs/http';
@@ -16,6 +17,7 @@ import { seedWalletFixtures } from './db/seed-wallets.ts';
 import { seedReference } from './db/seed-reference.ts';
 import { behindTheEntities, holdsNothing, syncSchema } from './db/schema.ts';
 import { loadServerConfig } from './env.ts';
+import { watchBuild } from './http/build-watch.ts';
 import { gzipOnTheWay, precompressed } from './http/compression.ts';
 import { headersFor } from './http/headers.ts';
 import { metricsAt } from './http/metrics.ts';
@@ -38,6 +40,13 @@ import { SESSION_TTL_SECONDS } from './http/auth.ts';
 const CLIENT_DIR = fileURLToPath(new URL('../.dist-frontend', import.meta.url));
 
 const SSR_ENTRY = new URL('../.dist-server/entry.server.js', import.meta.url);
+
+const BUILT = new URL('../.dist-frontend/.vite/built.json', import.meta.url);
+
+const BUILD_LOOK_MS = 5_000;
+
+/** sysexits' "temporary failure, try again": a supervisor starts the server again, on the new build. */
+const REBUILT_EXIT = 75;
 
 const config = loadServerConfig();
 const log = createServerLogger(config);
@@ -658,6 +667,19 @@ const sample = () =>
 sampling = setTimeout(sample, SAMPLE_MS);
 sampling.unref();
 
+let rebuilt = false;
+
+const unwatchBuild = serving
+    ? watchBuild(() => readFile(BUILT, 'utf8').catch(() => null), () =>
+    {
+        rebuilt = true;
+        log.error('a new build was finished under this server, whose pages still name the files of the one it started on: it stops, so it can be started on the new build');
+
+        // Emitted rather than sent: Windows has no signal a process can send itself, and kills it outright.
+        process.emit('SIGTERM');
+    }, BUILD_LOOK_MS)
+    : () => undefined;
+
 handleShutdownSignals(served, {
     /**
      * The window where connections are still live.
@@ -668,6 +690,8 @@ handleShutdownSignals(served, {
      */
     beforeShutdown: async () =>
     {
+        unwatchBuild();
+
         // A close FRAME with a code, before anything is destroyed. `detach()` destroys what is
         // left, and a destroyed socket reaches the other end as 1006 - indistinguishable from the
         // network failing, which sends every client into a reconnect backoff for a restart they
@@ -743,7 +767,9 @@ handleShutdownSignals(served, {
     {
         await dataSource.destroy();
         log.info('database closed');
-    }
+    },
+
+    exit: (code) => process.exit(rebuilt ? REBUILT_EXIT : code)
 });
 
 log.info('listening', { port: served.port, env: config.env, origin: config.origin });

@@ -45,6 +45,14 @@ process, and development never does, because vite owns the browser. There is no 
 server's `mountPages` IS the preview. The backend COMPILES (`typeorm` in `dependencies` flips it to
 emitting, and Node cannot run decorators), so always build before `npm start`.
 
+**Never build in a folder a server is serving from.** The kit reads the page shell once, at boot,
+and every file it names from disk when asked (framework register, entry 46), and a build deletes
+the old content-hashed files: the owner's `npm start` showed "The lights went out" on most pages
+after builds were run under it (2026-10-29). The build now ends by writing a marker
+(`tools/built.mjs`, `.dist-frontend/.vite/built.json`), and the server stops through its own way
+down, exit 75, when a new one appears (`http/build-watch.ts`, `build-watch.spec.ts`). Verification
+builds and walks belong in a copy of the tree, never the one the owner runs.
+
 **The mode is the command's, never the file's.** `azeroth dev` (`npm run dev`) declares
 development, vitest declares test, and anything else is production: `npm start`.
 `env-file.ts` takes the root `.env` in for every name but `NODE_ENV`, so a `.env` copied from

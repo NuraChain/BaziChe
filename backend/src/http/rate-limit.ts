@@ -95,3 +95,32 @@ export function signInRateLimit(options: { apiLimit: number; trustProxy: boolean
         trustProxy: options.trustProxy
     }));
 }
+
+export const INVITE_SHARE = 10;
+
+export const INVITE_LEAST = 20;
+
+/** The two routes an invite link's page asks with nobody signed in: who invited, and that the link was opened. */
+export function isPublicInvite(pathname: string)
+{
+    return pathname.startsWith('/api/public/invites/');
+}
+
+/**
+ * A tenth of the api's ceiling, never under twenty: a page asks twice, so at 600 an address opens
+ * thirty links a minute, which a household or an office behind one address does not reach, and
+ * guessing at codes or writing visits under made-up tokens goes no faster than that.
+ */
+export function publicInviteLimit(apiLimit: number)
+{
+    return Math.max(INVITE_LEAST, Math.floor(apiLimit / INVITE_SHARE));
+}
+
+export function publicInviteRateLimit(options: { apiLimit: number; trustProxy: boolean })
+{
+    return forPaths(isPublicInvite, rateLimit({
+        limit: publicInviteLimit(options.apiLimit),
+        windowMs: 60_000,
+        trustProxy: options.trustProxy
+    }));
+}

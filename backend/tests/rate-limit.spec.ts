@@ -6,8 +6,13 @@ import { App, json, pipeline } from '@azerothjs/http';
 
 import {
     apiRateLimit,
+    INVITE_LEAST,
+    INVITE_SHARE,
     isMetered,
+    isPublicInvite,
     isSignIn,
+    publicInviteLimit,
+    publicInviteRateLimit,
     routedPath,
     SIGN_IN_LEAST,
     SIGN_IN_SHARE,
@@ -178,5 +183,68 @@ describe('the sign-in budget', () =>
 
         expect(main).toContain('apiRateLimit({ limit: config.apiRateMax,');
         expect(main).toContain('signInRateLimit({ apiLimit: config.apiRateMax,');
+    });
+});
+
+describe('the budget of the page an invite link opens', () =>
+{
+    const opening = (apiLimit: number) =>
+    {
+        const app = new App();
+        app.get('/api/public/invites/:code', () => json({ ok: true }));
+        app.post('/api/public/invites/:code/visit', () => json({ ok: true }));
+        app.get('/api/public/people/:handle', () => json({ ok: true }));
+        return pipeline(
+            app,
+            apiRateLimit({ limit: apiLimit, windowMs: 60_000, trustProxy: true }),
+            publicInviteRateLimit({ apiLimit, trustProxy: true })
+        );
+    };
+
+    const visit = (handler: ReturnType<typeof opening>, path: string) =>
+        handler.handle(new Request(`http://local${ path }`, {
+            method: 'POST',
+            body: '{}',
+            headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.7' }
+        }));
+
+    it('is a tenth of the api ceiling, and never under twenty', () =>
+    {
+        expect(publicInviteLimit(600)).toBe(60);
+        expect(publicInviteLimit(20_000)).toBe(2_000);
+        expect(publicInviteLimit(100)).toBe(INVITE_LEAST);
+        expect(publicInviteLimit((INVITE_LEAST + 1) * INVITE_SHARE)).toBe(INVITE_LEAST + 1);
+    });
+
+    it('counts the two routes a link\'s page asks with, and nothing else', () =>
+    {
+        expect(isPublicInvite('/api/public/invites/ABCD2345')).toBe(true);
+        expect(isPublicInvite('/api/public/invites/ABCD2345/visit')).toBe(true);
+        expect(isPublicInvite('/api/public/people/sara.k')).toBe(false);
+        expect(isPublicInvite('/api/invites/code')).toBe(false);
+        expect(isPublicInvite('/api/public/invitesABCD2345')).toBe(false);
+    });
+
+    it('refuses a link\'s page past its share, however it is spelled, while the rest of the api answers', async () =>
+    {
+        const handler = opening(600);
+
+        for (let attempt = 0; attempt < 30; attempt += 1)
+        {
+            expect((await hit(handler, '/api/public/invites/ABCD2345')).status).toBe(200);
+            expect((await visit(handler, '/api/public/invites/ABCD2345/visit')).status).toBe(200);
+        }
+
+        expect((await hit(handler, '/api/public/invites/WXYZ6789')).status).toBe(429);
+        expect((await visit(handler, '/api/public/invites/ABCD2345/visit')).status).toBe(429);
+        expect((await hit(handler, '/api/public/%69nvites/ABCD2345')).status).toBe(429);
+        expect((await hit(handler, '/api/public/people/sara.k')).status).toBe(200);
+    });
+
+    it('is put on the server beside the api ceiling, from the same number', () =>
+    {
+        const main = readFileSync(fileURLToPath(new URL('../src/main.ts', import.meta.url)), 'utf8');
+
+        expect(main).toContain('publicInviteRateLimit({ apiLimit: config.apiRateMax,');
     });
 });

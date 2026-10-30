@@ -166,6 +166,9 @@ import {
     pushSubscribeInput,
     personView,
     publicPerson,
+    inviteCard,
+    inviteCode,
+    inviteVisitInput,
     privacy,
     privacyInput,
     reportInput,
@@ -325,7 +328,7 @@ export function buildApi(ports: Ports)
                         signature: context.input.signature,
                         providerRdns: context.input.providerRdns,
                         userAgent: context.request.headers.get('user-agent') ?? '',
-                        ref: context.input.ref,
+                        invite: context.input.invite,
                         device: context.input.device
                     });
 
@@ -430,6 +433,19 @@ export function buildApi(ports: Ports)
 
             return {
                 person: routes.get('/people/:handle', { output: publicPerson }, (context) => shown(context.params.handle)),
+
+                /** Who an invite link invites to. A link that no longer works is a page that is not there. */
+                invite: routes.get('/invites/:code', { output: inviteCard }, (context) => ports.invites.card(context.params.code)),
+
+                /** That a device opened a link: once a day, and never when its reader is the code's own owner. */
+                visit: routes.post('/invites/:code/visit', { input: inviteVisitInput, output: ack }, async (context) =>
+                {
+                    const reader = await ports.identity.principal(context.request);
+
+                    await ports.invites.visit(context.params.code, context.input.visitor, reader?.userId ?? null);
+
+                    return { ok: true };
+                }),
 
                 face: routes.get('/people/:handle/face', { output: chainPerson, query: langQuery }, async (context) =>
                 {
@@ -666,6 +682,13 @@ export function buildApi(ports: Ports)
 
             reclaim: routes.post('/reclaim', { input: reclaimInput, output: walletCall },
                 (context) => ports.vault.reclaim(context.principal.userId, context.input.id))
+        })),
+
+        /** The reader's own invite code, and a new one in its place. */
+        invites: feature('/invites', [session], (routes) => ({
+            code: routes.get('/code', { output: inviteCode }, (context) => ports.invites.code(context.principal.userId)),
+
+            renew: routes.post('/code', { output: inviteCode }, (context) => ports.invites.renew(context.principal.userId))
         })),
 
         shop: feature('/shop', [session], (routes) => ({

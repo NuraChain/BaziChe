@@ -73,11 +73,12 @@ const message = (bad) => ({ id: bad, kind: 'text', epoch: 0, seq: 0, iv: 'x', bo
 
 const BODIES = {
     '/auth/challenge': (bad) => [{ address: bad, device: bad.slice(0, 22) }],
-    '/auth/wallet': (bad) => [{ address: bad, nonce: bad, signature: bad, ref: bad.slice(0, 40), device: { id: bad, exchangeKey: bad, signingKey: bad, label: 'x' } }],
+    '/auth/wallet': (bad) => [{ address: bad, nonce: bad, signature: bad, invite: bad.slice(0, 32), device: { id: bad, exchangeKey: bad, signingKey: bad, label: 'x' } }],
     '/auth/handle': (bad) => [{ handle: bad.slice(0, 32) }],
     '/auth/profile': (bad) => [{ displayName: bad.slice(0, 40), bio: bad.slice(0, 240) }],
     '/auth/avatar': (bad) => [{ data: bad }],
     '/social/requests': (bad) => [{ id: bad }],
+    '/public/invites/:code/visit': (bad) => [{ visitor: bad }, { visitor: bad.slice(0, 22) }],
     '/social/requests/answer': (bad) => [{ id: bad, outcome: 'accepted' }, { id: bad, outcome: 'declined' }],
     '/social/requests/withdraw': (bad) => [{ id: bad }],
     '/social/friends/remove': (bad) => [{ id: bad }],
@@ -164,7 +165,7 @@ const SPARED = new Set([
     '/parties/:id/accept', '/parties/:id/decline', '/parties/:id/leave',
     '/notifications/:id/read', '/notifications/read-all', '/notifications/:id/dismiss', '/devices/:id/revoke', '/devices/recovery/off',
     '/chat/:id/read', '/chat/:id/expiry', '/chat/:id/pin', '/chat/:id/messages/:messageId/played', '/vault/terms', '/vault/break', '/admin/vault/pause', '/admin/shop/money/pause',
-    '/shop/earnings/claim', '/donations/accepting', '/markets/disclosure'
+    '/shop/earnings/claim', '/donations/accepting', '/markets/disclosure', '/invites/code'
 ]);
 
 const SIGNED_OUT = new Set(['/auth/challenge', '/auth/wallet']);
@@ -256,6 +257,7 @@ const run = async () =>
     await other.post(`/tables/${ table.body?.id }/ready`, { ready: true });
 
     const started = await me.post(`/tables/${ table.body?.id }/start`);
+    const invite = await other.get('/invites/code');
 
     const real = {
         '/tables/': table.body?.id,
@@ -266,6 +268,7 @@ const run = async () =>
         '/social/people/': theirs.handle,
         '/chain/people/': theirs.handle,
         '/public/people/': theirs.handle,
+        '/public/invites/': invite.body?.code,
         '/catalogue/games/': 'ludo'
     };
 

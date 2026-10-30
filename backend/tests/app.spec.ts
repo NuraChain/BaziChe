@@ -123,6 +123,142 @@ describe('a profile for somebody signed out', () =>
     });
 });
 
+describe('inviting friends', () =>
+{
+    const CODE = { code: 'ABCD2345', link: 'http://localhost:3100/join/ABCD2345', since: '2026-10-30T10:00:00.000Z' };
+
+    const RENEWED = { code: 'WXYZ6789', link: 'http://localhost:3100/join/WXYZ6789', since: '2026-10-30T11:00:00.000Z', next: '2026-10-31T11:00:00.000Z' };
+
+    const FACE = { handle: 'sara.k', displayName: 'Sara', hue: 40, avatar: 'http://localhost:3100/avatars/abc.webp', deco: 'decoration.jade' };
+
+    const VISITOR = 'Ab3_-xyzAb3_-xyzAb3_-x';
+
+    const invitesAs = (told: unknown[][], who: unknown = { userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' }) => buildApp({
+        db: fakeDb({ initialized: true }),
+        config,
+        log: silent,
+        ports: {
+            identity: { principal: () => Promise.resolve(who) },
+            invites: {
+                code: (...said: unknown[]) =>
+                {
+                    told.push(['code', ...said]);
+                    return Promise.resolve(CODE);
+                },
+                renew: (...said: unknown[]) =>
+                {
+                    told.push(['renew', ...said]);
+                    return Promise.resolve(RENEWED);
+                },
+                card: (...said: unknown[]) =>
+                {
+                    told.push(['card', ...said]);
+
+                    if (said[0] === 'NOPE2345')
+                    {
+                        return Promise.reject(new NotFoundError('That invite link no longer works.'));
+                    }
+
+                    return Promise.resolve(said[0] === 'MINR2345' ? {} : { inviter: { ...FACE, isMinor: false, bio: 'Plays Hokm', lastSeenAt: 'now', id: 'a-uuid' } });
+                },
+                visit: (...said: unknown[]) =>
+                {
+                    told.push(['visit', ...said]);
+                    return Promise.resolve();
+                }
+            }
+        } as unknown as Ports
+    });
+
+    const post = (app: ReturnType<typeof buildApp>, path: string, body?: unknown) =>
+        app.handle(new Request(`http://local/api${ path }`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body ?? {})
+        }));
+
+    it('is the reader\'s own code for somebody signed in, and its page and its visits for anybody', async () =>
+    {
+        const told: unknown[][] = [];
+        const manifest = await (await invitesAs(told).handle(new Request('http://local/api/_manifest'))).json() as Record<string, Record<string, { method: string; path: string }>>;
+
+        expect(Object.entries(manifest.invites).map(([name, route]) => `${ name } ${ route.method } ${ route.path }`).sort()).toEqual([
+            'code GET /invites/code',
+            'renew POST /invites/code'
+        ]);
+        expect(Object.entries(manifest.public).filter(([name]) => name.startsWith('invit') || name === 'visit').map(([name, route]) => `${ name } ${ route.method } ${ route.path }`).sort()).toEqual([
+            'invite GET /public/invites/:code',
+            'visit POST /public/invites/:code/visit'
+        ]);
+    });
+
+    it('answers the reader their code and a new one, and nobody who is not signed in', async () =>
+    {
+        const told: unknown[][] = [];
+
+        expect(await (await call(invitesAs(told), '/api/invites/code')).json()).toEqual(CODE);
+        expect(await (await post(invitesAs(told), '/invites/code')).json()).toEqual(RENEWED);
+        expect(told).toEqual([['code', 'somebody'], ['renew', 'somebody']]);
+
+        const nobody: unknown[][] = [];
+
+        expect((await call(invitesAs(nobody, null), '/api/invites/code')).status).toBe(401);
+        expect((await post(invitesAs(nobody, null), '/invites/code')).status).toBe(401);
+        expect(nobody).toEqual([]);
+    });
+
+    it('shows a link\'s inviter to anybody with nothing the page does not draw, and a link that no longer works as a missing page', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = invitesAs(told, null);
+        const shown = await call(app, '/api/public/invites/ABCD2345');
+
+        expect(shown.status).toBe(200);
+        expect(await shown.json()).toEqual({ inviter: FACE });
+        expect(await (await call(app, '/api/public/invites/MINR2345')).json()).toEqual({});
+
+        const gone = await call(app, '/api/public/invites/NOPE2345');
+
+        expect(gone.status).toBe(404);
+        expect(told.map((one) => one[1])).toEqual(['ABCD2345', 'MINR2345', 'NOPE2345']);
+    });
+
+    it('counts a visit with the reader when there is one, and a visitor that is no token not at all', async () =>
+    {
+        const told: unknown[][] = [];
+
+        expect(await (await post(invitesAs(told), '/public/invites/ABCD2345/visit', { visitor: VISITOR })).json()).toEqual({ ok: true });
+        expect(await (await post(invitesAs(told, null), '/public/invites/ABCD2345/visit', { visitor: VISITOR })).json()).toEqual({ ok: true });
+        expect(told).toEqual([['visit', 'ABCD2345', VISITOR, 'somebody'], ['visit', 'ABCD2345', VISITOR, null]]);
+
+        for (const visitor of ['short', `${ VISITOR }x`, 'Ab3_-xyzAb3_-xyzAb3_-!', ''])
+        {
+            expect((await post(invitesAs(told), '/public/invites/ABCD2345/visit', { visitor })).status, visitor).toBe(422);
+        }
+
+        expect(told).toHaveLength(2);
+    });
+
+    it('takes an invite with a wallet sign-in, and no handle under the name it had', () =>
+    {
+        const api = readFileSync(fileURLToPath(new URL('../src/api.ts', import.meta.url)), 'utf8');
+
+        expect(api).toContain('invite: context.input.invite,');
+        expect(api).not.toContain('ref: context.input.ref');
+    });
+
+    it('is sent garbage by the pass that sends every route garbage, or named there as spared', () =>
+    {
+        const pass = readFileSync(fileURLToPath(new URL('../../tools/qa/garbage-pass.mjs', import.meta.url)), 'utf8');
+        const bodies = pass.slice(pass.indexOf('const BODIES ='), pass.indexOf('const WOULD_ACT ='));
+
+        expect(bodies).toContain(`'/public/invites/:code/visit': (bad) => [`);
+        expect(bodies).toContain('invite: bad.slice(0, 32)');
+        expect(pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='))).toContain(`'/invites/code'`);
+        expect(pass).toContain(`'/public/invites/':`);
+    });
+});
+
 describe('health', () =>
 {
     it('reports ok only when the database actually answers', async () =>

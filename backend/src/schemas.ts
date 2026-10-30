@@ -4,6 +4,7 @@ import { RARITY_IDS } from './domains/achieve/rarity.ts';
 import { PARTY_ENDS, PARTY_STAGES } from './domains/party/rules.ts';
 import { SHOP_COLLECTIONS, SLOT_IDS } from './domains/shop/catalogue.ts';
 import { DONATE_MAY, DONATION_STATES } from './domains/donate/policy.ts';
+import { VISITOR_SHAPE } from './domains/invite/policy.ts';
 import { MARKET_MAY, MARKET_STATES, POSITION_STATES } from './domains/market/policy.ts';
 import { ORDER_STATES, OWNED_VIA, SHOP_ITEM_STATUSES, SHOP_MAY } from './domains/shop/policy.ts';
 import { CHECK_FAMILIES, CHECK_KINDS, CHECK_LISTS, CHECK_RESOLUTIONS } from './domains/reconcile/kinds.ts';
@@ -347,8 +348,8 @@ export const walletSignIn = object({
     signature: string(),
     providerRdns: string().optional(),
 
-    /** The handle in the link somebody followed here, kept by the browser until the first sign-in. */
-    ref: string({ max: 40 }).optional(),
+    /** The code in the invite link somebody followed here, kept by the browser until a wallet signs in. Anything that is no code is let go of. */
+    invite: string({ max: 32 }).optional(),
     device: object({
         id: string({ max: 22 }),
         exchangeKey: string({ max: 512 }),
@@ -1534,6 +1535,34 @@ export const publicPerson = object({
 });
 
 export type PublicPerson = Infer<typeof publicPerson>;
+
+/** The reader's live invite code and the link that carries it; `next` is when a new one may be made, while that is still ahead. */
+export const inviteCode = object({
+    code: string(),
+    link: string(),
+    since: string(),
+    next: string().optional()
+});
+
+export type InviteCodeView = Infer<typeof inviteCode>;
+
+/**
+ * What a link's page shows of whoever invited: their face as their public profile shows it, and
+ * nothing where that profile shows nothing (a minor), though the link still works.
+ */
+export const inviteCard = object({
+    inviter: object({
+        handle: string(),
+        displayName: string(),
+        avatar: string().optional(),
+        hue: number(),
+        deco: string().optional()
+    }).optional()
+});
+
+export type InviteCard = Infer<typeof inviteCard>;
+
+export const inviteVisitInput = object({ visitor: string({ pattern: VISITOR_SHAPE }) });
 
 export const personRef = object({ id: string() });
 

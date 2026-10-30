@@ -25,7 +25,7 @@ import { createOps } from './http/ops.ts';
 import { SAMPLE_MS } from './ops/measures.ts';
 import { createMonitor } from './ops/monitor.ts';
 import { poolOf } from './ops/sample.ts';
-import { apiRateLimit, signInRateLimit } from './http/rate-limit.ts';
+import { apiRateLimit, publicInviteRateLimit, signInRateLimit } from './http/rate-limit.ts';
 import { createServerLogger } from './logger.ts';
 import { createChatService } from './domains/chat/service.ts';
 import { createFranking } from './domains/chat/franking.ts';
@@ -255,6 +255,7 @@ const handler = pipeline(
     // cold page load pulls, and a visitor would start taking 429s on their own JavaScript.
     apiRateLimit({ limit: config.apiRateMax, trustProxy: config.env === 'production' }),
     signInRateLimit({ apiLimit: config.apiRateMax, trustProxy: config.env === 'production' }),
+    publicInviteRateLimit({ apiLimit: config.apiRateMax, trustProxy: config.env === 'production' }),
 
     // Inside the limiters, so a guess at the token is metered like any other request.
     metricsAt(config.metricsToken, () => monitor.metrics())

@@ -39,7 +39,7 @@ import { GAME_SEEDS } from './db/seed-reference.ts';
 import { seatsOfMask } from './domains/stake/policy.ts';
 import { createStakeService, type StakeSweep } from './domains/stake/service.ts';
 import { createIdentityService } from './domains/identity/service.ts';
-import { createInviteService } from './domains/invite/service.ts';
+import { createInviteService, noInvite } from './domains/invite/service.ts';
 import { isAdminAddress } from './domains/identity/admin.ts';
 import { may, ownersOf, shownOwnersOf, type Ability, type GrantedRole } from './domains/admin/roles.ts';
 import { createPeopleService } from './domains/admin/people.ts';
@@ -194,6 +194,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const achieve = createAchieveService(db);
 
     const invites = createInviteService(db);
+
+    /** A code with the link that carries it, on the origin the browser is served from. */
+    const linked = <T extends { code: string }>(view: T) => ({ ...view, link: `${ config.origin }/join/${ view.code }` });
+
     const table = createTableService(db, social);
     const catalogue = createCatalogueService(db);
     const notify = createNotifyService(db, social);
@@ -1798,7 +1802,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
                 if (result.created)
                 {
-                    await courtesy('referral', () => invites.refer(userId, input.ref));
+                    await courtesy('referral', () => invites.refer(userId, input.invite));
                 }
 
                 if (input.device !== undefined && namesDevice(result.proof.message, input.device.id))
@@ -1866,6 +1870,36 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             withdraw: (me, amount) => stakes.withdraw(me, amount),
             games: (me, cursor) => stakes.games(me, cursor),
             reclaim: (me, escrowId) => stakes.reclaim(me, escrowId)
+        },
+
+        invites: {
+            code: async (me) => linked(await invites.code(me)),
+
+            renew: async (me) => linked(await invites.renew(me)),
+
+            /** A link's page shows its inviter only where their public profile would, so a minor's link works with no face. */
+            async card(code)
+            {
+                const owner = await invites.ownerOf(code);
+                const person = owner === null ? null : await social.person(owner.userId);
+
+                if (person === null)
+                {
+                    throw noInvite();
+                }
+
+                return person.is_minor ? {} : {
+                    inviter: {
+                        handle: person.handle,
+                        displayName: person.display_name,
+                        ...(person.avatar === null ? {} : { avatar: person.avatar }),
+                        hue: person.hue,
+                        ...worn('deco', person.deco)
+                    }
+                };
+            },
+
+            visit: (code, visitor, viewer) => invites.visit(code, visitor, viewer)
         },
 
         shop: {

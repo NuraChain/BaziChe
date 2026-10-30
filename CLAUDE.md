@@ -221,6 +221,8 @@ Loaded only when a session touches the matching code:
 - `.claude/rules/shop.md` - looks bought with NURA: what is sold, owning and choosing, the looks on
   the wire and at the tables, a purchase, gifts, inviters, a refund, the contract, the art and the
   voices, and the pages.
+- `.claude/rules/invites.md` - inviting friends: a code of one's own, the page a link opens and its
+  visits, crediting a new account, and when an invite counts.
 - `.claude/rules/admin.md` - running the platform: the staff and their roles, and the log every
   change writes.
 - `.claude/rules/operations.md` - the server watched: what it measures and the alerts it raises; and

@@ -48,6 +48,8 @@ import type {
     PersonSummary,
     PersonView,
     PublicPerson,
+    InviteCard,
+    InviteCodeView,
     Privacy,
     ChatMessage,
     ConversationDevices,
@@ -149,7 +151,7 @@ export interface IdentityPort
         signature: string;
         providerRdns?: string | undefined;
         userAgent: string;
-        ref?: string | undefined;
+        invite?: string | undefined;
         device?: { id: string; exchangeKey: string; signingKey: string; label: string } | undefined;
     }): Promise<Established>;
 
@@ -604,6 +606,22 @@ export interface VaultPort
     reclaim(me: string, escrowId: string): Promise<WalletCall>;
 }
 
+/** A person's invite code, and the page a link with it opens. */
+export interface InvitePort
+{
+    /** The reader's live code and the link that carries it, made the first time it is asked for. */
+    code(me: string): Promise<InviteCodeView>;
+
+    /** A new code in place of the reader's live one, at most once a day (`invite-code-soon`): links already shared stop bringing anybody in. */
+    renew(me: string): Promise<InviteCodeView>;
+
+    /** Who a link invites to, as their public profile shows them; a link that no longer works is `invite-missing`. */
+    card(code: string): Promise<InviteCard>;
+
+    /** A device that opened a link, counted once a day and never for the code's own owner. */
+    visit(code: string, visitor: string, viewer: string | null): Promise<void>;
+}
+
 export interface ShopPort
 {
     /** Everything the reader owns and what they chose for each slot. */
@@ -824,6 +842,7 @@ export interface Ports
     chat: ChatPort;
     chain: ChainPort;
     vault: VaultPort;
+    invites: InvitePort;
     shop: ShopPort;
     donate: DonatePort;
     markets: MarketPort;

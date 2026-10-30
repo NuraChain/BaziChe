@@ -9,6 +9,12 @@ import When from './when.component.azeroth';
 
 export type AdminLook = AdminPerson['looks'][number];
 
+const CAME = {
+    purchase: 'admin.person.look.bought',
+    grant: 'admin.person.look.grant',
+    reward: 'admin.person.look.reward'
+} as const;
+
 export default component PersonLook(props: { look: AdminLook; mayTake: boolean; onTake: () => void })
 {
     const locale = useLocale();
@@ -17,7 +23,7 @@ export default component PersonLook(props: { look: AdminLook; mayTake: boolean; 
 
     derived how = props.look.via === 'gift'
         ? handleParts(locale.t('admin.person.look.gift', { from: '{from}' }), { from: props.look.from ?? '' })
-        : [{ at: 0, text: locale.t(props.look.via === 'grant' ? 'admin.person.look.grant' : 'admin.person.look.bought'), handle: false }];
+        : [{ at: 0, text: locale.t(CAME[props.look.via]), handle: false }];
 
     derived worn = props.look.worn;
 

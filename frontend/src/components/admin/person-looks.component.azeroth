@@ -17,8 +17,11 @@ const VIA_WORDS: Readonly<Record<OwnedVia | 'all', MessageKey>> = {
     all: 'admin.person.looks.all',
     purchase: 'admin.person.looks.purchase',
     gift: 'admin.person.looks.gift',
-    grant: 'admin.person.looks.grant'
+    grant: 'admin.person.looks.grant',
+    reward: 'admin.person.looks.reward'
 };
+
+const NONE: Readonly<Record<OwnedVia, number>> = { purchase: 0, gift: 0, grant: 0, reward: 0 };
 
 const LOOKS_PAGE = 20;
 
@@ -35,7 +38,7 @@ export default component PersonLooks(props: { looks: AdminLook[]; name: string; 
 
     derived owns = props.looks.length > 0;
 
-    derived counts = props.looks.reduce((all, look) => ({ ...all, [look.via]: all[look.via] + 1 }), { purchase: 0, gift: 0, grant: 0 });
+    derived counts = props.looks.reduce((all, look) => ({ ...all, [look.via]: all[look.via] + 1 }), NONE);
 
     derived ways = OWNED_VIA.filter((way) => counts[way] > 0 || way === via);
 

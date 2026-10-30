@@ -18,6 +18,6 @@ export const SHOP_MAY = ['yes', 'shop-wallet', 'shop-minor'] as const;
 export type ShopMay = (typeof SHOP_MAY)[number];
 
 /** How somebody came to own a look. */
-export const OWNED_VIA = ['purchase', 'gift', 'grant'] as const;
+export const OWNED_VIA = ['purchase', 'gift', 'grant', 'reward'] as const;
 
 export type OwnedVia = (typeof OWNED_VIA)[number];

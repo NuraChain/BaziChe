@@ -1196,6 +1196,21 @@ describe('a look given and taken back, from the person\'s page', () =>
         expect(asked().props).toMatchObject({ initial: { item: 'dice.storm', reason: 'A prize for the Friday cup.' } });
     });
 
+    it('says a look given for inviting friends came that way, with a chip of its own and nothing to take back from here', async () =>
+    {
+        server.accounts.about['sara.k'] = {
+            looks: [
+                { item: 'dice.inferno', via: 'reward', at: hoursAgo(1), worn: false },
+                { item: 'back.gold', via: 'purchase', at: hoursAgo(30), worn: false }
+            ]
+        };
+        const container = await opened('/admin/people/sara.k?tab=looks');
+
+        expect(said(container, '[data-look="dice.inferno"] [data-how]')).toBe('A reward for inviting friends');
+        expect(chips(container)).toEqual(['All2', 'Bought1', 'From invites1']);
+        expect(presses(container)).toEqual([]);
+    });
+
     it('narrows the list by how each came once they came more than one way, the choice kept in the address', async () =>
     {
         owns();

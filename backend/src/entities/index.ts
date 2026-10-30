@@ -8,6 +8,7 @@ import { Discrepancy } from './discrepancy.entity.ts';
 import { Donation } from './donation.entity.ts';
 import { DonationsOff } from './donations-off.entity.ts';
 import { EquippedItem } from './equipped-item.entity.ts';
+import { EstablishedPlayer } from './established-player.entity.ts';
 import { EscrowSeat } from './escrow-seat.entity.ts';
 import { Escrow } from './escrow.entity.ts';
 import { EpochArchive } from './epoch-archive.entity.ts';
@@ -63,7 +64,7 @@ import { VoicePlay } from './voice-play.entity.ts';
 import { Wallet } from './wallet.entity.ts';
 
 export {
-    Achievement, Avatar, Block, Conversation, ConversationEpoch, ConversationMember, Device, Discrepancy, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat,
+    Achievement, Avatar, Block, Conversation, ConversationEpoch, ConversationMember, Device, Discrepancy, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat, EstablishedPlayer,
     EpochArchive, FriendRequest, Friendship,
     Game, GameRule, Group, GroupMember, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, Mute,
     Notice, Notification, OwnedItem, PaidAccount, PlayerStats, PushSubscription,
@@ -86,7 +87,7 @@ export const entities: Function[] = [
     User, Avatar, Wallet, Session, SiweNonce, Device,
     Friendship, FriendRequest, Block, Mute, Report,
     Conversation, ConversationMember, VoiceNote, Message, VoicePlay, ConversationEpoch, EpochKey, EpochArchive,
-    RecoveryVault, RecoveryNonce, InviteCode, InviteVisit, InviteCampaign, InviteReward, InviteBoardOff, Referral,
+    RecoveryVault, RecoveryNonce, InviteCode, InviteVisit, InviteCampaign, InviteReward, InviteBoardOff, Referral, EstablishedPlayer,
     Group, GroupMember,
     Table, TableSeat, TableRemoval, QuickTable,
     Match, MatchPlayer, MatchAction, PlayerStats, UserAchievement,

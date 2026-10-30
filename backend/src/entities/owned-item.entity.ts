@@ -7,7 +7,7 @@ import type { OwnedVia } from '../domains/shop/policy.ts';
 
 /** A look somebody owns, for good. A bundle is never owned: its looks are. */
 @Check('owned_items_look', `item_id not like 'bundle.%'`)
-@Check('owned_items_via_known', `via in ('purchase', 'gift', 'grant')`)
+@Check('owned_items_via_known', `via in ('purchase', 'gift', 'grant', 'reward')`)
 @Check('owned_items_giver_gives', `via = 'gift' or giver_id is null`)
 @Entity('owned_items')
 export class OwnedItem

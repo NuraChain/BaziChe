@@ -150,10 +150,30 @@ count a second wallet of their own by playing it once. A game with the inviter c
 the friend's next game without them counts. The `invited` ladder, the shop's inviter share
 (`referrerOf`) and the notice all follow `counted_at`, so all three gained the condition with it.
 
+**And only through somebody who vouches for the game** (RF-D20, RF-D27): another player in it who
+played it out (won, lost or drawn), is not suspended, was not brought in by the same inviter, and is
+established or on the staff (the owner by the wallets the server names, and every member of the
+staff, who are where it starts and need no row; `vouches` in the invite service, which wants
+`:owners`). A player is established (`established_players`) once their account is a week old and
+five of their games were played out with somebody who vouches (`ESTABLISHED_DAYS`,
+`ESTABLISHED_GAMES`); `establish` asks it of every player of a finished game before the count, so a
+game that makes somebody established can count through them. A farm of fresh wallets that only play
+each other never counts one in, and an accomplice already established cannot walk out and hand a
+fresh wallet the win.
+
+**What makes a counted invite wait for a person is written with it** (`flags`): `quick`, a first
+counted game finished within ten minutes of joining (`QUICK_MINUTES`; a real first game almost never
+is); `ring`, another seat of that game held by somebody the same inviter brought in; `many`, the
+inviter already had five invites counted in the last day (`MANY_A_DAY`). None is null. A flag acts on
+nothing by itself: it is what sends that invite's rewards to the staff.
+
 `invite.db.spec.ts` holds all of it against Postgres: a code made once for asks that cross, renewed once
 a day and once for two asks at once, the page for a face, a minor and every link that no longer works,
 visits, the crediting (in any case, with and without a campaign running) and every code it lets go of,
 and the counting with the inviter in the game, a game still played, a void game and three friends at
-once, what came of it across a retired code and a suspended friend, and the people invited a page at a
-time across a millisecond. `app.spec.ts` (*inviting friends*) holds the routes, what the page sends and the garbage pass's
+once, who vouches (nobody, an established player, a member of the staff, the owner, and never a friend
+of the same inviter, a suspended account or a player who walked out), each flag and none, becoming
+established and every way of falling short of it, what came of it across a retired code and a suspended
+friend, and the people invited a page at a time across a millisecond; `invite-count.spec.ts` the order
+after a finish and the owners handed to the service. `app.spec.ts` (*inviting friends*) holds the routes, what the page sends and the garbage pass's
 bodies.

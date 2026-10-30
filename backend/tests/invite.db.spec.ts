@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
-import { EquippedItem, InviteCampaign, InviteCode, InviteVisit, OwnedItem, Referral, User, entities } from '../src/entities/index.ts';
+import { EquippedItem, EstablishedPlayer, InviteCampaign, InviteCode, InviteVisit, OwnedItem, Referral, StaffMember, User, Wallet, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import { createInviteService } from '../src/domains/invite/service.ts';
@@ -126,6 +126,15 @@ const crossing = async <T>(count: number, ask: () => Promise<T>) =>
 
     return await Promise.all(answers);
 };
+
+/** Somebody an invite may count through. */
+const vouch = async (id: string) =>
+{
+    await db.getRepository(EstablishedPlayer).insert({ userId: id });
+};
+
+/** The invite service, with the owners the server names as given. */
+const invitesWith = (owners: readonly string[] = []) => createInviteService(db, () => owners);
 
 const campaign = async (extra: Partial<InviteCampaign> = {}) =>
     (await db.getRepository(InviteCampaign).save({ name: 'Bring a friend', state: 'active', inviterItem: null, inviteeItem: null, milestones: [], most: null, review: false, ...extra })).id;
@@ -420,8 +429,9 @@ describe.skipIf(!active)('invites, against a real database', () =>
             const { code } = await ports.invites.summary(inviterId);
             const { id: friend } = await enter(code);
             const { id: stranger } = await enter();
-            const invites = createInviteService(db);
+            const invites = invitesWith();
 
+            await vouch(stranger);
             expect(await invites.countedBy(await game([{ id: friend, result: 'won' }, { id: inviterId, result: 'lost' }])), 'a game with the inviter').toEqual({ game: 'ludo', counted: [] });
             expect(await invites.countedBy(await game([{ id: friend }, { id: stranger }])), 'a game still being played').toEqual({ game: 'ludo', counted: [] });
             expect(await invites.countedBy(await game([{ id: friend, result: 'abandoned' }, { id: stranger }, { id: (await enter()).id }])), 'a game the friend walked out of that goes on').toEqual({ game: 'ludo', counted: [] });
@@ -430,29 +440,177 @@ describe.skipIf(!active)('invites, against a real database', () =>
 
             const played = await game([{ id: friend, result: 'lost' }, { id: stranger, result: 'won' }]);
 
-            expect(await invites.countedBy(played)).toEqual({ game: 'ludo', counted: [{ inviterId, inviteeId: friend }] });
+            expect(await invites.countedBy(played)).toEqual({ game: 'ludo', counted: [{ inviterId, inviteeId: friend, flags: ['quick'], campaignId: null }] });
             expect(await invites.countedBy(played), 'counted once').toEqual({ game: 'ludo', counted: [] });
             expect((await referrals()).map((one) => one.counted)).toEqual([true]);
         });
 
-        it('counts every friend in a game the inviter did not play in, and none in one they did', async () =>
+        it('counts every friend in a game the inviter did not play in, flagged as a ring, and none in one they did', async () =>
         {
             const { id: inviterId } = await enter();
             const { code } = await ports.invites.summary(inviterId);
             const [one, two, three] = await Promise.all([enter(code), enter(code), enter(code)]);
-            const invites = createInviteService(db);
+            const { id: stranger } = await enter();
+            const invites = invitesWith();
 
-            expect(await invites.countedBy(await game([{ id: one.id, result: 'won' }, { id: two.id, result: 'lost' }, { id: inviterId, result: 'lost' }]))).toEqual({ game: 'ludo', counted: [] });
+            await vouch(stranger);
+            expect(await invites.countedBy(await game([{ id: one.id, result: 'won' }, { id: two.id, result: 'lost' }, { id: stranger, result: 'lost' }, { id: inviterId, result: 'lost' }]))).toEqual({ game: 'ludo', counted: [] });
 
-            const counted = (await invites.countedBy(await game([{ id: one.id, result: 'won' }, { id: two.id, result: 'abandoned' }, { id: three.id, result: 'lost' }]))).counted;
+            const counted = (await invites.countedBy(await game([{ id: one.id, result: 'won' }, { id: two.id, result: 'abandoned' }, { id: three.id, result: 'lost' }, { id: stranger, result: 'lost' }]))).counted;
 
             expect(counted.map((row) => row.inviteeId).sort()).toEqual([one.id, two.id, three.id].sort());
             expect(counted.every((row) => row.inviterId === inviterId)).toBe(true);
+            expect(counted.map((row) => row.flags)).toEqual([['quick', 'ring'], ['quick', 'ring'], ['quick', 'ring']]);
         });
 
         it('counts nothing for a game nobody has heard of', async () =>
         {
-            expect(await createInviteService(db).countedBy('3f0e3c2a-1111-4222-8333-444455556666')).toEqual({ game: '', counted: [] });
+            expect(await invitesWith().countedBy('3f0e3c2a-1111-4222-8333-444455556666')).toEqual({ game: '', counted: [] });
+        });
+    });
+
+    describe('who an invite counts through', () =>
+    {
+        /** A friend of a new inviter, and somebody nobody brought in. */
+        const pair = async () =>
+        {
+            const { id: inviterId } = await enter();
+            const { code } = await ports.invites.summary(inviterId);
+            const { id: friend } = await enter(code);
+            const { id: stranger, wallet } = await enter();
+
+            return { inviterId, code, friend, stranger, address: wallet.address.toLowerCase() };
+        };
+
+        it('counts nothing through a game where nobody vouches for it, and counts once somebody does', async () =>
+        {
+            const { friend, stranger } = await pair();
+
+            expect((await invitesWith().countedBy(await game([{ id: friend, result: 'won' }, { id: stranger, result: 'lost' }]))).counted).toEqual([]);
+
+            await vouch(stranger);
+
+            expect((await invitesWith().countedBy(await game([{ id: friend, result: 'lost' }, { id: stranger, result: 'won' }]))).counted.map((row) => row.inviteeId)).toEqual([friend]);
+        });
+
+        it('counts through a member of the staff and through the owner, with no row of their own', async () =>
+        {
+            const staffed = await pair();
+            const owned = await pair();
+
+            await db.getRepository(StaffMember).insert({ userId: staffed.stranger, role: 'moderator', grantedBy: null });
+
+            expect((await invitesWith().countedBy(await game([{ id: staffed.friend, result: 'won' }, { id: staffed.stranger, result: 'lost' }]))).counted.map((row) => row.inviteeId)).toEqual([staffed.friend]);
+            expect((await invitesWith().countedBy(await game([{ id: owned.friend, result: 'won' }, { id: owned.stranger, result: 'lost' }]))).counted, 'nobody the server names').toEqual([]);
+            expect((await invitesWith([owned.address]).countedBy(await game([{ id: owned.friend, result: 'won' }, { id: owned.stranger, result: 'lost' }]))).counted.map((row) => row.inviteeId)).toEqual([owned.friend]);
+            expect(await db.getRepository(EstablishedPlayer).count()).toBe(0);
+        });
+
+        it('takes no word from somebody the same inviter brought in, a suspended account or a player who walked out', async () =>
+        {
+            const { code, friend, stranger } = await pair();
+            const { id: sibling } = await enter(code);
+            const { id: walker } = await enter();
+
+            await Promise.all([vouch(stranger), vouch(sibling), vouch(walker)]);
+            await db.getRepository(User).update({ id: stranger }, { isSuspended: true });
+
+            for (const [why, other] of [['brought in by the same inviter', sibling], ['suspended', stranger]] as const)
+            {
+                expect((await invitesWith().countedBy(await game([{ id: friend, result: 'won' }, { id: other, result: 'lost' }]))).counted, why).toEqual([]);
+            }
+
+            expect((await invitesWith().countedBy(await game([{ id: friend, result: 'won' }, { id: walker, result: 'abandoned' }]))).counted, 'walked out').toEqual([]);
+            expect((await referrals()).filter((one) => one.counted)).toEqual([]);
+        });
+
+        it('flags a first game finished within ten minutes of joining, a ring, and the sixth of a day, and nothing else', async () =>
+        {
+            const { inviterId, code, friend, stranger } = await pair();
+            const { id: sibling } = await enter(code);
+            const older = async (id: string, minutes: number) => db.query(`update referrals set created_at = now() - make_interval(mins => $2) where invitee_id = $1`, [id, minutes]);
+
+            await vouch(stranger);
+            await older(friend, 11);
+
+            expect((await invitesWith().countedBy(await game([{ id: friend, result: 'won' }, { id: stranger, result: 'lost' }]))).counted.map((row) => row.flags), 'eleven minutes after joining').toEqual([null]);
+            expect((await invitesWith().countedBy(await game([{ id: sibling, result: 'won' }, { id: friend, result: 'lost' }, { id: stranger, result: 'lost' }]))).counted.map((row) => row.flags), 'with a friend of the same inviter').toEqual([['quick', 'ring']]);
+
+            const today = await Promise.all([0, 1, 2].map(() => enter(code)));
+
+            await db.query(`update referrals set counted_at = now() - interval '2 hours' where invitee_id = any($1)`, [today.map((one) => one.id)]);
+
+            const { id: sixth } = await enter(code);
+
+            await older(sixth, 30);
+
+            expect((await invitesWith().countedBy(await game([{ id: sixth, result: 'won' }, { id: stranger, result: 'lost' }]))).counted.map((row) => row.flags), 'the sixth counted in a day').toEqual([['many']]);
+            expect(await db.getRepository(Referral).countBy({ inviterId })).toBe(6);
+        });
+    });
+
+    describe('a player established', () =>
+    {
+        /** A player whose account is `days` old, and somebody who vouches. */
+        const aged = async (days: number) =>
+        {
+            const { id: player } = await enter();
+            const { id: anchor } = await enter();
+
+            await db.query(`update users set created_at = now() - make_interval(days => $2) where id = $1`, [player, days]);
+            await vouch(anchor);
+
+            return { player, anchor };
+        };
+
+        /** `count` games the player played out against somebody, each finished, the last one's id answered. */
+        const played = async (player: string, other: string, count: number, theirs: 'won' | 'lost' | 'abandoned' = 'won', mine: 'won' | 'lost' | 'void' = 'lost') =>
+        {
+            let last = '';
+
+            for (let one = 0; one < count; one += 1)
+            {
+                last = await game([{ id: player, result: mine }, { id: other, result: theirs }]);
+            }
+
+            return last;
+        };
+
+        it('is somebody a week old who played out five games with somebody who vouches, and is made one once', async () =>
+        {
+            const { player, anchor } = await aged(8);
+            const fifth = await played(player, anchor, 5);
+
+            expect(await invitesWith().establish(fifth)).toEqual([player]);
+            expect(await db.getRepository(EstablishedPlayer).findOneBy({ userId: player })).not.toBeNull();
+            expect(await invitesWith().establish(fifth), 'once').toEqual([]);
+        });
+
+        it('is not somebody short of a week, of five games, of games played out, or of somebody who vouched for them', async () =>
+        {
+            const young = await aged(6);
+            const few = await aged(8);
+            const walked = await aged(8);
+            const voided = await aged(8);
+            const alone = await aged(8);
+            const { id: nobody } = await enter();
+
+            expect(await invitesWith().establish(await played(young.player, young.anchor, 5)), 'six days old').toEqual([]);
+            expect(await invitesWith().establish(await played(few.player, few.anchor, 4)), 'four games').toEqual([]);
+            expect(await invitesWith().establish(await played(walked.player, walked.anchor, 5, 'abandoned')), 'the one who vouches walked out').toEqual([]);
+            expect(await invitesWith().establish(await played(voided.player, voided.anchor, 5, 'won', 'void')), 'games that counted for nobody').toEqual([]);
+            expect(await invitesWith().establish(await played(alone.player, nobody, 5)), 'nobody who vouches').toEqual([]);
+            expect(await db.getRepository(EstablishedPlayer).count()).toBe(5);
+        });
+
+        it('is never a suspended account', async () =>
+        {
+            const { player, anchor } = await aged(8);
+            const fifth = await played(player, anchor, 5);
+
+            await db.getRepository(User).update({ id: player }, { isSuspended: true });
+
+            expect(await invitesWith().establish(fifth)).toEqual([]);
         });
     });
 
@@ -476,8 +634,9 @@ describe.skipIf(!active)('invites, against a real database', () =>
             const { id: gone } = await enter(second);
             const { id: stranger } = await enter();
 
-            await createInviteService(db).countedBy(await game([{ id: friend, result: 'won' }, { id: stranger, result: 'lost' }]));
-            await createInviteService(db).countedBy(await game([{ id: gone, result: 'won' }, { id: stranger, result: 'lost' }]));
+            await vouch(stranger);
+            await invitesWith().countedBy(await game([{ id: friend, result: 'won' }, { id: stranger, result: 'lost' }]));
+            await invitesWith().countedBy(await game([{ id: gone, result: 'won' }, { id: stranger, result: 'lost' }]));
             await db.getRepository(User).update({ id: gone }, { isSuspended: true });
 
             const { id: other } = await enter();
@@ -552,8 +711,9 @@ describe.skipIf(!active)('invites, against a real database', () =>
             const { code } = await ports.invites.summary(inviterId);
             const { id: friend, account } = await enter(code);
             const { id: stranger } = await enter();
+            await vouch(stranger);
             await db.getRepository(User).update({ id: friend }, { displayName: 'Mina Rad', hue: 300 });
-            await createInviteService(db).countedBy(await game([{ id: friend, result: 'won' }, { id: stranger, result: 'lost' }]));
+            await invitesWith().countedBy(await game([{ id: friend, result: 'won' }, { id: stranger, result: 'lost' }]));
 
             const { id: framed, account: dressed } = await enter(code);
             await db.getRepository(User).update({ id: framed }, { displayName: 'Omid', hue: 120, avatar: 'http://localhost:1/avatars/omid.webp' });

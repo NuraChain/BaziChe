@@ -193,7 +193,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const group = createGroupService(db, social);
     const achieve = createAchieveService(db);
 
-    const invites = createInviteService(db);
+    const invites = createInviteService(db, () => ownersOf(config.adminWallet));
 
     /** A code with the link that carries it, on the origin the browser is served from. */
     const linked = <T extends { code: string }>(view: T) => ({ ...view, link: `${ config.origin }/join/${ view.code }` });
@@ -986,11 +986,14 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     };
 
     /**
-     * The first game an invitee finishes is what makes their invite count: the inviter is told,
-     * and their ladder of people brought in is asked again. A courtesy, after the game is written.
+     * The first game an invitee plays out with somebody who vouches for it is what makes their
+     * invite count, once whoever the game made established is: the inviter is told, and their ladder
+     * of people brought in is asked again. A courtesy, after the game is written.
      */
     const countInvites = async (matchId: string) =>
     {
+        await invites.establish(matchId);
+
         const { game, counted } = await invites.countedBy(matchId);
 
         for (const { inviterId, inviteeId } of counted)

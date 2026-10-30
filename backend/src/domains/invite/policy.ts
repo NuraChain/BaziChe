@@ -47,3 +47,15 @@ export type RewardState = (typeof REWARD_STATES)[number];
 export const INVITE_FLAGS = ['quick', 'ring', 'many'] as const;
 
 export type InviteFlag = (typeof INVITE_FLAGS)[number];
+
+/** How old an account must be before it can become established: a week. */
+export const ESTABLISHED_DAYS = 7;
+
+/** How many games, played out with somebody established or on the staff, make a player established. */
+export const ESTABLISHED_GAMES = 5;
+
+/** A first counted game finished this many minutes after joining is `quick`: a real first game almost never is. */
+export const QUICK_MINUTES = 10;
+
+/** An inviter with this many invites counted in the last day has the next one flagged `many`. */
+export const MANY_A_DAY = 5;

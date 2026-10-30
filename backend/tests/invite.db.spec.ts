@@ -436,6 +436,7 @@ describe.skipIf(!active)('invites, against a real database', () =>
             expect(await invites.countedBy(await game([{ id: friend }, { id: stranger }])), 'a game still being played').toEqual({ game: 'ludo', counted: [] });
             expect(await invites.countedBy(await game([{ id: friend, result: 'abandoned' }, { id: stranger }, { id: (await enter()).id }])), 'a game the friend walked out of that goes on').toEqual({ game: 'ludo', counted: [] });
             expect(await invites.countedBy(await game([{ id: friend, result: 'void' }, { id: stranger, result: 'void' }])), 'a game that counted for nobody').toEqual({ game: 'ludo', counted: [] });
+            expect(await invites.countedBy(await game([{ id: friend, result: 'abandoned' }, { id: stranger, result: 'won' }])), 'a finished game the friend walked out of').toEqual({ game: 'ludo', counted: [] });
             expect((await referrals()).map((one) => one.counted)).toEqual([false]);
 
             const played = await game([{ id: friend, result: 'lost' }, { id: stranger, result: 'won' }]);
@@ -445,7 +446,7 @@ describe.skipIf(!active)('invites, against a real database', () =>
             expect((await referrals()).map((one) => one.counted)).toEqual([true]);
         });
 
-        it('counts every friend in a game the inviter did not play in, flagged as a ring, and none in one they did', async () =>
+        it('counts every friend who played out a game the inviter did not play in, flagged as a ring, and none in one they did', async () =>
         {
             const { id: inviterId } = await enter();
             const { code } = await ports.invites.summary(inviterId);
@@ -458,9 +459,9 @@ describe.skipIf(!active)('invites, against a real database', () =>
 
             const counted = (await invites.countedBy(await game([{ id: one.id, result: 'won' }, { id: two.id, result: 'abandoned' }, { id: three.id, result: 'lost' }, { id: stranger, result: 'lost' }]))).counted;
 
-            expect(counted.map((row) => row.inviteeId).sort()).toEqual([one.id, two.id, three.id].sort());
+            expect(counted.map((row) => row.inviteeId).sort(), 'the one who walked out has not played it').toEqual([one.id, three.id].sort());
             expect(counted.every((row) => row.inviterId === inviterId)).toBe(true);
-            expect(counted.map((row) => row.flags)).toEqual([['quick', 'ring'], ['quick', 'ring'], ['quick', 'ring']]);
+            expect(counted.map((row) => row.flags)).toEqual([['quick', 'ring'], ['quick', 'ring']]);
         });
 
         it('counts nothing for a game nobody has heard of', async () =>

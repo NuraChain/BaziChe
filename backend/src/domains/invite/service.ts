@@ -301,7 +301,7 @@ export function createInviteService(db: DataSource, owners: () => readonly strin
         },
 
         /**
-         * The invites a finished game made count: every friend who played it out (a void seat not),
+         * The invites a finished game made count: every friend who played it out (won, lost or drawn),
          * the first time, in a game their inviter did not sit in, through another player who played
          * it out, can vouch for it and was not brought in by the same inviter. Otherwise anybody
          * could count a second wallet of their own by playing it once, or a farm of fresh wallets by
@@ -329,7 +329,7 @@ export function createInviteService(db: DataSource, owners: () => readonly strin
                 })
                 .where('counted_at is null')
                 .andWhere('inviter_id is not null')
-                .andWhere(`invitee_id in (select seat.user_id from match_players seat where seat.match_id = :matchId and seat.result is not null and seat.result <> 'void')`, { matchId })
+                .andWhere(`invitee_id in (select seat.user_id from match_players seat where seat.match_id = :matchId and seat.result in ('won', 'lost', 'drawn'))`, { matchId })
                 .andWhere('not exists (select 1 from match_players seat where seat.match_id = :matchId and seat.user_id = referrals.inviter_id)', { matchId })
                 .andWhere(`exists (select 1 from match_players other
                                    where other.match_id = :matchId and other.user_id <> referrals.invitee_id

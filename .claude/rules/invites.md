@@ -144,8 +144,9 @@ with the rows kept, the renewal and every way it ends, and its place in the rout
 ## A friend who played
 
 **An invite counts when the friend finishes a game their inviter did not play in** (`countedBy` in the
-invite service, one UPDATE after every finish, `countInvites` in `services.ts`): a seat with a result
-that is not `void`, in a finished game, and no seat of that game the inviter's. Otherwise anybody could
+invite service, one UPDATE after every finish, `countInvites` in `services.ts`): a seat played out
+(won, lost or drawn: a walkout is no game played), in a finished game, and no seat of that game the
+inviter's. Otherwise anybody could
 count a second wallet of their own by playing it once. A game with the inviter changes nothing, and
 the friend's next game without them counts. The `invited` ladder, the shop's inviter share
 (`referrerOf`) and the notice all follow `counted_at`, so all three gained the condition with it.

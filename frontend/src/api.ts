@@ -42,6 +42,8 @@ export type {
     GroupPrivacy,
     GroupRole,
     GroupSummary,
+    InvitedPeople,
+    InviteSummary,
     LeaderboardWindow,
     Standing,
     MatchHistory,

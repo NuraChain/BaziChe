@@ -174,6 +174,34 @@ is); `ring`, another seat of that game held by somebody the same inviter brought
 inviter already had five invites counted in the last day (`MANY_A_DAY`). None is null. A flag acts on
 nothing by itself: it is what sends that invite's rewards to the staff.
 
+## Rewards from the shop
+
+**Nothing is given without a campaign, and an invite belongs to the one running as its account was
+made** (`referrals.campaign_id`, written by `refer`). It gives only while that campaign still runs as
+the invite counts (active and inside its window, by Postgres's clock, RF-D23): a campaign paused or
+ended since gives nothing for it.
+
+**What a campaign gives is a look from the shop** (`reward` in the invite service, after every count,
+through `courtesy('invite reward')` in `countInvites`): its look for whoever invited
+(`inviter_item`), its look for the friend (`invitee_item`), and a milestone's look for whoever invited
+once that many of their friends counted in it (in that campaign, and not suspended). Each is a row of
+`invite_rewards`, written in one transaction for the invite with both people's rows locked in id order,
+so two counts for one person at once count one after the other; a reward already there is left as it
+is, and with the two unique indexes that gives each one once.
+
+**Given at once unless somebody should look first** (RF-D22): every reward of a flagged invite and of
+a campaign that reviews every one (`review`) waits for the staff (`review`, nothing owned yet), and a
+milestone always does. One given is owned in the same transaction (`owned_items`, `via = 'reward'`, no
+order and no giver), and a look owned already gives nothing (`delivered: false`) and keeps how it came.
+A suspended account is given nothing, and the friend their look all the same (RF-D28); nobody is given
+more than the campaign's `most`, a refused reward not counted against it (RF-D26).
+
+**Whoever is given a look is told** (RF-D24): `invite-reward`, naming the friend to whoever invited and
+whoever invited to the friend, the look in `ref.item`, under `invite-reward:<reward>`, leading to their
+collection, and their own pages read the shop again (`selfChanged(…, 'shop')`). A reward held, refused
+or taken back tells nobody, and neither does a look they owned already: a hold said aloud would tell
+a farmer which invite was flagged.
+
 `invite.db.spec.ts` holds all of it against Postgres: a code made once for asks that cross, renewed once
 a day and once for two asks at once, the page for a face, a minor and every link that no longer works,
 visits, the crediting (in any case, with and without a campaign running) and every code it lets go of,
@@ -181,6 +209,10 @@ and the counting with the inviter in the game, a game still played, a void game 
 once, who vouches (nobody, an established player, a member of the staff, the owner, and never a friend
 of the same inviter, a suspended account or a player who walked out), each flag and none, becoming
 established and every way of falling short of it, what came of it across a retired code and a suspended
-friend, and the people invited a page at a time across a millisecond; `invite-count.spec.ts` the order
-after a finish and the owners handed to the service. `app.spec.ts` (*inviting friends*) holds the routes, what the page sends and the garbage pass's
-bodies.
+friend, the people invited a page at a time across a millisecond, and what a counted invite gives: both
+looks at once and once, a flagged invite and a reviewing campaign held, a milestone held once (a friend
+from before the campaign and a suspended one left out), nothing while the campaign does not run, a look
+owned already, a suspended account, the most with a refused reward, a milestone reached by two invites
+rewarded at once, and the notices and rings of each look given over two real games;
+`invite-count.spec.ts` the order after a finish and the owners handed to the service. `app.spec.ts`
+(*inviting friends*) holds the routes, what the page sends and the garbage pass's bodies.

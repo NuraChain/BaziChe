@@ -7,7 +7,7 @@ import { DataSource } from 'typeorm';
 
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
-import { EquippedItem, EstablishedPlayer, InviteCampaign, InviteCode, InviteVisit, Match, MatchPlayer, Notification, OwnedItem, Referral, StaffMember, User, Wallet, entities } from '../src/entities/index.ts';
+import { EquippedItem, EstablishedPlayer, InviteCampaign, InviteCode, InviteReward, InviteVisit, Match, MatchPlayer, Notification, OwnedItem, Referral, StaffMember, User, Wallet, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import { createInviteService } from '../src/domains/invite/service.ts';
@@ -102,19 +102,18 @@ const waitingOnLocks = async () =>
     ))[0].count;
 
 /**
- * Asks the same thing several times at once with every write to `invite_codes` held until all of
- * them wait there, so each has read what it reads before any has written: a share lock lets a read
- * through and stops an insert.
+ * Asks several things at once with every write to a table held until all of them wait, so each has
+ * read what it reads before any has written: a share lock lets a read through and stops an insert.
  */
-const crossing = async <T>(count: number, ask: () => Promise<T>) =>
+const crossing = async <T>(count: number, ask: (index: number) => Promise<T>, table = 'invite_codes') =>
 {
     const gate = db.createQueryRunner();
 
     await gate.connect();
     await gate.startTransaction();
-    await gate.query('lock table invite_codes in share mode');
+    await gate.query(`lock table ${ table } in share mode`);
 
-    const answers = Array.from({ length: count }, () => ask().then((value) => ({ value }), (error: unknown) => ({ error })));
+    const answers = Array.from({ length: count }, (_, index) => ask(index).then((value) => ({ value }), (error: unknown) => ({ error })));
 
     try
     {
@@ -477,7 +476,7 @@ describe.skipIf(!active)('invites, against a real database', () =>
         const told = async (userId: string) =>
             (await db.getRepository(Notification).find({ where: { userId }, order: { createdAt: 'ASC' } }))
                 .filter((one) => one.kind.startsWith('invite-'))
-                .map((one) => ({ kind: one.kind, actor: one.actorId, count: one.count }));
+                .map((one) => ({ kind: one.kind, actor: one.actorId, count: one.count, item: one.ref.item }));
 
         /** A chess game of two, a move each, then the second resigns: a loss and a win both played out. */
         const chess = async (stays: string, resigns: string) =>
@@ -557,6 +556,231 @@ describe.skipIf(!active)('invites, against a real database', () =>
                 { kind: 'invite-played', actor: friend, count: 1 }
             ]));
             expect((await referrals()).map((one) => one.counted)).toEqual([true]);
+        });
+
+        it('is told of each look a campaign gave, which and through whom, and so is the friend, whose looks are read again', async () =>
+        {
+            const rung: string[] = [];
+
+            ports = buildPorts(db, CONFIG, {
+                ...listener,
+                selfChanged: (userId, what) =>
+                {
+                    rung.push(`${ userId } ${ what }`);
+                }
+            });
+            await campaign({ inviterItem: 'dice.glow', inviteeItem: 'pawns.glow' });
+
+            const { id: first } = await enter();
+            const { id: second } = await enter((await ports.invites.summary(first)).code);
+            const { id: third } = await enter((await ports.invites.summary(second)).code);
+            const { id: stranger } = await enter();
+
+            await vouch(stranger);
+            await db.query(`update referrals set created_at = now() - interval '11 minutes'`);
+            await chess(second, stranger);
+            await vi.waitFor(async () => expect(await told(second)).toHaveLength(2));
+            await chess(third, stranger);
+            await vi.waitFor(async () => expect(await told(third)).toHaveLength(1));
+
+            expect(await told(first)).toEqual([
+                { kind: 'invite-joined', actor: second, count: 1 },
+                { kind: 'invite-played', actor: second, count: 1 },
+                { kind: 'invite-reward', actor: second, count: 1, item: 'dice.glow' }
+            ]);
+            expect(await told(second)).toEqual([
+                { kind: 'invite-joined', actor: third, count: 1 },
+                { kind: 'invite-reward', actor: first, count: 1, item: 'pawns.glow' },
+                { kind: 'invite-played', actor: third, count: 1 },
+                { kind: 'invite-reward', actor: third, count: 1, item: 'dice.glow' }
+            ]);
+            expect(await told(third)).toEqual([{ kind: 'invite-reward', actor: second, count: 1, item: 'pawns.glow' }]);
+            expect(rung.filter((one) => one.endsWith(' shop')).sort()).toEqual([first, second, second, third].map((id) => `${ id } shop`).sort());
+        });
+    });
+
+    describe('what an invite that counts gives', () =>
+    {
+        const looks = async (userId: string) =>
+            (await db.getRepository(OwnedItem).find({ where: { userId }, order: { itemId: 'ASC' } })).map((one) => ({ item: one.itemId, via: one.via }));
+
+        const rewards = async () =>
+            (await db.getRepository(InviteReward).find({ order: { createdAt: 'ASC', kind: 'ASC' } }))
+                .map((one) => ({ user: one.userId, invitee: one.inviteeId, kind: one.kind, milestone: one.milestone, item: one.itemId, state: one.state, delivered: one.delivered, decided: one.decidedAt !== null }));
+
+        /** A campaign running as `extra` says, somebody who invites while it runs, and somebody nobody brought in who vouches. */
+        const running = async (extra: Partial<InviteCampaign> = {}) =>
+        {
+            const campaignId = await campaign(extra);
+            const { id: inviterId } = await enter();
+            const { code } = await ports.invites.summary(inviterId);
+            const { id: stranger } = await enter();
+
+            await vouch(stranger);
+
+            return { campaignId, inviterId, code, stranger };
+        };
+
+        /** A friend through `code` who joined eleven minutes ago, so their first game is not quick. */
+        const friendOf = async (code: string) =>
+        {
+            const { id } = await enter(code);
+
+            await db.query(`update referrals set created_at = now() - interval '11 minutes' where invitee_id = $1`, [id]);
+
+            return id;
+        };
+
+        /** The invites a game the friend won against `other` counted. */
+        const counts = async (friend: string, other: string) =>
+            (await invitesWith().countedBy(await game([{ id: friend, result: 'won' }, { id: other, result: 'lost' }]))).counted;
+
+        it('gives whoever invited and the friend their looks at once, owned as a reward, and once', async () =>
+        {
+            const { campaignId, inviterId, code, stranger } = await running({ inviterItem: 'dice.glow', inviteeItem: 'pawns.glow' });
+            const friend = await friendOf(code);
+            const [counted] = await counts(friend, stranger);
+
+            expect(counted).toEqual({ inviterId, inviteeId: friend, flags: null, campaignId });
+            expect((await invitesWith().reward(counted)).map(({ userId, actorId, itemId }) => ({ userId, actorId, itemId }))).toEqual([
+                { userId: inviterId, actorId: friend, itemId: 'dice.glow' },
+                { userId: friend, actorId: inviterId, itemId: 'pawns.glow' }
+            ]);
+            expect(await looks(inviterId)).toEqual([{ item: 'dice.glow', via: 'reward' }]);
+            expect(await looks(friend)).toEqual([{ item: 'pawns.glow', via: 'reward' }]);
+            expect(await rewards()).toEqual([
+                { user: friend, invitee: friend, kind: 'invitee', milestone: null, item: 'pawns.glow', state: 'given', delivered: true, decided: true },
+                { user: inviterId, invitee: friend, kind: 'inviter', milestone: null, item: 'dice.glow', state: 'given', delivered: true, decided: true }
+            ]);
+            expect(await invitesWith().reward(counted), 'given once').toEqual([]);
+            expect(await rewards()).toHaveLength(2);
+        });
+
+        it('holds every reward of a flagged invite, and of a campaign that reviews every one, giving nothing yet', async () =>
+        {
+            const { campaignId, code, stranger } = await running({ inviterItem: 'dice.glow', inviteeItem: 'pawns.glow' });
+            const { id: quick } = await enter(code);
+            const [flagged] = await counts(quick, stranger);
+
+            expect(flagged.flags).toEqual(['quick']);
+            expect(await invitesWith().reward(flagged)).toEqual([]);
+
+            await db.getRepository(InviteCampaign).update({ id: campaignId }, { review: true });
+
+            const [clean] = await counts(await friendOf(code), stranger);
+
+            expect(clean.flags).toBeNull();
+            expect(await invitesWith().reward(clean)).toEqual([]);
+            expect((await rewards()).map((one) => [one.kind, one.state, one.delivered, one.decided])).toEqual([
+                ['invitee', 'review', null, false],
+                ['inviter', 'review', null, false],
+                ['invitee', 'review', null, false],
+                ['inviter', 'review', null, false]
+            ]);
+            expect(await db.getRepository(OwnedItem).count()).toBe(0);
+        });
+
+        it('holds a milestone\'s look for the staff once that many friends, not suspended, counted in the campaign, and once', async () =>
+        {
+            const { inviterId, code, stranger } = await running({ milestones: [{ count: 2, item: 'decoration.jade' }] });
+            const before = await friendOf(code);
+            const [first, second, third, fourth] = [await friendOf(code), await friendOf(code), await friendOf(code), await friendOf(code)];
+            const counted = async (friend: string) => await invitesWith().reward((await counts(friend, stranger))[0]);
+
+            await db.query('update referrals set campaign_id = null where invitee_id = $1', [before]);
+            await counted(before);
+            await counted(first);
+            await db.getRepository(User).update({ id: first }, { isSuspended: true });
+
+            expect(await counted(second)).toEqual([]);
+            expect(await rewards(), 'one came before the campaign and one is suspended').toEqual([]);
+
+            await counted(third);
+
+            expect(await rewards()).toEqual([{ user: inviterId, invitee: null, kind: 'milestone', milestone: 2, item: 'decoration.jade', state: 'review', delivered: null, decided: false }]);
+
+            await counted(fourth);
+
+            expect(await rewards(), 'reached once').toHaveLength(1);
+            expect(await looks(inviterId)).toEqual([]);
+        });
+
+        it('gives nothing while its campaign does not run: none as the account was made, paused since, or past its end', async () =>
+        {
+            const { id: inviterId } = await enter();
+            const { code } = await ports.invites.summary(inviterId);
+            const { id: stranger } = await enter();
+
+            await vouch(stranger);
+
+            const [none] = await counts(await friendOf(code), stranger);
+
+            expect(none.campaignId).toBeNull();
+            expect(await invitesWith().reward(none)).toEqual([]);
+
+            const campaignId = await campaign({ inviterItem: 'dice.glow', inviteeItem: 'pawns.glow' });
+            const paused = await friendOf(code);
+            const ended = await friendOf(code);
+
+            await db.getRepository(InviteCampaign).update({ id: campaignId }, { state: 'paused' });
+            expect(await invitesWith().reward((await counts(paused, stranger))[0]), 'paused').toEqual([]);
+
+            await db.query(`update invite_campaigns set state = 'active', ends_at = now() - interval '1 minute' where id = $1`, [campaignId]);
+            expect(await invitesWith().reward((await counts(ended, stranger))[0]), 'past its end').toEqual([]);
+            expect(await rewards()).toEqual([]);
+            expect(await db.getRepository(OwnedItem).count()).toBe(0);
+        });
+
+        it('says a look owned already gave nothing, keeps how it came, and leaves it out of what is told', async () =>
+        {
+            const { inviterId, code, stranger } = await running({ inviterItem: 'dice.glow', inviteeItem: 'pawns.glow' });
+            const friend = await friendOf(code);
+
+            await db.getRepository(OwnedItem).insert({ userId: inviterId, itemId: 'dice.glow', via: 'grant', orderId: null, giverId: null });
+
+            expect((await invitesWith().reward((await counts(friend, stranger))[0])).map((one) => one.userId)).toEqual([friend]);
+            expect(await looks(inviterId)).toEqual([{ item: 'dice.glow', via: 'grant' }]);
+            expect((await rewards()).map((one) => [one.kind, one.state, one.delivered])).toEqual([['invitee', 'given', true], ['inviter', 'given', false]]);
+        });
+
+        it('gives a suspended account nothing, and the friend their look all the same', async () =>
+        {
+            const { inviterId, code, stranger } = await running({ inviterItem: 'dice.glow', inviteeItem: 'pawns.glow' });
+            const friend = await friendOf(code);
+
+            await db.getRepository(User).update({ id: inviterId }, { isSuspended: true });
+
+            expect((await invitesWith().reward((await counts(friend, stranger))[0])).map((one) => one.userId)).toEqual([friend]);
+            expect((await rewards()).map((one) => one.user)).toEqual([friend]);
+            expect(await looks(inviterId)).toEqual([]);
+        });
+
+        it('gives one person no more than the campaign\'s most, a refused reward not counted against it', async () =>
+        {
+            const { inviterId, code, stranger } = await running({ inviterItem: 'dice.glow', most: 1 });
+            const [first, second, third] = [await friendOf(code), await friendOf(code), await friendOf(code)];
+            const mine = async () => (await rewards()).filter((one) => one.user === inviterId).map((one) => [one.invitee, one.state]);
+
+            await invitesWith().reward((await counts(first, stranger))[0]);
+            await invitesWith().reward((await counts(second, stranger))[0]);
+
+            expect(await mine(), 'the most is one').toEqual([[first, 'given']]);
+
+            await db.query(`update invite_rewards set state = 'refused', delivered = null, reason = 'Not a friend of theirs.' where invitee_id = $1`, [first]);
+            await invitesWith().reward((await counts(third, stranger))[0]);
+
+            expect(await mine()).toEqual([[first, 'refused'], [third, 'given']]);
+        });
+
+        it('holds a milestone once when the two invites that reach it are rewarded at once', async () =>
+        {
+            const { code, stranger } = await running({ milestones: [{ count: 2, item: 'decoration.jade' }] });
+            const [one] = await counts(await friendOf(code), stranger);
+            const [two] = await counts(await friendOf(code), stranger);
+            const answers = await crossing(2, (index) => invitesWith().reward([one, two][index]), 'invite_rewards');
+
+            expect(answers.map((answer) => 'value' in answer)).toEqual([true, true]);
+            expect((await rewards()).map((reward) => reward.kind)).toEqual(['milestone']);
         });
     });
 

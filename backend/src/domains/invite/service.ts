@@ -1,12 +1,12 @@
 import { randomInt } from 'node:crypto';
 
 import { HttpError } from '@azerothjs/http';
-import { IsNull, type DataSource, type EntityManager } from 'typeorm';
+import { IsNull, Not, type DataSource, type EntityManager } from 'typeorm';
 
-import { EstablishedPlayer, InviteCampaign, InviteCode, InviteVisit, Match, MatchPlayer, Referral, User } from '../../entities/index.ts';
+import { EstablishedPlayer, InviteCampaign, InviteCode, InviteReward, InviteVisit, Match, MatchPlayer, OwnedItem, Referral, User } from '../../entities/index.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan } from '../../lib/keyset.ts';
 import { PROFILE_LOOKS, chosenIn, worn } from '../shop/looks.ts';
-import { CODE_ALPHABET, CODE_LENGTH, ESTABLISHED_DAYS, ESTABLISHED_GAMES, MANY_A_DAY, QUICK_MINUTES, codeFrom, type InviteFlag } from './policy.ts';
+import { CODE_ALPHABET, CODE_LENGTH, ESTABLISHED_DAYS, ESTABLISHED_GAMES, MANY_A_DAY, QUICK_MINUTES, codeFrom, type InviteFlag, type RewardKind } from './policy.ts';
 import { INVITE_REFUSALS, type InviteRefusal } from './refusals.ts';
 
 export type InviteService = ReturnType<typeof createInviteService>;
@@ -86,11 +86,44 @@ const nextCode = async (runner: Runner, userId: string) =>
     return row?.next ?? null;
 };
 
+/** An invite that counted, as the count answers it. */
+interface Counted
+{
+    inviterId: string;
+    inviteeId: string;
+    flags: InviteFlag[] | null;
+    campaignId: string | null;
+}
+
+/** A reward a campaign owes somebody for an invite that counted. */
+interface Due
+{
+    userId: string;
+    inviteeId: string | null;
+    kind: RewardKind;
+    milestone: number | null;
+    itemId: string;
+    held: boolean;
+}
+
 const viewOf = (code: { code: string; createdAt: Date }, next: Date | null) => ({
     code: code.code,
     since: code.createdAt.toISOString(),
     ...(next === null ? {} : { next: next.toISOString() })
 });
+
+/** A look somebody owns for good as a reward: whether it is theirs only now, or was already. */
+const own = async (tx: EntityManager, userId: string, itemId: string) =>
+{
+    const made = await tx.getRepository(OwnedItem).createQueryBuilder()
+        .insert()
+        .values({ userId, itemId, via: 'reward', orderId: null, giverId: null })
+        .orIgnore()
+        .returning(['itemId'])
+        .execute();
+
+    return (made.raw as unknown[]).length > 0;
+};
 
 export function createInviteService(db: DataSource, owners: () => readonly string[])
 {
@@ -272,6 +305,104 @@ export function createInviteService(db: DataSource, owners: () => readonly strin
                 .execute();
 
             return (made.raw as unknown[]).length > 0 ? owner.userId : null;
+        },
+
+        /**
+         * The rewards an invite that counted earns, while its own campaign runs: the look for whoever
+         * invited and the look for the friend, and a milestone's look for whoever invited once that many
+         * of their friends counted in it. Given at once unless the campaign reviews every reward or the
+         * invite was flagged, and a milestone always waits for the staff; never to a suspended account,
+         * nor past the campaign's most for one person, a refused reward not counted against it. Both
+         * people's rows are locked in id order, so two counts for one person at once count one after
+         * the other. Answers the looks given now that were not owned already, for whoever is told.
+         */
+        async reward(counted: Counted)
+        {
+            const { inviterId, inviteeId, flags, campaignId } = counted;
+
+            if (campaignId === null)
+            {
+                return [];
+            }
+
+            return await db.transaction(async (tx) =>
+            {
+                const campaign = await tx.getRepository(InviteCampaign).createQueryBuilder('campaign')
+                    .where('campaign.id = :campaignId', { campaignId })
+                    .andWhere(RUNNING)
+                    .getOne();
+
+                if (campaign === null)
+                {
+                    return [];
+                }
+
+                const suspended = new Set<string>();
+
+                for (const id of [inviterId, inviteeId].sort())
+                {
+                    const person = await tx.getRepository(User).findOne({ select: { id: true, isSuspended: true }, where: { id }, lock: { mode: 'pessimistic_write' } });
+
+                    if (person === null || person.isSuspended)
+                    {
+                        suspended.add(id);
+                    }
+                }
+
+                const held = campaign.review || flags !== null;
+                const reached = await tx.getRepository(Referral).createQueryBuilder('referral')
+                    .innerJoin(User, 'friend', 'friend.id = referral.invitee_id')
+                    .where('referral.inviter_id = :inviterId', { inviterId })
+                    .andWhere('referral.campaign_id = :campaignId', { campaignId })
+                    .andWhere('referral.counted_at is not null')
+                    .andWhere('friend.is_suspended = false')
+                    .getCount();
+                const due: Due[] = [
+                    ...(campaign.inviterItem === null ? [] : [{ userId: inviterId, inviteeId, kind: 'inviter' as const, milestone: null, itemId: campaign.inviterItem, held }]),
+                    ...(campaign.inviteeItem === null ? [] : [{ userId: inviteeId, inviteeId, kind: 'invitee' as const, milestone: null, itemId: campaign.inviteeItem, held }]),
+                    ...campaign.milestones.filter((one) => one.count <= reached).map((one) => ({ userId: inviterId, inviteeId: null, kind: 'milestone' as const, milestone: one.count, itemId: one.item, held: true }))
+                ];
+                const given: { id: string; userId: string; actorId: string; itemId: string }[] = [];
+
+                for (const one of due)
+                {
+                    const there = await tx.getRepository(InviteReward).existsBy(one.kind === 'milestone'
+                        ? { campaignId, userId: one.userId, kind: 'milestone', milestone: one.milestone! }
+                        : { campaignId, inviteeId: one.inviteeId!, kind: one.kind });
+                    const earned = await tx.getRepository(InviteReward).countBy({ campaignId, userId: one.userId, state: Not('refused') });
+
+                    if (suspended.has(one.userId) || there || (campaign.most !== null && earned >= campaign.most))
+                    {
+                        continue;
+                    }
+
+                    const delivered = one.held ? null : await own(tx, one.userId, one.itemId);
+                    const made = await tx.getRepository(InviteReward).createQueryBuilder()
+                        .insert()
+                        .values({
+                            campaignId,
+                            userId: one.userId,
+                            inviteeId: one.inviteeId,
+                            kind: one.kind,
+                            milestone: one.milestone,
+                            itemId: one.itemId,
+                            state: one.held ? 'review' : 'given',
+                            delivered,
+                            decidedAt: one.held ? null : () => 'now()'
+                        })
+                        .returning(['id'])
+                        .execute();
+
+                    if (delivered === true)
+                    {
+                        const actorId = one.kind === 'invitee' ? inviterId : inviteeId;
+
+                        given.push({ id: (made.raw as { id: string }[])[0].id, userId: one.userId, actorId, itemId: one.itemId });
+                    }
+                }
+
+                return given;
+            });
         },
 
         /**

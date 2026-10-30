@@ -996,10 +996,18 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
         const { game, counted } = await invites.countedBy(matchId);
 
-        for (const { inviterId, inviteeId } of counted)
+        for (const one of counted)
         {
-            await db.transaction((tx) => achieve.record(tx, inviterId, matchId, game));
-            await tell({ userId: inviterId, kind: 'invite-played', actorId: inviteeId, ref: {}, dedupeKey: `invite-played:${ inviteeId }` });
+            await db.transaction((tx) => achieve.record(tx, one.inviterId, matchId, game));
+            await tell({ userId: one.inviterId, kind: 'invite-played', actorId: one.inviteeId, ref: {}, dedupeKey: `invite-played:${ one.inviteeId }` });
+            await courtesy('invite reward', async () =>
+            {
+                for (const look of await invites.reward(one))
+                {
+                    live?.selfChanged(look.userId, 'shop');
+                    await tell({ userId: look.userId, kind: 'invite-reward', actorId: look.actorId, ref: { item: look.itemId }, dedupeKey: `invite-reward:${ look.id }` });
+                }
+            });
         }
     };
 

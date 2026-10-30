@@ -1818,6 +1818,8 @@ export const adminCampaignInput = object({
     reason: said()
 });
 
+export type AdminCampaignInput = Infer<typeof adminCampaignInput>;
+
 export const adminCampaignMove = object({ to: enumOf(CAMPAIGN_MOVES), reason: said() });
 
 /** A reward as the staff read it: for whom, what for, how it stands and who decided, the invite's flags and the friend it came through. */

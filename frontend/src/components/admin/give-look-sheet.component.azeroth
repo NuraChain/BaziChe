@@ -1,7 +1,7 @@
 import { untrack } from 'azerothjs';
 
-import { LOOKS, SHOP_COLLECTIONS, lookOf, type ShopKind } from '../../../../backend/src/domains/shop/catalogue.ts';
-import { collectionName, itemName } from '../../lib/shop.ts';
+import { LOOKS, SHOP_COLLECTIONS, lookOf } from '../../../../backend/src/domains/shop/catalogue.ts';
+import { collectionName, itemName, kindLabel } from '../../lib/shop.ts';
 import '../../locales/shop-catalogue.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
@@ -33,15 +33,7 @@ export default component GiveLookSheet(props: OverlayProps & { name: string; own
 
     derived collections = SHOP_COLLECTIONS.map((one) => ({ value: one, label: collectionName(one, locale) }));
 
-    /** The collection is chosen beside it, so a look is named by its kind alone, or a phone cuts the kind off. */
-    const kindWord = (kind: ShopKind) =>
-    {
-        const word = locale.t(`shop.kind.${ kind }`);
-
-        return word.charAt(0).toLocaleUpperCase(locale.tag()) + word.slice(1);
-    };
-
-    derived looks = LOOKS.filter((one) => one.collection === collection).map((one) => ({ value: one.id, label: kindWord(one.kind) }));
+    derived looks = LOOKS.filter((one) => one.collection === collection).map((one) => ({ value: one.id, label: kindLabel(one.kind, locale) }));
 
     derived owned = props.owned.includes(item);
 

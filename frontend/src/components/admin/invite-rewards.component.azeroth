@@ -1,0 +1,223 @@
+import { createResource } from 'azerothjs';
+
+import { REWARD_LISTS, outranks, type RewardList, type RewardMove } from '../../../../backend/src/domains/admin/roles.ts';
+import type { AdminInviteReward, AdminInviteRewards } from '../../../../backend/src/schemas.ts';
+import { client } from '../../api.ts';
+import { attempt } from '../../lib/attempt.ts';
+import { createGuesses } from '../../lib/guess.ts';
+import { useAddress } from '../../lib/page-param.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { itemName } from '../../lib/shop.ts';
+import { whyStaffRefused } from '../../lib/staff-words.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import '../../locales/shop-catalogue.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { useSession } from '../../stores/session.store.ts';
+import ErrorState from '../ui/error-state.component.azeroth';
+import FilterBar from '../ui/filter-bar.component.azeroth';
+import LoadMore from '../ui/load-more.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import AdminEmpty from './admin-empty.component.azeroth';
+import ReasonSheet from './reason-sheet.component.azeroth';
+import RewardRow from './reward-row.component.azeroth';
+
+interface Tail
+{
+    from: AdminInviteRewards;
+    rows: AdminInviteReward[];
+    cursor: string | undefined;
+}
+
+interface Shown
+{
+    rows: AdminInviteReward[];
+    waiting: number;
+}
+
+const LIST_WORDS: Record<RewardList, MessageKey> = {
+    review: 'admin.rewards.list.review',
+    given: 'admin.rewards.list.given',
+    refused: 'admin.rewards.list.refused',
+    taken: 'admin.rewards.list.taken',
+    all: 'admin.rewards.list.all'
+};
+
+const queryOf = (list: RewardList) => (list === 'review' ? {} : { list });
+
+export default component InviteRewards()
+{
+    const locale = useLocale();
+    const address = useAddress();
+    const overlay = useOverlay();
+    const session = useSession();
+
+    derived list = REWARD_LISTS.find((one) => one === address.text('list')) ?? 'review';
+
+    state tail = null as Tail | null;
+
+    state paging = false;
+
+    const first = createResource(() => list, (asked) => client.admin.rewards({ query: queryOf(asked) }), { name: 'admin.rewards' });
+
+    const guesses = createGuesses<Shown>();
+
+    const kept = new Map<string, string>();
+
+    derived page = first.data() ?? null;
+
+    derived trouble = first.error();
+
+    derived waiting = page === null && trouble === null;
+
+    derived failed = page === null && trouble !== null;
+
+    derived continued = tail !== null && tail.from === page ? tail : null;
+
+    derived shown = page === null ? { rows: [], waiting: 0 } : guesses.over({ rows: [...page.rewards, ...(continued?.rows ?? [])], waiting: page.waiting });
+
+    derived rows = shown.rows;
+
+    derived cursor = continued === null ? page?.cursor : continued.cursor;
+
+    derived more = cursor !== undefined;
+
+    derived listed = rows.length > 0;
+
+    derived empty = page !== null && rows.length === 0;
+
+    derived blank = locale.t(list === 'review' ? 'admin.rewards.none' : 'admin.rewards.noneListed');
+
+    derived me = session.account()?.handle ?? '';
+
+    derived role = session.account()?.staff ?? null;
+
+    derived lists = REWARD_LISTS.map((one) => ({
+        id: one,
+        label: locale.t(LIST_WORDS[one]),
+        ...(one === 'review' && page !== null ? { count: shown.waiting } : {})
+    }));
+
+    const decides = (reward: AdminInviteReward) => reward.person.handle !== me && outranks(role, reward.person.staff ?? null);
+
+    const whyNot = (reward: AdminInviteReward) => (reward.person.handle === me ? 'admin.reward.ownReward' : 'admin.reward.notYours');
+
+    const reread = async () =>
+    {
+        await first.refetch();
+
+        if (first.error() !== null)
+        {
+            throw first.error();
+        }
+
+        guesses.landed();
+    };
+
+    const older = async () =>
+    {
+        const from = page;
+        const after = cursor;
+        const had = continued?.rows ?? [];
+
+        if (from === null || after === undefined || paging)
+        {
+            return;
+        }
+
+        paging = true;
+
+        await attempt((async () =>
+        {
+            const next = await client.admin.rewards({ query: { ...queryOf(list), cursor: after } });
+
+            if (first.data() === from)
+            {
+                tail = { from, rows: [...had, ...next.rewards], cursor: next.cursor };
+            }
+        })());
+
+        paging = false;
+    };
+
+    const decide = async (reward: AdminInviteReward, to: RewardMove) =>
+    {
+        const person = reward.person.handle;
+        const look = itemName(reward.item, locale);
+        const initial = kept.get(reward.id);
+        const reason = await overlay.open(
+            ReasonSheet,
+            {
+                title: locale.t(`admin.reward.ask.${ to }`, { person, look }),
+                lead: locale.t(`admin.reward.askLead.${ to }`),
+                confirm: locale.t(`admin.reward.confirm.${ to }`),
+                destructive: to !== 'given',
+                ...(initial === undefined ? {} : { initial })
+            },
+            { label: locale.t('admin.invites.view.rewards') }
+        ).closed;
+
+        if (typeof reason !== 'string')
+        {
+            return;
+        }
+
+        const decided = { state: to, decidedBy: me, decidedAt: new Date(runtime().clock.now()).toISOString(), reason };
+        const sent = guesses.during(
+            (held) => ({
+                waiting: reward.state === 'review' ? Math.max(0, held.waiting - 1) : held.waiting,
+                rows: list === 'all' || list === to
+                    ? held.rows.map((one) => (one.id === reward.id ? { ...one, ...decided } : one))
+                    : held.rows.filter((one) => one.id !== reward.id)
+            }),
+            () => client.admin.decideReward({ params: { id: reward.id }, input: { to, reason } }),
+            reread
+        );
+
+        if (await attempt(sent, locale.t(`admin.reward.done.${ to }`, { person, look }), whyStaffRefused))
+        {
+            kept.delete(reward.id);
+        }
+        else
+        {
+            kept.set(reward.id, reason);
+            await first.refetch();
+        }
+    };
+
+    const choose = (id: string) =>
+    {
+        address.write({ list: id === 'review' ? '' : id });
+    };
+
+    <div class="flex flex-col gap-4" data-invite-rewards>
+        <FilterBar items={ lists } value={ list } label={ locale.t('admin.rewards.lists') } onChange={ choose } />
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 4 } avatar /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState title={ locale.t('admin.rewards.failed') } onRetry={ () => void first.refetch() } /> }
+        </Show>
+
+        <Show when={ empty }>
+            { () => <AdminEmpty icon="gift" title={ blank } /> }
+        </Show>
+
+        <Show when={ listed }>
+            <div class="flex flex-col">
+                <ul class="divide-y divide-line overflow-hidden rounded-panel border border-line bg-field" data-rewards>
+                    <For each={ rows } key={ (one) => one.id } let={ reward }>
+                        <li>
+                            <RewardRow reward={ reward } decides={ decides(reward) } why={ whyNot(reward) } onDecide={ (to) => void decide(reward, to) } />
+                        </li>
+                    </For>
+                </ul>
+                <Show when={ more }>
+                    <LoadMore label={ locale.t('admin.rewards.more') } loading={ paging } onMore={ () => void older() } />
+                </Show>
+            </div>
+        </Show>
+    </div>
+}

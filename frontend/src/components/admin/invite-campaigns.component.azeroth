@@ -1,0 +1,249 @@
+import { createResource } from 'azerothjs';
+
+import type { CampaignMove } from '../../../../backend/src/domains/admin/roles.ts';
+import type { AdminCampaignInput, AdminInviteCampaign, AdminInviteCampaigns } from '../../../../backend/src/schemas.ts';
+import { client } from '../../api.ts';
+import { attempt } from '../../lib/attempt.ts';
+import { createGuesses, type Guess } from '../../lib/guess.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { whyStaffRefused } from '../../lib/staff-words.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { useSession } from '../../stores/session.store.ts';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import LoadMore from '../ui/load-more.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import AdminEmpty from './admin-empty.component.azeroth';
+import CampaignRow from './campaign-row.component.azeroth';
+import CampaignSheet, { type CampaignAsk } from './campaign-sheet.component.azeroth';
+import ReasonSheet from './reason-sheet.component.azeroth';
+
+interface Tail
+{
+    from: AdminInviteCampaigns;
+    rows: AdminInviteCampaign[];
+    cursor: string | undefined;
+}
+
+/** The key a refused draft is kept under, so the next sheet opens on what was written. */
+const FRESH = '';
+
+const isAsk = (value: unknown): value is CampaignAsk => typeof value === 'object' && value !== null && 'input' in value;
+
+/** The campaign as a change leaves it, drawn at the press. */
+const written = (campaign: AdminInviteCampaign, input: AdminCampaignInput): AdminInviteCampaign => ({
+    ...campaign,
+    name: input.name,
+    inviterItem: input.inviterItem,
+    inviteeItem: input.inviteeItem,
+    milestones: input.milestones,
+    most: input.most,
+    review: input.review,
+    startsAt: input.startsAt,
+    endsAt: input.endsAt
+});
+
+/** Whether a campaign started now runs: inside its window by this device's clock, until the server says. */
+const runsNow = (campaign: AdminInviteCampaign, now: number) =>
+    (campaign.startsAt === undefined || Date.parse(campaign.startsAt) <= now) && (campaign.endsAt === undefined || Date.parse(campaign.endsAt) > now);
+
+export default component InviteCampaigns()
+{
+    const locale = useLocale();
+    const overlay = useOverlay();
+    const session = useSession();
+
+    state tail = null as Tail | null;
+
+    state paging = false;
+
+    const first = createResource(() => client.admin.campaigns({ query: {} }), { name: 'admin.campaigns' });
+
+    const guesses = createGuesses<AdminInviteCampaign[]>();
+
+    const kept = new Map<string, AdminCampaignInput>();
+
+    let drafted = 0;
+
+    derived page = first.data() ?? null;
+
+    derived trouble = first.error();
+
+    derived waiting = page === null && trouble === null;
+
+    derived failed = page === null && trouble !== null;
+
+    derived continued = tail !== null && tail.from === page ? tail : null;
+
+    derived rows = page === null ? [] : guesses.over([...page.campaigns, ...(continued?.rows ?? [])]);
+
+    derived cursor = continued === null ? page?.cursor : continued.cursor;
+
+    derived more = cursor !== undefined;
+
+    derived listed = rows.length > 0;
+
+    derived empty = page !== null && rows.length === 0;
+
+    derived ready = page !== null;
+
+    const reread = async () =>
+    {
+        await first.refetch();
+
+        if (first.error() !== null)
+        {
+            throw first.error();
+        }
+
+        guesses.landed();
+    };
+
+    const older = async () =>
+    {
+        const from = page;
+        const after = cursor;
+        const had = continued?.rows ?? [];
+
+        if (from === null || after === undefined || paging)
+        {
+            return;
+        }
+
+        paging = true;
+
+        await attempt((async () =>
+        {
+            const next = await client.admin.campaigns({ query: { cursor: after } });
+
+            if (first.data() === from)
+            {
+                tail = { from, rows: [...had, ...next.campaigns], cursor: next.cursor };
+            }
+        })());
+
+        paging = false;
+    };
+
+    const draftOf = (input: AdminCampaignInput) =>
+    {
+        drafted += 1;
+
+        return written({
+            id: `draft-${ drafted }`,
+            name: input.name,
+            state: 'draft',
+            milestones: [],
+            review: false,
+            at: new Date(runtime().clock.now()).toISOString(),
+            ...(session.account()?.handle === undefined ? {} : { by: session.account()!.handle }),
+            running: false,
+            gave: false,
+            joined: 0,
+            played: 0,
+            given: 0,
+            waiting: 0,
+            refused: 0,
+            taken: 0
+        }, input);
+    };
+
+    const write = async (campaign: AdminInviteCampaign | null) =>
+    {
+        const key = campaign?.id ?? FRESH;
+        const initial = kept.get(key);
+        const asked = await overlay.open(
+            CampaignSheet,
+            { campaign, ...(initial === undefined ? {} : { initial }) },
+            { label: locale.t('admin.invites.view.campaigns') }
+        ).closed;
+
+        if (!isAsk(asked))
+        {
+            return;
+        }
+
+        const name = asked.input.name;
+        const guess: Guess<AdminInviteCampaign[]> = campaign === null
+            ? (from) => [draftOf(asked.input), ...from]
+            : (from) => from.map((one) => (one.id === campaign.id ? written(one, asked.input) : one));
+        const send = campaign === null
+            ? () => client.admin.writeCampaign({ input: asked.input })
+            : () => client.admin.changeCampaign({ params: { id: campaign.id }, input: asked.input });
+        const done = locale.t(campaign === null ? 'admin.campaign.done.written' : 'admin.campaign.done.changed', { name });
+
+        if (await attempt(guesses.during(guess, send, reread), done, whyStaffRefused))
+        {
+            kept.delete(key);
+        }
+        else
+        {
+            kept.set(key, asked.input);
+        }
+    };
+
+    const move = async (campaign: AdminInviteCampaign, to: CampaignMove) =>
+    {
+        const name = campaign.name;
+        const reason = await overlay.open(
+            ReasonSheet,
+            {
+                title: locale.t(`admin.campaign.ask.${ to }`, { name }),
+                lead: locale.t(`admin.campaign.askLead.${ to }`),
+                confirm: locale.t(`admin.campaign.confirm.${ to }`),
+                destructive: to !== 'active'
+            },
+            { label: locale.t('admin.invites.view.campaigns') }
+        ).closed;
+
+        if (typeof reason !== 'string')
+        {
+            return;
+        }
+
+        const sent = guesses.during(
+            (from) => from.map((one) => (one.id === campaign.id ? { ...one, state: to, running: to === 'active' && runsNow(one, runtime().clock.now()) } : one)),
+            () => client.admin.moveCampaign({ params: { id: campaign.id }, input: { to, reason } }),
+            reread
+        );
+
+        if (!await attempt(sent, locale.t(`admin.campaign.done.${ to }`, { name }), whyStaffRefused))
+        {
+            await first.refetch();
+        }
+    };
+
+    <div class="flex flex-col gap-4" data-invite-campaigns>
+        <Show when={ ready }>
+            <Button variant="primary" size="sm" leading="add" class="self-start" onClick={ () => void write(null) }>{ locale.t('admin.campaigns.new') }</Button>
+        </Show>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 4 } /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState title={ locale.t('admin.campaigns.failed') } onRetry={ () => void first.refetch() } /> }
+        </Show>
+
+        <Show when={ empty }>
+            { () => <AdminEmpty icon="invite" title={ locale.t('admin.campaigns.none') } lead={ locale.t('admin.campaigns.noneLead') } /> }
+        </Show>
+
+        <Show when={ listed }>
+            <div class="flex flex-col">
+                <ul class="divide-y divide-line overflow-hidden rounded-panel border border-line bg-field" data-campaigns>
+                    <For each={ rows } key={ (one) => one.id } let={ campaign }>
+                        <li>
+                            <CampaignRow campaign={ campaign } onChange={ () => void write(campaign) } onMove={ (to) => void move(campaign, to) } />
+                        </li>
+                    </For>
+                </ul>
+                <Show when={ more }>
+                    <LoadMore label={ locale.t('admin.campaigns.more') } loading={ paging } onMore={ () => void older() } />
+                </Show>
+            </div>
+        </Show>
+    </div>
+}

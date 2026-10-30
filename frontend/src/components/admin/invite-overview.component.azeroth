@@ -1,0 +1,271 @@
+import { Link, createResource } from 'azerothjs';
+
+import type { AdminInvites } from '../../../../backend/src/schemas.ts';
+import { client } from '../../api.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { useAddress } from '../../lib/page-param.ts';
+import { itemName } from '../../lib/shop.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import '../../locales/shop-catalogue.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Avatar from '../ui/avatar.component.azeroth';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import FilterBar from '../ui/filter-bar.component.azeroth';
+import Panel from '../ui/panel.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import DayColumns, { type DayCount } from './day-columns.component.azeroth';
+
+const WINDOWS = ['today', 'week', 'all'] as const;
+
+type Day = AdminInvites['days'][number];
+
+const TILE = 'flex h-full flex-col gap-1.5 p-4';
+
+const TITLE = 'flex items-center gap-2 text-ui-xs font-semibold text-muted';
+
+const LINK = 'text-ui-sm font-semibold text-accent hover:underline';
+
+export default component InviteOverview()
+{
+    const locale = useLocale();
+    const address = useAddress();
+
+    const read = createResource(() => client.admin.invites(), { name: 'admin.invites' });
+
+    derived window = WINDOWS.find((one) => one === address.text('window')) ?? 'week';
+
+    derived held = read.data() ?? null;
+
+    derived trouble = read.error();
+
+    derived waiting = held === null && trouble === null;
+
+    derived failed = held === null && trouble !== null;
+
+    derived ready = held !== null;
+
+    derived funnel = held === null ? null : held[window];
+
+    derived joined = funnel?.joined ?? 0;
+
+    derived played = funnel?.played ?? 0;
+
+    derived rate = joined === 0 ? '' : locale.t('admin.invites.playedRate', { rate: locale.n(played / joined, { style: 'percent', maximumFractionDigits: 0 }) });
+
+    derived rated = rate !== '';
+
+    derived flagged = (funnel?.flagged ?? 0) > 0;
+
+    derived pending = held?.waiting ?? 0;
+
+    derived decide = pending > 0;
+
+    derived visitsSaid = locale.n(funnel?.visits ?? 0);
+
+    derived joinedSaid = locale.n(joined);
+
+    derived playedSaid = locale.n(played);
+
+    derived flaggedSaid = locale.n(funnel?.flagged ?? 0);
+
+    derived givenSaid = locale.n(funnel?.given ?? 0);
+
+    derived reviewSaid = locale.n(funnel?.review ?? 0);
+
+    derived refusedSaid = locale.n(funnel?.refused ?? 0);
+
+    derived takenSaid = locale.n(funnel?.taken ?? 0);
+
+    derived pendingSaid = locale.n(pending);
+
+    derived pendingWord = locale.plural('admin.invites.waitingCount', pending);
+
+    derived windows = WINDOWS.map((id) => ({ id, label: locale.t(`admin.invites.window.${ id }`) }));
+
+    const daysOf = (pick: (day: Day) => number, what: MessageKey) => (held?.days ?? []).map((one): DayCount => ({
+        day: one.day,
+        count: pick(one),
+        said: locale.t('admin.invites.day', {
+            day: locale.date(Date.parse(`${ one.day }T12:00:00Z`), { month: 'short', day: 'numeric', timeZone: 'UTC' }),
+            count: locale.n(pick(one)),
+            what: locale.t(what)
+        })
+    }));
+
+    derived visitDays = daysOf((one) => one.visits, 'admin.invites.visits');
+
+    derived joinDays = daysOf((one) => one.joined, 'admin.invites.joined');
+
+    derived playDays = daysOf((one) => one.played, 'admin.invites.played');
+
+    derived running = held?.running ?? null;
+
+    derived top = held?.top ?? [];
+
+    derived topped = top.length > 0;
+
+    derived gives = running === null
+        ? ''
+        : locale.list([
+            ...(running.inviterItem === undefined ? [] : [locale.t('admin.campaign.givesInviter', { look: itemName(running.inviterItem, locale) })]),
+            ...(running.inviteeItem === undefined ? [] : [locale.t('admin.campaign.givesInvitee', { look: itemName(running.inviteeItem, locale) })]),
+            ...running.milestones.map((one) => locale.t('admin.campaign.givesAt', { count: locale.n(one.count), look: itemName(one.item, locale) }))
+        ], { type: 'conjunction', style: 'long' });
+
+    derived came = running === null
+        ? ''
+        : locale.t('admin.campaign.came', { joined: locale.n(running.joined), played: locale.n(running.played), given: locale.n(running.given), waiting: locale.n(running.waiting) });
+
+    const choose = (id: string) =>
+    {
+        address.write({ window: id === 'week' ? '' : id });
+    };
+
+    <div class="flex flex-col gap-6" data-invite-overview>
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 6 } /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState title={ locale.t('admin.invites.failed') } onRetry={ () => void read.refetch() } /> }
+        </Show>
+
+        <Show when={ ready }>
+            <div class="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:justify-between">
+                <FilterBar items={ windows } value={ window } label={ locale.t('admin.invites.windows') } onChange={ choose } />
+                <Button variant="outline" size="sm" leading="refresh" class="self-start" onClick={ () => void read.refetch() }>{ locale.t('admin.invites.read') }</Button>
+            </div>
+
+            <Show when={ decide }>
+                <Panel pad="none" class="border-gold/40">
+                    <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3" data-decide>
+                        <span class="flex items-center gap-2 text-ui-sm text-text">
+                            <Icon name="gift" size={ 16 } class="text-gold" />
+                            <span><span class="tally">{ pendingSaid }</span> { pendingWord }</span>
+                        </span>
+                        <Link to="/admin/invites?view=rewards" class={ LINK } data-to-rewards>{ locale.t('admin.invites.decide') }</Link>
+                    </div>
+                </Panel>
+            </Show>
+
+            <section class="flex flex-col gap-3" aria-labelledby="invites-funnel">
+                <h2 id="invites-funnel" class="text-ui-md font-semibold text-text">{ locale.t('admin.invites.funnel') }</h2>
+                <ul class="grid grid-cols-2 gap-3 @4xl:grid-cols-4" data-funnel>
+                    <li>
+                        <Panel pad="none" class="h-full">
+                            <div class={ TILE }>
+                                <span class={ TITLE }><Icon name="share" size={ 16 } /><span>{ locale.t('admin.invites.visits') }</span></span>
+                                <span class="tally text-ui-3xl font-bold text-text" data-visits>{ visitsSaid }</span>
+                                <DayColumns days={ visitDays } label={ locale.t('admin.invites.days') } class="mt-auto pt-1" />
+                            </div>
+                        </Panel>
+                    </li>
+                    <li>
+                        <Panel pad="none" class="h-full">
+                            <div class={ TILE }>
+                                <span class={ TITLE }><Icon name="friend-add" size={ 16 } /><span>{ locale.t('admin.invites.joined') }</span></span>
+                                <span class="tally text-ui-3xl font-bold text-text" data-joined>{ joinedSaid }</span>
+                                <DayColumns days={ joinDays } label={ locale.t('admin.invites.days') } class="mt-auto pt-1" />
+                            </div>
+                        </Panel>
+                    </li>
+                    <li>
+                        <Panel pad="none" class="h-full">
+                            <div class={ TILE }>
+                                <span class={ TITLE }><Icon name="dice" size={ 16 } /><span>{ locale.t('admin.invites.played') }</span></span>
+                                <span class="tally text-ui-3xl font-bold text-text" data-played>{ playedSaid }</span>
+                                <Show when={ rated }>
+                                    <span class="text-ui-xs text-faint" data-rate>{ rate }</span>
+                                </Show>
+                                <DayColumns days={ playDays } label={ locale.t('admin.invites.days') } class="mt-auto pt-1" />
+                            </div>
+                        </Panel>
+                    </li>
+                    <li>
+                        <Panel pad="none" class="h-full">
+                            <div class={ TILE }>
+                                <span class={ TITLE }><Icon name="flag" size={ 16 } /><span>{ locale.t('admin.invites.flagged') }</span></span>
+                                <span class={ () => `tally text-ui-3xl font-bold ${ flagged ? 'text-danger' : 'text-text' }` } data-flagged>{ flaggedSaid }</span>
+                                <span class="text-ui-xs text-faint">{ locale.t('admin.invites.flaggedLead') }</span>
+                            </div>
+                        </Panel>
+                    </li>
+                </ul>
+            </section>
+
+            <section class="flex flex-col gap-3" aria-labelledby="invites-rewards">
+                <h2 id="invites-rewards" class="text-ui-md font-semibold text-text">{ locale.t('admin.invites.rewards') }</h2>
+                <dl class="grid grid-cols-2 gap-3 @2xl:grid-cols-4" data-rewards>
+                    <div class="rounded-tile border border-line bg-field px-4 py-3">
+                        <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.invites.given') }</dt>
+                        <dd class="tally text-ui-xl font-bold text-text" data-given>{ givenSaid }</dd>
+                    </div>
+                    <div class="rounded-tile border border-line bg-field px-4 py-3">
+                        <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.invites.waiting') }</dt>
+                        <dd class="tally text-ui-xl font-bold text-text" data-review>{ reviewSaid }</dd>
+                    </div>
+                    <div class="rounded-tile border border-line bg-field px-4 py-3">
+                        <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.invites.refused') }</dt>
+                        <dd class="tally text-ui-xl font-bold text-text" data-refused>{ refusedSaid }</dd>
+                    </div>
+                    <div class="rounded-tile border border-line bg-field px-4 py-3">
+                        <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.invites.taken') }</dt>
+                        <dd class="tally text-ui-xl font-bold text-text" data-taken>{ takenSaid }</dd>
+                    </div>
+                </dl>
+            </section>
+
+            <div class="grid items-start gap-4 @4xl:grid-cols-2">
+                <Panel pad="none" labelledBy="invites-running">
+                    <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+                        <h2 id="invites-running" class="text-ui-md font-semibold text-text">{ locale.t('admin.invites.running') }</h2>
+                        <Link to="/admin/invites?view=campaigns" class={ LINK } data-to-campaigns>{ locale.t('admin.invites.toCampaigns') }</Link>
+                    </div>
+                    <Show when={ running } let={ shown } fallback={ <p class="px-4 py-4 text-ui-sm text-muted" data-none-running>{ locale.t('admin.invites.noneRunning') }</p> }>
+                        <div class="flex flex-col gap-2 px-4 py-4" data-running>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-ui-base font-semibold text-text" dir="auto">{ shown.name }</span>
+                                <Badge dot text={ locale.t('admin.campaign.state.running') } tone="live" />
+                            </div>
+                            <p class="text-ui-sm text-muted">{ gives }</p>
+                            <p class="text-ui-xs text-faint">{ came }</p>
+                        </div>
+                    </Show>
+                </Panel>
+
+                <Panel pad="none" labelledBy="invites-top">
+                    <div class="border-b border-line px-4 py-3">
+                        <h2 id="invites-top" class="text-ui-md font-semibold text-text">{ locale.t('admin.invites.top') }</h2>
+                    </div>
+                    <Show when={ topped } fallback={ <p class="px-4 py-4 text-ui-sm text-muted" data-top-none>{ locale.t('admin.invites.topNone') }</p> }>
+                        <ul class="divide-y divide-line" data-top>
+                            <For each={ top } key={ (one) => one.person.handle } let={ one }>
+                                <li>
+                                    <Link
+                                        to={ `/admin/people/${ one.person.handle }` }
+                                        class="flex items-center gap-3 px-4 py-3 hover:bg-raised"
+                                        aria-label={ locale.t('admin.invites.topRow', { name: one.person.displayName, joined: locale.n(one.joined), played: locale.n(one.played), flagged: locale.n(one.flagged) }) }
+                                        data-inviter={ one.person.handle }
+                                    >
+                                        <Avatar person={ one.person } size="sm" />
+                                        <span class="flex min-w-0 flex-1 flex-col">
+                                            <span class="truncate text-ui-sm font-semibold text-text">{ one.person.displayName }</span>
+                                            <span class="truncate text-ui-xs text-faint" dir="ltr">{ `@${ one.person.handle }` }</span>
+                                        </span>
+                                        <span class="flex shrink-0 items-center gap-3 text-ui-xs text-muted" aria-hidden="true" data-counts>
+                                            <span><span class="tally text-ui-sm font-semibold text-text">{ locale.n(one.joined) }</span> { locale.t('admin.invites.joinedShort') }</span>
+                                            <span><span class="tally text-ui-sm font-semibold text-text">{ locale.n(one.played) }</span> { locale.t('admin.invites.playedShort') }</span>
+                                            <span class={ () => (one.flagged > 0 ? 'text-danger' : '') }><span class="tally text-ui-sm font-semibold">{ locale.n(one.flagged) }</span> { locale.t('admin.invites.flaggedShort') }</span>
+                                        </span>
+                                    </Link>
+                                </li>
+                            </For>
+                        </ul>
+                    </Show>
+                </Panel>
+            </div>
+        </Show>
+    </div>
+}

@@ -1,0 +1,232 @@
+import { untrack } from 'azerothjs';
+
+import { MILESTONES_MOST } from '../../../../backend/src/domains/admin/roles.ts';
+import type { AdminCampaignInput, AdminInviteCampaign } from '../../../../backend/src/schemas.ts';
+import { NAME_MAX, checked, localOf, type Step } from '../../lib/campaign-form.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import Toggle from '../ui/switch.component.azeroth';
+import TextArea from '../ui/text-area.component.azeroth';
+import LookPicker from './look-picker.component.azeroth';
+
+export interface CampaignAsk
+{
+    input: AdminCampaignInput;
+}
+
+const REASON_MIN = 3;
+
+const FIRST_LOOK = 'nameplate.glow';
+
+export default component CampaignSheet(props: OverlayProps & { campaign: AdminInviteCampaign | null; initial?: AdminCampaignInput })
+{
+    const locale = useLocale();
+    const from = untrack(() => props.initial ?? props.campaign ?? null);
+    const fixed = untrack(() => props.campaign?.gave === true);
+    const open = !fixed;
+
+    let made = 0;
+
+    const stepOf = (count: string, item: string): Step =>
+    {
+        made += 1;
+
+        return { key: made, count, item };
+    };
+
+    state name = from?.name ?? '';
+
+    state inviterItem = (from?.inviterItem ?? null) as string | null;
+
+    state inviteeItem = (from?.inviteeItem ?? null) as string | null;
+
+    state steps = (from?.milestones ?? []).map((one) => stepOf(String(one.count), one.item));
+
+    state most = from?.most === undefined ? '' : String(from.most);
+
+    state review = from?.review ?? false;
+
+    state startsAt = localOf(from?.startsAt);
+
+    state endsAt = localOf(from?.endsAt);
+
+    state why = untrack(() => props.initial?.reason ?? '');
+
+    state told = null as MessageKey | null;
+
+    state whyTold = null as string | null;
+
+    derived title = props.campaign === null ? locale.t('admin.campaign.sheet.new') : locale.t('admin.campaign.sheet.change', { name: props.campaign.name });
+
+    derived fresh = props.campaign === null;
+
+    derived roomy = steps.length < MILESTONES_MOST && open;
+
+    derived said = told === null ? '' : locale.t(told);
+
+    derived wrong = said !== '';
+
+    const typedName = (value: string) =>
+    {
+        name = value;
+        told = null;
+    };
+
+    const choseInviter = (value: string | null) =>
+    {
+        inviterItem = value;
+        told = null;
+    };
+
+    const choseInvitee = (value: string | null) =>
+    {
+        inviteeItem = value;
+        told = null;
+    };
+
+    const setStep = (key: number, change: Partial<Step>) =>
+    {
+        steps = steps.map((one) => (one.key === key ? { ...one, ...change } : one));
+        told = null;
+    };
+
+    const addStep = () =>
+    {
+        steps = [...steps, stepOf('', FIRST_LOOK)];
+        told = null;
+    };
+
+    const dropStep = (key: number) =>
+    {
+        steps = steps.filter((one) => one.key !== key);
+        told = null;
+    };
+
+    const typedMost = (value: string) =>
+    {
+        most = value;
+        told = null;
+    };
+
+    const typedStart = (value: string) =>
+    {
+        startsAt = value;
+        told = null;
+    };
+
+    const typedEnd = (value: string) =>
+    {
+        endsAt = value;
+        told = null;
+    };
+
+    const typedWhy = (value: string) =>
+    {
+        why = value;
+        whyTold = null;
+    };
+
+    const send = () =>
+    {
+        const result = checked({ name, inviterItem, inviteeItem, steps, most, review, startsAt, endsAt });
+        const reason = why.trim();
+
+        told = 'wrong' in result ? result.wrong : null;
+        whyTold = reason.length < REASON_MIN ? locale.t('admin.staff.reasonShort') : null;
+
+        if (!('input' in result) || whyTold !== null)
+        {
+            return;
+        }
+
+        const ask: CampaignAsk = { input: { ...result.input, reason } };
+
+        props.close(ask);
+    };
+
+    <div class="flex flex-col gap-5 p-5" data-campaign-sheet>
+        <div>
+            <h2 class="title text-ui-xl text-text">{ title }</h2>
+            <Show when={ fresh }>
+                <p class="mt-2 text-ui-base text-muted">{ locale.t('admin.campaign.sheet.lead') }</p>
+            </Show>
+        </div>
+
+        <Field id="admin-campaign-name" label={ locale.t('admin.campaign.name') }>
+            <Input id="admin-campaign-name" value={ name } maxlength={ NAME_MAX } onInput={ typedName } />
+        </Field>
+
+        <Show when={ fixed }>
+            <p class="rounded-tile border border-line bg-sunk p-3 text-ui-sm text-muted" data-fixed>{ locale.t('admin.campaign.gave') }</p>
+        </Show>
+
+        <div data-for="inviter">
+            <LookPicker label={ locale.t('admin.campaign.forInviter') } value={ inviterItem } none={ locale.t('admin.campaign.nothing') } disabled={ fixed } onChange={ choseInviter } />
+        </div>
+        <div data-for="invitee">
+            <LookPicker label={ locale.t('admin.campaign.forInvitee') } value={ inviteeItem } none={ locale.t('admin.campaign.nothing') } disabled={ fixed } onChange={ choseInvitee } />
+        </div>
+
+        <fieldset class="flex flex-col gap-3" data-steps>
+            <legend class="mb-2 text-ui-sm font-semibold text-text">{ locale.t('admin.campaign.milestones') }</legend>
+            <For each={ steps } key={ (one) => one.key } let={ step }>
+                <div class="flex flex-col gap-3 rounded-tile border border-line p-3" data-step>
+                    <div class="flex items-end gap-2">
+                        <Field id={ `admin-step-${ step.key }` } label={ locale.t('admin.campaign.friends') } class="min-w-0 flex-1">
+                            <Input id={ `admin-step-${ step.key }` } value={ step.count } inputmode="numeric" disabled={ fixed } onInput={ (value) => setStep(step.key, { count: value }) } />
+                        </Field>
+                        <Show when={ open }>
+                            <IconButton icon="trash" label={ locale.t('admin.campaign.removeMilestone') } onClick={ () => dropStep(step.key) } />
+                        </Show>
+                    </div>
+                    <LookPicker label={ locale.t('admin.campaign.milestoneLook') } value={ step.item } disabled={ fixed } onChange={ (value) => setStep(step.key, { item: value ?? step.item }) } />
+                </div>
+            </For>
+            <Show when={ roomy }>
+                <Button variant="outline" size="sm" leading="add" class="self-start" onClick={ addStep }>{ locale.t('admin.campaign.addMilestone') }</Button>
+            </Show>
+        </fieldset>
+
+        <Field id="admin-campaign-most" label={ locale.t('admin.campaign.mostLabel') } hint={ locale.t('admin.campaign.mostHint') } optional>
+            <Input id="admin-campaign-most" value={ most } inputmode="numeric" onInput={ typedMost } />
+        </Field>
+
+        <Toggle checked={ review } label={ locale.t('admin.campaign.reviewLabel') } description={ locale.t('admin.campaign.reviewHint') } onChange={ (on) => review = on } />
+
+        <div class="flex flex-col gap-2">
+            <div class="grid gap-3 sm:grid-cols-2">
+                <Field id="admin-campaign-starts" label={ locale.t('admin.campaign.starts') } optional>
+                    <Input id="admin-campaign-starts" type="datetime-local" value={ startsAt } onInput={ typedStart } />
+                </Field>
+                <Field id="admin-campaign-ends" label={ locale.t('admin.campaign.ends') } optional>
+                    <Input id="admin-campaign-ends" type="datetime-local" value={ endsAt } onInput={ typedEnd } />
+                </Field>
+            </div>
+            <p class="text-ui-xs text-faint">{ locale.t('admin.campaign.whenHint') }</p>
+        </div>
+
+        <Field id="admin-campaign-why" label={ locale.t('admin.staff.reason') } hint={ locale.t('admin.staff.reasonHint') } error={ whyTold }>
+            <TextArea
+                id="admin-campaign-why"
+                value={ why }
+                maxlength={ 500 }
+                describedBy={ whyTold !== null ? 'admin-campaign-why-error' : 'admin-campaign-why-hint' }
+                onInput={ typedWhy }
+            />
+        </Field>
+
+        <Show when={ wrong }>
+            <p class="text-ui-sm text-danger" role="alert" data-wrong>{ said }</p>
+        </Show>
+
+        <div class="flex flex-col gap-2 sm:flex-row-reverse">
+            <Button variant="primary" block onClick={ send }>{ locale.t('admin.campaign.save') }</Button>
+            <Button variant="ghost" block onClick={ () => props.close(null) }>{ locale.t('common.cancel') }</Button>
+        </div>
+    </div>
+}

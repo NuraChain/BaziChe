@@ -70,6 +70,14 @@ export function gameOfSlot(slot: ShopSlot)
 
 export const collectionName = (collection: ShopCollection, locale: Pick<LocaleApi, 'text'>) => locale.text(COLLECTION_NAMES[collection]);
 
+/** A look named by its kind alone, "Dice", where its collection is chosen beside it: a whole name repeats the collection and a phone cuts the kind off. */
+export function kindLabel(kind: ShopKind, locale: Pick<LocaleApi, 't' | 'tag'>)
+{
+    const word = locale.t(`shop.kind.${ kind }`);
+
+    return word.charAt(0).toLocaleUpperCase(locale.tag()) + word.slice(1);
+}
+
 /** A look's name, "Shiraz Garden dice", or a bundle's, in the reader's words. */
 export function itemName(id: string, locale: Pick<LocaleApi, 't' | 'text'>)
 {

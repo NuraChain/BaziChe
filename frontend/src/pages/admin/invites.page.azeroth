@@ -1,0 +1,52 @@
+import { useHead } from 'azerothjs';
+
+import AdminHead from '../../components/admin/admin-head.component.azeroth';
+import InviteCampaigns from '../../components/admin/invite-campaigns.component.azeroth';
+import InviteOverview from '../../components/admin/invite-overview.component.azeroth';
+import InviteRewards from '../../components/admin/invite-rewards.component.azeroth';
+import FilterBar from '../../components/ui/filter-bar.component.azeroth';
+import { useAddress } from '../../lib/page-param.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+
+const VIEWS = ['overview', 'campaigns', 'rewards'] as const;
+
+export default component InvitesPage()
+{
+    const locale = useLocale();
+    const address = useAddress();
+
+    useHead({ title: () => locale.t('admin.section.invites') });
+
+    derived shown = VIEWS.find((one) => one === address.text('view')) ?? 'overview';
+
+    derived onOverview = shown === 'overview';
+
+    derived onCampaigns = shown === 'campaigns';
+
+    derived onRewards = shown === 'rewards';
+
+    derived views = VIEWS.map((id) => ({ id, label: locale.t(`admin.invites.view.${ id }`) }));
+
+    const choose = (id: string) =>
+    {
+        address.write({ view: id === 'overview' ? '' : id, window: '', list: '' });
+    };
+
+    <div class="flex flex-col gap-6 @container">
+        <AdminHead title={ locale.t('admin.section.invites') } lead={ locale.t('admin.invites.lead') } how={ locale.t('admin.invites.how') } />
+
+        <FilterBar items={ views } value={ shown } label={ locale.t('admin.invites.views') } onChange={ choose } />
+
+        <Show when={ onOverview }>
+            <InviteOverview />
+        </Show>
+
+        <Show when={ onCampaigns }>
+            <InviteCampaigns />
+        </Show>
+
+        <Show when={ onRewards }>
+            <InviteRewards />
+        </Show>
+    </div>
+}

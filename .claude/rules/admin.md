@@ -626,8 +626,8 @@ first:
 - **A tablet** (768 to 1023): a rail of icons down the start side, each named under a pointer or a
   held finger, the way back at its foot.
 - **A desktop** (1024 and up): the sections down the side in four groups (`groupsFor`): Now
-  (Overview, Online now), Moderation (People, Reports), Platform (Play, Shop, Announcement,
-  Money) and Team (Staff, Log); a group the role opens nothing of is not drawn. At the foot, the reader's
+  (Overview, Online now), Moderation (People, Reports), Platform (Play, Shop, Invites,
+  Announcement, Money) and Team (Staff, Log); a group the role opens nothing of is not drawn. At the foot, the reader's
   picture, handle and role, and the way back to the app.
 
 The content is at most 80rem wide, and the foot of a phone's page keeps the tab bar's room. Every
@@ -940,6 +940,42 @@ Nura Glow dice at 7 NURA, from 12.", "alex put Jade Dragon Dynasty on top of the
 asked NuraChain to refund sara.k 12.5 NURA for Infernal Sovereign dice.", under the chips "Shop",
 "On top" and "Refunds".
 
+**Invites** (`invites`, an admin and the owner) has three views in the address (`view`: At a glance,
+the default and never written, Campaigns and Rewards; a word the page does not know is At a glance,
+and choosing a view lets go of the last one's words). At a glance counts the last seven days unless
+the address says today or all time (`window`, the week never written), read again at "Read again":
+four tiles (the devices that opened a link, the friends who joined, who played a game with the share
+of those who joined, and who was flagged, in danger when anybody was), the first three over a column
+a day for the last fourteen days, as tall as that day against the busiest, the newest in the accent,
+each said under a pointer and all of them to a screen reader (`DayColumns`); the rewards by how they
+stand; how many wait for the reader with the way to them, only while some do; the campaign running,
+what it gives and what came of it, or that none runs and so an invite gives no look; and the inviters
+whose friends played most, each leading to their page. **Campaigns** lists them newest first, fifty a
+page under "Show older": the name and how it stands (Draft, Running, "Started, not running" while its
+window is not open, Paused, Ended), what it gives, its most, whether every reward waits, its window,
+what came of it, and who wrote it and when; Change, and the moves its state allows (Start, or Start
+again once paused, Pause, End), none on an ended one. New campaign and Change open `CampaignSheet`:
+the name, a look for whoever invited and one for the friend (`LookPicker`: the collection, or
+Nothing, then the kind named alone, `kindLabel`), up to five milestones each a number of friends and
+a look, the most, every reward waiting, when it starts and ends in the reader's own time (left empty,
+from when it is started until it is paused or ended), and why, the first thing wrong said before
+anything is sent, in the server's order (`checked` in `lib/campaign-form.ts`). Once a campaign has
+given something its looks and milestones are drawn and cannot be changed, and the sheet says why. A
+move asks why in the reason sheet, a start as a question that loses nothing and a pause or an end as
+one that loses something. Each is shown at the press (a new campaign as a draft at the head of the
+list), said once the server has, and taken back in the refusal's words, the next sheet for that
+campaign opening on what was written. **Rewards** lists what waits unless the address says another
+list (`list`: Waiting, the default and never written, with how many on its chip, Given, Refused,
+Taken back, All), fifty a page: whom it is for with their role on the staff and Suspended, what for
+(inviting a friend, joining through a friend's link, a milestone, the handle set apart), the look in
+its drawing, its campaign and when, its flags in danger, that it gave nothing where the look was
+theirs already, and who decided and why. Give and Refuse while it waits and Take back once given are
+drawn only for somebody the reader outranks, never on the reader's own and never Give to a suspended
+account, the row saying why where nothing is offered; each asks why in the reason sheet (a gift as a
+question that loses nothing, the other two as ones that do), is shown at the press with one off the
+waiting count where it waited, said once the server has ("sara.k has Stormforged Monarch dice now."),
+and taken back in the refusal's words, the reason kept for the next sheet for that reward.
+
 **Money** is the vault panel, and its calls are drawn for the owner alone (`may(role, 'wallet')`):
 an admin whose wallet happens to hold a role on the vault is told that only the owner changes it
 from here, because the server would refuse the call. Its head leads to the checks against NuraChain.
@@ -975,7 +1011,8 @@ open it says the two agree; a server that keeps no contract says it checks nothi
 
 `admin-shell.spec.ts`, `admin-overview.spec.ts`, `admin-live.spec.ts`, `admin-notice.spec.ts`, `admin-staff.spec.ts`, `admin-log.spec.ts`, `admin-people.spec.ts`,
 `admin-person.spec.ts`, `admin-reports.spec.ts`, `admin-report.spec.ts`, `admin-play.spec.ts`,
-`reason-sheet.spec.ts`, `suspend-sheet.spec.ts`, `give-look-sheet.spec.ts`, `admin-checks.spec.ts`, `admin-vault.spec.ts` and `admin-shop-money.spec.ts` hold the page (`admin-play.spec.ts` its lists, the end of a game and the close of a table as well, `match-result.spec.ts` the card),
+`reason-sheet.spec.ts`, `suspend-sheet.spec.ts`, `give-look-sheet.spec.ts`, `admin-checks.spec.ts`, `admin-vault.spec.ts`, `admin-shop-money.spec.ts`,
+`admin-invites.spec.ts`, `campaign-sheet.spec.ts` and `campaign-form.spec.ts` hold the page (`admin-play.spec.ts` its lists, the end of a game and the close of a table as well, `match-result.spec.ts` the card),
 `paused-game.spec.ts` what a player sees of a paused game, `play.spec.ts` of a table the staff closed and `notice-strip.spec.ts` the notice on every page and at a table; `app-stores.spec.ts` the guards and `profile-page.spec.ts` the shield.
 
 ## The garbage pass

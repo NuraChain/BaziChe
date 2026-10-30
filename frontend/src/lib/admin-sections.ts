@@ -1,13 +1,13 @@
 import { may, type Ability, type StaffRole } from '../../../backend/src/domains/admin/roles.ts';
 
-export const ADMIN_SECTIONS = ['overview', 'live', 'people', 'reports', 'play', 'shop', 'notice', 'money', 'staff', 'log'] as const satisfies readonly Ability[];
+export const ADMIN_SECTIONS = ['overview', 'live', 'people', 'reports', 'play', 'shop', 'invites', 'notice', 'money', 'staff', 'log'] as const satisfies readonly Ability[];
 
 export type AdminSection = (typeof ADMIN_SECTIONS)[number];
 
 export const SECTION_GROUPS = [
     { id: 'now', sections: ['overview', 'live'] },
     { id: 'moderation', sections: ['people', 'reports'] },
-    { id: 'platform', sections: ['play', 'shop', 'notice', 'money'] },
+    { id: 'platform', sections: ['play', 'shop', 'invites', 'notice', 'money'] },
     { id: 'team', sections: ['staff', 'log'] }
 ] as const satisfies readonly { id: string; sections: readonly AdminSection[] }[];
 

@@ -15,6 +15,10 @@ import { guestChairs, teamsOf } from '../../backend/src/domains/table/teams.ts';
 import type { VoiceScope } from '../../backend/src/domains/table/voices.ts';
 import type {
     Account,
+    AdminCampaignInput,
+    AdminInviteCampaign,
+    AdminInviteReward,
+    AdminInvites,
     AdminPeople,
     AdminPerson,
     AdminLive,
@@ -65,7 +69,7 @@ import { BUNDLES, FEATURED_FIRST, LOOKS, SHOP_COLLECTIONS, bundleOf, lookOf } fr
 import { ESCROW_STATES, STAKE_LADDER } from '../../backend/src/domains/stake/policy.ts';
 import { STAFF_REFUSALS, type StaffRefusal } from '../../backend/src/domains/admin/refusals.ts';
 import { CHECKS_PAGE, type CheckFamily, type CheckList } from '../../backend/src/domains/reconcile/kinds.ts';
-import { LIVE_PAGE, LOG_PAGE, may, outranks, PEOPLE_PAGE, PLAY_PAGE, REPORTS_PAGE, SHOP_ORDERS_PAGE, type Ability, type ActionKind, type ClearPart, type GrantedRole, type PeopleList, type ReportList, type ReportOutcome, type ReportStatus, type StaffRole, type SuspendCategory, type SuspendDays } from '../../backend/src/domains/admin/roles.ts';
+import { INVITES_PAGE, LIVE_PAGE, LOG_PAGE, may, outranks, PEOPLE_PAGE, PLAY_PAGE, REPORTS_PAGE, SHOP_ORDERS_PAGE, type Ability, type CampaignMove, type RewardList, type RewardMove, type ActionKind, type ClearPart, type GrantedRole, type PeopleList, type ReportList, type ReportOutcome, type ReportStatus, type StaffRole, type SuspendCategory, type SuspendDays } from '../../backend/src/domains/admin/roles.ts';
 import { ALERT_ABILITY } from '../../backend/src/ops/measures.ts';
 import {
     FRIENDSHIP_FIXTURES,
@@ -497,13 +501,121 @@ const playFresh = (): AdminPlay => ({ games: ['hokm', 'poker', 'backgammon', 'lu
 
 const playingFresh = () => ({ matches: [] as AdminMatches['rows'], tables: [] as AdminTables['rows'], over: [] as string[], shut: [] as string[] });
 
-const pageOf = <T extends { id: string }>(rows: readonly T[], cursor: string | undefined) =>
+const pageOf = <T extends { id: string }>(rows: readonly T[], cursor: string | undefined, size = PLAY_PAGE) =>
 {
     const from = cursor === undefined ? 0 : rows.findIndex((one) => one.id === cursor) + 1;
-    const page = rows.slice(from, from + PLAY_PAGE);
+    const page = rows.slice(from, from + size);
     const last = page.at(-1);
 
-    return { rows: structuredClone(page), ...(rows.length > from + PLAY_PAGE && last !== undefined ? { cursor: last.id } : {}) };
+    return { rows: structuredClone(page), ...(rows.length > from + size && last !== undefined ? { cursor: last.id } : {}) };
+};
+
+const funnelFresh = () => ({ visits: 0, joined: 0, played: 0, flagged: 0, given: 0, review: 0, refused: 0, taken: 0 });
+
+/** Inviting friends as the staff read it: nothing yet. The running campaign and the rewards waiting are read off the campaigns and the rewards. */
+const invitesAdminFresh = () => ({
+    overview: { today: funnelFresh(), week: funnelFresh(), all: funnelFresh(), days: [], top: [] } as Omit<AdminInvites, 'running' | 'waiting'>,
+    campaigns: [] as AdminInviteCampaign[],
+    rewards: [] as AdminInviteReward[],
+    written: 0,
+
+    /** A promise a write, a move or a decision waits on before it is answered, so a spec can look between the press and the answer. */
+    hold: null as Promise<void> | null
+});
+
+/** A campaign's words as the server reads them, refused as it refuses them: a look to give, looks the shop sells, one milestone a number of friends, and an end after the start. */
+const campaignShaped = (input: AdminCampaignInput) =>
+{
+    const looks = [input.inviterItem, input.inviteeItem, ...input.milestones.map((one) => one.item)].filter((item) => item !== undefined);
+
+    if (looks.length === 0)
+    {
+        throw staffRefused('staff-campaign-empty', 'A campaign has to give a look.');
+    }
+
+    if (looks.some((item) => lookOf(item) === undefined))
+    {
+        throw staffRefused('staff-campaign-look', 'The shop sells no such look.');
+    }
+
+    const milestones = [...input.milestones].sort((left, right) => left.count - right.count);
+
+    if (milestones.some((one, at) => at > 0 && one.count === milestones[at - 1].count))
+    {
+        throw staffRefused('staff-campaign-milestone', 'Two milestones ask for the same number of friends.');
+    }
+
+    const timeOf = (text: string | undefined) => (text === undefined ? null : Number.isNaN(Date.parse(text)) ? undefined : new Date(text).toISOString());
+    const startsAt = timeOf(input.startsAt);
+    const endsAt = timeOf(input.endsAt);
+
+    if (startsAt === undefined || endsAt === undefined || (startsAt !== null && endsAt !== null && Date.parse(endsAt) <= Date.parse(startsAt)))
+    {
+        throw staffRefused('staff-campaign-window', 'A campaign ends after it begins.');
+    }
+
+    return {
+        name: input.name,
+        ...(input.inviterItem === undefined ? {} : { inviterItem: input.inviterItem }),
+        ...(input.inviteeItem === undefined ? {} : { inviteeItem: input.inviteeItem }),
+        milestones,
+        ...(input.most === undefined ? {} : { most: input.most }),
+        review: input.review,
+        ...(startsAt === null ? {} : { startsAt }),
+        ...(endsAt === null ? {} : { endsAt })
+    };
+};
+
+const CAMPAIGN_FIELDS = ['name', 'inviterItem', 'inviteeItem', 'milestones', 'most', 'review', 'startsAt', 'endsAt'] as const;
+
+const CAMPAIGN_GIVES: readonly string[] = ['inviterItem', 'inviteeItem', 'milestones'];
+
+/** What a campaign written again without it no longer has: a look, a limit or an end left out is none. */
+const CAMPAIGN_UNSET = ['inviterItem', 'inviteeItem', 'most', 'startsAt', 'endsAt'] as const;
+
+/** Whether a campaign written now runs: started, and inside its window by the specs' clock. */
+const runsNow = (campaign: AdminInviteCampaign) =>
+{
+    const now = runtime().clock.now();
+
+    return campaign.state === 'active'
+        && (campaign.startsAt === undefined || Date.parse(campaign.startsAt) <= now)
+        && (campaign.endsAt === undefined || Date.parse(campaign.endsAt) > now);
+};
+
+const invitesHeld = async () =>
+{
+    if (server.invitesAdmin.hold !== null)
+    {
+        await server.invitesAdmin.hold;
+    }
+};
+
+const campaignHeld = (id: string) =>
+{
+    const campaign = server.invitesAdmin.campaigns.find((one) => one.id === id);
+
+    if (campaign === undefined)
+    {
+        throw new ApiError(404, 'not-found', 'Nothing there.', undefined);
+    }
+
+    return campaign;
+};
+
+const inviteLogged = (kind: 'invite-campaign' | 'invite-reward', reason: string, details: Record<string, string>, person?: string) =>
+{
+    const actor = staffRoleOf(server.me);
+
+    staffLogged({
+        at: new Date(runtime().clock.now()).toISOString(),
+        staff: server.me,
+        ...(actor === null ? {} : { staffRole: actor }),
+        kind,
+        ...(person === undefined ? {} : { person }),
+        reason,
+        details
+    });
 };
 
 const staffRoleOf = (handle: string) => (server.staff.owners.includes(handle) ? 'owner' : server.staff.members.find((one) => one.handle === handle)?.role ?? null);
@@ -1102,6 +1214,7 @@ export const server =
     lookout: lookoutFresh(),
     checks: checksFresh(),
     shopAdmin: shopAdminFresh(),
+    invitesAdmin: invitesAdminFresh(),
 
     /** The notice everybody sees, as the staff put it up: none until a spec or a press puts one there. */
     notice: null as NoticeShown | null,
@@ -1306,6 +1419,7 @@ export const server =
         server.lookout = lookoutFresh();
         server.checks = checksFresh();
         server.shopAdmin = shopAdminFresh();
+        server.invitesAdmin = invitesAdminFresh();
         server.notice = null;
         server.noticeSeq = 0;
         server.archive = [];
@@ -2378,6 +2492,198 @@ export const client =
             order.refundAsked = at;
 
             return call;
+        },
+
+        async invites(): Promise<AdminInvites>
+        {
+            server.calls.push('admin.invites');
+            staffGate('invites');
+
+            const held = server.invitesAdmin;
+            const running = held.campaigns.find((one) => one.running);
+
+            return structuredClone({ ...held.overview, ...(running === undefined ? {} : { running }), waiting: held.rewards.filter((one) => one.state === 'review').length });
+        },
+
+        async campaigns({ query }: { query: { cursor?: string } })
+        {
+            server.calls.push(`admin.campaigns ${ JSON.stringify(query) }`);
+            staffGate('invites');
+
+            const { rows, ...rest } = pageOf(server.invitesAdmin.campaigns, query.cursor, INVITES_PAGE);
+
+            return { campaigns: rows, ...rest };
+        },
+
+        async writeCampaign({ input }: { input: AdminCampaignInput })
+        {
+            server.calls.push(`admin.writeCampaign ${ JSON.stringify(input) }`);
+            staffGate('invites');
+            await invitesHeld();
+
+            const shaped = campaignShaped(input);
+
+            server.invitesAdmin.written += 1;
+
+            const campaign: AdminInviteCampaign = {
+                id: `campaign-${ server.invitesAdmin.written }`,
+                ...shaped,
+                state: 'draft',
+                at: new Date(runtime().clock.now()).toISOString(),
+                by: server.me,
+                running: false,
+                gave: false,
+                joined: 0,
+                played: 0,
+                given: 0,
+                waiting: 0,
+                refused: 0,
+                taken: 0
+            };
+
+            server.invitesAdmin.campaigns.unshift(campaign);
+            inviteLogged('invite-campaign', input.reason, { campaign: campaign.id, name: campaign.name, to: 'draft' });
+
+            return structuredClone(campaign);
+        },
+
+        async changeCampaign({ params, input }: { params: { id: string }; input: AdminCampaignInput })
+        {
+            server.calls.push(`admin.changeCampaign ${ params.id } ${ JSON.stringify(input) }`);
+            staffGate('invites');
+            await invitesHeld();
+
+            const campaign = campaignHeld(params.id);
+            const shaped: Partial<AdminInviteCampaign> = campaignShaped(input);
+
+            if (campaign.state === 'ended')
+            {
+                throw staffRefused('staff-campaign-ended', 'An ended campaign stays as it ended.');
+            }
+
+            const fields = CAMPAIGN_FIELDS.filter((field) => JSON.stringify(campaign[field]) !== JSON.stringify(shaped[field]));
+
+            if (fields.length === 0)
+            {
+                return structuredClone(campaign);
+            }
+
+            if (campaign.gave && fields.some((field) => CAMPAIGN_GIVES.includes(field)))
+            {
+                throw staffRefused('staff-campaign-gave', 'What a campaign gives stays once it has given something.');
+            }
+
+            for (const field of CAMPAIGN_UNSET)
+            {
+                delete campaign[field];
+            }
+
+            Object.assign(campaign, shaped);
+            inviteLogged('invite-campaign', input.reason, { campaign: campaign.id, name: campaign.name, to: 'changed', fields: fields.join(' ') });
+
+            return structuredClone(campaign);
+        },
+
+        async moveCampaign({ params, input }: { params: { id: string }; input: { to: CampaignMove; reason: string } })
+        {
+            server.calls.push(`admin.moveCampaign ${ params.id } ${ input.to } ${ input.reason }`);
+            staffGate('invites');
+            await invitesHeld();
+
+            const campaign = campaignHeld(params.id);
+
+            if (campaign.state === input.to)
+            {
+                return structuredClone(campaign);
+            }
+
+            if (campaign.state === 'ended')
+            {
+                throw staffRefused('staff-campaign-ended', 'An ended campaign stays as it ended.');
+            }
+
+            if (input.to === 'paused' && campaign.state !== 'active')
+            {
+                throw staffRefused('staff-campaign-move', 'Only a campaign that runs can be paused.');
+            }
+
+            if (input.to === 'active' && server.invitesAdmin.campaigns.some((one) => one.state === 'active'))
+            {
+                throw staffRefused('staff-campaign-running', 'Another campaign is running.');
+            }
+
+            if (input.to === 'active' && campaign.endsAt !== undefined && Date.parse(campaign.endsAt) <= runtime().clock.now())
+            {
+                throw staffRefused('staff-campaign-window', 'Its end has passed.');
+            }
+
+            campaign.state = input.to;
+            campaign.running = runsNow(campaign);
+            inviteLogged('invite-campaign', input.reason, { campaign: campaign.id, name: campaign.name, to: input.to });
+
+            return structuredClone(campaign);
+        },
+
+        async rewards({ query }: { query: { list?: RewardList; cursor?: string } })
+        {
+            server.calls.push(`admin.rewards ${ JSON.stringify(query) }`);
+            staffGate('invites');
+
+            const list = query.list ?? 'review';
+            const rewards = server.invitesAdmin.rewards;
+            const { rows, ...rest } = pageOf(rewards.filter((one) => list === 'all' || one.state === list), query.cursor, INVITES_PAGE);
+
+            return { rewards: rows, ...rest, waiting: rewards.filter((one) => one.state === 'review').length };
+        },
+
+        async decideReward({ params, input }: { params: { id: string }; input: { to: RewardMove; reason: string } })
+        {
+            server.calls.push(`admin.decideReward ${ params.id } ${ input.to } ${ input.reason }`);
+            staffGate('invites');
+            await invitesHeld();
+
+            const reward = server.invitesAdmin.rewards.find((one) => one.id === params.id);
+
+            if (reward === undefined)
+            {
+                throw new ApiError(404, 'not-found', 'Nothing there.', undefined);
+            }
+
+            reachedBy(reward.person.handle);
+
+            if (reward.state === input.to)
+            {
+                return structuredClone(reward);
+            }
+
+            if (input.to === 'taken' ? reward.state !== 'given' : reward.state !== 'review')
+            {
+                throw staffRefused('staff-reward-move', 'That reward does not stand where that decision is made.');
+            }
+
+            if (input.to === 'given' && reward.person.suspended)
+            {
+                throw staffRefused('staff-reward-suspended', 'A suspended account is given nothing.');
+            }
+
+            reward.state = input.to;
+            reward.decidedBy = server.me;
+            reward.decidedAt = new Date(runtime().clock.now()).toISOString();
+            reward.reason = input.reason;
+
+            if (input.to === 'given')
+            {
+                reward.delivered = true;
+            }
+
+            if (input.to === 'refused')
+            {
+                delete reward.delivered;
+            }
+
+            inviteLogged('invite-reward', input.reason, { reward: reward.id, item: reward.item, to: input.to, campaign: reward.campaign.id }, reward.person.handle);
+
+            return structuredClone(reward);
         }
     },
 

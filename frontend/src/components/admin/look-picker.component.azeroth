@@ -1,0 +1,38 @@
+import { LOOKS, SHOP_COLLECTIONS, lookOf } from '../../../../backend/src/domains/shop/catalogue.ts';
+import { collectionName, kindLabel } from '../../lib/shop.ts';
+import '../../locales/shop-catalogue.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Select from '../ui/select.component.azeroth';
+
+/** A look of the catalogue chosen by its collection and then its kind, or none where `none` names that choice. */
+export default component LookPicker(props: { label: string; value: string | null; none?: string; disabled?: boolean; onChange: (value: string | null) => void })
+{
+    const locale = useLocale();
+
+    derived collection = props.value === null ? '' : lookOf(props.value)?.collection ?? '';
+
+    derived collections = [
+        ...(props.none === undefined ? [] : [{ value: '', label: props.none }]),
+        ...SHOP_COLLECTIONS.map((one) => ({ value: one, label: collectionName(one, locale) }))
+    ];
+
+    derived looks = LOOKS.filter((one) => one.collection === collection).map((one) => ({ value: one.id, label: kindLabel(one.kind, locale) }));
+
+    derived chosen = props.value !== null;
+
+    /** Another collection keeps the kind chosen, so the dice of one collection become the dice of the next. */
+    const chooseCollection = (value: string) =>
+    {
+        const kind = props.value === null ? undefined : lookOf(props.value)?.kind;
+        const inIt = LOOKS.filter((one) => one.collection === value);
+
+        props.onChange(value === '' ? null : (inIt.find((one) => one.kind === kind) ?? inIt[0]).id);
+    };
+
+    <div class="grid gap-3 sm:grid-cols-2" data-look-picker>
+        <Select label={ props.label } value={ collection } options={ collections } disabled={ props.disabled } onChange={ chooseCollection } />
+        <Show when={ chosen }>
+            <Select label={ locale.t('admin.shop.column.look') } value={ props.value ?? '' } options={ looks } disabled={ props.disabled } onChange={ (value) => props.onChange(value) } />
+        </Show>
+    </div>
+}

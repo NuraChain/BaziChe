@@ -1,0 +1,42 @@
+import Tooltip from '../ui/tooltip.component.azeroth';
+
+export interface DayCount
+{
+    day: string;
+    count: number;
+    said: string;
+}
+
+/**
+ * The last days as columns as tall as each day's count against the busiest, the newest in the accent
+ * and the rest recessive. Each says its day and count under a pointer or a held finger, and the list
+ * says every one of them to a screen reader.
+ */
+export default component DayColumns(props: { days: DayCount[]; label: string; class?: string })
+{
+    derived most = Math.max(1, ...props.days.map((one) => one.count));
+
+    derived newest = props.days.at(-1)?.day ?? '';
+
+    <div class={ props.class } data-days>
+        <ol class="sr-only" aria-label={ props.label }>
+            <For each={ props.days } key={ (one) => one.day } let={ one }>
+                <li>{ one.said }</li>
+            </For>
+        </ol>
+        <div class="flex h-10 items-end gap-0.5 border-b border-line" aria-hidden="true">
+            <For each={ props.days } key={ (one) => one.day } let={ one }>
+                <div class="flex h-full max-w-6 min-w-0 flex-1 items-end">
+                    <Tooltip label={ one.said } class="flex h-full w-full items-end">
+                        <span
+                            class={ () => `w-full rounded-t ${ one.day === newest ? 'bg-accent' : 'bg-line-strong' }` }
+                            style={ `height: ${ (one.count / most) * 100 }%` }
+                            data-day={ one.day }
+                            data-count={ one.count }
+                        ></span>
+                    </Tooltip>
+                </div>
+            </For>
+        </div>
+    </div>
+}

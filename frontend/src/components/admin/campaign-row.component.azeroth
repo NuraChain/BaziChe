@@ -1,0 +1,103 @@
+import type { CampaignMove } from '../../../../backend/src/domains/admin/roles.ts';
+import type { AdminInviteCampaign } from '../../../../backend/src/schemas.ts';
+import { itemName } from '../../lib/shop.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import '../../locales/shop-catalogue.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import type { Tone } from '../ui/variants.ts';
+import When from './when.component.azeroth';
+
+type Standing = 'draft' | 'running' | 'idle' | 'paused' | 'ended';
+
+const STANDING: Record<Standing, { word: MessageKey; tone: Tone }> = {
+    draft: { word: 'admin.campaign.state.draft', tone: 'neutral' },
+    running: { word: 'admin.campaign.state.running', tone: 'live' },
+    idle: { word: 'admin.campaign.state.idle', tone: 'gold' },
+    paused: { word: 'admin.campaign.state.paused', tone: 'gold' },
+    ended: { word: 'admin.campaign.state.ended', tone: 'neutral' }
+};
+
+/** The moves a campaign's state allows, in the order they are offered. */
+const MOVES: Record<AdminInviteCampaign['state'], CampaignMove[]> = {
+    draft: ['active', 'ended'],
+    active: ['paused', 'ended'],
+    paused: ['active', 'ended'],
+    ended: []
+};
+
+export default component CampaignRow(props: { campaign: AdminInviteCampaign; onChange: () => void; onMove: (to: CampaignMove) => void })
+{
+    const locale = useLocale();
+
+    derived standing: Standing = props.campaign.state === 'active' ? (props.campaign.running ? 'running' : 'idle') : props.campaign.state;
+
+    derived badge = STANDING[standing];
+
+    derived open = props.campaign.state !== 'ended';
+
+    derived moves = MOVES[props.campaign.state].map((to) => ({
+        to,
+        label: locale.t(to === 'active' ? (props.campaign.state === 'paused' ? 'admin.campaign.restart' : 'admin.campaign.start') : `admin.campaign.${ to === 'paused' ? 'pause' : 'end' }`),
+        danger: to !== 'active'
+    }));
+
+    derived gives = [
+        ...(props.campaign.inviterItem === undefined ? [] : [{ key: 'inviter', said: locale.t('admin.campaign.givesInviter', { look: itemName(props.campaign.inviterItem, locale) }) }]),
+        ...(props.campaign.inviteeItem === undefined ? [] : [{ key: 'invitee', said: locale.t('admin.campaign.givesInvitee', { look: itemName(props.campaign.inviteeItem, locale) }) }]),
+        ...props.campaign.milestones.map((one) => ({ key: `at ${ one.count }`, said: locale.t('admin.campaign.givesAt', { count: locale.n(one.count), look: itemName(one.item, locale) }) }))
+    ];
+
+    derived most = props.campaign.most === undefined ? locale.t('admin.campaign.noMost') : locale.t('admin.campaign.most', { count: locale.n(props.campaign.most) });
+
+    derived window = props.campaign.startsAt !== undefined && props.campaign.endsAt !== undefined
+        ? locale.t('admin.campaign.window.both', { from: locale.date(Date.parse(props.campaign.startsAt), { dateStyle: 'medium', timeStyle: 'short' }), to: locale.date(Date.parse(props.campaign.endsAt), { dateStyle: 'medium', timeStyle: 'short' }) })
+        : (props.campaign.startsAt !== undefined
+            ? locale.t('admin.campaign.window.from', { from: locale.date(Date.parse(props.campaign.startsAt), { dateStyle: 'medium', timeStyle: 'short' }) })
+            : (props.campaign.endsAt !== undefined
+                ? locale.t('admin.campaign.window.to', { to: locale.date(Date.parse(props.campaign.endsAt), { dateStyle: 'medium', timeStyle: 'short' }) })
+                : locale.t('admin.campaign.window.none')));
+
+    derived reviewed = props.campaign.review;
+
+    derived came = locale.t('admin.campaign.came', {
+        joined: locale.n(props.campaign.joined),
+        played: locale.n(props.campaign.played),
+        given: locale.n(props.campaign.given),
+        waiting: locale.n(props.campaign.waiting)
+    });
+
+    derived written = props.campaign.by === undefined ? locale.t('admin.campaign.written') : locale.t('admin.campaign.writtenBy', { name: props.campaign.by });
+
+    <article class="flex flex-col gap-3 px-4 py-4" data-campaign={ props.campaign.id }>
+        <div class="flex flex-wrap items-center gap-2">
+            <h3 class="min-w-0 text-ui-base font-semibold text-text" dir="auto">{ props.campaign.name }</h3>
+            <span data-state={ standing }><Badge dot text={ locale.t(badge.word) } tone={ badge.tone } /></span>
+        </div>
+        <ul class="flex flex-col gap-1 text-ui-sm text-text" data-gives>
+            <For each={ gives } key={ (one) => one.key } let={ one }>
+                <li>{ one.said }</li>
+            </For>
+        </ul>
+        <p class="facts text-ui-xs text-muted" data-facts>
+            <span>{ most }</span>
+            <Show when={ reviewed }>
+                <span>{ locale.t('admin.campaign.reviewAll') }</span>
+            </Show>
+            <span>{ window }</span>
+        </p>
+        <p class="text-ui-xs text-faint" data-came>{ came }</p>
+        <p class="facts text-ui-xs text-faint">
+            <span>{ written } <When at={ props.campaign.at } /></span>
+        </p>
+        <Show when={ open }>
+            <div class="flex flex-wrap gap-2" data-moves>
+                <Button variant="outline" size="sm" leading="edit" onClick={ props.onChange }>{ locale.t('admin.campaign.change') }</Button>
+                <For each={ moves } key={ (one) => one.to } let={ one }>
+                    <span data-move={ one.to }><Button variant={ one.danger ? 'destructive-ghost' : 'primary' } size="sm" onClick={ () => props.onMove(one.to) }>{ one.label }</Button></span>
+                </For>
+            </div>
+        </Show>
+    </article>
+}

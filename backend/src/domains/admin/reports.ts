@@ -1,6 +1,6 @@
 import type { DataSource, EntityManager } from 'typeorm';
 
-import { Match, MatchPlayer, Report, User } from '../../entities/index.ts';
+import { Match, MatchPlayer, Report, User, VoiceNote } from '../../entities/index.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import type { AdminReports } from '../../schemas.ts';
 import { REPORTS_PAGE, type GrantedRole, type ReportList, type ReportOutcome, type ReportStatus } from './roles.ts';
@@ -129,6 +129,22 @@ export function createReportsService(db: DataSource, owners: () => readonly stri
                 .getRawOne<ReportRow & { message: string | null }>() ?? null;
 
             return row === null ? null : { row, report: { ...wire(row), ...(row.message === null ? {} : { message: row.message }) } };
+        },
+
+        /** The file of the voice message a report disclosed, which the report keeps whatever became of the message. */
+        async voiceOf(id: string)
+        {
+            if (!UUID.test(id))
+            {
+                return null;
+            }
+
+            const row = await db.getRepository(VoiceNote).createQueryBuilder('v')
+                .innerJoin(Report, 'r', 'r.voice_id = v.id and r.id = :id', { id })
+                .select('v.bytes', 'bytes')
+                .getRawOne<{ bytes: Buffer }>();
+
+            return row === undefined ? null : new Uint8Array(row.bytes);
         },
 
         async together(by: string, about: string)

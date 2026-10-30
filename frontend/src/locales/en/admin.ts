@@ -336,6 +336,7 @@ export const admin = {
     'admin.report.by': 'Filed by',
     'admin.report.message': 'What they said',
     'admin.report.messageLead': 'The one message the reporter chose to show. The server checked it against what passed through when it was sent, so these are the words that were said.',
+    'admin.report.voiceLead': 'The one voice message the reporter chose to show, kept with the report. The server checked it against what passed through when it was sent, so this is what was said.',
     'admin.report.messageNone': 'No message came with this report.',
     'admin.report.messageUnread': 'The message that came with it could not be read.',
     'admin.report.forwarded': 'Forwarded',

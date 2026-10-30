@@ -124,7 +124,8 @@ beforeEach(() =>
             }
 
             return body;
-        }
+        },
+        reported: () => Promise.reject(new VoiceFileError('voice-missing'))
     });
 });
 

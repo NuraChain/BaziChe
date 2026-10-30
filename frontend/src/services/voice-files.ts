@@ -25,6 +25,9 @@ export interface VoiceFiles
 {
     upload(id: string, body: Uint8Array, progress: (fraction: number) => void): Promise<void>;
     download(id: string): Promise<Uint8Array>;
+
+    /** The file of the voice message a report disclosed, which the report keeps, for the staff. */
+    reported(reportId: string): Promise<Uint8Array>;
 }
 
 const WORDS: readonly VoiceFileFailure[] = ['voice-size', 'voice-type', 'voice-taken', 'voice-budget', 'voice-pending', 'voice-missing'];
@@ -44,6 +47,28 @@ const failureOf = (said: string): VoiceFileFailure =>
 };
 
 const pathOf = (id: string) => `/api/chat/voice/${ encodeURIComponent(id) }`;
+
+/** A file's ciphertext from where it is kept. The staff's route answers a file it does not keep as a page that is not there. */
+const fetched = async (path: string) =>
+{
+    let answer: Response;
+
+    try
+    {
+        answer = await fetch(path, { credentials: 'same-origin' });
+    }
+    catch
+    {
+        throw new VoiceFileError('network');
+    }
+
+    if (!answer.ok)
+    {
+        throw new VoiceFileError(answer.status === 404 ? 'voice-missing' : failureOf(await answer.text()));
+    }
+
+    return new Uint8Array(await answer.arrayBuffer());
+};
 
 /** XMLHttpRequest for the upload, because it is the one way a page is told how much of a body has gone. */
 const browserFiles: VoiceFiles = {
@@ -76,26 +101,9 @@ const browserFiles: VoiceFiles = {
         request.send(body as XMLHttpRequestBodyInit);
     }),
 
-    async download(id)
-    {
-        let answer: Response;
+    download: (id) => fetched(pathOf(id)),
 
-        try
-        {
-            answer = await fetch(pathOf(id), { credentials: 'same-origin' });
-        }
-        catch
-        {
-            throw new VoiceFileError('network');
-        }
-
-        if (!answer.ok)
-        {
-            throw new VoiceFileError(failureOf(await answer.text()));
-        }
-
-        return new Uint8Array(await answer.arrayBuffer());
-    }
+    reported: (reportId) => fetched(`/api/admin/reports/${ encodeURIComponent(reportId) }/voice`)
 };
 
 let active: VoiceFiles = browserFiles;

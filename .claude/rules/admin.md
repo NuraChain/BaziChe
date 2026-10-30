@@ -207,6 +207,15 @@ Postgres sees it) adds the disclosed message as the reporter showed it (the seal
 ever read), up to five of their most recent games together (each with both seats' results, or live),
 and every staff action on that report (`ofReport`, by `details ->> 'report'`).
 
+**A voice message disclosed is played from the file its report keeps.** Its document is
+`{"voice": {...}}` with the key in it, and the report holds the file (`reports.voice_id`,
+`.claude/rules/chat-and-keys.md`, *A report keeps the file*). `GET /api/admin/reports/:id/voice` is a
+raw route in `app.ts` beside the chat's own: the file's ciphertext to a reader whose role opens
+Reports (`reportVoice`, through `ableTo`), private and never kept (`no-store`), and to anybody else
+the bytes of an admin page that is not there; an id that is not a uuid, and a report that disclosed
+no voice message, are that page too. The staff's browser opens the file under the key, as a reader's
+would: nothing on the server can. `voice.db.spec.ts` holds the port and `app.spec.ts` the route.
+
 **Closing a report** (`POST /api/admin/reports/:id/review`, `{ outcome, reason }`, `outcome` being
 `reviewed` or `actioned`) is held to the rank rule of any action on the person reported: nobody
 closes a report about themselves (`staff-self`) or about somebody at or above them (`staff-rank`), so
@@ -744,7 +753,10 @@ wide, those are the columns Report, Reason, Filed and Status. Older ones come un
 one read: what it is for as the title, who reported whom, the status and when it was filed, both
 people as cards leading to their pages (the accused first: acting on their account is done there),
 the message as the reporter showed it (the document decoded by `decodeText`, plain text in its own
-direction, marked when it was forwarded; a document that does not decode says it could not be read),
+direction, marked when it was forwarded; a voice message in a player of its own, `ReportVoice`, which
+fetches the report's file at the first press, opens it under the key the document carries and plays
+it on an audio element of its own, left to right in every language, what kept it from playing said in
+the chat's own words; a document that does not decode says it could not be read),
 their last games together with both seats' results or a live mark, and what the staff did about it,
 by `LogEntry`. The close form (a reason, then "Reviewed, nothing to do" or "Acted on it", the one
 the report already has not drawn) is drawn only for a report about somebody the reader outranks; a

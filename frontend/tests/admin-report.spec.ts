@@ -6,8 +6,12 @@ import type { StaffRole } from '../../backend/src/domains/admin/roles.ts';
 import ReportPage from '../src/pages/admin/report.page.azeroth';
 import '../src/locales/app-catalogue.ts';
 import '../src/locales/admin-catalogue.ts';
+import { encodeVoice } from '../src/lib/body.ts';
 import { manualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
+import { setVoiceAudio, type VoiceAudio } from '../src/lib/voice-audio.ts';
+import { encodeWave, sealAudio } from '../src/lib/voice-note.ts';
+import { setVoiceFiles, VoiceFileError, voiceFiles } from '../src/services/voice-files.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useReports } from '../src/stores/reports.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
@@ -84,7 +88,131 @@ afterEach(() =>
     cleanup();
     useSession().reset();
     useLocale().setLocale('en');
+    setVoiceFiles(null);
+    setVoiceAudio(null);
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
 });
+
+/** An audio element that knows what it was handed once its address arrives, and plays when asked. */
+class FakeAudio implements VoiceAudio
+{
+    static made: FakeAudio[] = [];
+
+    src = '';
+    currentTime = 0;
+    duration = 4;
+    playbackRate = 1;
+    paused = true;
+    error: { code: number } | null = null;
+    private readonly heard = new Map<string, Set<() => void>>();
+
+    constructor()
+    {
+        FakeAudio.made.push(this);
+    }
+
+    play()
+    {
+        this.paused = false;
+        this.emit('playing');
+        return Promise.resolve();
+    }
+
+    pause()
+    {
+        if (!this.paused)
+        {
+            this.paused = true;
+            this.emit('pause');
+        }
+    }
+
+    load()
+    {
+        return undefined;
+    }
+
+    removeAttribute(name: string)
+    {
+        if (name === 'src')
+        {
+            this.src = '';
+        }
+    }
+
+    canPlayType()
+    {
+        return 'probably';
+    }
+
+    addEventListener(type: string, listener: () => void)
+    {
+        this.heard.set(type, (this.heard.get(type) ?? new Set()).add(listener));
+
+        if (type === 'loadedmetadata' && this.src !== '')
+        {
+            queueMicrotask(listener);
+        }
+    }
+
+    removeEventListener(type: string, listener: () => void)
+    {
+        this.heard.get(type)?.delete(listener);
+    }
+
+    private emit(type: string)
+    {
+        for (const listener of [...this.heard.get(type) ?? []])
+        {
+            listener();
+        }
+    }
+}
+
+const RECORDING = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, ...Array.from({ length: 600 }, (_, at) => (at * 7) % 251)]);
+
+/** A voice message sealed as a browser seals one, and the document a report would disclose for it. */
+const disclosedVoice = async (extra: { fwd?: true } = {}) =>
+{
+    const id = crypto.randomUUID();
+    const sealed = await sealAudio(RECORDING, id);
+    const message = encodeVoice({
+        voice: { id, key: sealed.key, iv: sealed.iv, mime: 'audio/webm;codecs=opus', ms: 4000, wave: encodeWave([0, 30, 63, 12]), bytes: RECORDING.length },
+        ...extra
+    });
+
+    return { body: sealed.body, message };
+};
+
+/** The staff's file store: what it was asked for, and what it answers. */
+const keeping = (answer: (reportId: string) => Promise<Uint8Array>) =>
+{
+    const asked: string[] = [];
+    const opened: Uint8Array[] = [];
+
+    FakeAudio.made = [];
+    setVoiceAudio(() => new FakeAudio());
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) =>
+    {
+        void (blob as Blob).arrayBuffer().then((bytes) => opened.push(new Uint8Array(bytes)));
+        return `blob:report-voice-${ opened.length }`;
+    });
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    setVoiceFiles({
+        upload: () => Promise.resolve(),
+        download: () => Promise.reject(new VoiceFileError('voice-missing')),
+        reported: (reportId) =>
+        {
+            asked.push(reportId);
+            return answer(reportId);
+        }
+    });
+
+    return { asked, opened };
+};
+
+const playOf = (root: ParentNode) => root.querySelector<HTMLButtonElement>('[data-report-voice] button')!;
 
 describe('one report', () =>
 {
@@ -201,6 +329,132 @@ describe('one report', () =>
         const second = await opened(plain);
 
         expect(second.querySelector<HTMLElement>('[data-edited]')?.hidden, 'a line nobody changed').toBe(true);
+    });
+
+    it('plays a reported voice message from the file its report keeps, opened under the key it disclosed', async () =>
+    {
+        const { body, message } = await disclosedVoice({ fwd: true });
+        const id = reportFiled({ at: hoursAgo(1), by: 'sara.k', about: 'reza.t', message });
+        const store = keeping(() => Promise.resolve(body));
+        const page = await opened(id);
+
+        expect(said(page, '[data-message="voice"] p'), 'what it is').toBe('The one voice message the reporter chose to show, kept with the report. The server checked it against what passed through when it was sent, so this is what was said.');
+        expect(said(page, '[data-clock]'), 'its length before anything is fetched').toBe('0:04');
+        expect(playOf(page).getAttribute('aria-label')).toBe('Play the voice message, 0:04');
+        expect(page.querySelector('[data-report-voice]')?.getAttribute('dir'), 'left to right in every language').toBe('ltr');
+        expect(page.querySelector('[data-report-voice] [role="slider"]'), 'the way through it').not.toBeNull();
+        expect(page.querySelector<HTMLElement>('[data-forwarded]')?.hidden, 'and that it was forwarded').toBe(false);
+        expect(store.asked, 'nothing fetched before a press').toEqual([]);
+
+        playOf(page).click();
+        await settle();
+
+        expect(store.asked, 'the report’s own file').toEqual([id]);
+        expect(store.opened, 'opened as the recording it was').toEqual([RECORDING]);
+        expect(FakeAudio.made.at(-1)?.paused, 'and played').toBe(false);
+        expect(playOf(page).getAttribute('aria-label')).toBe('Pause the voice message');
+
+        playOf(page).click();
+        await settle();
+
+        expect(FakeAudio.made.at(-1)?.paused, 'paused at the next press').toBe(true);
+
+        playOf(page).click();
+        await settle();
+
+        expect(FakeAudio.made.at(-1)?.paused, 'and played again').toBe(false);
+        expect(store.asked, 'from what it holds already').toEqual([id]);
+    });
+
+    it('says what kept a reported voice message from playing, and fetches it again at Try again', async () =>
+    {
+        const { body, message } = await disclosedVoice();
+        const gone = reportFiled({ at: hoursAgo(3), by: 'sara.k', about: 'reza.t', message });
+        const changed = reportFiled({ at: hoursAgo(2), by: 'sara.k', about: 'reza.t', message });
+        const dropped = reportFiled({ at: hoursAgo(1), by: 'sara.k', about: 'reza.t', message });
+        let reachable = false;
+        const store = keeping((reportId) =>
+        {
+            if (reportId === gone)
+            {
+                return Promise.reject(new VoiceFileError('voice-missing'));
+            }
+
+            if (reportId === changed)
+            {
+                return Promise.resolve(new Uint8Array(body.length).fill(7));
+            }
+
+            return reachable ? Promise.resolve(body) : Promise.reject(new VoiceFileError('network'));
+        });
+
+        const first = await opened(gone);
+
+        playOf(first).click();
+        await settle();
+        expect(said(first, '[data-fault] span'), 'a file the report does not keep').toBe('This voice message is no longer here.');
+        cleanup();
+
+        const second = await opened(changed);
+
+        playOf(second).click();
+        await settle();
+        expect(second.querySelector('[data-fault]')?.getAttribute('role'), 'an alarm').toBe('alert');
+        expect(said(second, '[data-fault] span')).toBe('This voice message was changed after it was sent, so it is not played.');
+        expect(playOf(second).disabled, 'and nothing more to press').toBe(true);
+        cleanup();
+
+        const third = await opened(dropped);
+
+        playOf(third).click();
+        await settle();
+        expect(said(third, '[data-fault] span'), 'a file that could not be fetched').toBe('This voice message could not be loaded.');
+
+        reachable = true;
+        button(third, 'Try again')!.click();
+        await settle();
+
+        expect(third.querySelector('[data-fault]'), 'gone once it plays').toBeNull();
+        expect(FakeAudio.made.at(-1)?.paused).toBe(false);
+        expect(store.asked).toEqual([gone, changed, dropped, dropped]);
+    });
+
+    it('asks the staff’s own route for a report’s file, and reads a page that is not there as a file that is not there', async () =>
+    {
+        const asked: string[] = [];
+
+        vi.stubGlobal('fetch', (url: string) =>
+        {
+            asked.push(url);
+
+            return Promise.resolve(url.includes('missing')
+                ? new Response(JSON.stringify({ error: { code: 'not-found', message: 'Nothing there.' } }), { status: 404 })
+                : (url.includes('broken') ? new Response('', { status: 500 }) : new Response(new Uint8Array([1, 2, 3]), { status: 200 })));
+        });
+
+        const failureOf = (attempt: Promise<unknown>) => attempt.then(() => null, (error: unknown) => (error instanceof VoiceFileError ? error.failure : 'thrown'));
+
+        expect([...await voiceFiles().reported('r 1')]).toEqual([1, 2, 3]);
+        expect(await failureOf(voiceFiles().reported('missing')), 'a file the report does not keep').toBe('voice-missing');
+        expect(await failureOf(voiceFiles().reported('broken')), 'anything else').toBe('server');
+        expect(asked).toEqual(['/api/admin/reports/r%201/voice', '/api/admin/reports/missing/voice', '/api/admin/reports/broken/voice']);
+    });
+
+    it('says a reported voice message in Persian, its clock in the reader’s digits', async () =>
+    {
+        useLocale().setLocale('fa');
+
+        const { body, message } = await disclosedVoice();
+        const id = reportFiled({ at: hoursAgo(1), by: 'sara.k', about: 'reza.t', message });
+
+        keeping(() => Promise.resolve(body));
+
+        const page = await opened(id);
+
+        expect(said(page, '[data-message="voice"] p')).toBe('همون یه پیام صوتی که گزارش‌دهنده خواست نشون بده و همراه گزارش نگه داشته شده. سرور با چیزی که موقع فرستادنش ازش رد شده چکش کرده، پس همین گفته شده.');
+        expect(said(page, '[data-clock]')).toBe('۰:۰۴');
+        expect(playOf(page).getAttribute('aria-label')).toBe('پخش پیام صوتی، ۰:۰۴');
+        expect(page.querySelector('[data-report-voice]')?.getAttribute('dir')).toBe('ltr');
     });
 
     it('closes a report at the press: the status, the row and the count of waiting reports, said once the server has', async () =>

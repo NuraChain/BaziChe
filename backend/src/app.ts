@@ -1,4 +1,4 @@
-import { App, HttpError, PayloadTooLargeError, json, mediaTypeOf, readRaw, type ErrorObserver, type RequestLogger, type RequestObserver } from '@azerothjs/http';
+import { App, HttpError, NotFoundError, PayloadTooLargeError, json, mediaTypeOf, readRaw, type ErrorObserver, type RequestLogger, type RequestObserver } from '@azerothjs/http';
 import { manifestOf, register } from '@azerothjs/http/api';
 import { mountPages, type KitOptions } from '@azerothjs/kit';
 import type { Logger } from '@azerothjs/logger';
@@ -222,6 +222,33 @@ export function buildApp(deps: AppDeps)
             return new Response(null, { status: 304, headers });
         }
         return new Response(new Uint8Array(bytes), { headers: { ...headers, 'content-type': 'application/octet-stream' } });
+    });
+
+    // A reported voice message's file, which its report keeps, for whoever's role opens the reports, and
+    // as a page that is not there to anybody else. The key is in the disclosed document, so the staff's
+    // browser opens it as a reader's would; nothing here can.
+    app.get('/api/admin/reports/:id/voice', async (context) =>
+    {
+        const principal = await ports.identity.principal(context.request);
+        if (principal === null)
+        {
+            return new Response(null, { status: 401 });
+        }
+
+        const bytes = await ports.admin.reportVoice(principal.userId, context.params.id);
+        if (bytes === null)
+        {
+            throw new NotFoundError('Nothing there.');
+        }
+
+        return new Response(new Uint8Array(bytes), {
+            headers: {
+                'cache-control': 'private, no-store',
+                'x-content-type-options': 'nosniff',
+                'content-security-policy': "default-src 'none'",
+                'content-type': 'application/octet-stream'
+            }
+        });
     });
 
     app.get('/avatars/:file', async (context) =>

@@ -339,6 +339,7 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.report.by': 'Şikâyet eden',
     'admin.report.message': 'Ne dediler',
     'admin.report.messageLead': 'Şikâyet edenin göstermeyi seçtiği tek mesaj. Sunucu onu gönderildiği sırada geçen içerikle karşılaştırdı, yani söylenen sözler tam olarak bunlar.',
+    'admin.report.voiceLead': 'Şikâyet edenin göstermeyi seçtiği tek sesli mesaj, şikâyetle birlikte saklanıyor. Sunucu onu gönderildiği sırada geçen içerikle karşılaştırdı, yani söylenen tam olarak bu.',
     'admin.report.messageNone': 'Bu şikâyetle birlikte mesaj gelmedi.',
     'admin.report.messageUnread': 'Birlikte gelen mesaj okunamadı.',
     'admin.report.forwarded': 'İletildi',

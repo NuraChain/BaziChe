@@ -339,6 +339,7 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.report.by': 'किसने की',
     'admin.report.message': 'उन्होंने क्या कहा',
     'admin.report.messageLead': 'वह एक मैसेज जो रिपोर्ट करने वाले ने दिखाना चुना। सर्वर ने इसे भेजे जाते समय गुज़री चीज़ से मिलाकर जाँचा, इसलिए ये वही शब्द हैं जो कहे गए थे।',
+    'admin.report.voiceLead': 'वह एक वॉइस मैसेज जो रिपोर्ट करने वाले ने दिखाना चुना, रिपोर्ट के साथ रखा गया है। सर्वर ने इसे भेजे जाते समय गुज़री चीज़ से मिलाकर जाँचा, इसलिए यही कहा गया था।',
     'admin.report.messageNone': 'इस रिपोर्ट के साथ कोई मैसेज नहीं आया।',
     'admin.report.messageUnread': 'इसके साथ आया मैसेज पढ़ा नहीं जा सका।',
     'admin.report.forwarded': 'फ़ॉरवर्ड किया गया',

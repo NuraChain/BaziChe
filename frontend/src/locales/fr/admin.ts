@@ -354,6 +354,7 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.report.by': 'Déposé par',
     'admin.report.message': 'Ce qui a été dit',
     'admin.report.messageLead': 'Le seul message que l’auteur du signalement a choisi de montrer. Le serveur l’a vérifié par rapport à ce qui est passé lors de son envoi : ce sont donc bien les mots qui ont été dits.',
+    'admin.report.voiceLead': 'Le seul message vocal que l’auteur du signalement a choisi de montrer, conservé avec le signalement. Le serveur l’a vérifié par rapport à ce qui est passé lors de son envoi : c’est donc bien ce qui a été dit.',
     'admin.report.messageNone': 'Aucun message n’accompagne ce signalement.',
     'admin.report.messageUnread': 'Impossible de lire le message qui l’accompagne.',
     'admin.report.forwarded': 'Transféré',

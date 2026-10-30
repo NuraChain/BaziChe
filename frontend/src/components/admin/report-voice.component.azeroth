@@ -1,0 +1,272 @@
+import type { VoiceBody } from '../../lib/body.ts';
+import { NOT_SUPPORTED, readyAudio, voiceAudio, type VoiceAudio } from '../../lib/voice-audio.ts';
+import { decodeWave, openAudio, sniffAudio } from '../../lib/voice-note.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { VoiceFileError, voiceFiles } from '../../services/voice-files.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { VOICE_TICK_MS, type VoiceFault } from '../../stores/voice-player.store.ts';
+import { voiceClock } from '../chat/gist.ts';
+import VoiceWave from '../chat/voice-wave.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+import Spinner from '../ui/spinner.component.azeroth';
+
+/** A place this close to the end plays from the start. */
+const AT_END = 0.25;
+
+/**
+ * A reported voice message, played for the staff from the file its report keeps and opened here under
+ * the key its disclosed document carries. Its own audio element, so nothing of a reader's player is
+ * asked. It runs left to right in every language, as every voice message does.
+ */
+export default component ReportVoice(props: { report: string; voice: VoiceBody['voice'] })
+{
+    const locale = useLocale();
+
+    let audio: VoiceAudio | null = null;
+
+    let address: string | null = null;
+
+    let unlisten: (() => void) | null = null;
+
+    let ticking: (() => void) | null = null;
+
+    state opening = false;
+
+    state ready = false;
+
+    state hearing = false;
+
+    state heardAt = 0;
+
+    state scrub = null as number | null;
+
+    state measured = null as number | null;
+
+    state fault = null as VoiceFault | null;
+
+    derived levels = decodeWave(props.voice.wave) ?? [];
+
+    derived length = measured ?? props.voice.ms / 1000;
+
+    derived total = voiceClock(Math.round(length), locale.n);
+
+    derived clock = scrub === null
+        ? (hearing || heardAt > 0 ? voiceClock(heardAt, locale.n) : total)
+        : voiceClock(scrub * length, locale.n);
+
+    derived played = length > 0 ? Math.min(1, heardAt / length) : 0;
+
+    derived label = hearing ? locale.t('chat.voice.pause') : locale.t('chat.voice.play', { time: total });
+
+    derived faulted = fault !== null;
+
+    derived alarming = fault === 'tampered';
+
+    derived said = fault === null ? '' : locale.t(`chat.voice.${ fault }`);
+
+    derived retry = fault === 'failed';
+
+    const still = () =>
+    {
+        ticking?.();
+        ticking = null;
+    };
+
+    const element = () =>
+    {
+        if (audio !== null)
+        {
+            return audio;
+        }
+
+        const made = voiceAudio();
+        const on = (type: string, listener: () => void) =>
+        {
+            made.addEventListener(type, listener);
+            return () => made.removeEventListener(type, listener);
+        };
+        const read = () =>
+        {
+            heardAt = made.currentTime;
+        };
+        const offs = [
+            on('playing', () =>
+            {
+                hearing = true;
+                still();
+                ticking = runtime().clock.every(VOICE_TICK_MS, read);
+            }),
+            on('pause', () =>
+            {
+                read();
+                still();
+                hearing = false;
+            }),
+            on('ended', () =>
+            {
+                still();
+                hearing = false;
+                heardAt = 0;
+            })
+        ];
+
+        unlisten = () => offs.forEach((off) => off());
+        audio = made;
+        return made;
+    };
+
+    /** The file fetched, opened under its key and handed to the element, or what kept it from being. */
+    const open = async () =>
+    {
+        opening = true;
+        fault = null;
+
+        try
+        {
+            const plain = await openAudio(await voiceFiles().reported(props.report), props.voice.key, props.voice.iv, props.voice.id);
+
+            if (plain === null)
+            {
+                fault = 'tampered';
+                return false;
+            }
+
+            const type = sniffAudio(plain);
+            const made = element();
+
+            if (type === null)
+            {
+                fault = 'unplayable';
+                return false;
+            }
+
+            if (made.canPlayType(type) === '')
+            {
+                fault = 'unsupported';
+                return false;
+            }
+
+            address = URL.createObjectURL(new Blob([plain as BlobPart], { type }));
+            made.src = address;
+
+            if (!await readyAudio(made))
+            {
+                fault = made.error?.code === NOT_SUPPORTED ? 'unsupported' : 'unplayable';
+                return false;
+            }
+
+            measured = Number.isFinite(made.duration) && made.duration > 0 ? made.duration : null;
+            ready = true;
+            return true;
+        }
+        catch (error)
+        {
+            fault = error instanceof VoiceFileError && error.failure === 'voice-missing' ? 'gone' : 'failed';
+            return false;
+        }
+        finally
+        {
+            opening = false;
+        }
+    };
+
+    const hear = async (from: number) =>
+    {
+        if (!ready && !await open())
+        {
+            return;
+        }
+
+        const made = element();
+
+        made.currentTime = from >= length - AT_END ? 0 : from;
+        await made.play().catch(() => undefined);
+    };
+
+    const toggle = () =>
+    {
+        if (hearing)
+        {
+            audio?.pause();
+            return;
+        }
+
+        void hear(heardAt);
+    };
+
+    const seek = (seconds: number, pressed: boolean) =>
+    {
+        if (pressed)
+        {
+            void hear(seconds);
+            return;
+        }
+
+        heardAt = seconds;
+
+        if (audio !== null && ready)
+        {
+            audio.currentTime = seconds;
+        }
+    };
+
+    mount
+    {
+        return () =>
+        {
+            still();
+            unlisten?.();
+
+            if (audio !== null && address !== null)
+            {
+                audio.pause();
+                audio.removeAttribute('src');
+                audio.load();
+            }
+
+            if (address !== null)
+            {
+                URL.revokeObjectURL(address);
+            }
+        };
+    }
+
+    <div class="flex flex-col gap-2">
+        <div class="flex items-center gap-2.5 rounded-tile border-s-2 border-accent bg-sunk px-3 py-2" dir="ltr" role="group" aria-label={ locale.t('chat.voice.label', { time: total }) } data-report-voice>
+            <IconButton
+                icon={ hearing ? 'pause' : 'play' }
+                label={ label }
+                variant="primary"
+                class="rounded-full!"
+                disabled={ opening || alarming }
+                onClick={ toggle }
+            />
+            <span class="min-w-0 flex-1">
+                <VoiceWave
+                    levels={ levels }
+                    played={ played }
+                    length={ length }
+                    place={ heardAt }
+                    disabled={ opening || alarming }
+                    label={ locale.t('chat.voice.seek') }
+                    valueText={ locale.t('chat.voice.at', { at: clock, total }) }
+                    onSeek={ seek }
+                    onScrub={ (fraction) => scrub = fraction }
+                />
+            </span>
+            <Show when={ opening } fallback={ <span class="shrink-0 text-ui-xs tabular-nums text-muted" data-clock data-playing={ hearing ? 'true' : 'false' }>{ clock }</span> }>
+                { () => <Spinner size={ 16 } class="shrink-0" /> }
+            </Show>
+        </div>
+        <Show when={ faulted }>
+            { () =>
+                <p class={ () => [ 'flex flex-wrap items-center gap-x-2 text-ui-sm', alarming ? 'text-danger' : 'text-muted' ].join(' ') } role={ alarming ? 'alert' : 'status' } data-fault={ fault ?? '' }>
+                    <span>{ said }</span>
+                    <Show when={ retry }>
+                        { () => <button type="button" class="relative cursor-pointer font-semibold text-accent underline-offset-2 hover:underline coarse:before:absolute coarse:before:-inset-x-1 coarse:before:-inset-y-3.5" onClick={ () => void hear(heardAt) }>{ locale.t('common.retry') }</button> }
+                    </Show>
+                </p>
+            }
+        </Show>
+    </div>
+}

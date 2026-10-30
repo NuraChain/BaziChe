@@ -399,6 +399,7 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.report.by': 'قدّمه',
     'admin.report.message': 'ما قاله',
     'admin.report.messageLead': 'الرسالة الوحيدة التي اختار المُبلِّغ عرضها. طابقها الخادم مع ما مرّ عبره حين أُرسلت، فهذه هي الكلمات التي قيلت فعلًا.',
+    'admin.report.voiceLead': 'الرسالة الصوتية الوحيدة التي اختار المُبلِّغ عرضها، محفوظة مع البلاغ. طابقها الخادم مع ما مرّ عبره حين أُرسلت، فهذا ما قيل فعلًا.',
     'admin.report.messageNone': 'لم تأتِ رسالة مع هذا البلاغ.',
     'admin.report.messageUnread': 'تعذّرت قراءة الرسالة التي جاءت معه.',
     'admin.report.forwarded': 'مُعاد توجيهها',

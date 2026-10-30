@@ -1,5 +1,7 @@
 import 'reflect-metadata';
 
+import { createHmac, randomBytes } from 'node:crypto';
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DataSource } from 'typeorm';
 
@@ -163,6 +165,20 @@ const heardBy = async (userId: string, id: string) => (await chat.voiceFile(user
 const pageOf = async (reader: string, conversationId: string) => (await ports.chat.messages(reader, conversationId, undefined)).messages;
 
 const filesHeld = async () => db.getRepository(VoiceNote).count();
+
+/** A voice message of `speaker`'s, sealed with a real commitment, and reported by `reporter` with it disclosed. */
+const reportedVoice = async (speaker: string, reporter: string, room: string) =>
+{
+    const said = await upload(speaker);
+    const frankingKey = randomBytes(32).toString('base64url');
+    const document = JSON.stringify({ voice: { id: said } });
+    const commitment = createHmac('sha256', Buffer.from(frankingKey, 'base64url')).update(document, 'utf8').digest('base64url');
+    const spoken = await chat.send(speaker, room, null, { ...await sealed(speaker, room, 'voice', { voice: said }), commitment });
+    const handle = firstRow<{ handle: string }>(await db.query('select handle from users where id = $1', [speaker]))?.handle ?? '';
+    const reported = await ports.social.report(reporter, handle, 'harassment', { conversationId: room, messageId: spoken.id, text: document, frankingKey });
+
+    return { said, spoken, reported, handle };
+};
 
 describe.skipIf(!active)('a voice message, against a real database', () =>
 {
@@ -356,6 +372,51 @@ describe.skipIf(!active)('a voice message, against a real database', () =>
         expect(await chat.sweepVoice(), 'only the upload nobody sent').toBe(1);
         expect(await heardBy(a, forgotten), 'gone').toBe(false);
         expect(await heardBy(b, named), 'the named one stays').toBe(true);
+    });
+
+    it('keeps a reported voice message’s file for the staff when its message is deleted, and counts it as nobody’s upload', async () =>
+    {
+        const [a, b, staff] = [await makeUser(), await makeUser(), await makeUser()];
+        const room = await chat.openDirect(a, b);
+        const { said, spoken, reported, handle } = await reportedVoice(a, b, room);
+        const unseen = await ports.social.report(b, handle, 'spam');
+
+        expect(firstRow<{ voice_id: string }>(await db.query('select voice_id from reports where id = $1', [reported]))?.voice_id, 'kept beside what it disclosed').toBe(said);
+
+        await chat.remove(a, room, spoken.id);
+
+        expect(await filesHeld(), 'deleting the message keeps the file').toBe(1);
+        expect(await heardBy(b, said), 'which the room no longer hears').toBe(false);
+
+        await db.query(`update voice_notes set created_at = now() - make_interval(mins => $1 + 1)`, [VOICE_HOLD_MINUTES]);
+        expect(await chat.sweepVoice(), 'nor does the sweep take it').toBe(0);
+
+        for (let at = 0; at < LIMITS.pending; at += 1)
+        {
+            await upload(a);
+        }
+
+        expect(await filesHeld(), 'nor is it counted among the uploads its sender has still to send').toBe(1 + LIMITS.pending);
+
+        await db.query(`insert into staff_members (user_id, role) values ($1, 'moderator')`, [staff]);
+
+        expect(await ports.admin.reportVoice(staff, reported), 'to whoever reads the reports').toEqual(recording());
+        expect(await ports.admin.reportVoice(b, reported), 'and to nobody else').toBeNull();
+        expect(await ports.admin.reportVoice(staff, unseen), 'a report that disclosed none').toBeNull();
+        expect(await ports.admin.reportVoice(staff, 'not-a-report'), 'an id that is none').toBeNull();
+    });
+
+    it('keeps a reported voice message’s file when the message runs out', async () =>
+    {
+        const [a, b] = [await makeUser(), await makeUser()];
+        const room = await chat.openDirect(a, b);
+        const { said, spoken, reported } = await reportedVoice(a, b, room);
+
+        await db.query(`update messages set expires_at = now() - interval '1 second' where id = $1`, [spoken.id]);
+
+        expect(await chat.sweepExpired(), 'the message goes').toBe(1);
+        expect(await filesHeld(), 'the file stays').toBe(1);
+        expect(firstRow<{ message_id: string | null; voice_id: string }>(await db.query('select message_id, voice_id from reports where id = $1', [reported])), 'and the report keeps it').toEqual({ message_id: null, voice_id: said });
     });
 
     it('counts a voice message as a line: unread, the list’s last line naming its file, a notification and the room rung', async () =>

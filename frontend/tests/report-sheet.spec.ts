@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderTest } from '@azerothjs/testing';
 
 import ReportSheet from '../src/components/social/report-sheet.component.azeroth';
+import { encodeVoice } from '../src/lib/body.ts';
 import '../src/locales/app-catalogue.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 
@@ -40,6 +41,15 @@ describe('the sheet that files a report', () =>
         cleanup();
 
         expect(showing(shown('{"edit":"Changed to this","on":"m-1"}')), 'an edit, in the words it gave the line').toBe('Changed to this');
+    });
+
+    it('says a voice message as one, with its length', () =>
+    {
+        const document = encodeVoice({
+            voice: { id: '0b5b0d47-5a3c-4f8e-9a51-6f0b3c2d1e7a', key: 'A'.repeat(43), iv: 'B'.repeat(16), mime: 'audio/webm;codecs=opus', ms: 4200, wave: 'AAA', bytes: 900 }
+        });
+
+        expect(showing(shown(document))).toBe('Voice message (0:04)');
     });
 
     it('shows no line when it was opened about the person alone', () =>

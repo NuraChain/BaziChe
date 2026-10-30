@@ -336,6 +336,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 .delete()
                 .where('id in (:...ids)', { ids: [...ids] })
                 .andWhere('not exists (select 1 from messages m where m.voice_id = voice_notes.id)')
+                .andWhere('not exists (select 1 from reports r where r.voice_id = voice_notes.id)')
                 .execute();
         }
     };
@@ -991,6 +992,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 .delete()
                 .where('created_at < now() - make_interval(mins => :hold)', { hold: VOICE_HOLD_MINUTES })
                 .andWhere('not exists (select 1 from messages m where m.voice_id = voice_notes.id)')
+                .andWhere('not exists (select 1 from reports r where r.voice_id = voice_notes.id)')
                 .execute();
 
             return gone.affected ?? 0;
@@ -1051,6 +1053,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                         .createQueryBuilder('v')
                         .where('v.uploader_id = :me', { me })
                         .andWhere('not exists (select 1 from messages m where m.voice_id = v.id)')
+                        .andWhere('not exists (select 1 from reports r where r.voice_id = v.id)')
                         .getCount();
 
                     if (waiting >= voice.pending)

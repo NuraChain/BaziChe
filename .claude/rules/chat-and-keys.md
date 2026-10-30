@@ -943,9 +943,18 @@ in a room of the reader's, never their own. The page says `played` on one the re
 `heard` on one of the reader's own somebody else has; the reader is rung, and the sender too the
 first time anybody plays it, because that is when their dot goes.
 
-`voice-schema.db.spec.ts` holds the rows, `voice.db.spec.ts` every rule above against Postgres,
-`app.spec.ts` (*a voice message's file*) the two raw routes and the mark, and `voice-sweep.spec.ts`
-the sweep's place in `main.ts`.
+**A report keeps the file.** Reporting a voice message with it disclosed hands the staff its document,
+key and all, which franking checks as it checks a line, and the report keeps the file
+(`reports.voice_id`, only beside a disclosure: `reports_voice_disclosed`) for as long as the report is
+kept. Deleting the message, its running out, the sweep of files nobody names and the count of uploads
+still to send each leave a file a report keeps (`not exists` over `reports` beside the one over
+`messages`), and the foreign key refuses anything that would not. The room stops hearing it with its
+last message, as before; the staff play it from their own route (`.claude/rules/admin.md`, *Reports*).
+
+`voice-schema.db.spec.ts` holds the rows, `voice.db.spec.ts` every rule above against Postgres (a
+reported file through a deletion, its running out, the sweep and the count included),
+`app.spec.ts` (*a voice message's file*, *a reported voice message's file*) the raw routes and the
+mark, and `voice-sweep.spec.ts` the sweep's place in `main.ts`.
 
 **The browser seals the file before anything leaves it** (`lib/voice-note.ts`): a fresh AES-256-GCM
 key and iv a recording, its AAD `voiceAad(id)` from `chat/envelope.ts`. The document is written and
@@ -1008,7 +1017,7 @@ microphone, and the recording waits there to be heard and sent (VM-D9). Each ref
 the microphone off for the site, none found, another app holding it, a browser that cannot record.
 
 `voice-note.spec.ts`, `voice-send.spec.ts`, `voice-player.spec.ts` and `voice-recorder.spec.ts` hold
-the browser's half.
+the browser's half, and `admin-report.spec.ts` the staff's player.
 
 ## Recovery
 

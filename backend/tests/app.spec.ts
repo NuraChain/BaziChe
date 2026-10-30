@@ -2274,3 +2274,56 @@ describe('a voice message’s file', () =>
         expect(told).toEqual([['played', 'somebody', 'a-room', 'a-line']]);
     });
 });
+
+describe('a reported voice message’s file, for the staff', () =>
+{
+    const REPORT = '5f1c7a0e-3b2d-4c8e-9a61-2d4e6f8a0b1c';
+
+    const desk = (told: unknown[][], options: { signedIn?: boolean; held?: Uint8Array | null } = {}) => buildApp({
+        db: fakeDb({ initialized: true }),
+        config,
+        log: silent,
+        ports: {
+            identity: {
+                principal: () => Promise.resolve(options.signedIn === false ? null : { userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' })
+            },
+            admin: {
+                reportVoice: (me: string, id: string) =>
+                {
+                    told.push(['reportVoice', me, id]);
+                    return Promise.resolve(options.held === undefined ? new Uint8Array([5, 6, 7]) : options.held);
+                },
+                report: () => Promise.resolve(null)
+            }
+        } as unknown as Ports
+    });
+
+    const asked = (app: ReturnType<typeof buildApp>, path = `/api/admin/reports/${ REPORT }/voice`) => app.handle(new Request(`http://local${ path }`));
+
+    it('is answered as bytes nobody keeps, to whoever the report port answers', async () =>
+    {
+        const told: unknown[][] = [];
+        const response = await asked(desk(told));
+
+        expect(response.status).toBe(200);
+        expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([5, 6, 7]);
+        expect(Object.fromEntries(['content-type', 'cache-control', 'x-content-type-options', 'content-security-policy'].map((name) => [name, response.headers.get(name)]))).toEqual({
+            'content-type': 'application/octet-stream',
+            'cache-control': 'private, no-store',
+            'x-content-type-options': 'nosniff',
+            'content-security-policy': "default-src 'none'"
+        });
+        expect(told).toEqual([['reportVoice', 'somebody', REPORT]]);
+    });
+
+    it('is answered to anybody else in the bytes of an admin page that is not there, and to nobody signed in as such', async () =>
+    {
+        const app = desk([], { held: null });
+        const voice = await asked(app);
+        const page = await asked(app, `/api/admin/reports/${ REPORT }`);
+
+        expect(voice.status).toBe(404);
+        expect(await voice.text(), 'the bytes of the report itself, refused').toBe(await page.text());
+        expect((await asked(desk([], { signedIn: false }))).status).toBe(401);
+    });
+});

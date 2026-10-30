@@ -745,6 +745,9 @@ export interface AdminPort
 
     report(me: string, id: string): Promise<AdminReport | null>;
 
+    /** The file of the voice message a report disclosed, for whoever's role opens the reports. */
+    reportVoice(me: string, id: string): Promise<Uint8Array | null>;
+
     review(me: string, id: string, input: Infer<typeof adminReviewInput>): Promise<AdminReport | null>;
 
     play(me: string): Promise<AdminPlay | null>;

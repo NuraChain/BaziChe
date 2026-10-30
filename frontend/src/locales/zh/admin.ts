@@ -324,6 +324,7 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.report.by': '举报人',
     'admin.report.message': '他们说了什么',
     'admin.report.messageLead': '举报人选择展示的那一条消息。服务器已将它与发送时经过的内容核对，所以这就是当时说的原话。',
+    'admin.report.voiceLead': '举报人选择展示的那一条语音消息，随举报一并保存。服务器已将它与发送时经过的内容核对，所以这就是当时说的话。',
     'admin.report.messageNone': '这条举报没有附带消息。',
     'admin.report.messageUnread': '无法读取附带的消息。',
     'admin.report.forwarded': '已转发',

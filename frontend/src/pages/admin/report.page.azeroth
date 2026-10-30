@@ -6,6 +6,7 @@ import { ApiError, client } from '../../api.ts';
 import LogEntry from '../../components/admin/log-entry.component.azeroth';
 import ReportClose from '../../components/admin/report-close.component.azeroth';
 import ReportPerson from '../../components/admin/report-person.component.azeroth';
+import ReportVoice from '../../components/admin/report-voice.component.azeroth';
 import Said from '../../components/admin/said.component.azeroth';
 import When from '../../components/admin/when.component.azeroth';
 import Badge from '../../components/ui/badge.component.azeroth';
@@ -16,7 +17,7 @@ import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import type { GameId } from '../../data/games.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { attempt } from '../../lib/attempt.ts';
-import { decodeDisclosed } from '../../lib/body.ts';
+import { decodeDisclosed, decodeVoice } from '../../lib/body.ts';
 import { createGuesses, type Guess } from '../../lib/guess.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { CATEGORY_WORDS, handleParts, ROLE_IN, STATUS_TONES, STATUS_WORDS, whyStaffRefused } from '../../lib/staff-words.ts';
@@ -111,7 +112,13 @@ export default component ReportPage()
 
     derived readable = decoded !== null;
 
-    derived unreadable = report?.message !== undefined && decoded === null;
+    derived spoken = report?.message === undefined || decoded !== null ? null : decodeVoice(report.message);
+
+    derived voiced = spoken !== null;
+
+    derived spokenForwarded = spoken?.fwd === true;
+
+    derived unreadable = report?.message !== undefined && decoded === null && spoken === null;
 
     derived words = decoded?.text ?? '';
 
@@ -234,7 +241,22 @@ export default component ReportPage()
 
                         <Panel pad="md" stack="sm" labelledBy="report-message">
                             <h2 id="report-message" class="text-ui-md font-semibold text-text">{ locale.t('admin.report.message') }</h2>
-                            <Show when={ readable } fallback={ <p class="text-ui-sm text-muted" data-message="none">{ unsaid }</p> }>
+                            <Show
+                                when={ readable }
+                                fallback={
+                                    <Show when={ voiced } fallback={ <p class="text-ui-sm text-muted" data-message="none">{ unsaid }</p> }>
+                                        { () =>
+                                            <div class="flex flex-col gap-2" data-message="voice">
+                                                <p class="text-ui-sm text-muted">{ locale.t('admin.report.voiceLead') }</p>
+                                                <ReportVoice report={ id } voice={ spoken!.voice } />
+                                                <span class="flex" hidden={ !spokenForwarded } data-forwarded>
+                                                    <Badge text={ locale.t('admin.report.forwarded') } tone="neutral" />
+                                                </span>
+                                            </div>
+                                        }
+                                    </Show>
+                                }
+                            >
                                 <p class="text-ui-sm text-muted">{ locale.t('admin.report.messageLead') }</p>
                                 <blockquote class="whitespace-pre-wrap break-words rounded-tile border-s-2 border-accent bg-sunk px-3 py-2 text-ui-md text-text" dir="auto" data-message>{ words }</blockquote>
                                 <span class="flex" hidden={ !forwarded } data-forwarded>

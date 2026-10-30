@@ -657,7 +657,7 @@ export function createSocialService(db: DataSource)
             me: string,
             againstId: string,
             category: ReportCategory,
-            disclosure: { messageId: string; text: string; frankingKey: string } | null = null
+            disclosure: { messageId: string; text: string; frankingKey: string; voiceId?: string } | null = null
         ): Promise<string>
         {
             if (me === againstId)
@@ -665,21 +665,18 @@ export function createSocialService(db: DataSource)
                 throw new BadRequestError('You cannot report yourself.');
             }
 
-            const rows = await db.query(
-                `insert into reports (reporter, against, category, message_id, disclosed, disclosed_key, disclosed_at)
-                 values ($1, $2, $3, $4, $5, $6, $7)
-                 returning id`,
-                [
-                    me,
-                    againstId,
-                    category,
-                    disclosure?.messageId ?? null,
-                    disclosure?.text ?? null,
-                    disclosure?.frankingKey ?? null,
-                    disclosure === null ? null : new Date()
-                ]
-            );
-            return rowsOf<{ id: string }>(rows)[0].id;
+            const made = await db.getRepository(Report).insert({
+                reporter: me,
+                against: againstId,
+                category,
+                messageId: disclosure?.messageId ?? null,
+                disclosed: disclosure?.text ?? null,
+                disclosedKey: disclosure?.frankingKey ?? null,
+                disclosedAt: disclosure === null ? null : new Date(),
+                voiceId: disclosure?.voiceId ?? null
+            });
+
+            return made.identifiers[0].id as string;
         },
 
         async reportsBy(me: string): Promise<{ id: string; against: string; category: ReportCategory; status: string; created_at: Date }[]>

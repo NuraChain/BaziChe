@@ -1,6 +1,7 @@
 import type { ReportCategory } from '../../data/chat.ts';
-import { decodeDisclosed } from '../../lib/body.ts';
+import { decodeDisclosed, decodeVoice } from '../../lib/body.ts';
 import { plainOf } from '../../lib/markdown.ts';
+import { voiceClock } from '../chat/gist.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
@@ -38,12 +39,20 @@ export default component ReportSheet(props: OverlayProps & {
 
     derived name = person === null ? props.personId : person.displayName.split(' ')[0];
 
-    /** The line the report will show, in its words: what is disclosed is the document they were sealed in. */
+    /** The line the report will show, as a quote says it: what is disclosed is the document it was sealed in. */
     derived showing = ((): string =>
     {
-        const said = decodeDisclosed(props.disclose?.text ?? '');
+        const raw = props.disclose?.text ?? '';
+        const said = decodeDisclosed(raw);
 
-        return said === null ? '' : plainOf(said.text, locale.t('chat.spoilerPreview'));
+        if (said !== null)
+        {
+            return plainOf(said.text, locale.t('chat.spoilerPreview'));
+        }
+
+        const spoken = decodeVoice(raw);
+
+        return spoken === null ? '' : locale.t('chat.voiceGist', { time: voiceClock(Math.round(spoken.voice.ms / 1000), locale.n) });
     })();
 
     /**

@@ -2157,6 +2157,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 return await ableTo(me, 'reports') === null ? null : await reportOf(id);
             },
 
+            async reportVoice(me, id)
+            {
+                return await ableTo(me, 'reports') === null ? null : await desk.voiceOf(id);
+            },
+
             async review(me, id, input)
             {
                 const actor = await ableTo(me, 'reports');
@@ -2900,7 +2905,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 return social.report(me, againstId, kind, {
                     messageId: row.id,
                     text: disclosure.text,
-                    frankingKey: disclosure.frankingKey
+                    frankingKey: disclosure.frankingKey,
+                    ...(row.kind === 'voice' && row.voice_id !== null ? { voiceId: row.voice_id } : {})
                 });
             },
 

@@ -745,12 +745,13 @@ notification the account has. The source was put back from a saved copy, never f
 
 **`tools/qa/voice-message-pass.mjs` sends voice messages between two real browsers on the built
 server**: `PGDATABASE=<the server's database> QA_BASE=http://localhost:5300 node
-tools/qa/voice-message-pass.mjs`, limiter raised, about three minutes, 53 checks. Each browser is a
+tools/qa/voice-message-pass.mjs`, limiter raised, about a minute, 61 checks. Each browser is a
 Chromium whose fake microphone is fed a speech-like recording the pass writes (`voice-signal.mjs`,
 into `tools/qa/out/voice-message/`), so what is recorded is the browser's own MediaRecorder at work,
-and what is sealed, uploaded, fetched, opened and played is that recording. `dana.w` records in her
-newest direct thread and the person in it plays what arrives; both accounts are emptied of devices
-and lines first, as the chat pass empties them, and of voice files and plays (PGDATABASE names the
+and what is sealed, uploaded, fetched, opened and played is that recording; `QA_LISTENER=firefox`
+puts the second browser in Firefox (below). `dana.w` records in her newest direct thread and the
+person in it plays what arrives; both accounts are emptied of devices and lines first, as the chat
+pass empties them, and of voice files, plays and the reports that keep a file (PGDATABASE names the
 server's database for that).
 
 - **Recording**: the microphone where Send is; the row the composer becomes; the bars moving with
@@ -763,7 +764,7 @@ server's database for that).
   still there, played, and playing again.
 - **Answered**: a right click on it offers Reply and no Copy; Reply quotes it as "Voice message
   (0:05)", the quote stays above the recorder, and the voice message recorded under it arrives in
-  the first browser quoting it; the reply is let go of once that is sent.
+  the first browser quoting it and plays there; the reply is let go of once that is sent.
 - **A stranger** (a third fixture) asking for the file is answered 404.
 - **An upload that fails** (the first PUT aborted) leaves the line Not sent, and Try again sends it.
 - **A press too short** is dropped with its sentence and sends nothing.
@@ -773,10 +774,15 @@ server's database for that).
   chat and records into it, and the line is in that chat at the press; the desktop, its chat shut,
   says it in a bubble on the sender's plate and in its way to the chat (their name, then "Voice
   message (0:01)"), then opens the chat and plays it there.
+- **Reported**: the first voice message reported from the other browser through the sheet about its
+  sender, which says the report will show "Voice message (0:05)"; the report keeps its file, which a
+  player asking for it is answered as a page that is not there; a moderator (the third fixture, made
+  one by hand and unmade after) finds it on the report's page, and its file is fetched from the
+  report and plays with nothing in its way.
 - Neither console says anything but the one upload the pass aborts.
 
-Screenshots of the recorder, the preview, a message arriving, the phone in Persian and both sides of
-the table are written beside the recording.
+Screenshots of the recorder, the preview, a message arriving, the phone in Persian, both sides of
+the table and the report's page are written beside the recording.
 
 **Its second run failed one line with a fault of the product's**: the sender's own line was drawn at
 the press with no dot and took one a second later, when the server's copy replaced the one on its
@@ -784,6 +790,27 @@ way, so the check passed or not by when it looked. The dot is drawn from the pre
 hand after it found a voice message a browser could not open drawn as a table somebody opened
 (`.claude/rules/chat-and-keys.md`, *The bubble draws the player whole*), which no pass reaches: it
 needs a browser enrolled after the message was sent.
+
+**`QA_LISTENER=firefox` puts the second browser in Firefox**, its fake microphone a tone
+(`media.navigator.streams.fake`), so each browser plays what the other recorded. Its first runs found
+two faults of the product's that no run in Chromium could:
+
+- **The bar beside a line lay over a voice message's play button.** After a page loads, Firefox
+  counts a line drawn under a pointer that has not moved as hovered and says the pointer entered only
+  at its next move. The listener's pointer rested where the message arrived, its hover bar was shown
+  before it was laid, and Playwright, which asks what is under a point before it moves there, waited
+  for good (`frontend/CLAUDE.md`, the bar shown only once it is laid).
+- **Chromium would not play what Firefox recorded.** Firefox's WebM marks no block a keyframe and says
+  its Duration is 0, so Chromium could not seek in it to find its length and called it unplayable,
+  with "FFmpegDemuxer: demuxer seek failed" on its element (`.claude/rules/chat-and-keys.md`, *The
+  player*). The pass saved the bytes the player opened, and a bare page in each browser held the cause
+  and each half of the cure apart.
+
+A press and the file it fetches are awaited together now, so a press that cannot be made is a failed
+line and not a crash. Run on the build with both fixed: 61 of 61 with Firefox as the second browser and 61 of 61 with both in Chromium.
+
+Playwright's WebKit on this machine (27.2) cannot stand in for Safari: it has no MediaRecorder, no
+Web Audio and no microphone, so MP4/AAC is held by the specs alone.
 
 **Proved red** against the built client broken three ways, each chunk written with its precompressed
 twins and put back from saved copies (a speed chip that never leaves 1×, a quoted voice message that

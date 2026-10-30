@@ -5,6 +5,7 @@
  *
  *   npm run build && API_RATE_MAX=20000 PORT=5300 PUBLIC_ORIGIN=http://localhost:5300 npm start
  *   QA_BASE=http://localhost:5300 PGDATABASE=<the server's database> node tools/qa/voice-message-pass.mjs
+ *   QA_LISTENER=firefox puts the second browser in Firefox, its fake microphone a tone.
  *
  * `dana.w` records in her thread with the person the seed gave her and the other browser plays what
  * arrives, everything asserted where it happens: the recorder's row, its bars and its clock, a pause
@@ -14,12 +15,14 @@
  * answered with a voice message of its own that quotes it; a stranger answered 404 for the file; an
  * upload that fails and is tried again; a press too short to send; both pages at 390 in Persian; and a
  * voice message recorded into a table's chat on the phone, said on its sender's plate and in the
- * desktop's way to the chat, and played there. Screenshots go to `tools/qa/out/voice-message/`.
+ * desktop's way to the chat, and played there; and the first one reported through the product's own
+ * sheet, which says what it will show, and played for a moderator on the report's page from the file
+ * the report keeps. Screenshots go to `tools/qa/out/voice-message/`.
  */
 import { mkdirSync } from 'node:fs';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { chromium } from 'playwright';
+import { chromium, firefox } from 'playwright';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import { WALLET_FIXTURES } from '../../backend/src/db/wallet-fixtures.ts';
@@ -65,6 +68,20 @@ const browser = await chromium.launch({
     args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', `--use-file-for-fake-audio-capture=${ SPEECH }`]
 });
 
+/** The second browser: Chromium like the first, or Firefox, so each plays what the other recorded. */
+const LISTENER_ENGINE = process.env.QA_LISTENER === 'firefox' ? 'firefox' : 'chromium';
+
+const listenerBrowser = LISTENER_ENGINE === 'firefox'
+    ? await firefox.launch({
+        firefoxUserPrefs: {
+            'media.navigator.streams.fake': true,
+            'media.navigator.permission.disabled': true,
+            'media.autoplay.default': 0,
+            'media.autoplay.blocking_policy': 0
+        }
+    })
+    : browser;
+
 const results = [];
 const record = (name, ok, detail) =>
 {
@@ -81,6 +98,7 @@ function emptyBothAccounts(handles)
         'delete from conversation_epochs',
         'delete from voice_plays',
         "delete from messages where kind in ('text', 'voice', 'deleted', 'reaction', 'edit')",
+        'delete from reports where voice_id is not null',
         'delete from voice_notes',
         `delete from epoch_archive where user_id in (select id from users where handle in (${ names }))`,
         `delete from recovery_vaults where user_id in (select id from users where handle in (${ names }))`,
@@ -89,7 +107,7 @@ function emptyBothAccounts(handles)
 }
 
 /** A browser signed in as a fixture, its wallet injected, its microphone Chromium's fake one. */
-async function seat(handle, { viewport = { width: 1280, height: 900 }, locale = 'en' } = {})
+async function seat(handle, { viewport = { width: 1280, height: 900 }, locale = 'en', engine = 'chromium' } = {})
 {
     const fixture = WALLET_FIXTURES.find((one) => one.handle === handle);
 
@@ -99,7 +117,8 @@ async function seat(handle, { viewport = { width: 1280, height: 900 }, locale = 
     }
 
     const wallet = privateKeyToAccount(fixture.privateKey);
-    const context = await browser.newContext({ viewport, locale: locale === 'fa' ? 'fa-IR' : 'en-US', permissions: ['microphone'] });
+    const host = engine === 'firefox' ? listenerBrowser : browser;
+    const context = await host.newContext({ viewport, locale: locale === 'fa' ? 'fa-IR' : 'en-US', ...(engine === 'firefox' ? {} : { permissions: ['microphone'] }) });
 
     await context.addCookies([{ name: 'locale', value: locale, url: BASE }]);
     await context.addInitScript(() =>
@@ -252,7 +271,11 @@ try
 
     emptyBothAccounts(['dana.w', other]);
 
-    listener = await seat(other);
+    listener = await seat(other, { engine: LISTENER_ENGINE });
+
+    const recordsAs = await listener.page.evaluate(() => ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4'].find((type) => MediaRecorder.isTypeSupported(type)) ?? 'nothing');
+
+    console.log(`  NOTE  the second browser is ${ LISTENER_ENGINE }, and its recorder makes ${ recordsAs }`);
 
     await sender.page.goto(`${ BASE }/app/chats/${ direct.id }`, { waitUntil: 'networkidle' });
     await listener.page.goto(`${ BASE }/app/chats/${ direct.id }`, { waitUntil: 'networkidle' });
@@ -344,11 +367,10 @@ try
 
     await listener.page.screenshot({ path: join(OUT, 'arrived-1280-en.png') });
 
-    const fetched = listener.page.waitForResponse((response) => response.url().includes('/api/chat/voice/') && response.request().method() === 'GET');
-
-    await listener.page.locator(`[data-voice="${ sent?.id }"] [data-play]`).click();
-
-    const file = await fetched;
+    const [file] = await Promise.all([
+        listener.page.waitForResponse((response) => response.url().includes('/api/chat/voice/') && response.request().method() === 'GET'),
+        listener.page.locator(`[data-voice="${ sent?.id }"] [data-play]`).click()
+    ]);
 
     record('its file is fetched when it is first played', file.status() === 200, String(file.status()));
     record('it plays', await until(async () => (await voices(listener)).find((one) => one.id === sent?.id)?.play === 'playing', 6000));
@@ -424,6 +446,10 @@ try
         : await sender.page.evaluate((id) => document.querySelector(`[data-voice="${ id }"]`)?.closest('[data-message]')?.textContent ?? '', answer.id);
 
     record('the answer arrives as a voice message quoting the first', answerArrived && quoted.includes(quote), `${ answer?.clock ?? 'none' }`);
+
+    await sender.page.locator(`[data-voice="${ answer?.id }"] [data-play]`).click();
+    record(`and plays where it arrives, recorded in ${ LISTENER_ENGINE }`, await until(async () => (await voices(sender)).find((one) => one.id === answer?.id)?.play === 'playing', 6000));
+    await sender.page.locator(`[data-voice="${ answer?.id }"] [data-play]`).click();
     record('the reply is let go of once the answer is sent', await until(async () => (await quoteOf(listener)) === '', 3000));
 
     // ---------------------------------------------------------------- 5. a stranger
@@ -573,8 +599,55 @@ try
     await listener.request.post(`${ BASE }/api/tables/${ tableId }/leave`, { data: { forfeit: true } });
     await sender.request.post(`${ BASE }/api/tables/${ tableId }/leave`, { data: { forfeit: true } });
 
-    // ---------------------------------------------------------------- 10. consoles
-    console.log('\n[10] consoles');
+    // ---------------------------------------------------------------- 10. reported
+    console.log('\n[10] reported, and played for the staff');
+
+    await listener.context.addCookies([{ name: 'locale', value: 'en', url: BASE }]);
+    await listener.page.setViewportSize({ width: 1280, height: 900 });
+    await listener.page.goto(`${ BASE }/app/chats/${ direct.id }`, { waitUntil: 'networkidle' });
+    await listener.page.waitForTimeout(SETTLE_MS);
+
+    await listener.page.locator(`[data-voice="${ sent?.id }"] [data-clock]`).click({ button: 'right' });
+    await listener.page.getByRole('menu').getByRole('menuitem', { name: 'About the sender', exact: true }).click();
+    await listener.page.getByRole('button', { name: /^Report / }).first().click();
+
+    const showing = async () => ((await listener.page.locator('[data-showing]').textContent().catch(() => '')) ?? '').trim();
+
+    record('the sheet says which voice message the report will show', await until(async () => await showing() === `Voice message (${ sent?.clock })`, 4000), await showing());
+
+    await listener.page.getByRole('button', { name: 'Send report', exact: true }).click();
+    record('the report is filed', await until(async () => (await listener.page.textContent('body'))?.includes('Report sent.') === true, 6000));
+
+    const [reportId = '', keptFile = ''] = run("select id || '|' || coalesce(voice_id::text, '') from reports order by created_at desc limit 1").split('|');
+
+    record('it keeps the file of the voice message', keptFile === fileId, keptFile);
+
+    run(`insert into staff_members (user_id, role) select id, 'moderator' from users where handle = '${ outsider }' on conflict do nothing`);
+
+    const asPlayer = await listener.request.get(`${ BASE }/api/admin/reports/${ reportId }/voice`);
+
+    record('its file is answered to anybody off the staff as a page that is not there', asPlayer.status() === 404, String(asPlayer.status()));
+
+    await stranger.page.goto(`${ BASE }/admin/reports/${ reportId }`, { waitUntil: 'networkidle' });
+
+    const staffPlay = stranger.page.locator('[data-report-voice] button').first();
+
+    record('a moderator opens the report and finds the voice message there', await until(async () => await staffPlay.isVisible().catch(() => false), 8000));
+
+    const [fromReport] = await Promise.all([
+        stranger.page.waitForResponse((response) => response.url().includes(`/api/admin/reports/${ reportId }/voice`)),
+        staffPlay.click()
+    ]);
+
+    record('its file is fetched from the report', fromReport.status() === 200);
+    record('and plays there, with nothing in its way', await until(async () => await stranger.page.evaluate(() => document.querySelector('[data-report-voice] [data-clock]')?.getAttribute('data-playing') === 'true'), 6000)
+        && await stranger.page.locator('[data-fault]').count() === 0);
+
+    await stranger.page.screenshot({ path: join(OUT, 'report-1280-en.png') });
+    run(`delete from staff_members where user_id = (select id from users where handle = '${ outsider }')`);
+
+    // ---------------------------------------------------------------- 11. consoles
+    console.log('\n[11] consoles');
 
     const errors = [...sender.errors, ...listener.errors, ...stranger.errors];
 
@@ -586,6 +659,11 @@ catch (error)
 }
 finally
 {
+    if (listenerBrowser !== browser)
+    {
+        await listenerBrowser.close();
+    }
+
     await browser.close();
 }
 

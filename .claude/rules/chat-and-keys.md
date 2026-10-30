@@ -1026,7 +1026,9 @@ microphone, and the recording waits there to be heard and sent (VM-D9). Each ref
 the microphone off for the site, none found, another app holding it, a browser that cannot record.
 
 `voice-note.spec.ts`, `voice-send.spec.ts`, `voice-player.spec.ts` and `voice-recorder.spec.ts` hold
-the browser's half, and `admin-report.spec.ts` the staff's player.
+the browser's half, and `admin-report.spec.ts` the staff's player; `tools/qa/voice-message-pass.mjs`
+holds all of it between two real browsers, Chromium beside Chromium or beside Firefox
+(`tools/qa/CLAUDE.md`).
 
 ## Recovery
 

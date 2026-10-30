@@ -1,4 +1,6 @@
 import type { ReportCategory } from '../../data/chat.ts';
+import { decodeDisclosed } from '../../lib/body.ts';
+import { plainOf } from '../../lib/markdown.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
@@ -35,6 +37,14 @@ export default component ReportSheet(props: OverlayProps & {
     derived person = people.byHandle(props.personId);
 
     derived name = person === null ? props.personId : person.displayName.split(' ')[0];
+
+    /** The line the report will show, in its words: what is disclosed is the document they were sealed in. */
+    derived showing = ((): string =>
+    {
+        const said = decodeDisclosed(props.disclose?.text ?? '');
+
+        return said === null ? '' : plainOf(said.text, locale.t('chat.spoilerPreview'));
+    })();
 
     /**
      * Files the report, and says what actually happened.
@@ -81,7 +91,7 @@ export default component ReportSheet(props: OverlayProps & {
                     { () =>
                         <p class="mt-3 rounded-tile border border-line bg-sunk px-3 py-2 text-ui-sm text-muted">
                             <span class="block text-ui-xs text-faint">{ locale.t('report.showing') }</span>
-                            <span dir="auto" class="mt-1 block text-text">{ props.disclose?.text }</span>
+                            <span dir="auto" class="mt-1 block text-text" data-showing>{ showing }</span>
                         </p>
                     }
                 </Show>

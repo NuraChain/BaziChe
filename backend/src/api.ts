@@ -167,7 +167,9 @@ import {
     personView,
     publicPerson,
     inviteCard,
-    inviteCode,
+    inviteSummary,
+    invitedPeople,
+    invitedQuery,
     inviteVisitInput,
     privacy,
     privacyInput,
@@ -684,11 +686,14 @@ export function buildApi(ports: Ports)
                 (context) => ports.vault.reclaim(context.principal.userId, context.input.id))
         })),
 
-        /** The reader's own invite code, and a new one in its place. */
+        /** The reader's own invite code with what came of it, a new code in its place, and the people they invited. */
         invites: feature('/invites', [session], (routes) => ({
-            code: routes.get('/code', { output: inviteCode }, (context) => ports.invites.code(context.principal.userId)),
+            summary: routes.get('/', { output: inviteSummary }, (context) => ports.invites.summary(context.principal.userId)),
 
-            renew: routes.post('/code', { output: inviteCode }, (context) => ports.invites.renew(context.principal.userId))
+            renew: routes.post('/code', { output: inviteSummary }, (context) => ports.invites.renew(context.principal.userId)),
+
+            people: routes.get('/people', { query: invitedQuery, output: invitedPeople },
+                (context) => ports.invites.people(context.principal.userId, context.query.cursor ?? null))
         })),
 
         shop: feature('/shop', [session], (routes) => ({

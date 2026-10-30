@@ -12,8 +12,8 @@ other). `policy.ts` imports nothing, so the browser reads it too, and `invite-po
 alphabet to `invite_codes_shape`. The code is not the handle: a handle can be renamed, which would
 break every link shared, and a code can be retired with nobody renaming. There are no vanity codes.
 
-**One live code a person, made the first time it is asked for** (`GET /api/invites/code`, `{ code,
-link, since, next? }`). `invite_codes_live` is a partial unique index on the person where the code is
+**One live code a person, made the first time it is asked for** (`GET /api/invites`, `{ code, link,
+since, next?, visits, joined, played }`, with what came of it beside it: *What came of it*, below). `invite_codes_live` is a partial unique index on the person where the code is
 not retired, and the code itself is the primary key, so `makeCode` in `domains/invite/service.ts`
 inserts a fresh draw and lets the two indexes decide, ignoring a clash, and reads the live code back:
 a code somebody holds is drawn again, and a code another ask of theirs made meanwhile is theirs. An
@@ -22,8 +22,8 @@ insert that ignores rather than fails is what lets the same function run inside 
 (`${ PUBLIC_ORIGIN }/join/<code>`, development's own origin in development), so the browser never
 composes it.
 
-**A new code retires the old one, at most once a day** (`POST /api/invites/code`). Links already
-shared stop bringing anybody in. Under the person's row lock, so two asks at once are one after the
+**A new code retires the old one, at most once a day** (`POST /api/invites/code`, answering the
+summary). Links already shared stop bringing anybody in. Under the person's row lock, so two asks at once are one after the
 other: a code retired in the last day refuses the next as `invite-code-soon` (409) with `{ at }`, a
 day after that retirement, and `next` on the code says the same while it is still ahead. A person who
 has never had a code is simply made one. The old code ends `greatest(now(), created_at)`, the
@@ -98,6 +98,21 @@ in Persian, and its place in the route table, and `wallet.spec.ts` (*a wallet th
 an invite link*) the sign-in. The specs keep what they store in `tests/memory-storage.ts`, because
 the storage this environment gives them keeps nothing.
 
+## What came of it
+
+**The summary counts every code a person has had** (`cameOf` in the invite service): the devices that
+opened one of their links, a device a day a code (`invite_visits`), the friends who joined through one
+(the `referrals` naming them) and those whose invite counted (`counted_at`). A suspended friend is left
+out of both, as every list leaves one out. An account that is deleted takes its referral with it (the
+foreign key cascades), so nothing of it is left to count or to show.
+
+**The people invited are twenty a page** (`GET /api/invites/people?cursor=`, `people` in the invite
+service), newest first by the microsecond keyset over `(referrals.created_at, invitee_id)`: each
+friend's face as a list draws it (the handle, the name, the picture, the hue and the frame round it),
+when they joined and whether they have played, and nothing else of them: no online state, no last
+seen (RF-D11). A block between the two hides nothing here, because a friend who vanished from the list
+would tell their inviter they had been blocked.
+
 ## A friend who played
 
 **An invite counts when the friend finishes a game their inviter did not play in** (`countedBy` in the
@@ -111,5 +126,6 @@ the friend's next game without them counts. The `invited` ladder, the shop's inv
 a day and once for two asks at once, the page for a face, a minor and every link that no longer works,
 visits, the crediting (in any case, with and without a campaign running) and every code it lets go of,
 and the counting with the inviter in the game, a game still played, a void game and three friends at
-once. `app.spec.ts` (*inviting friends*) holds the routes, what the page sends and the garbage pass's
+once, what came of it across a retired code and a suspended friend, and the people invited a page at a
+time across a millisecond. `app.spec.ts` (*inviting friends*) holds the routes, what the page sends and the garbage pass's
 bodies.

@@ -4,6 +4,8 @@ import { HttpError } from '@azerothjs/http';
 import { IsNull, type DataSource, type EntityManager } from 'typeorm';
 
 import { InviteCampaign, InviteCode, InviteVisit, Match, Referral, User } from '../../entities/index.ts';
+import { cursorOf, keyOf, keysetAfter, olderThan } from '../../lib/keyset.ts';
+import { PROFILE_LOOKS, chosenIn, worn } from '../shop/looks.ts';
 import { CODE_ALPHABET, CODE_LENGTH, codeFrom } from './policy.ts';
 import { INVITE_REFUSALS, type InviteRefusal } from './refusals.ts';
 
@@ -14,6 +16,9 @@ export const inviteRefusal = (word: InviteRefusal, message: string, details?: Re
 
 /** A retired code, one nobody holds, one that is no code and a suspended account's are one answer: a link that no longer works. */
 export const noInvite = () => inviteRefusal('invite-missing', 'That invite link no longer works.');
+
+/** How many people invited one page lists. */
+const PEOPLE_PAGE = 20;
 
 /** How many fresh codes are tried before giving up: two people drawing one is about one in 8.5 × 10^11 already. */
 const CODE_ATTEMPTS = 8;
@@ -97,13 +102,75 @@ export function createInviteService(db: DataSource)
         return row === undefined ? null : { code, userId: row.userId };
     };
 
+    /**
+     * What came of a person's links: the devices that opened any of them, a device a day, and the
+     * friends who joined and who played, leaving out a suspended one as every list does.
+     */
+    const cameOf = async (userId: string) =>
+    {
+        const opened = await db.getRepository(InviteVisit).createQueryBuilder('visit')
+            .innerJoin(InviteCode, 'invite', 'invite.code = visit.code')
+            .select('count(*)::int', 'visits')
+            .where('invite.user_id = :userId', { userId })
+            .getRawOne<{ visits: number }>();
+        const friends = await db.getRepository(Referral).createQueryBuilder('referral')
+            .innerJoin(User, 'friend', 'friend.id = referral.invitee_id')
+            .select('count(*)::int', 'joined')
+            .addSelect('(count(*) filter (where referral.counted_at is not null))::int', 'played')
+            .where('referral.inviter_id = :userId', { userId })
+            .andWhere('friend.is_suspended = false')
+            .getRawOne<{ joined: number; played: number }>();
+
+        return { visits: opened?.visits ?? 0, joined: friends?.joined ?? 0, played: friends?.played ?? 0 };
+    };
+
+    /** The reader's live code, made the first time it is asked for, and what came of their links. */
+    const summary = async (userId: string) =>
+        ({ ...viewOf(await makeCode(db, userId), await nextCode(db, userId)), ...await cameOf(userId) });
+
     return {
         ownerOf,
+        summary,
 
-        /** The reader's live code, made the first time it is asked for. */
-        async code(userId: string)
+        /**
+         * The people the reader invited, newest first, twenty a page: each as a list draws a person,
+         * when they joined and whether they have played, and nothing else of them.
+         */
+        async people(userId: string, cursor: string | null)
         {
-            return viewOf(await makeCode(db, userId), await nextCode(db, userId));
+            const after = keysetAfter(cursor);
+            const query = db.getRepository(Referral).createQueryBuilder('referral')
+                .innerJoin(User, 'friend', 'friend.id = referral.invitee_id')
+                .select('referral.invitee_id', 'id')
+                .addSelect(keyOf('referral.created_at'), 'at_key')
+                .addSelect('referral.created_at', 'joined_at')
+                .addSelect('referral.counted_at is not null', 'played')
+                .addSelect('friend.handle', 'handle')
+                .addSelect('friend.display_name', 'display_name')
+                .addSelect('friend.avatar', 'avatar')
+                .addSelect('friend.hue', 'hue')
+                .addSelect(chosenIn('friend', PROFILE_LOOKS.deco), 'deco')
+                .where('referral.inviter_id = :userId', { userId })
+                .andWhere('friend.is_suspended = false')
+                .orderBy('referral.created_at', 'DESC')
+                .addOrderBy('referral.invitee_id', 'DESC')
+                .limit(PEOPLE_PAGE + 1);
+
+            if (after !== null)
+            {
+                query.andWhere(olderThan('referral.created_at', 'referral.invitee_id'), after);
+            }
+
+            const rows = await query.getRawMany<{ id: string; at_key: string; joined_at: Date; played: boolean; handle: string; display_name: string; avatar: string | null; hue: number; deco: string | null }>();
+
+            return {
+                people: rows.slice(0, PEOPLE_PAGE).map((row) => ({
+                    person: { handle: row.handle, displayName: row.display_name, ...(row.avatar === null ? {} : { avatar: row.avatar }), hue: row.hue, ...worn('deco', row.deco) },
+                    joinedAt: row.joined_at.toISOString(),
+                    played: row.played
+                })),
+                ...cursorOf(rows, PEOPLE_PAGE)
+            };
         },
 
         /**
@@ -112,7 +179,7 @@ export function createInviteService(db: DataSource)
          */
         async renew(userId: string)
         {
-            return await db.transaction(async (tx) =>
+            await db.transaction(async (tx) =>
             {
                 await tx.getRepository(User).findOne({ select: { id: true }, where: { id: userId }, lock: { mode: 'pessimistic_write' } });
 
@@ -130,8 +197,10 @@ export function createInviteService(db: DataSource)
                     .andWhere('retired_at is null')
                     .execute();
 
-                return viewOf(await makeCode(tx, userId), await nextCode(tx, userId));
+                await makeCode(tx, userId);
             });
+
+            return await summary(userId);
         },
 
         /**

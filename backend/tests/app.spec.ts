@@ -125,11 +125,13 @@ describe('a profile for somebody signed out', () =>
 
 describe('inviting friends', () =>
 {
-    const CODE = { code: 'ABCD2345', link: 'http://localhost:3100/join/ABCD2345', since: '2026-10-30T10:00:00.000Z' };
+    const SUMMARY = { code: 'ABCD2345', link: 'http://localhost:3100/join/ABCD2345', since: '2026-10-30T10:00:00.000Z', visits: 3, joined: 2, played: 1 };
 
-    const RENEWED = { code: 'WXYZ6789', link: 'http://localhost:3100/join/WXYZ6789', since: '2026-10-30T11:00:00.000Z', next: '2026-10-31T11:00:00.000Z' };
+    const RENEWED = { code: 'WXYZ6789', link: 'http://localhost:3100/join/WXYZ6789', since: '2026-10-30T11:00:00.000Z', next: '2026-10-31T11:00:00.000Z', visits: 3, joined: 2, played: 1 };
 
     const FACE = { handle: 'sara.k', displayName: 'Sara', hue: 40, avatar: 'http://localhost:3100/avatars/abc.webp', deco: 'decoration.jade' };
+
+    const PEOPLE = { people: [{ person: FACE, joinedAt: '2026-10-30T12:00:00.000Z', played: true }], cursor: '1792540800000000|00000000-0000-4000-8000-000000000001' };
 
     const VISITOR = 'Ab3_-xyzAb3_-xyzAb3_-x';
 
@@ -140,10 +142,18 @@ describe('inviting friends', () =>
         ports: {
             identity: { principal: () => Promise.resolve(who) },
             invites: {
-                code: (...said: unknown[]) =>
+                summary: (...said: unknown[]) =>
                 {
-                    told.push(['code', ...said]);
-                    return Promise.resolve(CODE);
+                    told.push(['summary', ...said]);
+                    return Promise.resolve(SUMMARY);
+                },
+                people: (...said: unknown[]) =>
+                {
+                    told.push(['people', ...said]);
+                    return Promise.resolve({
+                        ...PEOPLE,
+                        people: PEOPLE.people.map((one) => ({ ...one, inviteeId: 'a-uuid', person: { ...one.person, id: 'a-uuid', bio: 'Plays Hokm', isMinor: false, lastSeenAt: 'now' } }))
+                    });
                 },
                 renew: (...said: unknown[]) =>
                 {
@@ -183,8 +193,9 @@ describe('inviting friends', () =>
         const manifest = await (await invitesAs(told).handle(new Request('http://local/api/_manifest'))).json() as Record<string, Record<string, { method: string; path: string }>>;
 
         expect(Object.entries(manifest.invites).map(([name, route]) => `${ name } ${ route.method } ${ route.path }`).sort()).toEqual([
-            'code GET /invites/code',
-            'renew POST /invites/code'
+            'people GET /invites/people',
+            'renew POST /invites/code',
+            'summary GET /invites'
         ]);
         expect(Object.entries(manifest.public).filter(([name]) => name.startsWith('invit') || name === 'visit').map(([name, route]) => `${ name } ${ route.method } ${ route.path }`).sort()).toEqual([
             'invite GET /public/invites/:code',
@@ -192,18 +203,22 @@ describe('inviting friends', () =>
         ]);
     });
 
-    it('answers the reader their code and a new one, and nobody who is not signed in', async () =>
+    it('answers the reader their code with what came of it, a new one, and whom they invited, and nobody who is not signed in', async () =>
     {
         const told: unknown[][] = [];
 
-        expect(await (await call(invitesAs(told), '/api/invites/code')).json()).toEqual(CODE);
+        expect(await (await call(invitesAs(told), '/api/invites')).json()).toEqual(SUMMARY);
         expect(await (await post(invitesAs(told), '/invites/code')).json()).toEqual(RENEWED);
-        expect(told).toEqual([['code', 'somebody'], ['renew', 'somebody']]);
+        expect(await (await call(invitesAs(told), '/api/invites/people')).json(), 'nothing of a person the page does not draw').toEqual(PEOPLE);
+        expect(await (await call(invitesAs(told), `/api/invites/people?cursor=${ encodeURIComponent(PEOPLE.cursor) }`)).json()).toEqual(PEOPLE);
+        expect((await call(invitesAs(told), `/api/invites/people?cursor=${ 'x'.repeat(81) }`)).status).toBe(422);
+        expect(told).toEqual([['summary', 'somebody'], ['renew', 'somebody'], ['people', 'somebody', null], ['people', 'somebody', PEOPLE.cursor]]);
 
         const nobody: unknown[][] = [];
 
-        expect((await call(invitesAs(nobody, null), '/api/invites/code')).status).toBe(401);
+        expect((await call(invitesAs(nobody, null), '/api/invites')).status).toBe(401);
         expect((await post(invitesAs(nobody, null), '/invites/code')).status).toBe(401);
+        expect((await call(invitesAs(nobody, null), '/api/invites/people')).status).toBe(401);
         expect(nobody).toEqual([]);
     });
 
@@ -256,6 +271,7 @@ describe('inviting friends', () =>
         expect(bodies).toContain('invite: bad.slice(0, 32)');
         expect(pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='))).toContain(`'/invites/code'`);
         expect(pass).toContain(`'/public/invites/':`);
+        expect(pass.slice(pass.indexOf('const QUERIES ='), pass.indexOf('const message ='))).toContain(`'/invites/people': ['cursor']`);
     });
 });
 

@@ -1537,30 +1537,47 @@ export const publicPerson = object({
 export type PublicPerson = Infer<typeof publicPerson>;
 
 /** The reader's live invite code and the link that carries it; `next` is when a new one may be made, while that is still ahead. */
-export const inviteCode = object({
+/**
+ * The reader's own code, and what came of their links, every code they have had: the devices
+ * that opened one (a device a day), the friends who joined and those who played.
+ */
+export const inviteSummary = object({
     code: string(),
     link: string(),
     since: string(),
-    next: string().optional()
+    next: string().optional(),
+    visits: number(),
+    joined: number(),
+    played: number()
 });
 
-export type InviteCodeView = Infer<typeof inviteCode>;
+export type InviteSummary = Infer<typeof inviteSummary>;
+
+const inviteFace = object({
+    handle: string(),
+    displayName: string(),
+    avatar: string().optional(),
+    hue: number(),
+    deco: string().optional()
+});
 
 /**
  * What a link's page shows of whoever invited: their face as their public profile shows it, and
  * nothing where that profile shows nothing (a minor), though the link still works.
  */
-export const inviteCard = object({
-    inviter: object({
-        handle: string(),
-        displayName: string(),
-        avatar: string().optional(),
-        hue: number(),
-        deco: string().optional()
-    }).optional()
-});
+export const inviteCard = object({ inviter: inviteFace.optional() });
 
 export type InviteCard = Infer<typeof inviteCard>;
+
+/** Somebody the reader invited: their face, when they joined and whether they have played, and nothing else of them. */
+export const invitedPeople = object({
+    people: array(object({ person: inviteFace, joinedAt: string(), played: boolean() })),
+    cursor: string().optional()
+});
+
+export type InvitedPeople = Infer<typeof invitedPeople>;
+
+export const invitedQuery = object({ cursor: string({ max: 80 }).optional() });
 
 export const inviteVisitInput = object({ visitor: string({ pattern: VISITOR_SHAPE }) });
 

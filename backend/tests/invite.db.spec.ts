@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
-import { InviteCampaign, InviteCode, InviteVisit, Referral, User, entities } from '../src/entities/index.ts';
+import { EquippedItem, InviteCampaign, InviteCode, InviteVisit, OwnedItem, Referral, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import { createInviteService } from '../src/domains/invite/service.ts';
@@ -192,20 +192,20 @@ describe.skipIf(!active)('invites, against a real database', () =>
 
             expect(await db.getRepository(InviteCode).countBy({ userId: id }), 'nothing made before it was asked for').toBe(0);
 
-            const first = await ports.invites.code(id);
+            const first = await ports.invites.summary(id);
 
             expect(first.code).toMatch(SHAPE);
             expect(first.link).toBe(`${ CONFIG.origin }/join/${ first.code }`);
             expect(Math.abs(Date.parse(first.since) - Date.now())).toBeLessThan(60_000);
             expect(first).not.toHaveProperty('next');
-            expect(await ports.invites.code(id)).toEqual(first);
+            expect(await ports.invites.summary(id)).toEqual(first);
             expect(await db.getRepository(InviteCode).countBy({ userId: id })).toBe(1);
         });
 
         it('is one code for asks that cross, each having found none before any was made', async () =>
         {
             const { id } = await enter();
-            const codes = (await crossing(6, () => ports.invites.code(id))).map((one) => ('value' in one ? one.value.code : `refused: ${ String(one.error) }`));
+            const codes = (await crossing(6, () => ports.invites.summary(id))).map((one) => ('value' in one ? one.value.code : `refused: ${ String(one.error) }`));
 
             expect(new Set(codes).size, codes.join(', ')).toBe(1);
             expect(codes[0]).toMatch(SHAPE);
@@ -215,7 +215,7 @@ describe.skipIf(!active)('invites, against a real database', () =>
         it('is a different code for each person', async () =>
         {
             const people = await Promise.all(Array.from({ length: 4 }, () => enter()));
-            const codes = await Promise.all(people.map((one) => ports.invites.code(one.id)));
+            const codes = await Promise.all(people.map((one) => ports.invites.summary(one.id)));
 
             expect(new Set(codes.map((one) => one.code)).size).toBe(4);
         });
@@ -223,14 +223,14 @@ describe.skipIf(!active)('invites, against a real database', () =>
         it('is retired for a new one at most once a day, which says when the next may be made', async () =>
         {
             const { id } = await enter();
-            const first = await ports.invites.code(id);
+            const first = await ports.invites.summary(id);
             const renewed = await ports.invites.renew(id);
 
             expect(renewed.code).toMatch(SHAPE);
             expect(renewed.code).not.toBe(first.code);
             expect(renewed.link).toBe(`${ CONFIG.origin }/join/${ renewed.code }`);
             expect(Math.abs(Date.parse(renewed.next!) - Date.now() - DAY)).toBeLessThan(60_000);
-            expect(await ports.invites.code(id), 'the new code, and when the next may be made').toEqual(renewed);
+            expect(await ports.invites.summary(id), 'the new code, and when the next may be made').toEqual(renewed);
             expect(await refusal(ports.invites.card(first.code)), 'a link with the old code no longer works').toEqual(MISSING);
 
             expect(await refusal(ports.invites.renew(id)), 'a second the same day').toEqual({
@@ -256,20 +256,20 @@ describe.skipIf(!active)('invites, against a real database', () =>
 
             expect(made.code).toMatch(SHAPE);
             expect(made).not.toHaveProperty('next');
-            expect(await ports.invites.code(id)).toEqual(made);
+            expect(await ports.invites.summary(id)).toEqual(made);
         });
 
         it('is renewed once when two asks for a new one cross', async () =>
         {
             const { id } = await enter();
-            const first = await ports.invites.code(id);
+            const first = await ports.invites.summary(id);
             const answers = await crossing(2, () => refusal(ports.invites.renew(id)));
             const refused = answers.map((one) => ('value' in one ? one.value : { thrown: String(one.error) }));
 
             expect(refused.filter((one) => one === null)).toHaveLength(1);
             expect(refused.filter((one) => one !== null)).toMatchObject([{ status: 409, code: 'invite-code-soon' }]);
             expect(await db.getRepository(InviteCode).countBy({ userId: id })).toBe(2);
-            expect((await ports.invites.code(id)).code).not.toBe(first.code);
+            expect((await ports.invites.summary(id)).code).not.toBe(first.code);
         });
     });
 
@@ -279,7 +279,7 @@ describe.skipIf(!active)('invites, against a real database', () =>
         {
             const { id, account } = await enter();
             await db.getRepository(User).update({ id }, { displayName: 'Sara Kamali', hue: 140 });
-            const { code } = await ports.invites.code(id);
+            const { code } = await ports.invites.summary(id);
 
             expect(await ports.invites.card(code)).toEqual({ inviter: { handle: account.handle, displayName: 'Sara Kamali', hue: 140 } });
             expect(await ports.invites.card(code.toLowerCase()), 'in any case').toEqual({ inviter: { handle: account.handle, displayName: 'Sara Kamali', hue: 140 } });
@@ -289,7 +289,7 @@ describe.skipIf(!active)('invites, against a real database', () =>
         {
             const { id } = await enter();
             await db.getRepository(User).update({ id }, { isMinor: true, allowStrangerMessages: false });
-            const { code } = await ports.invites.code(id);
+            const { code } = await ports.invites.summary(id);
 
             expect(await ports.invites.card(code)).toEqual({});
         });
@@ -298,9 +298,9 @@ describe.skipIf(!active)('invites, against a real database', () =>
         {
             const { id } = await enter();
             const { id: suspended } = await enter();
-            const retired = (await ports.invites.code(id)).code;
+            const retired = (await ports.invites.summary(id)).code;
             await ports.invites.renew(id);
-            const theirs = (await ports.invites.code(suspended)).code;
+            const theirs = (await ports.invites.summary(suspended)).code;
             await db.getRepository(User).update({ id: suspended }, { isSuspended: true });
 
             for (const code of [retired, 'ZZZZ2222', 'not-a-code', '', theirs])
@@ -317,7 +317,7 @@ describe.skipIf(!active)('invites, against a real database', () =>
         {
             const { id } = await enter();
             const { id: stranger } = await enter();
-            const { code } = await ports.invites.code(id);
+            const { code } = await ports.invites.summary(id);
 
             await ports.invites.visit(code, 'a'.repeat(22), null);
             await ports.invites.visit(code.toLowerCase(), 'a'.repeat(22), null);
@@ -333,7 +333,7 @@ describe.skipIf(!active)('invites, against a real database', () =>
         it('is counted again on another day', async () =>
         {
             const { id } = await enter();
-            const { code } = await ports.invites.code(id);
+            const { code } = await ports.invites.summary(id);
 
             await ports.invites.visit(code, 'a'.repeat(22), null);
             await db.query(`update invite_visits set day = day - 1`);
@@ -348,7 +348,7 @@ describe.skipIf(!active)('invites, against a real database', () =>
         it('is credited to the live code it came by, in any case, with the campaign running when it was made', async () =>
         {
             const { id: inviterId, account: inviter } = await enter();
-            const { code } = await ports.invites.code(inviterId);
+            const { code } = await ports.invites.summary(inviterId);
             const running = await campaign();
             const { account: first } = await enter(code.toLowerCase());
 
@@ -365,7 +365,7 @@ describe.skipIf(!active)('invites, against a real database', () =>
         it('belongs to no campaign that is active outside its window', async () =>
         {
             const { id: inviterId } = await enter();
-            const { code } = await ports.invites.code(inviterId);
+            const { code } = await ports.invites.summary(inviterId);
             const later = await campaign({ startsAt: new Date(Date.now() + DAY) });
             await enter(code);
 
@@ -379,7 +379,7 @@ describe.skipIf(!active)('invites, against a real database', () =>
         {
             const { id: inviterId, account: inviter } = await enter();
             const { id: otherId } = await enter();
-            const [mine, theirs] = await Promise.all([ports.invites.code(inviterId), ports.invites.code(otherId)]);
+            const [mine, theirs] = await Promise.all([ports.invites.summary(inviterId), ports.invites.summary(otherId)]);
             const { wallet, account: invitee } = await enter(mine.code);
 
             await again(wallet, theirs.code);
@@ -396,9 +396,9 @@ describe.skipIf(!active)('invites, against a real database', () =>
         {
             const { id } = await enter();
             const { id: suspended } = await enter();
-            const retired = (await ports.invites.code(id)).code;
+            const retired = (await ports.invites.summary(id)).code;
             await ports.invites.renew(id);
-            const theirs = (await ports.invites.code(suspended)).code;
+            const theirs = (await ports.invites.summary(suspended)).code;
             await db.getRepository(User).update({ id: suspended }, { isSuspended: true });
 
             for (const invite of ['ZZZZ2222', retired, theirs, 'sara.k', '', 'x'.repeat(32)])
@@ -417,7 +417,7 @@ describe.skipIf(!active)('invites, against a real database', () =>
         it('counts once the friend finishes a game the inviter did not play in, and names who invited them', async () =>
         {
             const { id: inviterId } = await enter();
-            const { code } = await ports.invites.code(inviterId);
+            const { code } = await ports.invites.summary(inviterId);
             const { id: friend } = await enter(code);
             const { id: stranger } = await enter();
             const invites = createInviteService(db);
@@ -438,7 +438,7 @@ describe.skipIf(!active)('invites, against a real database', () =>
         it('counts every friend in a game the inviter did not play in, and none in one they did', async () =>
         {
             const { id: inviterId } = await enter();
-            const { code } = await ports.invites.code(inviterId);
+            const { code } = await ports.invites.summary(inviterId);
             const [one, two, three] = await Promise.all([enter(code), enter(code), enter(code)]);
             const invites = createInviteService(db);
 
@@ -453,6 +453,136 @@ describe.skipIf(!active)('invites, against a real database', () =>
         it('counts nothing for a game nobody has heard of', async () =>
         {
             expect(await createInviteService(db).countedBy('3f0e3c2a-1111-4222-8333-444455556666')).toEqual({ game: '', counted: [] });
+        });
+    });
+
+    describe('what came of it', () =>
+    {
+        it('counts the devices that opened any of the person\'s links, the friends who joined and those who played', async () =>
+        {
+            const { id: inviterId } = await enter();
+            const first = (await ports.invites.summary(inviterId)).code;
+
+            await ports.invites.visit(first, 'a'.repeat(22), null);
+            await ports.invites.visit(first, 'b'.repeat(22), null);
+            await ports.invites.renew(inviterId);
+
+            const second = (await ports.invites.summary(inviterId)).code;
+
+            await ports.invites.visit(second, 'a'.repeat(22), null);
+
+            const { id: friend } = await enter(second);
+            await enter(second);
+            const { id: gone } = await enter(second);
+            const { id: stranger } = await enter();
+
+            await createInviteService(db).countedBy(await game([{ id: friend, result: 'won' }, { id: stranger, result: 'lost' }]));
+            await createInviteService(db).countedBy(await game([{ id: gone, result: 'won' }, { id: stranger, result: 'lost' }]));
+            await db.getRepository(User).update({ id: gone }, { isSuspended: true });
+
+            const { id: other } = await enter();
+            await ports.invites.visit((await ports.invites.summary(other)).code, 'c'.repeat(22), null);
+
+            expect(await ports.invites.summary(inviterId), 'a retired link\'s visits still counted, a suspended friend not').toMatchObject({ code: second, visits: 3, joined: 2, played: 1 });
+            expect(await ports.invites.summary(other)).toMatchObject({ visits: 1, joined: 0, played: 0 });
+        });
+
+        it('answers a new code with the counts beside it', async () =>
+        {
+            const { id: inviterId } = await enter();
+            const { code } = await ports.invites.summary(inviterId);
+            await enter(code);
+
+            const renewed = await ports.invites.renew(inviterId);
+
+            expect(renewed).toMatchObject({ visits: 0, joined: 1, played: 0 });
+            expect(renewed.code).not.toBe(code);
+            expect(renewed.next).toBeDefined();
+        });
+    });
+
+    describe('the people invited', () =>
+    {
+        const all = async (inviterId: string) =>
+        {
+            const seen: { handle: string; played: boolean; joinedAt: string }[] = [];
+            let cursor: string | undefined;
+            let pages = 0;
+
+            do
+            {
+                const page = await ports.invites.people(inviterId, cursor ?? null);
+
+                pages += 1;
+                seen.push(...page.people.map((one) => ({ handle: one.person.handle, played: one.played, joinedAt: one.joinedAt })));
+                cursor = page.cursor;
+            }
+            while (cursor !== undefined && pages < 10);
+
+            return { seen, pages };
+        };
+
+        it('lists them newest first, twenty a page, a page cut in the middle of a millisecond losing nobody', async () =>
+        {
+            const { id: inviterId } = await enter();
+            const { code } = await ports.invites.summary(inviterId);
+            const friends: { id: string; handle: string }[] = [];
+
+            for (let one = 0; one < 23; one += 1)
+            {
+                const { id, account } = await enter(code);
+                friends.push({ id, handle: account.handle });
+            }
+
+            for (const [at, friend] of friends.entries())
+            {
+                await db.query(`update referrals set created_at = timestamptz '2026-10-30 10:00:00+00' + $2 * interval '300 microseconds' where invitee_id = $1`, [friend.id, at]);
+            }
+
+            const { seen, pages } = await all(inviterId);
+
+            expect(pages).toBe(2);
+            expect(seen.map((one) => one.handle)).toEqual(friends.map((one) => one.handle).reverse());
+            expect([seen[0].joinedAt, seen[22].joinedAt], 'when each joined, newest and oldest').toEqual(['2026-10-30T10:00:00.006Z', '2026-10-30T10:00:00.000Z']);
+        });
+
+        it('says when each joined and whether they have played, as lists draw a person and nothing more', async () =>
+        {
+            const { id: inviterId } = await enter();
+            const { code } = await ports.invites.summary(inviterId);
+            const { id: friend, account } = await enter(code);
+            const { id: stranger } = await enter();
+            await db.getRepository(User).update({ id: friend }, { displayName: 'Mina Rad', hue: 300 });
+            await createInviteService(db).countedBy(await game([{ id: friend, result: 'won' }, { id: stranger, result: 'lost' }]));
+
+            const { id: framed, account: dressed } = await enter(code);
+            await db.getRepository(User).update({ id: framed }, { displayName: 'Omid', hue: 120, avatar: 'http://localhost:1/avatars/omid.webp' });
+            await db.getRepository(OwnedItem).insert({ userId: framed, itemId: 'decoration.jade', via: 'grant', orderId: null, giverId: null });
+            await db.getRepository(EquippedItem).insert({ userId: framed, slot: 'profile.decoration', itemId: 'decoration.jade' });
+
+            const page = await ports.invites.people(inviterId, null);
+
+            expect(page.people.map((one) => one.person)).toEqual([
+                { handle: dressed.handle, displayName: 'Omid', avatar: 'http://localhost:1/avatars/omid.webp', hue: 120, deco: 'decoration.jade' },
+                { handle: account.handle, displayName: 'Mina Rad', hue: 300 }
+            ]);
+            expect(page.people.map((one) => one.played)).toEqual([false, true]);
+            expect(Math.abs(Date.parse(page.people[1].joinedAt) - Date.now())).toBeLessThan(60_000);
+            expect(page).not.toHaveProperty('cursor');
+        });
+
+        it('leaves out a suspended friend and anybody somebody else invited, and reads a cursor that is none from the top', async () =>
+        {
+            const { id: inviterId } = await enter();
+            const { id: otherId } = await enter();
+            const [mine, theirs] = await Promise.all([ports.invites.summary(inviterId), ports.invites.summary(otherId)]);
+            const { account: kept } = await enter(mine.code);
+            const { id: suspended } = await enter(mine.code);
+            await enter(theirs.code);
+            await db.getRepository(User).update({ id: suspended }, { isSuspended: true });
+
+            expect((await all(inviterId)).seen.map((one) => one.handle)).toEqual([kept.handle]);
+            expect((await ports.invites.people(inviterId, 'not-a-cursor')).people.map((one) => one.person.handle)).toEqual([kept.handle]);
         });
     });
 });

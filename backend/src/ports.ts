@@ -49,7 +49,8 @@ import type {
     PersonView,
     PublicPerson,
     InviteCard,
-    InviteCodeView,
+    InviteSummary,
+    InvitedPeople,
     Privacy,
     ChatMessage,
     ConversationDevices,
@@ -606,14 +607,17 @@ export interface VaultPort
     reclaim(me: string, escrowId: string): Promise<WalletCall>;
 }
 
-/** A person's invite code, and the page a link with it opens. */
+/** A person's invite code, what came of it, and the page a link with it opens. */
 export interface InvitePort
 {
-    /** The reader's live code and the link that carries it, made the first time it is asked for. */
-    code(me: string): Promise<InviteCodeView>;
+    /** The reader's live code with the link that carries it, made the first time it is asked for, and what came of their links. */
+    summary(me: string): Promise<InviteSummary>;
 
     /** A new code in place of the reader's live one, at most once a day (`invite-code-soon`): links already shared stop bringing anybody in. */
-    renew(me: string): Promise<InviteCodeView>;
+    renew(me: string): Promise<InviteSummary>;
+
+    /** The people the reader invited, newest first, twenty a page; a suspended account left out. */
+    people(me: string, cursor: string | null): Promise<InvitedPeople>;
 
     /** Who a link invites to, as their public profile shows them; a link that no longer works is `invite-missing`. */
     card(code: string): Promise<InviteCard>;

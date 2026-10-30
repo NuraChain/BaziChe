@@ -58,6 +58,7 @@ const QUERIES = {
     '/donations/history': ['side', 'cursor'],
     '/donations/players': ['match'],
     '/markets/positions': ['cursor'],
+    '/invites/people': ['cursor'],
     '/admin/log': ['cursor', 'staff', 'person', 'kind'],
     '/admin/people': ['q', 'list', 'cursor'],
     '/admin/people/:handle/history': ['cursor'],
@@ -257,7 +258,7 @@ const run = async () =>
     await other.post(`/tables/${ table.body?.id }/ready`, { ready: true });
 
     const started = await me.post(`/tables/${ table.body?.id }/start`);
-    const invite = await other.get('/invites/code');
+    const invite = await other.get('/invites');
 
     const real = {
         '/tables/': table.body?.id,

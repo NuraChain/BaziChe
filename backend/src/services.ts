@@ -1873,9 +1873,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         },
 
         invites: {
-            code: async (me) => linked(await invites.code(me)),
+            summary: async (me) => linked(await invites.summary(me)),
 
             renew: async (me) => linked(await invites.renew(me)),
+
+            people: (me, cursor) => invites.people(me, cursor),
 
             /** A link's page shows its inviter only where their public profile would, so a minor's link works with no face. */
             async card(code)

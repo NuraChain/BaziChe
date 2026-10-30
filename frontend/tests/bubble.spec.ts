@@ -589,7 +589,7 @@ describe('a right click on a line, and the bar a pointer finds beside it', () =>
         const classes = bar.className.split(/\s+/);
 
         expect(classes, 'a bar nobody can see covers no line').toContain('pointer-events-none');
-        expect(classes, 'and takes the pointer while its own line is hovered or holds the keyboard').toEqual(expect.arrayContaining(['group-hover/row:pointer-events-auto', 'focus-within:pointer-events-auto']));
+        expect(classes, 'and takes the pointer while its own line is hovered, once it is laid, or holds the keyboard').toEqual(expect.arrayContaining(['data-laid:group-hover/row:pointer-events-auto', 'focus-within:pointer-events-auto']));
         expect(classes.filter((one) => one.startsWith('before:')), 'and needs no bridge: beside its line, the row itself is under the pointer on the way to it').toEqual([]);
         expect(classes.filter((one) => /^p[xy]?-/.test(one)), 'nor padding: as tall as its buttons and border, beside a line of one row it stays in the gap between lines').toEqual([]);
     });
@@ -611,6 +611,59 @@ describe('a right click on a line, and the bar a pointer finds beside it', () =>
         row.dispatchEvent(new Event('pointerenter'));
 
         expect([bar.style.top, bar.style.bottom], 'laid by its top, the foot let go').toEqual(['2px', 'auto']);
+    });
+
+    it('shows its bar only once it is laid, and lays one drawn under a pointer already in its row at the first move', async () =>
+    {
+        const [line, setLine] = createSignal(text('m-1', 'Up for a game?', { from: 'alex', outgoing: 'sending' }));
+        const router = createRouter({ routes, history: createMemoryHistory('/app/chats/c-1'), scroll: false });
+        const container = renderTest(() => RouterProvider({
+            router,
+            children: () => MessageBubble({
+                get message()
+                {
+                    return line();
+                },
+                me: 'alex',
+                onActions: () => undefined,
+                onReply: () => undefined,
+                onReact: () => undefined,
+                onMenu: () => undefined
+            })
+        }) as Rendered).container;
+        const row = container.querySelector<HTMLElement>('[data-message]')!;
+        const barOf = () => [...container.querySelectorAll<HTMLElement>('div')].find((one) => one.className.includes('pointer-fine:flex'));
+
+        expect(barOf(), 'a line on its way has no bar').toBeUndefined();
+
+        row.dispatchEvent(new Event('pointerenter'));
+        setLine(text('m-1', 'Up for a game?', { from: 'alex' }));
+        await settle();
+
+        const bar = barOf()!;
+        const classes = bar.className.split(/\s+/);
+
+        expect(container.querySelector('[data-message]'), 'the same row, which the pointer is already in').toBe(row);
+        expect(bar.hasAttribute('data-laid'), 'drawn once the server has the line, with no entering left to lay it').toBe(false);
+        expect(classes, 'shown under a hovered row only once it is laid').toEqual(expect.arrayContaining(['data-laid:group-hover/row:opacity-100', 'data-laid:group-hover/row:pointer-events-auto']));
+        expect(classes.filter((one) => one.startsWith('group-hover/row:')), 'never before, where it would lie over the start of its line').toEqual([]);
+
+        Object.defineProperty(bar, 'offsetWidth', { configurable: true, value: 120 });
+        Object.defineProperty(bar, 'offsetHeight', { configurable: true, value: 36 });
+        boxed(row, 0, 100, 800, 60);
+        boxed(bar.parentElement!, 460, 110, 300, 40);
+        row.dispatchEvent(new Event('pointermove', { bubbles: true }));
+
+        expect([bar.style.left, bar.style.top, bar.hasAttribute('data-laid')], 'laid beside its line by the first move').toEqual(['-128px', '2px', true]);
+
+        boxed(bar.parentElement!, 40, 110, 300, 40);
+        row.dispatchEvent(new Event('pointermove', { bubbles: true }));
+
+        expect(bar.style.left, 'and the moves after it measure nothing').toBe('-128px');
+
+        row.dispatchEvent(new Event('pointerenter'));
+
+        expect(bar.style.left, 'while entering the row lays it again').toBe('308px');
     });
 
     it('steps its bar aside while its menu is open, and keeps it', async () =>

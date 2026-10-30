@@ -391,7 +391,15 @@ steps aside (`menued`), and a conversation whose menu is open is marked in the l
 are physical, so it is placed with `left` and `top` whichever way the page reads. It takes the
 pointer only while its line is hovered or holds the keyboard (`pointer-events-none` otherwise): a
 bar nobody can see still took the pointer, and the walk found one lying over its own line before it
-was first placed, where it took the hover and the press meant for the line. Beside its line it
+was first placed, where it took the hover and the press meant for the line. **And it is shown and
+takes the pointer only once it has been laid** (`data-laid`), because a row can be hovered with
+nothing having laid its bar: after a page loads, Firefox counts a line drawn under a pointer that
+has not moved as hovered and says the pointer entered only at its next move (Chromium counts
+neither until then), and a line's bar is drawn once the server has the line, under a pointer that
+may already be in its row. Shown there, the bar lay over the start of its line, and over a voice
+message it took the press meant for play: the voice message pass in Firefox found it, the listener's
+pointer resting where the message arrived. The first move inside a row lays a bar no entering has
+laid (`layUnlaid`), and the moves after it measure nothing. Beside its line it
 needs no bridge, since the row is under the pointer all the way across to it. **Wherever the bar
 is laid, the thread can scroll no further than before.** Until it is first laid it rests just inside
 the foot of its line (`bottom-1`), and laid beside a line of one row it reaches a pixel into the gap

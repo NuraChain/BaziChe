@@ -153,7 +153,12 @@ export default component MessageBubble(props: {
      * it is first laid the bar rests just inside the foot of its line, so wherever it is laid the
      * thread can scroll no further than before: a bar hanging below the newest line made the
      * thread's reach shrink at the first hover, and the browser's clamp of that scroll closed a menu
-     * opened on the line.
+     * opened on the line. And until then it is neither shown nor pressable (`data-laid`), because a
+     * row can be hovered with nothing having laid its bar: Firefox counts a line drawn under a
+     * pointer that has not moved since the page loaded as hovered and says the pointer entered only
+     * at its next move, and a line's bar is drawn once the server has the line, under a pointer that
+     * may already be in its row. Shown there, the bar lay over the start of its line, a voice
+     * message's play button with it, and took the press.
      */
     const fit = () =>
     {
@@ -188,6 +193,16 @@ export default component MessageBubble(props: {
         bar.style.left = `${ Math.round(place.x) }px`;
         bar.style.top = `${ Math.round(place.y) }px`;
         bar.style.bottom = 'auto';
+        bar.setAttribute('data-laid', '');
+    };
+
+    /** The first move inside a row lays a bar that no entering has laid, and the moves after it measure nothing. */
+    const layUnlaid = () =>
+    {
+        if (toolbar !== null && !toolbar.hasAttribute('data-laid'))
+        {
+            fit();
+        }
     };
 
     /** A right click opens the line's menu at the pointer, except on a link or a selection, which the browser's own menu serves. */
@@ -385,7 +400,7 @@ export default component MessageBubble(props: {
         }
     >
         { () =>
-            <div ref={ (element) => row = element } class={ () => [ 'group/row relative flex w-full touch-pan-y items-end gap-2', mine ? 'flex-row-reverse' : '' ].filter(Boolean).join(' ') } data-message={ props.message.id } onContextMenu={ menu } onPointerEnter={ fit } onFocusIn={ fit }>
+            <div ref={ (element) => row = element } class={ () => [ 'group/row relative flex w-full touch-pan-y items-end gap-2', mine ? 'flex-row-reverse' : '' ].filter(Boolean).join(' ') } data-message={ props.message.id } onContextMenu={ menu } onPointerEnter={ fit } onPointerMove={ layUnlaid } onFocusIn={ fit }>
                 <Show when={ props.onReply !== undefined }>
                     { () =>
                         <span ref={ (element) => cue = element } class="pointer-events-none absolute end-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-raised text-accent opacity-0" aria-hidden="true">
@@ -500,7 +515,7 @@ export default component MessageBubble(props: {
                             <div
                                 ref={ (element) => toolbar = element }
                                 class={ () => [
-                                    'pointer-events-none absolute bottom-1 left-0 z-10 hidden w-max items-center gap-0.5 rounded-full border border-line-strong bg-lifted shadow-lg shadow-black/30 opacity-0 transition-opacity duration-150 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 pointer-fine:flex motion-reduce:transition-none',
+                                    'pointer-events-none absolute bottom-1 left-0 z-10 hidden w-max items-center gap-0.5 rounded-full border border-line-strong bg-lifted shadow-lg shadow-black/30 opacity-0 transition-opacity duration-150 data-laid:group-hover/row:pointer-events-auto data-laid:group-hover/row:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 pointer-fine:flex motion-reduce:transition-none',
                                     pop.current()?.anchor === toolbar && toolbar !== null ? 'pointer-events-auto opacity-100' : '',
                                     props.menued === true ? 'invisible' : ''
                                 ].filter(Boolean).join(' ') }

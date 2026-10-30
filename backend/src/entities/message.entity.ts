@@ -2,8 +2,9 @@ import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, 
 import { Conversation } from './conversation.entity.ts';
 import { Device } from './device.entity.ts';
 import { User } from './user.entity.ts';
+import { VoiceNote } from './voice-note.entity.ts';
 
-export type MessageKind = 'text' | 'reaction' | 'edit' | 'deleted' | 'system' | 'invite' | 'result';
+export type MessageKind = 'text' | 'voice' | 'reaction' | 'edit' | 'deleted' | 'system' | 'invite' | 'result';
 
 /**
  * One line in a conversation: words XOR a payload.
@@ -21,17 +22,23 @@ export type MessageKind = 'text' | 'reaction' | 'edit' | 'deleted' | 'system' | 
  *
  * A reaction and an edit are sealed rows ABOUT another row, and `target_id` says which: the one
  * column of theirs in the clear, so that a page of history can be handed what is about it.
+ *
+ * A voice message is sealed as a line is, and `voice_id` names its file in the clear the same way:
+ * the server has to know which file a message names to decide who may fetch it and when it can go.
+ * Its sealed document names the file again, so a row moved onto another file opens as tampered.
  */
-@Check('messages_body_xor_payload', `(kind in ('text', 'reaction', 'edit') and body is not null and payload is null) or (kind in ('system', 'invite', 'result') and payload is not null and body is null) or (kind = 'deleted' and body is null and payload is null)`)
-@Check('messages_kind_known', `kind in ('text', 'reaction', 'edit', 'deleted', 'system', 'invite', 'result')`)
-@Check('messages_line_is_plain', `kind in ('text', 'reaction', 'edit', 'deleted') or ( epoch is null and seq is null and iv is null and sender_device_id is null and signature is null and client_at is null and commitment is null and frank is null )`)
+@Check('messages_body_xor_payload', `(kind in ('text', 'voice', 'reaction', 'edit') and body is not null and payload is null) or (kind in ('system', 'invite', 'result') and payload is not null and body is null) or (kind = 'deleted' and body is null and payload is null)`)
+@Check('messages_kind_known', `kind in ('text', 'voice', 'reaction', 'edit', 'deleted', 'system', 'invite', 'result')`)
+@Check('messages_line_is_plain', `kind in ('text', 'voice', 'reaction', 'edit', 'deleted') or ( epoch is null and seq is null and iv is null and sender_device_id is null and signature is null and client_at is null and commitment is null and frank is null )`)
 @Check('messages_about_has_target', `(kind in ('reaction', 'edit')) = (target_id is not null)`)
-@Check('messages_text_has_sender', `kind not in ('text', 'reaction', 'edit', 'deleted') or sender_id is not null`)
-@Check('messages_text_is_sealed', `kind not in ('text', 'reaction', 'edit') or ( epoch is not null and seq is not null and iv is not null and sender_device_id is not null and signature is not null and client_at is not null and commitment is not null and frank is not null )`)
+@Check('messages_text_has_sender', `kind not in ('text', 'voice', 'reaction', 'edit', 'deleted') or sender_id is not null`)
+@Check('messages_text_is_sealed', `kind not in ('text', 'voice', 'reaction', 'edit') or ( epoch is not null and seq is not null and iv is not null and sender_device_id is not null and signature is not null and client_at is not null and commitment is not null and frank is not null )`)
 @Check('messages_tombstone_is_empty', `kind <> 'deleted' or ( iv is null and signature is null and commitment is null and frank is null )`)
 @Index('messages_expires_at', ['expiresAt'], { where: `expires_at is not null` })
 @Index('messages_sender_seq', ['conversationId', 'epoch', 'senderDeviceId', 'seq'], { unique: true, where: `seq is not null` })
+@Check('messages_voice_names_file', `(kind = 'voice') = (voice_id is not null)`)
 @Index('messages_target', ['targetId'], { where: `target_id is not null` })
+@Index('messages_voice', ['voiceId'], { where: `voice_id is not null` })
 @Entity('messages')
 export class Message
 {
@@ -101,6 +108,14 @@ export class Message
 
     @Column({ name: 'target_id', type: 'uuid', nullable: true })
     targetId!: string | null;
+
+    /** The file a voice message plays. Null on everything else, a tombstone included. */
+    @Column({ name: 'voice_id', type: 'uuid', nullable: true })
+    voiceId!: string | null;
+
+    @ManyToOne(() => VoiceNote, { nullable: true })
+    @JoinColumn({ name: 'voice_id', referencedColumnName: 'id' })
+    voice!: VoiceNote | null;
 
     @ManyToOne(() => Message, { onDelete: 'CASCADE', nullable: true })
     @JoinColumn({ name: 'target_id', referencedColumnName: 'id' })

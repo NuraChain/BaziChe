@@ -2858,7 +2858,7 @@ export const pushEndpoint = object({ endpoint: string() });
 
 /* -------------------------------------------------------------------------- chat */
 
-export const messageKind = enumOf(['text', 'reaction', 'edit', 'deleted', 'system', 'invite', 'result']);
+export const messageKind = enumOf(['text', 'voice', 'reaction', 'edit', 'deleted', 'system', 'invite', 'result']);
 
 /**
  * What a server-authored line may say ABOUT, as a closed set.

@@ -20,6 +20,11 @@ import { GameRule } from './game-rule.entity.ts';
 import { GroupMember } from './group-member.entity.ts';
 import { Group } from './group.entity.ts';
 import { Game } from './game.entity.ts';
+import { InviteBoardOff } from './invite-board-off.entity.ts';
+import { InviteCampaign } from './invite-campaign.entity.ts';
+import { InviteCode } from './invite-code.entity.ts';
+import { InviteReward } from './invite-reward.entity.ts';
+import { InviteVisit } from './invite-visit.entity.ts';
 import { MarketDisclosure } from './market-disclosure.entity.ts';
 import { MarketPosition } from './market-position.entity.ts';
 import { Market } from './market.entity.ts';
@@ -60,7 +65,7 @@ import { Wallet } from './wallet.entity.ts';
 export {
     Achievement, Avatar, Block, Conversation, ConversationEpoch, ConversationMember, Device, Discrepancy, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat,
     EpochArchive, FriendRequest, Friendship,
-    Game, GameRule, Group, GroupMember, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, Mute,
+    Game, GameRule, Group, GroupMember, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, Mute,
     Notice, Notification, OwnedItem, PaidAccount, PlayerStats, PushSubscription,
     QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, Session, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
     UserAchievement, VoiceNote, VoicePlay, Wallet
@@ -81,7 +86,7 @@ export const entities: Function[] = [
     User, Avatar, Wallet, Session, SiweNonce, Device,
     Friendship, FriendRequest, Block, Mute, Report,
     Conversation, ConversationMember, VoiceNote, Message, VoicePlay, ConversationEpoch, EpochKey, EpochArchive,
-    RecoveryVault, RecoveryNonce, Referral,
+    RecoveryVault, RecoveryNonce, InviteCode, InviteVisit, InviteCampaign, InviteReward, InviteBoardOff, Referral,
     Group, GroupMember,
     Table, TableSeat, TableRemoval, QuickTable,
     Match, MatchPlayer, MatchAction, PlayerStats, UserAchievement,

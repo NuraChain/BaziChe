@@ -68,6 +68,7 @@ export const routes: PageRoute[] = [
             { path: 'play/:id', lazy: chunk(() => import('./pages/app/play.page.azeroth')), meta: defineMeta({ tab: 'games', parent: '/app/games', immersive: true }) },
             { path: 'friends', lazy: chunk(() => import('./pages/app/friends.page.azeroth')), meta: defineMeta({ title: 'app.nav.friends', tab: 'friends' }) },
             { path: 'people/:handle', lazy: chunk(() => import('./pages/app/person.page.azeroth')), meta: defineMeta({ tab: 'friends', parent: '/app/friends' }) },
+            { path: 'invite', lazy: chunk(() => import('./pages/app/invite.page.azeroth')), meta: defineMeta({ title: 'invite.page.title', tab: 'friends', parent: '/app/friends' }) },
             { path: 'chats', lazy: chunk(() => import('./pages/app/chats.page.azeroth')), meta: defineMeta({ title: 'app.nav.chats', tab: 'chats', messenger: true }) },
             { path: 'chats/:id', lazy: chunk(() => import('./pages/app/chat.page.azeroth')), meta: defineMeta({ tab: 'chats', parent: '/app/chats', immersive: true, messenger: true }) },
             { path: 'groups/:id', lazy: chunk(() => import('./pages/app/group.page.azeroth')), meta: defineMeta({ tab: 'friends', parent: '/app/friends' }) },

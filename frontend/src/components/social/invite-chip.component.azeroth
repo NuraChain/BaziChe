@@ -1,0 +1,19 @@
+import Icon from '../../icons/icon.component.azeroth';
+import { useLocale } from '../../stores/locale.store.ts';
+import Panel from '../ui/panel.component.azeroth';
+
+export default component InviteChip(props: { class?: string })
+{
+    const locale = useLocale();
+
+    <Panel to="/app/invite" pad="sm" class={ `flex items-center gap-3 ${ props.class ?? '' }` }>
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-live/15 text-live" aria-hidden="true">
+            <Icon name="invite" size={ 18 } />
+        </span>
+        <span class="flex min-w-0 flex-1 flex-col">
+            <span class="text-ui-md font-semibold text-text">{ locale.t('me.invite') }</span>
+            <span class="text-ui-sm text-muted">{ locale.t('me.inviteLead') }</span>
+        </span>
+        <Icon name="chevron-right" size={ 18 } class="icon-flip shrink-0 text-faint" />
+    </Panel>
+}

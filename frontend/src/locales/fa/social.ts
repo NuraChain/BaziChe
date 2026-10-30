@@ -4,6 +4,7 @@ import type { social as reference } from '../en/social.ts';
 export const social: Pick<Dictionary, keyof typeof reference> = {
     'friends.lead': 'کسایی که واقعاً باهاشون بازی می‌کنی.',
     'friends.discover': 'پیدا کردن آدم‌ها',
+    'friends.invite': 'دعوت از دوستا',
     'friends.add.title': 'اضافه کردن دوست',
     'friends.add.placeholder': '@نام‌کاربری یا اسم',
     'friends.add.hint': 'نام کاربری یکی رو بنویس، مثلاً @dana.w، یا اسمش رو. دو تا حرف واسه شروع بسه.',

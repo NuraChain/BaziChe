@@ -4,6 +4,8 @@ export const me = {
     'me.share': 'Share profile',
     'me.looks': 'Your collection',
     'me.looksLead': 'Looks for your profile and your tables',
+    'me.invite': 'Invite friends',
+    'me.inviteLead': 'Your link, and who joined through it',
 
     'list.separator': ', ',
     'record.title': 'Record',

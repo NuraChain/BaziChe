@@ -1,6 +1,7 @@
 export const social = {
     'friends.lead': 'The people you actually play with.',
     'friends.discover': 'Find people',
+    'friends.invite': 'Invite friends',
     'friends.add.title': 'Add a friend',
     'friends.add.placeholder': '@handle or name',
     'friends.add.hint': 'Type somebody’s handle, like @dana.w, or their name. Two letters are enough to start.',

@@ -1,0 +1,268 @@
+import { useHead } from 'azerothjs';
+
+import ConfirmSheet from '../../components/app/confirm-sheet.component.azeroth';
+import Page from '../../components/app/page.component.azeroth';
+import PageHeader from '../../components/app/page-header.component.azeroth';
+import Avatar from '../../components/ui/avatar.component.azeroth';
+import Badge from '../../components/ui/badge.component.azeroth';
+import Button from '../../components/ui/button.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
+import LoadMore from '../../components/ui/load-more.component.azeroth';
+import Panel from '../../components/ui/panel.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
+import Icon from '../../icons/icon.component.azeroth';
+import { copyText } from '../../lib/clipboard.ts';
+import { aboutPerson } from '../../lib/person-menu.ts';
+import { qrOf } from '../../lib/qr.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { canShare, shareNatively, shareTargets } from '../../lib/share-link.ts';
+import '../../locales/invite-catalogue.ts';
+import { useInvites } from '../../stores/invites.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { useRealtime } from '../../stores/realtime.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+
+/**
+ * The reader's own invite link: copied, shared or shown as a code to scan, what came of it, the
+ * friends who joined through it, and a new code when the old one has gone too far.
+ */
+export default component InvitePage()
+{
+    const locale = useLocale();
+    const invites = useInvites();
+    const overlay = useOverlay();
+    const toasts = useToasts();
+    const realtime = useRealtime();
+
+    useHead({ title: () => locale.t('invite.page.title') });
+
+    state now = runtime().clock.now();
+
+    mount
+    {
+        invites.open();
+
+        const stop = runtime().clock.every(60_000, () => now = runtime().clock.now());
+
+        return () =>
+        {
+            stop();
+            invites.close();
+        };
+    }
+
+    derived held = invites.summary();
+
+    derived awaited = held === null && !invites.failed();
+
+    derived refused = held === null && invites.failed();
+
+    derived shown = held !== null;
+
+    derived link = held?.link ?? '';
+
+    derived code = held?.code ?? '';
+
+    derived visits = locale.n(held?.visits ?? 0);
+
+    derived joinedCount = locale.n(held?.joined ?? 0);
+
+    derived playedCount = locale.n(held?.played ?? 0);
+
+    derived qr = link === '' ? null : qrOf(link);
+
+    derived shared = { subject: locale.t('invite.page.shareSubject'), text: locale.t('invite.page.shareText'), url: link };
+
+    derived targets = shareTargets(shared);
+
+    derived native = shown && canShare(shared);
+
+    const past = (at: string) => Math.min(realtime.toLocal(Date.parse(at)), now);
+
+    derived since = held === null ? '' : locale.t('invite.page.since', { when: locale.relative(past(held.since), { now }) });
+
+    derived next = held?.next === undefined ? null : realtime.toLocal(Date.parse(held.next));
+
+    derived waiting = next !== null && next > now;
+
+    derived nextSaid = next === null ? '' : locale.t('invite.page.nextAt', { when: locale.relative(next, { now }) });
+
+    derived people = invites.people();
+
+    derived invited = people.length > 0;
+
+    derived nobody = !invited && !invites.hasMore();
+
+    derived lostPeople = !invited && invites.peopleFailed();
+
+    derived more = invited && invites.hasMore();
+
+    const copy = () => void copyText(link, 'invite.page.copied', { dedupe: 'invite-link' });
+
+    const share = async () =>
+    {
+        if (!await shareNatively(shared))
+        {
+            toasts.show({ kind: 'warning', text: locale.t('invite.page.shareFailed'), dedupe: 'invite-share' });
+        }
+    };
+
+    const renew = async () =>
+    {
+        const yes = await overlay.open(
+            ConfirmSheet,
+            {
+                title: locale.t('invite.page.renewTitle'),
+                lead: locale.t('invite.page.renewLead'),
+                confirm: locale.t('invite.page.renew'),
+                destructive: true
+            },
+            { label: locale.t('invite.page.renewTitle') }
+        ).closed;
+
+        if (yes !== true)
+        {
+            return;
+        }
+
+        const outcome = await invites.renew();
+
+        toasts.show(outcome === 'renewed'
+            ? { kind: 'success', text: locale.t('invite.page.renewed') }
+            : { kind: 'warning', text: locale.t(outcome === 'soon' ? 'invite.page.soon' : 'common.actionFailed'), dedupe: 'invite-renew' });
+    };
+
+    const joined = (at: string) => locale.t('invite.page.joinedAt', { when: locale.relative(past(at), { now, style: 'short' }) });
+
+    <Page label={ locale.t('invite.page.title') } onRefresh={ () => invites.refresh() }>
+        <PageHeader title={ locale.t('invite.page.title') } lead={ locale.t('invite.page.lead') } />
+
+        <Show when={ awaited }>
+            <div class="flex flex-col gap-4" aria-hidden="true">
+                <Skeleton lines={ 4 } class="rounded-hero border border-line bg-field p-5" />
+                <Skeleton lines={ 2 } class="rounded-panel border border-line bg-field p-4" />
+            </div>
+        </Show>
+
+        <Show when={ refused }>
+            <ErrorState title={ locale.t('invite.page.failed') } onRetry={ () => invites.refresh() } />
+        </Show>
+
+        <Show when={ shown }>
+            <div class="flex flex-col gap-6">
+                <section class="hero-surface rounded-hero border border-line p-5 @container sm:p-6" aria-labelledby="invite-link" data-invite-hero>
+                    <div class="flex flex-col gap-5 @xl:flex-row @xl:items-center @xl:gap-8">
+                        <div class="flex min-w-0 flex-1 flex-col gap-4">
+                            <div class="flex flex-col gap-1.5">
+                                <h2 id="invite-link" class="text-ui-xl font-bold text-text">{ locale.t('invite.page.linkTitle') }</h2>
+                                <p class="text-ui-sm text-muted">{ locale.t('invite.page.counts') }</p>
+                            </div>
+                            <div class="flex items-center gap-2 rounded-control border border-line bg-sunk p-1 ps-3">
+                                <span class="min-w-0 flex-1 truncate text-ui-sm text-text" dir="ltr" data-invite-url>{ link }</span>
+                                <Button variant="primary" size="sm" leading="copy" onClick={ copy }>{ locale.t('invite.page.copy') }</Button>
+                            </div>
+                            <div class="flex flex-wrap gap-2" role="group" aria-label={ locale.t('invite.page.sendWith') }>
+                                <Show when={ native }>
+                                    <Button variant="outline" size="sm" leading="share" onClick={ () => void share() }>{ locale.t('invite.page.share') }</Button>
+                                </Show>
+                                <Button variant="outline" size="sm" leading="chats" href={ targets.whatsapp } external>{ locale.t('invite.page.whatsapp') }</Button>
+                                <Button variant="outline" size="sm" leading="send" href={ targets.telegram } external>{ locale.t('invite.page.telegram') }</Button>
+                                <Button variant="outline" size="sm" leading="mail" href={ targets.email }>{ locale.t('invite.page.email') }</Button>
+                            </div>
+                        </div>
+                        <Show when={ qr } let={ drawn }>
+                            <figure class="flex shrink-0 flex-col items-center gap-2 self-center">
+                                <svg
+                                    viewBox={ `-4 -4 ${ drawn.size + 8 } ${ drawn.size + 8 }` }
+                                    class="h-44 w-44 rounded-tile bg-white"
+                                    role="img"
+                                    shape-rendering="crispEdges"
+                                    aria-label={ locale.t('invite.page.qr') }
+                                    data-invite-qr
+                                >
+                                    <path d={ drawn.path } fill="#0B1220" />
+                                </svg>
+                                <figcaption class="max-w-44 text-center text-ui-xs text-muted">{ locale.t('invite.page.scan') }</figcaption>
+                            </figure>
+                        </Show>
+                    </div>
+                </section>
+
+                <section aria-labelledby="invite-came" class="flex flex-col gap-3">
+                    <div class="flex flex-col gap-1">
+                        <h2 id="invite-came" class="text-ui-lg font-semibold text-text">{ locale.t('invite.page.came') }</h2>
+                        <p class="text-ui-xs text-muted">{ locale.t('invite.page.cameLead') }</p>
+                    </div>
+                    <dl class="grid grid-cols-3 gap-3">
+                        <div class="flex flex-col-reverse gap-1 rounded-panel border border-line bg-field p-3 sm:p-4" data-came="visits">
+                            <dt class="text-ui-xs text-muted">{ locale.t('invite.page.visits') }</dt>
+                            <dd class="tally text-ui-2xl font-bold text-text">{ visits }</dd>
+                        </div>
+                        <div class="flex flex-col-reverse gap-1 rounded-panel border border-line bg-field p-3 sm:p-4" data-came="joined">
+                            <dt class="text-ui-xs text-muted">{ locale.t('invite.page.joined') }</dt>
+                            <dd class="tally text-ui-2xl font-bold text-text">{ joinedCount }</dd>
+                        </div>
+                        <div class="flex flex-col-reverse gap-1 rounded-panel border border-line bg-field p-3 sm:p-4" data-came="played">
+                            <dt class="text-ui-xs text-muted">{ locale.t('invite.page.played') }</dt>
+                            <dd class="tally text-ui-2xl font-bold text-live">{ playedCount }</dd>
+                        </div>
+                    </dl>
+                </section>
+
+                <Panel section stack="md" labelledBy="invite-people">
+                    <h2 id="invite-people" class="text-ui-lg font-semibold text-text">{ locale.t('invite.page.people') }</h2>
+                    <Show when={ nobody }>
+                        <div class="flex flex-col gap-1 py-2" data-invite-nobody>
+                            <p class="text-ui-sm font-semibold text-text">{ locale.t('invite.page.nobody') }</p>
+                            <p class="text-ui-sm text-muted">{ locale.t('invite.page.nobodyLead') }</p>
+                        </div>
+                    </Show>
+                    <Show when={ lostPeople }>
+                        <ErrorState title={ locale.t('invite.page.peopleFailed') } class="py-6" onRetry={ () => void invites.more() } />
+                    </Show>
+                    <Show when={ invited }>
+                        <ul class="divide-y divide-line" data-invite-people>
+                            <For each={ people } key={ (one) => one.person.handle } let={ one }>
+                                <li class="flex items-center gap-3 py-2.5" data-invited={ one.person.handle } data-step={ one.played ? 'played' : 'joined' }>
+                                    <button type="button" class="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-start" aria-haspopup="dialog" onClick={ () => aboutPerson(one.person.handle) }>
+                                        <Avatar person={ one.person } />
+                                        <span class="flex min-w-0 flex-1 flex-col">
+                                            <span class="truncate text-ui-sm font-semibold text-text" dir="auto">{ one.person.displayName }</span>
+                                            <span class="facts text-ui-xs text-muted">
+                                                <span class="flex min-w-0"><span class="truncate" dir="ltr">{ `@${ one.person.handle }` }</span></span>
+                                                <span>{ joined(one.joinedAt) }</span>
+                                            </span>
+                                        </span>
+                                    </button>
+                                    <Badge dot text={ locale.t(one.played ? 'invite.page.stepPlayed' : 'invite.page.stepJoined') } tone={ one.played ? 'live' : 'neutral' } />
+                                </li>
+                            </For>
+                        </ul>
+                    </Show>
+                    <Show when={ more }>
+                        <LoadMore label={ locale.t('invite.page.older') } loading={ invites.peopleLoading() } onMore={ () => void invites.more() } />
+                    </Show>
+                </Panel>
+
+                <Panel section stack="md" labelledBy="invite-code">
+                    <div class="flex flex-wrap items-baseline justify-between gap-2">
+                        <h2 id="invite-code" class="text-ui-lg font-semibold text-text">{ locale.t('invite.page.code') }</h2>
+                        <span class="text-ui-xs text-faint">{ since }</span>
+                    </div>
+                    <p class="text-ui-2xl font-bold tracking-[0.2em] text-text" dir="ltr" data-invite-code>{ code }</p>
+                    <p class="text-ui-sm text-muted">{ locale.t('invite.page.codeLead') }</p>
+                    <div class="flex flex-col items-start gap-2">
+                        <Button variant="outline" size="sm" leading="refresh" disabled={ waiting } loading={ invites.renewing() } onClick={ () => void renew() }>{ locale.t('invite.page.renew') }</Button>
+                        <Show when={ waiting }>
+                            <p class="flex items-center gap-1.5 text-ui-xs text-muted" data-invite-next>
+                                <Icon name="clock" size={ 14 } class="shrink-0" />
+                                <span>{ nextSaid }</span>
+                            </p>
+                        </Show>
+                    </div>
+                </Panel>
+            </div>
+        </Show>
+    </Page>
+}

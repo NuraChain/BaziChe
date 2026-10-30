@@ -37,6 +37,8 @@ import type {
     Device,
     DonationsState,
     DonationView,
+    InvitedPeople,
+    InviteSummary,
     MarketPositionView,
     MarketsState,
     MarketView,
@@ -827,6 +829,26 @@ const donateFresh = () => ({
     seq: 0
 });
 
+/** The reader's own invite link as the server keeps it, and everybody it brought in, newest first. */
+const invitesFresh = () => ({
+    summary: { code: 'ABCD2345', link: 'http://localhost:3100/join/ABCD2345', since: '2026-10-30T10:00:00.000Z', visits: 0, joined: 0, played: 0 } as InviteSummary,
+    people: [] as InvitedPeople['people'],
+
+    /** The code the next renewal makes. */
+    next: 'WXYZ6789',
+
+    /** When the next code may be made, which refuses a renewal as `invite-code-soon` while it is set. */
+    soon: null as string | null,
+
+    /** A read that fails, so a page can be shown and either part of it refused. */
+    refuse: null as 'summary' | 'people' | 'renew' | null,
+
+    /** A promise every read and the renewal wait on before they are answered. */
+    hold: null as Promise<void> | null
+});
+
+const INVITED_PAGE = 20;
+
 const donateRefusal = () =>
 {
     const refused = server.donate.refuse;
@@ -1184,6 +1206,9 @@ export const server =
     /** The invite links the server knows, by code, with what each one's page shows; a code not here no longer works. */
     invites: {} as Record<string, { inviter?: { handle: string; displayName: string; hue: number; avatar?: string; deco?: string } }>,
 
+    /** The reader's own invite link and the people it brought in. */
+    myInvites: invitesFresh(),
+
     /** Every visit a link's page told the server of, in order. */
     visits: [] as { code: string; visitor: string }[],
 
@@ -1255,6 +1280,7 @@ export const server =
         server.looks = {};
         server.seen = {};
         server.invites = {};
+        server.myInvites = invitesFresh();
         server.visits = [];
         server.asked = [];
         server.sought = [];
@@ -2674,6 +2700,68 @@ export const client =
             }
 
             return { positions: structuredClone(server.markets.positions.filter((one) => input.positions.includes(one.id))) };
+        }
+    },
+
+    invites:
+    {
+        async summary()
+        {
+            server.calls.push('invites.summary');
+            await server.myInvites.hold;
+
+            if (server.myInvites.refuse === 'summary')
+            {
+                throw new ApiError(503, 'unavailable', 'Not now.', undefined);
+            }
+
+            return structuredClone(server.myInvites.summary);
+        },
+
+        async renew()
+        {
+            server.calls.push('invites.renew');
+            await server.myInvites.hold;
+
+            if (server.myInvites.refuse === 'renew')
+            {
+                throw new ApiError(503, 'unavailable', 'Not now.', undefined);
+            }
+
+            const soon = server.myInvites.soon;
+
+            if (soon !== null)
+            {
+                server.myInvites.summary.next = soon;
+                throw new ApiError(409, 'invite-code-soon', 'A new code can be made once a day.', { at: soon });
+            }
+
+            const code = server.myInvites.next;
+
+            server.myInvites.summary = { ...server.myInvites.summary, code, link: `http://localhost:3100/join/${ code }`, since: '2026-10-30T12:00:00.000Z', next: '2026-10-31T12:00:00.000Z' };
+            server.myInvites.soon = '2026-10-31T12:00:00.000Z';
+
+            return structuredClone(server.myInvites.summary);
+        },
+
+        /** Twenty a page, newest first; the cursor is where the next page starts, as opaque to the page as the server's. */
+        async people({ query }: { query: { cursor?: string } })
+        {
+            server.calls.push(query.cursor === undefined ? 'invites.people' : `invites.people ${ query.cursor }`);
+            await server.myInvites.hold;
+
+            if (server.myInvites.refuse === 'people')
+            {
+                throw new ApiError(503, 'unavailable', 'Not now.', undefined);
+            }
+
+            const from = Number(query.cursor ?? 0);
+            const to = from + INVITED_PAGE;
+
+            return {
+                people: structuredClone(server.myInvites.people.slice(from, to)),
+                ...(to < server.myInvites.people.length ? { cursor: String(to) } : {})
+            };
         }
     },
 

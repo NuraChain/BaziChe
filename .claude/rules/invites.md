@@ -113,6 +113,34 @@ when they joined and whether they have played, and nothing else of them: no onli
 seen (RF-D11). A block between the two hides nothing here, because a friend who vanished from the list
 would tell their inviter they had been blocked.
 
+## The page a person shares their link from
+
+**`/app/invite` is the reader's own link** (`pages/app/invite.page.azeroth`, lazy, under Friends;
+`stores/invites.store.ts`, which only it imports). It opens on the link with Copy, the system's own
+share sheet where the browser has one (`navigator.share`, through `lib/share-link.ts`; a sheet the
+reader closed says nothing, any other refusal says to copy the link instead), and WhatsApp, Telegram
+and email always, each opened with the reader's own language's words and the link already written
+(the first two in a tab of their own: `external` on `Button`). Beside it, the link as a QR code drawn
+by `lib/qr.ts`, the one the wallet chooser draws, for a friend standing beside the reader. Then what
+came of it as three counts, the friends invited (each a press for the sheet about them, as every
+person in a list is; twenty a page under Show more; "Nobody has joined through your link yet." only
+once the server has said so, and a list that could not be read said as that, with Try again), and the
+code with when it was made. A new code is asked about first as something that cannot be undone, and
+is never guessed, because the server draws it: the button works until the answer, which the page then
+draws whole. While `next` is ahead the button is not offered and the page says when, on the product
+clock and the server's time put on this device's (`toLocal`), and a renewal refused `invite-code-soon`
+says so and reads the summary again.
+
+**Its doors**: "Invite friends" beside Add friend at the head of the Friends page, and a chip on
+`/app/me` beside the collection's (`components/social/invite-chip`, which imports nothing of the page).
+The words are the invite catalogue's (`invite.page.*`), and the two doors' the app's (`me.invite`,
+`me.inviteLead`, `friends.invite`), in ten languages.
+
+`invite-page.spec.ts` holds the page in each state and in Persian, the QR drawn as the code for the
+link and nothing else, the three apps' links and the system's sheet, the friends a page at a time
+with the rows kept, the renewal and every way it ends, and its place in the route table;
+`invite-doors.spec.ts` the two doors.
+
 ## A friend who played
 
 **An invite counts when the friend finishes a game their inviter did not play in** (`countedBy` in the

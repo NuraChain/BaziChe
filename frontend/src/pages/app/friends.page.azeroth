@@ -160,6 +160,7 @@ export default component FriendsPage()
             actions={
                 <>
                     <Button variant="primary" size="sm" leading="friend-add" onClick={ addFriend }>{ locale.t('person.add') }</Button>
+                    <Button variant="outline" size="sm" leading="invite" to="/app/invite">{ locale.t('friends.invite') }</Button>
                     <Button variant="outline" size="sm" leading="discover" to="/app/discover">{ locale.t('friends.discover') }</Button>
                 </>
             }

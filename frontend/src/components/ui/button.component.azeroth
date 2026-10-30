@@ -9,6 +9,7 @@ export default component Button(props: {
     children?: Child;
     href?: string;
     download?: string;
+    external?: boolean;
     to?: NavigateTarget;
     variant?: ButtonVariant;
     size?: ButtonSize;
@@ -92,7 +93,7 @@ export default component Button(props: {
                 }
             >
                 { () =>
-                    <a href={ props.href } download={ props.download } class={ shell } aria-label={ props.label }>
+                    <a href={ props.href } download={ props.download } target={ props.external === true ? '_blank' : undefined } rel={ props.external === true ? 'noopener noreferrer' : undefined } class={ shell } aria-label={ props.label }>
                         <Show when={ props.leading } let={ name }>
                             <Icon name={ name } size={ 16 } />
                         </Show>

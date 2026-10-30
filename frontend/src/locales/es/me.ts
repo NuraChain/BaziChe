@@ -7,6 +7,8 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'me.share': 'Compartir perfil',
     'me.looks': 'Tu colección',
     'me.looksLead': 'Estilos para tu perfil y tus mesas',
+    'me.invite': 'Invita a tus amigos',
+    'me.inviteLead': 'Tu enlace y quién se unió con él',
 
     'list.separator': ', ',
     'record.title': 'Historial',

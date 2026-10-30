@@ -1,6 +1,7 @@
 import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { Message } from './message.entity.ts';
 import { User } from './user.entity.ts';
+import { VoiceNote } from './voice-note.entity.ts';
 
 export type ReportCategory = 'harassment' | 'spam' | 'cheating' | 'inappropriate' | 'other';
 
@@ -18,13 +19,19 @@ export type ReportStatus = 'received' | 'reviewed' | 'actioned';
  * expiry, most obviously - while the words, the key and the moment stay, because expiry must not
  * become a way to destroy the evidence in a report already filed. `0016` is where those two rules
  * were separated; holding all four together was what wedged `sweepExpired` for a whole deployment.
+ *
+ * A voice message disclosed keeps its file (`voice_id`) for as long as the report is kept: the key
+ * is in the document, and the file is the evidence. The foreign key lets nothing delete a file a
+ * report names, so every way a file is let go asks the reports first.
  */
 @Check('reports_category_known', `category in ('harassment', 'spam', 'cheating', 'inappropriate', 'other')`)
 @Check('reports_disclosure_whole', `(disclosed is null and disclosed_key is null and disclosed_at is null) or (disclosed is not null and disclosed_key is not null and disclosed_at is not null)`)
 @Check('reports_message_has_disclosure', `message_id is null or disclosed is not null`)
 @Check('reports_not_self', `reporter <> against`)
 @Check('reports_status_known', `status in ('received', 'reviewed', 'actioned')`)
+@Check('reports_voice_disclosed', `voice_id is null or disclosed is not null`)
 @Index('reports_mine', ['reporter'])
+@Index('reports_voice', ['voiceId'], { where: 'voice_id is not null' })
 @Entity('reports')
 export class Report
 {
@@ -57,6 +64,10 @@ export class Report
     @Column({ name: 'disclosed_at', type: 'timestamptz', nullable: true })
     disclosedAt!: Date | null;
 
+    /** The file of the voice message disclosed, kept for the staff whatever becomes of the message. */
+    @Column({ name: 'voice_id', type: 'uuid', nullable: true })
+    voiceId!: string | null;
+
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt!: Date;
 
@@ -67,6 +78,10 @@ export class Report
     @ManyToOne(() => Message, { onDelete: 'SET NULL', nullable: true })
     @JoinColumn({ name: 'message_id', referencedColumnName: 'id' })
     message!: Message | null;
+
+    @ManyToOne(() => VoiceNote, { nullable: true })
+    @JoinColumn({ name: 'voice_id', referencedColumnName: 'id' })
+    voice!: VoiceNote | null;
 
     @ManyToOne(() => User, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'reporter', referencedColumnName: 'id' })

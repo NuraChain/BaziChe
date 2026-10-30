@@ -3,7 +3,7 @@ import 'reflect-metadata';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DataSource } from 'typeorm';
 
-import { Conversation, Message, User, VoiceNote, VoicePlay, entities } from '../src/entities/index.ts';
+import { Conversation, Message, Report, User, VoiceNote, VoicePlay, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { VOICE_FILE_LEAST, VOICE_FILE_MOST } from '../src/domains/chat/voice.ts';
 
@@ -95,6 +95,7 @@ describe.skipIf(!active)('a voice message\'s rows', () =>
     beforeEach(async () =>
     {
         await db.query('delete from voice_plays');
+        await db.query('delete from reports');
         await db.query('delete from messages');
         await db.query('delete from voice_notes');
         await db.query('delete from conversation_epochs');
@@ -122,6 +123,29 @@ describe.skipIf(!active)('a voice message\'s rows', () =>
         expect(await refusal(line('voice', held.id).write)).toBeNull();
         expect(await refusal(line('voice', null).write)).toBe('23514');
         expect(await refusal(line('voice', crypto.randomUUID()).write)).toBe('23503');
+    });
+
+    it('keep a reported voice message\'s file for the report, and only beside what it disclosed', async () =>
+    {
+        const held = file(sender);
+        const against = await makeUser();
+
+        await held.write;
+
+        const report = (disclosed: string | null) => db.getRepository(Report).insert({
+            reporter: sender,
+            against,
+            category: 'harassment',
+            disclosed,
+            disclosedKey: disclosed === null ? null : 'key',
+            disclosedAt: disclosed === null ? null : new Date(),
+            voiceId: held.id
+        });
+
+        expect(await refusal(report(null)), 'no file without its disclosure').toBe('23514');
+        expect(await refusal(report('{"voice":{}}'))).toBeNull();
+        expect(await refusal(db.getRepository(VoiceNote).delete({ id: held.id })), 'nothing deletes a file a report keeps').toBe('23503');
+        expect(await refusal(db.getRepository(Report).insert({ reporter: sender, against, category: 'spam', disclosed: 'x', disclosedKey: 'k', disclosedAt: new Date(), voiceId: crypto.randomUUID() })), 'a file that is there').toBe('23503');
     });
 
     it('never let a line of words name a file', async () =>

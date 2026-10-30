@@ -10,6 +10,7 @@ import { admin } from './admin.ts';
 import { shop } from './shop.ts';
 import { donate } from './donate.ts';
 import { market } from './market.ts';
+import { invite } from './invite.ts';
 import { helpers } from './helpers.ts';
 import { helpersLudo } from './helpers-ludo.ts';
 import { helpersHokm } from './helpers-hokm.ts';
@@ -17,4 +18,4 @@ import { helpersBackgammon } from './helpers-backgammon.ts';
 import { helpersPoker } from './helpers-poker.ts';
 import { helpersChess } from './helpers-chess.ts';
 
-export const ar: Dictionary = { ...landing, ...app, ...play, ...social, ...wallet, ...vault, ...admin, ...shop, ...donate, ...market, ...me, ...helpers, ...helpersLudo, ...helpersHokm, ...helpersBackgammon, ...helpersPoker, ...helpersChess };
+export const ar: Dictionary = { ...landing, ...app, ...play, ...social, ...wallet, ...vault, ...admin, ...shop, ...donate, ...market, ...invite, ...me, ...helpers, ...helpersLudo, ...helpersHokm, ...helpersBackgammon, ...helpersPoker, ...helpersChess };

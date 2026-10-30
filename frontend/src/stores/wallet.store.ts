@@ -2,6 +2,7 @@ import { createStore, createSignal, untrack, type Getter } from 'azerothjs';
 
 import { NURA_CHAIN, chainIsConfigured } from '../data/chain.ts';
 import { keyStore, type DeviceKeys } from '../lib/device-keys.ts';
+import { keptInvite, letInviteGo } from '../lib/invite.ts';
 import {
     detect,
     discoverWallets,
@@ -472,16 +473,19 @@ export const useWallet = createStore((): WalletApi =>
             try
             {
                 const label = useLocale().t(useDevice().posture() === 'phone' ? 'wallet.thisPhone' : 'wallet.thisBrowser');
+                const invite = keptInvite();
                 const established = await client.auth.wallet({
                     input: {
                         address: account,
                         nonce: challenge.nonce,
                         signature,
                         providerRdns: rdnsOf(wallet),
+                        ...(invite === null ? {} : { invite }),
                         ...(keys === null ? {} : { device: { ...keys, label } })
                     }
                 });
 
+                letInviteGo();
                 setStatus('connected');
                 return established.account ?? null;
             }

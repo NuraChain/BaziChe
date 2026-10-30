@@ -28,6 +28,11 @@ export const routes: PageRoute[] = [
         guard: signedOutPerson
     },
     {
+        path: '/join/:code',
+        lazy: chunk(() => import('./pages/join.page.azeroth')),
+        render: 'client'
+    },
+    {
         path: '/admin',
         lazy: chunk(() => import('./components/admin/admin-shell.component.azeroth')),
         render: 'client',

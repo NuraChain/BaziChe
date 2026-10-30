@@ -1,0 +1,199 @@
+import { createResource, untrack, useHead, useNavigate, useParams, type MountNode } from 'azerothjs';
+
+import { codeFrom } from '../../../backend/src/domains/invite/policy.ts';
+import '../icons/all.ts';
+import { ApiError, client } from '../api.ts';
+import OverlayHost from '../components/app/overlay-host.component.azeroth';
+import SiteFooter from '../components/layout/site-footer.component.azeroth';
+import SiteHeader from '../components/layout/site-header.component.azeroth';
+import Avatar from '../components/ui/avatar.component.azeroth';
+import Button from '../components/ui/button.component.azeroth';
+import ErrorState from '../components/ui/error-state.component.azeroth';
+import Panel from '../components/ui/panel.component.azeroth';
+import Skeleton from '../components/ui/skeleton.component.azeroth';
+import { keepInvite, visitorToken } from '../lib/invite.ts';
+import '../locales/app-catalogue.ts';
+import '../locales/invite-catalogue.ts';
+import { useLocale } from '../stores/locale.store.ts';
+import { useSession } from '../stores/session.store.ts';
+import { useWallet } from '../stores/wallet.store.ts';
+
+/**
+ * The page an invite link opens, for anybody: who invited, and the way in.
+ *
+ * It keeps the link's code on this device for the account a wallet will make here, first link
+ * first, and says the link was opened. Nothing attributes an account that already exists, so
+ * somebody signed in is told so and keeps nothing.
+ */
+export default component JoinPage()
+{
+    const locale = useLocale();
+    const session = useSession();
+    const wallet = useWallet();
+    const params = useParams();
+    const { navigate } = useNavigate();
+
+    const code = untrack(() => codeFrom(params().code));
+
+    state member: boolean | null = null;
+
+    mount
+    {
+        void session.ready().then(() => member = session.signedIn());
+        return wallet.start();
+    }
+
+    const card = createResource(
+        () => code,
+        async (asked) =>
+        {
+            try
+            {
+                return await client.public.invite({ params: { code: asked } });
+            }
+            catch (error)
+            {
+                if (error instanceof ApiError && error.status === 404)
+                {
+                    return null;
+                }
+                throw error;
+            }
+        },
+        { name: 'public.invite' }
+    );
+
+    derived gone = code === null || card.data() === null;
+
+    derived failed = !gone && card.data() === undefined && card.error() !== null;
+
+    derived loading = !gone && !failed && card.data() === undefined;
+
+    derived face = card.data()?.inviter ?? null;
+
+    derived answered = card.data() !== undefined && card.data() !== null;
+
+    derived heading = face === null ? locale.t('invite.join.someone') : locale.t('invite.join.title', { name: face.displayName });
+
+    useHead({ title: () => locale.t('invite.join.tab') });
+
+    /**
+     * Said once the link has answered and the session has: the visit, and for somebody signed out
+     * the code kept. A code kept from an earlier link stands while it still brings people in.
+     */
+    const arrive = (opened: string, signedIn: boolean) =>
+    {
+        void client.public.visit({ params: { code: opened }, input: { visitor: visitorToken() } }).catch(() => undefined);
+
+        if (signedIn)
+        {
+            return;
+        }
+
+        const kept = keepInvite(opened);
+
+        if (kept !== opened)
+        {
+            void client.public.invite({ params: { code: kept } }).catch((error: unknown) =>
+            {
+                if (error instanceof ApiError && error.status === 404)
+                {
+                    keepInvite(opened, true);
+                }
+            });
+        }
+    };
+
+    let arrived = false;
+
+    effect
+    {
+        if (!arrived && answered && member !== null && code !== null)
+        {
+            arrived = true;
+            untrack(() => arrive(code, member === true));
+        }
+    }
+
+    let Chooser: ((props: { close: () => void; navigate: (to: string) => void }) => MountNode) | null = null;
+
+    state chooserOpen = false;
+    state chooserLoaded = false;
+
+    const enter = () =>
+    {
+        chooserOpen = true;
+        if (chooserLoaded)
+        {
+            return;
+        }
+        void import('../components/layout/connect-dialog.component.azeroth').then((module) =>
+        {
+            Chooser = module.default;
+            chooserLoaded = true;
+        });
+    };
+
+    derived signedIn = member === true;
+
+    derived signedOut = member === false;
+
+    <div class="[--page-pad:max(1rem,env(safe-area-inset-left),env(safe-area-inset-right))] sm:[--page-pad:max(1.5rem,env(safe-area-inset-left),env(safe-area-inset-right))] lg:[--page-pad:max(2rem,env(safe-area-inset-left),env(safe-area-inset-right))] relative flex min-h-dvh flex-col bg-void text-text">
+        <SiteHeader cta={ false } />
+
+        <main id="main" class="page-pad safe-b relative mx-auto flex w-full max-w-[34rem] flex-1 flex-col items-center justify-center gap-6 pb-12 pt-24 text-center sm:pt-28">
+            <Show when={ loading }>
+                { () => <Skeleton class="h-72 w-full rounded-panel" /> }
+            </Show>
+
+            <Show when={ failed }>
+                { () => <ErrorState onRetry={ () => void card.refetch() } /> }
+            </Show>
+
+            <Show when={ gone }>
+                <div class="flex flex-col items-center gap-3" data-join="gone">
+                    <h1 class="title text-balance text-ui-3xl">{ locale.t('invite.join.gone') }</h1>
+                    <p class="max-w-[38ch] text-balance text-ui-md text-muted">{ locale.t('invite.join.goneLead') }</p>
+                </div>
+            </Show>
+
+            <Show when={ answered }>
+                <div class="flex flex-col items-center gap-3" data-join="card">
+                    <Show when={ face } let={ them }>
+                        <Avatar person={ them } size="2xl" class="mb-2" />
+                    </Show>
+
+                    <h1 class="title text-balance text-ui-3xl">{ heading }</h1>
+
+                    <Show when={ face } let={ them }>
+                        <p class="text-ui-md text-muted" dir="ltr">@{ them.handle }</p>
+                    </Show>
+
+                    <p class="max-w-[38ch] text-balance text-ui-md text-muted">{ locale.t('invite.join.lead') }</p>
+                </div>
+            </Show>
+
+            <Show when={ signedOut && !loading && !failed }>
+                <div class="flex flex-col items-center gap-2">
+                    <Button variant="primary" size="lg" leading="wallet" onClick={ enter }>{ locale.t('wallet.connect') }</Button>
+                    <p class="max-w-[38ch] text-balance text-ui-sm text-faint">{ locale.t('invite.join.how') }</p>
+                </div>
+            </Show>
+
+            <Show when={ signedIn && !loading && !failed }>
+                <Panel stack="sm" class="w-full items-center">
+                    <p class="text-ui-lg text-text">{ locale.t('invite.join.member') }</p>
+                    <p class="text-balance text-ui-base text-muted">{ locale.t('invite.join.memberLead') }</p>
+                    <Button variant="primary" to="/app">{ locale.t('invite.join.open') }</Button>
+                </Panel>
+            </Show>
+
+            <Show when={ chooserOpen && chooserLoaded }>
+                { () => Chooser!({ close: () => chooserOpen = false, navigate: () => navigate('/app', { replace: true }) }) }
+            </Show>
+        </main>
+
+        <SiteFooter />
+        <OverlayHost />
+    </div>
+}

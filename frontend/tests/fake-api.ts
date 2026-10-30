@@ -2,6 +2,7 @@ import { ApiError, applyFieldErrors } from '@azerothjs/http/api/shared';
 
 import { threadSize } from '../../backend/src/domains/chat/pages.ts';
 import { WATCH_TAIL } from '../../backend/src/domains/match/turns.ts';
+import { codeFrom } from '../../backend/src/domains/invite/policy.ts';
 import { NOTICE_OF } from '../../backend/src/domains/notify/notices.ts';
 import { PEOPLE_FOUND_MAX, SEARCH_FROM, searchNeedle } from '../../backend/src/domains/social/names.ts';
 import { handleFromAddress } from '../../backend/src/domains/identity/handle.ts';
@@ -959,7 +960,7 @@ export const server =
 {
     account: null as Account | null,
     issued: null as { nonce: string; message: string; address: string; device?: string } | null,
-    received: null as { address: string; nonce: string; signature: string; providerRdns?: string; device?: { id: string; exchangeKey: string; signingKey: string; label: string } } | null,
+    received: null as { address: string; nonce: string; signature: string; providerRdns?: string; invite?: string; device?: { id: string; exchangeKey: string; signingKey: string; label: string } } | null,
     refuse: null as Refusal | null,
     suspension: {} as Record<string, string>,
     uploaded: null as string | null,
@@ -1180,6 +1181,12 @@ export const server =
     /** The decoration and nameplate each person wears, by handle, carried on every person as the server carries them. */
     looks: {} as Record<string, { deco?: string; nameplate?: string }>,
 
+    /** The invite links the server knows, by code, with what each one's page shows; a code not here no longer works. */
+    invites: {} as Record<string, { inviter?: { handle: string; displayName: string; hue: number; avatar?: string; deco?: string } }>,
+
+    /** Every visit a link's page told the server of, in order. */
+    visits: [] as { code: string; visitor: string }[],
+
     /** When each person was last seen, by handle, as the server would send it to the reader: absent where it would not. */
     seen: {} as Record<string, string>,
 
@@ -1247,6 +1254,8 @@ export const server =
         server.effects = {};
         server.looks = {};
         server.seen = {};
+        server.invites = {};
+        server.visits = [];
         server.asked = [];
         server.sought = [];
         server.searched = [];
@@ -4005,6 +4014,35 @@ export const client =
             return { handle: params.handle, progress: { ...server.progress }, games: [], achievements: server.achievements };
         },
 
+        /** Read as the server reads a code: in capitals, and a link that no longer works for anything that is not one it holds. */
+        async invite({ params }: { params: { code: string } })
+        {
+            server.calls.push(`public.invite ${ params.code }`);
+            const card = server.invites[codeFrom(params.code) ?? ''];
+
+            if (card === undefined)
+            {
+                throw new ApiError(404, 'invite-missing', 'That invite link no longer works.', undefined);
+            }
+
+            return structuredClone(card);
+        },
+
+        async visit({ params, input }: { params: { code: string }; input: { visitor: string } })
+        {
+            server.calls.push(`public.visit ${ params.code }`);
+            const code = codeFrom(params.code);
+
+            if (code === null || server.invites[code] === undefined)
+            {
+                throw new ApiError(404, 'invite-missing', 'That invite link no longer works.', undefined);
+            }
+
+            server.visits.push({ code, visitor: input.visitor });
+
+            return { ok: true };
+        },
+
         async ladder({ params, query }: { params: { handle: string; family: string }; query: { game?: string } })
         {
             server.calls.push('public.ladder');
@@ -4295,7 +4333,7 @@ export const client =
             return { ...server.issued, expiresAt: '2026-01-01T00:00:00.000Z' };
         },
 
-        async wallet({ input }: { input: { address: string; nonce: string; signature: string; providerRdns?: string; device?: { id: string; exchangeKey: string; signingKey: string; label: string } } })
+        async wallet({ input }: { input: { address: string; nonce: string; signature: string; providerRdns?: string; invite?: string; device?: { id: string; exchangeKey: string; signingKey: string; label: string } } })
         {
             server.calls.push('auth.wallet');
             server.received = input;

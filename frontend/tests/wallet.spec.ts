@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NURA_CHAIN, chainIsConfigured } from '../src/data/chain.ts';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetKeyStore, setKeyStore, type DeviceKeys, type KeyStore } from '../src/lib/device-keys.ts';
+import { keepInvite, keptInvite } from '../src/lib/invite.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import {
     announcedWallets,
@@ -20,6 +21,7 @@ import { personFor, useAccount } from '../src/stores/account.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useWallet } from '../src/stores/wallet.store.ts';
 import { fixtureAccount, server, walletAccount } from './fake-api.ts';
+import { memoryStorage } from './memory-storage.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
 
@@ -615,5 +617,57 @@ describe('wallet identity', () =>
     it('still resolves a demo identity from its handle', () =>
     {
         expect(personFor(fixtureAccount('alex')!)?.id).toBe('alex');
+    });
+});
+
+describe('a wallet that signs in after an invite link', () =>
+{
+    const storage = memoryStorage();
+
+    beforeEach(() =>
+    {
+        storage.fresh();
+    });
+
+    afterEach(() =>
+    {
+        storage.restore();
+    });
+
+    it('sends the code this device keeps, and lets it go once signed in', async () =>
+    {
+        keepInvite('ABCD2345');
+        const wallet = useWallet();
+        wallet.adopt(fakeProvider());
+
+        expect(await wallet.connect()).not.toBeNull();
+        expect(server.received?.invite).toBe('ABCD2345');
+        expect(keptInvite()).toBeNull();
+    });
+
+    it('sends no code when this device keeps none', async () =>
+    {
+        const wallet = useWallet();
+        wallet.adopt(fakeProvider());
+        await wallet.connect();
+
+        expect(server.received).not.toHaveProperty('invite');
+    });
+
+    it('keeps the code for the next try when the wallet says no, or the server refuses the signature', async () =>
+    {
+        keepInvite('ABCD2345');
+        const wallet = useWallet();
+        wallet.adopt(fakeProvider({ rejectSign: true }));
+
+        expect(await wallet.connect()).toBeNull();
+        expect(keptInvite(), 'the wallet said no').toBe('ABCD2345');
+
+        wallet.adopt(fakeProvider());
+        server.refuse = 'bad-signature';
+
+        expect(await wallet.connect()).toBeNull();
+        expect(server.received?.invite).toBe('ABCD2345');
+        expect(keptInvite(), 'the server refused it').toBe('ABCD2345');
     });
 });

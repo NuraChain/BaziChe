@@ -64,6 +64,40 @@ sign-in never fails for an invite. There is no check that the code is the new ac
 is made only for somebody who asked for it, and nobody has been signed in as this account yet;
 `referrals_not_self` is the belt.
 
+## The way in, in the browser
+
+**`/join/:code` is a page for anybody** (`pages/join.page.azeroth`, lazy, rendered in the browser,
+no guard), drawn as the public profile is: the site's header and footer, the inviter's picture in its
+frame, "Sara Kamali invited you to Baziche" and their handle, one line on what Baziche is, and
+Connect wallet, which opens the landing's own chooser and goes to the app once a wallet has signed
+in. A link whose owner shows no face says "A friend invited you". A link that no longer works says
+so and offers the way in all the same; an address that holds no code asks the server nothing.
+Somebody already signed in is told they have an account, with the way into it, because nothing
+credits an account that already exists. A read that fails is a failure with Try again, never a link
+that no longer works. The words are a catalogue of their own (`locales/<code>/invite.ts`, ten
+languages, registered for English and Persian by `locales/invite-catalogue.ts`).
+
+**The device keeps the code, first link first** (`lib/invite.ts`): `{ code, at }` under
+`nura.invite` in `localStorage`, read back for thirty days (`KEPT_MS`) by the product clock and as
+nothing after them, and anything kept there that is not a code read as nothing. A second link within
+the window does not replace the first, so whoever brought somebody here first brought them, unless
+the first link no longer works: the page asks about the kept code, and only a 404 gives it up. The
+same link opened again starts its window again. Somebody signed in keeps nothing. A device that keeps
+nothing (a private window, a full disk) is no harm: nothing is kept and nothing throws.
+
+**A visit is told once the link has answered** (`visitorToken`): twenty-two letters of base64url
+made once and kept under `nura.visitor`, the one thing this device says about itself, and a fresh
+one each time where nothing can be kept. A refused visit says nothing.
+
+**A wallet's sign-in carries the kept code and lets it go once it has signed in** (`connect` in
+`stores/wallet.store.ts`), from whichever page signed in: the landing's chooser, `/sign-in` or the
+join page. A wallet that said no, and a sign-in the server refused, keep it for the next try.
+
+`invite-link.spec.ts` holds the keeping and the token, `join-page.spec.ts` the page in each state,
+in Persian, and its place in the route table, and `wallet.spec.ts` (*a wallet that signs in after
+an invite link*) the sign-in. The specs keep what they store in `tests/memory-storage.ts`, because
+the storage this environment gives them keeps nothing.
+
 ## A friend who played
 
 **An invite counts when the friend finishes a game their inviter did not play in** (`countedBy` in the

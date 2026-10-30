@@ -308,3 +308,75 @@ light theme.
   receive in real time, play at each speed, seek, reload and play again, fail an upload and retry,
   fetch a file as a stranger (404), and a thread of many voice messages that stays light; Firefox for
   its own recording format. Walks at 390 and 1280 in English and Persian.
+
+## As built
+
+Each phase is its own commit, as the owner asked mid-way ("do not forget to commit each part
+seperetly"): VM0 `a745817c`, VM1 `3151d553`, VM2 `fdb5d184`, VM3 `a5582f58` (sealing and sending),
+VM4 `06393648` (the player), VM5 `3bfb70be` (the recorder), VM7 `93678ba4` (the pass), VM6's schema
+`ced7a590` and its feature `32e5ba60`, and `d86804ef`, a fault older than this work that VM6 met.
+The pass run with Firefox as the second browser found two more, `2d0bbf84` and `8be7e43e`, and the
+pass that holds both browsers is `642c1df2`. VM3 to VM5 were built as one and landed as three: each
+part's tree was built and gated in a worktree of its own and `main` moved onto the last, its
+`git status` empty after.
+
+What changed on the way, against the design:
+
+- **The sender's dot is drawn from the press**, never on a line that failed (VM4). It took its dot a
+  second after the press, once the server's copy replaced the one on its way; the pass's second run
+  failed by when it looked.
+- **A voice message a browser cannot open says why, as a line of words does.** It was counted as a
+  line only once opened, and fell to the cards the server writes: a browser enrolled after it was sent
+  drew it as "You opened a table". The MCP walk found it; no pass could, because it needs such a
+  browser.
+- **The type is sent in the one spelling the document takes** (`typeSaid`): Firefox's recorder says
+  `audio/ogg; codecs=opus`, which the document's pattern refuses.
+- **A recording's length is found, not trusted**: Chrome's MediaRecorder writes none into its header,
+  so the element is asked for a place past the end (`readyAudio`); until then the sender's measure
+  stands.
+- **The waveform hears its own press**: markup handlers are delegated to the document, and the line's
+  held press and swipe to reply heard a press on the waveform before it could be stopped.
+- **An unopened voice message in the list is "Voice message"**, with no length it cannot know.
+- **VM6 is the report's file and the staff's player** (`reports.voice_id`, `GET
+  /api/admin/reports/:id/voice`, `ReportVoice`), and the reporter's sheet says "Voice message (0:04)".
+  Building it found the sheet printing every disclosed line as its sealed document (`d86804ef`).
+- **A line's hover bar is shown only once it is laid.** After a page loads, Firefox counts a line drawn
+  under a pointer that has not moved as hovered, and says the pointer entered only at its next move: a
+  voice message that arrived under the listener's resting pointer drew its bar at its resting place,
+  over its play button, and the press went to the bar. The first move inside a row lays it now.
+- **Chromium would not play what Firefox recorded.** Firefox's WebM marks no block a keyframe, though
+  an Opus packet always stands alone, and says its Duration is 0; Chromium seeks only to a keyframe, so
+  the search for the length failed ("FFmpegDemuxer: demuxer seek failed") and the voice message was
+  called unplayable, and Firefox, told the length was 0, could not move through its own. `seekable`
+  marks every block and makes a Duration of 0 a Void, in place, in the recorder and in every player; a
+  bare page in each browser held each half apart.
+
+Verification, as run:
+
+- The gates at every part, in its own tree: the three typechecks, the browser suite (5,014 at VM3,
+  5,054 at VM4, 5,077 at VM5, 5,085 at VM6, 5,086 with the bar and 5,093 with the recording made
+  seekable) and the server's (2,442, then 2,444), and every database spec at VM6 (966). In the
+  worktrees one browser spec fails that passes in the owner's tree: `voice-denoise.spec.ts`, whose
+  `?url` imports Vite refuses from `node_modules` linked from outside the worktree's root.
+- Faults put in one at a time and put back from saved text: VM3 to VM5 80 of 83 at first, the three
+  being a fault in dead code (the code was taken out) and two holes in the specs (closed, and both
+  then caught); VM6's schema 2 of 2, its server 10 of 10, its browser 12 of 12 (one only once its spec
+  played a second time), the sheet's fix 2 of 2, the bar 5 of 5, and the recording made seekable 15
+  of 15 (13 at first: a file cut inside its Duration and an ID longer than four bytes were holes in
+  the specs, closed and then caught).
+- The pass on the built server (`tools/qa/voice-message-pass.mjs`), in a thread, an answer quoting
+  the first, a stranger, an upload that fails, a press too short, 390 in Persian, a table's chat on a
+  phone said on its plate and its pill on a desktop, and a report played for a moderator: 61 of 61
+  with both browsers in Chromium, and 61 of 61 with Firefox as the second, each playing what the
+  other recorded.
+  Proved red against the built client broken three ways: 9 of 53 lines, each one a fault touches.
+- Walked in the Playwright MCP's browser at 1280 in English and 390 in Persian: recording, pausing and
+  hearing it, sending, the menu (no Copy), a forward that puts nothing up and plays where it went, a
+  reply quoting it, the keyboard on the waveform, deleting it and its file going with its last message,
+  and a thread this browser could not open; the console empty throughout.
+
+Not done, stated: no Safari was at hand, and Playwright's WebKit on this machine cannot stand in for
+it (it has no MediaRecorder, no Web Audio and no microphone), so MP4/AAC is held by the specs alone;
+"a thread of many voice messages that stays light" is held by the specs (nothing is fetched until a
+press) and not by a run of many; the staff's player plays at 1× only; a report filed before VM6 keeps
+no file.

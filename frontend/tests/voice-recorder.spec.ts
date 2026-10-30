@@ -32,42 +32,48 @@ const WEBM = [0x1a, 0x45, 0xdf, 0xa3];
 /** A MediaRecorder the spec drives: it holds what it is told it heard, and hands it over as a browser does. */
 class FakeRecorder implements RecorderLike
 {
-    static made: FakeRecorder[] = [];
+    public static made: FakeRecorder[] = [];
 
-    state = 'inactive';
-    slice: number | undefined = undefined;
-    ondataavailable: ((event: { data: Blob }) => void) | null = null;
-    onstop: (() => void) | null = null;
-    onerror: (() => void) | null = null;
-    private heard: Uint8Array[] = [];
+    public state = 'inactive';
+    public slice: number | undefined = undefined;
+    public ondataavailable: ((event: { data: Blob }) => void) | null = null;
+    public onstop: (() => void) | null = null;
+    public onerror: (() => void) | null = null;
+    public readonly stream: MediaStream;
+    public readonly options: MediaRecorderOptions;
+    public readonly mimeType: string;
+    #heard: Uint8Array[] = [];
 
-    constructor(readonly stream: MediaStream, readonly options: MediaRecorderOptions, readonly mimeType: string)
+    constructor(stream: MediaStream, options: MediaRecorderOptions, mimeType: string)
     {
+        this.stream = stream;
+        this.options = options;
+        this.mimeType = mimeType;
         FakeRecorder.made.push(this);
     }
 
-    start(slice?: number)
+    public start(slice?: number)
     {
         this.state = 'recording';
         this.slice = slice;
     }
 
-    pause()
+    public pause()
     {
         this.state = 'paused';
     }
 
-    resume()
+    public resume()
     {
         this.state = 'recording';
     }
 
-    requestData()
+    public requestData()
     {
         queueMicrotask(() => this.hand());
     }
 
-    stop()
+    public stop()
     {
         this.state = 'inactive';
         queueMicrotask(() =>
@@ -78,16 +84,16 @@ class FakeRecorder implements RecorderLike
     }
 
     /** What the microphone said since it last handed anything over. */
-    say(bytes: Uint8Array)
+    public say(bytes: Uint8Array)
     {
-        this.heard.push(bytes);
+        this.#heard.push(bytes);
     }
 
-    hand()
+    public hand()
     {
-        const data = new Blob(this.heard as BlobPart[]);
+        const data = new Blob(this.#heard as BlobPart[]);
 
-        this.heard = [];
+        this.#heard = [];
         this.ondataavailable?.({ data });
     }
 }

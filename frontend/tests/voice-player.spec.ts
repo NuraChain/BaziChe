@@ -42,52 +42,52 @@ const shape = {
 /** An audio element the spec drives: it loads what it is handed, plays, pauses and ends as told, and keeps what was set on it. */
 class FakeAudio implements VoiceAudio
 {
-    static made: FakeAudio[] = [];
+    public static made: FakeAudio[] = [];
 
-    duration = Number.NaN;
-    playbackRate = 1;
-    preservesPitch = false;
-    paused = true;
-    error: { code: number } | null = null;
-    sink = '';
-    private place = 0;
-    private address = '';
-    private readonly heard = new Map<string, Set<() => void>>();
+    public duration = Number.NaN;
+    public playbackRate = 1;
+    public preservesPitch = false;
+    public paused = true;
+    public error: { code: number } | null = null;
+    public sink = '';
+    #place = 0;
+    #address = '';
+    readonly #heard = new Map<string, Set<() => void>>();
 
     constructor()
     {
         FakeAudio.made.push(this);
     }
 
-    get src()
+    public get src()
     {
-        return this.address;
+        return this.#address;
     }
 
-    set src(value: string)
+    public set src(value: string)
     {
-        this.address = value;
-        this.place = 0;
+        this.#address = value;
+        this.#place = 0;
         this.duration = Number.NaN;
         this.error = null;
 
         if (value !== '')
         {
-            queueMicrotask(() => this.arrive(value));
+            queueMicrotask(() => this.#arrive(value));
         }
     }
 
-    get currentTime()
+    public get currentTime()
     {
-        return this.place;
+        return this.#place;
     }
 
-    set currentTime(value: number)
+    public set currentTime(value: number)
     {
         if (this.duration === Infinity && value > shape.found)
         {
             this.duration = shape.found;
-            this.place = shape.found;
+            this.#place = shape.found;
             queueMicrotask(() =>
             {
                 this.emit('durationchange');
@@ -96,12 +96,12 @@ class FakeAudio implements VoiceAudio
             return;
         }
 
-        this.place = Number.isFinite(this.duration) ? Math.min(value, this.duration) : value;
+        this.#place = Number.isFinite(this.duration) ? Math.min(value, this.duration) : value;
     }
 
-    private arrive(value: string)
+    #arrive(value: string)
     {
-        if (this.address !== value)
+        if (this.#address !== value)
         {
             return;
         }
@@ -117,47 +117,47 @@ class FakeAudio implements VoiceAudio
         this.emit('loadedmetadata');
     }
 
-    emit(type: string)
+    public emit(type: string)
     {
-        for (const listener of [...this.heard.get(type) ?? []])
+        for (const listener of [...this.#heard.get(type) ?? []])
         {
             listener();
         }
     }
 
-    addEventListener(type: string, listener: () => void)
+    public addEventListener(type: string, listener: () => void)
     {
-        const all = this.heard.get(type) ?? new Set<() => void>();
+        const all = this.#heard.get(type) ?? new Set<() => void>();
 
         all.add(listener);
-        this.heard.set(type, all);
+        this.#heard.set(type, all);
     }
 
-    removeEventListener(type: string, listener: () => void)
+    public removeEventListener(type: string, listener: () => void)
     {
-        this.heard.get(type)?.delete(listener);
+        this.#heard.get(type)?.delete(listener);
     }
 
-    canPlayType()
+    public canPlayType()
     {
         return shape.playable;
     }
 
-    removeAttribute(name: string)
+    public removeAttribute(name: string)
     {
         if (name === 'src')
         {
-            this.address = '';
+            this.#address = '';
             this.duration = Number.NaN;
         }
     }
 
-    load()
+    public load()
     {
         return undefined;
     }
 
-    async play()
+    public async play()
     {
         if (shape.refuse)
         {
@@ -171,7 +171,7 @@ class FakeAudio implements VoiceAudio
         }
     }
 
-    pause()
+    public pause()
     {
         if (!this.paused)
         {
@@ -180,15 +180,15 @@ class FakeAudio implements VoiceAudio
         }
     }
 
-    async setSinkId(id: string)
+    public async setSinkId(id: string)
     {
         this.sink = id;
     }
 
     /** It ran to its end, as an element says it: the last place, paused, then ended. */
-    end()
+    public end()
     {
-        this.place = this.duration;
+        this.#place = this.duration;
         this.paused = true;
         this.emit('timeupdate');
         this.emit('pause');

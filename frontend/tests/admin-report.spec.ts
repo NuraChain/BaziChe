@@ -98,43 +98,43 @@ afterEach(() =>
 /** An audio element that knows what it was handed once its address arrives, and plays when asked. */
 class FakeAudio implements VoiceAudio
 {
-    static made: FakeAudio[] = [];
+    public static made: FakeAudio[] = [];
 
-    src = '';
-    currentTime = 0;
-    duration = 4;
-    playbackRate = 1;
-    paused = true;
-    error: { code: number } | null = null;
-    private readonly heard = new Map<string, Set<() => void>>();
+    public src = '';
+    public currentTime = 0;
+    public duration = 4;
+    public playbackRate = 1;
+    public paused = true;
+    public error: { code: number } | null = null;
+    readonly #heard = new Map<string, Set<() => void>>();
 
     constructor()
     {
         FakeAudio.made.push(this);
     }
 
-    play()
+    public play()
     {
         this.paused = false;
-        this.emit('playing');
+        this.#emit('playing');
         return Promise.resolve();
     }
 
-    pause()
+    public pause()
     {
         if (!this.paused)
         {
             this.paused = true;
-            this.emit('pause');
+            this.#emit('pause');
         }
     }
 
-    load()
+    public load()
     {
         return undefined;
     }
 
-    removeAttribute(name: string)
+    public removeAttribute(name: string)
     {
         if (name === 'src')
         {
@@ -142,14 +142,14 @@ class FakeAudio implements VoiceAudio
         }
     }
 
-    canPlayType()
+    public canPlayType()
     {
         return 'probably';
     }
 
-    addEventListener(type: string, listener: () => void)
+    public addEventListener(type: string, listener: () => void)
     {
-        this.heard.set(type, (this.heard.get(type) ?? new Set()).add(listener));
+        this.#heard.set(type, (this.#heard.get(type) ?? new Set()).add(listener));
 
         if (type === 'loadedmetadata' && this.src !== '')
         {
@@ -157,14 +157,14 @@ class FakeAudio implements VoiceAudio
         }
     }
 
-    removeEventListener(type: string, listener: () => void)
+    public removeEventListener(type: string, listener: () => void)
     {
-        this.heard.get(type)?.delete(listener);
+        this.#heard.get(type)?.delete(listener);
     }
 
-    private emit(type: string)
+    #emit(type: string)
     {
-        for (const listener of [...this.heard.get(type) ?? []])
+        for (const listener of [...this.#heard.get(type) ?? []])
         {
             listener();
         }

@@ -40,7 +40,7 @@ export default component ReportSheet(props: OverlayProps & {
     derived name = person === null ? props.personId : person.displayName.split(' ')[0];
 
     /** The line the report will show, as a quote says it: what is disclosed is the document it was sealed in. */
-    derived showing = ((): string =>
+    derived showing = (() =>
     {
         const raw = props.disclose?.text ?? '';
         const said = decodeDisclosed(raw);

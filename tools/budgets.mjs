@@ -121,6 +121,7 @@ const MUST_BE_LAZY = [
     { match: /^src\/world\/world\.ts$/, why: 'the world — dynamic import inside mount, after first paint' },
     { match: /^src\/locales\/app-catalogue\.ts$/, why: 'the app message catalogue — only the shell and sign-in import it' },
     { match: /^src\/stores\/session\.store\.ts$/, why: 'lib/guards.ts imports session.store.ts dynamically' },
+    { match: /^(\.\.\/backend\/src\/domains\/admin\/roles|src\/lib\/admin-sections)\.ts$/, why: 'the admin\'s rules — lib/guards.ts imports them dynamically, or every constant a page of the admin reads from them rides in the first chunk' },
     { match: /\/connect-dialog\.component\.azeroth$/, why: 'public-shell imports connect-dialog dynamically' },
     { match: /-board(\.component)?\.(ts|azeroth)$/, why: 'a board renderer — dynamic import inside mount, only once a match is running' },
     { match: /^src\/api\.ts$/, why: 'the typed api client — its top-level await fetches the route manifest' },

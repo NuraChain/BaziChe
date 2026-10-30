@@ -1,7 +1,6 @@
 import { redirect, type GuardContext, type GuardVerdict } from 'azerothjs';
 
-import { may, type Ability } from '../../../backend/src/domains/admin/roles.ts';
-import { sectionsFor } from './admin-sections.ts';
+import type { Ability } from '../../../backend/src/domains/admin/roles.ts';
 
 export function safeNext(candidate: string | string[] | undefined)
 {
@@ -40,24 +39,35 @@ export async function signedOutPerson(context: GuardContext): Promise<GuardVerdi
     return (await settled()).signedIn() ? redirect(`/app/people/${ encodeURIComponent(String(context.params.handle ?? '')) }`) : true;
 }
 
-async function staffRole()
+/** The reader's role and the admin's rules, fetched as an address under /admin is asked for: imported here, every constant a page of the admin reads from the rules would ride in the first chunk. */
+async function staffRules()
 {
-    const { useSession } = await import('../stores/session.store.ts');
+    const [{ useSession }, { may }, { sectionsFor }] = await Promise.all([
+        import('../stores/session.store.ts'),
+        import('../../../backend/src/domains/admin/roles.ts'),
+        import('./admin-sections.ts')
+    ]);
     const session = useSession();
     await session.ready();
-    return session.account()?.staff ?? null;
+    return { role: session.account()?.staff ?? null, may, sectionsFor };
 }
 
-export const requireAbility = (ability: Ability) => async (): Promise<GuardVerdict> => may(await staffRole(), ability);
+export const requireAbility = (ability: Ability) => async (): Promise<GuardVerdict> =>
+{
+    const { role, may } = await staffRules();
+    return may(role, ability);
+};
 
 export async function requireStaff(): Promise<GuardVerdict>
 {
-    return sectionsFor(await staffRole()).length > 0;
+    const { role, sectionsFor } = await staffRules();
+    return sectionsFor(role).length > 0;
 }
 
 export async function firstSection(): Promise<GuardVerdict>
 {
-    const [first] = sectionsFor(await staffRole());
+    const { role, sectionsFor } = await staffRules();
+    const [first] = sectionsFor(role);
     return first === undefined ? false : redirect(`/admin/${ first }`);
 }
 

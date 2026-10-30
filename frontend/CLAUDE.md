@@ -1716,8 +1716,8 @@ and the page goes on saying so.
 **`npm run build` fails on these now.** `tools/budgets.mjs` runs after the build steps, gzips the
 chunks the prerendered `index.html` actually pulls, and exits 1 over budget - so the table below is
 a gate rather than a paragraph. It also asserts the MODULES that must not be in that initial set:
-three.js and `world/world.ts`, the app catalogue, `session.store` behind `lib/guards.ts`,
-`connect-dialog` behind the public shell, every board renderer, the typed `api` client, and the
+three.js and `world/world.ts`, the app catalogue, `session.store` and the admin's rules behind
+`lib/guards.ts`, `connect-dialog` behind the public shell, every board renderer, the typed `api` client, and the
 Persian landing catalogue; that the world chunk stays under 200 KB gzip; that both prerendered
 languages exist; and that the posters are present, within their bytes and captured from the scene
 that ships. Each of those is one keystroke from being undone and every one of them
@@ -1779,6 +1779,12 @@ store. One chunk measured 52.9 KB against 60.1 for the twenty, and the shell 11.
 A fourth is in the same family for a different reason: **`lib/seal-state.ts` imports
 `lib/attestation.ts` dynamically**, because the curve code behind it is 14 KB gzip that most
 conversations never need.
+
+**And `lib/guards.ts` fetches the admin's rules as an address under `/admin` is asked for**
+(`domains/admin/roles.ts` and `lib/admin-sections.ts`, beside the session store). Imported
+statically, they were in the landing's chunk, and with them every constant a page of the admin
+reads from them: the notice's and a sale's hours, the lists of people and reports, a campaign's
+limits. The day the Invites section came, that chunk stood at its 60.0 KB.
 
 That third one is not a size optimisation. Route guards are named in `routes.ts`, so `guards.ts` is
 eager; a static import there would drag `api.ts` into the landing chunk, and `api.ts` has a

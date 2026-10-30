@@ -151,6 +151,12 @@ count a second wallet of their own by playing it once. A game with the inviter c
 the friend's next game without them counts. The `invited` ladder, the shop's inviter share
 (`referrerOf`) and the notice all follow `counted_at`, so all three gained the condition with it.
 
+**Whoever invited is told twice** (RF-D25): `invite-joined` when an account is made through their
+link (the sign-in's courtesy, only when `refer` credited it, which answers who invited), and
+`invite-played` when the invite counts (`countInvites`), each under a dedupe key of its own
+(`invite-joined:<friend>`, `invite-played:<friend>`), both in the `inviting` category, both leading to
+the invite page. The friend is told neither.
+
 **And only through somebody who vouches for the game** (RF-D20, RF-D27): another player in it who
 played it out (won, lost or drawn), is not suspended, was not brought in by the same inviter, and is
 established or on the staff (the owner by the wallets the server names, and every member of the

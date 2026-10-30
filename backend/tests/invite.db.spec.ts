@@ -1,11 +1,13 @@
 import 'reflect-metadata';
 
+import { randomUUID } from 'node:crypto';
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataSource } from 'typeorm';
 
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
-import { EquippedItem, EstablishedPlayer, InviteCampaign, InviteCode, InviteVisit, OwnedItem, Referral, StaffMember, User, Wallet, entities } from '../src/entities/index.ts';
+import { EquippedItem, EstablishedPlayer, InviteCampaign, InviteCode, InviteVisit, Match, MatchPlayer, Notification, OwnedItem, Referral, StaffMember, User, Wallet, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import { createInviteService } from '../src/domains/invite/service.ts';
@@ -467,6 +469,94 @@ describe.skipIf(!active)('invites, against a real database', () =>
         it('counts nothing for a game nobody has heard of', async () =>
         {
             expect(await invitesWith().countedBy('3f0e3c2a-1111-4222-8333-444455556666')).toEqual({ game: '', counted: [] });
+        });
+    });
+
+    describe('what whoever invited is told', () =>
+    {
+        const told = async (userId: string) =>
+            (await db.getRepository(Notification).find({ where: { userId }, order: { createdAt: 'ASC' } }))
+                .filter((one) => one.kind.startsWith('invite-'))
+                .map((one) => ({ kind: one.kind, actor: one.actorId, count: one.count }));
+
+        /** A chess game of two, a move each, then the second resigns: a loss and a win both played out. */
+        const chess = async (stays: string, resigns: string) =>
+        {
+            const table = await ports.table.create(stays, { game: 'chess', seats: 2, mode: 'live', privacy: 'public', target: 0, cube: false, blinds: 'low', chat: true, voice: 'off', teams: false, invitees: [] });
+
+            await ports.table.claim(resigns, table.id);
+
+            for (const one of [stays, resigns])
+            {
+                await ports.table.setReady(one, table.id, true);
+            }
+
+            const match = await ports.match.start(stays, table.id);
+
+            for (const [from, to] of [[12, 28], [52, 36]])
+            {
+                const { rev } = await db.getRepository(Match).findOneByOrFail({ id: match.id });
+                const seat = (await ports.match.view(stays, match.id))!.turn!;
+                const mover = (await db.getRepository(MatchPlayer).findOneByOrFail({ matchId: match.id, seat })).userId!;
+
+                await ports.match.play(mover, match.id, { key: randomUUID(), rev, play: { kind: 'chess', verb: 'move', from, to } });
+            }
+
+            await ports.match.resign(resigns, match.id, { key: 'gives-up' });
+
+            return match.id;
+        };
+
+        it('is told a friend joined when the account is made through the link, and once', async () =>
+        {
+            const { id: inviterId } = await enter();
+            const { code } = await ports.invites.summary(inviterId);
+            const { id: friend, wallet } = await enter(code);
+
+            await again(wallet, code);
+
+            expect(await told(inviterId)).toEqual([{ kind: 'invite-joined', actor: friend, count: 1 }]);
+            expect(await told(friend), 'the friend is told nothing').toEqual([]);
+        });
+
+        it('is named by the crediting only the time it credited the account', async () =>
+        {
+            const { id: inviterId } = await enter();
+            const { code } = await ports.invites.summary(inviterId);
+            const { id: friend } = await enter(code);
+            const { id: fresh } = await enter();
+
+            expect(await invitesWith().refer(friend, code), 'credited already').toBeNull();
+            expect(await invitesWith().refer(fresh, 'NOPE2345'), 'a code nobody holds').toBeNull();
+            expect(await invitesWith().refer(fresh, code)).toBe(inviterId);
+        });
+
+        it('is told nothing for a link that brought nobody in', async () =>
+        {
+            const { id: inviterId } = await enter();
+            const { code } = await ports.invites.summary(inviterId);
+
+            await ports.invites.renew(inviterId);
+            await enter(code);
+
+            expect(await told(inviterId)).toEqual([]);
+        });
+
+        it('is told the friend played a first game out, after the game the invite counted by', async () =>
+        {
+            const { id: inviterId } = await enter();
+            const { code } = await ports.invites.summary(inviterId);
+            const { id: friend } = await enter(code);
+            const { id: stranger } = await enter();
+
+            await vouch(stranger);
+            await chess(friend, stranger);
+
+            await vi.waitFor(async () => expect(await told(inviterId)).toEqual([
+                { kind: 'invite-joined', actor: friend, count: 1 },
+                { kind: 'invite-played', actor: friend, count: 1 }
+            ]));
+            expect((await referrals()).map((one) => one.counted)).toEqual([true]);
         });
     });
 

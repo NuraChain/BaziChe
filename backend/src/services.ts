@@ -999,7 +999,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         for (const { inviterId, inviteeId } of counted)
         {
             await db.transaction((tx) => achieve.record(tx, inviterId, matchId, game));
-            await tell({ userId: inviterId, kind: 'invite-joined', actorId: inviteeId, ref: {}, dedupeKey: `invite:${ inviteeId }` });
+            await tell({ userId: inviterId, kind: 'invite-played', actorId: inviteeId, ref: {}, dedupeKey: `invite-played:${ inviteeId }` });
         }
     };
 
@@ -1805,7 +1805,15 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
                 if (result.created)
                 {
-                    await courtesy('referral', () => invites.refer(userId, input.invite));
+                    await courtesy('referral', async () =>
+                    {
+                        const inviterId = await invites.refer(userId, input.invite);
+
+                        if (inviterId !== null)
+                        {
+                            await tell({ userId: inviterId, kind: 'invite-joined', actorId: userId, ref: {}, dedupeKey: `invite-joined:${ userId }` });
+                        }
+                    });
                 }
 
                 if (input.device !== undefined && namesDevice(result.proof.message, input.device.id))

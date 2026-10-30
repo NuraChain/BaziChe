@@ -248,6 +248,7 @@ export function createInviteService(db: DataSource, owners: () => readonly strin
          * A code that brings nobody in is let go of without a word: an invite is a courtesy, and a
          * sign-in never fails for one. The new account cannot be the code's owner, because a code is
          * made only for somebody who asked for it and nobody has been signed in as this account yet.
+         * Answers who invited them, when this was what credited them.
          */
         async refer(inviteeId: string, invite: string | undefined)
         {
@@ -255,7 +256,7 @@ export function createInviteService(db: DataSource, owners: () => readonly strin
 
             if (owner === null)
             {
-                return;
+                return null;
             }
 
             const running = await db.getRepository(InviteCampaign).createQueryBuilder('campaign')
@@ -263,11 +264,14 @@ export function createInviteService(db: DataSource, owners: () => readonly strin
                 .where(RUNNING)
                 .getRawOne<{ id: string }>();
 
-            await db.getRepository(Referral).createQueryBuilder()
+            const made = await db.getRepository(Referral).createQueryBuilder()
                 .insert()
                 .values({ inviteeId, inviterId: owner.userId, code: owner.code, campaignId: running?.id ?? null })
                 .orIgnore()
+                .returning(['inviteeId'])
                 .execute();
+
+            return (made.raw as unknown[]).length > 0 ? owner.userId : null;
         },
 
         /**

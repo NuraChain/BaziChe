@@ -985,7 +985,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
          * Lets go of every file no message names that is older than the hold: an upload its sender
          * never sent, and anything a room took with it when the room went.
          */
-        async sweepVoice(): Promise<number>
+        async sweepVoice()
         {
             const gone = await db.getRepository(VoiceNote)
                 .createQueryBuilder()

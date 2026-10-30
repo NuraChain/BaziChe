@@ -1,7 +1,7 @@
 import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { User } from './user.entity.ts';
 
-export type NotificationKind = 'friend-request' | 'friend-accepted' | 'group-added' | 'table-invite' | 'table-removed' | 'message' | 'turn' | 'invite-joined' | 'gift' | 'donation';
+export type NotificationKind = 'friend-request' | 'friend-accepted' | 'group-added' | 'table-invite' | 'table-removed' | 'message' | 'turn' | 'invite-joined' | 'invite-played' | 'invite-reward' | 'gift' | 'donation';
 
 @Check('notifications_count_positive', `count > 0`)
 @Check('notifications_kind_known', `kind in ('friend-request', 'friend-accepted', 'group-added', 'table-invite', 'table-removed', 'message', 'turn', 'invite-joined', 'invite-played', 'invite-reward', 'gift', 'donation')`)

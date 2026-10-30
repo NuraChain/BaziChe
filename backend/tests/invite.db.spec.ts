@@ -7,7 +7,7 @@ import { DataSource } from 'typeorm';
 
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
-import { EquippedItem, EstablishedPlayer, InviteCampaign, InviteCode, InviteReward, InviteVisit, Match, MatchPlayer, Notification, OwnedItem, Referral, StaffMember, User, Wallet, entities } from '../src/entities/index.ts';
+import { EquippedItem, EstablishedPlayer, InviteCampaign, InviteCode, InviteReward, InviteVisit, Match, MatchPlayer, Notification, OwnedItem, Referral, StaffMember, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import { createInviteService } from '../src/domains/invite/service.ts';

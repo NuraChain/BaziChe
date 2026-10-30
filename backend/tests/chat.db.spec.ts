@@ -120,6 +120,7 @@ describe.skipIf(!active)('chat, against a real database', () =>
     {
         if (db?.isInitialized)
         {
+            await db.query('truncate table users cascade');
             await db.destroy();
         }
     });

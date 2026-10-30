@@ -89,7 +89,11 @@ describe.skipIf(!active)('a voice message\'s rows', () =>
 
     afterAll(async () =>
     {
-        await db?.destroy();
+        if (db?.isInitialized)
+        {
+            await db.query('truncate table users cascade');
+            await db.destroy();
+        }
     });
 
     beforeEach(async () =>

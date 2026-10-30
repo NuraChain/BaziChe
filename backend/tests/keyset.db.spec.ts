@@ -96,6 +96,7 @@ describe.skipIf(!active)('a list read a page at a time through rows made two to 
         if (db?.isInitialized)
         {
             await db.getRepository(Table).createQueryBuilder().delete().execute();
+            await db.query('truncate table users cascade');
             await db.destroy();
         }
     });

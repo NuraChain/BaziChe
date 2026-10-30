@@ -164,6 +164,7 @@ describe.skipIf(!active)('the epoch a conversation is sealed under', () =>
     {
         if (db?.isInitialized)
         {
+            await db.query('truncate table users cascade');
             await db.destroy();
         }
     });

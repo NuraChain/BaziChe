@@ -148,6 +148,7 @@ describe.skipIf(!active)('whether a line was read, against a real database', () 
     {
         if (db?.isInitialized)
         {
+            await db.query('truncate table users cascade');
             await db.destroy();
         }
     });

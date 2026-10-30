@@ -741,6 +741,56 @@ one line for each fault. Its first red run failed 15 and still let the missing n
 fixture account already knew the inviter from old rows, so the pass begins by dismissing every
 notification the account has. The source was put back from a saved copy, never from git.
 
+## The voice message pass
+
+**`tools/qa/voice-message-pass.mjs` sends voice messages between two real browsers on the built
+server**: `PGDATABASE=<the server's database> QA_BASE=http://localhost:5300 node
+tools/qa/voice-message-pass.mjs`, limiter raised, about three minutes, 53 checks. Each browser is a
+Chromium whose fake microphone is fed a speech-like recording the pass writes (`voice-signal.mjs`,
+into `tools/qa/out/voice-message/`), so what is recorded is the browser's own MediaRecorder at work,
+and what is sealed, uploaded, fetched, opened and played is that recording. `dana.w` records in her
+newest direct thread and the person in it plays what arrives; both accounts are emptied of devices
+and lines first, as the chat pass empties them, and of voice files and plays (PGDATABASE names the
+server's database for that).
+
+- **Recording**: the microphone where Send is; the row the composer becomes; the bars moving with
+  what the microphone hears and the clock counting; a pause opening what was said with its own
+  length, heard; more recorded into the same message; sent, the field back, the line in the thread
+  at the press, its mark at sent, and its file gone up as an octet stream that is not a recording.
+- **Played in the other browser**: arrived with no reload, its length and its dot; its file fetched
+  at the first press; played, its place moving and its dot gone; the speed chip through 1.5×, 2× and
+  1×; a press on the waveform moving it; the sender's dot gone once it was played; after a reload
+  still there, played, and playing again.
+- **Answered**: a right click on it offers Reply and no Copy; Reply quotes it as "Voice message
+  (0:05)", the quote stays above the recorder, and the voice message recorded under it arrives in
+  the first browser quoting it; the reply is let go of once that is sent.
+- **A stranger** (a third fixture) asking for the file is answered 404.
+- **An upload that fails** (the first PUT aborted) leaves the line Not sent, and Try again sends it.
+- **A press too short** is dropped with its sentence and sends nothing.
+- **390 in Persian**: the clock in Persian digits, the player still left to right, nothing wider
+  than the phone, the recorder's row fitting it, and a delete bringing the field back.
+- **At a table**, a game of Ludo a move a day for the two: the phone, in Persian, opens the table's
+  chat and records into it, and the line is in that chat at the press; the desktop, its chat shut,
+  says it in a bubble on the sender's plate and in its way to the chat (their name, then "Voice
+  message (0:01)"), then opens the chat and plays it there.
+- Neither console says anything but the one upload the pass aborts.
+
+Screenshots of the recorder, the preview, a message arriving, the phone in Persian and both sides of
+the table are written beside the recording.
+
+**Its second run failed one line with a fault of the product's**: the sender's own line was drawn at
+the press with no dot and took one a second later, when the server's copy replaced the one on its
+way, so the check passed or not by when it looked. The dot is drawn from the press now. The walk by
+hand after it found a voice message a browser could not open drawn as a table somebody opened
+(`.claude/rules/chat-and-keys.md`, *The bubble draws the player whole*), which no pass reaches: it
+needs a browser enrolled after the message was sent.
+
+**Proved red** against the built client broken three ways, each chunk written with its precompressed
+twins and put back from saved copies (a speed chip that never leaves 1×, a quoted voice message that
+loses its length, a press too short that is sent): 9 of 53 failed, every line those faults touch and
+no other (both speeds; the quote, the quote above the recorder and the answer quoting it; the plate's
+bubble and the way to the chat; and both lines of the short press).
+
 ## The voice quality pass
 
 `tools/qa/voice-quality-pass.mjs` measures how a call SOUNDS, which the voice pass cannot: that

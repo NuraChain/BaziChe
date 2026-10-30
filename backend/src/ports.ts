@@ -23,6 +23,11 @@ import type {
     AdminShop,
     AdminShopMoney,
     AdminShopOrders,
+    AdminInviteCampaign,
+    AdminInviteCampaigns,
+    AdminInviteReward,
+    AdminInviteRewards,
+    AdminInvites,
     AdminTables,
     AdminReport,
     AdminReports,
@@ -84,7 +89,7 @@ import type {
     StaffLog
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
-import type { adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
+import type { adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
 import type { ShopSlot } from './domains/shop/catalogue.ts';
 import type { QuickAsk } from './domains/table/quick.ts';
@@ -828,6 +833,22 @@ export interface AdminPort
 
     /** A paid order's price asked back of NuraChain for its payer, written to the log as the request it is. */
     shopRefund(me: string, order: string, input: Infer<typeof adminShopRefundInput>): Promise<WalletCall | null>;
+
+    /** Inviting friends at a glance, for a role that opens Invites, as every call below is. */
+    invites(me: string): Promise<AdminInvites | null>;
+
+    campaigns(me: string, query: Infer<typeof adminCampaignsQuery>): Promise<AdminInviteCampaigns | null>;
+
+    writeCampaign(me: string, input: Infer<typeof adminCampaignInput>): Promise<AdminInviteCampaign | null>;
+
+    changeCampaign(me: string, id: string, input: Infer<typeof adminCampaignInput>): Promise<AdminInviteCampaign | null>;
+
+    moveCampaign(me: string, id: string, input: Infer<typeof adminCampaignMove>): Promise<AdminInviteCampaign | null>;
+
+    rewards(me: string, query: Infer<typeof adminRewardsQuery>): Promise<AdminInviteRewards | null>;
+
+    /** A reward given, refused or taken back, held to the rank rule against the person it is for. */
+    decideReward(me: string, id: string, input: Infer<typeof adminRewardDecision>): Promise<AdminInviteReward | null>;
 }
 
 /** Every port the API declaration may reach. One member per domain. */

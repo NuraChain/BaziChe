@@ -77,6 +77,16 @@ import {
     adminShopOrders,
     adminShopOrdersQuery,
     adminShopRefundInput,
+    adminCampaignInput,
+    adminCampaignMove,
+    adminCampaignsQuery,
+    adminInviteCampaign,
+    adminInviteCampaigns,
+    adminInviteReward,
+    adminInviteRewards,
+    adminInvites,
+    adminRewardDecision,
+    adminRewardsQuery,
     adminPlay,
     adminGameInput,
     adminMatches,
@@ -661,7 +671,28 @@ export function buildApi(ports: Ports)
                 async (context) => onlyAdmin(await ports.admin.shopSeller(context.principal.userId, context.input.address))),
 
             shopPause: routes.post('/shop/money/pause', { input: adminPauseInput, output: walletCall },
-                async (context) => onlyAdmin(await ports.admin.shopPause(context.principal.userId, context.input.paused)))
+                async (context) => onlyAdmin(await ports.admin.shopPause(context.principal.userId, context.input.paused))),
+
+            invites: routes.get('/invites', { output: adminInvites },
+                async (context) => onlyAdmin(await ports.admin.invites(context.principal.userId))),
+
+            campaigns: routes.get('/invites/campaigns', { query: adminCampaignsQuery, output: adminInviteCampaigns },
+                async (context) => onlyAdmin(await ports.admin.campaigns(context.principal.userId, context.query))),
+
+            writeCampaign: routes.post('/invites/campaigns', { input: adminCampaignInput, output: adminInviteCampaign },
+                async (context) => onlyAdmin(await ports.admin.writeCampaign(context.principal.userId, context.input))),
+
+            changeCampaign: routes.post('/invites/campaigns/:id', { input: adminCampaignInput, output: adminInviteCampaign },
+                async (context) => onlyAdmin(await ports.admin.changeCampaign(context.principal.userId, context.params.id, context.input))),
+
+            moveCampaign: routes.post('/invites/campaigns/:id/state', { input: adminCampaignMove, output: adminInviteCampaign },
+                async (context) => onlyAdmin(await ports.admin.moveCampaign(context.principal.userId, context.params.id, context.input))),
+
+            rewards: routes.get('/invites/rewards', { query: adminRewardsQuery, output: adminInviteRewards },
+                async (context) => onlyAdmin(await ports.admin.rewards(context.principal.userId, context.query))),
+
+            decideReward: routes.post('/invites/rewards/:id', { input: adminRewardDecision, output: adminInviteReward },
+                async (context) => onlyAdmin(await ports.admin.decideReward(context.principal.userId, context.params.id, context.input)))
         })),
 
         vault: feature('/vault', [session], (routes) => ({

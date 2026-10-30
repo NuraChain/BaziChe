@@ -26,7 +26,7 @@ const CODE_ATTEMPTS = 8;
 const freshCode = () => Array.from({ length: CODE_LENGTH }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
 
 /** A campaign gives while it is active and inside its window, by Postgres's clock. */
-const RUNNING = `campaign.state = 'active' and (campaign.starts_at is null or campaign.starts_at <= now()) and (campaign.ends_at is null or campaign.ends_at > now())`;
+export const RUNNING = `campaign.state = 'active' and (campaign.starts_at is null or campaign.starts_at <= now()) and (campaign.ends_at is null or campaign.ends_at > now())`;
 
 type Runner = DataSource | EntityManager;
 
@@ -113,7 +113,7 @@ const viewOf = (code: { code: string; createdAt: Date }, next: Date | null) => (
 });
 
 /** A look somebody owns for good as a reward: whether it is theirs only now, or was already. */
-const own = async (tx: EntityManager, userId: string, itemId: string) =>
+export const ownReward = async (tx: EntityManager, userId: string, itemId: string) =>
 {
     const made = await tx.getRepository(OwnedItem).createQueryBuilder()
         .insert()
@@ -314,7 +314,9 @@ export function createInviteService(db: DataSource, owners: () => readonly strin
          * invite was flagged, and a milestone always waits for the staff; never to a suspended account,
          * nor past the campaign's most for one person, a refused reward not counted against it. Both
          * people's rows are locked in id order, so two counts for one person at once count one after
-         * the other. Answers the looks given now that were not owned already, for whoever is told.
+         * the other. The campaign's row is held shared, so the staff change what it gives only before
+         * or after, never while it gives. Answers the looks given now that were not owned already, for
+         * whoever is told.
          */
         async reward(counted: Counted)
         {
@@ -328,6 +330,7 @@ export function createInviteService(db: DataSource, owners: () => readonly strin
             return await db.transaction(async (tx) =>
             {
                 const campaign = await tx.getRepository(InviteCampaign).createQueryBuilder('campaign')
+                    .setLock('pessimistic_read')
                     .where('campaign.id = :campaignId', { campaignId })
                     .andWhere(RUNNING)
                     .getOne();
@@ -376,7 +379,7 @@ export function createInviteService(db: DataSource, owners: () => readonly strin
                         continue;
                     }
 
-                    const delivered = one.held ? null : await own(tx, one.userId, one.itemId);
+                    const delivered = one.held ? null : await ownReward(tx, one.userId, one.itemId);
                     const made = await tx.getRepository(InviteReward).createQueryBuilder()
                         .insert()
                         .values({

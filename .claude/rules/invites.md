@@ -187,7 +187,9 @@ through `courtesy('invite reward')` in `countInvites`): its look for whoever inv
 once that many of their friends counted in it (in that campaign, and not suspended). Each is a row of
 `invite_rewards`, written in one transaction for the invite with both people's rows locked in id order,
 so two counts for one person at once count one after the other; a reward already there is left as it
-is, and with the two unique indexes that gives each one once.
+is, and with the two unique indexes that gives each one once. The campaign's row is held shared for
+that transaction, so the staff change what it gives only before a count or after it (RF-D34,
+`.claude/rules/admin.md`, *Invites*).
 
 **Given at once unless somebody should look first** (RF-D22): every reward of a flagged invite and of
 a campaign that reviews every one (`review`) waits for the staff (`review`, nothing owned yet), and a

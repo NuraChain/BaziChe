@@ -42,7 +42,7 @@ interface TogetherRow
     about_result: string | null;
 }
 
-const face = (handle: string, displayName: string, hue: number, avatar: string | null, staff: GrantedRole | null, owner: boolean) =>
+export const face = (handle: string, displayName: string, hue: number, avatar: string | null, staff: GrantedRole | null, owner: boolean) =>
 {
     const role = owner ? 'owner' as const : staff;
 

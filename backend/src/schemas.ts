@@ -1,10 +1,10 @@
 import { array, boolean, enumOf, literal, number, object, record, string as text, union, type Infer, type StringOptions } from '@azerothjs/schema';
-import { ACTION_KINDS, CLEAR_PARTS, GRANTED_ROLES, MATCH_LISTS, NOTICE_HOURS, NOTICE_MAX, PEOPLE_LISTS, REPORT_LISTS, REPORT_OUTCOMES, REPORT_STATUSES, SALE_HOURS, STAFF_ROLES, STUCK_KINDS, SUSPEND_CATEGORIES, SUSPEND_DAYS } from './domains/admin/roles.ts';
+import { ACTION_KINDS, CLEAR_PARTS, GRANTED_ROLES, MATCH_LISTS, NOTICE_HOURS, NOTICE_MAX, PEOPLE_LISTS, REPORT_LISTS, REPORT_OUTCOMES, REPORT_STATUSES, SALE_HOURS, STAFF_ROLES, STUCK_KINDS, SUSPEND_CATEGORIES, SUSPEND_DAYS, CAMPAIGN_MOST, CAMPAIGN_MOVES, MILESTONE_MOST, MILESTONES_MOST, REWARD_LISTS, REWARD_MOVES } from './domains/admin/roles.ts';
 import { RARITY_IDS } from './domains/achieve/rarity.ts';
 import { PARTY_ENDS, PARTY_STAGES } from './domains/party/rules.ts';
 import { SHOP_COLLECTIONS, SLOT_IDS } from './domains/shop/catalogue.ts';
 import { DONATE_MAY, DONATION_STATES } from './domains/donate/policy.ts';
-import { VISITOR_SHAPE } from './domains/invite/policy.ts';
+import { CAMPAIGN_STATES, INVITE_FLAGS, REWARD_KINDS, REWARD_STATES, VISITOR_SHAPE } from './domains/invite/policy.ts';
 import { MARKET_MAY, MARKET_STATES, POSITION_STATES } from './domains/market/policy.ts';
 import { ORDER_STATES, OWNED_VIA, SHOP_ITEM_STATUSES, SHOP_MAY } from './domains/shop/policy.ts';
 import { CHECK_FAMILIES, CHECK_KINDS, CHECK_LISTS, CHECK_RESOLUTIONS } from './domains/reconcile/kinds.ts';
@@ -1630,7 +1630,10 @@ export const reportEntry = object({
 
 export const reportList = object({ reports: array(reportEntry) });
 
-const reportFace = object({ handle: string(), displayName: string(), hue: number(), avatar: string().optional(), staff: enumOf(STAFF_ROLES).optional() });
+/** A person as the staff's lists draw one: the face, and their role on the staff while they hold one. */
+const staffFaceFields = { handle: string(), displayName: string(), hue: number(), avatar: string().optional(), staff: enumOf(STAFF_ROLES).optional() };
+
+const staffFace = object(staffFaceFields);
 
 const adminReportFields = {
     id: string(),
@@ -1638,8 +1641,8 @@ const adminReportFields = {
     status: enumOf(REPORT_STATUSES),
     at: string(),
     disclosed: boolean(),
-    by: reportFace,
-    about: reportFace
+    by: staffFace,
+    about: staffFace
 };
 
 export const adminReportRow = object(adminReportFields);
@@ -1742,6 +1745,108 @@ export const adminOverview = object({
 });
 
 export type AdminOverview = Infer<typeof adminOverview>;
+
+/** What inviting friends came to in a window: devices that opened a link, friends who joined, played and were flagged, and the rewards written, by how each stands now. */
+const inviteFunnel = object({
+    visits: number(),
+    joined: number(),
+    played: number(),
+    flagged: number(),
+    given: number(),
+    review: number(),
+    refused: number(),
+    taken: number()
+});
+
+/** A campaign as the staff read it: what it gives, its limits and window, who wrote it, and what came of it. */
+export const adminInviteCampaign = object({
+    id: string(),
+    name: string(),
+    state: enumOf(CAMPAIGN_STATES),
+    inviterItem: string().optional(),
+    inviteeItem: string().optional(),
+    milestones: array(object({ count: number(), item: string() })),
+    most: number().optional(),
+    review: boolean(),
+    startsAt: string().optional(),
+    endsAt: string().optional(),
+    at: string(),
+    by: string().optional(),
+    running: boolean(),
+
+    /** It has written a reward, so what it gives stays as it is. */
+    gave: boolean(),
+    joined: number(),
+    played: number(),
+    given: number(),
+    waiting: number(),
+    refused: number(),
+    taken: number()
+});
+
+export type AdminInviteCampaign = Infer<typeof adminInviteCampaign>;
+
+/** Inviting friends at a glance, by UTC days: today, the last seven days and all, each of the last fourteen days, the inviters whose friends played most, the campaign running and the rewards waiting. */
+export const adminInvites = object({
+    today: inviteFunnel,
+    week: inviteFunnel,
+    all: inviteFunnel,
+    days: array(object({ day: string(), visits: number(), joined: number(), played: number() })),
+    top: array(object({ person: staffFace, joined: number(), played: number(), flagged: number() })),
+    running: adminInviteCampaign.optional(),
+    waiting: number()
+});
+
+export type AdminInvites = Infer<typeof adminInvites>;
+
+export const adminInviteCampaigns = object({ campaigns: array(adminInviteCampaign), cursor: string().optional() });
+
+export type AdminInviteCampaigns = Infer<typeof adminInviteCampaigns>;
+
+export const adminCampaignsQuery = object({ cursor: string({ max: 80 }).optional() });
+
+/** A campaign as the staff write it, whole, every time: an absent look, limit or end is none. */
+export const adminCampaignInput = object({
+    name: string({ min: 3, max: 80, pattern: SAYS_SOMETHING }),
+    inviterItem: string({ min: 1, max: 40 }).optional(),
+    inviteeItem: string({ min: 1, max: 40 }).optional(),
+    milestones: array(object({ count: number({ int: true, min: 1, max: MILESTONE_MOST }), item: string({ min: 1, max: 40 }) }), { max: MILESTONES_MOST }),
+    most: number({ int: true, min: 1, max: CAMPAIGN_MOST }).optional(),
+    review: boolean(),
+    startsAt: string({ max: 40 }).optional(),
+    endsAt: string({ max: 40 }).optional(),
+    reason: said()
+});
+
+export const adminCampaignMove = object({ to: enumOf(CAMPAIGN_MOVES), reason: said() });
+
+/** A reward as the staff read it: for whom, what for, how it stands and who decided, the invite's flags and the friend it came through. */
+export const adminInviteReward = object({
+    id: string(),
+    kind: enumOf(REWARD_KINDS),
+    milestone: number().optional(),
+    item: string(),
+    state: enumOf(REWARD_STATES),
+    delivered: boolean().optional(),
+    at: string(),
+    decidedAt: string().optional(),
+    decidedBy: string().optional(),
+    reason: string().optional(),
+    campaign: object({ id: string(), name: string() }),
+    flags: array(enumOf(INVITE_FLAGS)).optional(),
+    person: object({ ...staffFaceFields, suspended: boolean() }),
+    friend: staffFace.optional()
+});
+
+export type AdminInviteReward = Infer<typeof adminInviteReward>;
+
+export const adminInviteRewards = object({ rewards: array(adminInviteReward), cursor: string().optional(), waiting: number() });
+
+export type AdminInviteRewards = Infer<typeof adminInviteRewards>;
+
+export const adminRewardsQuery = object({ list: enumOf(REWARD_LISTS).optional(), cursor: string({ max: 80 }).optional() });
+
+export const adminRewardDecision = object({ to: enumOf(REWARD_MOVES), reason: said() });
 
 export const adminChecksQuery = object({ list: enumOf(CHECK_LISTS).optional(), cursor: string({ max: 80 }).optional() });
 

@@ -361,6 +361,45 @@ describe('the log', () =>
         expect(persian.container.querySelector('[aria-pressed="true"]')?.textContent?.trim()).toBe('برگشت پول‌ها');
     });
 
+    it('says what the staff did with an invite campaign and with a reward, the campaign named as it was written, in both languages', async () =>
+    {
+        staffLogged({ at: hoursAgo(3), staff: 'alex', staffRole: 'owner', kind: 'invite-campaign', reason: 'Spring is here.', details: { campaign: 'c-1', name: 'Bring a friend', to: 'draft' } });
+        staffLogged({ at: hoursAgo(2), staff: 'alex', staffRole: 'owner', kind: 'invite-campaign', reason: 'Spring is here.', details: { campaign: 'c-1', name: 'Bring a friend', to: 'active' } });
+        staffLogged({ at: hoursAgo(5), staff: 'mina', staffRole: 'admin', kind: 'invite-reward', person: 'reza.t', reason: 'One person, two wallets.', details: { reward: 'r-3', item: 'dice.inferno', to: 'refused', campaign: 'c-1' } });
+        staffLogged({ at: hoursAgo(4), staff: 'mina', staffRole: 'admin', kind: 'invite-reward', person: 'reza.t', reason: 'One person, two wallets.', details: { reward: 'r-2', item: 'dice.inferno', to: 'taken', campaign: 'c-1' } });
+        staffLogged({ at: hoursAgo(1), staff: 'mina', staffRole: 'admin', kind: 'invite-reward', person: 'sara.k', reason: 'A real friend of theirs.', details: { reward: 'r-1', item: 'dice.inferno', to: 'given', campaign: 'c-1' } });
+        const campaigns = await opened('/admin/log?kind=invite-campaign');
+
+        expect(lines(campaigns.container)).toEqual(['alex started the invite campaign “Bring a friend”.', 'alex wrote the invite campaign “Bring a friend”.']);
+        expect(isolated(entry(campaigns.container, 0), ':scope')).toEqual(['alex']);
+        expect(campaigns.container.querySelector('[aria-pressed="true"]')?.textContent?.trim()).toBe('Invite campaigns');
+        expect(entry(campaigns.container, 0).querySelector('[data-mark]')?.className).toContain('text-accent');
+        cleanup();
+
+        const rewards = await opened('/admin/log?kind=invite-reward');
+
+        expect(lines(rewards.container)).toEqual([
+            'mina gave sara.k Infernal Sovereign dice from an invite.',
+            'mina took Infernal Sovereign dice, given for an invite, back from reza.t.',
+            'mina refused reza.t Infernal Sovereign dice from an invite.'
+        ]);
+        expect(isolated(entry(rewards.container, 0), ':scope')).toEqual(['mina', 'sara.k']);
+        expect(rewards.container.querySelector('[aria-pressed="true"]')?.textContent?.trim()).toBe('Invite rewards');
+        expect(entry(rewards.container, 0).querySelector('[data-mark]')?.className).toContain('text-gold');
+        expect(said(entry(rewards.container, 0), '[data-reason]')).toBe('A real friend of theirs.');
+        cleanup();
+
+        useLocale().setLocale('fa');
+        const persian = await opened('/admin/log?kind=invite-reward');
+
+        expect(lines(persian.container)).toEqual([
+            'mina، تاس سلطان دوزخ رو بابت دعوت به sara.k داد.',
+            'mina، تاس سلطان دوزخ رو که بابت دعوت داده شده بود از reza.t پس گرفت.',
+            'mina، تاس سلطان دوزخ رو که بابت دعوت به reza.t می‌رسید رد کرد.'
+        ]);
+        expect(persian.container.querySelector('[aria-pressed="true"]')?.textContent?.trim()).toBe('جایزه‌های دعوت');
+    });
+
     it('says who put an announcement up and for how long, who took it down, and what it said in the reader\'s own language', async () =>
     {
         announced();
@@ -609,7 +648,7 @@ describe('the log', () =>
             'alex، mina رو از ناظر کرد ادمین.',
             'alex، mina رو ناظر کرد.'
         ]);
-        expect([...container.querySelectorAll('[aria-pressed]')].map((one) => one.textContent?.trim())).toEqual(['همه', 'اضافه شده', 'عوض شده', 'برداشته شده', 'یادداشت‌ها', 'تعلیق‌ها', 'رفع تعلیق', 'پایان تعلیق', 'پاک شده', 'خارج شده', 'گزارش‌ها', 'بازی‌ها', 'بازی‌های تموم‌شده', 'میزهای بسته‌شده', 'سن', 'اطلاعیه‌ها', 'بررسی‌ها', 'فروشگاه', 'بالای فروشگاه', 'استایل‌های داده‌شده', 'استایل‌های پس‌گرفته', 'برگشت پول‌ها']);
+        expect([...container.querySelectorAll('[aria-pressed]')].map((one) => one.textContent?.trim())).toEqual(['همه', 'اضافه شده', 'عوض شده', 'برداشته شده', 'یادداشت‌ها', 'تعلیق‌ها', 'رفع تعلیق', 'پایان تعلیق', 'پاک شده', 'خارج شده', 'گزارش‌ها', 'بازی‌ها', 'بازی‌های تموم‌شده', 'میزهای بسته‌شده', 'سن', 'اطلاعیه‌ها', 'بررسی‌ها', 'فروشگاه', 'بالای فروشگاه', 'استایل‌های داده‌شده', 'استایل‌های پس‌گرفته', 'برگشت پول‌ها', 'کمپین‌های دعوت', 'جایزه‌های دعوت']);
         expect(isolated(entry(container, 1), ':scope')).toEqual(['alex', 'mina']);
     });
 

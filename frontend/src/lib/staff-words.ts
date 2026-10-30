@@ -90,6 +90,20 @@ const SHELF_LINES: Readonly<Record<string, MessageKey>> = {
     retired: 'admin.log.line.shop.retired'
 };
 
+const CAMPAIGN_LINES: Readonly<Record<string, MessageKey>> = {
+    draft: 'admin.log.line.invite.draft',
+    changed: 'admin.log.line.invite.changed',
+    active: 'admin.log.line.invite.active',
+    paused: 'admin.log.line.invite.paused',
+    ended: 'admin.log.line.invite.ended'
+};
+
+const REWARD_LINES: Readonly<Record<string, MessageKey>> = {
+    given: 'admin.log.line.invite.given',
+    refused: 'admin.log.line.invite.refused',
+    taken: 'admin.log.line.invite.taken'
+};
+
 const isRole = (value: string | undefined): value is StaffRole => STAFF_ROLES.some((role) => role === value);
 
 export const foldHandle = (typed: string) => normalizeName(typed.trim().replace(/^@/, ''));
@@ -227,6 +241,16 @@ const said = (row: LogRow, locale: LocaleApi) =>
         const collection = SHOP_COLLECTIONS.find((one) => one === row.details.to);
 
         return locale.t('admin.log.line.shop.feature', { ...slots, collection: collection === undefined ? row.details.to ?? '' : collectionName(collection, locale) });
+    }
+
+    if (row.kind === 'invite-campaign')
+    {
+        return locale.t(CAMPAIGN_LINES[row.details.to ?? ''] ?? 'admin.log.line.invite.changed', { ...slots, campaign: row.details.name ?? '' });
+    }
+
+    if (row.kind === 'invite-reward')
+    {
+        return locale.t(REWARD_LINES[row.details.to ?? ''] ?? 'admin.log.line.invite.given', { ...slots, look: itemName(row.details.item ?? '', locale) });
     }
 
     if (row.kind === 'void' || row.kind === 'close')

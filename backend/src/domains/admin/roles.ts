@@ -22,7 +22,7 @@ export const GRANTED_ROLES = ['moderator', 'admin'] as const;
 
 export type GrantedRole = (typeof GRANTED_ROLES)[number];
 
-export const ACTION_KINDS = ['grant', 'change', 'revoke', 'note', 'suspend', 'lift', 'expire', 'clear', 'sign-out', 'report', 'game', 'void', 'close', 'minor', 'notice', 'check', 'shop-item', 'shop-feature', 'shop-grant', 'shop-revoke', 'shop-refund'] as const;
+export const ACTION_KINDS = ['grant', 'change', 'revoke', 'note', 'suspend', 'lift', 'expire', 'clear', 'sign-out', 'report', 'game', 'void', 'close', 'minor', 'notice', 'check', 'shop-item', 'shop-feature', 'shop-grant', 'shop-revoke', 'shop-refund', 'invite-campaign', 'invite-reward'] as const;
 
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
@@ -83,6 +83,35 @@ export type SaleHours = (typeof SALE_HOURS)[number];
 
 export const SHOP_ORDERS_PAGE = 50;
 
+/** Where the staff move a campaign: started (or started again), paused, or ended for good. */
+export const CAMPAIGN_MOVES = ['active', 'paused', 'ended'] as const;
+
+export type CampaignMove = (typeof CAMPAIGN_MOVES)[number];
+
+/** What the staff decide about a reward: given or refused while it waits, or taken back once given. */
+export const REWARD_MOVES = ['given', 'refused', 'taken'] as const;
+
+export type RewardMove = (typeof REWARD_MOVES)[number];
+
+export const REWARD_LISTS = ['review', 'given', 'refused', 'taken', 'all'] as const;
+
+export type RewardList = (typeof REWARD_LISTS)[number];
+
+export const INVITES_PAGE = 50;
+
+/** A campaign's milestones: five at most, each a number of friends up to a thousand. */
+export const MILESTONES_MOST = 5;
+
+export const MILESTONE_MOST = 1000;
+
+/** The most rewards a campaign may give one person. */
+export const CAMPAIGN_MOST = 1000;
+
+/** How many days the overview of invites shows one by one, and how many inviters it names. */
+export const INVITE_DAYS = 14;
+
+export const INVITE_TOP = 10;
+
 export const ABILITIES = {
     overview: 'moderator',
     live: 'moderator',
@@ -90,6 +119,7 @@ export const ABILITIES = {
     reports: 'moderator',
     play: 'admin',
     shop: 'admin',
+    invites: 'admin',
     notice: 'admin',
     money: 'admin',
     staff: 'admin',

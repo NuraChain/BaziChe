@@ -67,10 +67,19 @@ const QUERIES = {
     '/admin/play/tables': ['game', 'cursor'],
     '/admin/live': ['cursor'],
     '/admin/checks': ['list', 'cursor'],
-    '/admin/shop/orders': ['state', 'delivered', 'item', 'person', 'cursor']
+    '/admin/shop/orders': ['state', 'delivered', 'item', 'person', 'cursor'],
+    '/admin/invites/campaigns': ['cursor'],
+    '/admin/invites/rewards': ['list', 'cursor']
 };
 
 const message = (bad) => ({ id: bad, kind: 'text', epoch: 0, seq: 0, iv: 'x', body: 'x', senderDeviceId: bad, signature: 'x', clientAt: bad, commitment: 'x', expiresAt: 0 });
+
+/** A campaign whose every field is garbage once, beside fields that would be taken. */
+const campaignGarbage = (bad) => [
+    { name: bad.slice(0, 80).padEnd(3, 'x'), inviterItem: bad.slice(0, 40), milestones: [], review: false, reason: bad.slice(0, 500).padEnd(3, 'x') },
+    { name: 'Garbage campaign', inviteeItem: 'dice.glow', milestones: [{ count: bad.length, item: bad.slice(0, 40) }], review: false, reason: 'garbage' },
+    { name: 'Garbage campaign', inviterItem: 'dice.glow', milestones: [], most: bad.length, review: true, startsAt: bad.slice(0, 40), endsAt: bad.slice(0, 40), reason: 'garbage' }
+];
 
 const BODIES = {
     '/auth/challenge': (bad) => [{ address: bad, device: bad.slice(0, 22) }],
@@ -155,7 +164,11 @@ const BODIES = {
     '/admin/shop/orders/:id/refund': (bad) => [{ reason: bad.slice(0, 500).padEnd(3, 'x') }, { reason: bad }],
     '/admin/shop/money/withdraw': (bad) => [{ amount: bad.slice(0, 40) }],
     '/admin/shop/money/share': (bad) => [{ bps: bad.length }],
-    '/admin/shop/money/seller': (bad) => [{ address: bad.slice(0, 64) }]
+    '/admin/shop/money/seller': (bad) => [{ address: bad.slice(0, 64) }],
+    '/admin/invites/campaigns': (bad) => campaignGarbage(bad),
+    '/admin/invites/campaigns/:id': (bad) => campaignGarbage(bad),
+    '/admin/invites/campaigns/:id/state': (bad) => [{ to: bad.slice(0, 16), reason: bad.slice(0, 500).padEnd(3, 'x') }, { to: 'active', reason: bad }],
+    '/admin/invites/rewards/:id': (bad) => [{ to: bad.slice(0, 16), reason: bad.slice(0, 500).padEnd(3, 'x') }, { to: 'given', reason: bad }]
 };
 
 const WOULD_ACT = new Set(['/auth/handle']);

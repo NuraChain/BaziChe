@@ -1525,7 +1525,7 @@ describe('the owner\'s view of the vault', () =>
             identity: {
                 principal: () => Promise.resolve({ userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' })
             },
-            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice', 'shop', 'shopItem', 'shopFeature', 'shopOrders', 'giveLook', 'takeLook', 'shopMoney', 'shopWithdraw', 'shopShare', 'shopSeller', 'shopPause', 'shopRefund'].map((verb) => [verb, (...said: unknown[]) =>
+            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice', 'shop', 'shopItem', 'shopFeature', 'shopOrders', 'giveLook', 'takeLook', 'shopMoney', 'shopWithdraw', 'shopShare', 'shopSeller', 'shopPause', 'shopRefund', 'invites', 'campaigns', 'writeCampaign', 'changeCampaign', 'moveCampaign', 'rewards', 'decideReward'].map((verb) => [verb, (...said: unknown[]) =>
             {
                 told.push([verb, ...said]);
 
@@ -1905,6 +1905,12 @@ describe('the owner\'s view of the vault', () =>
         expect(bodies).toContain(`'/admin/shop/money/withdraw': (bad) => [`);
         expect(bodies).toContain(`'/admin/shop/money/share': (bad) => [`);
         expect(bodies).toContain(`'/admin/shop/money/seller': (bad) => [`);
+        expect(queries).toContain(`'/admin/invites/campaigns': ['cursor']`);
+        expect(queries).toContain(`'/admin/invites/rewards': ['list', 'cursor']`);
+        expect(bodies).toContain(`'/admin/invites/campaigns': (bad) => campaignGarbage(bad)`);
+        expect(bodies).toContain(`'/admin/invites/campaigns/:id': (bad) => campaignGarbage(bad)`);
+        expect(bodies).toContain(`'/admin/invites/campaigns/:id/state': (bad) => [`);
+        expect(bodies).toContain(`'/admin/invites/rewards/:id': (bad) => [`);
     });
 
     it('answers anybody who may not give a look as a page that is not there, and takes a look and a reason only in the shapes the wire offers', async () =>
@@ -1963,6 +1969,48 @@ describe('the owner\'s view of the vault', () =>
         expect((await sent(app, '/shop/money/share', { bps: 'all' })).status).toBe(422);
         expect((await sent(app, '/shop/money/pause', {})).status).toBe(422);
         expect(told).toHaveLength(6);
+    });
+
+    it('answers anybody who may not run invites as a page that is not there, and takes a campaign, a move and a decision only in the shapes the wire offers', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = owned(told, null);
+        const id = '0a6a3f0e-1111-4222-8333-444455556666';
+        const campaign = { name: 'Bring a friend', inviterItem: 'dice.glow', milestones: [{ count: 3, item: 'decoration.jade' }], review: false, reason: 'Spring is here' };
+        const answers = [
+            await sent(app, '/invites'),
+            await sent(app, '/invites/campaigns?cursor=c'),
+            await sent(app, '/invites/campaigns', campaign),
+            await sent(app, `/invites/campaigns/${ id }`, campaign),
+            await sent(app, `/invites/campaigns/${ id }/state`, { to: 'active', reason: 'Spring is here' }),
+            await sent(app, '/invites/rewards?list=given'),
+            await sent(app, `/invites/rewards/${ id }`, { to: 'given', reason: 'A real friend' })
+        ];
+
+        for (const response of answers)
+        {
+            const body = await response.json() as { error: { code: string; message: string } };
+
+            expect([response.status, body.error.code, body.error.message]).toEqual([404, 'not-found', 'Nothing there.']);
+        }
+
+        expect(told).toEqual([
+            ['invites', 'somebody'],
+            ['campaigns', 'somebody', { cursor: 'c' }],
+            ['writeCampaign', 'somebody', campaign],
+            ['changeCampaign', 'somebody', id, campaign],
+            ['moveCampaign', 'somebody', id, { to: 'active', reason: 'Spring is here' }],
+            ['rewards', 'somebody', { list: 'given' }],
+            ['decideReward', 'somebody', id, { to: 'given', reason: 'A real friend' }]
+        ]);
+        expect((await sent(app, '/invites/campaigns', { ...campaign, name: 'ab' })).status).toBe(422);
+        expect((await sent(app, '/invites/campaigns', { ...campaign, milestones: Array.from({ length: 6 }, (_, at) => ({ count: at + 1, item: 'dice.glow' })) })).status).toBe(422);
+        expect((await sent(app, '/invites/campaigns', { ...campaign, most: 0 })).status).toBe(422);
+        expect((await sent(app, '/invites/campaigns', { ...campaign, review: undefined })).status).toBe(422);
+        expect((await sent(app, `/invites/campaigns/${ id }/state`, { to: 'draft', reason: 'Back to the start' })).status).toBe(422);
+        expect((await sent(app, `/invites/rewards/${ id }`, { to: 'review', reason: 'Look again' })).status).toBe(422);
+        expect((await sent(app, '/invites/rewards?list=pending')).status).toBe(422);
+        expect(told).toHaveLength(7);
     });
 
     it('hands the owner\'s wallet the shop\'s call as the port composed it', async () =>

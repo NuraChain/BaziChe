@@ -24,7 +24,17 @@ export const STAFF_REFUSALS = {
     'staff-shop-running': 409,
     'staff-shop-revenue': 409,
     'staff-shop-refunded': 409,
-    'staff-shop-refused': 409
+    'staff-shop-refused': 409,
+    'staff-campaign-empty': 422,
+    'staff-campaign-look': 422,
+    'staff-campaign-milestone': 422,
+    'staff-campaign-window': 422,
+    'staff-campaign-running': 409,
+    'staff-campaign-move': 409,
+    'staff-campaign-ended': 409,
+    'staff-campaign-gave': 409,
+    'staff-reward-move': 409,
+    'staff-reward-suspended': 409
 } as const satisfies Record<string, 404 | 409 | 422>;
 
 export type StaffRefusal = keyof typeof STAFF_REFUSALS;

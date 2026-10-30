@@ -56,7 +56,9 @@ const KIND_WORDS: Record<ActionKind | 'all', MessageKey> = {
     'shop-feature': 'admin.log.kind.shop-feature',
     'shop-grant': 'admin.log.kind.shop-grant',
     'shop-revoke': 'admin.log.kind.shop-revoke',
-    'shop-refund': 'admin.log.kind.shop-refund'
+    'shop-refund': 'admin.log.kind.shop-refund',
+    'invite-campaign': 'admin.log.kind.invite-campaign',
+    'invite-reward': 'admin.log.kind.invite-reward'
 };
 
 const queryOf = (asked: Asked) => ({

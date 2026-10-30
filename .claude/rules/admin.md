@@ -8,8 +8,8 @@ design, with the decisions and what was not chosen, is
 
 **Three roles, each above the last: moderator, admin, owner.** `domains/admin/roles.ts` imports
 nothing and both halves read it: `ABILITIES` says which role a section needs (`overview`, `live`,
-`people` and `reports` a moderator, `play`, `shop`, `notice`, `money`, `staff`, `log` and `health` an admin,
-`wallet` the owner), `may(role, ability)` answers, and `outranks(actor, other)` is
+`people` and `reports` a moderator, `play`, `shop`, `invites`, `notice`, `money`, `staff`, `log` and
+`health` an admin, `wallet` the owner), `may(role, ability)` answers, and `outranks(actor, other)` is
 the one rule about rank. Nobody outranks their own role, and every role outranks somebody who holds
 none. The browser draws a section only where `may` says so; the server asks the same function on
 every route, because the drawing is a courtesy.
@@ -423,6 +423,73 @@ their roles, a close waiting on the table's lock and two closes at once; `stake.
 table and a paid game ended, refunded by the worker with its proof whole; `realtime-hub.spec.ts` the
 pulse.
 
+## Invites
+
+**An admin and the owner run inviting friends** (`invites`, `domains/admin/invites.ts`, RF-D29). How
+inviting works is `.claude/rules/invites.md`; this is what the staff do to it.
+
+**Campaigns** (`GET /api/admin/invites/campaigns?cursor=`): newest first, fifty a page by the
+microsecond keyset over `(created_at, id)`, each with what it gives (the inviter's look, the
+friend's, its milestones in order of friends), its most, whether every reward waits, its window, who
+wrote it and when, whether it runs now (`running`: active and inside its window by Postgres's clock),
+whether it has written a reward (`gave`), and what came of it (friends joined and played in it, its
+rewards by how they stand). `POST /api/admin/invites/campaigns` writes one as a draft and `POST
+.../:id` writes it again, each time whole (`{ name, inviterItem?, inviteeItem?, milestones, most?,
+review, startsAt?, endsAt?, reason }`: a look, most or end left out is none). Before anything is
+written, a campaign that gives no look is `staff-campaign-empty`, a look the shop does not sell or a
+bundle `staff-campaign-look`, two milestones at one number of friends `staff-campaign-milestone`,
+and an end not after its start or a time that is none `staff-campaign-window` (each 422); milestones
+are kept in order of friends whatever order they came in. Once a campaign has written a reward, what
+it gives stays (`staff-campaign-gave`, 409, RF-D30), while its name, most, review and window may
+change at any time; an ended campaign changes no more (`staff-campaign-ended`, 409); a change to
+nothing writes nothing. Each is a row of the log, kind `invite-campaign`, `{ campaign, name, to }`,
+`to` being `draft` or `changed`, with the `fields` a change moved.
+
+**A change waits for a count giving under its campaign.** It takes the campaign's row for update,
+and a count rewarding under a campaign holds that row shared for its transaction (`reward` in the
+invite service), so what a campaign gives is changed only before a count or after it: a change that
+waited finds the reward written and is refused.
+
+**Started, paused and ended** (`POST .../:id/state`, `{ to, reason }`, `CAMPAIGN_MOVES`), under a
+lock on every campaign row in id order, so two starts at once start one: a second running is
+`staff-campaign-running` (409), a pause of anything but a running campaign `staff-campaign-move`
+(409), a start whose end has passed `staff-campaign-window`, and an ended campaign is final. One
+started while its start is still ahead is active and not yet running. A move to where it is writes
+nothing; every other move is a row, `{ campaign, name, to }`.
+
+**Rewards** (`GET /api/admin/invites/rewards?list=&cursor=`): newest first, fifty a page by the
+keyset, `review` (the default), `given`, `refused`, `taken` or `all`: whom it is for (the face, the
+role on the staff, whether suspended), what for (the inviter's, the friend's, a milestone's), the
+look, how it stands, whether it delivered anything, when, who decided and why, the campaign, the
+invite's flags, and the friend it came through (the friend for an inviter's, whoever invited for a
+friend's, nobody for a milestone); every page says how many wait.
+
+**A reward decided** (`POST .../rewards/:id`, `{ to, reason }`, `REWARD_MOVES`): given or refused
+while it waits, taken back once given, `staff-reward-move` (409) otherwise, and one it already has
+writes nothing. It is held to the note's rank rule against the person it is for, asked before
+anything is written: nobody decides their own, nor one of somebody at or above them. Under the
+person's row lock and then the reward's, the order a count rewarding takes them in: given, the look
+is theirs in that transaction (`via = 'reward'`; a look they own already gives nothing), they are
+told (`invite-reward`, as a count that gives tells them) and their pages read the shop again;
+refused, nothing moves and nobody is told; taken back, the look leaves them only if the reward
+brought it, off every slot it was worn in, a profile's slot ringing their profile (RF-D32). A
+suspended account is given nothing (`staff-reward-suspended`, 409, RF-D31), and may be refused or
+taken back. Each is a row about the person, kind `invite-reward`, `{ reward, item, to, campaign }`.
+
+**At a glance** (`GET /api/admin/invites`), counted by UTC days, because a visit is kept by its day
+(RF-D33): today, the last seven days and all, each the devices that opened a link, the friends who
+joined, played and were flagged, and the rewards written in it by how they stand now; the visits,
+joins and plays of each of the last fourteen days; the ten inviters whose friends played most, with
+how many joined and were flagged; the campaign running; and how many rewards wait.
+
+`admin-invites.db.spec.ts` holds every route against Postgres: who is answered as nothing, a
+campaign written and every refusal, started, paused and ended with one running at a time, what it
+gives changed before a reward and refused after, a change waiting for a count, two starts at once,
+the list with what came of each, a reward given, refused and taken back with what each rings and
+tells, every refusal of a decision, the rank rule, two decisions at once, the rewards a page at a
+time with their flags and friends, and the overview against rows dated by hand; `app.spec.ts` the
+routes and their shapes; `admin-log.spec.ts` the log's sentences.
+
 ## Money
 
 The vault section (`.claude/rules/stakes.md`, *The owner's view of the vault*) is `money`: an admin
@@ -622,8 +689,9 @@ page joins the day it carries on, which keeps its place. Each entry begins with 
 in a tinted circle (`MARKS` in `log-entry`): a suspension, a clear and a game ended in danger, a lift
 in green, a report, a sign-out, a closed table, an age, a disagreement with NuraChain closed and a refund asked in gold, a note, a role, a game switched,
 an announcement and a change to a look in the shop in blue, the collection put on top of the shop in
-gold, a look given to somebody in green and one taken back in danger, and a suspension that ran out
-and somebody taken off the staff plain.
+gold, a look given to somebody in green and one taken back in danger, an invite campaign in blue
+and an invite reward decided in gold, and a suspension that ran out and somebody taken off the staff
+plain.
 The mark is hidden from a screen reader, because the sentence beside it says the same.
 
 **Overview** is the first section, open to every role on the staff, and it is a dashboard. It
@@ -913,7 +981,7 @@ open it says the two agree; a server that keeps no contract says it checks nothi
 ## The garbage pass
 
 `tools/qa/garbage-pass.mjs` sends the admin's routes garbage like every other: the staff change, a
-note, a suspension, a lift, a clear, a sign-out, a mark under 18, a report's outcome, a game's switch, a game's end, a table's close, a notice put up and one taken down, a check closed, a look changed in the shop, the collection put on top, a look given to somebody and one taken back, a refund asked, the shop's revenue taken out, its share and its seller, and the vault's amounts as bodies, the two pauses as spared (each body is a
+note, a suspension, a lift, a clear, a sign-out, a mark under 18, a report's outcome, a game's switch, a game's end, a table's close, a notice put up and one taken down, a check closed, a look changed in the shop, the collection put on top, a look given to somebody and one taken back, a refund asked, the shop's revenue taken out, its share and its seller, an invite campaign written, written again and moved, a reward decided, and the vault's amounts as bodies, the two pauses as spared (each body is a
 switch), the log's four query words, the people's three, the reports' two, the games being played's
-three, the tables waiting's two, the live list's one, the checks' two and the shop orders' five. Its garbage accounts are not staff, so every one of them is answered as missing; what it
+three, the tables waiting's two, the live list's one, the checks' two, the shop orders' five, the campaigns' one and the rewards' two. Its garbage accounts are not staff, so every one of them is answered as missing; what it
 proves is that none is a 5xx.

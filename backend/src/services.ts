@@ -47,6 +47,7 @@ import { createLiveService, type Call, type Online } from './domains/admin/live.
 import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play.ts';
 import { createNoticeService } from './domains/admin/notice.ts';
 import { createShopAdmin } from './domains/admin/shop.ts';
+import { createInviteAdmin } from './domains/admin/invites.ts';
 import { createShopMoney } from './domains/admin/shop-money.ts';
 import { worn, type ProfileLooks } from './domains/shop/looks.ts';
 import { createOrderService, type ShopSweep } from './domains/shop/orders.ts';
@@ -1113,6 +1114,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const notices = createNoticeService(db);
 
     const shopAdmin = createShopAdmin(db);
+
+    const inviteAdmin = createInviteAdmin(db, shownOwners);
 
     const liveNow = async () =>
     {
@@ -2529,6 +2532,79 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 const actor = await ableTo(me, 'wallet');
 
                 return actor === null || actor.address === null ? null : await shopFunds.refund(actor, actor.address, order, input.reason);
+            },
+
+            async invites(me)
+            {
+                return await ableTo(me, 'invites') === null ? null : await inviteAdmin.overview();
+            },
+
+            async campaigns(me, query)
+            {
+                return await ableTo(me, 'invites') === null ? null : await inviteAdmin.campaigns(query.cursor ?? null);
+            },
+
+            async writeCampaign(me, input)
+            {
+                const actor = await ableTo(me, 'invites');
+
+                return actor === null ? null : await inviteAdmin.write(actor, input, input.reason);
+            },
+
+            async changeCampaign(me, id, input)
+            {
+                const actor = await ableTo(me, 'invites');
+
+                return actor === null ? null : await inviteAdmin.change(actor, id, input, input.reason);
+            },
+
+            async moveCampaign(me, id, input)
+            {
+                const actor = await ableTo(me, 'invites');
+
+                return actor === null ? null : await inviteAdmin.move(actor, id, input.to, input.reason);
+            },
+
+            async rewards(me, query)
+            {
+                return await ableTo(me, 'invites') === null ? null : await inviteAdmin.rewards(query.list ?? 'review', query.cursor ?? null);
+            },
+
+            async decideReward(me, id, input)
+            {
+                const actor = await ableTo(me, 'invites');
+                const held = actor === null ? null : await inviteAdmin.held(id);
+
+                if (actor === null || held === null)
+                {
+                    return null;
+                }
+
+                await accounts.reachable(actor, held.handle);
+
+                const decided = await inviteAdmin.decide(actor, id, input.to, input.reason);
+
+                if (decided === null)
+                {
+                    return null;
+                }
+
+                if (decided.given || decided.taken)
+                {
+                    live?.selfChanged(held.userId, 'shop');
+                }
+
+                if (decided.given)
+                {
+                    await courtesy('invite reward', () => tell({ userId: held.userId, kind: 'invite-reward', actorId: decided.actorId, ref: { item: decided.item }, dedupeKey: `invite-reward:${ id }` }));
+                }
+
+                if (decided.worn.some((slot) => slot.startsWith('profile.')))
+                {
+                    await courtesy('profile look', () => ringProfile(held.userId));
+                }
+
+                return decided.reward;
             }
         },
 

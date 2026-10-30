@@ -1,3 +1,5 @@
+import { VOICE_FILE_MOST, VOICE_MOST_MS, VOICE_WAVE_BARS } from '../../../backend/src/domains/chat/voice.ts';
+
 export interface TextBody
 {
     text: string;
@@ -9,6 +11,17 @@ export interface ReactionBody
 {
     react: string;
     on: string;
+}
+
+/**
+ * A voice message: the file it plays and the key that opens it, what its recorder made, how long it
+ * is and its loudness in levels, all sealed with the message so only the room can read them.
+ */
+export interface VoiceBody
+{
+    voice: { id: string; key: string; iv: string; mime: string; ms: number; wave: string; bytes: number };
+    reply?: string;
+    fwd?: true;
 }
 
 /** What a line says now, sealed by whoever wrote it and naming the line it changes. */
@@ -53,6 +66,17 @@ export function encodeText(body: TextBody)
     });
 }
 
+export function encodeVoice(body: VoiceBody)
+{
+    const { id, key, iv, mime, ms, wave, bytes } = body.voice;
+
+    return JSON.stringify({
+        voice: { id, key, iv, mime, ms, wave, bytes },
+        ...(body.reply === undefined ? {} : { reply: body.reply }),
+        ...(body.fwd === true ? { fwd: true } : {})
+    });
+}
+
 export function encodeReaction(body: ReactionBody)
 {
     return JSON.stringify({ react: body.react, on: body.on });
@@ -79,6 +103,55 @@ export function decodeText(raw: string): TextBody | null
 
     return {
         text: found.text,
+        ...(typeof found.reply === 'string' ? { reply: found.reply } : {}),
+        ...(found.fwd === true ? { fwd: true as const } : {})
+    };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+const WAVE = new RegExp(`^[A-Za-z0-9_-]{1,${ VOICE_WAVE_BARS }}$`);
+
+/** A recorder measures a little past its own stop; more than this is no recording of ours. */
+const LONGEST = VOICE_MOST_MS + 2000;
+
+const whole = (value: unknown, least: number, most: number): value is number =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= least && value <= most;
+
+/**
+ * A voice message's document, exactly: anything else in its place opens as tampered, because a reader
+ * acts on every field of it (fetches the file it names, opens it with the key, draws the waveform).
+ */
+export function decodeVoice(raw: string): VoiceBody | null
+{
+    const found = documentOf(raw);
+    const voice = found?.voice;
+
+    if (found === null || typeof voice !== 'object' || voice === null || Array.isArray(voice))
+    {
+        return null;
+    }
+
+    const { id, key, iv, mime, ms, wave, bytes } = voice as Record<string, unknown>;
+
+    if (typeof id !== 'string' || !UUID.test(id)
+        || typeof key !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(key)
+        || typeof iv !== 'string' || !/^[A-Za-z0-9_-]{16}$/.test(iv)
+        || typeof mime !== 'string' || mime.length > 64 || !/^audio\/[a-z0-9.+-]+(?:;codecs=[a-z0-9.]+)?$/i.test(mime)
+        || !whole(ms, 1, LONGEST)
+        || typeof wave !== 'string' || !WAVE.test(wave)
+        || !whole(bytes, 1, VOICE_FILE_MOST))
+    {
+        return null;
+    }
+
+    if ((found.reply !== undefined && typeof found.reply !== 'string') || (found.fwd !== undefined && found.fwd !== true))
+    {
+        return null;
+    }
+
+    return {
+        voice: { id, key, iv, mime, ms, wave, bytes },
         ...(typeof found.reply === 'string' ? { reply: found.reply } : {}),
         ...(found.fwd === true ? { fwd: true as const } : {})
     };

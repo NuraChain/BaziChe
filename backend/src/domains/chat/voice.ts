@@ -27,3 +27,9 @@ export const VOICE_REFUSALS = {
 } as const satisfies Record<string, 404 | 409 | 413 | 415 | 429>;
 
 export type VoiceRefusal = keyof typeof VOICE_REFUSALS;
+
+/** The longest voice message, in milliseconds. The recorder stops itself here. */
+export const VOICE_MOST_MS = 10 * 60_000;
+
+/** How many levels a waveform carries: one base64url character each, so 0 to 63. */
+export const VOICE_WAVE_BARS = 64;

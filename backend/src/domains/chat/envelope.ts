@@ -179,6 +179,15 @@ export function label(...parts: string[])
     return parts.join(SEP);
 }
 
+/**
+ * What a voice message's file is sealed against: the file's own id, so a file put in another's place does
+ * not open. Not the room's, because a forward names the same file from another room.
+ */
+export function voiceAad(fileId: string)
+{
+    return label(PROTOCOL, 'voice', fileId);
+}
+
 export interface FrankContext
 {
     conversationId: string;

@@ -947,6 +947,23 @@ first time anybody plays it, because that is when their dot goes.
 `app.spec.ts` (*a voice message's file*) the two raw routes and the mark, and `voice-sweep.spec.ts`
 the sweep's place in `main.ts`.
 
+**The browser seals the file before anything leaves it** (`lib/voice-note.ts`): a fresh AES-256-GCM
+key and iv a recording, its AAD `voiceAad(id)` from `chat/envelope.ts`. The document is written and
+read by `lib/body.ts` alone, exactly `{"voice":{"id","key","iv","mime","ms","wave","bytes"},"reply"?,
+"fwd"?}`; anything else opens as `tampered`, and so does a document whose id is not the file its row
+names (`openVoice` in `chat.source.ts`).
+
+**A voice message is a line at the press** (`chat.sendVoice`): in the thread and the list with its
+waveform and length, its file up first with its progress (`uploadOf`; an XMLHttpRequest, the one way
+a page hears how much of a body has gone, `services/voice-files.ts`), then the message naming it, in
+the outbox's turn. A refused upload is Not sent and Try again puts it up; a refused message is Not
+sent and Try again does not put it up again, unless the server said `voice-missing` (an upload held
+past its hour). A forward names the file it heard and puts nothing up. What the sender recorded is
+held in the clear for the tab (`lib/voice-held.ts`, eight at most, let go with the archive at
+sign-out), so their own line plays with nothing fetched.
+
+`voice-note.spec.ts` and `voice-send.spec.ts` hold it.
+
 ## Recovery
 
 A device that loses its keys loses what it could read, and the only honest way back is a secret the

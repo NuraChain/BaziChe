@@ -1,9 +1,11 @@
 import { createMemo, createStore, createResource, createSignal, untrack, type Getter } from 'azerothjs';
 
-import { client } from '../api.ts';
-import type { Conversation, Message } from '../data/chat.ts';
+import { ApiError, client } from '../api.ts';
+import type { Conversation, Message, VoiceRecording } from '../data/chat.ts';
 import { createGuesses } from '../lib/guess.ts';
 import { runtime } from '../lib/runtime.ts';
+import { forgetAudio, holdAudio } from '../lib/voice-held.ts';
+import { sealAudio } from '../lib/voice-note.ts';
 import { createApiSource, type ChatScope, type ChatSource, type ConversationRow } from '../services/chat.source.ts';
 import { EDIT_HOURS } from '../../../backend/src/domains/chat/edits.ts';
 import { THREAD_PAGE } from '../../../backend/src/domains/chat/pages.ts';
@@ -41,6 +43,9 @@ interface Outgoing
     message: Message;
     expiresAt: number;
     state: 'sending' | 'sent' | 'failed';
+
+    /** A voice message's file, sealed, and whether it is up yet. A forward's is up already and has no body here. */
+    file?: { body: Uint8Array | null; uploaded: boolean };
 }
 
 let active: ChatSource = createApiSource();
@@ -90,6 +95,12 @@ export interface ChatApi
 
     /** Takes a line that was not sent out of the thread. */
     discard(message: Message): void;
+
+    /** Sends a recording as a voice message: in the thread at once, its file up, then the message naming it. */
+    sendVoice(id: string, recording: VoiceRecording): Promise<void>;
+
+    /** How much of a voice message's file has gone up, 0 to 1, while it is going up. */
+    uploadOf(messageId: string): number | null;
     replyTo(id: string): Message | null;
     setReplyTo(id: string, message: Message | null): void;
 
@@ -177,6 +188,7 @@ export const useChat = createStore((): ChatApi =>
     const places = new Map<string, number>();
     const [pins, setPins] = createSignal<Record<string, boolean>>({});
     const [outbox, setOutbox] = createSignal<readonly Outgoing[]>([]);
+    const [uploads, setUploads] = createSignal<Record<string, number>>({});
 
     const guesses = createGuesses<Message[]>();
 
@@ -391,6 +403,62 @@ export const useChat = createStore((): ChatApi =>
 
             void reread().then(
                 () => setOutbox((current) => current.filter((held) => held.message.id !== one.message.id)),
+                () => undefined
+            );
+        });
+
+        posting = turn;
+        return turn;
+    };
+
+    const withFile = (id: string, file: NonNullable<Outgoing['file']>) =>
+        setOutbox((current) => current.map((one) => (one.message.id === id ? { ...one, file } : one)));
+
+    /**
+     * Sends a voice message in its turn, as `deliver` sends a line: its file up first unless it is up
+     * already, then the message. A send the server refuses for want of the file (an upload held past
+     * its hour and let go) puts the file up again at the next try; any other refusal does not.
+     */
+    const deliverVoice = (one: Outgoing) =>
+    {
+        const begun = era;
+        const id = one.message.id;
+        const turn = posting.catch(() => undefined).then(async () =>
+        {
+            const file = untrack(outbox).find((held) => held.message.id === id)?.file ?? one.file ?? { body: null, uploaded: true };
+
+            try
+            {
+                await active.postVoice(one.message, one.expiresAt, {
+                    body: file.uploaded ? null : file.body,
+                    progress: (fraction) => setUploads((current) => ({ ...current, [id]: fraction })),
+                    uploaded: () => withFile(id, { ...file, uploaded: true })
+                });
+            }
+            catch (error)
+            {
+                if (error instanceof ApiError && error.code === 'voice-missing' && file.body !== null)
+                {
+                    withFile(id, { ...file, uploaded: false });
+                }
+
+                restate(id, 'failed');
+                throw error;
+            }
+            finally
+            {
+                setUploads((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
+            }
+
+            restate(id, 'sent');
+
+            if (begun !== era)
+            {
+                return;
+            }
+
+            void reread().then(
+                () => setOutbox((current) => current.filter((held) => held.message.id !== id)),
                 () => undefined
             );
         });
@@ -633,6 +701,29 @@ export const useChat = createStore((): ChatApi =>
             await deliver(one);
         },
 
+        async sendVoice(id, recording)
+        {
+            const fileId = crypto.randomUUID();
+            const sealed = await sealAudio(recording.plain, fileId);
+            const quoted = untrack(replies)[id];
+
+            setReplies((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
+
+            const message: Message = {
+                ...asked(id, ''),
+                kind: 'voice',
+                voice: { id: fileId, key: sealed.key, iv: sealed.iv, mime: recording.mime, ms: recording.ms, wave: recording.wave, bytes: recording.plain.byteLength },
+                ...(quoted === undefined ? {} : { reply: quoted.id })
+            };
+            const one: Outgoing = { message, expiresAt: lifetimeOf(id, message.at), state: 'sending', file: { body: sealed.body, uploaded: false } };
+
+            holdAudio(fileId, recording.plain);
+            setOutbox((current) => [...current, one]);
+            await deliverVoice(one);
+        },
+
+        uploadOf: (messageId) => uploads()[messageId] ?? null,
+
         async retry(message)
         {
             const one = untrack(outbox).find((held) => held.message.id === message.id && held.state === 'failed');
@@ -643,12 +734,17 @@ export const useChat = createStore((): ChatApi =>
             }
 
             restate(one.message.id, 'sending');
-            await deliver(one);
+            await (one.message.kind === 'voice' ? deliverVoice(one) : deliver(one));
         },
 
         discard(message)
         {
             setOutbox((current) => current.filter((one) => one.message.id !== message.id));
+
+            if (message.voice !== undefined)
+            {
+                forgetAudio(message.voice.id);
+            }
         },
 
         replyTo: (id) => replies()[id] ?? null,
@@ -741,11 +837,21 @@ export const useChat = createStore((): ChatApi =>
 
         async forward(message, to)
         {
-            const outgoing: Message = { ...asked(to, message.text), forwarded: true };
-            const one: Outgoing = { message: outgoing, expiresAt: lifetimeOf(to, outgoing.at), state: 'sending' };
+            // A voice message forwards its file as it is: the reader may hear it, so the server lets the
+            // new message name it, and nothing goes up again.
+            const spoken = message.kind === 'voice' && message.voice !== undefined;
+            const outgoing: Message = spoken
+                ? { ...asked(to, ''), kind: 'voice', voice: message.voice, forwarded: true }
+                : { ...asked(to, message.text), forwarded: true };
+            const one: Outgoing = {
+                message: outgoing,
+                expiresAt: lifetimeOf(to, outgoing.at),
+                state: 'sending',
+                ...(spoken ? { file: { body: null, uploaded: true } } : {})
+            };
 
             setOutbox((current) => [...current, one]);
-            await deliver(one);
+            await (spoken ? deliverVoice(one) : deliver(one));
         },
 
         /**
@@ -870,6 +976,7 @@ export const useChat = createStore((): ChatApi =>
             places.clear();
             setPins({});
             setOutbox([]);
+            setUploads({});
             guesses.clear();
             era += 1;
             inFlight = Promise.resolve();

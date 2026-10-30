@@ -187,14 +187,17 @@ export const useSearch = createStore((): SearchApi =>
         // Only what this browser actually opened. A locked message has an empty `text` and would
         // otherwise still match on its sender's handle - rendering an empty row that looks like a
         // message with nothing in it, which reads as a bug rather than as "you cannot read this".
-        const readable = want('chats') ? chat.archive().filter((message) => message.locked === undefined) : [];
+        // A voice message was opened and has no words either, so it is not looked through, and not
+        // counted as one that could not be read.
+        const opened = want('chats') ? chat.archive().filter((message) => message.locked === undefined) : [];
+        const readable = opened.filter((message) => message.kind === 'text');
 
         const messages = want('chats')
             ? ranked(readable, needle, (message) => [locale.text(message.text), message.from]).slice(0, 30)
             : [];
 
         const locked = want('chats')
-            ? chat.archive().length - readable.length
+            ? chat.archive().length - opened.length
             : 0;
 
         return {

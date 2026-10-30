@@ -1,7 +1,10 @@
 import { ApiError, client } from '../api.ts';
 import type { ChatMessage } from '../api.ts';
-import type { Conversation, Message, MessageKind, Reaction } from '../data/chat.ts';
-import { decodeEdit, decodeReaction, decodeText, encodeEdit, encodeReaction, encodeText } from '../lib/body.ts';
+import type { Conversation, Message, MessageKind, Reaction, VoiceNote } from '../data/chat.ts';
+import { decodeEdit, decodeReaction, decodeText, decodeVoice, encodeEdit, encodeReaction, encodeText, encodeVoice } from '../lib/body.ts';
+import { forgetAudio } from '../lib/voice-held.ts';
+import { decodeWave, encodeWave } from '../lib/voice-note.ts';
+import { voiceFiles } from './voice-files.ts';
 import { forget } from '../lib/crypto.ts';
 import { runtime } from '../lib/runtime.ts';
 import { keyStore } from '../lib/device-keys.ts';
@@ -78,6 +81,17 @@ export interface ConversationPage
     more: boolean;
 }
 
+/**
+ * A voice message's file on its way up. `body` is null when the file is up already (a send again
+ * after the upload went, a forward of a file the reader heard); `uploaded` is told the moment it is.
+ */
+export interface VoiceUpload
+{
+    body: Uint8Array | null;
+    progress: (fraction: number) => void;
+    uploaded: () => void;
+}
+
 export interface ChatSource
 {
     conversations(scope: ChatScope, signal: AbortSignal, pages?: number): Promise<ConversationPage>;
@@ -90,6 +104,9 @@ export interface ChatSource
      * disagree about how long a message should last.
      */
     post(message: Message, expiresAt?: number): Promise<void>;
+
+    /** Puts a voice message's file up unless it is up already, then seals and sends the message naming it. */
+    postVoice(message: Message, expiresAt: number, file: VoiceUpload): Promise<void>;
     react(conversationId: string, from: string, target: string, emoji: string, at: number, expiresAt: number): Promise<void>;
 
     /** Seals new words for a line of the reader's, to last exactly as long as the line does. */
@@ -144,6 +161,8 @@ export function forgetArchive()
     {
         source.reset();
     }
+
+    forgetAudio();
 }
 
 /**
@@ -236,7 +255,7 @@ export function createApiSource()
         wire: ChatMessage,
         text: string,
         locked: MessageFailure | null,
-        signed?: { from: string; frankingKey: string; plain: string; reply?: string; fwd?: true; reactions: Reaction[]; edited?: Message['edited'] }
+        signed?: { from: string; frankingKey: string; plain: string; reply?: string; fwd?: true; reactions: Reaction[]; edited?: Message['edited']; voice?: VoiceNote }
     ) =>
     {
         const said = wire.payload?.params ?? {};
@@ -259,6 +278,9 @@ export function createApiSource()
             ...(wire.payload === undefined ? {} : { line: { key: wire.payload.key, params } }),
             ...(wire.expiresAt === undefined ? {} : { expiresAt: Date.parse(wire.expiresAt) }),
             ...(wire.read === true ? { read: true } : {}),
+            ...(signed?.voice === undefined ? {} : { voice: signed.voice }),
+            ...(wire.played === true ? { played: true } : {}),
+            ...(wire.heard === true ? { heard: true } : {}),
             at: wire.clientAt === undefined ? Date.parse(wire.at) : Date.parse(wire.clientAt),
             ref: wire.payload === undefined
                 ? null
@@ -349,7 +371,7 @@ export function createApiSource()
         keyFor: (epoch: number) => Promise<Uint8Array | null>
     ): Promise<Message> =>
     {
-        if (wire.kind !== 'text')
+        if (wire.kind !== 'text' && wire.kind !== 'voice')
         {
             return asMessage(born, wire, '', null);
         }
@@ -369,6 +391,11 @@ export function createApiSource()
             return asMessage(born, wire, '', read.failure);
         }
 
+        if (wire.kind === 'voice')
+        {
+            return openVoice(born, wire, read, keyFor);
+        }
+
         const body = decodeText(read.text);
 
         if (body === null)
@@ -386,6 +413,36 @@ export function createApiSource()
             ...(body.fwd === true ? { fwd: true as const } : {}),
             reactions: await openReactions(born, wire, keyFor),
             ...(edit === null ? {} : { edited: edit.edited })
+        });
+    };
+
+    /**
+     * A voice message, once its envelope has opened: its document has to be a voice message's, exactly,
+     * and name the file the row names in the clear, or a server could move a message onto another file.
+     */
+    const openVoice = async (
+        born: number,
+        wire: ChatMessage,
+        read: { text: string; frankingKey: string; from: string },
+        keyFor: (epoch: number) => Promise<Uint8Array | null>
+    ) =>
+    {
+        const body = decodeVoice(read.text);
+        const wave = body === null ? null : decodeWave(body.voice.wave);
+
+        if (body === null || wave === null || body.voice.id !== wire.voice)
+        {
+            return asMessage(born, wire, '', 'tampered');
+        }
+
+        return asMessage(born, wire, '', null, {
+            from: read.from,
+            frankingKey: read.frankingKey,
+            plain: read.text,
+            ...(body.reply === undefined ? {} : { reply: body.reply }),
+            ...(body.fwd === true ? { fwd: true as const } : {}),
+            reactions: await openReactions(born, wire, keyFor),
+            voice: { ...body.voice, wave }
         });
     };
 
@@ -456,9 +513,10 @@ export function createApiSource()
         plain: string,
         at: number,
         expiresAt: number,
-        kind: 'text' | 'reaction' | 'edit',
+        kind: 'text' | 'voice' | 'reaction' | 'edit',
         target?: string,
-        id?: string
+        id?: string,
+        voice?: string
     ) =>
     {
         const secrets = await keyStore().secrets();
@@ -484,7 +542,7 @@ export function createApiSource()
             {
                 await client.chat.send({
                     params: { id: conversationId },
-                    input: target === undefined ? sealed : { ...sealed, target }
+                    input: { ...sealed, ...(target === undefined ? {} : { target }), ...(voice === undefined ? {} : { voice }) }
                 });
                 return;
             }
@@ -630,6 +688,30 @@ export function createApiSource()
             });
 
             await deliver(message.conversationId, message.from, plain, message.at, expiresAt, 'text', undefined, message.id === '' ? undefined : message.id);
+        },
+
+        async postVoice(message, expiresAt, file)
+        {
+            const voice = message.voice;
+
+            if (voice === undefined)
+            {
+                throw new TypeError('A voice message names its file.');
+            }
+
+            if (file.body !== null)
+            {
+                await voiceFiles().upload(voice.id, file.body, file.progress);
+                file.uploaded();
+            }
+
+            const plain = encodeVoice({
+                voice: { id: voice.id, key: voice.key, iv: voice.iv, mime: voice.mime, ms: voice.ms, wave: encodeWave(voice.wave), bytes: voice.bytes },
+                ...(message.reply === undefined ? {} : { reply: message.reply }),
+                ...(message.forwarded === true ? { fwd: true as const } : {})
+            });
+
+            await deliver(message.conversationId, message.from, plain, message.at, expiresAt, 'voice', undefined, message.id, voice.id);
         },
 
         async react(conversationId, from, target, emoji, at, expiresAt)

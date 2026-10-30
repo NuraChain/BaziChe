@@ -32,7 +32,31 @@ export interface Conversation
     quiet: boolean;
 }
 
-export type MessageKind = 'text' | 'deleted' | 'system' | 'invite' | 'result';
+export type MessageKind = 'text' | 'voice' | 'deleted' | 'system' | 'invite' | 'result';
+
+/**
+ * A voice message as its sealed document says it, once this browser has opened it: the file, the key
+ * that opens it, what its recorder made, how long its recorder measured it and its loudness in levels.
+ */
+export interface VoiceNote
+{
+    id: string;
+    key: string;
+    iv: string;
+    mime: string;
+    ms: number;
+    wave: number[];
+    bytes: number;
+}
+
+/** What a recorder hands over to be sent: the recording in the clear, its type, its length and its levels. */
+export interface VoiceRecording
+{
+    plain: Uint8Array;
+    mime: string;
+    ms: number;
+    wave: number[];
+}
 
 export interface Reaction
 {
@@ -136,6 +160,15 @@ export interface Message
 
     /** The reader's own line, and somebody else in the room has read up to it. */
     read?: boolean;
+
+    /** A voice message's file and what its sender sealed about it. */
+    voice?: VoiceNote;
+
+    /** A voice message the reader has played. */
+    played?: boolean;
+
+    /** A voice message of the reader's that somebody else has played. */
+    heard?: boolean;
 
     /**
      * A line of the reader's that this browser is still sending, has sent and not yet read back, or

@@ -631,6 +631,7 @@ describe('chat store', () =>
             conversations: () => Promise.reject(new Error('offline')),
             thread: () => Promise.reject(new Error('offline')),
             post: () => Promise.resolve(),
+            postVoice: () => Promise.resolve(),
             react: () => Promise.resolve(),
             edit: () => Promise.resolve(),
             remove: () => Promise.resolve(),
@@ -656,6 +657,7 @@ describe('chat store', () =>
             conversations: (scope, signal) => answering ? live.conversations(scope, signal) : Promise.reject(new Error('offline')),
             thread: (id, scope, signal) => answering ? live.thread(id, scope, signal) : Promise.reject(new Error('offline')),
             post: (message) => live.post(message),
+            postVoice: (...args) => live.postVoice(...args),
             react: (...args) => live.react(...args),
             edit: (...args) => live.edit(...args),
             remove: (...args) => live.remove(...args),
@@ -720,6 +722,7 @@ describe('chat store', () =>
                 return page;
             },
             post: (message, expiresAt) => live.post(message, expiresAt),
+            postVoice: (...args) => live.postVoice(...args),
             react: (...args) => live.react(...args),
             edit: (...args) => live.edit(...args),
             remove: (...args) => live.remove(...args),

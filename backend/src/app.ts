@@ -1,10 +1,11 @@
-import { App, HttpError, json, type ErrorObserver, type RequestLogger, type RequestObserver } from '@azerothjs/http';
+import { App, HttpError, PayloadTooLargeError, json, mediaTypeOf, readRaw, type ErrorObserver, type RequestLogger, type RequestObserver } from '@azerothjs/http';
 import { manifestOf, register } from '@azerothjs/http/api';
 import { mountPages, type KitOptions } from '@azerothjs/kit';
 import type { Logger } from '@azerothjs/logger';
 import type { DataSource } from 'typeorm';
 
 import { buildApi } from './api.ts';
+import { VOICE_FILE_MOST, VOICE_REFUSALS } from './domains/chat/voice.ts';
 import { avatarFile } from './domains/identity/avatar.ts';
 import { sameSiteWrites } from './http/origin.ts';
 import { wellFormed } from './http/well-formed.ts';
@@ -155,6 +156,72 @@ export function buildApp(deps: AppDeps)
                 'content-security-policy': "default-src 'none'"
             }
         });
+    });
+
+    // A voice message's file, as the ciphertext its sender's browser made. Raw rather than through
+    // `api`, because the body is bytes and not JSON; the session, the cross-site rule and the
+    // limiter stand in front of it as they do in front of every route.
+    app.put('/api/chat/voice/:id', async (context) =>
+    {
+        const principal = await ports.identity.principal(context.request);
+        if (principal === null)
+        {
+            return new Response(null, { status: 401 });
+        }
+
+        if (mediaTypeOf(context.request) !== 'application/octet-stream')
+        {
+            throw new HttpError(VOICE_REFUSALS['voice-type'], 'A voice file is sent as application/octet-stream.', { code: 'voice-type' });
+        }
+
+        let bytes: Uint8Array;
+
+        try
+        {
+            bytes = await readRaw(context.request, { limit: VOICE_FILE_MOST });
+        }
+        catch (error)
+        {
+            if (error instanceof PayloadTooLargeError)
+            {
+                throw new HttpError(VOICE_REFUSALS['voice-size'], 'That recording is too large to keep.', { code: 'voice-size' });
+            }
+            throw error;
+        }
+
+        const kept = await ports.chat.storeVoice(principal.userId, context.params.id, bytes);
+
+        return json({ id: kept.id, size: kept.size }, { status: kept.fresh ? 201 : 200 });
+    });
+
+    // Answered only to whoever may hear the file, and as a file that is not there to anybody else. The
+    // ciphertext never changes, so a browser keeps it; the key that opens it is in the message.
+    app.get('/api/chat/voice/:id', async (context) =>
+    {
+        const principal = await ports.identity.principal(context.request);
+        if (principal === null)
+        {
+            return new Response(null, { status: 401 });
+        }
+
+        const bytes = await ports.chat.voiceFile(principal.userId, context.params.id);
+        if (bytes === null)
+        {
+            throw new HttpError(VOICE_REFUSALS['voice-missing'], 'No such voice file.', { code: 'voice-missing' });
+        }
+
+        const headers = {
+            'cache-control': 'private, max-age=31536000, immutable',
+            'etag': `"${ context.params.id }"`,
+            'x-content-type-options': 'nosniff',
+            'content-security-policy': "default-src 'none'"
+        };
+
+        if (context.request.headers.get('if-none-match') === headers.etag)
+        {
+            return new Response(null, { status: 304, headers });
+        }
+        return new Response(new Uint8Array(bytes), { headers: { ...headers, 'content-type': 'application/octet-stream' } });
     });
 
     app.get('/avatars/:file', async (context) =>

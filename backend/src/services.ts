@@ -338,6 +338,21 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             message.read = true;
         }
 
+        if (row.voice_id !== null)
+        {
+            message.voice = row.voice_id;
+        }
+
+        if (row.played === true)
+        {
+            message.played = true;
+        }
+
+        if (row.heard === true)
+        {
+            message.heard = true;
+        }
+
         return message;
     };
 
@@ -480,6 +495,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 frank: row.last_frank,
                 expires_at: row.last_expires_at,
                 target_id: null,
+                voice_id: row.last_voice_id,
                 seen: row.last_seen
             });
 
@@ -501,7 +517,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 commitment: row.edit_commitment,
                 frank: null,
                 expires_at: row.edit_expires_at,
-                target_id: row.last_id
+                target_id: row.last_id,
+                voice_id: null
             }]).get(row.last_id);
 
             if (edited !== undefined)
@@ -3867,7 +3884,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
                 // A reaction or an edit changes a line already in the room: everybody there reads it
                 // again, and nobody is told anything new happened.
-                if (input.kind !== 'text')
+                if (input.kind === 'reaction' || input.kind === 'edit')
                 {
                     live?.chatChanged(conversationId);
                     return message;
@@ -3894,6 +3911,22 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             {
                 await chat.remove(me, conversationId, messageId);
                 live?.chatChanged(conversationId);
+            },
+
+            storeVoice: (me, id, bytes) => chat.storeVoice(me, id, bytes),
+
+            voiceFile: (me, id) => chat.voiceFile(me, id),
+
+            async played(me, conversationId, messageId)
+            {
+                const play = await chat.played(me, conversationId, messageId);
+
+                live?.chatSeen(conversationId, me);
+
+                if (play.first && play.sender !== null && play.sender !== me)
+                {
+                    live?.chatSeen(conversationId, play.sender);
+                }
             },
 
             /**

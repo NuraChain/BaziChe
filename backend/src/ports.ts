@@ -463,8 +463,9 @@ export interface ChatPort
      */
     send(me: string, sessionId: string, conversationId: string, input: {
         id: string;
-        kind: 'text' | 'reaction' | 'edit';
+        kind: 'text' | 'voice' | 'reaction' | 'edit';
         target?: string;
+        voice?: string;
         epoch: number;
         seq: number;
         iv: string;
@@ -477,6 +478,15 @@ export interface ChatPort
     }): Promise<ChatMessage>;
 
     remove(me: string, conversationId: string, messageId: string): Promise<void>;
+
+    /** Keeps a voice file as its sender's browser sealed it. `fresh` is false for a retry of one already kept. */
+    storeVoice(me: string, id: string, bytes: Uint8Array): Promise<{ id: string; size: number; fresh: boolean }>;
+
+    /** A voice file's ciphertext, or null for anybody who may not hear it and for a file that is not there. */
+    voiceFile(me: string, id: string): Promise<Uint8Array | null>;
+
+    /** The reader has started a voice message: its dot goes, and its sender's when nobody had played it. */
+    played(me: string, conversationId: string, messageId: string): Promise<void>;
 
     /**
      * How long a message in this room lasts, in seconds. Null turns it off.

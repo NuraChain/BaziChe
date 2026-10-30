@@ -1,18 +1,29 @@
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '@azerothjs/http';
-import { In, IsNull, type DataSource } from 'typeorm';
+import { BadRequestError, ConflictError, ForbiddenError, HttpError, NotFoundError } from '@azerothjs/http';
+import { In, IsNull, type DataSource, type EntityManager } from 'typeorm';
 
 import { EDIT_HOURS } from './edits.ts';
 import type { Franking } from './franking.ts';
 import { THREAD_PAGE } from './pages.ts';
+import {
+    VOICE_DAY_BYTES,
+    VOICE_FILE_LEAST,
+    VOICE_FILE_MOST,
+    VOICE_HOLD_MINUTES,
+    VOICE_PENDING_MOST,
+    VOICE_REFUSALS,
+    type VoiceRefusal
+} from './voice.ts';
 
 import { cursorFor, cursorOf, instantOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
-import { affectedBy, firstRow, rowsOf } from '../../lib/rows.ts';
+import { firstRow, rowsOf } from '../../lib/rows.ts';
 import { ConversationMember } from '../../entities/conversation-member.entity.ts';
 import { Conversation } from '../../entities/conversation.entity.ts';
 import { Device } from '../../entities/device.entity.ts';
 import { Table } from '../../entities/table.entity.ts';
 import { Message, type MessageKind } from '../../entities/message.entity.ts';
 import { User } from '../../entities/user.entity.ts';
+import { VoiceNote } from '../../entities/voice-note.entity.ts';
+import { VoicePlay } from '../../entities/voice-play.entity.ts';
 import type { SocialService } from '../social/service.ts';
 
 export interface ConversationRow
@@ -48,6 +59,7 @@ export interface ConversationRow
     last_commitment: string | null;
     last_frank: string | null;
     last_expires_at: Date | null;
+    last_voice_id: string | null;
 
     /** When the room last moved, in microseconds since 1970, and 0 for a room nothing was said in. */
     last_key: string;
@@ -97,16 +109,28 @@ export interface MessageRow
     frank: string | null;
     target_id: string | null;
 
+    /** The file a voice message plays. */
+    voice_id: string | null;
+
     /** Mine, and read by somebody else in the room. Only the history read asks. */
     seen?: boolean | null;
+
+    /** A voice message the reader has played. Only the history read asks. */
+    played?: boolean | null;
+
+    /** A voice message of the reader's that somebody else has played. Only the history read asks. */
+    heard?: boolean | null;
 }
 
 /** What a client states when it sends something sealed. */
 export interface SealedInput
 {
     id: string;
-    kind: 'text' | 'reaction' | 'edit';
+    kind: 'text' | 'voice' | 'reaction' | 'edit';
     target?: string;
+
+    /** The file a voice message names, which its sealed document names again. */
+    voice?: string;
     epoch: number;
     seq: number;
     iv: string;
@@ -157,7 +181,34 @@ export function pairKeyOf(a: string, b: string)
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function createChatService(db: DataSource, social: SocialService, franking: Franking)
+const refused = (word: VoiceRefusal, message: string) => new HttpError(VOICE_REFUSALS[word], message, { code: word });
+
+/**
+ * The reader may hear the voice file `v`: they uploaded it, or they are in a room holding a live
+ * message that names it with no block between them and another member there, which is the rule every
+ * read of a room applies. The same question decides who fetches a file and which file a send may
+ * name, so a forward references a file rather than copying it.
+ */
+const HEARD_BY_ME = `(v.uploader_id = :me or exists (
+    select 1
+    from messages named
+    join conversation_members seat on seat.conversation_id = named.conversation_id and seat.user_id = :me
+    where named.voice_id = v.id
+      and (named.expires_at is null or named.expires_at > now())
+      and not exists (select 1
+                        from conversation_members other
+                        join blocks b on (b.user_id = :me and b.blocked_id = other.user_id)
+                                      or (b.user_id = other.user_id and b.blocked_id = :me)
+                       where other.conversation_id = named.conversation_id and other.user_id <> :me)))`;
+
+/** What one account may upload. A spec passes smaller ones, to reach a limit without uploading 200 MiB. */
+export interface VoiceLimits
+{
+    dayBytes: number;
+    pending: number;
+}
+
+export function createChatService(db: DataSource, social: SocialService, franking: Franking, voice: VoiceLimits = { dayBytes: VOICE_DAY_BYTES, pending: VOICE_PENDING_MOST })
 {
     const envelope = () => db.getRepository(Message)
         .createQueryBuilder('x')
@@ -179,7 +230,8 @@ export function createChatService(db: DataSource, social: SocialService, frankin
         .addSelect('x.commitment', 'commitment')
         .addSelect('x.frank', 'frank')
         .addSelect('x.expires_at', 'expires_at')
-        .addSelect('x.target_id', 'target_id');
+        .addSelect('x.target_id', 'target_id')
+        .addSelect('x.voice_id', 'voice_id');
 
     /**
      * The membership row, which IS the authorisation.
@@ -265,6 +317,29 @@ export function createChatService(db: DataSource, social: SocialService, frankin
         return rowsOf<{ user_id: string }>(rows).map((row) => row.user_id);
     };
 
+    const hears = (me: string, id: string) => UUID.test(id) && db.getRepository(VoiceNote)
+        .createQueryBuilder('v')
+        .where('v.id = :id', { id })
+        .andWhere(HEARD_BY_ME, { me })
+        .getExists();
+
+    /**
+     * Deletes the files no message names any more, among those given. Inside the caller's
+     * transaction, after whatever stopped naming them, so a file a forward still names stays.
+     */
+    const letGo = async (tx: EntityManager, ids: readonly string[]) =>
+    {
+        if (ids.length > 0)
+        {
+            await tx.getRepository(VoiceNote)
+                .createQueryBuilder()
+                .delete()
+                .where('id in (:...ids)', { ids: [...ids] })
+                .andWhere('not exists (select 1 from messages m where m.voice_id = voice_notes.id)')
+                .execute();
+        }
+    };
+
     /** One person's handle, which two message builders both want and neither owns. */
     const handleOf = async (userId: string) =>
     {
@@ -342,6 +417,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                         last.commitment                                                  as last_commitment,
                         last.frank                                                       as last_frank,
                         last.expires_at                                                  as last_expires_at,
+                        last.voice_id                                                    as last_voice_id,
                         (last.sender_account_id = $1
                          and last.created_at <= (select max(o.last_read_at) from conversation_members o
                                                   where o.conversation_id = c.id and o.user_id <> $1)) as last_seen,
@@ -366,7 +442,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                      select x.id, x.kind, x.body, x.payload, x.created_at, su.handle as sender,
                             x.sender_id as sender_account_id,
                             x.epoch, x.seq, x.iv, x.sender_device_id, x.signature, x.client_at,
-                            x.commitment, x.frank, x.expires_at
+                            x.commitment, x.frank, x.expires_at, x.voice_id
                      from messages x
                      left join users su on su.id = x.sender_id
                      where x.conversation_id = c.id
@@ -443,6 +519,8 @@ export function createChatService(db: DataSource, social: SocialService, frankin
             const query = envelope()
                 .addSelect(keyOf('x.created_at'), 'at_key')
                 .addSelect(`(x.sender_id = :me and x.created_at <= (select max(o.last_read_at) from conversation_members o where o.conversation_id = x.conversation_id and o.user_id <> :me))`, 'seen')
+                .addSelect(`(x.kind = 'voice' and exists (select 1 from voice_plays p where p.message_id = x.id and p.user_id = :me))`, 'played')
+                .addSelect(`(x.kind = 'voice' and x.sender_id = :me and exists (select 1 from voice_plays p where p.message_id = x.id and p.user_id <> :me))`, 'heard')
                 .where('x.conversation_id = :conversationId', { conversationId, me })
                 .andWhere(`x.kind not in ('reaction', 'edit')`)
                 .andWhere('(x.expires_at is null or x.expires_at > now())');
@@ -460,9 +538,10 @@ export function createChatService(db: DataSource, social: SocialService, frankin
             const hasMore = page.length > size;
             const shown = page.slice(0, size).reverse();
             const texts = shown.filter((row) => row.kind === 'text').map((row) => row.id);
+            const said = shown.filter((row) => row.kind === 'text' || row.kind === 'voice').map((row) => row.id);
 
-            const reactions = texts.length === 0 ? [] : await envelope()
-                .where('x.target_id in (:...texts)', { texts })
+            const reactions = said.length === 0 ? [] : await envelope()
+                .where('x.target_id in (:...said)', { said })
                 .andWhere('x.kind = :kind', { kind: 'reaction' })
                 .andWhere('(x.expires_at is null or x.expires_at > now())')
                 .orderBy('x.created_at', 'ASC')
@@ -546,9 +625,19 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 throw new BadRequestError('A message needs a body.');
             }
 
-            if (input.kind === 'text' && input.target !== undefined)
+            if ((input.kind === 'text' || input.kind === 'voice') && input.target !== undefined)
             {
                 throw new BadRequestError('A message is not about another message; a reaction or an edit is.');
+            }
+
+            if (input.kind !== 'voice' && input.voice !== undefined)
+            {
+                throw new BadRequestError('Only a voice message names a voice file.');
+            }
+
+            if (input.kind === 'voice' && !await hears(me, input.voice ?? ''))
+            {
+                throw refused('voice-missing', 'There is no voice recording of yours with that id.');
             }
 
             if (input.kind === 'reaction')
@@ -559,7 +648,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                     .createQueryBuilder('t')
                     .where('t.id = :target', { target })
                     .andWhere('t.conversation_id = :conversationId', { conversationId })
-                    .andWhere('t.kind = :kind', { kind: 'text' })
+                    .andWhere('t.kind in (:...kinds)', { kinds: ['text', 'voice'] })
                     .andWhere('(t.expires_at is null or t.expires_at > now())')
                     .getExists();
 
@@ -722,7 +811,8 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                         commitment: input.commitment,
                         frank,
                         expiresAt,
-                        targetId: input.kind === 'text' ? null : input.target ?? null
+                        targetId: input.kind === 'reaction' || input.kind === 'edit' ? input.target ?? null : null,
+                        voiceId: input.kind === 'voice' ? input.voice ?? null : null
                     })
                     .returning('*')
                     .execute();
@@ -769,12 +859,12 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 const messages = tx.getRepository(Message);
 
                 const found = await messages.findOne({
-                    select: { id: true, kind: true },
+                    select: { id: true, kind: true, voiceId: true },
                     where: { id: messageId, conversationId, senderId: me },
                     lock: { mode: 'pessimistic_write' }
                 });
 
-                if (found === null || (found.kind !== 'text' && found.kind !== 'reaction'))
+                if (found === null || (found.kind !== 'text' && found.kind !== 'voice' && found.kind !== 'reaction'))
                 {
                     throw new NotFoundError('No such message of yours here.');
                 }
@@ -786,14 +876,17 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 }
 
                 await messages.delete({ targetId: messageId, kind: In(['reaction', 'edit']) });
+                await tx.getRepository(VoicePlay).delete({ messageId });
                 await messages.update({ id: messageId }, {
                     kind: 'deleted',
                     body: null,
                     iv: null,
                     signature: null,
                     commitment: null,
-                    frank: null
+                    frank: null,
+                    voiceId: null
                 });
+                await letGo(tx, found.voiceId === null ? [] : [found.voiceId]);
 
                 return 'deleted';
             });
@@ -807,7 +900,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                  values ($1, $2, $3, $4)
                  returning id, conversation_id, kind, body, payload, created_at,
                            epoch, seq, iv, sender_device_id, signature, client_at, commitment,
-                           frank, expires_at, target_id`,
+                           frank, expires_at, target_id, voice_id`,
                 [conversationId, senderId, kind, JSON.stringify(payload)]
             );
             const message = rowsOf<Omit<MessageRow, 'sender' | 'sender_account_id'>>(inserted)[0];
@@ -837,10 +930,10 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 `select x.id, x.conversation_id, x.kind, x.body, x.payload, x.created_at,
                         su.handle as sender, x.sender_id as sender_account_id,
                         x.epoch, x.seq, x.iv, x.sender_device_id, x.signature, x.client_at,
-                        x.commitment, x.frank, x.expires_at
+                        x.commitment, x.frank, x.expires_at, x.target_id, x.voice_id
                  from messages x
                  left join users su on su.id = x.sender_id
-                 where x.conversation_id = $1 and x.id = $2 and x.kind in ('text', 'edit')
+                 where x.conversation_id = $1 and x.id = $2 and x.kind in ('text', 'voice', 'edit')
                    and (x.expires_at is null or x.expires_at > now())`,
                 [conversationId, messageId]
             );
@@ -878,8 +971,163 @@ export function createChatService(db: DataSource, social: SocialService, frankin
          */
         async sweepExpired(): Promise<number>
         {
-            const gone = await db.query('delete from messages where expires_at is not null and expires_at <= now()');
-            return affectedBy(gone);
+            return db.transaction(async (tx) =>
+            {
+                const gone = rowsOf<{ voice_id: string | null }>(await tx.query('delete from messages where expires_at is not null and expires_at <= now() returning voice_id'));
+
+                await letGo(tx, [...new Set(gone.flatMap((row) => (row.voice_id === null ? [] : [row.voice_id])))]);
+                return gone.length;
+            });
+        },
+
+        /**
+         * Lets go of every file no message names that is older than the hold: an upload its sender
+         * never sent, and anything a room took with it when the room went.
+         */
+        async sweepVoice(): Promise<number>
+        {
+            const gone = await db.getRepository(VoiceNote)
+                .createQueryBuilder()
+                .delete()
+                .where('created_at < now() - make_interval(mins => :hold)', { hold: VOICE_HOLD_MINUTES })
+                .andWhere('not exists (select 1 from messages m where m.voice_id = voice_notes.id)')
+                .execute();
+
+            return gone.affected ?? 0;
+        },
+
+        /**
+         * Keeps a voice file as its sender's browser sealed it, under the id that browser chose.
+         *
+         * The same id from the same uploader again is the same file, a retry, answered as already kept;
+         * an id somebody else holds is theirs. One account's uploads go one after another, so neither the
+         * day's budget nor the cap on files waiting to be sent can be raced past.
+         */
+        async storeVoice(me: string, id: string, bytes: Uint8Array): Promise<{ id: string; size: number; fresh: boolean }>
+        {
+            if (!UUID.test(id))
+            {
+                throw refused('voice-missing', 'That is not a voice file id.');
+            }
+
+            if (bytes.byteLength < VOICE_FILE_LEAST || bytes.byteLength > VOICE_FILE_MOST)
+            {
+                throw refused('voice-size', 'That recording is too short or too large to keep.');
+            }
+
+            try
+            {
+                return await db.transaction(async (tx) =>
+                {
+                    // Raw, because no repository can say it: one uploader's files are taken one at a time.
+                    await tx.query(`select pg_advisory_xact_lock(hashtext('voice:uploader'), hashtext($1))`, [me]);
+
+                    const files = tx.getRepository(VoiceNote);
+                    const held = await files.findOne({ select: { id: true, uploaderId: true, size: true }, where: { id } });
+
+                    if (held !== null)
+                    {
+                        if (held.uploaderId !== me)
+                        {
+                            throw refused('voice-taken', 'That voice file id is somebody else\'s.');
+                        }
+
+                        return { id, size: held.size, fresh: false };
+                    }
+
+                    const spent = await files
+                        .createQueryBuilder('v')
+                        .select('coalesce(sum(v.size), 0)::bigint', 'bytes')
+                        .where('v.uploader_id = :me', { me })
+                        .andWhere(`v.created_at > now() - interval '1 day'`)
+                        .getRawOne<{ bytes: string }>();
+
+                    if (Number(spent?.bytes ?? 0) + bytes.byteLength > voice.dayBytes)
+                    {
+                        throw refused('voice-budget', 'You have sent as much voice as one day allows.');
+                    }
+
+                    const waiting = await files
+                        .createQueryBuilder('v')
+                        .where('v.uploader_id = :me', { me })
+                        .andWhere('not exists (select 1 from messages m where m.voice_id = v.id)')
+                        .getCount();
+
+                    if (waiting >= voice.pending)
+                    {
+                        throw refused('voice-pending', 'Send or let go of the voice messages already waiting first.');
+                    }
+
+                    await files.insert({ id, uploaderId: me, bytes: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), size: bytes.byteLength });
+
+                    return { id, size: bytes.byteLength, fresh: true };
+                });
+            }
+            catch (error)
+            {
+                // Two uploaders racing one id: the other's lock is another lock, and the key arbitrates.
+                if ((error as { code?: string; driverError?: { code?: string } }).driverError?.code === '23505' || (error as { code?: string }).code === '23505')
+                {
+                    throw refused('voice-taken', 'That voice file id is somebody else\'s.');
+                }
+                throw error;
+            }
+        },
+
+        /** A voice file's ciphertext, to whoever may hear it, and nothing to anybody else. */
+        async voiceFile(me: string, id: string): Promise<Buffer | null>
+        {
+            if (!UUID.test(id))
+            {
+                return null;
+            }
+
+            const found = await db.getRepository(VoiceNote)
+                .createQueryBuilder('v')
+                .select('v.bytes', 'bytes')
+                .where('v.id = :id', { id })
+                .andWhere(HEARD_BY_ME, { me })
+                .getRawOne<{ bytes: Buffer }>();
+
+            return found?.bytes ?? null;
+        },
+
+        /**
+         * The reader has started a voice message. Their own are never marked, as their own lines are
+         * never unread. Answers who sent it and whether nobody but its sender had played it before,
+         * which is when the sender's dot goes.
+         */
+        async played(me: string, conversationId: string, messageId: string): Promise<{ sender: string | null; first: boolean }>
+        {
+            await mustBeMember(me, conversationId);
+
+            const target = UUID.test(messageId)
+                ? await db.getRepository(Message)
+                    .createQueryBuilder('x')
+                    .select('x.sender_id', 'sender')
+                    .where('x.id = :messageId', { messageId })
+                    .andWhere('x.conversation_id = :conversationId', { conversationId })
+                    .andWhere(`x.kind = 'voice'`)
+                    .andWhere('(x.expires_at is null or x.expires_at > now())')
+                    .getRawOne<{ sender: string | null }>()
+                : undefined;
+
+            if (target === undefined)
+            {
+                throw new NotFoundError('No such voice message here.');
+            }
+
+            if (target.sender === me)
+            {
+                return { sender: me, first: false };
+            }
+
+            const plays = db.getRepository(VoicePlay);
+            const first = !await plays.existsBy({ messageId });
+
+            await plays.createQueryBuilder().insert().values({ messageId, userId: me }).orIgnore().execute();
+
+            return { sender: target.sender, first };
         },
 
         /**
@@ -906,7 +1154,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 .select('x.sender_id', 'sender')
                 .distinct(true)
                 .where('x.conversation_id = :conversationId', { conversationId })
-                .andWhere(`x.kind = 'text'`)
+                .andWhere(`x.kind in ('text', 'voice')`)
                 .andWhere('x.sender_id is not null')
                 .andWhere('x.sender_id <> :me', { me })
                 .andWhere('x.created_at > :before', { before: held.last_read_at })

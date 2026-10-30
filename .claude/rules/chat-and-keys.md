@@ -896,6 +896,57 @@ else renders large and without a bubble.
 `{ emoji() }`, which does not parse, while `azeroth check` stays green. Framework register #30; write
 `{ emoji: emoji }`.
 
+## Voice messages
+
+`docs/superpowers/specs/2026-10-30-voice-messages-design.md` is the design (VM-D1 to VM-D16); this
+is what holds it.
+
+**A voice message is sealed as a line is**, kind `voice`, every column of the envelope present, and
+`messages.voice_id` names its file in the clear the way a reaction names its target: the server has
+to know which file a message names to decide who may fetch it and when it can go. The sealed document
+names the file again, so a row moved onto another file opens as tampered. A CHECK keeps the kind and
+the file together (`messages_voice_names_file`): a line of words never names one and a tombstone
+names none.
+
+**The file is ciphertext the sender's browser made** under a fresh key that travels in the sealed
+document, kept in `voice_notes` under the id that browser chose (bound into the file's AAD), 128
+bytes to 6 MiB, its size beside it. It is uploaded first, `PUT /api/chat/voice/:id` with
+`application/octet-stream`, a raw route in `app.ts` behind the session, the cross-site rule and the
+limiter, read with a streaming limit; then the ordinary send names it. The same id from the same
+uploader again is the file already kept (`200`, a retry), an id somebody else holds is
+`voice-taken`, and an account holds 200 MiB a day and ten files no message names
+(`voice-budget`, `voice-pending`), its uploads taken one after another under a lock on the uploader
+so neither can be raced past. `domains/chat/voice.ts` holds the limits and the refusals and imports
+nothing. Nothing but the size, the rate and who uploaded can be checked here, because nothing else
+can be seen: the format, the duration and the waveform are the opening browser's.
+
+**Who may hear a file** (`HEARD_BY_ME` in the chat service): its uploader, and anybody seated in a
+room holding a LIVE message that names it, with no block between them and another member there, the
+rule every read of a room applies. `GET /api/chat/voice/:id` answers anybody else, and a file that is
+not there, in the same `404 voice-missing`; it asks before it looks at `If-None-Match`, so a reader
+who has lost the room is not answered `304`. The bytes go as `application/octet-stream`, private and
+immutable, with the id as the ETag. **A send may name only a file its sender may hear**, the same
+question, so a forward names the file it heard and nothing is copied.
+
+**A file goes with the last live message that names it.** Deleting a voice message leaves the usual
+tombstone, naming no file, and deletes the file in the same transaction unless a forward still names
+it; the expiry sweep does the same for what it deletes; and `sweepVoice`, right after it in the same
+minute, lets go of anything no message names that is older than the hour an upload is held for its
+sender to send.
+
+**It is counted as a line**: unread, the list's last line (with its file), notifications, push, the
+ring of a send, and the senders a read passes. A reaction may be about one; an edit may not, because
+an edit is accepted only about a line of words.
+
+**Played** (`voice_plays`): `POST /api/chat/:id/messages/:messageId/played` marks a live voice message
+in a room of the reader's, never their own. The page says `played` on one the reader has played and
+`heard` on one of the reader's own somebody else has; the reader is rung, and the sender too the
+first time anybody plays it, because that is when their dot goes.
+
+`voice-schema.db.spec.ts` holds the rows, `voice.db.spec.ts` every rule above against Postgres,
+`app.spec.ts` (*a voice message's file*) the two raw routes and the mark, and `voice-sweep.spec.ts`
+the sweep's place in `main.ts`.
+
 ## Recovery
 
 A device that loses its keys loses what it could read, and the only honest way back is a secret the

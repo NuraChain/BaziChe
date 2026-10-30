@@ -1373,6 +1373,13 @@ export function buildApi(ports: Ports)
                 )
             ),
 
+            /** The reader has started a voice message. Nothing is sent: the path says which. */
+            played: routes.post('/:id/messages/:messageId/played', { output: ack }, async (context) =>
+            {
+                await ports.chat.played(context.principal.userId, context.params.id, context.params.messageId);
+                return { ok: true };
+            }),
+
             remove: routes.del('/:id/messages/:messageId', { output: ack }, async (context) =>
             {
                 await ports.chat.remove(context.principal.userId, context.params.id, context.params.messageId);

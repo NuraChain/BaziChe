@@ -299,7 +299,10 @@ const expiries = setInterval(() =>
 {
     void chat.sweepExpired()
         .then((gone) => { if (gone > 0) { log.info('expired messages swept', { gone }); } })
-        .catch((error: unknown) => log.error('expiry sweep failed', { error }));
+        .catch((error: unknown) => log.error('expiry sweep failed', { error }))
+        .then(() => chat.sweepVoice())
+        .then((gone) => { if (gone > 0) { log.info('voice files let go', { gone }); } })
+        .catch((error: unknown) => log.error('voice sweep failed', { error }));
 }, 60_000);
 
 expiries.unref();

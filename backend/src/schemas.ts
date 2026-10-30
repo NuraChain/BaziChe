@@ -2961,6 +2961,18 @@ export const chatMessage = object({
     edits: array(chatRelation, { max: 1 }).optional(),
 
     /**
+     * The file a voice message plays, in the clear as a reaction's target is. Its sealed document
+     * names the file again, and a reader refuses a message whose two disagree.
+     */
+    voice: string().optional(),
+
+    /** A voice message the reader has played. */
+    played: literal(true).optional(),
+
+    /** A voice message of the reader's that somebody else has played. */
+    heard: literal(true).optional(),
+
+    /**
      * The reader's own line, and somebody else in the room has read up to it: the newest read
      * watermark among the others is at or past the moment it was stored. The server's own fact,
      * as the unread count is, and absent from anybody else's line.
@@ -3026,8 +3038,11 @@ export type MessagePage = Infer<typeof messagePage>;
  */
 export const sendInput = object({
     id: string(),
-    kind: enumOf(['text', 'reaction', 'edit']),
+    kind: enumOf(['text', 'voice', 'reaction', 'edit']),
     target: string().optional(),
+
+    /** The file a voice message names: an upload of the sender's own, or a file a forward reuses. */
+    voice: string().optional(),
     epoch: number(),
     seq: number(),
     iv: string(),

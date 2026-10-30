@@ -60,6 +60,7 @@ database says so in its log.
 
    server {
        server_name play.example.com;
+       client_max_body_size 8m;
 
        location / {
            proxy_pass http://127.0.0.1:4900;
@@ -72,6 +73,10 @@ database says so in its log.
        }
    }
    ```
+
+   `client_max_body_size` is there for voice messages, whose files are up to 6 MiB: nginx refuses a
+   body over 1 MB unless told otherwise, and a voice message of more than a few minutes would never
+   arrive.
 
    Every player holds one realtime connection, which is two for the proxy (the player's, and its
    own to the server), so nginx's default `worker_connections` (512, or 768 in Debian's

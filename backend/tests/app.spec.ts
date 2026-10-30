@@ -8,6 +8,7 @@ import { NotFoundError } from '@azerothjs/http';
 
 import { buildApp, requestLog } from '../src/app.ts';
 import { Unanswered, reached } from '../src/chain/rpc.ts';
+import { VOICE_FILE_MOST } from '../src/domains/chat/voice.ts';
 import { ludoEngine } from '../src/domains/match/engines/ludo.ts';
 import { partyRefusal, partyRefused } from '../src/domains/party/refusal.ts';
 import { PARTY_REFUSALS, type PartyRefusal } from '../src/domains/party/rules.ts';
@@ -2132,5 +2133,144 @@ describe('leaving a table', () =>
         }
 
         expect(told).toEqual([['somebody', 'a-table', false], ['somebody', 'a-table', true]]);
+    });
+});
+
+describe('a voice message’s file', () =>
+{
+    const FILE = '0b5b0d47-5a3c-4f8e-9a51-6f0b3c2d1e7a';
+
+    const voiced = (told: unknown[][], options: { signedIn?: boolean; fresh?: boolean; held?: Uint8Array | null } = {}) => buildApp({
+        db: fakeDb({ initialized: true }),
+        config,
+        log: silent,
+        ports: {
+            identity: {
+                principal: () => Promise.resolve(options.signedIn === false ? null : { userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' })
+            },
+            chat: {
+                storeVoice: (me: string, id: string, bytes: Uint8Array) =>
+                {
+                    told.push(['store', me, id, bytes.byteLength]);
+                    return Promise.resolve({ id, size: bytes.byteLength, fresh: options.fresh !== false });
+                },
+                voiceFile: (me: string, id: string) =>
+                {
+                    told.push(['fetch', me, id]);
+                    return Promise.resolve(options.held === undefined ? new Uint8Array([1, 2, 3, 4]) : options.held);
+                },
+                played: (me: string, conversationId: string, messageId: string) =>
+                {
+                    told.push(['played', me, conversationId, messageId]);
+                    return Promise.resolve();
+                }
+            }
+        } as unknown as Ports
+    });
+
+    const put = (app: ReturnType<typeof buildApp>, body: Uint8Array, headers: Record<string, string> = {}) =>
+        app.handle(new Request(`http://local/api/chat/voice/${ FILE }`, {
+            method: 'PUT',
+            headers: { 'content-type': 'application/octet-stream', ...headers },
+            body: body as BufferSource
+        }));
+
+    it('is kept for somebody signed in, answered as made the first time and as kept on a retry', async () =>
+    {
+        const told: unknown[][] = [];
+
+        const first = await put(voiced(told), new Uint8Array(4096));
+        const again = await put(voiced(told, { fresh: false }), new Uint8Array(4096));
+
+        expect(first.status).toBe(201);
+        expect(await first.json()).toEqual({ id: FILE, size: 4096 });
+        expect(again.status).toBe(200);
+        expect(told).toEqual([['store', 'somebody', FILE, 4096], ['store', 'somebody', FILE, 4096]]);
+    });
+
+    it('is kept at minutes long, past the framework’s own limit of a megabyte for a body', async () =>
+    {
+        const told: unknown[][] = [];
+        const response = await put(voiced(told), new Uint8Array(2 * 1024 * 1024));
+
+        expect(response.status).toBe(201);
+        expect(told).toEqual([['store', 'somebody', FILE, 2 * 1024 * 1024]]);
+    });
+
+    it('is refused before anything is kept to nobody signed in, to another type and past its size', async () =>
+    {
+        const told: unknown[][] = [];
+
+        expect((await put(voiced(told, { signedIn: false }), new Uint8Array(4096))).status, 'nobody').toBe(401);
+
+        const typed = await put(voiced(told), new Uint8Array(4096), { 'content-type': 'audio/webm' });
+
+        expect(typed.status, 'a type that is not bytes').toBe(415);
+        expect(await typed.json()).toMatchObject({ error: { code: 'voice-type' } });
+
+        const large = await put(voiced(told), new Uint8Array(VOICE_FILE_MOST + 1));
+
+        expect(large.status, 'past its size').toBe(413);
+        expect(await large.json()).toMatchObject({ error: { code: 'voice-size' } });
+        expect(told, 'nothing kept').toEqual([]);
+    });
+
+    it('is refused from a page on another site', async () =>
+    {
+        const told: unknown[][] = [];
+        const response = await put(voiced(told), new Uint8Array(4096), { origin: 'https://elsewhere.example', 'sec-fetch-site': 'cross-site' });
+
+        expect(response.status).toBe(403);
+        expect(told).toEqual([]);
+    });
+
+    it('is answered as bytes the browser may keep, to whoever may hear it', async () =>
+    {
+        const told: unknown[][] = [];
+        const response = await voiced(told).handle(new Request(`http://local/api/chat/voice/${ FILE }`));
+
+        expect(response.status).toBe(200);
+        expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([1, 2, 3, 4]);
+        expect(Object.fromEntries(['content-type', 'cache-control', 'etag', 'x-content-type-options', 'content-security-policy'].map((name) => [name, response.headers.get(name)]))).toEqual({
+            'content-type': 'application/octet-stream',
+            'cache-control': 'private, max-age=31536000, immutable',
+            'etag': `"${ FILE }"`,
+            'x-content-type-options': 'nosniff',
+            'content-security-policy': "default-src 'none'"
+        });
+        expect(told).toEqual([['fetch', 'somebody', FILE]]);
+    });
+
+    it('is answered unchanged without its bytes once the browser has them, and only after asking who may hear it', async () =>
+    {
+        const told: unknown[][] = [];
+        const cached = await voiced(told).handle(new Request(`http://local/api/chat/voice/${ FILE }`, { headers: { 'if-none-match': `"${ FILE }"` } }));
+
+        expect(cached.status).toBe(304);
+        expect(await cached.text()).toBe('');
+        expect(told).toEqual([['fetch', 'somebody', FILE]]);
+
+        const refused = await voiced([], { held: null }).handle(new Request(`http://local/api/chat/voice/${ FILE }`, { headers: { 'if-none-match': `"${ FILE }"` } }));
+
+        expect(refused.status, 'a reader who may not hear it, whatever they held').toBe(404);
+    });
+
+    it('is answered as a file that is not there to anybody who may not hear it, and to nobody signed in as such', async () =>
+    {
+        const missing = await voiced([], { held: null }).handle(new Request(`http://local/api/chat/voice/${ FILE }`));
+
+        expect(missing.status).toBe(404);
+        expect(await missing.json()).toMatchObject({ error: { code: 'voice-missing' } });
+        expect((await voiced([], { signedIn: false }).handle(new Request(`http://local/api/chat/voice/${ FILE }`))).status).toBe(401);
+    });
+
+    it('is marked played by the reader the path names', async () =>
+    {
+        const told: unknown[][] = [];
+        const response = await voiced(told).handle(new Request('http://local/api/chat/a-room/messages/a-line/played', { method: 'POST' }));
+
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ ok: true });
+        expect(told).toEqual([['played', 'somebody', 'a-room', 'a-line']]);
     });
 });

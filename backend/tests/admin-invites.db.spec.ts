@@ -572,6 +572,99 @@ describe.skipIf(!active)('Admin › Invites, against a real database', () =>
             ]);
             expect((await ports.admin.rewards(admin.id, { list: 'all' }))!.rewards).toHaveLength(INVITES_PAGE);
         });
+
+        it('lists only one person\'s rewards where a handle is named, whatever its case and with an @, the count waiting still everybody\'s', async () =>
+        {
+            const { admin } = await staff();
+            const campaign = await written(admin);
+            const one = await makeUser();
+            const theirs = await rewarded(campaign.id, one, { kind: 'milestone' });
+
+            await rewarded(campaign.id, await makeUser(), { kind: 'milestone' });
+
+            for (const named of [one.handle, one.handle.toUpperCase(), `@${ one.handle }`])
+            {
+                expect((await ports.admin.rewards(admin.id, { list: 'all', person: named }))!.rewards.map((row) => row.id), named).toEqual([theirs]);
+            }
+
+            expect((await ports.admin.rewards(admin.id, { list: 'all', person: 'nobody' }))!.rewards).toEqual([]);
+            expect((await ports.admin.rewards(admin.id, { person: one.handle }))!.waiting).toBe(2);
+        });
+    });
+
+    describe('one person', () =>
+    {
+        it('reads on a person\'s page who invited them, what came of their own invites and their rewards newest first, for every role on the staff', async () =>
+        {
+            const { owner, admin } = await staff();
+            const moderator = await makeUser(2);
+            const campaign = await written(admin, { name: 'Spring friends' });
+            const inviter = await makeUser();
+            const person = await referred(inviter, campaign.id, true, ['quick']);
+            const theirs = [await referred(person, campaign.id, true, ['ring']), await referred(person, campaign.id, false), await referred(person, null, true)];
+            const older = await rewarded(campaign.id, person, { invitee: theirs[0] });
+            const newer = await rewarded(campaign.id, person, { kind: 'invitee', item: 'pawns.glow', state: 'given' });
+
+            await db.getRepository(InviteCode).insert({ code: 'ABCDEFGH', userId: inviter.id });
+            await db.getRepository(Referral).update({ inviteeId: person.id }, { code: 'ABCDEFGH' });
+            await db.query(`update invite_rewards set created_at = now() - interval '1 hour' where id = $1`, [older]);
+            await ports.admin.setStaff(owner.id, { handle: moderator.handle, role: 'moderator', reason: 'Looks after the reports' });
+
+            const referral = await db.getRepository(Referral).findOneByOrFail({ inviteeId: person.id });
+
+            expect((await ports.admin.person(moderator.id, person.handle))!.invites).toEqual({
+                by: {
+                    person: { handle: inviter.handle, displayName: expect.any(String), hue: expect.any(Number) },
+                    code: 'ABCDEFGH',
+                    at: referral.createdAt.toISOString(),
+                    countedAt: referral.countedAt!.toISOString(),
+                    flags: ['quick'],
+                    campaign: { id: campaign.id, name: 'Spring friends' }
+                },
+                invited: { joined: 3, played: 2, flagged: 1 },
+                rewards: [
+                    expect.objectContaining({ id: newer, kind: 'invitee', state: 'given' }),
+                    expect.objectContaining({ id: older, kind: 'inviter', state: 'review', friend: expect.objectContaining({ handle: theirs[0].handle }) })
+                ]
+            });
+            expect((await ports.admin.person(admin.id, inviter.handle))!.invites, 'nobody invited the inviter').toEqual({ invited: { joined: 1, played: 1, flagged: 1 }, rewards: [] });
+        });
+
+        it('says an invite whose inviter is gone with no face, and keeps a person\'s newest fifty rewards, saying there are more', async () =>
+        {
+            const { admin } = await staff();
+            const campaign = await written(admin);
+            const inviter = await makeUser();
+            const person = await referred(inviter, campaign.id, false);
+
+            for (let at = 0; at <= INVITES_PAGE; at += 1)
+            {
+                await rewarded(campaign.id, person, { kind: 'milestone', milestone: at + 1 });
+            }
+
+            await db.getRepository(User).delete({ id: inviter.id });
+
+            const read = (await ports.admin.person(admin.id, person.handle))!.invites;
+
+            expect(read.by).toEqual({ at: expect.any(String), campaign: { id: campaign.id, name: 'Bring a friend' } });
+            expect(read.rewards).toHaveLength(INVITES_PAGE);
+            expect(read.more).toBe(true);
+        });
+
+        it('counts the rewards waiting on the overview for a role that opens Invites, and for nobody else', async () =>
+        {
+            const { owner, admin } = await staff();
+            const moderator = await makeUser(2);
+            const campaign = await written(admin);
+
+            await rewarded(campaign.id, await makeUser(), { kind: 'milestone' });
+            await rewarded(campaign.id, await makeUser(), { kind: 'milestone', state: 'given' });
+            await ports.admin.setStaff(owner.id, { handle: moderator.handle, role: 'moderator', reason: 'Looks after the reports' });
+
+            expect((await ports.admin.overview(admin.id))!.invites).toEqual({ waiting: 1 });
+            expect((await ports.admin.overview(owner.id))!.invites).toEqual({ waiting: 1 });
+            expect((await ports.admin.overview(moderator.id))!.invites).toBeUndefined();
+        });
     });
 
     it('counts what came of inviting friends by UTC day: today, the week and all, each of the last fourteen days, the top inviters, the campaign running and the rewards waiting', async () =>

@@ -69,7 +69,7 @@ const QUERIES = {
     '/admin/checks': ['list', 'cursor'],
     '/admin/shop/orders': ['state', 'delivered', 'item', 'person', 'cursor'],
     '/admin/invites/campaigns': ['cursor'],
-    '/admin/invites/rewards': ['list', 'cursor']
+    '/admin/invites/rewards': ['list', 'person', 'cursor']
 };
 
 const message = (bad) => ({ id: bad, kind: 'text', epoch: 0, seq: 0, iv: 'x', body: 'x', senderDeviceId: bad, signature: 'x', clientAt: bad, commitment: 'x', expiresAt: 0 });

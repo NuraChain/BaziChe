@@ -661,49 +661,6 @@ export type AdminPeople = Infer<typeof adminPeople>;
 /** A look the person owns, as the staff read it: how it came, from whom when a friend gave it, when, and whether they wear it. */
 const adminLook = object({ item: string(), via: enumOf(OWNED_VIA), from: string().optional(), at: string(), worn: boolean() });
 
-export const adminPerson = object({
-    ...adminFace,
-    bio: string(),
-    lastSeenAt: string().optional(),
-    strangers: boolean(),
-    shown: boolean(),
-    wallets: array(string()),
-    filed: number(),
-    sessions: array(object({
-        browser: string().optional(),
-        system: string().optional(),
-        openedAt: string(),
-        usedAt: string().optional(),
-        device: boolean()
-    })),
-    devices: array(object({
-        label: string(),
-        browser: string().optional(),
-        system: string().optional(),
-        attested: string(),
-        createdAt: string(),
-        seenAt: string().optional(),
-        revoked: boolean()
-    })),
-    reportsAbout: array(object({
-        id: string(),
-        against: boolean(),
-        other: string(),
-        category: string(),
-        status: enumOf(REPORT_STATUSES),
-        at: string()
-    })),
-    paid: object({ acceptedAt: string().optional(), breakUntil: string().optional() }),
-    suspension: object({ category: enumOf(SUSPEND_CATEGORIES), until: string().optional(), since: string() }).optional(),
-    history: array(staffLogRow),
-    historyCursor: string().optional(),
-    games: array(matchHistoryEntry),
-    paidGames: array(vaultGame),
-    looks: array(adminLook)
-});
-
-export type AdminPerson = Infer<typeof adminPerson>;
-
 export const adminNoteInput = object({ text: said() });
 
 export const adminSuspendInput = object({
@@ -1724,6 +1681,9 @@ export const adminOverview = object({
     /** What paid orders not refunded came to, in wei, over the last day, the week and in all, and how many delivered nothing, for a role that opens Money where the shop runs. */
     shop: object({ day: string(), week: string(), all: string(), undelivered: number() }).optional(),
 
+    /** The rewards of inviting friends that wait for the staff, for a role that opens Invites. */
+    invites: object({ waiting: number() }).optional(),
+
     /** The disagreements with NuraChain still open, for a role that opens Money where this server checks any. */
     checks: number().optional(),
 
@@ -1846,7 +1806,71 @@ export const adminInviteRewards = object({ rewards: array(adminInviteReward), cu
 
 export type AdminInviteRewards = Infer<typeof adminInviteRewards>;
 
-export const adminRewardsQuery = object({ list: enumOf(REWARD_LISTS).optional(), cursor: string({ max: 80 }).optional() });
+/**
+ * Inviting friends as one person's page reads it: who invited them, by which code and when, when their invite
+ * counted and its flags; what came of their own invites; and their rewards newest first, fifty of them.
+ */
+export const adminPersonInvites = object({
+    by: object({
+        person: staffFace.optional(),
+        code: string().optional(),
+        at: string(),
+        countedAt: string().optional(),
+        flags: array(enumOf(INVITE_FLAGS)).optional(),
+        campaign: object({ id: string(), name: string() }).optional()
+    }).optional(),
+    invited: object({ joined: number(), played: number(), flagged: number() }),
+    rewards: array(adminInviteReward),
+    more: boolean().optional()
+});
+
+export type AdminPersonInvites = Infer<typeof adminPersonInvites>;
+
+export const adminPerson = object({
+    ...adminFace,
+    bio: string(),
+    lastSeenAt: string().optional(),
+    strangers: boolean(),
+    shown: boolean(),
+    wallets: array(string()),
+    filed: number(),
+    sessions: array(object({
+        browser: string().optional(),
+        system: string().optional(),
+        openedAt: string(),
+        usedAt: string().optional(),
+        device: boolean()
+    })),
+    devices: array(object({
+        label: string(),
+        browser: string().optional(),
+        system: string().optional(),
+        attested: string(),
+        createdAt: string(),
+        seenAt: string().optional(),
+        revoked: boolean()
+    })),
+    reportsAbout: array(object({
+        id: string(),
+        against: boolean(),
+        other: string(),
+        category: string(),
+        status: enumOf(REPORT_STATUSES),
+        at: string()
+    })),
+    paid: object({ acceptedAt: string().optional(), breakUntil: string().optional() }),
+    suspension: object({ category: enumOf(SUSPEND_CATEGORIES), until: string().optional(), since: string() }).optional(),
+    history: array(staffLogRow),
+    historyCursor: string().optional(),
+    games: array(matchHistoryEntry),
+    paidGames: array(vaultGame),
+    looks: array(adminLook),
+    invites: adminPersonInvites
+});
+
+export type AdminPerson = Infer<typeof adminPerson>;
+
+export const adminRewardsQuery = object({ list: enumOf(REWARD_LISTS).optional(), person: string({ max: 40 }).optional(), cursor: string({ max: 80 }).optional() });
 
 export const adminRewardDecision = object({ to: enumOf(REWARD_MOVES), reason: said() });
 

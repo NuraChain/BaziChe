@@ -1350,11 +1350,12 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             return null;
         }
 
-        const [history, games, paid, looks] = await Promise.all([
+        const [history, games, paid, looks, invites] = await Promise.all([
             team.about(found.id, null),
             match.history(found.id, null),
             vaults.configured ? stakes.games(found.id, null) : { games: [] },
-            shopAdmin.looksOf(found.id)
+            shopAdmin.looksOf(found.id),
+            inviteAdmin.ofPerson(found.id)
         ]);
 
         return {
@@ -1363,7 +1364,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             ...(history.cursor === undefined ? {} : { historyCursor: history.cursor }),
             games: games.matches,
             paidGames: paid.games,
-            looks
+            looks,
+            invites
         };
     };
 
@@ -2318,14 +2320,15 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     return null;
                 }
 
-                const [people, games, reports, stuck, money, checks, shop] = await Promise.all([
+                const [people, games, reports, stuck, money, checks, shop, invites] = await Promise.all([
                     accounts.counts(),
                     plays.games(),
                     desk.waiting(),
                     stuckNow(),
                     may(actor.role, 'money') && vaults.configured ? vaultAdmin.counts() : null,
                     may(actor.role, 'money') && reconciler.watching.length > 0 ? reconciler.openCount() : null,
-                    may(actor.role, 'money') && looksShop.configured ? shopFunds.sales() : null
+                    may(actor.role, 'money') && looksShop.configured ? shopFunds.sales() : null,
+                    may(actor.role, 'invites') ? inviteAdmin.waiting() : null
                 ]);
 
                 const health = may(actor.role, 'health');
@@ -2342,6 +2345,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     ...(money === null ? {} : { money }),
                     ...(checks === null ? {} : { checks }),
                     ...(shop === null ? {} : { shop }),
+                    ...(invites === null ? {} : { invites: { waiting: invites } }),
                     alerts: (watch?.alertsFor({ health, money: funds }) ?? []).map((one) => ({ ...one, since: new Date(one.since).toISOString() })),
                     ...(health && ops !== undefined
                         ? { health: { ...ops.health(), pool: poolOf(db), sockets: presence?.sockets?.() ?? 0, ...(watch === undefined ? {} : { watch: watch.server() }) } }
@@ -2567,7 +2571,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
             async rewards(me, query)
             {
-                return await ableTo(me, 'invites') === null ? null : await inviteAdmin.rewards(query.list ?? 'review', query.cursor ?? null);
+                return await ableTo(me, 'invites') === null ? null : await inviteAdmin.rewards(query.list ?? 'review', query.cursor ?? null, query.person ?? null);
             },
 
             async decideReward(me, id, input)

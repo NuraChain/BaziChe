@@ -73,7 +73,11 @@ keys, the reports both ways (the other person, the category, the status, never a
 whether they accepted the terms of paid play and any break, their recent games and paid games (read
 by the account's id through the routes that serve a person their own; none when the server keeps
 no vault), the looks they own newest first (`looksOf`: how each came, the handle of the friend who
-gave one, when, and whether they wear it), and the newest fifty staff actions on them by their id, so a rename does not hide one,
+gave one, when, and whether they wear it), inviting friends (`invites`, `ofPerson`: who invited them
+with the code, when they joined, when their invite counted, its flags and its campaign, none where
+they came on their own and no face where the inviter's account is gone; how many friends they
+brought in, played and were flagged, counted as the overview counts its inviters; and their rewards
+newest first, fifty with `more` past that), and the newest fifty staff actions on them by their id, so a rename does not hide one,
 with `historyCursor` when there are more. The account's id never leaves the server. No IP is stored
 or shown.
 
@@ -457,8 +461,9 @@ lock on every campaign row in id order, so two starts at once start one: a secon
 started while its start is still ahead is active and not yet running. A move to where it is writes
 nothing; every other move is a row, `{ campaign, name, to }`.
 
-**Rewards** (`GET /api/admin/invites/rewards?list=&cursor=`): newest first, fifty a page by the
-keyset, `review` (the default), `given`, `refused`, `taken` or `all`: whom it is for (the face, the
+**Rewards** (`GET /api/admin/invites/rewards?list=&person=&cursor=`): newest first, fifty a page by the
+keyset, `review` (the default), `given`, `refused`, `taken` or `all`, and only one person's where
+`person` names a handle (whatever its case, a leading @ dropped): whom it is for (the face, the
 role on the staff, whether suspended), what for (the inviter's, the friend's, a milestone's), the
 look, how it stands, whether it delivered anything, when, who decided and why, the campaign, the
 invite's flags, and the friend it came through (the friend for an inviter's, whoever invited for a
@@ -487,7 +492,9 @@ campaign written and every refusal, started, paused and ended with one running a
 gives changed before a reward and refused after, a change waiting for a count, two starts at once,
 the list with what came of each, a reward given, refused and taken back with what each rings and
 tells, every refusal of a decision, the rank rule, two decisions at once, the rewards a page at a
-time with their flags and friends, and the overview against rows dated by hand; `app.spec.ts` the
+time with their flags and friends and one person's by their handle, a person's page with who invited
+them, what came of their invites and their rewards (an inviter gone, fifty and more), the overview's
+count of rewards waiting for the roles that open Invites, and the overview against rows dated by hand; `app.spec.ts` the
 routes and their shapes; `admin-log.spec.ts` the log's sentences.
 
 ## Money
@@ -533,7 +540,8 @@ database alone, so the page never waits on the chain: the paid games being playe
 in games (every stake of an escrow locking, open or settling) and the payments stuck on the way, by
 the vault panel's own rule (`vaultAdmin.counts`), and where the shop is open the shop's sales from
 the database (`shop`, LG-D40): what the paid orders not refunded came to by when each was paid over
-the last day, the week and in all, and how many paid orders delivered nothing. For an admin and the
+the last day, the week and in all, and how many paid orders delivered nothing. For a role that opens
+Invites it adds the rewards of inviting friends that wait (`invites`, `{ waiting }`). For an admin and the
 owner (`health`) it adds this
 server's health: how long it has run, its memory, how much of the last full minute its event loop
 was busy and the longest it waited past its own tick, the database pool, the sockets open, the
@@ -1020,5 +1028,5 @@ open it says the two agree; a server that keeps no contract says it checks nothi
 `tools/qa/garbage-pass.mjs` sends the admin's routes garbage like every other: the staff change, a
 note, a suspension, a lift, a clear, a sign-out, a mark under 18, a report's outcome, a game's switch, a game's end, a table's close, a notice put up and one taken down, a check closed, a look changed in the shop, the collection put on top, a look given to somebody and one taken back, a refund asked, the shop's revenue taken out, its share and its seller, an invite campaign written, written again and moved, a reward decided, and the vault's amounts as bodies, the two pauses as spared (each body is a
 switch), the log's four query words, the people's three, the reports' two, the games being played's
-three, the tables waiting's two, the live list's one, the checks' two, the shop orders' five, the campaigns' one and the rewards' two. Its garbage accounts are not staff, so every one of them is answered as missing; what it
+three, the tables waiting's two, the live list's one, the checks' two, the shop orders' five, the campaigns' one and the rewards' three. Its garbage accounts are not staff, so every one of them is answered as missing; what it
 proves is that none is a 5xx.

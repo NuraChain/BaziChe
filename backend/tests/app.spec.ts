@@ -1906,7 +1906,7 @@ describe('the owner\'s view of the vault', () =>
         expect(bodies).toContain(`'/admin/shop/money/share': (bad) => [`);
         expect(bodies).toContain(`'/admin/shop/money/seller': (bad) => [`);
         expect(queries).toContain(`'/admin/invites/campaigns': ['cursor']`);
-        expect(queries).toContain(`'/admin/invites/rewards': ['list', 'cursor']`);
+        expect(queries).toContain(`'/admin/invites/rewards': ['list', 'person', 'cursor']`);
         expect(bodies).toContain(`'/admin/invites/campaigns': (bad) => campaignGarbage(bad)`);
         expect(bodies).toContain(`'/admin/invites/campaigns/:id': (bad) => campaignGarbage(bad)`);
         expect(bodies).toContain(`'/admin/invites/campaigns/:id/state': (bad) => [`);

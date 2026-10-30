@@ -2,7 +2,7 @@ import type { DataSource, EntityManager, ObjectLiteral, SelectQueryBuilder } fro
 
 import { EquippedItem, InviteCampaign, InviteReward, InviteVisit, OwnedItem, Referral, User } from '../../entities/index.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
-import type { AdminInviteCampaign, AdminInviteCampaigns, AdminInviteRewards, AdminInvites } from '../../schemas.ts';
+import type { AdminInviteCampaign, AdminInviteCampaigns, AdminInviteRewards, AdminInvites, AdminPersonInvites } from '../../schemas.ts';
 import type { CampaignState, InviteFlag, Milestone, RewardKind, RewardState } from '../invite/policy.ts';
 import { RUNNING, ownReward } from '../invite/service.ts';
 import { lookOf } from '../shop/catalogue.ts';
@@ -95,6 +95,23 @@ interface RewardRow extends Keyed, Faced
     f_avatar: string | null;
     f_staff: GrantedRole | null;
     f_owner: boolean;
+}
+
+/** Who invited somebody, read beside their invite: nobody's face where the inviter's account is gone. */
+interface ByRow
+{
+    code: string | null;
+    created_at: Date;
+    counted_at: Date | null;
+    flags: InviteFlag[] | null;
+    campaign_id: string | null;
+    campaign_name: string | null;
+    p_handle: string | null;
+    p_name: string | null;
+    p_hue: number | null;
+    p_avatar: string | null;
+    p_staff: GrantedRole | null;
+    p_owner: boolean;
 }
 
 interface TopRow extends Faced
@@ -245,6 +262,15 @@ const rewardWire = (row: RewardRow) => ({
     ...(row.flags === null ? {} : { flags: row.flags }),
     person: { ...face(row.p_handle, row.p_name, row.p_hue, row.p_avatar, row.p_staff, row.p_owner), suspended: row.suspended },
     ...(row.f_handle === null || row.f_name === null || row.f_hue === null ? {} : { friend: face(row.f_handle, row.f_name, row.f_hue, row.f_avatar, row.f_staff, row.f_owner) })
+});
+
+const byWire = (row: ByRow) => ({
+    ...(row.p_handle === null || row.p_name === null || row.p_hue === null ? {} : { person: face(row.p_handle, row.p_name, row.p_hue, row.p_avatar, row.p_staff, row.p_owner) }),
+    ...(row.code === null ? {} : { code: row.code }),
+    at: row.created_at.toISOString(),
+    ...(row.counted_at === null ? {} : { countedAt: row.counted_at.toISOString() }),
+    ...(row.flags === null ? {} : { flags: row.flags }),
+    ...(row.campaign_id === null || row.campaign_name === null ? {} : { campaign: { id: row.campaign_id, name: row.campaign_name } })
 });
 
 export function createInviteAdmin(db: DataSource, owners: () => readonly string[])
@@ -544,11 +570,19 @@ export function createInviteAdmin(db: DataSource, owners: () => readonly string[
             });
         },
 
-        /** The rewards newest first, fifty a page by the microsecond keyset: waiting, given, refused, taken back, or all. */
-        async rewards(list: RewardList, cursor: string | null): Promise<AdminInviteRewards>
+        /**
+         * The rewards newest first, fifty a page by the microsecond keyset: waiting, given, refused, taken back, or
+         * all, and only one person's where a handle is named (whatever its case, a leading @ dropped).
+         */
+        async rewards(list: RewardList, cursor: string | null, person: string | null = null): Promise<AdminInviteRewards>
         {
             const after = keysetAfter(cursor);
             const query = rewardsFrom(db.manager).where(list === 'all' ? 'true' : 'w.state = :state', { state: list });
+
+            if (person !== null)
+            {
+                query.andWhere('p.handle = :person', { person: person.replace(/^@/, '') });
+            }
 
             if (after !== null)
             {
@@ -562,6 +596,48 @@ export function createInviteAdmin(db: DataSource, owners: () => readonly string[
                 .getRawMany<RewardRow>();
 
             return { rewards: rows.slice(0, INVITES_PAGE).map(rewardWire), ...cursorOf(rows, INVITES_PAGE), waiting: await waiting() };
+        },
+
+        /**
+         * Inviting friends as one person's page reads it: who invited them, by which code and when, when
+         * their invite counted, its flags and its campaign; how many friends they brought in, played and
+         * were flagged, counted as the overview counts its inviters; and their rewards newest first.
+         */
+        async ofPerson(userId: string): Promise<AdminPersonInvites>
+        {
+            const [by, invited, rows] = await Promise.all([
+                faced(db.getRepository(Referral).createQueryBuilder('r')
+                    .leftJoin(User, 'p', 'p.id = r.inviter_id')
+                    .leftJoin(InviteCampaign, 'c', 'c.id = r.campaign_id')
+                    .select('r.code', 'code')
+                    .addSelect('r.created_at', 'created_at')
+                    .addSelect('r.counted_at', 'counted_at')
+                    .addSelect('r.flags', 'flags')
+                    .addSelect('c.id', 'campaign_id')
+                    .addSelect('c.name', 'campaign_name'), 'p')
+                    .setParameter('owners', owners())
+                    .where('r.invitee_id = :id', { id: userId })
+                    .getRawOne<ByRow>(),
+                db.getRepository(Referral).createQueryBuilder('r')
+                    .select('count(*)::int', 'joined')
+                    .addSelect('count(r.counted_at)::int', 'played')
+                    .addSelect('count(r.flags)::int', 'flagged')
+                    .where('r.inviter_id = :id', { id: userId })
+                    .getRawOne<{ joined: number; played: number; flagged: number }>(),
+                rewardsFrom(db.manager)
+                    .where('w.user_id = :id', { id: userId })
+                    .orderBy('w.created_at', 'DESC')
+                    .addOrderBy('w.id', 'DESC')
+                    .limit(INVITES_PAGE + 1)
+                    .getRawMany<RewardRow>()
+            ]);
+
+            return {
+                ...(by === undefined ? {} : { by: byWire(by) }),
+                invited: invited ?? { joined: 0, played: 0, flagged: 0 },
+                rewards: rows.slice(0, INVITES_PAGE).map(rewardWire),
+                ...(rows.length > INVITES_PAGE ? { more: true } : {})
+            };
         },
 
         /** Whose reward it is, asked before it is decided so the rank rule is asked first; nothing for an id that is none. */

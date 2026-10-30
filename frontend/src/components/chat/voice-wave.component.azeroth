@@ -1,0 +1,172 @@
+import { WAVE_HEIGHT, WAVE_WIDTH, wavePath } from '../../lib/voice-note.ts';
+
+/** Seconds an arrow key moves the place. */
+const STEP = 5;
+
+/**
+ * A recording's waveform as the way through it: what has played drawn strong over the rest, a press
+ * or a drag anywhere along it moving the place, and the keyboard's slider keys. It runs left to right
+ * whatever the page's language, as a timeline does.
+ */
+export default component VoiceWave(props: {
+    levels: readonly number[];
+
+    /** How much of it has played, 0 to 1. */
+    played: number;
+
+    /** How long it is and where it is, in seconds, for the keys. */
+    length: number;
+    place: number;
+
+    /** On the reader's own line, whose ground is the accent. */
+    mine?: boolean;
+    disabled?: boolean;
+    label: string;
+    valueText: string;
+
+    /** A place chosen: by a press or a drag that let go (`pressed`), or by a key. */
+    onSeek: (seconds: number, pressed: boolean) => void;
+
+    /** Where a drag holds it, 0 to 1, and null once it lets go. */
+    onScrub?: (fraction: number | null) => void;
+})
+{
+    let track: HTMLElement | null = null;
+
+    let dragging = false;
+
+    state scrub = null as number | null;
+
+    derived path = wavePath(props.levels);
+
+    derived shown = scrub ?? props.played;
+
+    derived mine = props.mine === true;
+
+    derived off = props.disabled === true;
+
+    const fractionAt = (x: number) =>
+    {
+        const box = track?.getBoundingClientRect();
+
+        return box === undefined || box.width === 0 ? 0 : Math.max(0, Math.min(1, (x - box.left) / box.width));
+    };
+
+    const hold = (fraction: number | null) =>
+    {
+        scrub = fraction;
+        props.onScrub?.(fraction);
+    };
+
+    /**
+     * A press on the waveform is its own: neither a line's held press nor its swipe to reply begins
+     * under it. It is heard on the waveform itself, because a handler in the markup is delegated to the
+     * document, and the line's own listeners would have heard the press before it was stopped there.
+     */
+    const down = (event: PointerEvent) =>
+    {
+        if (off || (event.pointerType === 'mouse' && event.button !== 0))
+        {
+            return;
+        }
+
+        event.stopPropagation();
+        dragging = true;
+        track?.setPointerCapture?.(event.pointerId);
+        hold(fractionAt(event.clientX));
+    };
+
+    const move = (event: PointerEvent) =>
+    {
+        if (dragging)
+        {
+            hold(fractionAt(event.clientX));
+        }
+    };
+
+    const up = (event: PointerEvent) =>
+    {
+        if (!dragging)
+        {
+            return;
+        }
+
+        dragging = false;
+        hold(null);
+        props.onSeek(fractionAt(event.clientX) * props.length, true);
+    };
+
+    const cancel = () =>
+    {
+        dragging = false;
+        hold(null);
+    };
+
+    const keys = (event: KeyboardEvent) =>
+    {
+        if (off)
+        {
+            return;
+        }
+
+        const length = props.length;
+        const by: Record<string, number> = { ArrowLeft: -STEP, ArrowDown: -STEP, ArrowRight: STEP, ArrowUp: STEP, PageDown: -length / 5, PageUp: length / 5 };
+        const to = event.key === 'Home' ? 0 : (event.key === 'End' ? length : (event.key in by ? props.place + by[event.key] : null));
+
+        if (to !== null)
+        {
+            event.preventDefault();
+            props.onSeek(Math.max(0, Math.min(length, to)), false);
+        }
+    };
+
+    mount
+    {
+        const element = track;
+
+        if (element === null)
+        {
+            return;
+        }
+
+        element.addEventListener('pointerdown', down);
+
+        return () => element.removeEventListener('pointerdown', down);
+    }
+
+    <div
+        ref={ (element) => track = element }
+        class={ () => [
+            'relative h-6 w-full touch-pan-y select-none rounded-sm',
+            off ? '' : 'cursor-pointer',
+            mine ? 'focus-visible:outline-accent-ink' : ''
+        ].filter(Boolean).join(' ') }
+        dir="ltr"
+        role="slider"
+        tabindex={ off ? -1 : 0 }
+        aria-label={ props.label }
+        aria-valuemin="0"
+        aria-valuemax={ Math.round(props.length) }
+        aria-valuenow={ Math.min(Math.round(props.length), Math.round(props.place)) }
+        aria-valuetext={ props.valueText }
+        aria-disabled={ off ? 'true' : undefined }
+        onPointerMove={ move }
+        onPointerUp={ up }
+        onPointerCancel={ cancel }
+        onKeyDown={ keys }
+    >
+        <svg class={ () => mine ? 'block h-6 w-full text-accent-ink/45' : 'block h-6 w-full text-faint' } viewBox={ `0 0 ${ WAVE_WIDTH } ${ WAVE_HEIGHT }` } preserveAspectRatio="none" aria-hidden="true">
+            <path d={ path } fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>
+        </svg>
+        <svg
+            class={ () => mine ? 'absolute inset-0 block h-6 w-full text-accent-ink' : 'absolute inset-0 block h-6 w-full text-accent' }
+            style={ `clip-path: inset(0 ${ ((1 - shown) * 100).toFixed(2) }% 0 0)` }
+            viewBox={ `0 0 ${ WAVE_WIDTH } ${ WAVE_HEIGHT }` }
+            preserveAspectRatio="none"
+            aria-hidden="true"
+            data-played={ shown.toFixed(3) }
+        >
+            <path d={ path } fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>
+        </svg>
+    </div>
+}

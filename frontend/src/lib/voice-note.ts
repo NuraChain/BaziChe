@@ -113,6 +113,35 @@ export function waveOfLevels(levels: readonly number[], bars = VOICE_WAVE_BARS)
     return scaled(loudness);
 }
 
+/** How tall a drawn waveform is in its own units, which are the screen's pixels up and down. */
+export const WAVE_HEIGHT = 24;
+
+const PITCH = 3;
+
+/** How wide a drawn waveform is in its own units; it is stretched across whatever room it is given. */
+export const WAVE_WIDTH = VOICE_WAVE_BARS * PITCH;
+
+const tidy = (value: number) => Math.round(value * 100) / 100;
+
+/**
+ * A waveform as one path, a line a bar for its SVG to stroke with round caps: silence is a row of
+ * dots and the loudest slice nearly fills the height. Fewer levels than bars are spread over them.
+ */
+export function wavePath(levels: readonly number[])
+{
+    const parts: string[] = [];
+
+    for (let bar = 0; bar < VOICE_WAVE_BARS; bar += 1)
+    {
+        const level = levels.length === 0 ? 0 : levels[Math.floor(bar * levels.length / VOICE_WAVE_BARS)];
+        const length = Math.max(0, Math.min(63, level)) / 63 * (WAVE_HEIGHT - 4);
+
+        parts.push(`M${ tidy(bar * PITCH + PITCH / 2) } ${ tidy((WAVE_HEIGHT - length) / 2) }v${ tidy(length) }`);
+    }
+
+    return parts.join('');
+}
+
 export interface SealedAudio
 {
     /** The file's key, which travels only inside the sealed document of the message that names it. */

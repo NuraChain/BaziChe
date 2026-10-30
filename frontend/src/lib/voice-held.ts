@@ -8,6 +8,8 @@ export const HELD_MOST = 8;
 
 const held = new Map<string, Uint8Array>();
 
+const listeners = new Set<(id: string | null) => void>();
+
 export function holdAudio(id: string, bytes: Uint8Array)
 {
     held.delete(id);
@@ -36,6 +38,7 @@ export function heldAudio(id: string)
     return bytes ?? null;
 }
 
+/** Lets go of one recording, or of every one, and tells whoever plays them. */
 export function forgetAudio(id?: string)
 {
     if (id === undefined)
@@ -46,4 +49,20 @@ export function forgetAudio(id?: string)
     {
         held.delete(id);
     }
+
+    for (const listener of listeners)
+    {
+        listener(id ?? null);
+    }
+}
+
+/** Hears each recording let go, by its id, and null when every one goes at once. */
+export function onForgotten(listener: (id: string | null) => void)
+{
+    listeners.add(listener);
+
+    return () =>
+    {
+        listeners.delete(listener);
+    };
 }

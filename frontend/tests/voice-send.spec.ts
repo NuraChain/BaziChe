@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, renderTest } from '@azerothjs/testing';
+import { RouterProvider, createMemoryHistory, createRouter } from 'azerothjs';
 
-import type { VoiceRecording } from '../src/data/chat.ts';
+import ChatListItem from '../src/components/chat/chat-list-item.component.azeroth';
+import type { Message, VoiceRecording } from '../src/data/chat.ts';
+import '../src/icons/all.ts';
 import { manualClock } from '../src/lib/clock.ts';
-import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
+import { resetRuntime, runtime, setRuntime } from '../src/lib/runtime.ts';
 import { heldAudio } from '../src/lib/voice-held.ts';
 import { openAudio } from '../src/lib/voice-note.ts';
 import { setChatSource, useChat } from '../src/stores/chat.store.ts';
+import { createApiSource, type ChatSource } from '../src/services/chat.source.ts';
 import { setVoiceFiles, VoiceFileError, type VoiceFileFailure } from '../src/services/voice-files.ts';
 import { useGroups } from '../src/stores/groups.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
@@ -323,6 +328,29 @@ describe('a voice message on its way', () =>
     });
 });
 
+describe('a voice message last in the list', () =>
+{
+    it('says it is a voice message and how long, with the mark of what became of it', async () =>
+    {
+        const chat = useChat();
+
+        chat.openThread('c-reza');
+        await chat.sendVoice('c-reza', recording());
+        await chat.refresh();
+
+        const router = createRouter({ routes: [], history: createMemoryHistory('/app/chats'), scroll: false });
+        const container = renderTest(() => RouterProvider({
+            router,
+            children: () => ChatListItem({ conversation: chat.conversation('c-reza')!, me: 'alex', now: runtime().clock.now() })
+        }) as HTMLElement).container;
+
+        expect(container.textContent).toContain('Voice message (0:04)');
+        expect(container.querySelector('[data-status]')?.getAttribute('data-status')).toBe('sent');
+
+        cleanup();
+    });
+});
+
 describe('a voice message in search', () =>
 {
     it('is not looked through for words it does not have, nor counted as one that could not be read', async () =>
@@ -343,5 +371,88 @@ describe('a voice message in search', () =>
 
         expect(search.results().messages.some((one) => one.kind === 'voice'), 'never a row of nothing under its sender').toBe(false);
         expect(search.results().locked, 'and not locked').toBe(before);
+    });
+});
+
+describe('a voice message played', () =>
+{
+    const theirs: Message = {
+        id: 'v-1',
+        conversationId: 'c-reza',
+        from: 'reza',
+        kind: 'voice',
+        text: '',
+        at: 1000,
+        ref: null,
+        voice: { id: '0b5b0d47-5a3c-4f8e-9a51-6f0b3c2d1e7a', key: 'A'.repeat(43), iv: 'B'.repeat(16), mime: 'audio/webm;codecs=opus', ms: 3000, wave: [1, 2, 3], bytes: 900 }
+    };
+
+    const sourced = (told: string[], refuse = false): ChatSource =>
+    {
+        const real = createApiSource();
+
+        return {
+            ...real,
+            thread: async () => ({ messages: [theirs, { ...theirs, id: 'v-2', from: 'alex' }], earlier: false }),
+            played: async (conversationId, messageId) =>
+            {
+                told.push(`${ conversationId }:${ messageId }`);
+
+                if (refuse)
+                {
+                    throw new ApiError(404, 'not-found', 'No such voice message here.', undefined);
+                }
+            }
+        };
+    };
+
+    it('loses its dot at the press, and the server is told', async () =>
+    {
+        const told: string[] = [];
+
+        setChatSource(sourced(told));
+
+        const chat = useChat();
+        chat.openThread('c-reza');
+        await vi.waitFor(() => expect(chat.messages()).toHaveLength(2));
+
+        const playing = chat.played(chat.messages()[0]);
+
+        expect(chat.messages()[0].played, 'at the press').toBe(true);
+
+        await playing;
+
+        expect(told).toEqual(['c-reza:v-1']);
+    });
+
+    it('is never marked for its own sender, nor again once played', async () =>
+    {
+        const told: string[] = [];
+
+        setChatSource(sourced(told));
+
+        const chat = useChat();
+        chat.openThread('c-reza');
+        await vi.waitFor(() => expect(chat.messages()).toHaveLength(2));
+
+        await chat.played(chat.messages()[1]);
+        await chat.played({ ...chat.messages()[0], played: true });
+
+        expect(told).toEqual([]);
+    });
+
+    it('takes its dot back without a word when the server refuses', async () =>
+    {
+        const told: string[] = [];
+
+        setChatSource(sourced(told, true));
+
+        const chat = useChat();
+        chat.openThread('c-reza');
+        await vi.waitFor(() => expect(chat.messages()).toHaveLength(2));
+
+        await chat.played(chat.messages()[0]);
+
+        expect(chat.messages()[0].played).toBeUndefined();
     });
 });

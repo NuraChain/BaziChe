@@ -1,0 +1,183 @@
+import type { Message } from '../../data/chat.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import type { MessageKey } from '../../locales/en.ts';
+import { useChat } from '../../stores/chat.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useVoicePlayer, type VoiceFault } from '../../stores/voice-player.store.ts';
+import Spinner from '../ui/spinner.component.azeroth';
+import { voiceClock } from './gist.ts';
+import VoiceWave from './voice-wave.component.azeroth';
+
+const FAULTS: Record<VoiceFault, MessageKey> = {
+    gone: 'chat.voice.gone',
+    failed: 'chat.voice.failed',
+    tampered: 'chat.voice.tampered',
+    unplayable: 'chat.voice.unplayable',
+    unsupported: 'chat.voice.unsupported'
+};
+
+/**
+ * A voice message in its bubble: play, the waveform its sender's recording made, where it is and how
+ * long, whether it has been played, and while it plays its speed. A press or a drag along the waveform
+ * plays it from there. It runs left to right in every language, as media controls do, in the reader's
+ * own digits.
+ */
+export default component VoiceNote(props: {
+    message: Message;
+    mine: boolean;
+
+    /** The bubble's time, kept room for at the end of the lower line. */
+    reserve: string;
+    trail: boolean;
+})
+{
+    const locale = useLocale();
+    const chat = useChat();
+    const player = useVoicePlayer();
+
+    state scrub = null as number | null;
+
+    derived mine = props.mine;
+
+    derived levels = props.message.voice?.wave ?? [];
+
+    derived active = player.isCurrent(props.message.id);
+
+    derived condition = player.stateOf(props.message.id);
+
+    derived loading = condition === 'loading';
+
+    derived fault = condition === null || condition === 'loading' ? null : condition;
+
+    derived faulted = fault !== null;
+
+    derived retry = fault === 'failed';
+
+    derived broken = faulted && !retry;
+
+    derived alarming = fault === 'tampered';
+
+    derived playing = active && player.playing();
+
+    derived length = player.lengthOf(props.message);
+
+    derived place = active ? player.at() : player.keptOf(props.message.id);
+
+    derived played = length > 0 ? Math.min(1, place / length) : 0;
+
+    derived total = voiceClock(Math.round(length), locale.n);
+
+    derived clock = scrub === null ? (active || place > 0 ? voiceClock(place, locale.n) : total) : voiceClock(scrub * length, locale.n);
+
+    derived sending = chat.uploadOf(props.message.id);
+
+    derived uploading = sending !== null;
+
+    derived fresh = mine ? props.message.outgoing !== 'failed' && props.message.heard !== true : props.message.played !== true;
+
+    derived unheard = locale.t(mine ? 'chat.voice.unheard' : 'chat.voice.unplayed');
+
+    derived speed = `${ locale.n(active ? player.rate() : 1) }×`;
+
+    derived label = playing ? locale.t('chat.voice.pause') : (loading ? locale.t('chat.voice.cancel') : locale.t('chat.voice.play', { time: total }));
+
+    derived said = fault === null ? '' : locale.t(FAULTS[fault]);
+
+    derived reserve = props.reserve;
+
+    derived room = props.trail ? 'invisible ps-2 pe-4' : 'invisible ps-2';
+
+    <div class="flex items-center gap-2.5 py-0.5" dir="ltr" role="group" aria-label={ locale.t('chat.voice.label', { time: total }) } data-voice={ props.message.id }>
+        <button
+            type="button"
+            class={ () => [
+                'relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full transition-transform duration-150 active:scale-95 disabled:cursor-default disabled:opacity-60 motion-reduce:transition-none coarse:h-11 coarse:w-11',
+                mine ? 'bg-accent-ink text-accent-fill focus-visible:outline-accent-ink' : 'bg-accent-fill text-accent-ink'
+            ].join(' ') }
+            aria-label={ label }
+            aria-busy={ loading ? 'true' : undefined }
+            disabled={ broken }
+            data-play={ playing ? 'playing' : (loading ? 'loading' : 'paused') }
+            onClick={ () => player.toggle(props.message) }
+        >
+            <Show
+                when={ loading }
+                fallback={ <Icon name={ broken ? 'alert' : (playing ? 'pause' : 'play') } size={ 18 } class={ broken ? '' : 'fill-current' } /> }
+            >
+                { () => <Spinner size={ 20 } /> }
+            </Show>
+            <Show when={ uploading }>
+                { () =>
+                    <svg class="pointer-events-none absolute -inset-1 -rotate-90" viewBox="0 0 48 48" aria-hidden="true" data-upload>
+                        <circle cx="24" cy="24" r="22.5" fill="none" stroke="currentColor" stroke-opacity="0.25" stroke-width="2.5"></circle>
+                        <circle cx="24" cy="24" r="22.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset={ 100 - Math.round((sending ?? 0) * 100) }></circle>
+                    </svg>
+                }
+            </Show>
+        </button>
+
+        <div class="flex w-48 min-w-0 max-w-full flex-col gap-1">
+            <VoiceWave
+                levels={ levels }
+                played={ played }
+                length={ length }
+                place={ place }
+                mine={ mine }
+                disabled={ broken }
+                label={ locale.t('chat.voice.seek') }
+                valueText={ locale.t('chat.voice.at', { at: clock, total }) }
+                onSeek={ (seconds, pressed) => player.seek(props.message, seconds, pressed) }
+                onScrub={ (fraction) => scrub = fraction }
+            />
+
+            <Show
+                when={ faulted }
+                fallback={
+                    <span class={ () => [ 'flex min-h-3 items-center gap-1.5 text-ui-2xs leading-none', mine ? 'text-accent-ink/75' : 'text-muted' ].join(' ') }>
+                        <span class="tabular-nums" data-clock>{ clock }</span>
+                        <Show when={ fresh }>
+                            { () =>
+                                <span class={ () => [ 'h-1.5 w-1.5 shrink-0 rounded-full', mine ? 'bg-accent-ink' : 'bg-accent' ].join(' ') } data-fresh>
+                                    <span class="sr-only">{ unheard }</span>
+                                </span>
+                            }
+                        </Show>
+                        <Show when={ active }>
+                            { () =>
+                                <button
+                                    type="button"
+                                    class={ () => [
+                                        'relative cursor-pointer rounded-full px-1.5 py-0.5 font-semibold tabular-nums coarse:before:absolute coarse:before:-inset-x-1.5 coarse:before:-inset-y-3.5',
+                                        mine ? 'bg-accent-ink/20 text-accent-ink focus-visible:outline-accent-ink' : 'bg-accent/15 text-accent'
+                                    ].join(' ') }
+                                    aria-label={ locale.t('chat.voice.speed', { rate: speed }) }
+                                    data-speed
+                                    onClick={ () => player.nextRate() }
+                                >
+                                    { speed }
+                                </button>
+                            }
+                        </Show>
+                        <span class={ () => `ms-auto ${ room }` } aria-hidden="true">{ reserve }</span>
+                    </span>
+                }
+            >
+                { () =>
+                    <span class={ () => [ 'flex items-start gap-1 text-ui-2xs leading-snug', alarming ? 'text-danger' : (mine ? 'text-accent-ink/85' : 'text-muted') ].join(' ') } role={ alarming ? 'alert' : 'status' } data-fault={ fault ?? '' }>
+                        <span class="min-w-0 flex-1" dir={ locale.dir() }>
+                            { said }
+                            <Show when={ retry }>
+                                { () =>
+                                    <button type="button" class="relative ms-1 cursor-pointer font-semibold underline-offset-2 hover:underline coarse:before:absolute coarse:before:-inset-x-1 coarse:before:-inset-y-3.5" onClick={ () => player.toggle(props.message) }>
+                                        { locale.t('common.retry') }
+                                    </button>
+                                }
+                            </Show>
+                        </span>
+                        <span class={ () => `shrink-0 ${ room }` } aria-hidden="true">{ reserve }</span>
+                    </span>
+                }
+            </Show>
+        </div>
+    </div>
+}

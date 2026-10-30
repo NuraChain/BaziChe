@@ -38,6 +38,13 @@ describe('a thread in groups', () =>
         expect(rows.map((row) => row.first)).toEqual([true, true, true]);
     });
 
+    it('folds a voice message into its sender’s run, as a line of words is', () =>
+    {
+        const rows = threadRows([line('a', 'omid', NOON), line('b', 'omid', NOON + 10, 'voice'), line('c', 'omid', NOON + 20)]);
+
+        expect(rows.map((row) => [row.first, row.last])).toEqual([[true, false], [false, false], [false, true]]);
+    });
+
     it('puts a day divider before the first line of every day, and nowhere else', () =>
     {
         const rows = threadRows([

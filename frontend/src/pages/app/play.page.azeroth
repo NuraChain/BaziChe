@@ -31,7 +31,7 @@ import { TOAST_ACTION_DURATION, useToasts } from '../../stores/toasts.store.ts';
 import { useVault } from '../../stores/vault.store.ts';
 import Panel from '../../components/ui/panel.component.azeroth';
 import type { MatchView } from '../../api.ts';
-import { plainOf } from '../../lib/markdown.ts';
+import { gistOf } from '../../components/chat/gist.ts';
 import { holdScreen } from '../../lib/wake-lock.ts';
 import { watchEdge, watchFold, watchSheet, type SheetSize } from '../../lib/sheet-room.ts';
 import { chunk, reloadPage } from '../../lib/chunks.ts';
@@ -512,7 +512,7 @@ export default component PlayPage()
             return '';
         }
 
-        const last = [...said].reverse().find((message) => message.kind === 'text' && message.from !== lobby.me());
+        const last = [...said].reverse().find((message) => (message.kind === 'text' || message.kind === 'voice') && message.from !== lobby.me());
 
         if (last === undefined)
         {
@@ -521,14 +521,14 @@ export default component PlayPage()
 
         const person = people.byHandle(last.from);
 
-        return `${ person === null ? last.from : locale.text(person.displayName) }: ${ plainOf(locale.text(last.text), locale.t('chat.spoilerPreview')) }`;
+        return `${ person === null ? last.from : locale.text(person.displayName) }: ${ gistOf(last, locale) }`;
     })();
 
     effect
     {
         const lines = said;
         const settled = chat.openId() === room && room !== '' && !chat.threadLoading();
-        const fresh = lines.filter((message) => message.kind === 'text' && !heard.has(message.id));
+        const fresh = lines.filter((message) => (message.kind === 'text' || message.kind === 'voice') && !heard.has(message.id));
 
         if (!primed)
         {
@@ -545,7 +545,7 @@ export default component PlayPage()
         for (const message of fresh)
         {
             const who = message.from;
-            const text = plainOf(locale.text(message.text), locale.t('chat.spoilerPreview'));
+            const text = gistOf(message, locale);
 
             talk = { ...talk, [who]: text };
             publish();

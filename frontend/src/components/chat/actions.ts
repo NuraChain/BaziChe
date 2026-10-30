@@ -41,7 +41,10 @@ export function messageActions(say: (key: MessageKey) => string, message: Messag
         list.push({ id: 'edit', icon: 'edit', label: say('chat.edit'), run: handlers.onEdit });
     }
 
-    list.push({ id: 'copy', icon: 'copy', label: say('chat.copy'), run: () => void copyText(message.text, 'chat.copied', { dedupe: 'chat-copy' }) });
+    if (message.kind !== 'voice')
+    {
+        list.push({ id: 'copy', icon: 'copy', label: say('chat.copy'), run: () => void copyText(message.text, 'chat.copied', { dedupe: 'chat-copy' }) });
+    }
 
     if (handlers.onForward !== undefined)
     {

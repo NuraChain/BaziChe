@@ -962,7 +962,37 @@ past its hour). A forward names the file it heard and puts nothing up. What the 
 held in the clear for the tab (`lib/voice-held.ts`, eight at most, let go with the archive at
 sign-out), so their own line plays with nothing fetched.
 
-`voice-note.spec.ts` and `voice-send.spec.ts` hold it.
+**The player** (`stores/voice-player.store.ts`, a chunk with `components/chat/voice-note`): one audio
+element for the tab and one voice message at a time; another pressed pauses the first, which keeps its
+place; one that ends hands over to the next in the thread that is somebody else's and unplayed. The
+audio is the held recording or the file fetched and opened under the key its message carries, its
+container read from its own bytes (`sniffAudio`, never the type its sender named) and asked of the
+element (`canPlayType`), played from an object address revoked the moment it is let go. Chrome's
+MediaRecorder writes no length into its header, so the element is asked for a place past the end and
+finds it (`readyAudio`, `lib/voice-audio.ts`); until then the sender's measure stands. What keeps one
+from playing is said on its bubble: `gone` (404), `failed` (anything else kept the file away; Try
+again), `tampered` (it does not open: an alarm), `unplayable` (no recording, or one that breaks) and
+`unsupported` (the browser says it cannot). The speed chip steps through 1×, 1.5× and 2×
+(`settings.voiceRate`, pitch kept) and the speaker is Settings › Voice's. The place is read on the
+product clock while it plays and never otherwise, the first play marks it played once a tab
+(`chat.played`), and it stops when its message leaves the thread on screen (the reader left, it was
+deleted, it ran out) or the tab lets go of what it held.
+
+**The bubble draws the player whole before anything is fetched**: play, the waveform as two SVG
+paths (the played one clipped over the other, so no id is needed), the length, and a dot while it is
+unplayed (the reader's `played`) or, on the reader's own, unheard (`heard`), from the press and never
+on one that was not sent. One this browser cannot open is a line all the same, saying why as a line of
+words does: counted as a line only when it had opened, it fell to the cards the server writes and was
+drawn as a table somebody opened (the walk found it in a browser enrolled after it was sent). The waveform is a slider
+(`components/chat/voice-wave`): a press or a drag plays from there, the arrows move five seconds, the
+Page keys a fifth, Home and End. Its press is heard on the waveform itself: a handler in the markup is
+delegated to the document, and the line's held press and swipe to reply heard the press before it
+could be stopped (the spec found it). It runs left to right in every language (VM-D15), in the
+reader's digits. A voice message is "Voice message (0:12)" wherever a line is quoted (`gistOf` in
+`components/chat/gist.ts`: the list, a reply's quote, the actions sheet, a forward, a plate at a
+table), and has no Copy.
+
+`voice-note.spec.ts`, `voice-send.spec.ts` and `voice-player.spec.ts` hold it.
 
 ## Recovery
 

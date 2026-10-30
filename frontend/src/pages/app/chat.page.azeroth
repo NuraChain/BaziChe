@@ -25,7 +25,7 @@ import ForwardSheet from '../../components/chat/forward-sheet.component.azeroth'
 import MessageMenu from '../../components/chat/message-menu.component.azeroth';
 import type { LineHandlers, MenuPoint } from '../../components/chat/actions.ts';
 import type { Message } from '../../data/chat.ts';
-import { plainOf } from '../../lib/markdown.ts';
+import { gistOf } from '../../components/chat/gist.ts';
 import { attempt } from '../../lib/attempt.ts';
 import Avatar from '../../components/ui/avatar.component.azeroth';
 import AvatarGroup from '../../components/ui/avatar-group.component.azeroth';
@@ -683,7 +683,7 @@ export default component ChatPage()
     {
         const target = chat.replyTo(id);
 
-        return target === null ? null : { name: target.from === me ? locale.t('chat.yourself') : nameOf(target.from), text: plainOf(target.text, locale.t('chat.spoilerPreview')) };
+        return target === null ? null : { name: target.from === me ? locale.t('chat.yourself') : nameOf(target.from), text: gistOf(target, locale) };
     })();
 
     const reply = (message: Message) =>

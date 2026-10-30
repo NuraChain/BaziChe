@@ -107,6 +107,9 @@ export interface ChatSource
 
     /** Puts a voice message's file up unless it is up already, then seals and sends the message naming it. */
     postVoice(message: Message, expiresAt: number, file: VoiceUpload): Promise<void>;
+
+    /** The reader has started a voice message. */
+    played(conversationId: string, messageId: string): Promise<void>;
     react(conversationId: string, from: string, target: string, emoji: string, at: number, expiresAt: number): Promise<void>;
 
     /** Seals new words for a line of the reader's, to last exactly as long as the line does. */
@@ -712,6 +715,11 @@ export function createApiSource()
             });
 
             await deliver(message.conversationId, message.from, plain, message.at, expiresAt, 'voice', undefined, message.id, voice.id);
+        },
+
+        async played(conversationId, messageId)
+        {
+            await client.chat.played({ params: { id: conversationId, messageId } });
         },
 
         async react(conversationId, from, target, emoji, at, expiresAt)

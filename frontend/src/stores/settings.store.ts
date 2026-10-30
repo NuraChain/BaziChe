@@ -33,6 +33,9 @@ export interface Settings
     voiceThreshold: number;
     voiceRelease: number;
     voiceQuality: VoiceQuality;
+
+    /** How fast a voice message plays: 1, 1.5 or 2, the speed its chip was last left at. */
+    voiceRate: number;
     hintMoves: boolean;
     hintOutcome: boolean;
     hintRules: boolean;
@@ -86,6 +89,7 @@ export function defaultSettings(): Settings
         voiceThreshold: -50,
         voiceRelease: 200,
         voiceQuality: 'high',
+        voiceRate: 1,
         hintMoves: true,
         hintOutcome: true,
         hintRules: true,

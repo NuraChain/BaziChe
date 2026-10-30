@@ -203,7 +203,7 @@ export const useCues = createStore((): CuesApi =>
                 const at = last?.at ?? 0;
                 const arrived = at > (lastAt.get(conversation.id) ?? newest);
 
-                if (arrived && last?.kind === 'text' && last.from !== me && conversation.id !== open && liveNow && !hushed('messages', last.from, conversation.id))
+                if (arrived && (last?.kind === 'text' || last?.kind === 'voice') && last.from !== me && conversation.id !== open && liveNow && !hushed('messages', last.from, conversation.id))
                 {
                     announceChat(conversation.id, last.from);
                 }

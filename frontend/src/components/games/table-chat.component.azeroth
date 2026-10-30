@@ -16,7 +16,7 @@ import Composer from '../chat/composer.component.azeroth';
 import ConfirmSheet from '../app/confirm-sheet.component.azeroth';
 import ChessMoves from './chess-moves.component.azeroth';
 import type { Message } from '../../data/chat.ts';
-import { plainOf } from '../../lib/markdown.ts';
+import { gistOf } from '../chat/gist.ts';
 import { useOverlay } from '../../stores/overlay.store.ts';
 import { ludoOf } from '../../data/match.ts';
 import { usePeople } from '../../stores/people.store.ts';
@@ -533,7 +533,7 @@ export default component TableChat(props: {
                             disabled={ stop !== null }
                             placeholder={ locale.t('play.table.say') }
                             maxlength={ 240 }
-                            reply={ replying === null ? null : { name: replying.from === lobby.me() ? locale.t('chat.yourself') : nameOf(replying.from), text: plainOf(replying.text, locale.t('chat.spoilerPreview')) } }
+                            reply={ replying === null ? null : { name: replying.from === lobby.me() ? locale.t('chat.yourself') : nameOf(replying.from), text: gistOf(replying, locale) } }
                             editing={ editingNow?.message.text ?? null }
                             onCancelReply={ () => chat.setReplyTo(props.conversationId, null) }
                             onCancelEdit={ () => chat.cancelEdit(props.conversationId) }

@@ -1,0 +1,61 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+import type { Message } from '../../data/chat.ts';
+
+interface NoteProps
+{
+    message: Message;
+    mine: boolean;
+    reserve: string;
+    trail: boolean;
+}
+
+type Note = (props: NoteProps) => MountNode;
+
+/** Kept once it has come, so every voice message after the first is drawn whole at once. */
+let arrived: Note | null = null;
+
+/**
+ * The player of a voice message, a chunk of its own, fetched by the first voice message a thread
+ * draws: a thread of words carries none of it. Until it comes the bubble keeps the player's size.
+ */
+export default component LazyVoiceNote(props: NoteProps)
+{
+    state Note = arrived;
+
+    derived ready = Note !== null;
+
+    derived reserve = props.reserve;
+
+    derived room = props.trail ? 'invisible ms-auto ps-2 pe-4' : 'invisible ms-auto ps-2';
+
+    mount
+    {
+        if (Note === null)
+        {
+            void import('./voice-note.component.azeroth').then(
+                (module) =>
+                {
+                    arrived = module.default as Note;
+                    Note = arrived;
+                },
+                () => undefined
+            );
+        }
+    }
+
+    <Show
+        when={ ready }
+        fallback={
+            <div class="flex items-center gap-2.5 py-0.5" dir="ltr" aria-hidden="true">
+                <span class={ () => props.mine ? 'h-10 w-10 shrink-0 rounded-full bg-accent-ink/80 coarse:h-11 coarse:w-11' : 'h-10 w-10 shrink-0 rounded-full bg-accent-fill/80 coarse:h-11 coarse:w-11' }></span>
+                <span class="flex w-48 min-w-0 max-w-full flex-col gap-1">
+                    <span class="h-6 w-full"></span>
+                    <span class="flex min-h-3 text-ui-2xs leading-none"><span class={ room }>{ reserve }</span></span>
+                </span>
+            </div>
+        }
+    >
+        { () => <Dynamic component={ Note! } props={ () => ({ message: props.message, mine: props.mine, reserve: props.reserve, trail: props.trail }) } /> }
+    </Show>
+}

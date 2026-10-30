@@ -426,6 +426,11 @@ and the moment a snapshot says they left. A group counts who is here instead. `c
 (*the head of a thread*) holds it; the server's half is *When somebody was last seen* in
 `.claude/rules/chat-and-keys.md`.
 
+**A voice message is a line with a player where its words would be.** The bubble draws the player
+whole before anything is fetched, left to right in every language, and the player is a chunk of its
+own, so a thread of words carries none of it. How the file is sealed, sent, fetched, opened and
+played, and what each refusal says, is `.claude/rules/chat-and-keys.md` (*Voice messages*).
+
 **A thread can be searched, through what this browser has opened of it.** The head's search
 button, or Ctrl/Cmd+F in place of the browser's own find (which finds only the lines drawn), opens a
 bar under the head: the words, how many lines were found and which is shown ("2 of 7"), and the way

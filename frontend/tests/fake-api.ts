@@ -3027,6 +3027,21 @@ export const client =
             return message;
         },
 
+        async played({ params }: { params: { id: string; messageId: string } })
+        {
+            server.calls.push('chat.played');
+            const target = server.messages.find((one) => one.id === params.messageId && one.conversationId === params.id && one.kind === 'voice');
+            if (target === undefined)
+            {
+                throw new ApiError(404, 'not-found', 'No such voice message here.', undefined);
+            }
+            if (target.from !== server.me)
+            {
+                target.played = true;
+            }
+            return { ok: true };
+        },
+
         async remove({ params }: { params: { id: string; messageId: string } })
         {
             server.calls.push('chat.remove');

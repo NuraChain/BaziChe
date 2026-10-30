@@ -1,7 +1,6 @@
 import type { Conversation, Message } from '../../data/chat.ts';
 import type { GameId } from '../../data/games.ts';
 import Icon from '../../icons/icon.component.azeroth';
-import { plainOf } from '../../lib/markdown.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useChat } from '../../stores/chat.store.ts';
 import { useGroups } from '../../stores/groups.store.ts';
@@ -10,6 +9,7 @@ import type { OverlayProps } from '../../stores/overlay.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
 import GroupCrest from '../social/group-crest.component.azeroth';
+import { gistOf } from './gist.ts';
 import Avatar from '../ui/avatar.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
 import SearchInput from '../ui/search-input.component.azeroth';
@@ -70,7 +70,7 @@ export default component ForwardSheet(props: OverlayProps & { message: Message }
         <header class="flex items-start gap-3 px-2 pt-1">
             <span class="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span class="text-ui-md font-semibold text-text">{ locale.t('chat.forwardTitle') }</span>
-                <span class="line-clamp-2 text-ui-sm text-muted" dir="auto">{ plainOf(props.message.text, locale.t('chat.spoilerPreview')) }</span>
+                <span class="line-clamp-2 text-ui-sm text-muted" dir="auto">{ gistOf(props.message, locale) }</span>
             </span>
             <IconButton icon="close" label={ locale.t('common.close') } variant="ghost" onClick={ () => props.close() } />
         </header>

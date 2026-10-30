@@ -448,6 +448,23 @@ describe('the cues store', () =>
         expect(shown[0].text).toContain('Reza Tehrani');
     });
 
+    it('raises a toast for a voice message as for a line of words', async () =>
+    {
+        useCues().start();
+        await useChat().refresh();
+        await settle();
+
+        laterMessageIn('c-reza');
+
+        const row = server.conversations.find((one) => one.id === 'c-reza')!;
+
+        row.last = { ...row.last!, kind: 'voice', voice: '0b5b0d47-5a3c-4f8e-9a51-6f0b3c2d1e7a' };
+        await useChat().refresh();
+        await settle();
+
+        expect(useToasts().items().filter((toast) => toast.dedupe === 'cue.chat.c-reza')).toHaveLength(1);
+    });
+
     it('says nothing about the messages that were already there when it armed', async () =>
     {
         useCues().start();

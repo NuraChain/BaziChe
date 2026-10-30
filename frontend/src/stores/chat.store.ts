@@ -101,6 +101,9 @@ export interface ChatApi
 
     /** How much of a voice message's file has gone up, 0 to 1, while it is going up. */
     uploadOf(messageId: string): number | null;
+
+    /** The reader has started a voice message: its dot goes at once, and the server is told. */
+    played(message: Message): Promise<void>;
     replyTo(id: string): Message | null;
     setReplyTo(id: string, message: Message | null): void;
 
@@ -723,6 +726,20 @@ export const useChat = createStore((): ChatApi =>
         },
 
         uploadOf: (messageId) => uploads()[messageId] ?? null,
+
+        async played(message)
+        {
+            if (message.kind !== 'voice' || message.played === true || message.outgoing !== undefined || message.from === untrack(meId))
+            {
+                return;
+            }
+
+            await guesses.during(
+                (list) => list.map((one) => (one.id === message.id ? { ...one, played: true } : one)),
+                () => active.played(message.conversationId, message.id),
+                reread
+            ).catch(() => undefined);
+        },
 
         async retry(message)
         {

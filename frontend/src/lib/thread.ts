@@ -19,12 +19,15 @@ function dayKey(at: number)
     return `${ date.getFullYear() }-${ date.getMonth() }-${ date.getDate() }`;
 }
 
+/** A line somebody said, in words or in their voice; the server's own lines never join a run. */
+const said = (message: Message) => message.kind === 'text' || message.kind === 'voice';
+
 function joins(earlier: Message | undefined, later: Message | undefined)
 {
     return earlier !== undefined
         && later !== undefined
-        && earlier.kind === 'text'
-        && later.kind === 'text'
+        && said(earlier)
+        && said(later)
         && earlier.from === later.from
         && later.at - earlier.at <= GROUP_GAP_MS
         && dayKey(earlier.at) === dayKey(later.at);

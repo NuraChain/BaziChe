@@ -1,11 +1,11 @@
 import type { Message } from '../../data/chat.ts';
 import { QUICK_REACTIONS } from '../../data/emoji.ts';
 import Icon from '../../icons/icon.component.azeroth';
-import { plainOf } from '../../lib/markdown.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
 import IconButton from '../ui/icon-button.component.azeroth';
 import { flips, messageActions, type LineHandlers } from './actions.ts';
+import { gistOf } from './gist.ts';
 import LazyEmojiPicker from './lazy-emoji-picker.component.azeroth';
 
 export default component MessageActions(props: OverlayProps & LineHandlers & {
@@ -19,7 +19,7 @@ export default component MessageActions(props: OverlayProps & LineHandlers & {
 
     state picking = props.pick === true;
 
-    derived preview = plainOf(props.message.text, locale.t('chat.spoilerPreview'));
+    derived preview = gistOf(props.message, locale);
 
     const react = (emoji: string) =>
     {

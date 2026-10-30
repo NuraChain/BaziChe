@@ -19,6 +19,7 @@ import ChatFace from './chat-face.component.azeroth';
 import { gameNameOf, groupNameOf, titleOf } from './chat-title.ts';
 import { stampOf } from './chat-time.ts';
 import { plainOf } from '../../lib/markdown.ts';
+import { gistOf } from './gist.ts';
 import { STATUS_ICON, STATUS_WORDS } from './status.ts';
 
 export default component ChatListItem(props: {
@@ -90,7 +91,7 @@ export default component ChatListItem(props: {
 
     derived muted = social.isMuted('conversation', props.conversation.id);
 
-    derived said = last !== undefined && last.kind === 'text' && last.from === props.me && last.locked === undefined;
+    derived said = last !== undefined && (last.kind === 'text' || last.kind === 'voice') && last.from === props.me && last.locked === undefined;
 
     derived seen = last?.read === true;
 
@@ -102,6 +103,8 @@ export default component ChatListItem(props: {
     derived draft = props.active === true ? '' : chat.draft(props.conversation.id).trim();
 
     derived drafted = draft !== '' && typing.length === 0;
+
+    derived spoken = !drafted && typing.length === 0 && last?.kind === 'voice';
 
     derived preview = (() =>
     {
@@ -118,7 +121,7 @@ export default component ChatListItem(props: {
         {
             return locale.t(props.conversation.quiet ? 'chat.emptyQuiet' : 'chat.empty');
         }
-        if (last.kind !== 'text')
+        if (last.kind !== 'text' && last.kind !== 'voice')
         {
             const line = last.line;
             if (line !== undefined && isLineKey(line.key))
@@ -129,7 +132,7 @@ export default component ChatListItem(props: {
                 ? 'chats.invitePreview'
                 : (last.kind === 'result' ? 'chats.resultPreview' : 'chats.systemPreview'));
         }
-        const body = plainOf(locale.text(last.text), locale.t('chat.spoilerPreview'));
+        const body = gistOf(last, locale);
         return last.from === props.me ? `${ locale.t('chats.you') }${ body }` : body;
     })();
 
@@ -167,6 +170,9 @@ export default component ChatListItem(props: {
                 <span class={ () => [ 'truncate text-ui-sm', typing.length > 0 ? 'text-live' : (unread > 0 && !drafted ? 'text-text' : 'text-muted') ].join(' ') }>
                     <Show when={ drafted }>
                         { () => <span class="me-1 text-danger" data-draft>{ locale.t('chats.draft') }</span> }
+                    </Show>
+                    <Show when={ spoken }>
+                        { () => <Icon name="voice" size={ 13 } class="me-1 inline-block align-[-2px]" /> }
                     </Show>
                     <span dir="auto">{ preview }</span>
                 </span>

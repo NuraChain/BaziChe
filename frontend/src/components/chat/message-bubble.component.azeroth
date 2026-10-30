@@ -21,7 +21,8 @@ import type { MessageKey } from '../../locales/en.ts';
 import Avatar from '../ui/avatar.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
-import { plainOf } from '../../lib/markdown.ts';
+import { gistOf } from './gist.ts';
+import LazyVoiceNote from './lazy-voice-note.component.azeroth';
 import ReactionRow from './reaction-row.component.azeroth';
 import RichText from './rich-text.component.azeroth';
 import { jumboOf } from '../../lib/markdown-dom.ts';
@@ -90,7 +91,11 @@ export default component MessageBubble(props: {
     /** The time, and that whoever wrote the line has changed it since. */
     derived stamp = props.message.edited === undefined ? time : `${ locale.t('chat.edited') } ${ time }`;
 
-    derived typed = props.message.kind === 'text';
+    derived worded = props.message.kind === 'text';
+
+    derived voiced = props.message.kind === 'voice' && props.message.voice !== undefined;
+
+    derived typed = worded || props.message.kind === 'voice';
 
     derived noted = props.message.kind === 'system';
 
@@ -284,14 +289,14 @@ export default component MessageBubble(props: {
             return locale.t('chat.quoteDeleted');
         }
 
-        return quoted.locked === undefined ? plainOf(quoted.text, locale.t('chat.spoilerPreview')) : locale.t(LOCKED[quoted.locked]);
+        return quoted.locked === undefined ? gistOf(quoted, locale) : locale.t(LOCKED[quoted.locked]);
     })();
 
     derived reactions = props.message.reactions ?? [];
 
     derived reacted = reactions.length > 0 && props.onReact !== undefined;
 
-    derived jumbo = props.message.reply === undefined && props.message.forwarded !== true && jumboOf(said);
+    derived jumbo = worded && props.message.reply === undefined && props.message.forwarded !== true && jumboOf(said);
 
     derived alarming = locked !== null && ALARMING.includes(locked);
 
@@ -440,7 +445,7 @@ export default component MessageBubble(props: {
                         { () =>
                             <span
                                 ref={ holds }
-                                dir="auto"
+                                dir={ voiced ? 'ltr' : 'auto' }
                                 data-found={ props.found === true ? '' : undefined }
                                 class={ () => [
                                     'bubble relative flex max-w-full flex-col rounded-[1.125rem] px-3 pb-1.5 pt-1.5 text-ui-base leading-snug transition-shadow duration-150',
@@ -468,7 +473,9 @@ export default component MessageBubble(props: {
                                         </button>
                                     }
                                 </Show>
-                                <RichText text={ said } mine={ mine } reserve={ stamp } trail={ ticked } />
+                                <Show when={ voiced } fallback={ <RichText text={ said } mine={ mine } reserve={ stamp } trail={ ticked } /> }>
+                                    { () => <LazyVoiceNote message={ props.message } mine={ mine } reserve={ stamp } trail={ ticked } /> }
+                                </Show>
                                 <time
                                     class={ () => [ 'absolute bottom-1 end-3 text-ui-2xs leading-none', mine && !jumbo ? 'text-accent-ink/70' : 'text-faint' ].join(' ') }
                                     datetime={ new Date(props.message.at).toISOString() }

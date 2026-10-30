@@ -8,6 +8,25 @@ export const VOICE_TYPES = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', '
 /** The first type this browser's MediaRecorder says it can make, or none. Nothing is assumed. */
 export const recordingType = (supported: (type: string) => boolean) => VOICE_TYPES.find((type) => supported(type)) ?? null;
 
+/** What a recorder is asked to spend on a second of voice: Opus is clear speech at this, and ten minutes are 2.4 MB. */
+export const VOICE_BITRATE = 32_000;
+
+/** Anything shorter is a press nobody meant, and is dropped rather than sent. */
+export const VOICE_LEAST_MS = 1_000;
+
+const TYPE_SAID = /^audio\/[a-z0-9.+-]+(?:;codecs=[a-z0-9.]+)?$/;
+
+/**
+ * The type a recording is sent as: what its recorder says it made, in the one spelling a voice
+ * message's document takes (Firefox says "audio/ogg; codecs=opus"), or what it was asked for.
+ */
+export function typeSaid(said: string, asked: string)
+{
+    const tidy = said.replace(/\s+/g, '').toLowerCase();
+
+    return tidy.length <= 64 && TYPE_SAID.test(tidy) ? tidy : asked;
+}
+
 export type VoiceContainer = 'audio/webm' | 'audio/ogg' | 'audio/mp4';
 
 /**
@@ -140,6 +159,20 @@ export function wavePath(levels: readonly number[])
     }
 
     return parts.join('');
+}
+
+/**
+ * The microphone's newest levels, loudness from 0 to 1, as a waveform's levels: the newest at its end,
+ * dots before anything was heard. Square-rooted, so a quiet voice still moves the bars.
+ */
+export function liveWave(levels: readonly number[])
+{
+    const last = levels.slice(-VOICE_WAVE_BARS);
+
+    return [
+        ...Array.from({ length: VOICE_WAVE_BARS - last.length }, () => 0),
+        ...last.map((level) => Math.min(63, Math.round(Math.sqrt(Math.max(0, level)) * 2 * 63)))
+    ];
 }
 
 export interface SealedAudio

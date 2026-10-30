@@ -951,7 +951,8 @@ the sweep's place in `main.ts`.
 key and iv a recording, its AAD `voiceAad(id)` from `chat/envelope.ts`. The document is written and
 read by `lib/body.ts` alone, exactly `{"voice":{"id","key","iv","mime","ms","wave","bytes"},"reply"?,
 "fwd"?}`; anything else opens as `tampered`, and so does a document whose id is not the file its row
-names (`openVoice` in `chat.source.ts`).
+names (`openVoice` in `chat.source.ts`). The type is sent in the one spelling the document takes
+(`typeSaid`: Firefox's recorder says `audio/ogg; codecs=opus`).
 
 **A voice message is a line at the press** (`chat.sendVoice`): in the thread and the list with its
 waveform and length, its file up first with its progress (`uploadOf`; an XMLHttpRequest, the one way
@@ -992,7 +993,22 @@ reader's digits. A voice message is "Voice message (0:12)" wherever a line is qu
 `components/chat/gist.ts`: the list, a reply's quote, the actions sheet, a forward, a plate at a
 table), and has no Copy.
 
-`voice-note.spec.ts`, `voice-send.spec.ts` and `voice-player.spec.ts` hold it.
+**Recording** (`stores/voice-recorder.store.ts` and `components/chat/voice-recorder`, a chunk fetched
+at the first press): the composer's microphone stands where Send is while the field is empty (`record`,
+handed by the chat page and a table's chat where a line can be sent), and the composer is the
+recorder's row while its room holds a recording (`stores/voice-rooms.store.ts`, all a thread carries
+of it until then). The microphone is asked for with Settings › Voice's device, echo, noise and gain;
+the recorder makes the first of WebM/Opus, Ogg/Opus and MP4/AAC it can, at 32 kbps, a second at a
+time; the bars are the microphone's levels on the product clock. Pause hands over what was said,
+decodes it at 8 kHz for its real length and waveform (the levels where it will not decode) and offers
+it to hear and move through; Record more resumes the same recorder; Send stops it, measures it, drops
+anything under a second with a sentence and sends the rest; Delete lets go of all of it. It stops
+itself at ten minutes and short of the largest file. Leaving the room stops it and lets go of the
+microphone, and the recording waits there to be heard and sent (VM-D9). Each refusal is a sentence:
+the microphone off for the site, none found, another app holding it, a browser that cannot record.
+
+`voice-note.spec.ts`, `voice-send.spec.ts`, `voice-player.spec.ts` and `voice-recorder.spec.ts` hold
+the browser's half.
 
 ## Recovery
 

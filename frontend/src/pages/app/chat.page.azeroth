@@ -1112,6 +1112,7 @@ export default component ChatPage()
                                         onInput={ (value) => (editingNow === null ? chat.setDraft(id, value) : chat.editText(id, value)) }
                                         onSend={ () => (editingNow === null ? send() : save()) }
                                         onGame={ startGame }
+                                        record={ id }
                                         floating
                                     />
                                 }

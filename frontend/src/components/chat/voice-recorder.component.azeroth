@@ -1,0 +1,300 @@
+import Icon from '../../icons/icon.component.azeroth';
+import { readyAudio, voiceAudio, type VoiceAudio } from '../../lib/voice-audio.ts';
+import { liveWave, WAVE_HEIGHT, WAVE_WIDTH, wavePath } from '../../lib/voice-note.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useVoicePlayer, VOICE_TICK_MS } from '../../stores/voice-player.store.ts';
+import { useVoiceRecorder } from '../../stores/voice-recorder.store.ts';
+import IconButton from '../ui/icon-button.component.azeroth';
+import Spinner from '../ui/spinner.component.azeroth';
+import { voiceClock } from './gist.ts';
+import VoiceWave from './voice-wave.component.azeroth';
+
+/** A place this close to the end plays from the start. */
+const AT_END = 0.25;
+
+/**
+ * The composer's row while a room holds a recording: delete, the time and the bars of what the
+ * microphone hears, pause and send while it records; paused, what was said so far to hear and move
+ * through, record more, and send. The middle runs left to right in every language, as a timeline does.
+ */
+export default component VoiceRecorder(props: { room: string })
+{
+    const locale = useLocale();
+    const recorder = useVoiceRecorder();
+    const player = useVoicePlayer();
+
+    let row: HTMLElement | null = null;
+
+    let audio: VoiceAudio | null = null;
+
+    let unlisten: (() => void) | null = null;
+
+    let loaded: string | null = null;
+
+    let ticking: (() => void) | null = null;
+
+    state hearing = false;
+
+    state heardAt = 0;
+
+    state scrub = null as number | null;
+
+    derived take = recorder.take(props.room);
+
+    derived phase = take?.phase ?? 'asking';
+
+    derived asking = phase === 'asking';
+
+    derived recording = phase === 'recording';
+
+    derived sending = phase === 'sending';
+
+    derived paused = phase === 'paused' || sending;
+
+    derived more = phase === 'paused' && take?.closed !== true;
+
+    derived preview = take?.preview ?? null;
+
+    derived opening = preview === null;
+
+    derived elapsed = take?.elapsed ?? 0;
+
+    derived live = wavePath(liveWave(take?.levels ?? []));
+
+    derived length = (preview?.ms ?? elapsed) / 1000;
+
+    derived total = voiceClock(Math.round(length), locale.n);
+
+    derived clock = paused
+        ? (scrub === null ? (hearing || heardAt > 0 ? voiceClock(heardAt, locale.n) : total) : voiceClock(scrub * length, locale.n))
+        : voiceClock(elapsed / 1000, locale.n);
+
+    derived said = asking ? locale.t('chat.voice.asking') : (recording ? locale.t('chat.voice.recording') : (phase === 'paused' ? locale.t('chat.voice.paused', { time: total }) : ''));
+
+    const still = () =>
+    {
+        ticking?.();
+        ticking = null;
+    };
+
+    const element = () =>
+    {
+        if (audio !== null)
+        {
+            return audio;
+        }
+
+        const made = voiceAudio();
+        const on = (type: string, listener: () => void) =>
+        {
+            made.addEventListener(type, listener);
+            return () => made.removeEventListener(type, listener);
+        };
+        const read = () =>
+        {
+            heardAt = made.currentTime;
+        };
+        const offs = [
+            on('playing', () =>
+            {
+                hearing = true;
+                still();
+                ticking = runtime().clock.every(VOICE_TICK_MS, read);
+            }),
+            on('pause', () =>
+            {
+                read();
+                still();
+                hearing = false;
+            }),
+            on('ended', () =>
+            {
+                still();
+                hearing = false;
+                heardAt = 0;
+            })
+        ];
+
+        unlisten = () => offs.forEach((off) => off());
+        audio = made;
+        return made;
+    };
+
+    /** Lets go of the preview's audio: what was said has changed, or the row is going. */
+    const unload = () =>
+    {
+        still();
+        hearing = false;
+        heardAt = 0;
+
+        if (audio !== null && loaded !== null)
+        {
+            audio.pause();
+            audio.removeAttribute('src');
+            audio.load();
+        }
+
+        loaded = null;
+    };
+
+    const hear = async (from: number) =>
+    {
+        const shown = preview;
+
+        if (shown === null)
+        {
+            return;
+        }
+
+        player.stop();
+
+        const made = element();
+
+        if (loaded !== shown.url)
+        {
+            loaded = shown.url;
+            made.src = shown.url;
+
+            if (!await readyAudio(made) || loaded !== shown.url)
+            {
+                return;
+            }
+        }
+
+        made.currentTime = from >= length - AT_END ? 0 : from;
+        await made.play().catch(() => undefined);
+    };
+
+    const toggle = () =>
+    {
+        if (hearing)
+        {
+            audio?.pause();
+            return;
+        }
+
+        void hear(heardAt);
+    };
+
+    const seek = (seconds: number, pressed: boolean) =>
+    {
+        if (pressed)
+        {
+            void hear(seconds);
+            return;
+        }
+
+        heardAt = seconds;
+
+        if (audio !== null && loaded !== null)
+        {
+            audio.currentTime = seconds;
+        }
+    };
+
+    effect
+    {
+        if ((preview?.url ?? null) !== loaded && loaded !== null)
+        {
+            unload();
+        }
+    }
+
+    effect
+    {
+        if (player.playing())
+        {
+            audio?.pause();
+        }
+    }
+
+    mount
+    {
+        if (row !== null && (document.activeElement === null || document.activeElement === document.body))
+        {
+            row.focus({ preventScroll: true });
+        }
+
+        return () =>
+        {
+            unload();
+            unlisten?.();
+        };
+    }
+
+    <div
+        ref={ (element) => row = element }
+        class="flex items-center gap-0.5 p-1 outline-none"
+        role="group"
+        tabindex="-1"
+        aria-label={ locale.t('chat.voice.recorder') }
+        data-recorder={ phase }
+    >
+        <IconButton icon="trash" label={ locale.t('chat.voice.discard') } variant="ghost" class="rounded-full! text-danger hover:text-danger" disabled={ sending } onClick={ () => recorder.discard(props.room) } />
+
+        <div class="flex h-10 min-w-0 flex-1 items-center gap-2 px-1.5" dir="ltr">
+            <Show when={ asking }>
+                { () =>
+                    <span class="flex min-w-0 items-center gap-2 text-ui-sm text-muted" dir={ locale.dir() }>
+                        <Spinner size={ 16 } class="shrink-0" />
+                        <span class="truncate">{ said }</span>
+                    </span>
+                }
+            </Show>
+            <Show when={ recording }>
+                { () =>
+                    <span class="flex min-w-0 flex-1 items-center gap-2">
+                        <span class="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-danger motion-reduce:animate-none" aria-hidden="true"></span>
+                        <span class="shrink-0 text-ui-sm tabular-nums text-text" data-clock>{ clock }</span>
+                        <svg class="block h-6 min-w-0 flex-1 text-danger/80" viewBox={ `0 0 ${ WAVE_WIDTH } ${ WAVE_HEIGHT }` } preserveAspectRatio="none" aria-hidden="true" data-live>
+                            <path d={ live } fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>
+                        </svg>
+                    </span>
+                }
+            </Show>
+            <Show when={ paused }>
+                { () =>
+                    <span class="flex min-w-0 flex-1 items-center gap-2">
+                        <button
+                            type="button"
+                            class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent-fill text-accent-ink disabled:cursor-default disabled:opacity-60 coarse:h-11 coarse:w-11"
+                            aria-label={ locale.t(hearing ? 'chat.voice.previewPause' : 'chat.voice.previewPlay') }
+                            disabled={ opening || sending }
+                            data-preview={ hearing ? 'playing' : 'paused' }
+                            onClick={ toggle }
+                        >
+                            <Show when={ opening } fallback={ <Icon name={ hearing ? 'pause' : 'play' } size={ 15 } class="fill-current" /> }>
+                                { () => <Spinner size={ 16 } /> }
+                            </Show>
+                        </button>
+                        <span class="min-w-0 flex-1">
+                            <VoiceWave
+                                levels={ preview?.wave ?? [] }
+                                played={ length > 0 ? Math.min(1, heardAt / length) : 0 }
+                                length={ length }
+                                place={ heardAt }
+                                disabled={ opening || sending }
+                                label={ locale.t('chat.voice.seek') }
+                                valueText={ locale.t('chat.voice.at', { at: clock, total }) }
+                                onSeek={ seek }
+                                onScrub={ (fraction) => scrub = fraction }
+                            />
+                        </span>
+                        <span class="shrink-0 text-ui-xs tabular-nums text-muted" data-clock>{ clock }</span>
+                    </span>
+                }
+            </Show>
+        </div>
+
+        <Show when={ recording }>
+            { () => <IconButton icon="pause" label={ locale.t('chat.voice.pauseRecording') } variant="ghost" class="rounded-full! text-muted hover:text-text" onClick={ () => void recorder.pause(props.room) } /> }
+        </Show>
+        <Show when={ more }>
+            { () => <IconButton icon="voice" label={ locale.t('chat.voice.resume') } variant="ghost" class="rounded-full! text-danger hover:text-danger" onClick={ () => recorder.resume(props.room) } /> }
+        </Show>
+        <IconButton icon="send" flip label={ locale.t('chat.voice.send') } variant="primary" class="rounded-full!" disabled={ asking || sending } onClick={ () => void recorder.send(props.room) } />
+
+        <span class="sr-only" aria-live="polite">{ said }</span>
+    </div>
+}

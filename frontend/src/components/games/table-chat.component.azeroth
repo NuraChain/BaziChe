@@ -533,6 +533,7 @@ export default component TableChat(props: {
                             disabled={ stop !== null }
                             placeholder={ locale.t('play.table.say') }
                             maxlength={ 240 }
+                            record={ props.conversationId }
                             reply={ replying === null ? null : { name: replying.from === lobby.me() ? locale.t('chat.yourself') : nameOf(replying.from), text: gistOf(replying, locale) } }
                             editing={ editingNow?.message.text ?? null }
                             onCancelReply={ () => chat.setReplyTo(props.conversationId, null) }

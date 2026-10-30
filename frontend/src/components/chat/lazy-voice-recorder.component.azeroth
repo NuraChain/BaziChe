@@ -1,0 +1,46 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+import { useLocale } from '../../stores/locale.store.ts';
+import Spinner from '../ui/spinner.component.azeroth';
+
+type Row = (props: { room: string }) => MountNode;
+
+/** Kept once it has come, so every recording after the first draws its row at once. */
+let arrived: Row | null = null;
+
+/** The recorder's row, a chunk of its own fetched at the first press on a microphone. */
+export default component LazyVoiceRecorder(props: { room: string })
+{
+    const locale = useLocale();
+
+    state Row = arrived;
+
+    derived ready = Row !== null;
+
+    mount
+    {
+        if (Row === null)
+        {
+            void import('./voice-recorder.component.azeroth').then(
+                (module) =>
+                {
+                    arrived = module.default as Row;
+                    Row = arrived;
+                },
+                () => undefined
+            );
+        }
+    }
+
+    <Show
+        when={ ready }
+        fallback={
+            <div class="flex h-12 items-center gap-2 px-3 text-ui-sm text-muted">
+                <Spinner size={ 16 } class="shrink-0" />
+                { locale.t('chat.voice.asking') }
+            </div>
+        }
+    >
+        { () => <Dynamic component={ Row! } props={ () => ({ room: props.room }) } /> }
+    </Show>
+}

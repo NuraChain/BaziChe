@@ -2,9 +2,11 @@ import Icon from '../../icons/icon.component.azeroth';
 import { useDevice } from '../../stores/device.store.ts';
 import { useEmojiPop } from '../../stores/emoji-pop.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
+import { useVoiceRooms } from '../../stores/voice-rooms.store.ts';
 import IconButton from '../ui/icon-button.component.azeroth';
 import TextArea from '../ui/text-area.component.azeroth';
 import LazyEmojiPicker from './lazy-emoji-picker.component.azeroth';
+import LazyVoiceRecorder from './lazy-voice-recorder.component.azeroth';
 
 export default component Composer(props: {
     value: string;
@@ -27,11 +29,15 @@ export default component Composer(props: {
     onInput: (value: string) => void;
     onSend: () => void;
     onGame?: () => void;
+
+    /** The room a voice message is recorded into, handed only where one can be sent. */
+    record?: string;
 })
 {
     const locale = useLocale();
     const device = useDevice();
     const pop = useEmojiPop();
+    const rooms = useVoiceRooms();
 
     state docked = false;
 
@@ -42,6 +48,15 @@ export default component Composer(props: {
     derived replying = !editing && props.reply !== undefined && props.reply !== null && props.disabled !== true;
 
     derived empty = props.value.trim() === '';
+
+    /** The microphone stands where Send is while there is nothing to send, as a messenger has it. */
+    derived speaking = props.record !== undefined && props.disabled !== true && !editing && empty;
+
+    derived recording = props.record !== undefined && rooms.has(props.record);
+
+    derived writing = !recording;
+
+    let recorded = false;
 
     const field = (): HTMLTextAreaElement | null => bar?.querySelector('textarea') ?? null;
 
@@ -86,6 +101,36 @@ export default component Composer(props: {
         pop.close();
         props.onSend();
     };
+
+    const record = () =>
+    {
+        const room = props.record;
+
+        if (room === undefined)
+        {
+            return;
+        }
+
+        docked = false;
+        pop.close();
+        rooms.set(room, true);
+        void import('../../stores/voice-recorder.store.ts')
+            .then((module) => module.useVoiceRecorder().start(room))
+            .catch(() => rooms.set(room, false));
+    };
+
+    /** A recording sent or deleted gives the keyboard back to the field it took it from. */
+    effect
+    {
+        const now = recording;
+
+        if (recorded && !now && bar !== null && (document.activeElement === document.body || bar.contains(document.activeElement)))
+        {
+            requestAnimationFrame(() => field()?.focus({ preventScroll: true }));
+        }
+
+        recorded = now;
+    }
 
     const keys = (event: KeyboardEvent) =>
     {
@@ -166,56 +211,71 @@ export default component Composer(props: {
                     }
                 </Show>
 
-                <form
-                    class="flex items-end gap-0.5 p-1"
-                    onSubmit={ (event) =>
-                    {
-                        event.preventDefault();
-                        send();
-                    } }
-                >
-                    <Show when={ props.onGame !== undefined }>
-                        { () =>
-                            <IconButton
-                                icon="add"
-                                label={ locale.t('chat.gameMenu') }
-                                variant="ghost"
-                                class="rounded-full! text-muted hover:text-text"
+                <Show when={ recording }>
+                    { () => <LazyVoiceRecorder room={ props.record ?? '' } /> }
+                </Show>
+
+                <Show when={ writing }>
+                    { () =>
+                        <form
+                            class="flex items-end gap-0.5 p-1"
+                            onSubmit={ (event) =>
+                            {
+                                event.preventDefault();
+                                send();
+                            } }
+                        >
+                            <Show when={ props.onGame !== undefined }>
+                                { () =>
+                                    <IconButton
+                                        icon="add"
+                                        label={ locale.t('chat.gameMenu') }
+                                        variant="ghost"
+                                        class="rounded-full! text-muted hover:text-text"
+                                        disabled={ props.disabled === true }
+                                        onClick={ () => props.onGame?.() }
+                                    />
+                                }
+                            </Show>
+                            <TextArea
+                                value={ props.value }
+                                onInput={ props.onInput }
+                                placeholder={ props.placeholder ?? locale.t('chat.composer') }
+                                label={ props.placeholder ?? locale.t('chat.composer') }
                                 disabled={ props.disabled === true }
-                                onClick={ () => props.onGame?.() }
+                                enterkeyhint={ editing ? 'done' : 'send' }
+                                maxlength={ props.maxlength ?? 500 }
+                                class={ [ 'min-w-0 flex-1 border-0! bg-transparent! py-0! opacity-100!', props.onGame === undefined ? 'ps-3!' : 'ps-1!', 'pe-1!' ].join(' ') }
+                                onEnter={ send }
                             />
-                        }
-                    </Show>
-                    <TextArea
-                        value={ props.value }
-                        onInput={ props.onInput }
-                        placeholder={ props.placeholder ?? locale.t('chat.composer') }
-                        label={ props.placeholder ?? locale.t('chat.composer') }
-                        disabled={ props.disabled === true }
-                        enterkeyhint={ editing ? 'done' : 'send' }
-                        maxlength={ props.maxlength ?? 500 }
-                        class={ [ 'min-w-0 flex-1 border-0! bg-transparent! py-0! opacity-100!', props.onGame === undefined ? 'ps-3!' : 'ps-1!', 'pe-1!' ].join(' ') }
-                        onEnter={ send }
-                    />
-                    <IconButton
-                        icon="smile"
-                        label={ locale.t('emoji.title') }
-                        variant="ghost"
-                        pressed={ docked || pop.current()?.anchor === bar }
-                        disabled={ props.disabled === true }
-                        class="rounded-full! text-muted hover:text-text"
-                        onClick={ emoji }
-                    />
-                    <IconButton
-                        icon={ editing ? 'selected' : 'send' }
-                        label={ locale.t(editing ? 'chat.editSave' : 'chat.send') }
-                        variant={ empty ? 'ghost' : 'primary' }
-                        flip={ !editing }
-                        class={ empty ? 'rounded-full! text-faint' : 'rounded-full!' }
-                        disabled={ props.disabled === true || empty }
-                        onClick={ send }
-                    />
-                </form>
+                            <IconButton
+                                icon="smile"
+                                label={ locale.t('emoji.title') }
+                                variant="ghost"
+                                pressed={ docked || pop.current()?.anchor === bar }
+                                disabled={ props.disabled === true }
+                                class="rounded-full! text-muted hover:text-text"
+                                onClick={ emoji }
+                            />
+                            <Show
+                                when={ speaking }
+                                fallback={
+                                    <IconButton
+                                        icon={ editing ? 'selected' : 'send' }
+                                        label={ locale.t(editing ? 'chat.editSave' : 'chat.send') }
+                                        variant={ empty ? 'ghost' : 'primary' }
+                                        flip={ !editing }
+                                        class={ empty ? 'rounded-full! text-faint' : 'rounded-full!' }
+                                        disabled={ props.disabled === true || empty }
+                                        onClick={ send }
+                                    />
+                                }
+                            >
+                                { () => <IconButton icon="voice" label={ locale.t('chat.voice.record') } variant="ghost" class="rounded-full! text-muted hover:text-text" onClick={ record } /> }
+                            </Show>
+                        </form>
+                    }
+                </Show>
             </div>
         </div>
     </div>

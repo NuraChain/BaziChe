@@ -1,4 +1,4 @@
-export const NOTICES = ['invites', 'requests', 'messages', 'groups', 'turns', 'gifts'] as const;
+export const NOTICES = ['invites', 'requests', 'messages', 'groups', 'turns', 'gifts', 'inviting'] as const;
 
 export type Notice = typeof NOTICES[number];
 
@@ -10,7 +10,9 @@ export const NOTICE_OF: Readonly<Record<string, Notice>> = {
     'table-removed': 'invites',
     'message': 'messages',
     'turn': 'turns',
-    'invite-joined': 'requests',
+    'invite-joined': 'inviting',
+    'invite-played': 'inviting',
+    'invite-reward': 'inviting',
     'gift': 'gifts',
     'donation': 'gifts'
 };

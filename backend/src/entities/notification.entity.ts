@@ -4,7 +4,7 @@ import { User } from './user.entity.ts';
 export type NotificationKind = 'friend-request' | 'friend-accepted' | 'group-added' | 'table-invite' | 'table-removed' | 'message' | 'turn' | 'invite-joined' | 'gift' | 'donation';
 
 @Check('notifications_count_positive', `count > 0`)
-@Check('notifications_kind_known', `kind in ('friend-request', 'friend-accepted', 'group-added', 'table-invite', 'table-removed', 'message', 'turn', 'invite-joined', 'gift', 'donation')`)
+@Check('notifications_kind_known', `kind in ('friend-request', 'friend-accepted', 'group-added', 'table-invite', 'table-removed', 'message', 'turn', 'invite-joined', 'invite-played', 'invite-reward', 'gift', 'donation')`)
 @Index('notifications_dedupe', ['userId', 'dedupeKey'], { unique: true })
 @Index('notifications_unread', ['userId'], { where: `read_at is null` })
 @Entity('notifications')

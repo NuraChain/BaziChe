@@ -4,11 +4,12 @@ import { cleanup, renderTest } from '@azerothjs/testing';
 import type { Notification } from '../src/api.ts';
 import NotificationRow from '../src/components/social/notification-row.component.azeroth';
 import { NOTIFICATION_ICON, sayOf, targetOf } from '../src/lib/notifications.ts';
+import { wordsOf } from '../src/lib/notice-words.ts';
 import { manualClock } from '../src/lib/clock.ts';
 import { decodeKey } from '../src/lib/push.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import { routes } from '../src/routes.ts';
-import { useLocale } from '../src/stores/locale.store.ts';
+import { messageOf, useLocale } from '../src/stores/locale.store.ts';
 import { useNotifications } from '../src/stores/notifications.store.ts';
 import { usePeople } from '../src/stores/people.store.ts';
 import { NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.store.ts';
@@ -102,8 +103,23 @@ describe('where a notice leads', () =>
         expect(targetOf(notice('turn', { ref: { tableId: 't-2' } }))).toBe('/app/play/t-2');
         expect(targetOf(notice('group-added', { actor: 'maya.c', ref: { groupId: 'g-1' } }))).toBe('/app/groups/g-1');
         expect(targetOf(notice('message', { actor: 'maya.c', ref: { conversationId: 'c-1' } }))).toBe('/app/chats/c-1');
-        expect(targetOf(notice('invite-joined', { actor: 'maya.c' }))).toBe('/app/people/maya.c');
-        expect(sayOf(notice('invite-joined', { actor: 'maya.c' }), 'Maya', useLocale())).toBe('Maya joined through your link and played a first game');
+    });
+
+    it.each([
+        ['en', 'Maya joined through your link', 'Maya played a first game: your invite counts', 'A new look from an invite is in your collection'],
+        ['fa', 'Maya با لینک تو اومد', 'Maya اولین بازیش رو کرد؛ دعوتت حساب شد', 'یه استایل تازه از دعوت، توی کلکسیونته']
+    ] as const)('sends a friend who joined or played to the invite page and a look an invite gave to the collection, in %s', (language, joined, played, reward) =>
+    {
+        useLocale().setLocale(language);
+
+        expect(targetOf(notice('invite-joined', { actor: 'maya.c' }))).toBe('/app/invite');
+        expect(targetOf(notice('invite-played', { actor: 'maya.c' }))).toBe('/app/invite');
+        expect(targetOf(notice('invite-reward', { actor: 'maya.c', ref: { item: 'dice.glow' } }))).toBe('/app/shop/collection');
+        expect(sayOf(notice('invite-joined', { actor: 'maya.c' }), 'Maya', useLocale())).toBe(joined);
+        expect(sayOf(notice('invite-played', { actor: 'maya.c' }), 'Maya', useLocale())).toBe(played);
+        expect(sayOf(notice('invite-reward', { actor: 'maya.c', ref: { item: 'dice.glow' } }), 'Maya', useLocale())).toBe(reward);
+        expect(wordsOf(language).says, 'the worker says what the page says').toMatchObject({ 'invite-joined': messageOf(language, 'notify.inviteJoined'), 'invite-played': messageOf(language, 'notify.invitePlayed'), 'invite-reward': messageOf(language, 'notify.inviteReward') });
+        useLocale().setLocale('en');
     });
 
     it('sends somebody a host took out of a table to the games, not back to a table with no chair for them', () =>

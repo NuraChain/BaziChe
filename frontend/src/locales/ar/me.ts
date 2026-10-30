@@ -141,6 +141,7 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.notifications.groups': 'إضافتي إلى مجموعة',
     'settings.notifications.turns': 'الألعاب: دورك، وبدء لعبة',
     'settings.notifications.gifts': 'الهدايا و NURA التي تُرسل إليك',
+    'settings.notifications.inviting': 'الأصدقاء الذين دعوتهم',
     'settings.notifications.haptics': 'الاهتزاز',
     'settings.notifications.hapticsHint': 'اهتزاز قصير حين تجهز طاولة، أو تُكسب يد، أو تنجح إيماءة.',
 

@@ -2828,8 +2828,14 @@ export const notificationKind = enumOf([
      */
     'turn',
 
-    /** Somebody who came in through the reader's link has finished a first game. */
+    /** Somebody's account was made through the reader's link. */
     'invite-joined',
+
+    /** Somebody who came in through the reader's link has played a first game, and the invite counts. */
+    'invite-played',
+
+    /** An invite gave the reader a look, which is in their collection now. */
+    'invite-reward',
 
     /** A friend bought the reader a look, and it is theirs now. */
     'gift',

@@ -17,6 +17,8 @@ export const CUE_KEYS: Record<NotificationKind, MessageKey> = {
     'message': 'cue.chatBody',
     'turn': 'notify.turn',
     'invite-joined': 'notify.inviteJoined',
+    'invite-played': 'notify.invitePlayed',
+    'invite-reward': 'notify.inviteReward',
     'gift': 'notify.gift',
     'donation': 'notify.donation'
 };
@@ -56,6 +58,8 @@ export function wordsOf(lang: Locale): NoticeWords
             'message': said('message'),
             'turn': said('turn'),
             'invite-joined': said('invite-joined'),
+            'invite-played': said('invite-played'),
+            'invite-reward': said('invite-reward'),
             'gift': said('gift'),
             'donation': said('donation')
         },

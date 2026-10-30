@@ -10,7 +10,7 @@ import type { Plan } from '../src/domains/match/judge.ts';
 import { NOTICES, NOTICE_OF } from '../src/domains/notify/notices.ts';
 import { quickOf, seatsByDefault } from '../src/domains/table/quick.ts';
 import type { MatchOutcome } from '../src/entities/match.entity.ts';
-import { matchHistoryEntry, matchPlayer, matchView } from '../src/schemas.ts';
+import { matchHistoryEntry, matchPlayer, matchView, notificationKind } from '../src/schemas.ts';
 import { GAMES } from '../../frontend/src/data/games.ts';
 import { TABLE_RULES, formatsOf } from '../../frontend/src/data/tables.ts';
 
@@ -198,6 +198,21 @@ describe('notices: the kinds a person can switch off hold together', () =>
     {
         expect(Object.keys(NOTICE_OF).sort()).toEqual(listed('notifications_kind_known').sort());
         expect(new Set(Object.values(NOTICE_OF))).toEqual(new Set(NOTICES));
+    });
+
+    it('puts everything about inviting friends under a notice of its own, and nothing else there', () =>
+    {
+        expect(Object.entries(NOTICE_OF).filter(([, notice]) => notice === 'inviting').map(([kind]) => kind).sort()).toEqual(['invite-joined', 'invite-played', 'invite-reward']);
+    });
+
+    it('lets onto the wire exactly the kinds the column holds', () =>
+    {
+        for (const kind of listed('notifications_kind_known'))
+        {
+            expect(notificationKind.safeParse(kind).ok, kind).toBe(true);
+        }
+
+        expect(notificationKind.safeParse('invite-sent').ok).toBe(false);
     });
 });
 

@@ -14,6 +14,8 @@ export const NOTIFICATION_ICON: Record<NotificationKind, IconName> = {
     'message': 'chats',
     'turn': 'dice',
     'invite-joined': 'invite',
+    'invite-played': 'dice',
+    'invite-reward': 'gift',
     'gift': 'gift',
     'donation': 'coins'
 };
@@ -27,6 +29,8 @@ const SAYS: Record<NotificationKind, MessageKey> = {
     'turn': 'notify.turn',
     'message': 'notify.message',
     'invite-joined': 'notify.inviteJoined',
+    'invite-played': 'notify.invitePlayed',
+    'invite-reward': 'notify.inviteReward',
     'gift': 'notify.gift',
     'donation': 'notify.donation'
 };
@@ -62,9 +66,13 @@ export function targetOf(item: Notification): string | null
     {
         return '/app/games';
     }
-    if (item.kind === 'gift')
+    if (item.kind === 'gift' || item.kind === 'invite-reward')
     {
         return '/app/shop/collection';
+    }
+    if (item.kind === 'invite-joined' || item.kind === 'invite-played')
+    {
+        return '/app/invite';
     }
     if (item.kind === 'donation')
     {

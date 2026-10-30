@@ -816,9 +816,9 @@ describe.skipIf(!active)('buying a look with NURA, against a real database', () 
 
             expect(await refusal(ports.shop.claim(reader.id))).toEqual({ status: 409, code: 'shop-nothing' });
 
-            for (const call of [ports.shop.balance(guest.id), ports.shop.earnings(guest.id), ports.shop.claim(guest.id)])
+            for (const call of [() => ports.shop.balance(guest.id), () => ports.shop.earnings(guest.id), () => ports.shop.claim(guest.id)])
             {
-                expect(await refusal(call)).toEqual({ status: 409, code: 'shop-wallet' });
+                expect(await refusal(call())).toEqual({ status: 409, code: 'shop-wallet' });
             }
         });
     });

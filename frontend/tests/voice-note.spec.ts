@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { VOICE_FILE_MOST, VOICE_MOST_MS, VOICE_WAVE_BARS } from '../../backend/src/domains/chat/voice.ts';
 import { decodeText, decodeVoice, encodeVoice, type VoiceBody } from '../src/lib/body.ts';
-import { decodeWave, encodeWave, openAudio, recordingType, sealAudio, sniffAudio, waveOf, waveOfLevels } from '../src/lib/voice-note.ts';
+import { decodeWave, encodeWave, openAudio, recordingType, sealAudio, seekable, sniffAudio, waveOf, waveOfLevels } from '../src/lib/voice-note.ts';
+import { blockFlags, durationAt, webm } from './webm.ts';
 
 const WEBM = [0x1a, 0x45, 0xdf, 0xa3];
 
@@ -23,6 +24,93 @@ describe('a recording’s container', () =>
         expect(sniffAudio(new Uint8Array([0x1a, 0x45, 0xdf]))).toBeNull();
         expect(sniffAudio(new Uint8Array([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00]))).toBeNull();
         expect(sniffAudio(new TextEncoder().encode('<html><body>'))).toBeNull();
+    });
+});
+
+describe('a recording any browser can move through', () =>
+{
+    const MARKED = [0x80, 0x80, 0x80, 0x80, 0x80];
+
+    /** The Duration's eleven bytes as a Void of the same length. */
+    const voided = (bytes: Uint8Array) =>
+    {
+        const copy = bytes.slice();
+
+        copy.set([0xec, 0x89, 0, 0, 0, 0, 0, 0, 0, 0, 0], durationAt(bytes));
+        return copy;
+    };
+
+    it('marks every block of a WebM recording a keyframe, as every Opus packet is, and takes out a Duration of 0, in place', () =>
+    {
+        const made = webm();
+        const length = made.length;
+
+        expect(blockFlags(made), 'as Firefox writes it').toEqual([0, 0, 0, 0, 0]);
+
+        const kept = seekable(made);
+
+        expect(kept, 'the same bytes, changed where they lie').toBe(made);
+        expect(blockFlags(kept), 'every block a keyframe, which Chromium seeks by').toEqual(MARKED);
+        expect(durationAt(kept), 'no Duration of 0, which Firefox took for the length').toBe(-1);
+        expect(kept.length).toBe(length);
+        expect([...kept], 'and nothing else moved: a Void stands where the Duration stood').toEqual([...voided(webm({ flags: 0x80 }))]);
+    });
+
+    it('takes out a Duration of 0 written in four bytes, and walks clusters that say how long they are', () =>
+    {
+        const kept = seekable(webm({ duration: { value: 0, width: 4 }, sized: true }));
+
+        expect(blockFlags(kept)).toEqual(MARKED);
+        expect(durationAt(kept)).toBe(-1);
+        expect(kept.length).toBe(webm({ duration: { value: 0, width: 4 }, sized: true }).length);
+    });
+
+    it('keeps a Duration that says how long, a block already marked and a BlockGroup, and changes nothing a second time', () =>
+    {
+        const chromium = webm({ flags: 0x80, duration: null });
+        const said = webm({ flags: 0x80, duration: { value: 1640, width: 8 } });
+
+        expect([...seekable(chromium.slice())], 'as Chromium writes it').toEqual([...chromium]);
+        expect([...seekable(said.slice())], 'a Duration that says how long').toEqual([...said]);
+
+        const grouped = webm({ group: true });
+        const once = seekable(grouped.slice());
+        const group = once.findIndex((byte, at) => byte === 0xa1 && once[at + 1] === 0x86);
+
+        expect(blockFlags(once)).toEqual(MARKED);
+        expect(once[group + 5], 'a Block in a group has no keyframe flag to set').toBe(0x00);
+        expect([...seekable(once.slice())], 'a second time changes nothing').toEqual([...once]);
+    });
+
+    it('leaves what is no WebM, or cannot be walked, as it found it, and throws for none of it', () =>
+    {
+        const kept = [
+            new Uint8Array([]),
+            new Uint8Array([0x4f, 0x67, 0x67, 0x53, 0x00, 0x02, 0x80, 0xa3]),
+            new Uint8Array([0, 0, 0, 0x20, 0x66, 0x74, 0x79, 0x70, 0x4d, 0x34, 0x41, 0xa3]),
+            new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x00, 0xa3, 0x88]),
+            new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x85, 0x42, 0x82]),
+            new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, ...Array.from({ length: 300 }, (_, at) => (at * 7) % 251)]),
+            webm().slice(0, durationAt(webm()) + 6),
+            new Uint8Array([
+                0x1a, 0x45, 0xdf, 0xa3, 0x87, 0x42, 0x82, 0x84, 0x77, 0x65, 0x62, 0x6d,
+                0x18, 0x53, 0x80, 0x67, 0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0x08, 0x00, 0x00, 0x00, 0x00, 0x81, 0x00,
+                0x1f, 0x43, 0xb6, 0x75, 0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe7, 0x81, 0x00,
+                0xa3, 0x88, 0x82, 0x00, 0x00, 0x00, 0xfc, 0x00, 0x33, 0x44
+            ])
+        ];
+
+        for (const bytes of kept)
+        {
+            expect([...seekable(bytes.slice())]).toEqual([...bytes]);
+        }
+
+        const whole = webm();
+        const cut = seekable(whole.slice(0, whole.length - 5));
+
+        expect(cut.length, 'cut short, nothing is written past its end').toBe(whole.length - 5);
+        expect(blockFlags(cut), 'and the whole blocks before the cut are marked').toEqual([0x80, 0x80, 0x80, 0x80]);
     });
 });
 

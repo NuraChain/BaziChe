@@ -21,6 +21,7 @@ import { useSocial } from '../src/stores/social.store.ts';
 import { setVoiceAudio, type VoiceAudio } from '../src/lib/voice-audio.ts';
 import { useVoicePlayer, VOICE_TICK_MS } from '../src/stores/voice-player.store.ts';
 import { server } from './fake-api.ts';
+import { blockFlags, durationAt, webm } from './webm.ts';
 import '../src/locales/app-catalogue.ts';
 
 /**
@@ -412,6 +413,21 @@ describe('a voice message played', () =>
         expect([audio().playbackRate, audio().preservesPitch]).toEqual([1.5, true]);
         expect(player.stateOf('v-1')).toBeNull();
         await vi.waitFor(() => expect(told, 'marked played, once').toEqual(['c-reza:v-1']));
+    });
+
+    it('hands its element a recording Firefox made as one every browser can move through', async () =>
+    {
+        const first = await spoken('v-1', 'reza', {}, webm());
+
+        await opened([first]);
+        useVoicePlayer().toggle(line('v-1'));
+        await playingNow('v-1');
+
+        const handed = new Uint8Array(await addresses.made[0].blob.arrayBuffer());
+
+        expect(blockFlags(handed), 'every block a keyframe, which Chromium seeks by').toEqual([0x80, 0x80, 0x80, 0x80, 0x80]);
+        expect(durationAt(handed), 'and no Duration of 0, which Firefox took for the length').toBe(-1);
+        expect(handed.length, 'nothing moved').toBe(first.voice!.bytes);
     });
 
     it('plays the reader’s own recording from what this tab holds, fetching nothing and marking nothing', async () =>

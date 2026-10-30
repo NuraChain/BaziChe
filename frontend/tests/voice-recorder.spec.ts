@@ -18,6 +18,7 @@ import { useVoicePlayer } from '../src/stores/voice-player.store.ts';
 import { RECORD_TICK_MS, setRecorderEnv, useVoiceRecorder, type Decoded, type RecorderLike } from '../src/stores/voice-recorder.store.ts';
 import { useVoiceRooms } from '../src/stores/voice-rooms.store.ts';
 import { server } from './fake-api.ts';
+import { blockFlags, durationAt, webm } from './webm.ts';
 import '../src/locales/app-catalogue.ts';
 
 /**
@@ -363,6 +364,40 @@ describe('a voice message recorded', () =>
         expect([sent.mime, sent.ms, sent.wave.length], 'the type the recorder made, in the document’s spelling').toEqual(['audio/ogg;codecs=opus', 3000, VOICE_WAVE_BARS]);
         expect([browser.tracks.every((track) => track.stopped), browser.closed]).toEqual([true, 1]);
         expect([take(), useVoiceRooms().has('c-reza')]).toEqual([null, false]);
+    });
+
+    it('is heard here, and sent, as a recording every browser can move through, though Firefox made it', async () =>
+    {
+        const sendVoice = vi.spyOn(useChat(), 'sendVoice').mockResolvedValue(undefined);
+        const blobs: Blob[] = [];
+
+        vi.mocked(URL.createObjectURL).mockImplementation((blob) =>
+        {
+            blobs.push(blob as Blob);
+            return `blob:take/${ blobs.length }`;
+        });
+
+        const made = webm();
+
+        await recording();
+        recorder().say(made.slice(0, 60));
+        recorder().hand();
+        recorder().say(made.slice(60));
+        clock.advance(3_000);
+        void useVoiceRecorder().pause('c-reza');
+        await vi.waitFor(() => expect(take()?.preview).not.toBeNull());
+
+        const heard = new Uint8Array(await blobs.at(-1)!.arrayBuffer());
+
+        expect(blockFlags(heard), 'heard here as it will be everywhere').toEqual([0x80, 0x80, 0x80, 0x80, 0x80]);
+        expect(durationAt(heard)).toBe(-1);
+
+        await useVoiceRecorder().send('c-reza');
+
+        const [, sent] = sendVoice.mock.calls[0];
+
+        expect(blockFlags(sent.plain), 'and sent so').toEqual([0x80, 0x80, 0x80, 0x80, 0x80]);
+        expect([durationAt(sent.plain), sent.plain.length]).toEqual([-1, made.length]);
     });
 
     it('is dropped, and says so, when it is too short to send', async () =>

@@ -1,6 +1,6 @@
 import type { VoiceBody } from '../../lib/body.ts';
 import { NOT_SUPPORTED, readyAudio, voiceAudio, type VoiceAudio } from '../../lib/voice-audio.ts';
-import { decodeWave, openAudio, sniffAudio } from '../../lib/voice-note.ts';
+import { decodeWave, openAudio, seekable, sniffAudio } from '../../lib/voice-note.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { VoiceFileError, voiceFiles } from '../../services/voice-files.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -146,7 +146,7 @@ export default component ReportVoice(props: { report: string; voice: VoiceBody['
                 return false;
             }
 
-            address = URL.createObjectURL(new Blob([plain as BlobPart], { type }));
+            address = URL.createObjectURL(new Blob([seekable(plain) as BlobPart], { type }));
             made.src = address;
 
             if (!await readyAudio(made))

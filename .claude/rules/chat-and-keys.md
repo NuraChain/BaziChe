@@ -979,7 +979,16 @@ audio is the held recording or the file fetched and opened under the key its mes
 container read from its own bytes (`sniffAudio`, never the type its sender named) and asked of the
 element (`canPlayType`), played from an object address revoked the moment it is let go. Chrome's
 MediaRecorder writes no length into its header, so the element is asked for a place past the end and
-finds it (`readyAudio`, `lib/voice-audio.ts`); until then the sender's measure stands. What keeps one
+finds it (`readyAudio`, `lib/voice-audio.ts`); until then the sender's measure stands. **A WebM is
+made one every browser can move through first** (`seekable`, `lib/voice-note.ts`), in place with
+nothing moved, by the recorder that makes it and by each player that opens it, the staff's included:
+every SimpleBlock marked a keyframe, as every Opus packet is, and a Duration of 0 turned into a Void.
+Firefox's MediaRecorder marks none of its blocks and writes that 0, and the pass with Firefox as the
+second browser found what it cost: Chromium seeks only to a keyframe, so it could not find a Firefox
+recording's length and called it unplayable (`FFmpegDemuxer: demuxer seek failed`), and could not have
+moved through one either; Firefox, told the length was 0, could not move through its own. A bare page
+held each half apart: the marked blocks are what Chromium needs, and a WebM with no Duration is one
+Firefox measures for itself. Anything the walk cannot read is left as it was. What keeps one
 from playing is said on its bubble: `gone` (404), `failed` (anything else kept the file away; Try
 again), `tampered` (it does not open: an alarm), `unplayable` (no recording, or one that breaks) and
 `unsupported` (the browser says it cannot). The speed chip steps through 1×, 1.5× and 2×

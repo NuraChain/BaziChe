@@ -53,6 +53,106 @@ export function sniffAudio(bytes: Uint8Array): VoiceContainer | null
     return null;
 }
 
+const SEGMENT = 0x18538067;
+const CLUSTER = 0x1f43b675;
+const INFO = 0x1549a966;
+const DURATION = 0x4489;
+const SIMPLE_BLOCK = 0xa3;
+const VOID = 0xec;
+
+/** An EBML number at `at`: its value, how many bytes it takes, and whether it is the size that says "unknown". An ID keeps its marker. */
+function ebml(bytes: Uint8Array, at: number, id: boolean)
+{
+    const first = bytes[at] ?? 0;
+    const length = Math.clz32(first) - 23;
+
+    if (length > (id ? 4 : 8) || at + length > bytes.length)
+    {
+        return null;
+    }
+
+    let value = id ? first : first & (0xff >> length);
+    let unknown = !id && value === 0xff >> length;
+
+    for (let next = 1; next < length; next += 1)
+    {
+        value = value * 256 + bytes[at + next];
+        unknown = unknown && bytes[at + next] === 0xff;
+    }
+
+    return { value, length, unknown };
+}
+
+/**
+ * A WebM recording as every browser can move through it, changed in place with nothing moved.
+ * Firefox's MediaRecorder marks none of its blocks a keyframe, though an Opus packet always stands
+ * alone, and writes a Duration of 0: Chromium seeks only to a keyframe, so it could neither find such
+ * a recording's length nor move through it ("FFmpegDemuxer: demuxer seek failed"), and Firefox, given
+ * the 0, could not move through its own. Every SimpleBlock is marked a keyframe and a Duration of 0
+ * becomes a Void as long as it was. A segment, a cluster or the info is walked into; anything else is
+ * stepped over by its size, and whatever cannot be walked is left as it was found.
+ */
+export function seekable(bytes: Uint8Array)
+{
+    if (sniffAudio(bytes) !== 'audio/webm')
+    {
+        return bytes;
+    }
+
+    let at = 0;
+
+    while (at < bytes.length)
+    {
+        const id = ebml(bytes, at, true);
+        const size = id === null ? null : ebml(bytes, at + id.length, false);
+
+        if (id === null || size === null)
+        {
+            break;
+        }
+
+        const data = at + id.length + size.length;
+
+        if (id.value === SEGMENT || id.value === CLUSTER || id.value === INFO)
+        {
+            at = data;
+            continue;
+        }
+
+        if (size.unknown || data + size.value > bytes.length)
+        {
+            break;
+        }
+
+        if (id.value === SIMPLE_BLOCK)
+        {
+            const track = ebml(bytes, data, false);
+
+            if (track !== null && track.length + 3 <= size.value)
+            {
+                bytes[data + track.length + 2] |= 0x80;
+            }
+        }
+        else if (id.value === DURATION && (size.value === 4 || size.value === 8))
+        {
+            const view = new DataView(bytes.buffer, bytes.byteOffset + data, size.value);
+
+            if ((size.value === 4 ? view.getFloat32(0) : view.getFloat64(0)) === 0)
+            {
+                const whole = id.length + size.length + size.value;
+
+                bytes[at] = VOID;
+                bytes[at + 1] = 0x80 | (whole - 2);
+                bytes.fill(0, at + 2, at + whole);
+            }
+        }
+
+        at = data + size.value;
+    }
+
+    return bytes;
+}
+
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
 /** The loudness under which a whole recording is called silence and drawn flat. */

@@ -3,7 +3,7 @@ import { batch, createEffect, createRoot, createSignal, createStore, untrack } f
 import { VOICE_FILE_MOST, VOICE_MOST_MS } from '../../../backend/src/domains/chat/voice.ts';
 import { runtime } from '../lib/runtime.ts';
 import { onForgotten } from '../lib/voice-held.ts';
-import { recordingType, typeSaid, VOICE_BITRATE, VOICE_LEAST_MS, waveOf, waveOfLevels } from '../lib/voice-note.ts';
+import { recordingType, seekable, typeSaid, VOICE_BITRATE, VOICE_LEAST_MS, waveOf, waveOfLevels } from '../lib/voice-note.ts';
 import type { MessageKey } from '../locales/en.ts';
 import { useChat } from './chat.store.ts';
 import { useLocale } from './locale.store.ts';
@@ -360,8 +360,8 @@ export const useVoiceRecorder = createStore((): RecorderApi =>
     /** What has been said so far, opened for its length and its waveform: the decoded recording's, or the microphone's levels where it will not decode. */
     const measure = async (session: Session) =>
     {
-        const blob = new Blob(session.chunks, { type: session.type });
-        const plain = new Uint8Array(await blob.arrayBuffer());
+        const plain = seekable(new Uint8Array(await new Blob(session.chunks).arrayBuffer()));
+        const blob = new Blob([plain as BlobPart], { type: session.type });
         const decoded = await env.decode(plain);
 
         return {

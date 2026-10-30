@@ -4,7 +4,7 @@ import type { Message } from '../data/chat.ts';
 import { runtime } from '../lib/runtime.ts';
 import { NOT_SUPPORTED, readyAudio, voiceAudio, type VoiceAudio } from '../lib/voice-audio.ts';
 import { heldAudio, holdAudio, onForgotten } from '../lib/voice-held.ts';
-import { openAudio, sniffAudio } from '../lib/voice-note.ts';
+import { openAudio, seekable, sniffAudio } from '../lib/voice-note.ts';
 import { VoiceFileError, voiceFiles } from '../services/voice-files.ts';
 import { useChat } from './chat.store.ts';
 import { useSettings } from './settings.store.ts';
@@ -431,7 +431,7 @@ export const useVoicePlayer = createStore((): VoicePlayerApi =>
             return;
         }
 
-        holdAudio(voice.id, recording);
+        holdAudio(voice.id, seekable(recording));
         url = URL.createObjectURL(new Blob([recording as BlobPart], { type }));
         audio.src = url;
         audio.playbackRate = rate();

@@ -17,6 +17,7 @@ import { useReports } from '../src/stores/reports.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
 import { ApiError, client, reportFiled, server, staffLogged, staffMember } from './fake-api.ts';
+import { blockFlags, durationAt, webm } from './webm.ts';
 import { halfwayOut } from './leaving.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
@@ -173,12 +174,12 @@ class FakeAudio implements VoiceAudio
 const RECORDING = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, ...Array.from({ length: 600 }, (_, at) => (at * 7) % 251)]);
 
 /** A voice message sealed as a browser seals one, and the document a report would disclose for it. */
-const disclosedVoice = async (extra: { fwd?: true } = {}) =>
+const disclosedVoice = async (extra: { fwd?: true } = {}, recording = RECORDING) =>
 {
     const id = crypto.randomUUID();
-    const sealed = await sealAudio(RECORDING, id);
+    const sealed = await sealAudio(recording, id);
     const message = encodeVoice({
-        voice: { id, key: sealed.key, iv: sealed.iv, mime: 'audio/webm;codecs=opus', ms: 4000, wave: encodeWave([0, 30, 63, 12]), bytes: RECORDING.length },
+        voice: { id, key: sealed.key, iv: sealed.iv, mime: 'audio/webm;codecs=opus', ms: 4000, wave: encodeWave([0, 30, 63, 12]), bytes: recording.length },
         ...extra
     });
 
@@ -364,6 +365,22 @@ describe('one report', () =>
 
         expect(FakeAudio.made.at(-1)?.paused, 'and played again').toBe(false);
         expect(store.asked, 'from what it holds already').toEqual([id]);
+    });
+
+    it('plays a recording Firefox made as one every browser can move through', async () =>
+    {
+        const made = webm();
+        const { body, message } = await disclosedVoice({}, made);
+        const id = reportFiled({ at: hoursAgo(1), by: 'sara.k', about: 'reza.t', message });
+        const store = keeping(() => Promise.resolve(body));
+        const page = await opened(id);
+
+        playOf(page).click();
+        await settle();
+        await vi.waitFor(() => expect(store.opened).toHaveLength(1));
+
+        expect(blockFlags(store.opened[0]), 'every block a keyframe, which Chromium seeks by').toEqual([0x80, 0x80, 0x80, 0x80, 0x80]);
+        expect([durationAt(store.opened[0]), store.opened[0].length], 'no Duration of 0, and nothing moved').toEqual([-1, made.length]);
     });
 
     it('says what kept a reported voice message from playing, and fetches it again at Try again', async () =>

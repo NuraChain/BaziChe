@@ -4,7 +4,7 @@ Every look the shop sells is made here: drawn by our own generators from one pal
 moved by the effects engine, voiced by an offline synthesizer, and checked by the build. No look is
 a recolour of another and no art or sound is third-party (SH-D12). This is where each part lives,
 what holds it, and the steps to add a collection. What the shop sells, who sees what and how a
-purchase works is the shop's design (`docs/superpowers/specs/2026-10-27-shop-design.md`); the engine that moves the effects is `docs/vfx.md`.
+purchase works is the shop's design (`docs/design/2026-10-27-shop-design.md`); the engine that moves the effects is `docs/vfx.md`.
 
 ## A collection is kept in parts, each beside what reads it
 

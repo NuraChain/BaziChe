@@ -6,8 +6,8 @@ opens and a celebration from the winner's side. All of it is drawn by one small 
 `frontend/src/game/vfx/`, framework-free like `game/stage/`, on a 2D canvas laid over the element it
 plays on. This is what it can do, how a page or a board hands it an event, what it costs and what it
 never does. The design and its decisions are
-`docs/superpowers/specs/2026-10-27-legendary-cosmetics-design.md` (LG-D3, LG-D9) and
-`docs/superpowers/specs/2026-10-27-shop-design.md` (VX-D1 to VX-D9); which collection plays what is
+`docs/design/2026-10-27-legendary-cosmetics-design.md` (LG-D3, LG-D9) and
+`docs/design/2026-10-27-shop-design.md` (VX-D1 to VX-D9); which collection plays what is
 `docs/looks.md`.
 
 ## Why a 2D canvas

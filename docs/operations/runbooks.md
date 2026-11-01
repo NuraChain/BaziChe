@@ -3,7 +3,7 @@
 The server watches itself and the work it is behind on, and says when something crosses a line a
 person should act on. Each alert below is what it means, what to look at, and what to do. The
 numbers are the ones `backend/src/ops/measures.ts` judges against; why each is what it is, is in
-`docs/superpowers/specs/2026-10-28-operations-design.md` (3.3).
+`docs/design/2026-10-28-operations-design.md` (3.3).
 
 ## Where an alert is said
 

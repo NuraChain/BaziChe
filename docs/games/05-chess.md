@@ -1,6 +1,6 @@
 # Chess — شطرنج
 
-**Status:** being built (`docs/superpowers/specs/2026-10-23-chess-design.md`). The row is
+**Status:** being built (`docs/design/2026-10-23-chess-design.md`). The row is
 `coming-soon` until a table can be played to its end.
 
 Canonical ruleset: the [FIDE Laws of Chess](https://handbook.fide.com/chapter/E012023) (in force

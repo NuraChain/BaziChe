@@ -5,7 +5,7 @@ the same physical object travelling from its real source to its real destination
 and land on the logical result, cards are dealt, turned over and collected, pieces walk their real
 path, chips travel. Nothing may be a fade plus a re-render, a number that changes with nothing
 moving, or a timer standing in for synchronisation, and the rules and the authoritative state are
-not touched. This document extends `docs/superpowers/specs/2026-09-23-table-motion-sound-design.md`
+not touched. This document extends `docs/design/2026-09-23-table-motion-sound-design.md`
 (called the earlier spec below); where it asks for more (real dice, a real deal, chips), this
 document wins.
 

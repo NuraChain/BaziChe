@@ -9,7 +9,7 @@ import type { EscrowState } from '../stake/policy.ts';
  * What one pair of a record here and what NuraChain holds for it comes to: they agree; the pair is
  * the worker's, which moves it on its next pass; it is put right through a worker's own write,
  * because the chain is the authority and that write is the one the worker makes; or it is for a
- * person. The design's tables, cell for cell (`docs/superpowers/specs/2026-10-28-operations-design.md`).
+ * person. The design's tables, cell for cell (`docs/design/2026-10-28-operations-design.md`).
  */
 export type Verdict = 'agree' | 'worker' | 'put-right' | 'person';
 

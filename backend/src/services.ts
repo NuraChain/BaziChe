@@ -3629,7 +3629,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
              * and log for no seat, never a matter of when they look: a live board tells a watcher
              * strictly less than it tells any player, and anybody who wanted to coach a player could
              * watch that player's own screen, so the thirty seconds watchers were held back protected
-             * nothing (`docs/superpowers/specs/2026-10-28-live-watch-donations-markets-design.md`).
+             * nothing (`docs/design/2026-10-28-live-watch-donations-markets-design.md`).
              */
             async watch(me, matchId, rev)
             {

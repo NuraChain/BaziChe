@@ -107,7 +107,7 @@ flowchart LR
 - **One process for each database.** Who is online, quick play's waits, calls and every live update
   are kept by the process that holds a player's connection. In a load test on one desktop, one
   process held 3,000 sockets and greeted 95% of them within 62 ms
-  ([the socket audit](docs/superpowers/specs/2026-10-28-socket-audit.md)).
+  ([the socket audit](docs/design/2026-10-28-socket-audit.md)).
 - **Games behind one interface.** An engine has no I/O, no clock and no randomness of its own: the
   server hands it the dice, so no client can choose them, and every board is composed for the seat
   that will see it.
@@ -207,12 +207,12 @@ key. Write the NuraChain names empty to run with no chain at all.
 | [docs/games](docs/games) | each game's rules as its engine plays them |
 | [docs/operations](docs/operations) | [self-hosting](docs/operations/self-hosting.md), [updates and backups](docs/operations/rollout.md), [runbooks](docs/operations/runbooks.md), [before real money](docs/operations/mainnet.md), [compliance](docs/operations/compliance.md) |
 | [docs/looks.md](docs/looks.md), [docs/vfx.md](docs/vfx.md) | how the shop's looks are drawn, and the effects engine |
-| [docs/superpowers/specs](docs/superpowers/specs) | design documents and audits, each with its decisions |
+| [docs/design](docs/design) | design documents and audits, each with its decisions |
 
 ## Roadmap
 
 - **In progress:** a pass over feedback across the whole app
-  ([its ledger](docs/superpowers/specs/2026-11-01-ux-audit.md)): forms and their field errors, long
+  ([its ledger](docs/design/2026-11-01-ux-audit.md)): forms and their field errors, long
   lists, empty states, the app-wide fallbacks, and accessibility.
 - **Before real money:** the steps in [mainnet.md](docs/operations/mainnet.md), from a server key of
   its own and a multisig to an independent audit and a legal review.

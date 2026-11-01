@@ -16,7 +16,7 @@ For anything larger than a small fix, open an issue first that describes the pro
 solution, so the shape is agreed before the code is written. That matters most where a mistake is
 expensive to undo: the wire (`backend/src/schemas.ts`), the database's entities, the sealing of
 messages (`nura-e2ee/v1`), a game engine's rules, and anything that moves NURA. The
-[design documents](../docs/superpowers/specs) show how earlier work was proposed and decided.
+[design documents](../docs/design) show how earlier work was proposed and decided.
 
 ## Setting up
 

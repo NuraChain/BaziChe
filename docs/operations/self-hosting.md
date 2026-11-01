@@ -101,7 +101,7 @@ only a few hundred players for each worker. For thousands, raise it in the `even
 (`worker_connections 8192;`) with the files a worker may hold open (`worker_rlimit_nofile 16384;` at
 the top level). The server itself takes up to 4,000 realtime connections and turns the next one
 away; how it was measured is in
-[the socket audit](../superpowers/specs/2026-10-28-socket-audit.md).
+[the socket audit](../design/2026-10-28-socket-audit.md).
 
 ## Watching it
 

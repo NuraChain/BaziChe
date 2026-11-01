@@ -3,7 +3,7 @@
 Date: 2026-10-12. Status: adopted by the owner's brief of the same day ("Premium Game Graphics,
 Immersive UX & Responsive Design Overhaul"), which says of itself that it continues the animation
 work and replaces none of it. This document extends
-`docs/superpowers/specs/2026-10-11-table-presentation-design.md` (called the motion spec below).
+`docs/design/2026-10-11-table-presentation-design.md` (called the motion spec below).
 The motion spec decides WHEN and HOW things move. This one decides what they look like at rest, how
 big they are, how they are pressed, and what stands round them.
 

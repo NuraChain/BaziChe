@@ -1079,7 +1079,7 @@ server per database": a game is pushed to the sockets of the server that started
 the other's; a live search on one server passes over a table whose player's socket is on the other;
 and that server's sweep stands the player up. Each server also logs that another is using its
 database. A change that carries presence or pushes across processes fails those checks and rewrites
-them, with the README.
+them, with `docs/operations/self-hosting.md`.
 
 It found a fault on its first run, before it had asked anything: the two servers were started
 together on a new database and the second died at boot, both seeding the catalogue at once

@@ -1,8 +1,8 @@
 # Updating, rolling back, and keeping the database safe
 
-`README.md` sets a server up. This is what to do with one that is running: update it without losing
-anything, go back when an update goes wrong, and keep copies of the one thing that cannot be built
-again, the database.
+[self-hosting.md](self-hosting.md) sets a server up. This is what to do with one that is running:
+update it without losing anything, go back when an update goes wrong, and keep copies of the one
+thing that cannot be built again, the database.
 
 ## What a restart costs
 
@@ -30,6 +30,7 @@ git diff --stat HEAD origin/main -- backend/src/entities   # whether the databas
 git pull
 npm ci
 npm run build
+npm run setup                                  # adds any name the update put in .env.example
 npm run schema:sync
 # restart the service with whatever supervises it
 curl -s http://127.0.0.1:4900/api/healthz      # {"status":"ok","database":true}

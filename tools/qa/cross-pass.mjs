@@ -1,13 +1,13 @@
 /**
  * Two production servers on ONE database, and what quick play does across them.
  *
- * The deployment is one server process for each database (README). This pass is what that
- * sentence rests on: it runs two independent servers against one disposable database and asks
- * what holds across them and what does not. What holds is everything Postgres decides: the
- * locks, the chairs, nobody seated twice, a table filled by searches sent to both. What does not
- * is everything a server keeps in memory: who is here, its sweep, its pushes. Those checks say
- * what the code does today, so a change that carries them across processes fails them and has
- * to rewrite them, with the README.
+ * The deployment is one server process for each database (docs/operations/self-hosting.md). This
+ * pass is what that sentence rests on: it runs two independent servers against one disposable
+ * database and asks what holds across them and what does not. What holds is everything Postgres
+ * decides: the locks, the chairs, nobody seated twice, a table filled by searches sent to both.
+ * What does not is everything a server keeps in memory: who is here, its sweep, its pushes. Those
+ * checks say what the code does today, so a change that carries them across processes fails them
+ * and has to rewrite them, with the self-hosting guide.
  *
  *     QA_BASE=http://localhost:5320 QA_BASE_B=http://localhost:5321 node tools/qa/cross-pass.mjs
  *

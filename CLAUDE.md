@@ -81,8 +81,9 @@ proxy can reach lets a caller choose their own address. It sends no CORS, `Cross
 `realtime/admit.ts` is not CORS and stays. vite's dev-server CORS is off and its proxy targets
 `127.0.0.1`, not `localhost`, which can resolve to `::1` where nothing listens.
 
-**On a VPS** the steps from a clean clone to a running server are in `README.md`, where whoever runs
-the server will look. `main.ts` reads the root `.env` whatever the working directory.
+**On a VPS** the steps from a clean clone to a running server are in
+`docs/operations/self-hosting.md`, which the README links, where whoever runs the server will look.
+`main.ts` reads the root `.env` whatever the working directory.
 
 **The database** is Postgres and the ENTITIES are its only description: no migrations, `syncSchema()`
 at every start in development, never TypeORM's own `synchronize: true`. A schema change is: drop the

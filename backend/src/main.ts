@@ -89,7 +89,7 @@ catch (error)
     {
         log.error('this database is behind the entities', {
             reason: error instanceof Error ? error.message : String(error),
-            fix: 'an update changed the entities: take a dump of the database (README), then run npm run schema:sync and start again'
+            fix: 'an update changed the entities: take a dump of the database (docs/operations/rollout.md), then run npm run schema:sync and start again'
         });
         process.exit(1);
     }

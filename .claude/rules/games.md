@@ -1051,7 +1051,8 @@ PEOPLE is not. Who is here is the hub's memory, so a server passes over every li
 players hold their sockets on the other one, and its sweep stands those players up. The doorbells,
 the pushed game frames and the calls go only to the sockets the sending server holds, so a player
 on one server is never told that a game the other one started is theirs. The design is one process
-for each database (`README.md` says so where an operator will read it), and a deployment runs one.
+for each database (`docs/operations/self-hosting.md` says so where an operator will read it), and a
+deployment runs one.
 Two did run here by accident: two worktrees' development servers on one development database,
 each standing up the other's waiting players. So every connection of a server carries a name
 (`applicationName` in `data-source.ts`: `baziche` and eight characters of a uuid), and after

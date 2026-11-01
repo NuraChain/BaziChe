@@ -1404,6 +1404,7 @@ describe('inviting friends, on the person\'s page', () =>
         expect(at.querySelector('[data-decide], [data-barred]'), 'a reward is decided in Invites').toBeNull();
         expect(at.querySelector('[data-decide-in]')?.getAttribute('href')).toBe('/admin/invites?view=rewards&list=all&person=sara.k');
         expect(said(at, '[data-decide-in]')).toBe('Decide in Invites');
+        expect(at.querySelector('[data-decide-in]')?.className, 'a link alone beside a heading is out of a finger’s reach').toContain('coarse:before:-inset-y-3');
         expect(at.querySelector('[data-more]')).toBeNull();
         cleanup();
 

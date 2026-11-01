@@ -7,6 +7,7 @@ import { useLocale } from '../../stores/locale.store.ts';
 import Avatar from '../ui/avatar.component.azeroth';
 import Badge from '../ui/badge.component.azeroth';
 import Panel from '../ui/panel.component.azeroth';
+import { ROW_LINK } from '../ui/variants.ts';
 import AdminEmpty from './admin-empty.component.azeroth';
 import RewardRow from './reward-row.component.azeroth';
 import When from './when.component.azeroth';
@@ -132,7 +133,7 @@ export default component PersonInvites(props: { invites: AdminPersonInvites; han
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <h2 id="person-rewards" class="text-ui-md font-semibold text-text">{ locale.t('admin.person.invites.rewards') }</h2>
                 <Show when={ decides }>
-                    <Link to={ () => theirs } class="text-ui-sm font-semibold text-accent hover:underline" data-decide-in>{ locale.t('admin.person.invites.decide') }</Link>
+                    <Link to={ () => theirs } class={ ROW_LINK } data-decide-in>{ locale.t('admin.person.invites.decide') }</Link>
                 </Show>
             </div>
             <Show when={ rewarded } fallback={ <AdminEmpty icon="gift" title={ locale.t('admin.person.invites.none') } /> }>

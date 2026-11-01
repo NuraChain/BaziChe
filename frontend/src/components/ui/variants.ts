@@ -36,6 +36,13 @@ export const ICON_BUTTON_SIZE: Record<ButtonSize, string> = {
 
 export const COPY_CHIP = 'relative inline-flex h-6 min-w-0 max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-line bg-raised px-2.5 text-ui-xs font-semibold text-muted transition-colors hover:border-accent hover:text-text coarse:before:absolute coarse:before:-inset-y-2.75 coarse:before:inset-x-0';
 
+/**
+ * A link of words alone in a row, beside a heading or under a line: under a finger its reach is the
+ * 20px line and 12px above and below it, the 44px a finger needs, and the row keeps its height. Two
+ * of them stacked closer than 24px would reach into each other, so those grow instead.
+ */
+export const ROW_LINK = 'relative text-ui-sm font-semibold text-accent hover:underline coarse:before:absolute coarse:before:-inset-y-3 coarse:before:inset-x-0';
+
 export const TONE_FILL: Record<Tone, string> = {
     neutral: 'bg-raised text-text',
     accent: 'bg-accent-fill text-accent-ink',

@@ -16,6 +16,7 @@ import Field from '../../components/ui/field.component.azeroth';
 import Panel from '../../components/ui/panel.component.azeroth';
 import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import TextArea from '../../components/ui/text-area.component.azeroth';
+import { ROW_LINK } from '../../components/ui/variants.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { attempt } from '../../lib/attempt.ts';
 import { focusFirstInvalid } from '../../lib/form.ts';
@@ -32,7 +33,6 @@ const REASON_MIN = 3;
 
 const HOUR_MS = 3_600_000;
 
-const LINK = 'self-start text-ui-sm font-semibold text-accent hover:underline';
 
 const line = (typed: string) => typed.replace(/\s+/g, ' ').trim();
 
@@ -278,7 +278,7 @@ export default component NoticePage()
 
                 <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui-sm text-muted">
                     <span>{ locale.t('admin.notice.history') }</span>
-                    <Link to="/admin/log?kind=notice" class={ LINK } data-history>{ locale.t('admin.notice.historyLink') }</Link>
+                    <Link to="/admin/log?kind=notice" class={ ROW_LINK } data-history>{ locale.t('admin.notice.historyLink') }</Link>
                 </p>
             </div>
 

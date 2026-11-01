@@ -147,6 +147,9 @@ describe('the overview', () =>
         expect(all(container, '[data-facts] li')).toEqual(['80 joined in the last week', '4 suspended', '1 under 18']);
         expect([said(container, '[data-suspended]'), href(container, '[data-suspended]')]).toEqual(['4 suspended', '/admin/people?list=suspended']);
         expect([said(container, '[data-minors]'), href(container, '[data-minors]')]).toEqual(['1 under 18', '/admin/people?list=minors']);
+        expect(container.querySelector('[data-open-play]')?.className, 'a link alone beside a heading is out of a finger’s reach').toContain('coarse:before:-inset-y-3');
+        expect(container.querySelector('#overview-people')?.parentElement?.querySelector('a')?.className).toContain('coarse:before:-inset-y-3');
+        expect([container.querySelector('[data-suspended]')?.className, container.querySelector('[data-minors]')?.className].every((one) => one?.includes('coarse:min-h-11') === true), 'two links stacked too close to reach past each other did not grow').toBe(true);
         expect(all(container, '[data-game="ludo"] [data-matches], [data-game="ludo"] [data-tables]')).toEqual(['5 games being played', '4 tables waiting']);
         expect(all(container, '[data-game="hokm"] [data-matches], [data-game="hokm"] [data-tables]')).toEqual(['3 games being played', '1 table waiting']);
         expect(said(container, '[data-game="poker"]')).toContain('Paused');

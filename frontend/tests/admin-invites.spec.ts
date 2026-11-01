@@ -285,6 +285,7 @@ describe('at a glance', () =>
 
         expect([said(container, '[data-decide] > span'), said(container, '[data-decide] [data-to-rewards]')]).toEqual(['2 rewards wait for you', 'Decide them']);
         expect(container.querySelector('[data-decide] [data-to-rewards]')?.getAttribute('href')).toBe('/admin/invites?view=rewards');
+        expect(container.querySelector('[data-decide] [data-to-rewards]')?.className, 'a link alone in a row is out of a finger’s reach').toContain('coarse:before:-inset-y-3');
 
         cleanup();
         server.invitesAdmin.rewards = [rewardOf('r1')];
@@ -305,6 +306,7 @@ describe('at a glance', () =>
 
         expect(said(container, '[data-none-running]')).toBe('No campaign is running, so inviting a friend gives no look.');
         expect(container.querySelector('[data-to-campaigns]')?.getAttribute('href')).toBe('/admin/invites?view=campaigns');
+        expect(container.querySelector('[data-to-campaigns]')?.className, 'a link alone beside a heading is out of a finger’s reach').toContain('coarse:before:-inset-y-3');
 
         cleanup();
         server.invitesAdmin.campaigns = [campaignOf('c1', {

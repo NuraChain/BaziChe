@@ -144,6 +144,7 @@ describe('the announcement, as the staff see it', () =>
         expect(container.querySelector('.empty-art')).toBeNull();
         expect(button(container, 'Put it up')).not.toBeNull();
         expect(container.querySelector('[data-history]')?.getAttribute('href')).toBe('/admin/log?kind=notice');
+        expect(container.querySelector('[data-history]')?.className, 'a link alone under a line is out of a finger’s reach').toContain('coarse:before:-inset-y-3');
 
         const split = container.querySelector<HTMLElement>('[data-split]')!;
 

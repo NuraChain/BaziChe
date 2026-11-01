@@ -15,6 +15,7 @@ import ErrorState from '../ui/error-state.component.azeroth';
 import FilterBar from '../ui/filter-bar.component.azeroth';
 import Panel from '../ui/panel.component.azeroth';
 import Skeleton from '../ui/skeleton.component.azeroth';
+import { ROW_LINK } from '../ui/variants.ts';
 import DayColumns, { type DayCount } from './day-columns.component.azeroth';
 
 const WINDOWS = ['today', 'week', 'all'] as const;
@@ -25,7 +26,6 @@ const TILE = 'flex h-full flex-col gap-1.5 p-4';
 
 const TITLE = 'flex items-center gap-2 text-ui-xs font-semibold text-muted';
 
-const LINK = 'text-ui-sm font-semibold text-accent hover:underline';
 
 export default component InviteOverview()
 {
@@ -145,7 +145,7 @@ export default component InviteOverview()
                             <Icon name="gift" size={ 16 } class="text-gold" />
                             <span><span class="tally">{ pendingSaid }</span> { pendingWord }</span>
                         </span>
-                        <Link to="/admin/invites?view=rewards" class={ LINK } data-to-rewards>{ locale.t('admin.invites.decide') }</Link>
+                        <Link to="/admin/invites?view=rewards" class={ ROW_LINK } data-to-rewards>{ locale.t('admin.invites.decide') }</Link>
                     </div>
                 </Panel>
             </Show>
@@ -221,7 +221,7 @@ export default component InviteOverview()
                 <Panel pad="none" labelledBy="invites-running">
                     <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
                         <h2 id="invites-running" class="text-ui-md font-semibold text-text">{ locale.t('admin.invites.running') }</h2>
-                        <Link to="/admin/invites?view=campaigns" class={ LINK } data-to-campaigns>{ locale.t('admin.invites.toCampaigns') }</Link>
+                        <Link to="/admin/invites?view=campaigns" class={ ROW_LINK } data-to-campaigns>{ locale.t('admin.invites.toCampaigns') }</Link>
                     </div>
                     <Show when={ running } let={ shown } fallback={ <p class="px-4 py-4 text-ui-sm text-muted" data-none-running>{ locale.t('admin.invites.noneRunning') }</p> }>
                         <div class="flex flex-col gap-2 px-4 py-4" data-running>

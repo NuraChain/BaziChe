@@ -11,6 +11,7 @@ import Button from '../../components/ui/button.component.azeroth';
 import ErrorState from '../../components/ui/error-state.component.azeroth';
 import Panel from '../../components/ui/panel.component.azeroth';
 import Skeleton from '../../components/ui/skeleton.component.azeroth';
+import { ROW_LINK } from '../../components/ui/variants.ts';
 import { client } from '../../api.ts';
 import { GAMES } from '../../data/games.ts';
 import Icon from '../../icons/icon.component.azeroth';
@@ -29,7 +30,7 @@ const HOUR_S = 3_600;
 
 const MINUTE_S = 60;
 
-const LINK = 'text-ui-sm font-semibold text-accent hover:underline';
+const LISTED = 'inline-flex items-center text-ui-sm font-semibold text-accent hover:underline coarse:min-h-11';
 
 const TILE = 'flex h-full flex-col gap-1.5 p-4';
 
@@ -579,7 +580,7 @@ export default component OverviewPage()
                         <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
                             <h2 id="overview-games" class="text-ui-md font-semibold text-text">{ locale.t('admin.overview.games') }</h2>
                             <Show when={ playable }>
-                                <Link to="/admin/play" class={ LINK } data-open-play>{ locale.t('admin.overview.openPlay') }</Link>
+                                <Link to="/admin/play" class={ ROW_LINK } data-open-play>{ locale.t('admin.overview.openPlay') }</Link>
                             </Show>
                         </div>
                         <ul class="divide-y divide-line" data-games>
@@ -606,12 +607,12 @@ export default component OverviewPage()
                     <Panel pad="none" labelledBy="overview-people">
                         <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
                             <h2 id="overview-people" class="text-ui-md font-semibold text-text">{ locale.t('admin.overview.people') }</h2>
-                            <Link to="/admin/people" class={ LINK }>{ locale.t('admin.overview.openPeople') }</Link>
+                            <Link to="/admin/people" class={ ROW_LINK }>{ locale.t('admin.overview.openPeople') }</Link>
                         </div>
                         <ul class="flex flex-col gap-2 px-4 py-3 text-ui-base text-muted" data-facts>
                             <li data-fact="week"><span class="tally font-semibold text-text">{ week.count }</span> { week.label }</li>
-                            <li><Link to="/admin/people?list=suspended" class={ LINK } data-suspended><span class="tally">{ suspended.count }</span> { suspended.label }</Link></li>
-                            <li><Link to="/admin/people?list=minors" class={ LINK } data-minors><span class="tally">{ minors.count }</span> { minors.label }</Link></li>
+                            <li><Link to="/admin/people?list=suspended" class={ LISTED } data-suspended><span class="tally">{ suspended.count }</span> { suspended.label }</Link></li>
+                            <li><Link to="/admin/people?list=minors" class={ LISTED } data-minors><span class="tally">{ minors.count }</span> { minors.label }</Link></li>
                         </ul>
                     </Panel>
 
@@ -619,7 +620,7 @@ export default component OverviewPage()
                         <Panel pad="none" labelledBy="overview-money">
                             <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
                                 <h2 id="overview-money" class="text-ui-md font-semibold text-text">{ locale.t('admin.section.money') }</h2>
-                                <Link to="/admin/money" class={ LINK }>{ locale.t('admin.overview.openMoney') }</Link>
+                                <Link to="/admin/money" class={ ROW_LINK }>{ locale.t('admin.overview.openMoney') }</Link>
                             </div>
                             <Show when={ funded }>
                                 <section class="flex flex-col gap-2 px-4 py-3" aria-labelledby="overview-paid">
@@ -635,7 +636,7 @@ export default component OverviewPage()
                                 <section class="flex flex-col gap-2 border-t border-line px-4 py-3 first:border-t-0" aria-labelledby="overview-shop" data-shop-sales>
                                     <div class="flex items-center justify-between gap-3">
                                         <h3 id="overview-shop" class="text-ui-xs font-semibold text-faint">{ locale.t('admin.overview.shop') }</h3>
-                                        <Link to="/admin/shop?view=orders" class={ LINK }>{ locale.t('admin.overview.openOrders') }</Link>
+                                        <Link to="/admin/shop?view=orders" class={ ROW_LINK }>{ locale.t('admin.overview.openOrders') }</Link>
                                     </div>
                                     <ul class="flex flex-col gap-2 text-ui-base text-muted">
                                         <li data-sold="day"><span class="tally text-ui-xl font-bold text-text">{ soldToday }</span> { locale.t('admin.overview.soldToday') }</li>
@@ -652,7 +653,7 @@ export default component OverviewPage()
                         <Panel pad="none" class={ payoutsSpan } labelledBy="overview-payouts" data-payouts>
                             <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
                                 <h2 id="overview-payouts" tabindex="-1" class="text-ui-md font-semibold text-text">{ locale.t('admin.overview.payouts') }</h2>
-                                <Link to="/admin/money" class={ LINK }>{ locale.t('admin.overview.openMoney') }</Link>
+                                <Link to="/admin/money" class={ ROW_LINK }>{ locale.t('admin.overview.openMoney') }</Link>
                             </div>
                             <dl class="flex flex-wrap gap-px bg-line">
                                 <Show when={ payStuckShown }>

@@ -38,6 +38,7 @@ import { IDLE_MS, NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.st
 import { useConnection } from '../src/stores/connection.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useSettings } from '../src/stores/settings.store.ts';
+import { useShell } from '../src/stores/shell.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
 import { useVault } from '../src/stores/vault.store.ts';
 import { UNREACHED_MS, setVoiceCall, setVoiceMedia, useVoice } from '../src/stores/voice.store.ts';
@@ -554,6 +555,28 @@ describe('PlayPage', () =>
         expect(container.textContent).toContain(useLocale().t('play.notFound'));
         expect(container.textContent).not.toContain(useLocale().t('state.errorTitle'));
         expect(container.querySelector('a[href="/app/games"]')).not.toBeNull();
+        expect(useShell().title()).toBe(useLocale().t('play.notFound'));
+    });
+
+    it('is titled as a table that could not be read when the read failed, never as one that is not there', async () =>
+    {
+        const asked = vi.spyOn(client.tables, 'view').mockRejectedValueOnce(new ApiError(503, 'unavailable', 'Down.', undefined));
+
+        try
+        {
+            const routes: Route[] = [{ path: '/app/play/:id', component: (): HTMLElement => PlayPage() as HTMLElement }];
+            const router = createRouter({ routes, history: createMemoryHistory('/app/play/somebody-opened-this'), scroll: false });
+            const { container } = renderTest(() => RouterProvider({ router, children: () => Routes({}) }) as Rendered);
+
+            await vi.waitFor(() => expect(container.textContent).toContain(useLocale().t('state.errorTitle')), { timeout: 4000 });
+
+            expect(useShell().title(), 'a table whose read failed is called one nobody opened').toBe(useLocale().t('state.errorTitle'));
+            expect(container.textContent).not.toContain(useLocale().t('play.notFound'));
+        }
+        finally
+        {
+            asked.mockRestore();
+        }
     });
 
     it('says the board could not load when its chunk will not come and the server is not answering, and loads the page again once it is asked to and the server is back', async () =>

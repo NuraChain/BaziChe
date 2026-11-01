@@ -75,7 +75,11 @@ export default component GroupPage()
 
     derived failed = groups.viewFailed() !== null && group === null;
 
-    derived name = group === null ? locale.t('groups.notFound') : group.name;
+    derived missing = !loading && !failed && group === null;
+
+    derived name = group !== null
+        ? group.name
+        : locale.t(missing ? 'groups.notFound' : (failed ? 'state.errorTitle' : 'common.loading'));
 
     useHead({ title: () => name });
 
@@ -103,8 +107,6 @@ export default component GroupPage()
     derived shown = visible(found, MEMBER_PAGE, memberPage, paging);
 
     derived game = (group?.game ?? null) as GameId | null;
-
-    derived missing = !loading && !failed && group === null;
 
     derived blurbed = (group?.blurb ?? '') !== '';
 

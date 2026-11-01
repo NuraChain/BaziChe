@@ -358,7 +358,7 @@ export default component PlayPage()
 
     derived title = table !== null
         ? locale.t(catalogue.byId(table.game as GameId).nameKey)
-        : (loading ? locale.t('common.loading') : locale.t('play.notFound'));
+        : locale.t(loading ? 'common.loading' : (failed ? 'state.errorTitle' : 'play.notFound'));
 
     useHead({ title: () => title });
 

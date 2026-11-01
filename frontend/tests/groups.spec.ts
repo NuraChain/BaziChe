@@ -14,8 +14,9 @@ import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
 import { NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
+import { useShell } from '../src/stores/shell.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
-import { server } from './fake-api.ts';
+import { ApiError, client, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
 import { PEOPLE_FIXTURES } from './fixtures.ts';
 import '../src/locales/app-catalogue.ts';
@@ -80,6 +81,46 @@ describe('the group page', () =>
 
         expect(container.textContent).toContain(useLocale().t('groups.notFound'));
         expect(container.textContent).not.toContain(useLocale().t('state.errorTitle'));
+        expect(useShell().title()).toBe(useLocale().t('groups.notFound'));
+    });
+
+    it('is titled as loading while the server is still being asked, never as a group that is not there', async () =>
+    {
+        const asked = vi.spyOn(client.groups, 'view').mockImplementationOnce(() => new Promise(() => undefined));
+
+        try
+        {
+            const container = opened('friday-night-crew');
+
+            await vi.waitFor(() => expect(asked).toHaveBeenCalledTimes(1), { timeout: 4000 });
+            await settle();
+
+            expect(useShell().title(), 'the bar says "No such group." over the placeholder').toBe(useLocale().t('common.loading'));
+            expect(container.textContent).not.toContain(useLocale().t('groups.notFound'));
+        }
+        finally
+        {
+            asked.mockRestore();
+        }
+    });
+
+    it('is titled as a group that could not be read when the read failed, not as one that is not there', async () =>
+    {
+        const asked = vi.spyOn(client.groups, 'view').mockRejectedValueOnce(new ApiError(503, 'unavailable', 'Down.', undefined));
+
+        try
+        {
+            const container = opened('friday-night-crew');
+
+            await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull(), { timeout: 4000 });
+
+            expect(useShell().title()).toBe(useLocale().t('state.errorTitle'));
+            expect(container.textContent).not.toContain(useLocale().t('groups.notFound'));
+        }
+        finally
+        {
+            asked.mockRestore();
+        }
     });
 
     it('asks before handing the group over as it asks before anything the reader cannot take back', async () =>

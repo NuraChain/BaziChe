@@ -26,8 +26,8 @@ import { chromium } from 'playwright';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import { WALLET_FIXTURES } from '../../backend/src/db/wallet-fixtures.ts';
-import { DIE_SIZE, dieRest } from '../../frontend/src/game/board/ludo-board.ts';
-import { CELL } from '../../frontend/src/game/layout.ts';
+import { dieRest } from '../../frontend/src/game/board/ludo-board.ts';
+import { CELL, DIE_SIZE } from '../../frontend/src/game/layout.ts';
 import { backFromProfile, platesPressed } from './plate.mjs';
 import { solid } from './seats.mjs';
 import { tableBody } from './tables.mjs';

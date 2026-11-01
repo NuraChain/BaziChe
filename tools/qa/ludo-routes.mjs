@@ -1,9 +1,8 @@
 import { FINISHED, RING_STEPS, YARD, cellAt, coloursFor } from '../../backend/src/domains/match/ludo/board.ts';
 import { apply } from '../../backend/src/domains/match/ludo/engine.ts';
 import { ludoEngine } from '../../backend/src/domains/match/engines/ludo.ts';
-import { DROP } from '../../frontend/src/game/board/ludo-board.ts';
 import { pathBetween } from '../../frontend/src/game/board/path.ts';
-import { BLOCK, CELL, HOME_SCALE, MARGIN, stackSpot } from '../../frontend/src/game/layout.ts';
+import { BLOCK, CELL, DROP, HOME_SCALE, MARGIN, stackSpot } from '../../frontend/src/game/layout.ts';
 import { homeAt, keyOf, nestAt } from '../../frontend/src/game/ludo-felt.ts';
 
 const UNITS = 1000;

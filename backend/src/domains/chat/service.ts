@@ -2,6 +2,7 @@ import { BadRequestError, ConflictError, ForbiddenError, HttpError, NotFoundErro
 import { In, IsNull, type DataSource, type EntityManager } from 'typeorm';
 
 import { EDIT_HOURS } from './edits.ts';
+import { FILE_REACHED_BY_ME, fileNamed } from './file-rules.ts';
 import {
     FILE_DAY_BYTES,
     FILE_HOLD_MINUTES,
@@ -206,7 +207,7 @@ const refused = (word: VoiceRefusal, message: string) => new HttpError(VOICE_REF
  * read of a room applies. The same question decides who fetches a file and which file a send may
  * name, so a forward references a file rather than copying it.
  */
-const reachedBy = (column: 'voice_id' | 'file_id') => `(v.uploader_id = :me or exists (
+const reachedBy = (column: 'voice_id') => `(v.uploader_id = :me or exists (
     select 1
     from messages named
     join conversation_members seat on seat.conversation_id = named.conversation_id and seat.user_id = :me
@@ -219,9 +220,6 @@ const reachedBy = (column: 'voice_id' | 'file_id') => `(v.uploader_id = :me or e
                        where other.conversation_id = named.conversation_id and other.user_id <> :me)))`;
 
 const HEARD_BY_ME = reachedBy('voice_id');
-
-/** The same rule for a photo, a video or a file: who may fetch it is who may name it. */
-const FILE_REACHED_BY_ME = reachedBy('file_id');
 
 const fileRefused = (word: FileRefusal, message: string) => new HttpError(FILE_REFUSALS[word], message, { code: word });
 
@@ -386,8 +384,7 @@ export function createChatService(
                 .createQueryBuilder()
                 .delete()
                 .where('id in (:...ids)', { ids: [...fileIds] })
-                .andWhere('not exists (select 1 from messages m where m.file_id = chat_files.id)')
-                .andWhere('not exists (select 1 from reports r where r.file_id = chat_files.id)')
+                .andWhere(`not ${ fileNamed('chat_files') }`)
                 .execute();
         }
     };
@@ -1081,8 +1078,7 @@ export function createChatService(
                 .createQueryBuilder()
                 .delete()
                 .where('created_at < now() - make_interval(mins => :hold)', { hold: FILE_HOLD_MINUTES })
-                .andWhere('not exists (select 1 from messages m where m.file_id = chat_files.id)')
-                .andWhere('not exists (select 1 from reports r where r.file_id = chat_files.id)')
+                .andWhere(`not ${ fileNamed('chat_files') }`)
                 .execute();
 
             return gone.affected ?? 0;
@@ -1140,8 +1136,7 @@ export function createChatService(
                     const waiting = await kept
                         .createQueryBuilder('v')
                         .where('v.uploader_id = :me', { me })
-                        .andWhere('not exists (select 1 from messages m where m.file_id = v.id)')
-                        .andWhere('not exists (select 1 from reports r where r.file_id = v.id)')
+                        .andWhere(`not ${ fileNamed('v') }`)
                         .getCount();
 
                     if (waiting >= files.pending)

@@ -30,6 +30,7 @@ import { attempt } from '../../lib/attempt.ts';
 import Avatar from '../../components/ui/avatar.component.azeroth';
 import AvatarGroup from '../../components/ui/avatar-group.component.azeroth';
 import Badge from '../../components/ui/badge.component.azeroth';
+import Tooltip from '../../components/ui/tooltip.component.azeroth';
 import Icon from '../../icons/icon.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
 import EmptyState from '../../components/ui/empty-state.component.azeroth';
@@ -1062,18 +1063,20 @@ export default component ChatPage()
 
                                 <Show when={ away }>
                                     { () =>
-                                        <button
-                                            type="button"
-                                            class="absolute bottom-[calc(var(--chat-foot,0px)+0.75rem)] end-3 z-10 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-line-strong bg-lifted text-text shadow-lg shadow-black/30 transition-colors hover:bg-raised sm:end-5"
-                                            aria-label={ toLatest }
-                                            data-jump
-                                            onClick={ toEnd }
-                                        >
-                                            <Icon name="chevron-down" size={ 20 } />
-                                            <span class="absolute -end-1 -top-1.5">
-                                                <Badge count={ below } tone="accent" />
-                                            </span>
-                                        </button>
+                                        <Tooltip label={ toLatest } side="top" class="absolute bottom-[calc(var(--chat-foot,0px)+0.75rem)] end-3 z-10 sm:end-5">
+                                            <button
+                                                type="button"
+                                                class="relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-line-strong bg-lifted text-text shadow-lg shadow-black/30 transition-colors hover:bg-raised"
+                                                aria-label={ toLatest }
+                                                data-jump
+                                                onClick={ toEnd }
+                                            >
+                                                <Icon name="chevron-down" size={ 20 } />
+                                                <span class="absolute -end-1 -top-1.5">
+                                                    <Badge count={ below } tone="accent" />
+                                                </span>
+                                            </button>
+                                        </Tooltip>
                                     }
                                 </Show>
                             </div>

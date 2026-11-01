@@ -5,8 +5,8 @@ import { RouterProvider, Routes, createMemoryHistory, createRouter, type Route }
 import ChatPage from '../src/pages/app/chat.page.azeroth';
 import ChatsPage from '../src/pages/app/chats.page.azeroth';
 import { QUICK_REACTIONS } from '../src/data/emoji.ts';
-import { manualClock } from '../src/lib/clock.ts';
-import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
+import { manualClock, type ManualClock } from '../src/lib/clock.ts';
+import { resetRuntime, runtime, setRuntime } from '../src/lib/runtime.ts';
 import '../src/locales/app-catalogue.ts';
 import { useCatalogue } from '../src/stores/catalogue.store.ts';
 import { createApiSource } from '../src/services/chat.source.ts';
@@ -639,6 +639,16 @@ describe('where a thread opens, and the way back to its end', () =>
 
             await vi.waitFor(() => expect(jump()?.textContent).toContain('3'));
             expect(jump()!.getAttribute('aria-label')).toBe(`${ useLocale().t('chat.toLatest') } (${ useLocale().plural('common.unread', 3) })`);
+
+            const enter = new Event('pointerenter', { bubbles: true });
+
+            Object.defineProperty(enter, 'pointerType', { value: 'mouse' });
+            jump()!.parentElement!.dispatchEvent(enter);
+            (runtime().clock as ManualClock).advance(400);
+            await settle();
+
+            expect(document.querySelector('[role="tooltip"]')?.textContent, 'the way back is named under a pointer').toBe(`${ useLocale().t('chat.toLatest') } (${ useLocale().plural('common.unread', 3) })`);
+            jump()!.parentElement!.dispatchEvent(new Event('pointerleave', { bubbles: true }));
 
             const went: unknown[] = [];
 

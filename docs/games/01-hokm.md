@@ -1,8 +1,8 @@
 # Hokm — حکم
 
-**Status:** the SERVER is done and live - rules, engine, seam, api, `hokm-pass.mjs` green at 2/3/4,
-`games.status` flipped to `available`. What is left is the client: assets, the Phaser table and the
-DOM hand list. See CLAUDE.md's *Hokm* section for what was built and what the plan below got wrong.
+**Status:** playable. The engine, the board and the passes (`tools/qa/hokm-pass.mjs`,
+`hokm-play-pass.mjs` and `hokm-motion-pass.mjs`) are built, and `games.status` is `available`. The
+plan below is the one the game was built from; where it and the code disagree, the code is right.
 
 Canonical ruleset: [Pagat — Hokm](https://www.pagat.com/whist/hokm.html), 2, 3 and 4 players.
 Free to play. No wagering of any kind.

@@ -31,8 +31,8 @@ import { scopeFor, type VoiceScope } from './voices.ts';
  * What the catalogue says a table of this game may be.
  *
  * Read here rather than taken on trust. `isValidTable` in the browser is a courtesy to the person
- * filling the form; the server is the authority on what a game IS - CLAUDE.md says exactly that
- * about the split catalogue - and then this route believed whatever it was handed. A caller could
+ * filling the form; the server is the authority on what a game IS, which is the whole point of the
+ * split catalogue, and yet this route believed whatever it was handed. A caller could
  * open a three-seat hokm table, or a `turns` table for a game that only runs live, and the row was
  * perfectly valid to every later read: `status` is derived from seats taken against `t.seats`, so a
  * table with a seat count its game does not play is one nothing downstream can question.

@@ -20,7 +20,7 @@ three, and it is the only work that can break Ludo.
 
 ## The finding
 
-CLAUDE.md calls `backend/src/domains/match/` "the first real game engine in this product". It is —
+`backend/src/domains/match/` was described as "the first real game engine in this product". It is —
 and the layer *above* the engine was written for exactly one engine. There is a `ludo/` folder, and
 everything around it names Ludo directly.
 
@@ -129,8 +129,8 @@ a survivor is rated against a quitter only if both
 played `engagement(format).after` decisions of their own and the survivor's side was not trailing, and
 a seat with no counted pair is `void`. A match whose last ledger row is a forfeit pays its winner the
 rating and the finish alone.
-`record.ts` is the database adapter around it. The rule and its cases are in `.claude/rules/games.md`
-under *What a game leaves behind*.
+`record.ts` is the database adapter around it. The rule is `judge.ts`, and `judge.spec.ts` holds its
+cases.
 
 Two contracts the existing code already imposes and the seam must state explicitly:
 
@@ -412,8 +412,8 @@ and the shared `sideOf`, and imports nothing.
 Nothing is stored per seat. A side is the seat's parity in a team format and the seat itself in any
 other, so `match_players.team` would have been a copy of what `matches.variant` already says.
 `standings(state)` is not handed the variant either: a team engine has to keep its sides in its own
-state to apply a move, and a second copy passed in is one that can disagree. The rule and the specs
-that hold it are in `.claude/rules/games.md` under *An engine plays formats*.
+state to apply a move, and a second copy passed in is one that can disagree. The formats are
+`sides.ts`'s, and `engine-contract.spec.ts` holds every engine to them.
 
 ---
 

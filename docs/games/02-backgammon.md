@@ -218,7 +218,7 @@ from the list of buttons under the board - and `stage()` from the server's own `
 which hops are left after each one. Undo takes a staged hop back; "Play the move" sends the whole
 turn once it is complete. The rules coach (`frontend/src/game/helpers/backgammon.ts`) names the
 higher die from the same module's `forcedDie`, the function `turns` uses, and keeps no copy of the
-rule. See CLAUDE.md, *Backgammon*.
+rule.
 
 `tools/qa/backgammon-pass.mjs` plays whole matches at 1, 3 and 5 points over the real api.
 

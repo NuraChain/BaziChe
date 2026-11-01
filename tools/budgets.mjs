@@ -1,7 +1,7 @@
 /**
  * The JavaScript budgets, as a build failure rather than a paragraph.
  *
- * CLAUDE.md has stated these numbers for a long time and nothing checked any of them, while
+ * These numbers were written down for a long time and nothing checked any of them, while
  * `tools/blender/build.mjs` really does fail on `ATLAS_BUDGET_BYTES` - so the 3D assets had a gate
  * and the JavaScript did not. That file also records the case only a person caught: a static import
  * of `attestation.ts` "pushed that chunk from 5.7 KB to 19.8 KB, past its budget". This is what
@@ -111,7 +111,7 @@ const SHOP_MARKS = {
  * Modules that must NOT be in the landing page's initial set, and why.
  *
  * `world` is three.js and is a dynamic import inside `mount`, so it never reaches the prerenderer
- * and never blocks first paint. The other three are the imports CLAUDE.md names as load-bearing:
+ * and never blocks first paint. The other three are load-bearing imports:
  * the app message catalogue, the typed api client behind `lib/guards.ts`, and the wallet chooser
  * behind `public-shell`. A static import of any of them puts `api.ts` - and its TOP-LEVEL await on
  * `/api/_manifest` - into a page that is prerendered to a file and is supposed to need no server.

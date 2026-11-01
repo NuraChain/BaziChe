@@ -106,7 +106,7 @@ six is a governing body: Ludo has none, and every source calls its own rules one
 | # | rule | basis |
 |---|---|---|
 | R1 | Places after the winner come from the board: tokens home, then total distance travelled. A seat that forfeited is below every seat still playing, and everybody who forfeited shares that last place whatever was left on the board. In a team game the places are the sides' (*Teams*, T13). | house rule (`ludo/standings.ts`, `placementsOf`), because the game stops at E2 |
-| R2 | The rating, the result and XP are the judge's (`judge.ts`), from those places and the ledger, as for every game. A seat counts as engaged after six rolls of its own. | house rule (platform); see `.claude/rules/games.md`, *What a game leaves behind* |
+| R2 | The rating, the result and XP are the judge's (`judge.ts`), from those places and the ledger, as for every game. A seat counts as engaged after six rolls of its own. | house rule (platform; `judge.ts`) |
 | R3 | XP inside a game: a capture is 2, a token home is 3 (`Engine.points`), on top of the platform's finish and win. | house rule |
 | R4 | Tallies for achievements: `rolls`, `sixes`, `enters`, `captures`, `home`, credited to the seat that acted. | house rule; the names are a contract with `achieve/families.ts` |
 
@@ -331,7 +331,7 @@ squares, the captures and who moves whose tokens after every action.
 - **Autoplay is not a strategy.** An expired turn moves the first legal token, which is fair but
   weak.
 - **The server rolls and nothing proves it rolled fairly.** No commit-reveal exists, so the product
-  claims only that the server rolls (`.claude/rules/games.md`, *The die is `randomInt`*).
+  claims only that the server rolls (`randomInt` from `node:crypto`, in the match service).
 
 ---
 
@@ -370,7 +370,7 @@ reads there as the rule it widens, and the free-for-all is played exactly as bef
 | T9-T11 | Safe squares, home lanes, exact counts, entering as a choice (M2) and every rule about the die (a six's roll, a six with nothing to move, three sixes) are unchanged. They are judged over the tokens the roller controls, and the turn is the roller's. | house rule (D24) |
 | T12 | The side with all eight tokens home wins, the moment the eighth arrives. One player's four is a hand-over (T5), not an ending. | cited: [Schmidt] team variant "Gewinner ist das Partner-Paar, dessen acht Figuren zuerst ... stehen", Pachisi, Uckers, پنکو |
 | T13 | Standings are by side: tokens home and then distance, each added up over both partners, and the pair shares the place. A side with a seat out is last. | house rule (hokm's shape) |
-| T14 | A forfeit ends the match and the other side wins, with the board left as it stood (E3). Everybody still at the table is `unsettled`, and a seat whose side was behind on that board (fewer tokens home, or as many and less far round) is `trailing`. The judge decides from those facts as it does for hokm: the partner of somebody who walked out shares a trailing side's rated loss once both had played their share, and comes out `void` otherwise, a timeout included. | house rule (D24 and D25; `.claude/rules/games.md`, *What a game leaves behind*) |
+| T14 | A forfeit ends the match and the other side wins, with the board left as it stood (E3). Everybody still at the table is `unsettled`, and a seat whose side was behind on that board (fewer tokens home, or as many and less far round) is `trailing`. The judge decides from those facts as it does for hokm: the partner of somebody who walked out shares a trailing side's rated loss once both had played their share, and comes out `void` otherwise, a timeout included. | house rule (D24 and D25; `judge.ts`) |
 | T15 | Tallies and XP are credited to the roller, the seat that acted, whoever's token moved (R3, R4). | house rule (D24) |
 
 Partners may talk, in the table's chat and on its call, and nothing is hidden from anybody (X3);

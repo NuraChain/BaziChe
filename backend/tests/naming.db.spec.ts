@@ -16,8 +16,8 @@ import { slugFromName } from '../src/domains/group/slug.ts';
  * `SHAPE` is `/^[\p{L}\p{N}].../u`, which is Unicode-aware. So the two halves disagreed about
  * exactly one population: a Persian handle passed `checkHandle`, reached the INSERT, and came
  * back as 23514 - a 500 on the guest sign-in path, which is the main onboarding route, for the
- * language half this product is built for. A Persian group name hit the same wall, and CLAUDE.md
- * describes Persian slugs as a designed feature: `تخته‌نرد` is meant to become `تخته-نرد`.
+ * language half this product is built for. A Persian group name hit the same wall, and Persian
+ * slugs are a designed feature: `تخته‌نرد` is meant to become `تخته-نرد`.
  *
  * Both constraints are denylists now rather than alnum allowlists: length, no whitespace or
  * control characters, no leading or trailing separator, and none of the characters that would

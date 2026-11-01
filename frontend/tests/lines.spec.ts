@@ -102,7 +102,7 @@ describe('a server-authored line', () =>
     });
 
     /**
-     * The rule from CLAUDE.md, as a test: a key with no producer is filler copy standing in for a
+     * A house rule, as a test: a key with no producer is filler copy standing in for a
      * sentence nobody has written.
      *
      * It used to check only the `chat.line.group.*` keys, and two slipped through for a long time

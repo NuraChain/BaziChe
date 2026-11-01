@@ -8,7 +8,7 @@ import type { IconName } from '../icons/registry.ts';
  * would be rendered by looking its value up in the registry and finding nothing, which is a blank
  * square where a group's identity should be.
  *
- * Groups are named with a shape, never with an emoji: see the glyph rule in CLAUDE.md.
+ * Groups are named with a shape, never with an emoji.
  */
 export const CRESTS: IconName[] = ['crest-crown', 'crest-cup', 'crest-castle', 'crest-moon', 'crest-sprout'];
 

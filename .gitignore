@@ -29,7 +29,12 @@ logs/
 Thumbs.db
 desktop.ini
 
-# Playwright / Chrome DevTools MCP scratch output (snapshots, traces) - never part of the app.
+# AI coding assistants: their notes, settings and scratch output (MCP snapshots and traces) stay
+# on each maintainer's machine and are never part of the app.
+CLAUDE.md
+.claude/
+.mcp.json
+.freebuff/
 .playwright-mcp/
 
 # Blender writes these beside a .blend when a script saves one. The asset pipeline is

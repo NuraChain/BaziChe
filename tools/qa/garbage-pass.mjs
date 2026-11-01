@@ -9,7 +9,7 @@
  *
  * Two throwaway wallets, over the api alone. It makes a table, a game and a group of its own and
  * leaves them when it is done. Run it against the built server with the limiter raised (it sends
- * a few thousand requests): see CLAUDE.md beside this file.
+ * a few thousand requests), as .github/CONTRIBUTING.md runs the matrix.
  */
 import { tableBody } from './tables.mjs';
 import { signInWallet } from './wallets.mjs';

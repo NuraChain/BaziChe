@@ -132,7 +132,7 @@ bank, or null when the game keeps no bank (over, or a day a move). With no `left
 replay, a spec) no time passes.
 
 The service arms each deadline from `bankOf`, so the sweep comes for the side to move as its own
-time runs out (`.claude/rules/games.md`, *A game played against a clock*). The sweep comes round
+time runs out (`match-clock.db.spec.ts` holds it). The sweep comes round
 every five seconds, and in a game of three minutes that is too long to look at a clock reading
 nought: the side that is waiting may claim the flag itself, and the claim is taken once the
 server's own clock, read off the locked row as `left`, says the time has gone. A claim made a

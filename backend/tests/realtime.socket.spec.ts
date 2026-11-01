@@ -523,7 +523,7 @@ describe('a bound socket', () =>
  * The one assertion in this file that needs no socket, no port and no database - and it spent its
  * life inside `describe.skipIf(!active)` with everything else, so it never ran under `npm test`.
  *
- * It guards the rule CLAUDE.md calls the hardest-won here: nothing in `onConnection` may await,
+ * It guards the hardest-won rule here: nothing in `onConnection` may await,
  * because the package replays the bytes that arrived with the handshake AFTER it returns. It was
  * deliberately written as a text assertion so it would be deterministic rather than a race - and
  * then opted out along with the tests that really do need a listening port.

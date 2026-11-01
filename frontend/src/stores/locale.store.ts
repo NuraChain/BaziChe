@@ -69,8 +69,8 @@ export function registerCatalogue(pages: Partial<Record<Locale, Catalogue>>)
     }
 }
 
-// English and Persian ride the app's own catalogue chunks (frontend/CLAUDE.md, *The app catalogue
-// is NOT split by language*); every other language is one chunk of its own, fetched by its reader.
+// English and Persian ride the app's own catalogue chunks, which are not split by language; every
+// other language is one chunk of its own, fetched by its reader.
 const WHOLE: Partial<Record<Locale, () => Promise<Catalogue>>> = {
     ar: async () => (await import('../locales/ar/index.ts')).ar,
     es: async () => (await import('../locales/es/index.ts')).es,

@@ -73,6 +73,19 @@ describe('the profile header', () =>
         expect(container.querySelector('.sr-only')?.textContent).toContain('A level unlocks nothing');
     });
 
+    it('puts the level and the counts side by side by the room their own column has, never by the header\'s', async () =>
+    {
+        const container = await header({ progress: { xp: 340, level: 3, into: 40, span: 200 } });
+        const counts = container.querySelector('dl')!;
+        const row = counts.parentElement!;
+
+        expect(row.parentElement!.className).toBe('@container/stats');
+        expect(row.className).toContain('@xl/stats:flex-row');
+        expect(row.className).not.toContain('@2xl:');
+        expect(counts.className).not.toContain('flex-wrap');
+        expect(counts.className).toContain('auto-cols-fr');
+    });
+
     it('draws no level row when there is no record yet', async () =>
     {
         const container = await header({ progress: null });

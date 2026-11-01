@@ -234,48 +234,50 @@ export default component ProfileHeader(props: {
                         <div class="mt-1 flex flex-wrap items-center gap-2 empty:hidden">{ props.badges }</div>
                     </div>
 
-                    <div class="flex flex-col gap-4 @2xl:flex-row @2xl:items-center @2xl:gap-6">
-                        <Show when={ progress !== null }>
-                            { () =>
-                                <div class="flex min-w-0 flex-col gap-1.5 @2xl:w-48 @2xl:shrink-0 @2xl:border-e @2xl:border-line @2xl:pe-6">
-                                    <div class="flex items-baseline justify-between gap-3">
-                                        <Tooltip label={ locale.t(props.mine === true ? 'level.honestMine' : 'level.honest') } side="bottom">
-                                            <span class="text-ui-xl font-bold text-text">{ locale.t('level.title', { level: locale.n(progress!.level) }) }</span>
-                                        </Tooltip>
-                                        <span class="shrink-0 text-ui-xs text-muted"><span class="tally">{ locale.n(progress!.xp) }</span> { locale.t('level.xp') }</span>
+                    <div class="@container/stats">
+                        <div class="flex flex-col gap-4 @xl/stats:flex-row @xl/stats:items-center @xl/stats:gap-6">
+                            <Show when={ progress !== null }>
+                                { () =>
+                                    <div class="flex min-w-0 flex-col gap-1.5 @xl/stats:w-48 @xl/stats:shrink-0 @xl/stats:border-e @xl/stats:border-line @xl/stats:pe-6">
+                                        <div class="flex items-baseline justify-between gap-3">
+                                            <Tooltip label={ locale.t(props.mine === true ? 'level.honestMine' : 'level.honest') } side="bottom">
+                                                <span class="text-ui-xl font-bold text-text">{ locale.t('level.title', { level: locale.n(progress!.level) }) }</span>
+                                            </Tooltip>
+                                            <span class="shrink-0 text-ui-xs text-muted"><span class="tally">{ locale.n(progress!.xp) }</span> { locale.t('level.xp') }</span>
+                                        </div>
+                                        <span
+                                            class="block h-1.5 w-full overflow-hidden rounded-full bg-sunk"
+                                            role="progressbar"
+                                            aria-label={ locale.t('level.title', { level: locale.n(progress!.level) }) }
+                                            aria-valuemin={ 0 }
+                                            aria-valuemax={ progress!.span }
+                                            aria-valuenow={ progress!.into }
+                                            aria-valuetext={ locale.t('level.toNext', {
+                                                xp: locale.n(Math.max(0, progress!.span - progress!.into)),
+                                                level: locale.n(progress!.level + 1)
+                                            }) }
+                                        >
+                                            <span class="block h-full rounded-full bg-accent transition-[width] duration-500" style={ `width: ${ through }%` }></span>
+                                        </span>
+                                        <span class="sr-only">{ locale.t(props.mine === true ? 'level.honestMine' : 'level.honest') }</span>
                                     </div>
-                                    <span
-                                        class="block h-1.5 w-full overflow-hidden rounded-full bg-sunk"
-                                        role="progressbar"
-                                        aria-label={ locale.t('level.title', { level: locale.n(progress!.level) }) }
-                                        aria-valuemin={ 0 }
-                                        aria-valuemax={ progress!.span }
-                                        aria-valuenow={ progress!.into }
-                                        aria-valuetext={ locale.t('level.toNext', {
-                                            xp: locale.n(Math.max(0, progress!.span - progress!.into)),
-                                            level: locale.n(progress!.level + 1)
-                                        }) }
-                                    >
-                                        <span class="block h-full rounded-full bg-accent transition-[width] duration-500" style={ `width: ${ through }%` }></span>
-                                    </span>
-                                    <span class="sr-only">{ locale.t(props.mine === true ? 'level.honestMine' : 'level.honest') }</span>
-                                </div>
-                            }
-                        </Show>
+                                }
+                            </Show>
 
-                        <dl class="grid min-w-0 auto-cols-fr grid-flow-col @2xl:flex @2xl:flex-wrap @2xl:gap-y-3">
-                            <For each={ props.stats } key={ (stat) => stat.label } let={ stat }>
-                                <div class="group relative flex min-w-0 flex-col gap-0.5 border-line pe-3 [&:not(:first-child)]:border-s [&:not(:first-child)]:ps-3 @2xl:min-w-[5.5rem] @2xl:pe-6 @2xl:[&:not(:first-child)]:ps-6">
-                                    <dt class="order-2 truncate text-ui-xs text-muted group-has-[a]:text-accent">{ stat.label }</dt>
-                                    <dd class="tally order-1 text-ui-2xl font-bold text-text transition-colors group-has-[a:hover]:text-accent">
-                                        { locale.n(stat.value) }
-                                        <Show when={ stat.to !== undefined }>
-                                            <Link to={ stat.to! } class="absolute -inset-y-1 inset-x-0 rounded-tile" aria-label={ `${ locale.n(stat.value) } ${ stat.label }` }></Link>
-                                        </Show>
-                                    </dd>
-                                </div>
-                            </For>
-                        </dl>
+                            <dl class="grid min-w-0 auto-cols-fr grid-flow-col @xl/stats:flex-1">
+                                <For each={ props.stats } key={ (stat) => stat.label } let={ stat }>
+                                    <div class="group relative flex min-w-0 flex-col gap-0.5 border-line pe-3 [&:not(:first-child)]:border-s [&:not(:first-child)]:ps-3">
+                                        <dt class="order-2 truncate text-ui-xs text-muted group-has-[a]:text-accent">{ stat.label }</dt>
+                                        <dd class="tally order-1 text-ui-2xl font-bold text-text transition-colors group-has-[a:hover]:text-accent">
+                                            { locale.n(stat.value) }
+                                            <Show when={ stat.to !== undefined }>
+                                                <Link to={ stat.to! } class="absolute -inset-y-1 inset-x-0 rounded-tile" aria-label={ `${ locale.n(stat.value) } ${ stat.label }` }></Link>
+                                            </Show>
+                                        </dd>
+                                    </div>
+                                </For>
+                            </dl>
+                        </div>
                     </div>
                 </div>
 

@@ -35,7 +35,8 @@ import { nuraOf } from '../../lib/nura.ts';
 import { useAddress } from '../../lib/page-param.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { itemName } from '../../lib/shop.ts';
-import { CATEGORY_WORDS, handleParts, ROLE_WORDS, STATUS_TONES, STATUS_WORDS, TERM_WORDS, whyStaffRefused } from '../../lib/staff-words.ts';
+import { CATEGORY_WORDS, handleParts, ROLE_WORDS, STATUS_WORDS, TERM_WORDS, whyStaffRefused } from '../../lib/staff-words.ts';
+import { REPORT_TONES } from '../../lib/report-status.ts';
 import { shortAddress } from '../../lib/wallet.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
@@ -259,7 +260,7 @@ export default component PersonPage()
         ),
         status: locale.t(STATUS_WORDS[one.status]),
         state: one.status,
-        tone: STATUS_TONES[one.status],
+        tone: REPORT_TONES[one.status],
         at: one.at
     }));
 

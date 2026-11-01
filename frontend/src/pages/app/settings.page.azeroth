@@ -5,6 +5,7 @@ import PageHeader from '../../components/app/page-header.component.azeroth';
 import FriendRow from '../../components/social/friend-row.component.azeroth';
 import LanguageSwitch from '../../components/layout/language-switch.component.azeroth';
 import Panel from '../../components/ui/panel.component.azeroth';
+import Badge from '../../components/ui/badge.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
 import ErrorState from '../../components/ui/error-state.component.azeroth';
 import Pagination from '../../components/ui/pagination.component.azeroth';
@@ -27,6 +28,7 @@ import { runtime } from '../../lib/runtime.ts';
 import { shortAddress } from '../../lib/wallet.ts';
 import { attempt } from '../../lib/attempt.ts';
 import { whyFailed } from '../../lib/failure.ts';
+import { REPORT_TONES } from '../../lib/report-status.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useAccount } from '../../stores/account.store.ts';
 import { useDonations } from '../../stores/donations.store.ts';
@@ -480,11 +482,8 @@ export default component SettingsPage()
                                                             </span>
                                                             <span class="text-ui-2xs text-faint">{ locale.relative(report.at) }</span>
                                                         </span>
-                                                        <span class={ () => [
-                                                            'shrink-0 rounded-full px-2 py-0.5 text-ui-2xs font-semibold',
-                                                            report.status === 'actioned' ? 'bg-win/15 text-win' : (report.status === 'reviewed' ? 'bg-live/15 text-live' : 'bg-raised text-muted')
-                                                        ].join(' ') }>
-                                                            { locale.t(`report.status.${ report.status }`) }
+                                                        <span class="shrink-0" data-report-status={ report.status }>
+                                                            <Badge dot text={ locale.t(`report.status.${ report.status }`) } tone={ REPORT_TONES[report.status] } />
                                                         </span>
                                                     </li>
                                                 </For>

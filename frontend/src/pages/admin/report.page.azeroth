@@ -20,7 +20,8 @@ import { attempt } from '../../lib/attempt.ts';
 import { decodeDisclosed, decodeVoice } from '../../lib/body.ts';
 import { createGuesses, type Guess } from '../../lib/guess.ts';
 import { runtime } from '../../lib/runtime.ts';
-import { CATEGORY_WORDS, handleParts, ROLE_IN, STATUS_TONES, STATUS_WORDS, whyStaffRefused } from '../../lib/staff-words.ts';
+import { CATEGORY_WORDS, handleParts, ROLE_IN, STATUS_WORDS, whyStaffRefused } from '../../lib/staff-words.ts';
+import { REPORT_TONES } from '../../lib/report-status.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -102,7 +103,7 @@ export default component ReportPage()
 
     derived status = locale.t(STATUS_WORDS[marked]);
 
-    derived tone = STATUS_TONES[marked];
+    derived tone = REPORT_TONES[marked];
 
     derived filedAt = report?.at ?? '';
 

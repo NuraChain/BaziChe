@@ -7,6 +7,7 @@ import CollectionPage from '../src/pages/app/collection.page.azeroth';
 import '../src/locales/app-catalogue.ts';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
+import { ORDER_TONES } from '../src/lib/shop.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
@@ -250,6 +251,24 @@ describe('the reader\'s collection', () =>
         expect(rows[0].textContent).toContain('On its way');
         expect(rows[1].textContent).toContain('Paid');
         expect(rows[1].textContent).toContain('For');
+    });
+
+    it('marks an order\'s state in the colour the staff see it in: a failed one in danger, a refunded one plain', async () =>
+    {
+        const order = (id: string, state: 'paid' | 'failed' | 'refunded', at: string) => ({ id, item: 'dice.glow', price: '12000000000000000000', state, deadline: at, at });
+
+        server.shop.orders = [
+            order('order-3', 'refunded', '2026-10-27T13:00:00.000Z'),
+            order('order-2', 'failed', '2026-10-27T12:00:00.000Z'),
+            order('order-1', 'paid', '2026-10-27T11:00:00.000Z')
+        ];
+
+        const root = await page();
+        const dots = [...root.querySelectorAll('[data-order]')].map((row) =>
+            [...row.querySelectorAll('span')].find((dot) => dot.className.includes('h-1.5'))?.className.match(/bg-[a-z]+/)?.[0]);
+
+        expect(dots).toEqual(['bg-faint', 'bg-danger', 'bg-live']);
+        expect(ORDER_TONES).toEqual({ quoted: 'neutral', sent: 'accent', paid: 'live', expired: 'neutral', failed: 'danger', refunded: 'neutral' });
     });
 
     it('offers to claim what the shop owes for the people the reader invited, and only then', async () =>

@@ -586,6 +586,7 @@ describe('the orders', () =>
 
         expect(router.location().search).toContain('state=refunded');
         expect(ids()).toEqual(['o-3']);
+        expect([...container.querySelectorAll('[data-order="o-3"] span')].find((dot) => dot.className.includes('h-1.5'))?.className, 'a refund is marked as its buyer sees it, plain').toContain('bg-faint');
 
         chip(container, 'All').click();
         await settle();

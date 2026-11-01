@@ -399,6 +399,34 @@ describe('the safety lists', () =>
             routes.reports = real.reports;
         }
     });
+
+    it('marks each report the reader filed with its status, in the colours the staff see it in', async () =>
+    {
+        const at = new Date(1_700_000_000_000).toISOString();
+
+        server.reports = [
+            { id: 'report-1', against: 'sara.k', category: 'spam', status: 'received', at },
+            { id: 'report-2', against: 'reza.t', category: 'harassment', status: 'reviewed', at },
+            { id: 'report-3', against: 'mina', category: 'cheating', status: 'actioned', at }
+        ];
+        useSession().reset();
+        await settle();
+        useSession().establish(establishAccount());
+
+        const container = await show(SettingsPage as unknown as () => HTMLElement, '/app/me/settings');
+        const statuses = () => [...container.querySelectorAll<HTMLElement>('[data-report-status]')].map((one) => [
+            one.dataset.reportStatus,
+            one.textContent?.trim(),
+            [...one.querySelectorAll('span')].find((dot) => dot.className.includes('h-1.5'))?.className.match(/bg-[a-z]+/)?.[0]
+        ]);
+
+        await vi.waitFor(() => expect(statuses()).toHaveLength(3), { timeout: 4000 });
+        expect(statuses()).toEqual(expect.arrayContaining([
+            ['received', useLocale().t('report.status.received'), 'bg-gold'],
+            ['reviewed', useLocale().t('report.status.reviewed'), 'bg-faint'],
+            ['actioned', useLocale().t('report.status.actioned'), 'bg-live']
+        ]));
+    });
 });
 
 describe('a privacy switch the server does not keep', () =>

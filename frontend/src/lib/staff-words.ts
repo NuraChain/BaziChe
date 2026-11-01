@@ -5,7 +5,6 @@ import type { InviteFlag } from '../../../backend/src/domains/invite/policy.ts';
 import { SHOP_COLLECTIONS } from '../../../backend/src/domains/shop/catalogue.ts';
 import { normalizeName } from '../../../backend/src/lib/naming.ts';
 import type { StaffLog } from '../../../backend/src/schemas.ts';
-import type { Tone } from '../components/ui/variants.ts';
 import { GAMES } from '../data/games.ts';
 import type { MessageKey } from '../locales/en.ts';
 import type { LocaleApi } from '../stores/locale.store.ts';
@@ -45,12 +44,6 @@ export const STATUS_WORDS: Record<ReportStatus, MessageKey> = {
     received: 'admin.person.report.status.received',
     reviewed: 'admin.person.report.status.reviewed',
     actioned: 'admin.person.report.status.actioned'
-};
-
-export const STATUS_TONES: Record<ReportStatus, Tone> = {
-    received: 'gold',
-    reviewed: 'neutral',
-    actioned: 'live'
 };
 
 export const TERM_WORDS: Readonly<Record<string, MessageKey>> = {

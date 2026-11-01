@@ -2,7 +2,8 @@ import { Link } from 'azerothjs';
 
 import type { AdminReports } from '../../../../backend/src/schemas.ts';
 import Icon from '../../icons/icon.component.azeroth';
-import { CATEGORY_WORDS, handleParts, ROLE_WORDS, STATUS_TONES, STATUS_WORDS } from '../../lib/staff-words.ts';
+import { CATEGORY_WORDS, handleParts, ROLE_WORDS, STATUS_WORDS } from '../../lib/staff-words.ts';
+import { REPORT_TONES } from '../../lib/report-status.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import Avatar from '../ui/avatar.component.azeroth';
 import Badge from '../ui/badge.component.azeroth';
@@ -25,7 +26,7 @@ export default component ReportRow(props: { report: AdminReportRow })
 
     derived status = locale.t(STATUS_WORDS[props.report.status]);
 
-    derived tone = STATUS_TONES[props.report.status];
+    derived tone = REPORT_TONES[props.report.status];
 
     derived role = props.report.about.staff ?? null;
 

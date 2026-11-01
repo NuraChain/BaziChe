@@ -17,10 +17,22 @@ import {
     type ShopKind,
     type ShopSlot
 } from '../../../backend/src/domains/shop/catalogue.ts';
+import type { OrderState } from '../../../backend/src/domains/shop/policy.ts';
 import { isShopRefusal } from '../../../backend/src/domains/shop/refusals.ts';
+import type { Tone } from '../components/ui/variants.ts';
 import type { MessageKey } from '../locales/en.ts';
 import type { LocaleApi } from '../stores/locale.store.ts';
 import { whyFailed } from './failure.ts';
+
+/** One colour for an order's state wherever it is drawn: to whoever paid and to the staff. */
+export const ORDER_TONES: Record<OrderState, Tone> = {
+    quoted: 'neutral',
+    sent: 'accent',
+    paid: 'live',
+    expired: 'neutral',
+    failed: 'danger',
+    refunded: 'neutral'
+};
 
 export const SHOP_FILTERS = ['all', 'profile', 'ludo', 'hokm', 'poker', 'backgammon', 'chess'] as const;
 

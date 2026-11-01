@@ -194,6 +194,18 @@ describe('a page of the app that throws', () =>
         expect(said).toHaveBeenCalledWith('[nura] a page threw, and its shell kept the rest of the app', expect.objectContaining({ message: 'the page could not be drawn' }));
     });
 
+    it('names the tab for what happened, until the reader goes elsewhere', async () =>
+    {
+        const { router } = await opened('/app', APP, '/app/boom', '[data-page-failed]');
+
+        expect(document.title).toContain('This page stopped working. · Baziche');
+
+        router.navigate('/app/fine');
+        await settle();
+
+        expect(document.title, 'the failure named a tab it was no longer in').not.toContain('This page stopped working.');
+    });
+
     it('is caught when it throws after it was drawn', async () =>
     {
         const { container } = await opened('/app', APP, '/app/later', '[data-page="later"]');

@@ -1,4 +1,4 @@
-import { resolveRouteComponent, untrack, useMatch } from 'azerothjs';
+import { resolveRouteComponent, untrack, useHead, useMatch } from 'azerothjs';
 
 import Icon from '../../icons/icon.component.azeroth';
 import { whyFailed } from '../../lib/failure.ts';
@@ -18,6 +18,8 @@ export default component PageFailed(props: { error: unknown; reset: () => void; 
     const match = useMatch();
 
     const failedAt = untrack(match);
+
+    useHead({ title: () => locale.t('page.failed.title') });
 
     state trying = false;
 

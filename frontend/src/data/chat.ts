@@ -32,7 +32,40 @@ export interface Conversation
     quiet: boolean;
 }
 
-export type MessageKind = 'text' | 'voice' | 'deleted' | 'system' | 'invite' | 'result';
+export type MessageKind = 'text' | 'voice' | 'file' | 'deleted' | 'system' | 'invite' | 'result';
+
+/**
+ * A photo, a video or a file as its sealed document says it, once this browser has opened it: the
+ * file, the key that opens it, what it is sent as, its name, its type, its size and, for a picture or
+ * a film, its proportions, its length and a thumb. The words under it are the message's `text`.
+ */
+export interface Attachment
+{
+    id: string;
+    key: string;
+    iv: string;
+    as: 'photo' | 'video' | 'file';
+    mime: string;
+    name: string;
+    bytes: number;
+    w?: number;
+    h?: number;
+    ms?: number;
+    thumb?: string;
+}
+
+/** What the composer hands over to be sent: the file in the clear, and what was found about it. */
+export interface FileDraft
+{
+    plain: Uint8Array;
+    as: Attachment['as'];
+    mime: string;
+    name: string;
+    w?: number;
+    h?: number;
+    ms?: number;
+    thumb?: string;
+}
 
 /**
  * A voice message as its sealed document says it, once this browser has opened it: the file, the key
@@ -163,6 +196,9 @@ export interface Message
 
     /** A voice message's file and what its sender sealed about it. */
     voice?: VoiceNote;
+
+    /** A photo, a video or a file, and what its sender sealed about it. Its caption is `text`. */
+    file?: Attachment;
 
     /** A voice message the reader has played. */
     played?: boolean;

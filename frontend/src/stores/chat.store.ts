@@ -1,7 +1,9 @@
 import { createMemo, createStore, createResource, createSignal, untrack, type Getter } from 'azerothjs';
 
 import { ApiError, client } from '../api.ts';
-import type { Conversation, Message, VoiceRecording } from '../data/chat.ts';
+import type { Conversation, FileDraft, Message, VoiceRecording } from '../data/chat.ts';
+import { sealFile, sniffShown } from '../lib/chat-file.ts';
+import { forgetFile, holdFile } from '../lib/file-held.ts';
 import { createGuesses } from '../lib/guess.ts';
 import { readingOf, type Reading } from '../lib/reading.ts';
 import { runtime } from '../lib/runtime.ts';
@@ -45,7 +47,7 @@ interface Outgoing
     expiresAt: number;
     state: 'sending' | 'sent' | 'failed';
 
-    /** A voice message's file, sealed, and whether it is up yet. A forward's is up already and has no body here. */
+    /** A voice message's file or a photo, a video or a file, sealed, and whether it is up yet. A forward's is up already and has no body here. */
     file?: { body: Uint8Array | null; uploaded: boolean };
 }
 
@@ -100,6 +102,12 @@ export interface ChatApi
 
     /** Sends a recording as a voice message: in the thread at once, its file up, then the message naming it. */
     sendVoice(id: string, recording: VoiceRecording): Promise<void>;
+
+    /**
+     * Sends a photo, a video or a file with the words typed as its caption: in the thread at once
+     * from the sender's own copy, its file up, then the message naming it.
+     */
+    sendFile(id: string, draft: FileDraft, caption: string): Promise<void>;
 
     /** How much of a voice message's file has gone up, 0 to 1, while it is going up. */
     uploadOf(messageId: string): number | null;
@@ -428,21 +436,23 @@ export const useChat = createStore((): ChatApi =>
     {
         const begun = era;
         const id = one.message.id;
+        const filed = one.message.kind === 'file';
         const turn = posting.catch(() => undefined).then(async () =>
         {
             const file = untrack(outbox).find((held) => held.message.id === id)?.file ?? one.file ?? { body: null, uploaded: true };
+            const upload = {
+                body: file.uploaded ? null : file.body,
+                progress: (fraction: number) => setUploads((current) => ({ ...current, [id]: fraction })),
+                uploaded: () => withFile(id, { ...file, uploaded: true })
+            };
 
             try
             {
-                await active.postVoice(one.message, one.expiresAt, {
-                    body: file.uploaded ? null : file.body,
-                    progress: (fraction) => setUploads((current) => ({ ...current, [id]: fraction })),
-                    uploaded: () => withFile(id, { ...file, uploaded: true })
-                });
+                await (filed ? active.postFile(one.message, one.expiresAt, upload) : active.postVoice(one.message, one.expiresAt, upload));
             }
             catch (error)
             {
-                if (error instanceof ApiError && error.code === 'voice-missing' && file.body !== null)
+                if (error instanceof ApiError && error.code === (filed ? 'file-missing' : 'voice-missing') && file.body !== null)
                 {
                     withFile(id, { ...file, uploaded: false });
                 }
@@ -728,6 +738,39 @@ export const useChat = createStore((): ChatApi =>
             await deliverVoice(one);
         },
 
+        async sendFile(id, draft, caption)
+        {
+            const fileId = crypto.randomUUID();
+            const sealed = await sealFile(draft.plain, fileId);
+            const quoted = untrack(replies)[id];
+
+            setReplies((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
+
+            const message: Message = {
+                ...asked(id, caption.trim()),
+                kind: 'file',
+                file: {
+                    id: fileId,
+                    key: sealed.key,
+                    iv: sealed.iv,
+                    as: draft.as,
+                    mime: draft.mime,
+                    name: draft.name,
+                    bytes: draft.plain.byteLength,
+                    ...(draft.w === undefined || draft.h === undefined ? {} : { w: draft.w, h: draft.h }),
+                    ...(draft.ms === undefined ? {} : { ms: draft.ms }),
+                    ...(draft.thumb === undefined ? {} : { thumb: draft.thumb })
+                },
+                ...(quoted === undefined ? {} : { reply: quoted.id })
+            };
+            const one: Outgoing = { message, expiresAt: lifetimeOf(id, message.at), state: 'sending', file: { body: sealed.body, uploaded: false } };
+
+            // The sender sees what they sent at once, as the type its bytes say it is.
+            holdFile(fileId, draft.plain, draft.as === 'file' ? 'application/octet-stream' : sniffShown(draft.plain) ?? 'application/octet-stream');
+            setOutbox((current) => [...current, one]);
+            await deliverVoice(one);
+        },
+
         uploadOf: (messageId) => uploads()[messageId] ?? null,
 
         async played(message)
@@ -754,7 +797,7 @@ export const useChat = createStore((): ChatApi =>
             }
 
             restate(one.message.id, 'sending');
-            await (one.message.kind === 'voice' ? deliverVoice(one) : deliver(one));
+            await (one.message.kind === 'voice' || one.message.kind === 'file' ? deliverVoice(one) : deliver(one));
         },
 
         discard(message)
@@ -764,6 +807,11 @@ export const useChat = createStore((): ChatApi =>
             if (message.voice !== undefined)
             {
                 forgetAudio(message.voice.id);
+            }
+
+            if (message.file !== undefined)
+            {
+                forgetFile(message.file.id);
             }
         },
 
@@ -859,19 +907,23 @@ export const useChat = createStore((): ChatApi =>
         {
             // A voice message forwards its file as it is: the reader may hear it, so the server lets the
             // new message name it, and nothing goes up again.
+            // A photo, a video or a file forwards the same way, with its caption.
             const spoken = message.kind === 'voice' && message.voice !== undefined;
+            const filed = message.kind === 'file' && message.file !== undefined;
             const outgoing: Message = spoken
                 ? { ...asked(to, ''), kind: 'voice', voice: message.voice, forwarded: true }
-                : { ...asked(to, message.text), forwarded: true };
+                : filed
+                    ? { ...asked(to, message.text), kind: 'file', file: message.file, forwarded: true }
+                    : { ...asked(to, message.text), forwarded: true };
             const one: Outgoing = {
                 message: outgoing,
                 expiresAt: lifetimeOf(to, outgoing.at),
                 state: 'sending',
-                ...(spoken ? { file: { body: null, uploaded: true } } : {})
+                ...(spoken || filed ? { file: { body: null, uploaded: true } } : {})
             };
 
             setOutbox((current) => [...current, one]);
-            await (spoken ? deliverVoice(one) : deliver(one));
+            await (spoken || filed ? deliverVoice(one) : deliver(one));
         },
 
         /**

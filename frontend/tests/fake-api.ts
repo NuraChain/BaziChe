@@ -1497,9 +1497,10 @@ interface FakeMint
 interface FakeSend
 {
     id: string;
-    kind: 'text' | 'voice' | 'reaction' | 'edit';
+    kind: 'text' | 'voice' | 'file' | 'reaction' | 'edit';
     target?: string;
     voice?: string;
+    file?: string;
     epoch: number;
     seq: number;
     iv: string;
@@ -3435,7 +3436,8 @@ export const client =
                 signature: input.signature,
                 clientAt: input.clientAt,
                 commitment: input.commitment,
-                ...(input.voice === undefined ? {} : { voice: input.voice })
+                ...(input.voice === undefined ? {} : { voice: input.voice }),
+                ...(input.file === undefined ? {} : { file: input.file })
             };
 
             // The real server also stamps its own MAC here. This one does not, because franking is
@@ -3443,7 +3445,7 @@ export const client =
             // a fake that made up a frank would only prove it agreed with itself.
             if (input.kind === 'reaction')
             {
-                const target = server.messages.find((one) => one.id === input.target && one.conversationId === params.id && (one.kind === 'text' || one.kind === 'voice'));
+                const target = server.messages.find((one) => one.id === input.target && one.conversationId === params.id && (one.kind === 'text' || one.kind === 'voice' || one.kind === 'file'));
                 if (target === undefined)
                 {
                     throw new ApiError(404, 'not-found', 'There is no such message here to react to.', undefined);

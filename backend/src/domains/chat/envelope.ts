@@ -188,6 +188,15 @@ export function voiceAad(fileId: string)
     return label(PROTOCOL, 'voice', fileId);
 }
 
+/**
+ * What a photo, a video or a file is sealed against: its own id, as a voice message's file is, and
+ * under another word, so neither can be passed off as the other.
+ */
+export function fileAad(fileId: string)
+{
+    return label(PROTOCOL, 'file', fileId);
+}
+
 export interface FrankContext
 {
     conversationId: string;

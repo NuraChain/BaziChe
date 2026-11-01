@@ -1,0 +1,32 @@
+name: Bug report
+description: Something in Baziche does not work as it should.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time. Leave out session cookies, `.env` values, private keys and recovery phrases, and report a security problem as [SECURITY.md](https://github.com/NuraChain/BaziChe/blob/main/.github/SECURITY.md) says, never here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      placeholder: |
+        1. Open a Ludo table for two
+        2. ...
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The page or the table, the game and its pace, the browser and the device, and the interface's language.
+  - type: textarea
+    id: said
+    attributes:
+      label: What the console or the server said
+      description: The browser's console, or the lines in `.logs/` from that moment if you run the server.
+      render: text

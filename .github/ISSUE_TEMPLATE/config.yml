@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A security problem
+    url: https://github.com/NuraChain/BaziChe/blob/main/.github/SECURITY.md
+    about: Please do not report a vulnerability in a public issue; this says how to report one.

@@ -285,7 +285,7 @@ tools/                 setup, build budgets, art and sound generators, Blender s
 | `npm run setup` | writes `.env` for this machine, or adds the names it lacks |
 
 A change is ready when `check`, `test` and `test:shuffle` pass, with `test:db` for anything that
-touches the database and `qa` for anything a page draws; [CONTRIBUTING.md](CONTRIBUTING.md) has the
+touches the database and `qa` for anything a page draws; [CONTRIBUTING.md](.github/CONTRIBUTING.md) has the
 rest, and [tools/qa/CLAUDE.md](tools/qa/CLAUDE.md) the browser passes beyond the matrix, from whole
 games played by clicking to a crowd of 3,000 sockets.
 
@@ -357,13 +357,13 @@ The plan lives in the design documents rather than in issues.
 ## Contributing
 
 Contributions are welcome, from a better sentence in one of the ten languages to a sixth game.
-[CONTRIBUTING.md](CONTRIBUTING.md) covers setting up, the checks a change has to pass, the
+[CONTRIBUTING.md](.github/CONTRIBUTING.md) covers setting up, the checks a change has to pass, the
 conventions the code follows, and how to propose something larger. Bugs and ideas go to the
 [issue tracker](https://github.com/NuraChain/BaziChe/issues).
 
 ## Security
 
-Please do not report a vulnerability in a public issue. [SECURITY.md](SECURITY.md) says how to
+Please do not report a vulnerability in a public issue. [SECURITY.md](.github/SECURITY.md) says how to
 report one and what is in scope.
 
 ## License

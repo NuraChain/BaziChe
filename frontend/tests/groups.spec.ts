@@ -60,6 +60,7 @@ afterEach(() =>
     cleanup();
     useGroups().reset();
     useRealtime().reset();
+    vi.restoreAllMocks();
 });
 
 describe('the group page', () =>
@@ -457,6 +458,65 @@ describe('the group form', () =>
         expect(close).not.toHaveBeenCalled();
         expect(server.calls).not.toContain('groups.create');
         expect(container.textContent).toContain('Give the group a name');
+
+        const name = container.querySelector<HTMLInputElement>('#group-name')!;
+
+        expect(name.getAttribute('aria-invalid')).toBe('true');
+        expect(name.getAttribute('aria-describedby')).toBe('group-name-error');
+        expect(document.activeElement, 'the keyboard was left on the button').toBe(name);
+    });
+
+    it('says a refusal of the whole form above the buttons, in what went wrong, and keeps what was typed', async () =>
+    {
+        vi.spyOn(client.groups, 'create').mockRejectedValueOnce(new ApiError(503, 'unavailable', 'Service unavailable', undefined));
+        const { close, container } = open();
+
+        const input = container.querySelector<HTMLInputElement>('#group-name')!;
+        input.value = 'Tuesday Table';
+        fire(input, 'input');
+        fire(container.querySelector('form')!, 'submit');
+        await settle();
+
+        expect(container.querySelector('[data-failed]')?.textContent).toBe('The server is not answering right now. Try again in a moment.');
+        expect(container.querySelector('[data-failed]')?.getAttribute('role')).toBe('alert');
+        expect(close).not.toHaveBeenCalled();
+        expect(input.value).toBe('Tuesday Table');
+
+        fire(container.querySelector('form')!, 'submit');
+        await settle();
+
+        expect(container.querySelector('[data-failed]'), 'the old failure stayed through the next try').toBeNull();
+        expect(close).toHaveBeenCalled();
+    });
+
+    it('says a name or a description the server refused under that box, until it is changed', async () =>
+    {
+        vi.spyOn(client.groups, 'create').mockRejectedValueOnce(new ApiError(422, 'validation-failed', 'Validation failed', {
+            fields: { blurb: 'Too long' },
+            issues: [{ path: 'blurb', code: 'max', message: 'Too long' }]
+        }));
+        const { container } = open();
+
+        const name = container.querySelector<HTMLInputElement>('#group-name')!;
+        const blurb = container.querySelector<HTMLInputElement>('#group-blurb')!;
+        name.value = 'Tuesday Table';
+        fire(name, 'input');
+        blurb.value = 'Hokm on Tuesdays';
+        fire(blurb, 'input');
+        fire(container.querySelector('form')!, 'submit');
+        await settle();
+
+        expect(container.querySelector('#group-blurb-error')?.textContent).toBe('This is more than this field takes.');
+        expect(blurb.getAttribute('aria-invalid')).toBe('true');
+        expect(blurb.getAttribute('aria-describedby')).toBe('group-blurb-error');
+        expect(document.activeElement).toBe(blurb);
+        expect(container.querySelector('[data-failed]')).toBeNull();
+
+        blurb.value = 'Hokm';
+        fire(blurb, 'input');
+        await settle();
+
+        expect(container.querySelector('#group-blurb-error')).toBeNull();
     });
 
     it('sends exactly what was typed, and hands the group back', async () =>

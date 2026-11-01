@@ -2,6 +2,9 @@ import type { GroupPrivacy, GroupSummary } from '../../api.ts';
 import { CRESTS, crestOf } from '../../data/crests.ts';
 import { GAMES, type GameId } from '../../data/games.ts';
 import Icon from '../../icons/icon.component.azeroth';
+import { whyFailed } from '../../lib/failure.ts';
+import { describedBy, focusFirstInvalid, refusedFields } from '../../lib/form.ts';
+import type { MessageKey } from '../../locales/en.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useGroups } from '../../stores/groups.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -22,6 +25,10 @@ const BLURB_MAX = 240;
  * rather than a patch, so there is no tri-state for "leave this alone" versus "clear it". What
  * the form does NOT offer is the slug: it is claimed once, and a url that moves when somebody
  * renames a group is a url that breaks every link they shared.
+ *
+ * A refusal is said in the form, which stays open with everything as it was typed: a field the
+ * server named under that field, for as long as it still says what was refused, and anything else
+ * once, above the buttons.
  */
 export default component GroupForm(props: OverlayProps & { group?: GroupSummary })
 {
@@ -39,12 +46,29 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
     state privacy: GroupPrivacy = props.group?.privacy ?? 'public';
     state touched = false;
     state pending = false;
+    state nameSaid = null as { value: string; key: MessageKey } | null;
+    state blurbSaid = null as { value: string; key: MessageKey } | null;
+    state failure = null as MessageKey | null;
+
+    let form: HTMLElement | null = null;
 
     // A hue per crest rather than a colour picker: five crests and five hues is a palette, and a
     // free hue is how a group ends up the same grey as every other group.
     derived hue = props.group?.hue ?? CRESTS.indexOf(crest) * 67 + 25;
 
     derived tooShort = name.trim().length < 2;
+
+    derived nameKey = touched && tooShort
+        ? 'groups.nameShort'
+        : nameSaid !== null && name === nameSaid.value ? nameSaid.key : null;
+
+    derived nameError = nameKey === null ? null : locale.t(nameKey);
+
+    derived blurbError = blurbSaid !== null && blurb === blurbSaid.value ? locale.t(blurbSaid.key) : null;
+
+    derived failed = failure !== null;
+
+    derived failureWords = failure === null ? '' : locale.t(failure);
 
     // The hint carries the actual rule. "Invite only" as a bare label does not tell anybody that a
     // non-member gets "No such group.", and that sentence is the whole feature.
@@ -53,8 +77,16 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
     const submit = async () =>
     {
         touched = true;
-        if (tooShort || pending)
+        failure = null;
+
+        if (pending)
         {
+            return;
+        }
+
+        if (tooShort)
+        {
+            focusFirstInvalid(form);
             return;
         }
 
@@ -73,9 +105,23 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
             });
             props.close(saved);
         }
-        catch
+        catch (error)
         {
-            toasts.show({ kind: 'warning', text: locale.t('state.errorLead') });
+            const fields = refusedFields(error);
+            const named = fields.get('name');
+            const described = fields.get('blurb');
+
+            if (named === undefined && described === undefined)
+            {
+                failure = whyFailed(error);
+            }
+            else
+            {
+                nameSaid = named === undefined ? null : { value: name, key: named };
+                blurbSaid = described === undefined ? null : { value: blurb, key: described };
+            }
+
+            focusFirstInvalid(form);
         }
         finally
         {
@@ -84,6 +130,7 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
     };
 
     <form
+        ref={ (element) => form = element }
         class="flex flex-col gap-5 p-5"
         onSubmit={ (event) =>
         {
@@ -104,25 +151,26 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
             id="group-name"
             label={ locale.t('groups.name') }
             hint={ locale.t('groups.nameHint') }
-            error={ touched && tooShort ? locale.t('groups.nameShort') : null }
+            error={ nameError }
         >
             <Input
                 id="group-name"
                 value={ name }
                 onInput={ (value) => name = value }
                 maxlength={ NAME_MAX }
-                invalid={ touched && tooShort }
-                describedBy={ touched && tooShort ? 'group-name-error' : 'group-name-hint' }
+                invalid={ nameError !== null }
+                describedBy={ describedBy('group-name', nameError) }
             />
         </Field>
 
-        <Field id="group-blurb" label={ locale.t('groups.blurb') } hint={ locale.t('groups.blurbHint') }>
+        <Field id="group-blurb" label={ locale.t('groups.blurb') } hint={ locale.t('groups.blurbHint') } error={ blurbError }>
             <Input
                 id="group-blurb"
                 value={ blurb }
                 onInput={ (value) => blurb = value }
                 maxlength={ BLURB_MAX }
-                describedBy="group-blurb-hint"
+                invalid={ blurbError !== null }
+                describedBy={ describedBy('group-blurb', blurbError) }
             />
         </Field>
 
@@ -190,6 +238,10 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
                 </For>
             </div>
         </fieldset>
+
+        <Show when={ failed }>
+            <p role="alert" class="text-ui-sm text-danger" data-failed>{ failureWords }</p>
+        </Show>
 
         <div class="flex flex-col gap-2 sm:flex-row-reverse">
             <Button variant="primary" block submit loading={ pending }>

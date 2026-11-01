@@ -1,14 +1,20 @@
+import { useLocale } from '../../stores/locale.store.ts';
+
+/** Its bars are hidden from a screen reader and its words are not, so a list still on its way is "Loading…" there, said to nobody unasked. */
 export default component Skeleton(props: { lines?: number; avatar?: boolean; class?: string })
 {
+    const locale = useLocale();
+
     derived count = Math.max(1, props.lines ?? 2);
 
     derived rows = Array.from({ length: count }, (_, index) => index);
 
-    <div class={ [ 'flex animate-pulse items-start gap-3 motion-reduce:animate-none', props.class ?? '' ].filter(Boolean).join(' ') } aria-hidden="true">
+    <div class={ [ 'flex animate-pulse items-start gap-3 motion-reduce:animate-none', props.class ?? '' ].filter(Boolean).join(' ') } data-skeleton>
+        <span class="sr-only">{ locale.t('common.loading') }</span>
         <Show when={ props.avatar === true }>
-            { () => <span class="h-10 w-10 shrink-0 rounded-full bg-raised"></span> }
+            { () => <span class="h-10 w-10 shrink-0 rounded-full bg-raised" aria-hidden="true"></span> }
         </Show>
-        <div class="flex min-w-0 flex-1 flex-col gap-2 py-1">
+        <div class="flex min-w-0 flex-1 flex-col gap-2 py-1" aria-hidden="true">
             <For each={ rows } key={ (row) => row } let={ row }>
                 <span
                     class="block h-3 rounded-full bg-raised"

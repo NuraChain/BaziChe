@@ -84,7 +84,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'discover.rooms': '值得加入的群组',
     'discover.trending': '大家都在玩',
     'discover.roomsEmpty': '还没有可加入的公开群组',
-    'discover.roomsEmptyLead': '从你的好友列表建一个，它就会出现在这里给其他人看到。',
+    'discover.roomsEmptyLead': '建一个，它就会出现在这里给其他人看到。',
 
     'search.placeholder': '玩家、游戏、群组、消息',
     'search.recent': '最近搜索',

@@ -76,6 +76,8 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.list.title': 'Palpites',
     'market.list.lead': 'As partidas em que você deu palpite enquanto assistia, e no que cada uma deu.',
     'market.list.empty': 'Você ainda não deu palpite em nenhuma partida.',
+    'market.list.emptyLead': 'Escolha o vencedor de uma partida que você está assistindo.',
+    'market.list.watch': 'Assistir a uma partida',
     'market.list.failed': 'Não deu para ler seus palpites.',
     'market.list.more': 'Ver mais antigos',
     'market.list.game': '{game}, {when}',

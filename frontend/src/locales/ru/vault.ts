@@ -50,6 +50,8 @@ export const vault: Pick<Dictionary, keyof typeof reference> = {
     'vault.break.taken': 'Перерыв начался.',
     'vault.games': 'Твои игры на NURA',
     'vault.games.empty': 'Игр на NURA пока нет.',
+    'vault.games.emptyLead': 'Выбери ставку, когда открываешь стол или ищешь игру.',
+    'vault.games.find': 'Найти игру',
     'vault.games.failed': 'Не удалось прочитать твои игры на NURA.',
     'vault.games.more': 'Показать более старые',
     'vault.games.won': 'Победа',

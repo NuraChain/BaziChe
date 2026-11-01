@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { addFriend } from '../src/lib/add-friend.ts';
 import { giveTo } from '../src/lib/donate-sheet.ts';
+import { openGroupForm } from '../src/lib/group-form.ts';
 import { findGame } from '../src/lib/find-game.ts';
 import { inviteTo } from '../src/lib/invite-sheet.ts';
 import { openLook } from '../src/lib/look-sheet.ts';
@@ -29,6 +30,7 @@ const { lost } = vi.hoisted(() => ({
 }));
 
 vi.mock('../src/components/social/add-friend.component.azeroth', lost);
+vi.mock('../src/components/social/group-form.component.azeroth', lost);
 vi.mock('../src/components/donate/donate-sheet.component.azeroth', lost);
 vi.mock('../src/components/games/quick-finder.component.azeroth', lost);
 vi.mock('../src/components/games/invite-sheet.component.azeroth', lost);
@@ -40,6 +42,7 @@ vi.mock('../src/components/voice/voice-manager.component.azeroth', lost);
 
 const SHEETS: readonly (readonly [string, () => unknown])[] = [
     ['add a friend', () => addFriend()],
+    ['make a group', () => openGroupForm(() => undefined)],
     ['send NURA', () => giveTo('match-1', 'sara.k', 'Sara')],
     ['find a game', () => findGame('ludo')],
     ['invite to a table', () => inviteTo('table-1')],

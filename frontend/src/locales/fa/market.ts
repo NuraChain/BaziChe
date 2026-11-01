@@ -76,6 +76,8 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.list.title': 'پیش‌بینی‌ها',
     'market.list.lead': 'بازی‌هایی که موقع تماشا روشون پیش‌بینی کردی، و اینکه هرکدوم به کجا رسید.',
     'market.list.empty': 'هنوز روی هیچ بازی‌ای پیش‌بینی نکردی.',
+    'market.list.emptyLead': 'از بازی‌ای که داری تماشاش می‌کنی، برنده رو پیش‌بینی کن.',
+    'market.list.watch': 'یه بازی رو تماشا کن',
     'market.list.failed': 'نشد پیش‌بینی‌هات رو بخونیم.',
     'market.list.more': 'قدیمی‌ترها',
     'market.list.game': '{game}، {when}',

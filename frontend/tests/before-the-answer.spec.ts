@@ -21,6 +21,7 @@ import { useDevice } from '../src/stores/device.store.ts';
 import { useGroups } from '../src/stores/groups.store.ts';
 import { useLobby } from '../src/stores/lobby.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
+import { useOverlay } from '../src/stores/overlay.store.ts';
 import { usePeople } from '../src/stores/people.store.ts';
 import { usePresence } from '../src/stores/presence.store.ts';
 import { useRecord } from '../src/stores/record.store.ts';
@@ -503,6 +504,33 @@ describe('the groups, on the Friends page and on Discover, before the server has
         }
         finally
         {
+            restore();
+        }
+    });
+
+    it('offers a new group on Discover where there is none to join, and opens the form for it there', async () =>
+    {
+        const restore = await anewGroups({ discover: () => Promise.resolve({ groups: [] }) });
+
+        try
+        {
+            const container = page(DiscoverPage as unknown as () => HTMLElement, '/app/discover');
+            const rooms = () => sectionOf(container, 'discover.rooms');
+
+            await vi.waitFor(() => expect(rooms().textContent).toContain(useLocale().t('discover.roomsEmpty')), { timeout: 4000 });
+            expect(rooms().textContent, 'the reader was sent to the friends list to start one').not.toContain('friends list');
+
+            const make = [...rooms().querySelectorAll('button')].find((one) => one.textContent?.trim() === useLocale().t('groups.create'));
+
+            expect(make).toBeDefined();
+
+            fire(make!, 'click');
+
+            await vi.waitFor(() => expect(useOverlay().items().map((item) => item.id)).toContain('group-form'), { timeout: 4000 });
+        }
+        finally
+        {
+            useOverlay().reset();
             restore();
         }
     });

@@ -83,6 +83,8 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.list.title': 'التوقّعات',
     'market.list.lead': 'المباريات التي توقّعت عليها وأنت تشاهدها، وما انتهت إليه كلٌّ منها.',
     'market.list.empty': 'لم تتوقّع على أي مباراة بعد.',
+    'market.list.emptyLead': 'توقّع الفائز في مباراة تشاهدها.',
+    'market.list.watch': 'شاهد مباراة',
     'market.list.failed': 'تعذّرت قراءة توقّعاتك.',
     'market.list.more': 'الأقدم',
     'market.list.game': '{game}، {when}',

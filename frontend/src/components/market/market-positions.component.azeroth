@@ -164,7 +164,14 @@ export default component MarketPositions(props: { class?: string })
             </Show>
 
             <Show when={ bare }>
-                <EmptyState icon="trophy" title={ locale.t('market.list.empty') } class="py-8" />
+                <EmptyState
+                    icon="trophy"
+                    title={ locale.t('market.list.empty') }
+                    lead={ locale.t('market.list.emptyLead') }
+                    action={ locale.t('market.list.watch') }
+                    to="/app/watch"
+                    class="py-8"
+                />
             </Show>
 
             <Show when={ listed }>

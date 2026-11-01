@@ -449,6 +449,19 @@ describe('the reader\'s games for NURA', () =>
 {
     const rows = (container: ParentNode) => [...container.querySelectorAll('section[aria-labelledby="vault-games"] li')];
 
+    it('says there are none yet, how a game is played for NURA and where to find one', async () =>
+    {
+        server.nura.games = { games: [] };
+        signIn();
+
+        const container = await page();
+        const section = () => container.querySelector('section[aria-labelledby="vault-games"]');
+
+        await vi.waitFor(() => expect(section()?.textContent).toContain('No games for NURA yet.'));
+        expect(section()?.textContent).toContain('Choose a stake when you open a table or look for one.');
+        expect(section()?.querySelector('a[href="/app/games"]')?.textContent?.trim()).toBe('Find a game');
+    });
+
     it('lists each game with what it came to: a win at the share paid, a loss at the stake, a stake given back', async () =>
     {
         server.nura.games = {
@@ -753,11 +766,20 @@ describe('the NURA people sent the reader, and the NURA they sent', () =>
         const section = container.querySelector('[data-donations]')!;
 
         expect(section.textContent).toContain('Nobody has sent you NURA yet.');
+        expect(section.textContent, 'what nobody sent offered a way to send').not.toContain('Watch a game');
 
         button(section, 'Given')!.click();
         await settle();
 
         expect(section.textContent).toContain('You have not sent anybody NURA yet.');
+        expect(section.textContent).toContain('You can send NURA to a player of a game you are watching.');
+        expect(section.querySelector('a[href="/app/watch"]')?.textContent?.trim()).toBe('Watch a game');
+
+        button(section, 'Received')!.click();
+        await settle();
+
+        expect(section.textContent, 'the way to send stayed on what was received').not.toContain('Watch a game');
+        expect(section.textContent).not.toContain('You can send NURA to a player of a game you are watching.');
     });
 
     it('says a list it could not read as that, never as none, and reads it again when asked', async () =>

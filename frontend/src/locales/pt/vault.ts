@@ -50,6 +50,8 @@ export const vault: Pick<Dictionary, keyof typeof reference> = {
     'vault.break.taken': 'Sua pausa começou.',
     'vault.games': 'Suas partidas valendo NURA',
     'vault.games.empty': 'Nenhuma partida valendo NURA ainda.',
+    'vault.games.emptyLead': 'Escolha quanto está valendo ao abrir uma mesa ou ao procurar uma.',
+    'vault.games.find': 'Encontrar uma partida',
     'vault.games.failed': 'Não deu para ler as suas partidas valendo NURA.',
     'vault.games.more': 'Mostrar partidas mais antigas',
     'vault.games.won': 'Ganhou',

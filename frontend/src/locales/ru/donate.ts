@@ -47,6 +47,8 @@ export const donate: Pick<Dictionary, keyof typeof reference> = {
     'donate.history.to': 'Ты отправил {amount} NURA игроку {name} в игре {game}',
     'donate.history.emptyReceived': 'Тебе ещё никто не присылал NURA.',
     'donate.history.emptyGiven': 'Ты ещё никому не отправлял NURA.',
+    'donate.history.emptyGivenLead': 'Можно отправить NURA игроку партии, которую ты смотришь.',
+    'donate.history.watch': 'Смотреть партию',
     'donate.history.failed': 'Не удалось прочитать твои подарки.',
     'donate.history.more': 'Показать раньше',
     'donate.state.prepared': 'Не отправлен',

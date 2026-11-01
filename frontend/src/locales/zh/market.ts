@@ -76,6 +76,8 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.list.title': '竞猜',
     'market.list.lead': '你观战时押过的对局，以及每局的结果。',
     'market.list.empty': '你还没押过任何对局。',
+    'market.list.emptyLead': '在你观看的对局里猜赢家。',
+    'market.list.watch': '去看一局',
     'market.list.failed': '无法读取你的押注。',
     'market.list.more': '显示更早的',
     'market.list.game': '{game}，{when}',

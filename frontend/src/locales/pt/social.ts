@@ -84,7 +84,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'discover.rooms': 'Grupos que valem a pena',
     'discover.trending': 'Onde a galera está jogando',
     'discover.roomsEmpty': 'Ainda não há grupos públicos para entrar',
-    'discover.roomsEmptyLead': 'Crie um a partir da sua lista de amigos e ele aparece aqui para todo mundo.',
+    'discover.roomsEmptyLead': 'Crie um e ele aparece aqui para todo mundo.',
 
     'search.placeholder': 'Pessoas, jogos, grupos, mensagens',
     'search.recent': 'Buscas recentes',

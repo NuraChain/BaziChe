@@ -395,6 +395,8 @@ describe('the wallet page\'s markets', () =>
         let root = await positions();
 
         expect(root.textContent).toContain('You have not backed a game yet.');
+        expect(root.textContent).toContain('Back a winner from a game you are watching.');
+        expect(root.querySelector('a[href="/app/watch"]')?.textContent?.trim()).toBe('Watch a game');
 
         cleanup();
         useMarkets().reset();

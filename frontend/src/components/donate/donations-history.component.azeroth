@@ -101,7 +101,14 @@ export default component DonationsHistory(props: { class?: string })
         </Show>
 
         <Show when={ bare }>
-            <EmptyState icon="coins" title={ locale.t(given ? 'donate.history.emptyGiven' : 'donate.history.emptyReceived') } class="py-8" />
+            <EmptyState
+                icon="coins"
+                title={ locale.t(given ? 'donate.history.emptyGiven' : 'donate.history.emptyReceived') }
+                lead={ given ? locale.t('donate.history.emptyGivenLead') : undefined }
+                action={ given ? locale.t('donate.history.watch') : undefined }
+                to={ given ? '/app/watch' : undefined }
+                class="py-8"
+            />
         </Show>
 
         <Show when={ listed }>

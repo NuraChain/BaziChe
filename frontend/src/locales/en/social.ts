@@ -81,7 +81,7 @@ export const social = {
     'discover.rooms': 'Groups worth joining',
     'discover.trending': 'Where people are playing',
     'discover.roomsEmpty': 'No public groups to join yet',
-    'discover.roomsEmptyLead': 'Start one from your friends list and it shows up here for everybody else.',
+    'discover.roomsEmptyLead': 'Start one and it shows up here for everybody else.',
 
     'search.placeholder': 'People, games, groups, messages',
     'search.recent': 'Recent searches',

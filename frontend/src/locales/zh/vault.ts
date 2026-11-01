@@ -50,6 +50,8 @@ export const vault: Pick<Dictionary, keyof typeof reference> = {
     'vault.break.taken': '你的休息期已开始。',
     'vault.games': '你的 NURA 牌局',
     'vault.games.empty': '还没有押注 NURA 的牌局。',
+    'vault.games.emptyLead': '开桌或找对局时选择赌注。',
+    'vault.games.find': '找一局',
     'vault.games.failed': '无法读取你的 NURA 牌局。',
     'vault.games.more': '显示更早的牌局',
     'vault.games.won': '赢',

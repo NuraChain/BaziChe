@@ -1,4 +1,4 @@
-import { useHead } from 'azerothjs';
+import { useHead, useNavigate } from 'azerothjs';
 
 import Page from '../../components/app/page.component.azeroth';
 import PageHeader from '../../components/app/page-header.component.azeroth';
@@ -16,6 +16,7 @@ import { useLocale } from '../../stores/locale.store.ts';
 import { usePresence } from '../../stores/presence.store.ts';
 import { useSocial } from '../../stores/social.store.ts';
 import { attempt } from '../../lib/attempt.ts';
+import { openGroupForm } from '../../lib/group-form.ts';
 
 export default component DiscoverPage()
 {
@@ -24,6 +25,7 @@ export default component DiscoverPage()
     const presence = usePresence();
     const groups_ = useGroups();
     const catalogue = useCatalogue();
+    const { navigate } = useNavigate();
 
     useHead({ title: () => locale.t('app.nav.discover') });
 
@@ -115,7 +117,16 @@ export default component DiscoverPage()
                     { () => <ErrorState error={ groups_.failure('elsewhere') } onRetry={ () => void groups_.refresh() } class="rounded-panel border border-dashed border-line py-8" /> }
                 </Show>
                 <Show when={ roomless }>
-                    { () => <EmptyState icon="people" title={ locale.t('discover.roomsEmpty') } lead={ locale.t('discover.roomsEmptyLead') } class="rounded-panel border border-dashed border-line py-8" /> }
+                    { () =>
+                        <EmptyState
+                            icon="people"
+                            title={ locale.t('discover.roomsEmpty') }
+                            lead={ locale.t('discover.roomsEmptyLead') }
+                            action={ locale.t('groups.create') }
+                            onAction={ () => openGroupForm(navigate) }
+                            class="rounded-panel border border-dashed border-line py-8"
+                        />
+                    }
                 </Show>
                 <Show when={ joinable }>
                     { () =>

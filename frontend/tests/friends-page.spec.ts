@@ -259,6 +259,26 @@ describe('the friends page', () =>
         expect(container.querySelector('[data-way-back]')).toBeNull();
     });
 
+    it('opens the form that makes a group from the groups tab, fetched at the press', async () =>
+    {
+        const container = await opened();
+
+        await choose(container, useLocale().t('groups.title'));
+
+        const make = await vi.waitFor(() =>
+        {
+            const found = [...container.querySelectorAll<HTMLButtonElement>('button')].find((one) => one.textContent?.trim() === useLocale().t('groups.create'));
+
+            expect(found).toBeDefined();
+            return found!;
+        }, { timeout: 4000 });
+
+        fire(make, 'click');
+
+        await vi.waitFor(() => expect(useOverlay().items().map((item) => item.id)).toContain('group-form'), { timeout: 4000 });
+        useOverlay().reset();
+    });
+
     it('says nobody is online on that tab, and goes back to the list', async () =>
     {
         const container = await opened();

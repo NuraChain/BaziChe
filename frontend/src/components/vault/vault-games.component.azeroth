@@ -119,7 +119,14 @@ export default component VaultGames(props: { owner: string; chainId: number; rec
         </Show>
 
         <Show when={ bare }>
-            <EmptyState icon="history" title={ locale.t('vault.games.empty') } class="py-8" />
+            <EmptyState
+                icon="history"
+                title={ locale.t('vault.games.empty') }
+                lead={ locale.t('vault.games.emptyLead') }
+                action={ locale.t('vault.games.find') }
+                to="/app/games"
+                class="py-8"
+            />
         </Show>
 
         <Show when={ listed }>

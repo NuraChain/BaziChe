@@ -76,6 +76,8 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.list.title': 'Pronostics',
     'market.list.lead': 'Les parties sur lesquelles tu as misé en les regardant, et ce que chacune a donné.',
     'market.list.empty': 'Tu n’as encore misé sur aucune partie.',
+    'market.list.emptyLead': 'Choisis le gagnant d’une partie que tu regardes.',
+    'market.list.watch': 'Regarder une partie',
     'market.list.failed': 'Impossible de lire tes mises.',
     'market.list.more': 'Voir plus anciens',
     'market.list.game': '{game}, {when}',

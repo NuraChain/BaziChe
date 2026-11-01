@@ -84,7 +84,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'discover.rooms': 'Katılmaya değer gruplar',
     'discover.trending': 'İnsanların oynadığı yerler',
     'discover.roomsEmpty': 'Henüz katılacak herkese açık grup yok',
-    'discover.roomsEmptyLead': 'Arkadaş listenden bir tane kur, burada herkese görünsün.',
+    'discover.roomsEmptyLead': 'Bir tane kur, burada herkese görünsün.',
 
     'search.placeholder': 'Kişi, oyun, grup, mesaj',
     'search.recent': 'Son aramalar',

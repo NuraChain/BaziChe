@@ -47,6 +47,8 @@ export const vault = {
     'vault.break.taken': 'Your break has started.',
     'vault.games': 'Your games for NURA',
     'vault.games.empty': 'No games for NURA yet.',
+    'vault.games.emptyLead': 'Choose a stake when you open a table or look for one.',
+    'vault.games.find': 'Find a game',
     'vault.games.failed': 'Your games for NURA could not be read.',
     'vault.games.more': 'Show older games',
     'vault.games.won': 'Won',

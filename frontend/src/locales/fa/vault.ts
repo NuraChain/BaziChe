@@ -50,6 +50,8 @@ export const vault: Pick<Dictionary, keyof typeof reference> = {
     'vault.break.taken': 'استراحتت شروع شد.',
     'vault.games': 'بازی‌های پولیت',
     'vault.games.empty': 'هنوز بازی پولی نکردی.',
+    'vault.games.emptyLead': 'وقتی میز باز می‌کنی یا دنبال بازی می‌گردی، انتخاب کن سر چقدر بازی کنی.',
+    'vault.games.find': 'یه بازی پیدا کن',
     'vault.games.failed': 'نشد بازی‌های پولیت رو بخونیم.',
     'vault.games.more': 'بازی‌های قبلی‌تر',
     'vault.games.won': 'بردی',

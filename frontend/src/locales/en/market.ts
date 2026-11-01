@@ -73,6 +73,8 @@ export const market = {
     'market.list.title': 'Markets',
     'market.list.lead': 'The games you backed while watching them, and what each came to.',
     'market.list.empty': 'You have not backed a game yet.',
+    'market.list.emptyLead': 'Back a winner from a game you are watching.',
+    'market.list.watch': 'Watch a game',
     'market.list.failed': 'Your positions could not be read.',
     'market.list.more': 'Show older',
     'market.list.game': '{game}, {when}',

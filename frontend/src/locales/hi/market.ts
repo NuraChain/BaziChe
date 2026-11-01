@@ -76,6 +76,8 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.list.title': 'अनुमान',
     'market.list.lead': 'वे गेम जिन पर तुमने देखते हुए अनुमान लगाया, और हर एक का क्या हुआ।',
     'market.list.empty': 'तुमने अभी तक किसी गेम पर अनुमान नहीं लगाया।',
+    'market.list.emptyLead': 'जो गेम तुम देख रहे हो, उसमें विजेता चुनो।',
+    'market.list.watch': 'कोई गेम देखो',
     'market.list.failed': 'तुम्हारे अनुमान पढ़े नहीं जा सके।',
     'market.list.more': 'पुराने दिखाओ',
     'market.list.game': '{game}, {when}',

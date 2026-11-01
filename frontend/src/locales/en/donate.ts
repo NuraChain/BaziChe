@@ -44,6 +44,8 @@ export const donate = {
     'donate.history.to': 'You sent {name} {amount} NURA at {game}',
     'donate.history.emptyReceived': 'Nobody has sent you NURA yet.',
     'donate.history.emptyGiven': 'You have not sent anybody NURA yet.',
+    'donate.history.emptyGivenLead': 'You can send NURA to a player of a game you are watching.',
+    'donate.history.watch': 'Watch a game',
     'donate.history.failed': 'Your donations could not be read.',
     'donate.history.more': 'Show older',
     'donate.state.prepared': 'Not sent',

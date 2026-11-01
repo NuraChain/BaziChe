@@ -12,7 +12,7 @@ import { useSession } from '../src/stores/session.store.ts';
 import { useCatalogue } from '../src/stores/catalogue.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
-import { establishAccount, server } from './fake-api.ts';
+import { ApiError, client, establishAccount, server } from './fake-api.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
 
@@ -163,6 +163,31 @@ describe('the leaderboard page', () =>
 
         expect(container.textContent).toContain('Nobody has finished a game here yet in this stretch.');
         expect(container.textContent).not.toContain('Could not load the leaderboard.');
+    });
+
+    it('says what kept a board from being read as what it was, and reads it again at Try again', async () =>
+    {
+        const asked = vi.spyOn(client.catalogue, 'leaderboard').mockRejectedValueOnce(new ApiError(503, 'unavailable', 'Down.', undefined));
+
+        try
+        {
+            const container = await show();
+            const alert = container.querySelector('[role="alert"]');
+
+            expect(alert?.textContent).toContain('Could not load the leaderboard.');
+            expect(alert?.textContent).toContain(useLocale().t('failure.down'));
+            expect(container.textContent).not.toContain('Nobody has finished a game here yet in this stretch.');
+
+            fire([...alert!.querySelectorAll('button')].find((one) => one.textContent?.includes(useLocale().t('common.retry')))!, 'click');
+            await settle();
+
+            expect(container.querySelector('[role="alert"]')).toBeNull();
+            expect(container.textContent).toContain('Nobody has finished a game here yet in this stretch.');
+        }
+        finally
+        {
+            asked.mockRestore();
+        }
     });
 
     describe('the game and the stretch of time chosen', () =>

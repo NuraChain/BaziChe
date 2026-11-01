@@ -1,9 +1,9 @@
 import LoadMore from '../ui/load-more.component.azeroth';
 import { createResource } from 'azerothjs';
 
-import Button from '../ui/button.component.azeroth';
 import Panel from '../ui/panel.component.azeroth';
 import Avatar from '../ui/avatar.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
 import SectionHeading from '../ui/section-heading.component.azeroth';
 import Segmented from '../ui/segmented.component.azeroth';
 import Skeleton from '../ui/skeleton.component.azeroth';
@@ -96,6 +96,14 @@ export default component Leaderboard(props: { game: GameId; titled?: boolean; se
 
     derived failed = board.error() !== null && standings.length === 0;
 
+    derived waiting = board.loading() && standings.length === 0;
+
+    derived refused = !board.loading() && failed;
+
+    derived quiet = !board.loading() && !failed && standings.length === 0;
+
+    derived ranked = standings.length > 0;
+
     derived empty = locale.t(showing === 'all' ? 'board.empty' : 'board.emptyWindow');
 
     const nameOf = (row: { handle: string; person: { displayName: string } }) =>
@@ -116,26 +124,19 @@ export default component Leaderboard(props: { game: GameId; titled?: boolean; se
             />
         </div>
 
-        <Show when={ board.loading() && standings.length === 0 }>
+        <Show when={ waiting }>
             { () => <Skeleton class="h-32 w-full rounded-panel" /> }
         </Show>
 
-        <Show when={ !board.loading() && failed }>
-            { () =>
-                <Panel class="flex flex-col items-start gap-2 text-ui-sm text-muted">
-                    { locale.t('board.failed') }
-                    <Button variant="outline" size="sm" onClick={ () => board.refetch() }>
-                        { locale.t('common.retry') }
-                    </Button>
-                </Panel>
-            }
+        <Show when={ refused }>
+            { () => <ErrorState compact title={ locale.t('board.failed') } error={ board.error() } onRetry={ () => void board.refetch() } class="rounded-panel border border-line bg-field px-4" /> }
         </Show>
 
-        <Show when={ !board.loading() && !failed && standings.length === 0 }>
+        <Show when={ quiet }>
             { () => <Panel class="text-ui-sm text-muted">{ empty }</Panel> }
         </Show>
 
-        <Show when={ standings.length > 0 }>
+        <Show when={ ranked }>
             { () =>
                 <Panel pad="none" class="px-2 py-1">
                     <ol class="flex flex-col">

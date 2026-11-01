@@ -1,0 +1,16 @@
+import { useHead } from 'azerothjs';
+
+import Page from '../../components/app/page.component.azeroth';
+import EmptyState from '../../components/ui/empty-state.component.azeroth';
+import { useLocale } from '../../stores/locale.store.ts';
+
+export default component MissingPage()
+{
+    const locale = useLocale();
+
+    useHead({ title: () => locale.t('page.missing.title') });
+
+    <Page label={ locale.t('page.missing.title') }>
+        <EmptyState icon="discover" title={ locale.t('page.missing.title') } lead={ locale.t('page.missing.lead') } action={ locale.t('page.home') } to="/app" class="py-16" />
+    </Page>
+}

@@ -884,7 +884,7 @@ describe('which destination every page belongs to', () =>
     {
         for (const child of app.children ?? [])
         {
-            if (child.path === 'search' || child.path === 'notifications')
+            if (child.path === 'search' || child.path === 'notifications' || child.path.startsWith('*'))
             {
                 continue;
             }
@@ -1421,7 +1421,7 @@ describe('routes', () =>
     {
         expect(routes.find((route) => route.path === '/')?.render).toBe('static');
         expect(routes.find((route) => route.path === '/app')?.render).toBe('client');
-        expect(routes.find((route) => route.path === '/app')?.children?.length).toBe(25);
+        expect(routes.find((route) => route.path === '/app')?.children?.length).toBe(26);
     });
 });
 

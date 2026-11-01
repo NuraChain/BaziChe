@@ -109,6 +109,8 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'page.failed.title': 'Esta página dejó de funcionar.',
     'page.failed.lead': 'Algo falló al mostrarla. El resto de Baziche sigue funcionando.',
     'page.home': 'Ir a Inicio',
+    'page.missing.title': 'Aquí no hay ninguna página.',
+    'page.missing.lead': 'Puede que el enlace esté desactualizado o que la dirección esté mal escrita.',
 
     'state.errorTitle': 'No se ha podido cargar.',
     'state.errorLead': 'Si sigue pasando, revisa tu conexión.'

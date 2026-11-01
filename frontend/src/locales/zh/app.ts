@@ -109,6 +109,8 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'page.failed.title': '此页面出错了。',
     'page.failed.lead': '显示时出了问题。Baziche 的其他部分仍可正常使用。',
     'page.home': '回到首页',
+    'page.missing.title': '这里没有页面。',
+    'page.missing.lead': '链接可能已过期，或者地址输入有误。',
 
     'state.errorTitle': '无法加载此内容。',
     'state.errorLead': '如果一直出现这个问题，请检查你的网络连接。'

@@ -74,7 +74,7 @@ describe('where a notice leads', () =>
 
     it('leads every kind of notice to a page this app has', () =>
     {
-        const app = routes.find((one) => one.path === '/app')?.children ?? [];
+        const app = (routes.find((one) => one.path === '/app')?.children ?? []).filter((one) => !one.path.startsWith('*'));
         const pages = app.map((one) => new RegExp(`^/app${ one.path === '' ? '' : `/${ one.path.replace(/:[^/]+/g, '[^/]+') }` }$`));
 
         expect(pages.length, 'the app routes were not found').toBeGreaterThan(10);

@@ -52,7 +52,8 @@ export const routes: PageRoute[] = [
             { path: 'money', lazy: chunk(() => import('./pages/admin/money.page.azeroth')), guard: requireAbility('money') },
             { path: 'money/checks', lazy: chunk(() => import('./pages/admin/checks.page.azeroth')), guard: requireAbility('money') },
             { path: 'staff', lazy: chunk(() => import('./pages/admin/staff.page.azeroth')), guard: requireAbility('staff') },
-            { path: 'log', lazy: chunk(() => import('./pages/admin/log.page.azeroth')), guard: requireAbility('log') }
+            { path: 'log', lazy: chunk(() => import('./pages/admin/log.page.azeroth')), guard: requireAbility('log') },
+            { path: '*rest', lazy: chunk(() => import('./pages/admin/missing.page.azeroth')) }
         ]
     },
     {
@@ -85,7 +86,8 @@ export const routes: PageRoute[] = [
             { path: 'me/wallet', lazy: chunk(() => import('./pages/app/wallet.page.azeroth')), meta: defineMeta({ title: 'vault.title', tab: 'me', parent: '/app/me' }) },
             { path: 'me/wallet/check/:id', lazy: chunk(() => import('./pages/app/check.page.azeroth')), meta: defineMeta({ title: 'fair.title', tab: 'me', parent: '/app/me/wallet' }) },
             { path: 'me/settings', lazy: chunk(() => import('./pages/app/settings.page.azeroth')), meta: defineMeta({ title: 'app.nav.settings', tab: 'settings', parent: '/app/me' }) },
-            { path: 'me/devices', lazy: chunk(() => import('./pages/app/devices.page.azeroth')), meta: defineMeta({ title: 'devices.title', tab: 'settings', parent: '/app/me/settings' }) }
+            { path: 'me/devices', lazy: chunk(() => import('./pages/app/devices.page.azeroth')), meta: defineMeta({ title: 'devices.title', tab: 'settings', parent: '/app/me/settings' }) },
+            { path: '*rest', lazy: chunk(() => import('./pages/app/missing.page.azeroth')), meta: defineMeta({ title: 'page.missing.title' }) }
         ]
     }
 ];

@@ -109,6 +109,8 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'page.failed.title': 'Bu sayfa çalışmayı durdurdu.',
     'page.failed.lead': 'Gösterilirken bir şey bozuldu. Baziche’nin geri kalanı hâlâ çalışıyor.',
     'page.home': 'Ana sayfaya git',
+    'page.missing.title': 'Burada bir sayfa yok.',
+    'page.missing.lead': 'Bağlantı eskimiş ya da adres yanlış yazılmış olabilir.',
 
     'state.errorTitle': 'Bu yüklenemedi.',
     'state.errorLead': 'Bu sık oluyorsa bağlantını kontrol et.'

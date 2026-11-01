@@ -1,0 +1,19 @@
+import { useHead } from 'azerothjs';
+
+import AdminHead from '../../components/admin/admin-head.component.azeroth';
+import Button from '../../components/ui/button.component.azeroth';
+import { useLocale } from '../../stores/locale.store.ts';
+
+export default component AdminMissingPage()
+{
+    const locale = useLocale();
+
+    useHead({ title: () => locale.t('page.missing.title') });
+
+    <div class="flex flex-col gap-6">
+        <AdminHead title={ locale.t('page.missing.title') } lead={ locale.t('page.missing.lead') } />
+        <div>
+            <Button variant="outline" size="md" leading="home" to="/admin/overview">{ locale.t('admin.home') }</Button>
+        </div>
+    </div>
+}

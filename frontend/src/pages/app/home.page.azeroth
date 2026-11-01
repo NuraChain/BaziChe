@@ -73,6 +73,16 @@ export default component HomePage()
 
     derived played = recent.length > 0;
 
+    derived history = record.historyReading();
+
+    derived recalling = history === 'reading' && !played;
+
+    derived forgotten = history === 'failed' && !played;
+
+    derived unplayed = history === 'read' && !played;
+
+    derived counted = catalogue.counted();
+
     derived friends = presence.online(social.friends())
         .map((id) => people.byHandle(id))
         .filter((person): person is Person => person !== null);
@@ -151,7 +161,7 @@ export default component HomePage()
                                 </Button>
                             </span>
                             <span class="sr-only" role="status">{ finding ? locale.t('quickMatch.busy') : '' }</span>
-                            <p class="flex items-center justify-center gap-2 text-ui-sm text-muted @md:justify-start">
+                            <p class={ [ 'flex items-center justify-center gap-2 text-ui-sm text-muted @md:justify-start', counted ? '' : 'invisible' ].join(' ') } aria-hidden={ !counted } data-pulse>
                                 <span class="live-dot h-2 w-2" aria-hidden="true"></span>
                                 <span><span class="tally">{ locale.n(totals.playersOnline) }</span> { locale.plural('home.hero.pulse', totals.playersOnline) }</span>
                             </p>
@@ -187,9 +197,20 @@ export default component HomePage()
 
             <section aria-labelledby="home-recent">
                 <SectionHeading id="home-recent" title={ locale.t('home.recent.title') } more={ locale.t('common.seeAll') } to="/app/me?tab=games" />
-                <Show
-                    when={ played }
-                    fallback={
+                <Show when={ recalling }>
+                    { () =>
+                        <div class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field px-3.5" data-reading>
+                            <span class="sr-only">{ locale.t('common.loading') }</span>
+                            <Skeleton avatar lines={ 2 } class="py-2.5" />
+                            <Skeleton avatar lines={ 2 } class="py-2.5" />
+                        </div>
+                    }
+                </Show>
+                <Show when={ forgotten }>
+                    { () => <ErrorState compact error={ record.historyFailure() } onRetry={ () => void record.more() } class="rounded-panel border border-dashed border-line px-4 py-4" /> }
+                </Show>
+                <Show when={ unplayed }>
+                    { () =>
                         <div class="flex items-center gap-3 rounded-panel border border-dashed border-line px-4 py-5">
                             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/12 text-accent">
                                 <Icon name="history" size={ 18 } />
@@ -197,7 +218,8 @@ export default component HomePage()
                             <p class="text-ui-sm text-muted">{ locale.t('home.recent.empty') }</p>
                         </div>
                     }
-                >
+                </Show>
+                <Show when={ played }>
                     { () =>
                         <ul class="flex flex-col rounded-panel border border-line bg-field px-3.5">
                             <For each={ recent } key={ (row) => row.id } let={ row }>

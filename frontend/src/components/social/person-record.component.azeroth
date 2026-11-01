@@ -5,8 +5,8 @@ import FilterBar from '../ui/filter-bar.component.azeroth';
 import type { GameId } from '../../data/games.ts';
 import type { AchievementFamily } from '../../api.ts';
 import RecordStrip from './record-strip.component.azeroth';
-import Button from '../ui/button.component.azeroth';
 import EmptyState from '../ui/empty-state.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
 import Panel from '../ui/panel.component.azeroth';
 import LevelBar from './level-bar.component.azeroth';
 import SectionHeading from '../ui/section-heading.component.azeroth';
@@ -71,6 +71,16 @@ export default component PersonRecord(props: { handle: string; history?: boolean
 
     derived recent = props.game === undefined ? (summary?.recent ?? []).slice(0, 6) : [];
 
+    const again = () =>
+    {
+        record.refresh();
+
+        if (props.history === true)
+        {
+            void record.more();
+        }
+    };
+
     const openLadder = (family: AchievementFamily) =>
     {
         void import('./achievement-ladder-sheet.component.azeroth').then((module) => overlay.open(
@@ -94,7 +104,9 @@ export default component PersonRecord(props: { handle: string; history?: boolean
 
     derived pending = record.loading() && held === null;
 
-    derived unplayed = !record.loading() && games.length === 0;
+    derived unplayed = held !== null && games.length === 0;
+
+    derived unread = held === null && !record.loading() && record.failed();
 
     derived blankWords = props.blank ?? '';
 
@@ -108,9 +120,13 @@ export default component PersonRecord(props: { handle: string; history?: boolean
 
     derived listed = record.history().length > 0;
 
-    derived refused = !listed && !record.historyLoading() && record.historyFailed();
+    derived historyRead = record.historyReading();
 
-    derived blank = !listed && !record.historyLoading() && !record.historyFailed();
+    derived refused = !listed && !record.historyLoading() && historyRead === 'failed';
+
+    derived gathering = !listed && historyRead === 'reading';
+
+    derived blank = !listed && historyRead === 'read';
 
     derived stalled = listed && record.historyFailed();
 
@@ -127,6 +143,10 @@ export default component PersonRecord(props: { handle: string; history?: boolean
 
                 <Show when={ pending }>
                 { () => <Skeleton class="h-28 w-full rounded-panel" /> }
+                </Show>
+
+                <Show when={ unread }>
+                { () => <ErrorState error={ record.failure() } onRetry={ again } class="rounded-panel border border-line bg-field py-6" /> }
                 </Show>
 
                 <Show when={ unplayed }>
@@ -189,15 +209,18 @@ export default component PersonRecord(props: { handle: string; history?: boolean
                 <section>
                     <SectionHeading title={ locale.t('history.title') } />
 
-                    <Show when={ refused }>
+                    <Show when={ gathering }>
                         { () =>
-                            <Panel class="flex flex-col items-start gap-2 text-ui-sm text-muted">
-                                { locale.t('record.moreFailed') }
-                                <Button variant="outline" size="sm" onClick={ () => void record.more() }>
-                                    { locale.t('common.retry') }
-                                </Button>
-                            </Panel>
+                            <div class="flex flex-col gap-2" data-reading>
+                                <span class="sr-only">{ locale.t('common.loading') }</span>
+                                <Skeleton avatar lines={ 2 } class="rounded-tile border border-line bg-field px-3 py-2.5" />
+                                <Skeleton avatar lines={ 2 } class="rounded-tile border border-line bg-field px-3 py-2.5" />
+                            </div>
                         }
+                    </Show>
+
+                    <Show when={ refused }>
+                        { () => <ErrorState compact error={ record.historyFailure() } onRetry={ () => void record.more() } class="rounded-panel border border-line bg-field px-4" /> }
                     </Show>
 
                     <Show when={ blank }>

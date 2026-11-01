@@ -2,6 +2,7 @@ import { createResource, createSignal, createStore, type Getter } from 'azerothj
 
 import { client } from '../api.ts';
 import type { MatchHistoryEntry, PersonRecord } from '../api.ts';
+import type { Reading } from '../lib/reading.ts';
 
 /**
  * What a person has played, and what they have earned.
@@ -29,6 +30,7 @@ export interface RecordApi
 
     loading: Getter<boolean>;
     failed: Getter<boolean>;
+    failure: Getter<unknown>;
 
     /** This reader's own finished games, newest first. Empty until `more()` has been called once. */
     history: Getter<MatchHistoryEntry[]>;
@@ -36,6 +38,10 @@ export interface RecordApi
 
     /** The last page was refused. The button is still there, so it is also the retry. */
     historyFailed: Getter<boolean>;
+    historyFailure: Getter<unknown>;
+
+    /** Read once its first page has come, whatever a later page does. */
+    historyReading: Getter<Reading>;
     hasMore: Getter<boolean>;
 
     /** `signedOut` reads the public record, the one a visitor with no wallet may see. */
@@ -56,7 +62,7 @@ export const useRecord = createStore((): RecordApi =>
     const [cursor, setCursor] = createSignal<string | null>(null);
     const [exhausted, setExhausted] = createSignal(false);
     const [reading, setReading] = createSignal(false);
-    const [failed, setFailed] = createSignal(false);
+    const [failed, setFailed] = createSignal<unknown>(null);
 
     const record = createResource(
         () => handle(),
@@ -68,10 +74,13 @@ export const useRecord = createStore((): RecordApi =>
         record: () => record.data() ?? null,
         loading: () => record.loading(),
         failed: () => record.error() !== null,
+        failure: () => record.error(),
 
         history,
         historyLoading: reading,
-        historyFailed: failed,
+        historyFailed: () => failed() !== null,
+        historyFailure: failed,
+        historyReading: () => (exhausted() || cursor() !== null ? 'read' : (failed() === null ? 'reading' : 'failed')),
         hasMore: () => !exhausted(),
 
         open: (who, signedOut = false) => setHandle({ who, signedOut }),
@@ -118,11 +127,11 @@ export const useRecord = createStore((): RecordApi =>
                 setHistory((held) => [...held, ...page.matches]);
                 setCursor(page.cursor ?? null);
                 setExhausted(page.cursor === undefined);
-                setFailed(false);
+                setFailed(null);
             }
-            catch
+            catch (error)
             {
-                setFailed(true);
+                setFailed(() => error);
             }
             finally
             {
@@ -136,7 +145,7 @@ export const useRecord = createStore((): RecordApi =>
             setHistory([]);
             setCursor(null);
             setExhausted(false);
-            setFailed(false);
+            setFailed(null);
         },
 
         reset()
@@ -146,6 +155,7 @@ export const useRecord = createStore((): RecordApi =>
             setCursor(null);
             setExhausted(false);
             setReading(false);
+            setFailed(null);
         }
     };
 });

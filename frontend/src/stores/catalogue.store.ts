@@ -46,6 +46,9 @@ export interface CatalogueApi
     defaults(id: GameId): TableConfig;
     stats(id: GameId): LiveStats;
     totals: Getter<{ tablesOpen: number; playersOnline: number }>;
+
+    /** Whether any count has come, read or pushed: until one has, nobody can be said to be playing. */
+    counted: Getter<boolean>;
     watching: Getter<string | null>;
     notice: Getter<SiteNotice | null>;
     featured: Getter<GameId>;
@@ -156,6 +159,8 @@ export const useCatalogue = createStore((): CatalogueApi =>
 
             return { tablesOpen, playersOnline };
         },
+
+        counted: () => newest() !== null,
 
         watching: () => told()?.watching ?? null,
 

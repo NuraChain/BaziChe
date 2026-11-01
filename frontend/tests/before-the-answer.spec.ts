@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { cleanup, fire, renderTest } from '@azerothjs/testing';
 import { RouterProvider, Routes, createMemoryHistory, createRouter, type Route } from 'azerothjs';
 
 import type { GroupSummary } from '../src/api.ts';
 import SocialPanel from '../src/components/app/social-panel.component.azeroth';
 import InviteSheet from '../src/components/games/invite-sheet.component.azeroth';
+import LiveStats from '../src/components/games/live-stats.component.azeroth';
 import GroupAdd from '../src/components/social/group-add.component.azeroth';
 import { defaultTable } from '../src/data/tables.ts';
 import { manualClock } from '../src/lib/clock.ts';
@@ -12,7 +13,9 @@ import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import '../src/locales/app-catalogue.ts';
 import DiscoverPage from '../src/pages/app/discover.page.azeroth';
 import FriendsPage from '../src/pages/app/friends.page.azeroth';
+import GamesPage from '../src/pages/app/games.page.azeroth';
 import HomePage from '../src/pages/app/home.page.azeroth';
+import { useCatalogue } from '../src/stores/catalogue.store.ts';
 import { useConnection } from '../src/stores/connection.store.ts';
 import { useDevice } from '../src/stores/device.store.ts';
 import { useGroups } from '../src/stores/groups.store.ts';
@@ -20,6 +23,7 @@ import { useLobby } from '../src/stores/lobby.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { usePeople } from '../src/stores/people.store.ts';
 import { usePresence } from '../src/stores/presence.store.ts';
+import { useRecord } from '../src/stores/record.store.ts';
 import { useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
@@ -573,5 +577,115 @@ describe('the activity beside the page, before the server has answered', () =>
         {
             restore();
         }
+    });
+});
+
+describe('the games the reader finished, on Home, before the server has answered', () =>
+{
+    const recentOf = (container: HTMLElement) =>
+        [...container.querySelectorAll('section')].find((one) => one.querySelector('h2')?.textContent?.includes(useLocale().t('home.recent.title')))!;
+
+    beforeEach(() =>
+    {
+        useRecord().reset();
+        useDevice().override('phone');
+    });
+
+    afterEach(() =>
+    {
+        vi.restoreAllMocks();
+        useRecord().reset();
+    });
+
+    it('are drawn as being read, and as none only once the server has said so', async () =>
+    {
+        let open: () => void = () => undefined;
+
+        vi.spyOn(client.matches, 'history').mockImplementationOnce(() => new Promise((resolve) =>
+        {
+            open = () => resolve({ matches: [] });
+        }));
+
+        const container = page(HomePage as unknown as () => HTMLElement, '/app');
+
+        await settle();
+
+        expect(recentOf(container).querySelector('[data-reading]')).not.toBeNull();
+        expect(container.textContent).not.toContain(useLocale().t('home.recent.empty'));
+
+        open();
+        await settle();
+
+        expect(recentOf(container).querySelector('[data-reading]')).toBeNull();
+        expect(recentOf(container).textContent).toContain(useLocale().t('home.recent.empty'));
+    });
+
+    it('say what went wrong where they would be, and read them again at Try again', async () =>
+    {
+        vi.spyOn(client.matches, 'history')
+            .mockRejectedValueOnce(new ApiError(503, 'unavailable', 'Down.', undefined))
+            .mockResolvedValueOnce({ matches: [] });
+
+        const container = page(HomePage as unknown as () => HTMLElement, '/app');
+
+        await settle();
+
+        expect(alertOf(recentOf(container))?.textContent).toContain(useLocale().t('failure.down'));
+        expect(container.textContent).not.toContain(useLocale().t('home.recent.empty'));
+
+        fire(retryOf(recentOf(container))!, 'click');
+        await settle();
+
+        expect(alertOf(recentOf(container))).toBeNull();
+        expect(recentOf(container).textContent).toContain(useLocale().t('home.recent.empty'));
+    });
+});
+
+describe('how many are playing, before any count has come', () =>
+{
+    afterEach(() =>
+    {
+        vi.restoreAllMocks();
+        useDevice().override(null);
+    });
+
+    const uncounted = () => vi.spyOn(useCatalogue(), 'counted').mockReturnValue(false);
+
+    const hidden = (node: Element | null) => node !== null && node.classList.contains('invisible') && node.getAttribute('aria-hidden') === 'true';
+
+    it('is kept out of sight and out of a screen reader\'s hearing on Home, never said as nobody', async () =>
+    {
+        useDevice().override('phone');
+        uncounted();
+
+        const container = page(HomePage as unknown as () => HTMLElement, '/app');
+
+        await settle();
+
+        expect(hidden(container.querySelector('[data-pulse]')), 'nobody is said to be playing before anybody has been counted').toBe(true);
+    });
+
+    it('is shown on Home once a count has come', async () =>
+    {
+        useDevice().override('phone');
+
+        const container = page(HomePage as unknown as () => HTMLElement, '/app');
+
+        await settle();
+
+        expect(hidden(container.querySelector('[data-pulse]'))).toBe(false);
+    });
+
+    it('is kept out of sight on the games page and on a game\'s own page until a count has come', async () =>
+    {
+        uncounted();
+
+        const games = page(GamesPage as unknown as () => HTMLElement, '/app/games');
+        const stats = renderTest(() => LiveStats({ game: 'ludo' }) as unknown as HTMLElement).container;
+
+        await settle();
+
+        expect(hidden(games.querySelector('[data-counts]'))).toBe(true);
+        expect(hidden(stats.querySelector('ul'))).toBe(true);
     });
 });

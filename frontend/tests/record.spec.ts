@@ -14,7 +14,7 @@ import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
 import { useRecord } from '../src/stores/record.store.ts';
 import type { AchievementFamily, MatchHistoryEntry, PlayerRecord } from '../src/api.ts';
-import { client, establishAccount, server } from './fake-api.ts';
+import { ApiError, client, establishAccount, server } from './fake-api.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
 
@@ -387,6 +387,91 @@ describe('the games somebody has finished', () =>
         expect(container.textContent).toContain(useLocale().t('history.empty'));
         expect(rowsOf(container)).toHaveLength(0);
         expect(moreOf(container)).toBeNull();
+    });
+
+    it('draws the games as being read until the first page comes, and says nothing is finished only once it has', async () =>
+    {
+        let open: () => void = () => undefined;
+        const asked = vi.spyOn(client.matches, 'history').mockImplementationOnce(() => new Promise((resolve) =>
+        {
+            open = () => resolve({ matches: [] });
+        }));
+
+        try
+        {
+            const container = await listed();
+
+            expect(container.querySelector('[data-reading]')).not.toBeNull();
+            expect(container.textContent, 'nothing is finished before the server has said what is').not.toContain(useLocale().t('history.empty'));
+
+            open();
+            await settle();
+
+            expect(container.querySelector('[data-reading]')).toBeNull();
+            expect(container.textContent).toContain(useLocale().t('history.empty'));
+        }
+        finally
+        {
+            asked.mockRestore();
+        }
+    });
+
+    it('says what went wrong where the games would be when the first page could not be read, and reads it at Try again', async () =>
+    {
+        const asked = vi.spyOn(client.matches, 'history')
+            .mockRejectedValueOnce(new ApiError(503, 'unavailable', 'Down.', undefined))
+            .mockResolvedValueOnce({ matches: [played('m-1', 'won')] });
+
+        try
+        {
+            const container = await listed();
+            const alert = container.querySelector('[role="alert"]');
+
+            expect(alert?.textContent).toContain(useLocale().t('failure.down'));
+            expect(container.textContent).not.toContain(useLocale().t('history.empty'));
+
+            [...alert!.querySelectorAll('button')].find((one) => one.textContent?.includes(useLocale().t('common.retry')))!.click();
+            await settle();
+
+            expect(container.querySelector('[role="alert"]')).toBeNull();
+            expect(rowsOf(container)).toHaveLength(1);
+        }
+        finally
+        {
+            asked.mockRestore();
+        }
+    });
+});
+
+describe('a record that could not be read', () =>
+{
+    it('says what went wrong where the record would be, never that no games were played, and reads it at Try again', async () =>
+    {
+        const asked = vi.spyOn(client.social, 'record').mockRejectedValueOnce(new ApiError(500, 'internal', 'Internal server error', undefined));
+
+        try
+        {
+            const Stub = (): HTMLElement => document.createElement('div');
+            const routes: Route[] = [{ path: '/app', component: Stub }];
+            const router = createRouter({ routes, history: createMemoryHistory('/app'), scroll: false });
+            const { container } = renderTest(() => RouterProvider({ router, children: () => PersonRecord({ handle: 'alex', show: ['record'] }) }) as Rendered);
+
+            await settle();
+
+            const alert = container.querySelector('[role="alert"]');
+
+            expect(alert?.textContent).toContain(useLocale().t('failure.server'));
+            expect(container.textContent, 'a record that could not be read is drawn as one with no games').not.toContain(useLocale().t('record.empty'));
+
+            [...alert!.querySelectorAll('button')].find((one) => one.textContent?.includes(useLocale().t('common.retry')))!.click();
+            await settle();
+
+            expect(container.querySelector('[role="alert"]')).toBeNull();
+        }
+        finally
+        {
+            asked.mockRestore();
+        }
     });
 });
 

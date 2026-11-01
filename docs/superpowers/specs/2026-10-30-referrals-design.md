@@ -210,6 +210,25 @@ re-recorded as its own commit.
 | RF-D13 | Notices | A category `inviting`; joined, played, reward |
 | RF-D14 | The admin | A section `invites` for an admin and the owner; campaigns and reviews in the log |
 | RF-D15 | Sharing | Copy, the Web Share API, WhatsApp, Telegram, email; nothing asks for contacts |
+| RF-D16 | A farm of fresh wallets (the owner, during RF3) | An invite counts only through a game with somebody established; RF-D20 is how it was built |
+| RF-D17 | Many in a day | Past a daily number of counted invites an invite is held for the staff, never lost; RF-D21 |
+| RF-D18 | What waits for the staff | A milestone's look and every reward of a flagged invite; RF-D22 |
+| RF-D19 | A friend suspended, deleted or blocked | Left out of the counts and the list when suspended; a deleted account takes its referral with it; a block hides nothing, since a friend who vanished from the list would say they had blocked their inviter |
+| RF-D20 | Established | An account a week old with five games played out with somebody established or on the staff (the owner by the wallets the server names, and every member of the staff, with no row); an invite counts only through another player in the game who played it out, is established or on the staff, is not suspended and was not brought in by the same inviter |
+| RF-D21 | Many, as built | `many` when the inviter already had five invites counted in the last day (the design said ten) |
+| RF-D22 | What waits, as built | Every milestone; every reward of a flagged invite; every reward of a campaign that reviews them all |
+| RF-D23 | When a campaign gives | Only while the invite's own campaign runs at the moment the invite counts |
+| RF-D24 | The reward notice | Said when a look is given; a reward held, refused or taken back tells nobody, since a hold said aloud tells a farmer which invite was flagged |
+| RF-D25 | Joined and played | `invite-joined` when the account is made through the link, `invite-played` when the invite counts, each with a dedupe key of its own, both in `inviting` |
+| RF-D26 | The most | Counted under the person's row lock; a refused reward does not count against it |
+| RF-D27 | Who vouches, and quick | The player a game counts through must have played it out; `quick` is a first counted game within ten minutes of joining (the design's hour would flag nearly every real friend, who plays at once) |
+| RF-D28 | A suspended account | Given nothing by a campaign, not even a row to review; the friend of a suspended inviter is given their look all the same |
+| RF-D29 | Who runs it | Admin › Invites is an admin's and the owner's; a person's Invites tab is People's, so a moderator reads it and acts on nothing there |
+| RF-D30 | A campaign's looks | Changed only while it has written no reward; its name, most, review and window at any time, each a row of the log |
+| RF-D31 | Giving to a suspended account | Refused (`staff-reward-suspended`); refusing or taking back is allowed |
+| RF-D32 | Taking back | Only a reward given, and the look goes only if it came by reward, off every slot it was worn in; nobody is told |
+| RF-D33 | The overview's days | UTC days, because a visit is kept by its day |
+| RF-D34 | A change against a count | A count rewarding holds its campaign's row shared and a change takes it for update, so what a campaign gives changes only before a count or after it |
 
 ## Phases
 
@@ -252,3 +271,48 @@ dark themes do not apply: the product has one theme by design (`frontend/CLAUDE.
 - Attribution across devices, and anything that would make it possible (fingerprints, IPs, contacts).
 - Vanity codes, and more than one active campaign at a time.
 - Automatic suspension for farming: a flag holds a reward, and a person decides.
+
+## As built
+
+Built in this order, each part its own commits with specs, faults put in one at a time and caught,
+its checks, a build within budget and a walk at 1280 in English and 390 in Persian: RF0 the design
+(`0eae20e1`); RF1 the schema (`6f947c73`); RF2 codes, the public way in and the counted invite
+(`516a195d`); RF3 the way in in the browser (`973e9204`); RF4 the page (`2ef3dd0b`, `834643cb`); RF5
+established players, flags, the notices and rewards from a campaign (`e169be43`, `37068225`,
+`54ea30c9`, `5519072e`, `785ce767`, `401ca9fb`); RF6 Admin › Invites (`47ac301d`, `298597b6`,
+`13aa98ff`, `c25c2ca4`); RF7 the top inviters, the switch and the campaign on the page (`57476972`,
+`47c3def6`); RF8 the invite pass (`3675884a`). On the way, and each a commit of its own: specs that
+left chat messages behind (`b780adb5`), two type errors and an unused import from RF4 and RF5
+(`85bf6f12`, `f56311c9`), the guards fetching the admin's rules so the landing's first chunk stayed
+under its 60 KB (`44663a88`), and the landing's chooser offering every wallet that announces itself
+(`a5e66bcc`).
+
+Where it differs from the design above:
+
+- **The flags** are RF-D21 and RF-D27: `quick` is ten minutes, not an hour, and `many` five a day,
+  not ten.
+- **The owner's question about ten thousand wallets** became RF-D16 to RF-D18, built as RF-D20 to
+  RF-D22: a farm of fresh wallets that only play each other never counts an invite, because nobody
+  in its games is established.
+- **The top inviters** are strict places (`rank()` with the handle in the window, as the game boards
+  rank), ties to whoever reached the count first, twenty of them, the reader's own place wherever it
+  is, and counted only from invites with no flag, so a farm never climbs them.
+- **The way in** needed the landing's chooser to offer any wallet that announces itself: it offered
+  three and dropped the rest, so a friend with any other wallet could not join from a link. The invite
+  pass found it with a wallet of its own.
+- **The sheet about a person** named everybody on the invite page's lists by their handle until the
+  invites store asked the people store who they are (`47c3def6`).
+
+Measured at RF's close: `npm run check` clean with no warning; the browser suite, 5218, and the
+server's, 2468, each in order and shuffled (seeds 1793538821437 and 1793538904639); every database
+spec, 1041 in 67 files; the invite pass clean on the built server, 39 checks, and
+8 of 39 against the compiled server broken three ways; the garbage pass 177 of 181 on RF6's build, every
+route of this work answering no 5xx, the four that did not being the NuraChain reads this machine's
+chain does not hold.
+
+Not done, and why:
+
+- **Scanning the QR with a camera** was not tried: Chromium on Windows has no `BarcodeDetector`. A
+  spec holds the drawing to the encoder's own output for the link.
+- **A friend who joins is not made a friend of the inviter**: nothing in the brief asks for it, and
+  it is a decision about two people's lists that is the owner's to make.

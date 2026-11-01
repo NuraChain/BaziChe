@@ -1,0 +1,121 @@
+import { CHANNEL_TEXT_MOST } from '../../../../backend/src/domains/channel/rules.ts';
+import type { FileDraft } from '../../data/chat.ts';
+import { whyFailed } from '../../lib/failure.ts';
+import { useChannels } from '../../stores/channels.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+import FileSheet from '../chat/file-sheet.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+import TextArea from '../ui/text-area.component.azeroth';
+import PollSheet from './poll-sheet.component.azeroth';
+
+/**
+ * What the owner and the admins post with: words, the paperclip (the chat's own sheet, which posts
+ * here with the caption), and a poll. A file going up says how far it has got.
+ */
+export default component ChannelComposer(props: { slug: string })
+{
+    const locale = useLocale();
+    const channels = useChannels();
+    const overlay = useOverlay();
+    const toasts = useToasts();
+
+    state text = '';
+    state busy = false;
+
+    let picker: HTMLInputElement | null = null;
+
+    derived empty = text.trim() === '';
+
+    derived uploading = channels.uploading();
+
+    const send = async () =>
+    {
+        if (empty || busy)
+        {
+            return;
+        }
+
+        busy = true;
+
+        try
+        {
+            await channels.post(props.slug, text);
+            text = '';
+        }
+        catch (error)
+        {
+            toasts.show({ kind: 'warning', text: locale.t(whyFailed(error)) });
+        }
+        finally
+        {
+            busy = false;
+        }
+    };
+
+    const attach = (file: File | undefined) =>
+    {
+        if (file === undefined)
+        {
+            return;
+        }
+
+        overlay.open(FileSheet, {
+            room: props.slug,
+            file,
+            caption: text,
+            onSent: () => text = '',
+            onSend: (draft: FileDraft, caption: string) => channels.postFile(props.slug, draft, caption).catch((error: unknown) =>
+            {
+                toasts.show({ kind: 'warning', text: locale.t(whyFailed(error)) });
+            })
+        }, { label: locale.t('chat.attach'), kind: 'sheet', id: 'file-sheet' });
+    };
+
+    <div class="flex flex-col gap-1.5" data-channel-composer>
+        <Show when={ uploading !== null }>
+            { () =>
+                <div class="h-1 overflow-hidden rounded-full bg-line" role="progressbar" aria-label={ locale.t('channels.uploading') } aria-valuemin="0" aria-valuemax="100" aria-valuenow={ Math.round((uploading ?? 0) * 100) }>
+                    <span class="block h-full bg-accent transition-[width]" style={ `width: ${ Math.round((uploading ?? 0) * 100) }%` }></span>
+                </div>
+            }
+        </Show>
+        <form
+            class="flex items-end gap-0.5 rounded-[1.375rem] border border-line-strong bg-field p-1 focus-within:border-accent/70"
+            onSubmit={ (event) =>
+            {
+                event.preventDefault();
+                void send();
+            } }
+        >
+            <IconButton icon="attach" label={ locale.t('chat.attach') } variant="ghost" class="rounded-full! text-muted hover:text-text" onClick={ () => picker?.click() } />
+            <input
+                ref={ (element) => picker = element }
+                type="file"
+                class="hidden"
+                tabindex="-1"
+                aria-hidden="true"
+                onChange={ (event) =>
+                {
+                    const input = event.currentTarget as HTMLInputElement;
+
+                    attach(input.files?.[0]);
+                    input.value = '';
+                } }
+            />
+            <IconButton icon="poll" label={ locale.t('channels.poll.new') } variant="ghost" class="rounded-full! text-muted hover:text-text" onClick={ () => overlay.open(PollSheet, { slug: props.slug }, { label: locale.t('channels.poll.new'), kind: 'sheet' }) } />
+            <TextArea
+                value={ text }
+                onInput={ (value) => text = value }
+                placeholder={ locale.t('channels.composer') }
+                label={ locale.t('channels.composer') }
+                maxlength={ CHANNEL_TEXT_MOST }
+                enterkeyhint="send"
+                class="min-w-0 flex-1 border-0! bg-transparent! py-0! ps-1! pe-1!"
+                onEnter={ () => void send() }
+            />
+            <IconButton icon="send" label={ locale.t('chat.send') } variant={ empty ? 'ghost' : 'primary' } flip class="rounded-full!" disabled={ empty || busy } onClick={ () => void send() } />
+        </form>
+    </div>
+}

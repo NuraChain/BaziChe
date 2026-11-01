@@ -111,3 +111,29 @@ socket says something changed, it never carries the post.
 - **CN2** `feat(channels)`: the server: channels, members, roles, posts, files, polls, the frame.
 - **CN3** `feat(channels)`: the browser's store, the tab, the list, Discover, New channel.
 - **CN4** `feat(channels)`: a channel's page, its posts, its composer and its polls.
+
+## As built
+
+CN0 `7bf83e24`, CN1 `cdc2e469`, the file rules asked of channel posts `b9ae0599`, the shared file
+check `c62f4892`, CN2 `d422afcf`; CN3 and CN4 landed as the browser's commit after them.
+
+What changed on the way, against the design:
+
+- **A change rings over the socket's own nudge**, `me` with the topic `channels`, rather than a new
+  frame: the gateway already said "something of yours changed" by topic, and a new frame would have
+  been new vocabulary for the same news.
+- **The Channels tab is in the chat list**, beside All, Direct, Groups and Tables, with the unread
+  count; Discover is the public channels under the reader's own, in the same tab.
+- **The paperclip is the chat's own sheet**, which posts to the channel instead of sending into a
+  room (`FileSheet`'s `onSend`), so a photo is re-drawn and a file over its limit refused the same way.
+- **Members**: a sheet lists everybody with their role; the owner names and un-names admins and
+  takes members out. Handing the channel on has its route and its store call and no button yet.
+
+Not done, stated:
+
+- **No notification for being invited**: the channel is in the invited person's list at the next
+  nudge, and nothing rings their bell.
+- **No Postgres was at hand**: `channels.db.spec.ts` was typechecked and never run, and the snapshot
+  was written by hand.
+- No real browser was driven; the page, the polls and the posts are held by rendered specs.
+- CN-D6 stands: no comments, reactions, view counts, scheduled or edited posts.

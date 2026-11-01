@@ -57,6 +57,7 @@ import {
     Leaf,
     Lightbulb,
     Link2,
+    ListChecks,
     Lock,
     Mail,
     Maximize2,
@@ -244,7 +245,8 @@ export const ALL_ICONS = {
     'image': Image,
     'file': FileText,
     'film': Film,
-    'attach': Paperclip
+    'attach': Paperclip,
+    'poll': ListChecks
 } satisfies Record<string, IconNode>;
 
 export type IconName = keyof typeof ALL_ICONS;

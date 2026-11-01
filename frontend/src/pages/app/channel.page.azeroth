@@ -1,0 +1,241 @@
+import { untrack, useHead, useParams } from 'azerothjs';
+
+import ConfirmSheet from '../../components/app/confirm-sheet.component.azeroth';
+import Page from '../../components/app/page.component.azeroth';
+import ChannelComposer from '../../components/channels/channel-composer.component.azeroth';
+import ChannelFace from '../../components/channels/channel-face.component.azeroth';
+import ChannelForm from '../../components/channels/channel-form.component.azeroth';
+import ChannelInvite from '../../components/channels/channel-invite.component.azeroth';
+import ChannelMembers from '../../components/channels/channel-members.component.azeroth';
+import ChannelPostView from '../../components/channels/channel-post.component.azeroth';
+import Button from '../../components/ui/button.component.azeroth';
+import EmptyState from '../../components/ui/empty-state.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
+import LoadMore from '../../components/ui/load-more.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
+import Icon from '../../icons/icon.component.azeroth';
+import { attempt } from '../../lib/attempt.ts';
+import { useAccount } from '../../stores/account.store.ts';
+import { useChannels } from '../../stores/channels.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { useShell } from '../../stores/shell.store.ts';
+
+/**
+ * A channel: its face, its members' count, Join or Leave, Invite, that it is not end to end
+ * encrypted and what that means, its posts, and for the owner and the admins a composer.
+ */
+export default component ChannelPage()
+{
+    const locale = useLocale();
+    const channels = useChannels();
+    const account = useAccount();
+    const overlay = useOverlay();
+    const shell = useShell();
+    const params = useParams();
+
+    mount
+    {
+        const slug = untrack(() => params().slug ?? '');
+
+        channels.open(slug);
+        const release = shell.claimTitle(() => name);
+
+        return () =>
+        {
+            release();
+
+            if (untrack(channels.openSlug) === slug)
+            {
+                channels.close();
+            }
+        };
+    }
+
+    derived channel = channels.viewing();
+
+    derived loading = channels.viewReading() === 'reading' && channel === null;
+
+    derived failed = channels.viewReading() === 'failed' && channel === null;
+
+    derived missing = !loading && !failed && channel === null;
+
+    derived name = channel !== null ? channel.name : locale.t(missing ? 'channels.notFound' : (failed ? 'state.errorTitle' : 'common.loading'));
+
+    useHead({ title: () => name });
+
+    derived joined = channel?.role !== undefined;
+
+    derived speaks = channel?.role === 'owner' || channel?.role === 'admin';
+
+    derived owns = channel?.role === 'owner';
+
+    derived posts = channels.posts();
+
+    derived me = account.user()?.handle ?? '';
+
+    derived postsReading = channels.postsReading() === 'reading' && posts.length === 0;
+
+    derived quiet = channels.postsReading() === 'read' && posts.length === 0;
+
+    /** What is read on the page is read: the mark moves when the newest post here changes. */
+    effect
+    {
+        const newest = posts.at(-1)?.id;
+        const slug = channel?.slug;
+
+        if (newest !== undefined && slug !== undefined && joined)
+        {
+            void channels.markRead(slug).catch(() => undefined);
+        }
+    }
+
+    const join = () =>
+    {
+        if (channel !== null)
+        {
+            void attempt(channels.join(channel.slug), locale.t('channels.joined', { name: channel.name }));
+        }
+    };
+
+    const leave = async () =>
+    {
+        if (channel === null)
+        {
+            return;
+        }
+
+        const one = channel;
+        const yes = await overlay.open(ConfirmSheet, {
+            title: locale.t('channels.leaveTitle', { name: one.name }),
+            lead: locale.t(owns ? (one.memberCount <= 1 ? 'channels.leaveLast' : 'channels.ownerLeaving') : 'channels.leaveLead'),
+            confirm: locale.t('channels.leave'),
+            destructive: true
+        }, { label: locale.t('channels.leaveTitle', { name: one.name }) }).closed;
+
+        if (yes === true)
+        {
+            await attempt(channels.leave(one.slug));
+        }
+    };
+
+    const invite = async () =>
+    {
+        if (channel === null)
+        {
+            return;
+        }
+
+        const one = channel;
+        const members = await channels.members(one.slug).catch(() => []);
+
+        overlay.open(ChannelInvite, { channel: one, members: members.map((member) => member.handle) }, { label: locale.t('channels.invite') });
+    };
+
+    const members = () =>
+    {
+        if (channel !== null)
+        {
+            overlay.open(ChannelMembers, { channel }, { label: locale.t('channels.membersButton') });
+        }
+    };
+
+    const edit = () =>
+    {
+        if (channel !== null)
+        {
+            overlay.open(ChannelForm, { channel }, { label: locale.t('channels.edit') });
+        }
+    };
+
+    <Page label={ name } onRefresh={ () => void channels.refresh() }>
+        <Switch
+            fallback={
+                <div class="mx-auto flex w-full max-w-2xl flex-col gap-5" data-channel-page={ channel?.slug ?? '' }>
+                    <header class="flex flex-col items-center gap-3 text-center">
+                        <ChannelFace name={ channel?.name ?? '' } photo={ channel?.photo } seed={ channel?.slug ?? '' } size="lg" />
+                        <div class="flex flex-col gap-1">
+                            <h1 class="title text-ui-2xl text-text" dir="auto">{ channel?.name }</h1>
+                            <p class="text-ui-sm text-muted" data-members>
+                                { [
+                                    locale.plural('channels.members', channel?.memberCount ?? 0, { count: locale.n(channel?.memberCount ?? 0) }),
+                                    locale.t(channel?.privacy === 'private' ? 'channels.private' : 'channels.public')
+                                ].join(' · ') }
+                            </p>
+                        </div>
+                        <Show when={ (channel?.bio ?? '') !== '' }>
+                            { () => <p class="max-w-prose whitespace-pre-line text-ui-base text-text" dir="auto" data-bio>{ channel?.bio }</p> }
+                        </Show>
+                        <div class="flex flex-wrap justify-center gap-2">
+                            <Show when={ !joined }>
+                                { () => <Button variant="primary" leading="add" onClick={ join }>{ locale.t('channels.join') }</Button> }
+                            </Show>
+                            <Show when={ joined }>
+                                { () => <Button variant="secondary" leading="friend-add" onClick={ () => void invite() }>{ locale.t('channels.invite') }</Button> }
+                            </Show>
+                            <Show when={ joined }>
+                                { () => <Button variant="secondary" leading="people" onClick={ members }>{ locale.t('channels.membersButton') }</Button> }
+                            </Show>
+                            <Show when={ speaks }>
+                                { () => <Button variant="secondary" leading="edit" onClick={ edit }>{ locale.t('channels.edit') }</Button> }
+                            </Show>
+                            <Show when={ joined }>
+                                { () => <Button variant="ghost" onClick={ () => void leave() }>{ locale.t('channels.leave') }</Button> }
+                            </Show>
+                        </div>
+                        <p class="flex items-start gap-1.5 rounded-tile border border-line bg-field px-3 py-2 text-start text-ui-xs text-muted" data-not-sealed>
+                            <Icon name="info" size={ 14 } class="mt-0.5 shrink-0" />
+                            <span>{ locale.t('channels.notSealed') }</span>
+                        </p>
+                    </header>
+
+                    <Show when={ channels.older() }>
+                        { () => <LoadMore label={ locale.t('channels.older') } loading={ false } onMore={ () => void channels.readOlder() } /> }
+                    </Show>
+
+                    <Switch
+                        fallback={
+                            <ol class="flex flex-col gap-3" aria-label={ locale.t('channels.posts') }>
+                                <For each={ posts } key={ (post) => post.id } let={ post }>
+                                    <li>
+                                        <ChannelPostView post={ post } slug={ channel?.slug ?? '' } member={ joined } speaks={ speaks } me={ me } />
+                                    </li>
+                                </For>
+                            </ol>
+                        }
+                    >
+                        <Match when={ postsReading }>
+                            <div class="flex flex-col gap-3" aria-busy="true">
+                                <span class="sr-only">{ locale.t('common.loading') }</span>
+                                <Skeleton lines={ 3 } class="rounded-panel border border-line p-3" />
+                                <Skeleton lines={ 2 } class="rounded-panel border border-line p-3" />
+                            </div>
+                        </Match>
+                        <Match when={ quiet }>
+                            <EmptyState icon="megaphone" title={ locale.t('channels.noPosts') } lead={ speaks ? locale.t('channels.noPostsLead') : undefined } class="py-8" />
+                        </Match>
+                    </Switch>
+
+                    <Show when={ speaks }>
+                        { () => <div class="sticky bottom-0 bg-void/95 py-2 backdrop-blur-md"><ChannelComposer slug={ channel?.slug ?? '' } /></div> }
+                    </Show>
+                </div>
+            }
+        >
+            <Match when={ loading }>
+                <div class="mx-auto flex w-full max-w-2xl flex-col items-center gap-3" aria-busy="true">
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                    <Skeleton class="h-20 w-20 rounded-full" />
+                    <Skeleton class="h-6 w-48" />
+                    <Skeleton class="h-4 w-32" />
+                </div>
+            </Match>
+            <Match when={ failed }>
+                <ErrorState error={ channels.viewFailure() } onRetry={ () => void channels.refresh() } />
+            </Match>
+            <Match when={ missing }>
+                <EmptyState icon="megaphone" title={ locale.t('channels.notFound') } lead={ locale.t('channels.notFoundLead') } action={ locale.t('app.nav.chats') } to="/app/chats" class="py-12" />
+            </Match>
+        </Switch>
+    </Page>
+}

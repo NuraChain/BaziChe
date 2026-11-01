@@ -1,0 +1,119 @@
+import { POLL_ANSWER_MOST, POLL_ANSWERS_LEAST, POLL_ANSWERS_MOST, POLL_QUESTION_MOST } from '../../../../backend/src/domains/channel/rules.ts';
+import { whyFailed } from '../../lib/failure.ts';
+import { useChannels } from '../../stores/channels.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import SheetHeader from '../ui/sheet-header.component.azeroth';
+import Toggle from '../ui/switch.component.azeroth';
+
+/**
+ * A poll, asked: the question, 2 to 10 different answers, whether it is anonymous (nobody in the
+ * channel sees who chose what) and whether it takes several answers.
+ */
+export default component PollSheet(props: OverlayProps & { slug: string })
+{
+    const locale = useLocale();
+    const channels = useChannels();
+    const toasts = useToasts();
+
+    state question = '';
+    state answers = ['', ''];
+    state anonymous = true;
+    state multiple = false;
+    state busy = false;
+
+    derived given = answers.map((one) => one.trim()).filter((one) => one !== '');
+
+    derived different = new Set(given.map((one) => one.toLocaleLowerCase())).size === given.length;
+
+    derived ready = question.trim() !== '' && given.length >= POLL_ANSWERS_LEAST && different && !busy;
+
+    derived roomy = answers.length < POLL_ANSWERS_MOST;
+
+    const set = (at: number, value: string) =>
+    {
+        answers = answers.map((one, index) => (index === at ? value : one));
+    };
+
+    const drop = (at: number) =>
+    {
+        answers = answers.filter((_, index) => index !== at);
+    };
+
+    const send = async () =>
+    {
+        if (!ready)
+        {
+            return;
+        }
+
+        busy = true;
+
+        try
+        {
+            await channels.postPoll(props.slug, { question: question.trim(), answers: given, anonymous, multiple });
+            props.close(true);
+        }
+        catch (error)
+        {
+            toasts.show({ kind: 'warning', text: locale.t(whyFailed(error)) });
+        }
+        finally
+        {
+            busy = false;
+        }
+    };
+
+    derived rows = answers.map((value, at) => ({ value, at }));
+
+    <form
+        class="flex flex-col gap-4 p-5"
+        data-poll-sheet
+        onSubmit={ (event) =>
+        {
+            event.preventDefault();
+            void send();
+        } }
+    >
+        <SheetHeader title={ locale.t('channels.poll.new') } onClose={ () => props.close() } />
+
+        <Field id="poll-question" label={ locale.t('channels.poll.question') }>
+            <Input id="poll-question" value={ question } onInput={ (value) => question = value } maxlength={ POLL_QUESTION_MOST } placeholder={ locale.t('channels.poll.questionPlaceholder') } />
+        </Field>
+
+        <fieldset class="flex flex-col gap-2">
+            <legend class="mb-1 text-ui-sm font-semibold text-text">{ locale.t('channels.poll.answers') }</legend>
+            <For each={ rows } key={ (row) => `${ row.at }` } let={ row }>
+                <div class="flex items-center gap-1">
+                    <Input
+                        value={ row.value }
+                        onInput={ (value) => set(row.at, value) }
+                        maxlength={ POLL_ANSWER_MOST }
+                        label={ locale.t('channels.poll.answer', { n: locale.n(row.at + 1) }) }
+                        placeholder={ locale.t('channels.poll.answer', { n: locale.n(row.at + 1) }) }
+                        class="flex-1"
+                    />
+                    <Show when={ answers.length > POLL_ANSWERS_LEAST }>
+                        { () => <IconButton icon="close" label={ locale.t('channels.poll.removeAnswer') } variant="ghost" size="sm" onClick={ () => drop(row.at) } /> }
+                    </Show>
+                </div>
+            </For>
+            <Show when={ roomy }>
+                { () => <Button variant="ghost" size="sm" leading="add" onClick={ () => answers = [...answers, ''] }>{ locale.t('channels.poll.addAnswer') }</Button> }
+            </Show>
+            <Show when={ !different }>
+                { () => <p class="text-ui-xs text-danger" role="alert">{ locale.t('channels.poll.same') }</p> }
+            </Show>
+        </fieldset>
+
+        <Toggle checked={ anonymous } label={ locale.t('channels.poll.anonymousLabel') } description={ locale.t('channels.poll.anonymousLead') } onChange={ (checked) => anonymous = checked } />
+        <Toggle checked={ multiple } label={ locale.t('channels.poll.multipleLabel') } onChange={ (checked) => multiple = checked } />
+
+        <Button variant="primary" block submit disabled={ !ready } loading={ busy }>{ locale.t('channels.poll.post') }</Button>
+    </form>
+}

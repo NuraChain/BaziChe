@@ -10,6 +10,7 @@ import { parentOf, routeMeta } from '../../lib/route-meta.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useChat } from '../../stores/chat.store.ts';
 import { useSeal } from '../../stores/seal.store.ts';
+import { useChannels } from '../../stores/channels.store.ts';
 import { useGroups } from '../../stores/groups.store.ts';
 import { useLobby } from '../../stores/lobby.store.ts';
 import { useBoard } from '../../stores/match.store.ts';
@@ -94,6 +95,7 @@ export default component AppShell(props: { children?: MountNode })
             useCatalogue().start(),
             useSocial().start(),
             useGroups().start(),
+            useChannels().start(),
             useLobby().start(),
             useBoard().start(),
             useWatch().start(),

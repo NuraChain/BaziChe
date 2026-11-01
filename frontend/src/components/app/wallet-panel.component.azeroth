@@ -91,7 +91,7 @@ export default component WalletPanel(props: { onConnected: (account: Account) =>
                 href={ NURA_CHAIN.site }
                 target="_blank"
                 rel="noreferrer noopener"
-                class="flex items-center gap-1 rounded-full px-2 py-1 text-ui-xs font-semibold text-muted hover:text-accent"
+                class="relative flex items-center gap-1 rounded-full px-2 py-1 text-ui-xs font-semibold text-muted hover:text-accent coarse:before:absolute coarse:before:-inset-y-2.5 coarse:before:inset-x-0"
             >
                 { locale.t('wallet.learn', { chain: NURA_CHAIN.name }) }
                 <Icon name="forward" size={ 12 } class="icon-flip" />

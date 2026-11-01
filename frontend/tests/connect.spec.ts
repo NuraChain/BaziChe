@@ -347,9 +347,11 @@ describe('the wallet chooser', () =>
         await settle();
 
         const connect = [...document.querySelectorAll('button')].find((one) => one.textContent?.trim() === 'Connect wallet');
+        const learn = [...document.querySelectorAll('a')].find((one) => one.textContent?.includes('What is NuraChain?'));
 
         expect(document.querySelector('a[href="https://metamask.io/download/"]')).toBeNull();
         expect(connect).toBeDefined();
+        expect(learn?.className, 'the way to learn about NuraChain is out of a finger’s reach').toContain('coarse:before:-inset-y-2.5');
 
         fire(connect!, 'click');
 

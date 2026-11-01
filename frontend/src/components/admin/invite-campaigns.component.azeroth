@@ -224,7 +224,7 @@ export default component InviteCampaigns()
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('admin.campaigns.failed') } onRetry={ () => void first.refetch() } /> }
+            { () => <ErrorState error={ trouble } title={ locale.t('admin.campaigns.failed') } onRetry={ () => void first.refetch() } /> }
         </Show>
 
         <Show when={ empty }>

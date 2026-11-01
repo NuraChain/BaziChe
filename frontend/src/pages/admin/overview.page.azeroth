@@ -445,7 +445,7 @@ export default component OverviewPage()
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('admin.overview.failed') } onRetry={ () => void view.refetch() } /> }
+            { () => <ErrorState error={ trouble } title={ locale.t('admin.overview.failed') } onRetry={ () => void view.refetch() } /> }
         </Show>
 
         <Show when={ shown }>

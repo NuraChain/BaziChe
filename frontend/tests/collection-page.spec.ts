@@ -103,6 +103,16 @@ describe('the reader\'s collection', () =>
         expect(root.textContent).toContain('From your next game there');
     });
 
+    it('says a collection it could not read as that, with what went wrong, never as one that is empty', async () =>
+    {
+        server.shop.refuse = { status: 503, code: 'unknown' };
+        const root = await page();
+
+        expect(root.textContent).toContain('The shop could not be loaded.');
+        expect(root.querySelector('[data-error-lead]')?.textContent).toBe('The server is not answering right now. Try again in a moment.');
+        expect(root.querySelector('[data-slot]')).toBeNull();
+    });
+
     it('offers what the reader owns where it goes, and chooses it at a press', async () =>
     {
         server.shop.owned = [

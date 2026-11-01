@@ -957,7 +957,7 @@ export default component PlayPage()
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => void lobby.refresh() } class="py-12" /> }
+            { () => <ErrorState error={ lobby.failed() } title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => void lobby.refresh() } class="py-12" /> }
         </Show>
 
         <Show when={ missing }>
@@ -1099,7 +1099,7 @@ export default component PlayPage()
                                     }
                                 </Show>
                                 <Show when={ watch.failed() || watchLost }>
-                                    { () => <ErrorState title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ rewatch } class="py-12" /> }
+                                    { () => <ErrorState error={ watch.error() } title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ rewatch } class="py-12" /> }
                                 </Show>
                             </div>
                         }

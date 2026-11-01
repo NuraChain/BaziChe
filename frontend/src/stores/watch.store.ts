@@ -19,6 +19,8 @@ export interface WatchApi
 
     failed: Getter<boolean>;
 
+    error: Getter<unknown>;
+
     open(matchId: string): void;
     close(): void;
     settle(): void;
@@ -34,7 +36,7 @@ export const useWatch = createStore((): WatchApi =>
     const [view, setView] = createSignal<Watched | null>(null);
     const [events, setEvents] = createSignal<EventBatch>(NO_EVENTS);
     const [missing, setMissing] = createSignal(false);
-    const [lost, setLost] = createSignal(false);
+    const [lost, setLost] = createSignal<unknown>(null);
 
     const opened = new Set<string>();
 
@@ -75,7 +77,7 @@ export const useWatch = createStore((): WatchApi =>
         batch(() =>
         {
             setMissing(false);
-            setLost(false);
+            setLost(null);
             setView(shown);
 
             if (explained)
@@ -117,13 +119,13 @@ export const useWatch = createStore((): WatchApi =>
                 batch(() =>
                 {
                     setMissing(true);
-                    setLost(false);
+                    setLost(null);
                     setView(null);
                 });
             }
             else
             {
-                setLost(true);
+                setLost(() => error);
             }
         }
     };
@@ -172,7 +174,7 @@ export const useWatch = createStore((): WatchApi =>
         {
             setView(null);
             setMissing(false);
-            setLost(false);
+            setLost(null);
         });
     };
 
@@ -182,7 +184,8 @@ export const useWatch = createStore((): WatchApi =>
         view,
         events,
         refused: () => missing() && matchId() !== null,
-        failed: () => lost() && view() === null && matchId() !== null,
+        failed: () => lost() !== null && view() === null && matchId() !== null,
+        error: lost,
 
         open(id)
         {

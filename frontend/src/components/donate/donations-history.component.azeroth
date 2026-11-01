@@ -97,7 +97,7 @@ export default component DonationsHistory(props: { class?: string })
         </Show>
 
         <Show when={ refused }>
-            <ErrorState title={ locale.t('donate.history.failed') } onRetry={ () => donations.again(side) } />
+            <ErrorState error={ donations.listError(side) } title={ locale.t('donate.history.failed') } onRetry={ () => donations.again(side) } />
         </Show>
 
         <Show when={ bare }>

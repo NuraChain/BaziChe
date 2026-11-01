@@ -143,7 +143,7 @@ export default component WatchPage()
             </Show>
 
             <Show when={ failed }>
-                { () => <ErrorState title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => void tables.refetch() } class="py-10" /> }
+                { () => <ErrorState error={ tables.error() } title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => void tables.refetch() } class="py-10" /> }
             </Show>
 
             <Show when={ nobody }>

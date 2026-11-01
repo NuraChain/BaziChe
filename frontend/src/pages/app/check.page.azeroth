@@ -148,7 +148,7 @@ export default component CheckPage()
         </Show>
 
         <Show when={ failed }>
-            <ErrorState title={ locale.t('fair.failed') } onRetry={ () => void proof.refetch() } />
+            <ErrorState error={ trouble } title={ locale.t('fair.failed') } onRetry={ () => void proof.refetch() } />
         </Show>
 
         <Show when={ broken }>

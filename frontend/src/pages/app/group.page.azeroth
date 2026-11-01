@@ -243,7 +243,7 @@ export default component GroupPage()
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => void groups.refresh() } class="py-12" /> }
+            { () => <ErrorState error={ groups.viewFailed() } title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => void groups.refresh() } class="py-12" /> }
         </Show>
 
         <Show when={ missing }>

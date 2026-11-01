@@ -117,7 +117,7 @@ export default component PublicPersonPage()
             </Show>
 
             <Show when={ failed }>
-                { () => <ErrorState onRetry={ () => void view.refetch() } /> }
+                { () => <ErrorState error={ view.error() } onRetry={ () => void view.refetch() } /> }
             </Show>
 
             <Show when={ missing }>

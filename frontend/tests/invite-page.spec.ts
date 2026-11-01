@@ -265,6 +265,7 @@ describe('the reader\'s invite link', () =>
         const { container } = await page();
 
         expect(container.textContent).toContain('Your invite link could not be read.');
+        expect(container.querySelector('[data-error-lead]')?.textContent).toBe('The server is not answering right now. Try again in a moment.');
         expect(container.querySelector('[data-invite-url]')).toBeNull();
 
         server.myInvites.refuse = null;
@@ -404,6 +405,7 @@ describe('the friends it brought in', () =>
 
         expect(container.querySelector('[data-invite-nobody]')).toBeNull();
         expect(container.textContent).toContain('Your friends could not be read just now.');
+        expect(container.querySelector('[data-error-lead]')?.textContent).toBe('The server is not answering right now. Try again in a moment.');
 
         server.myInvites.refuse = null;
         fire(buttonNamed(container, 'Try again')!, 'click');
@@ -664,6 +666,7 @@ describe('the top inviters', () =>
         const { container } = await page('/app/invite?tab=top');
 
         expect(panel(container, 'top').textContent).toContain('The top inviters could not be read.');
+        expect(panel(container, 'top').querySelector('[data-error-lead]')?.textContent).toBe('The server is not answering right now. Try again in a moment.');
         expect(container.querySelector('[data-top-empty]')).toBeNull();
 
         server.myInvites.refuse = null;

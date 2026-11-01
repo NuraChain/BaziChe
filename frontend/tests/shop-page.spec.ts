@@ -221,6 +221,15 @@ describe('the shop page', () =>
         expect(refused.textContent).not.toContain('The shop is not open here');
     });
 
+    it('says a server that failed as that, under the failure', async () =>
+    {
+        server.shop.refuse = { status: 500, code: 'internal' };
+        const refused = await page();
+
+        expect(refused.textContent).toContain('The shop could not be loaded.');
+        expect(refused.querySelector('[data-error-lead]')?.textContent).toBe('Something went wrong on the server. Try again in a moment.');
+    });
+
     it('keeps every card where it is when the shop is read again', async () =>
     {
         const root = await page();

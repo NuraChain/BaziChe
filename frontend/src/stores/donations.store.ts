@@ -68,6 +68,7 @@ export interface DonationsApi
     list(side: Side): DonationView[];
     listLoading(side: Side): boolean;
     listFailed(side: Side): boolean;
+    listError(side: Side): unknown;
     hasOlder(side: Side): boolean;
     older(side: Side): Promise<void>;
     want(side: Side): void;
@@ -365,6 +366,8 @@ export const useDonations = createStore((): DonationsApi =>
         listLoading: (side) => pages[side].loading(),
 
         listFailed: (side) => pages[side].error() !== null && pages[side].data() === undefined,
+
+        listError: (side) => pages[side].error(),
 
         hasOlder: (side) => nextCursor(side) !== null,
 

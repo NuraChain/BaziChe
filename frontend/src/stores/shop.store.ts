@@ -65,10 +65,12 @@ export interface ShopApi
     state: Getter<ShopState | null>;
     loading: Getter<boolean>;
     failed: Getter<boolean>;
+    error: Getter<unknown>;
     unreached: Getter<boolean>;
     collection: Getter<ShopCollectionView | null>;
     collectionLoading: Getter<boolean>;
     collectionFailed: Getter<boolean>;
+    collectionError: Getter<unknown>;
 
     /** Whether the reader owns a look, or every look of a bundle. */
     owns(item: string): boolean;
@@ -433,6 +435,7 @@ export const useShop = createStore((): ShopApi =>
         state: () => state.data() ?? null,
         loading: () => state.loading(),
         failed: () => state.error() !== null,
+        error: state.error,
         unreached: () =>
         {
             const error = state.error();
@@ -444,6 +447,8 @@ export const useShop = createStore((): ShopApi =>
         collectionLoading: () => held.loading(),
 
         collectionFailed: () => held.error() !== null,
+
+        collectionError: held.error,
 
         owns: (item) => (bundleOf(item)?.looks ?? [item]).every((look) => owned(look)),
 

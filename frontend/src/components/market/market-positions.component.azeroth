@@ -160,7 +160,7 @@ export default component MarketPositions(props: { class?: string })
             </Show>
 
             <Show when={ refused }>
-                <ErrorState title={ locale.t('market.list.failed') } onRetry={ () => markets.again() } />
+                <ErrorState error={ markets.positionsError() } title={ locale.t('market.list.failed') } onRetry={ () => markets.again() } />
             </Show>
 
             <Show when={ bare }>

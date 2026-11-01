@@ -126,6 +126,28 @@ afterEach(() =>
 
 describe('watching a game', () =>
 {
+    it('keeps what a read failed with until a read lands, so the page can say what went wrong', async () =>
+    {
+        const failure = new ApiError(500, 'internal', 'Something went wrong.', undefined);
+
+        matches.watch = vi.fn(async () =>
+        {
+            throw failure;
+        });
+        useWatch().open('match-1');
+        await settle();
+
+        expect(useWatch().failed()).toBe(true);
+        expect(useWatch().error()).toBe(failure);
+
+        matches.watch = vi.fn(async ({ params, query }: { params: { id: string }; query: { rev: string } }) => answerOf(params.id, query.rev));
+        useWatch().retry();
+        await settle();
+
+        expect(useWatch().failed()).toBe(false);
+        expect(useWatch().error()).toBeNull();
+    });
+
     it('asks from the beginning the first time and from the revision it holds after that', async () =>
     {
         useWatch().open('match-1');

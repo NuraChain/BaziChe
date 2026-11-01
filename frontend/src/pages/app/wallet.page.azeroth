@@ -176,7 +176,7 @@ export default component WalletPage()
         </Show>
 
         <Show when={ refused }>
-            <ErrorState title={ locale.t('vault.failed') } lead={ unreachedLead } onRetry={ () => void vaults.refresh() } />
+            <ErrorState error={ vaults.error() } title={ locale.t('vault.failed') } lead={ unreachedLead } onRetry={ () => void vaults.refresh() } />
         </Show>
 
         <Show when={ off }>

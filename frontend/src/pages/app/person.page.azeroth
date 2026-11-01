@@ -156,7 +156,7 @@ export default component PersonPage()
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => view.refetch() } class="py-12" /> }
+            { () => <ErrorState error={ view.error() } title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => view.refetch() } class="py-12" /> }
         </Show>
 
         <Show when={ missing }>

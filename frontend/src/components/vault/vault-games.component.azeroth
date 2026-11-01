@@ -115,7 +115,7 @@ export default component VaultGames(props: { owner: string; chainId: number; rec
         </Show>
 
         <Show when={ refused }>
-            <ErrorState title={ locale.t('vault.games.failed') } onRetry={ () => void first.refetch() } />
+            <ErrorState error={ first.error() } title={ locale.t('vault.games.failed') } onRetry={ () => void first.refetch() } />
         </Show>
 
         <Show when={ bare }>

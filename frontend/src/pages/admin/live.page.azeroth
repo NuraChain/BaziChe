@@ -102,7 +102,7 @@ export default component LivePage()
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('admin.live.failed') } onRetry={ () => void first.refetch() } /> }
+            { () => <ErrorState error={ trouble } title={ locale.t('admin.live.failed') } onRetry={ () => void first.refetch() } /> }
         </Show>
 
         <Show when={ empty }>

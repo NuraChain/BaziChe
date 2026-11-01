@@ -226,7 +226,7 @@ export default component AdminShopMoney()
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('admin.shopMoney.failed') } onRetry={ () => void money.refetch() } /> }
+            { () => <ErrorState error={ trouble } title={ locale.t('admin.shopMoney.failed') } onRetry={ () => void money.refetch() } /> }
         </Show>
 
         <Show when={ off }>

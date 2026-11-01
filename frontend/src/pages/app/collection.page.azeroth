@@ -150,7 +150,7 @@ export default component CollectionPage()
         </Show>
 
         <Show when={ refused }>
-            <ErrorState title={ locale.t('shop.failed') } onRetry={ () => void shop.refresh() } />
+            <ErrorState error={ shop.collectionError() } title={ locale.t('shop.failed') } onRetry={ () => void shop.refresh() } />
         </Show>
 
         <Show when={ shown }>

@@ -35,6 +35,7 @@ export interface VaultApi
     open: Getter<boolean>;
     loading: Getter<boolean>;
     failed: Getter<boolean>;
+    error: Getter<unknown>;
     unreached: Getter<boolean>;
     busy: Getter<boolean>;
     moved: Getter<number>;
@@ -217,6 +218,7 @@ export const useVault = createStore((): VaultApi =>
         open: () => state.data()?.configured === true,
         loading: () => state.loading(),
         failed: () => state.error() !== null,
+        error: state.error,
         unreached: () =>
         {
             const error = state.error();

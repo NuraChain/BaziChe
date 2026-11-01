@@ -355,7 +355,7 @@ export default component AdminVault()
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('admin.vault.failed') } onRetry={ () => void admin.refetch() } /> }
+            { () => <ErrorState error={ trouble } title={ locale.t('admin.vault.failed') } onRetry={ () => void admin.refetch() } /> }
         </Show>
 
         <Show when={ off }>

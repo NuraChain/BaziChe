@@ -238,7 +238,7 @@ export default component ShopOrders()
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('admin.shop.orders.failed') } onRetry={ () => void first.refetch() } /> }
+            { () => <ErrorState error={ trouble } title={ locale.t('admin.shop.orders.failed') } onRetry={ () => void first.refetch() } /> }
         </Show>
 
         <Show when={ none }>

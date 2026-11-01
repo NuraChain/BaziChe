@@ -230,7 +230,7 @@ export default component NoticePage()
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('admin.notice.failed') } onRetry={ () => void read.refetch() } /> }
+            { () => <ErrorState error={ trouble } title={ locale.t('admin.notice.failed') } onRetry={ () => void read.refetch() } /> }
         </Show>
 
         <div class="grid items-start gap-6 @4xl:grid-cols-2" data-split>

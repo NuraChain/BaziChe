@@ -128,7 +128,7 @@ export default component PlayPage()
             </Show>
 
             <Show when={ failed }>
-                { () => <ErrorState title={ locale.t('admin.play.failed') } onRetry={ () => void read.refetch() } /> }
+                { () => <ErrorState error={ trouble } title={ locale.t('admin.play.failed') } onRetry={ () => void read.refetch() } /> }
             </Show>
 
             <Show when={ listed }>

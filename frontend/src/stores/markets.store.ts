@@ -98,6 +98,7 @@ export interface MarketsApi
     positions: Getter<MarketPositionView[]>;
     positionsLoading: Getter<boolean>;
     positionsFailed: Getter<boolean>;
+    positionsError: Getter<unknown>;
     hasOlder: Getter<boolean>;
     older(): Promise<void>;
     wantPositions(): void;
@@ -539,6 +540,8 @@ export const useMarkets = createStore((): MarketsApi =>
         positionsLoading: () => page.loading(),
 
         positionsFailed: () => page.error() !== null && page.data() === undefined,
+
+        positionsError: page.error,
 
         hasOlder: () => nextCursor() !== null,
 

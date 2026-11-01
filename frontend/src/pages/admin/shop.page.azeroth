@@ -220,7 +220,7 @@ export default component ShopAdminPage()
             </Show>
 
             <Show when={ failed }>
-                { () => <ErrorState title={ locale.t('admin.shop.failed') } onRetry={ () => void read.refetch() } /> }
+                { () => <ErrorState error={ trouble } title={ locale.t('admin.shop.failed') } onRetry={ () => void read.refetch() } /> }
             </Show>
 
             <Show when={ ready }>

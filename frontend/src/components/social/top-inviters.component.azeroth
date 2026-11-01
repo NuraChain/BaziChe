@@ -14,7 +14,7 @@ import Skeleton from '../ui/skeleton.component.azeroth';
  * their own, the reader's row marked, and below it why the reader is not there or where they are when
  * that is past the twenty.
  */
-export default component TopInviters(props: { board: InviteBoard | null; failed: boolean; me: string; minor: boolean; onRetry: () => void })
+export default component TopInviters(props: { board: InviteBoard | null; failed: boolean; error?: unknown; me: string; minor: boolean; onRetry: () => void })
 {
     const locale = useLocale();
 
@@ -63,7 +63,7 @@ export default component TopInviters(props: { board: InviteBoard | null; failed:
         </Show>
 
         <Show when={ lost }>
-            { () => <ErrorState title={ locale.t('invite.top.failed') } onRetry={ () => props.onRetry() } /> }
+            { () => <ErrorState error={ props.error } title={ locale.t('invite.top.failed') } onRetry={ () => props.onRetry() } /> }
         </Show>
 
         <Show when={ empty }>

@@ -196,7 +196,7 @@ export default component InvitePage()
             </Show>
 
             <Show when={ refused }>
-                <ErrorState title={ locale.t('invite.page.failed') } onRetry={ () => invites.refresh() } />
+                <ErrorState error={ invites.failure() } title={ locale.t('invite.page.failed') } onRetry={ () => invites.refresh() } />
             </Show>
 
             <Show when={ shown }>
@@ -273,7 +273,7 @@ export default component InvitePage()
                             </div>
                         </Show>
                         <Show when={ lostPeople }>
-                            <ErrorState title={ locale.t('invite.page.peopleFailed') } class="py-6" onRetry={ () => void invites.more() } />
+                            <ErrorState error={ invites.peopleFailure() } title={ locale.t('invite.page.peopleFailed') } class="py-6" onRetry={ () => void invites.more() } />
                         </Show>
                         <Show when={ invited }>
                             <ul class="divide-y divide-line" data-invite-people>
@@ -321,7 +321,7 @@ export default component InvitePage()
         </div>
 
         <div role="tabpanel" aria-label={ locale.t('invite.page.tab.top') } hidden={ !onTop } data-panel="top">
-            <TopInviters board={ invites.board() } failed={ invites.boardFailed() } me={ me } minor={ minor } onRetry={ () => invites.readBoard() } />
+            <TopInviters board={ invites.board() } failed={ invites.boardFailed() } error={ invites.boardFailure() } me={ me } minor={ minor } onRetry={ () => invites.readBoard() } />
         </div>
     </Page>
 }

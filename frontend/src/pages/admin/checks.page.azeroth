@@ -214,7 +214,7 @@ export default component ChecksPage()
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('admin.checks.failed') } onRetry={ () => void first.refetch() } /> }
+            { () => <ErrorState error={ trouble } title={ locale.t('admin.checks.failed') } onRetry={ () => void first.refetch() } /> }
         </Show>
 
         <Show when={ off }>

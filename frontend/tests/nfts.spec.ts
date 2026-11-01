@@ -176,7 +176,7 @@ describe('the NFT page', () =>
         expect(persian).not.toContain(useLocale().t('state.errorLead'));
     });
 
-    it('keeps the plain sentence for a failure that is not the chain', async () =>
+    it('says the server failed, and not the chain, for a failure that is not the chain', async () =>
     {
         signIn();
         server.nfts = { configured: true, items: [] };
@@ -187,7 +187,7 @@ describe('the NFT page', () =>
         asked.mockRestore();
 
         expect(text).toContain('Could not read your NFTs');
-        expect(text).toContain(useLocale().t('state.errorLead'));
+        expect(text).toContain(useLocale().t('failure.server'));
         expect(text).not.toContain('could not be reached just now');
     });
 

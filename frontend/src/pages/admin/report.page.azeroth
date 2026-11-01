@@ -214,7 +214,7 @@ export default component ReportPage()
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('admin.report.failed') } onRetry={ () => void view.refetch() } /> }
+            { () => <ErrorState error={ trouble } title={ locale.t('admin.report.failed') } onRetry={ () => void view.refetch() } /> }
         </Show>
 
         <Show when={ missing }>

@@ -402,6 +402,7 @@ describe('the wallet page\'s markets', () =>
         root = await positions();
 
         expect(root.textContent).toContain('Your positions could not be read.');
+        expect(root.querySelector('[data-error-lead]')?.textContent).toBe('The server is not answering right now. Try again in a moment.');
         expect(root.textContent).not.toContain('You have not backed a game yet.');
     });
 

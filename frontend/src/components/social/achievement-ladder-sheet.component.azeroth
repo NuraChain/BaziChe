@@ -50,7 +50,7 @@ export default component AchievementLadderSheet(props: OverlayProps & { handle: 
         </Show>
 
         <Show when={ ladder.error() !== null && rungs.length === 0 }>
-            { () => <ErrorState onRetry={ () => void ladder.refetch() } /> }
+            { () => <ErrorState error={ ladder.error() } onRetry={ () => void ladder.refetch() } /> }
         </Show>
 
         <Show when={ rungs.length > 0 }>

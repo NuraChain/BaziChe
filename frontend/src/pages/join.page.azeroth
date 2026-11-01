@@ -147,7 +147,7 @@ export default component JoinPage()
             </Show>
 
             <Show when={ failed }>
-                { () => <ErrorState onRetry={ () => void card.refetch() } /> }
+                { () => <ErrorState error={ card.error() } onRetry={ () => void card.refetch() } /> }
             </Show>
 
             <Show when={ gone }>

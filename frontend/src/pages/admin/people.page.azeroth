@@ -163,7 +163,7 @@ export default component PeoplePage()
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('admin.people.failed') } onRetry={ () => void first.refetch() } /> }
+            { () => <ErrorState error={ trouble } title={ locale.t('admin.people.failed') } onRetry={ () => void first.refetch() } /> }
         </Show>
 
         <Show when={ empty }>

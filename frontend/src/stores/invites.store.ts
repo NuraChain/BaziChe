@@ -14,6 +14,7 @@ export interface InvitesApi
     summary: Getter<InviteSummary | null>;
     loading: Getter<boolean>;
     failed: Getter<boolean>;
+    failure: Getter<unknown>;
 
     /** The friends they invited, newest first, as many pages as have been read. */
     people: Getter<InvitedPerson[]>;
@@ -21,6 +22,7 @@ export interface InvitesApi
 
     /** The last page was refused; the button that asks for more is the retry. */
     peopleFailed: Getter<boolean>;
+    peopleFailure: Getter<unknown>;
     hasMore: Getter<boolean>;
 
     renewing: Getter<boolean>;
@@ -28,6 +30,7 @@ export interface InvitesApi
     /** The top inviters, or null before the first answer; a read that fails keeps what was on screen. */
     board: Getter<InviteBoard | null>;
     boardFailed: Getter<boolean>;
+    boardFailure: Getter<unknown>;
 
     /** Reads the top inviters; the tab that shows them asks, each time it is opened. */
     readBoard(): void;
@@ -59,15 +62,15 @@ export const useInvites = createStore((): InvitesApi =>
     const known = usePeople();
     const [summary, setSummary] = createSignal<InviteSummary | null>(null);
     const [loading, setLoading] = createSignal(false);
-    const [failed, setFailed] = createSignal(false);
+    const [failure, setFailure] = createSignal<unknown>(null);
     const [people, setPeople] = createSignal<InvitedPerson[]>([]);
     const [cursor, setCursor] = createSignal<string | null>(null);
     const [exhausted, setExhausted] = createSignal(false);
     const [reading, setReading] = createSignal(false);
-    const [peopleFailed, setPeopleFailed] = createSignal(false);
+    const [peopleFailure, setPeopleFailure] = createSignal<unknown>(null);
     const [renewing, setRenewing] = createSignal(false);
     const [board, setBoard] = createSignal<InviteBoard | null>(null);
-    const [boardFailed, setBoardFailed] = createSignal(false);
+    const [boardFailure, setBoardFailure] = createSignal<unknown>(null);
 
     let asked = 0;
     let paged = 0;
@@ -89,14 +92,14 @@ export const useInvites = createStore((): InvitesApi =>
             if (mine === asked)
             {
                 setSummary(answer);
-                setFailed(false);
+                setFailure(null);
             }
         }
-        catch
+        catch (error)
         {
             if (mine === asked)
             {
-                setFailed(true);
+                setFailure(() => error);
             }
         }
         finally
@@ -121,15 +124,15 @@ export const useInvites = createStore((): InvitesApi =>
             if (mine === boarded)
             {
                 setBoard(answer);
-                setBoardFailed(false);
+                setBoardFailure(null);
                 void known.want(answer.rows.map((row) => row.person.handle));
             }
         }
-        catch
+        catch (error)
         {
             if (mine === boarded)
             {
-                setBoardFailed(true);
+                setBoardFailure(() => error);
             }
         }
     };
@@ -138,7 +141,7 @@ export const useInvites = createStore((): InvitesApi =>
     {
         boarded += 1;
         setBoard(null);
-        setBoardFailed(false);
+        setBoardFailure(null);
     };
 
     const startOver = () =>
@@ -148,7 +151,7 @@ export const useInvites = createStore((): InvitesApi =>
         setCursor(null);
         setExhausted(false);
         setReading(false);
-        setPeopleFailed(false);
+        setPeopleFailure(null);
     };
 
     const more = async () =>
@@ -171,15 +174,15 @@ export const useInvites = createStore((): InvitesApi =>
                 setPeople((held) => [...held, ...page.people]);
                 setCursor(page.cursor ?? null);
                 setExhausted(page.cursor === undefined);
-                setPeopleFailed(false);
+                setPeopleFailure(null);
                 void known.want(page.people.map((one) => one.person.handle));
             }
         }
-        catch
+        catch (error)
         {
             if (mine === paged)
             {
-                setPeopleFailed(true);
+                setPeopleFailure(() => error);
             }
         }
         finally
@@ -201,14 +204,17 @@ export const useInvites = createStore((): InvitesApi =>
     return {
         summary,
         loading,
-        failed,
+        failed: () => failure() !== null,
+        failure,
         people,
         peopleLoading: reading,
-        peopleFailed,
+        peopleFailed: () => peopleFailure() !== null,
+        peopleFailure,
         hasMore: () => !exhausted(),
         renewing,
         board,
-        boardFailed,
+        boardFailed: () => boardFailure() !== null,
+        boardFailure,
         more,
         refresh,
 
@@ -223,7 +229,7 @@ export const useInvites = createStore((): InvitesApi =>
             letBoardGo();
             setSummary(null);
             setLoading(false);
-            setFailed(false);
+            setFailure(null);
         },
 
         renew()
@@ -239,7 +245,7 @@ export const useInvites = createStore((): InvitesApi =>
                     asked += 1;
                     setSummary(answer);
                     setLoading(false);
-                    setFailed(false);
+                    setFailure(null);
                     return null;
                 }
                 catch (error)
@@ -270,7 +276,7 @@ export const useInvites = createStore((): InvitesApi =>
             letBoardGo();
             setSummary(null);
             setLoading(false);
-            setFailed(false);
+            setFailure(null);
             setRenewing(false);
         }
     };

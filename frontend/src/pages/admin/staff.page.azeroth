@@ -192,7 +192,7 @@ export default component StaffPage()
                 </Show>
 
                 <Show when={ failed }>
-                    { () => <ErrorState title={ locale.t('admin.staff.failed') } onRetry={ retry } /> }
+                    { () => <ErrorState error={ trouble } title={ locale.t('admin.staff.failed') } onRetry={ retry } /> }
                 </Show>
 
                 <Show when={ listed }>

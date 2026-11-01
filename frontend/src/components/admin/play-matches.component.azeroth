@@ -146,7 +146,7 @@ export default component PlayMatches(props: { list: MatchList; reader?: PlayRead
         </Show>
 
         <Show when={ failed }>
-            { () => <ErrorState title={ locale.t('admin.play.listFailed') } onRetry={ () => void first.refetch() } /> }
+            { () => <ErrorState error={ trouble } title={ locale.t('admin.play.listFailed') } onRetry={ () => void first.refetch() } /> }
         </Show>
 
         <Show when={ empty }>

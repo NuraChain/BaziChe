@@ -1379,8 +1379,16 @@ a failed chat line (`sealSentenceOf`), the invite page's new code, a privacy or 
 Settings and a browser signed out on the devices page. Twelve sentences, `failure.*` in ten languages.
 Adding this browser with the wallet keeps its two sentences: the devices store has already turned a
 request that never got there into its own word, and the only failure left after it is the read that
-follows a browser added, which "could not be reached" would misdescribe. A read that fails (a page's
-`ErrorState`) is not in it yet: its stores keep that they failed and not why. `failure.spec.ts` holds
+follows a browser added, which "could not be reached" would misdescribe. A read that fails says it
+the same way: `ErrorState` takes the failure (`error`) and says what went wrong on the way in place of
+its lead, and its lead (the page's own words, or "If this keeps happening, check your connection.")
+for anything else, because a refused read is the page's to word (a missing person is the profile's
+"No such person."). Every panel with a request behind it is handed what the request failed with: the
+stores that kept only that a read failed keep the failure too (`shop.error` and `collectionError`,
+`vaults.error`, `donations.listError`, `markets.positionsError`, the invites store's `failure`,
+`peopleFailure` and `boardFailure`, `watch.error`), and `error-state.spec.ts` holds every
+`<ErrorState` in the source to it but the four with no request behind them (a part of the page that
+would not load, and a proof that does not check). `failure.spec.ts` holds
 the tiers and the money's readers, `feedback.spec.ts` `attempt`, `table-refusals.spec.ts` the table's
 words, `sheet-loaders.spec.ts` the nine sheets (a module whose export throws the browser's own
 `TypeError`, because vitest wraps a factory that throws in an error of its own), and

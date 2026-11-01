@@ -121,7 +121,7 @@ export default component ShopPage()
         </Show>
 
         <Show when={ refused }>
-            <ErrorState title={ locale.t('shop.failed') } lead={ unreachedLead } onRetry={ () => void shop.refresh() } />
+            <ErrorState error={ shop.error() } title={ locale.t('shop.failed') } lead={ unreachedLead } onRetry={ () => void shop.refresh() } />
         </Show>
 
         <Show when={ closed }>

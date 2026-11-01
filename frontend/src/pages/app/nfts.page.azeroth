@@ -122,7 +122,7 @@ export default component NftsPage()
         </Show>
 
         <Show when={ refused }>
-            { () => <ErrorState title={ locale.t('nfts.failed') } lead={ unreached ? locale.t('nfts.unreached', { chain: NURA_CHAIN.name }) : undefined } onRetry={ () => first.refetch() } /> }
+            { () => <ErrorState error={ first.error() } title={ locale.t('nfts.failed') } lead={ unreached ? locale.t('nfts.unreached', { chain: NURA_CHAIN.name }) : undefined } onRetry={ () => first.refetch() } /> }
         </Show>
 
         <Show when={ bare }>

@@ -136,6 +136,17 @@ describe('the page of a player\'s NURA', () =>
         expect(server.calls.filter((call) => call.startsWith('vault.games'))).toEqual([]);
     });
 
+    it('says a server that failed as that, under the vault it could not read', async () =>
+    {
+        server.nura.refuse = { status: 500, code: 'internal' };
+        signIn();
+
+        const container = await page();
+        const failed = [...container.querySelectorAll('[role="alert"]')].find((one) => one.textContent?.includes('Your NURA could not be read.'));
+
+        expect(failed?.querySelector('[data-error-lead]')?.textContent).toBe('Something went wrong on the server. Try again in a moment.');
+    });
+
     it('says NuraChain could not be reached rather than showing an empty vault, and reads it again when asked', async () =>
     {
         server.nura.refuse = { status: 503, code: 'chain-unreachable' };
@@ -759,6 +770,7 @@ describe('the NURA people sent the reader, and the NURA they sent', () =>
         const section = container.querySelector('[data-donations]')!;
 
         expect(section.textContent).toContain('Your donations could not be read.');
+        expect(section.querySelector('[data-error-lead]')?.textContent).toBe('Something went wrong on the server. Try again in a moment.');
         expect(section.textContent).not.toContain('Nobody has sent you NURA yet.');
 
         server.donate.historyRefuse = null;

@@ -24,6 +24,9 @@ export default component FileSheet(props: OverlayProps & {
 
     /** The composer's words became the caption: it empties once the file has gone. */
     onSent: () => void;
+
+    /** Where it goes instead of the room's thread: a channel posts it. */
+    onSend?: (draft: FileDraft, caption: string) => Promise<void>;
 })
 {
     const locale = useLocale();
@@ -145,7 +148,7 @@ export default component FileSheet(props: OverlayProps & {
         sending = true;
         props.onSent();
         props.close(true);
-        void chat.sendFile(props.room, made, caption).catch(() => undefined);
+        void (props.onSend === undefined ? chat.sendFile(props.room, made, caption) : props.onSend(made, caption)).catch(() => undefined);
     };
 
     <div class="flex flex-col gap-4 p-5" data-file-sheet>

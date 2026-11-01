@@ -199,11 +199,14 @@ describe('putting an announcement up', () =>
             ['admin-notice-why-error', 'Say why, in three characters or more.']
         ]);
         expect(sentOf('admin.putNotice')).toEqual([]);
+        expect(['admin-notice-en', 'admin-notice-fa', 'admin-notice-why'].map((id) => field(container, id).getAttribute('aria-invalid'))).toEqual(['true', 'true', 'true']);
+        expect(document.activeElement, 'the keyboard was left on the button').toBe(field(container, 'admin-notice-en'));
 
         typeInto(field(container, 'admin-notice-en'), EN);
         await settle();
 
         expect(errors(container).map(([id]) => id)).toEqual(['admin-notice-fa-error', 'admin-notice-why-error']);
+        expect(field(container, 'admin-notice-en').getAttribute('aria-invalid')).toBe('false');
     });
 
     it('puts it up at the press with each line folded to one, for the time chosen, and says so once the server has', async () =>

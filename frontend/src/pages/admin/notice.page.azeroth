@@ -18,6 +18,7 @@ import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import TextArea from '../../components/ui/text-area.component.azeroth';
 import Icon from '../../icons/icon.component.azeroth';
 import { attempt } from '../../lib/attempt.ts';
+import { focusFirstInvalid } from '../../lib/form.ts';
 import { createGuesses } from '../../lib/guess.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { whyStaffRefused } from '../../lib/staff-words.ts';
@@ -60,6 +61,8 @@ export default component NoticePage()
     state faTold = null as string | null;
 
     state whyTold = null as string | null;
+
+    let form: HTMLElement | null = null;
 
     derived held = read.data() ?? null;
 
@@ -140,6 +143,7 @@ export default component NoticePage()
 
         if (enTold !== null || faTold !== null || whyTold !== null)
         {
+            focusFirstInvalid(form);
             return;
         }
 
@@ -279,7 +283,7 @@ export default component NoticePage()
             </div>
 
             <Show when={ known }>
-                <div class="@4xl:sticky @4xl:top-8" data-form>
+                <div ref={ (element) => form = element } class="@4xl:sticky @4xl:top-8" data-form>
                     <Panel pad="md" stack="md" labelledBy="admin-notice-new">
                         <div class="flex flex-col gap-1">
                             <h2 id="admin-notice-new" class="text-ui-md font-semibold text-text">{ locale.t('admin.notice.form') }</h2>
@@ -290,6 +294,7 @@ export default component NoticePage()
                                 id="admin-notice-en"
                                 value={ en }
                                 maxlength={ NOTICE_MAX }
+                                invalid={ enTold !== null }
                                 describedBy={ enTold !== null ? 'admin-notice-en-error' : 'admin-notice-en-hint' }
                                 onInput={ typedEn }
                                 onEnter={ () => undefined }
@@ -300,6 +305,7 @@ export default component NoticePage()
                                 id="admin-notice-fa"
                                 value={ fa }
                                 maxlength={ NOTICE_MAX }
+                                invalid={ faTold !== null }
                                 describedBy={ faTold !== null ? 'admin-notice-fa-error' : 'admin-notice-fa-hint' }
                                 onInput={ typedFa }
                                 onEnter={ () => undefined }
@@ -322,6 +328,7 @@ export default component NoticePage()
                                 id="admin-notice-why"
                                 value={ why }
                                 maxlength={ 500 }
+                                invalid={ whyTold !== null }
                                 describedBy={ whyTold !== null ? 'admin-notice-why-error' : 'admin-notice-why-hint' }
                                 onInput={ typedWhy }
                             />

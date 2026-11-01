@@ -262,6 +262,8 @@ describe('the staff', () =>
         expect(said(container, '#admin-staff-handle-error')).toBe('Type the handle of the person.');
         expect(said(container, '#admin-staff-reason-error')).toBe('Say why, in three characters or more.');
         expect(server.calls.slice(before)).toEqual([]);
+        expect(container.querySelector('#admin-staff-reason')?.getAttribute('aria-invalid')).toBe('true');
+        expect(document.activeElement, 'the keyboard was left on Save').toBe(container.querySelector('#admin-staff-handle'));
     });
 
     it('takes somebody off the staff at the press, and moves the form to whoever Change was pressed for', async () =>

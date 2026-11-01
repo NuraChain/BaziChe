@@ -20,6 +20,8 @@ export default component Select(props: {
     hint?: string;
     hideLabel?: boolean;
     disabled?: boolean;
+    invalid?: boolean;
+    describedBy?: string;
     class?: string;
     onChange: (value: string) => void;
 })
@@ -212,13 +214,14 @@ export default component Select(props: {
             type="button"
             class={ () => [
                 'flex h-11 w-full min-w-0 cursor-pointer items-center gap-2 rounded-control border bg-sunk px-3 text-start text-ui-md text-text transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50',
-                open ? 'border-accent' : 'border-line hover:border-line-strong'
+                open ? 'border-accent' : props.invalid === true ? 'border-danger' : 'border-line hover:border-line-strong'
             ].join(' ') }
             aria-haspopup="listbox"
             aria-expanded={ open }
             aria-controls={ open ? `${ id }-list` : undefined }
             aria-labelledby={ `${ id }-label ${ id }-value` }
-            aria-describedby={ props.hint === undefined ? undefined : `${ id }-hint` }
+            aria-describedby={ props.describedBy ?? (props.hint === undefined ? undefined : `${ id }-hint`) }
+            aria-invalid={ props.invalid === true }
             disabled={ props.disabled === true }
             onClick={ () => (open ? close(true) : show()) }
             onKeyDown={ onTrigger }

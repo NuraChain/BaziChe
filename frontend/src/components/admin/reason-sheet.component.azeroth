@@ -1,5 +1,6 @@
 import { untrack } from 'azerothjs';
 
+import { focusFirstInvalid } from '../../lib/form.ts';
 import { haptic } from '../../lib/haptics.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
@@ -23,6 +24,8 @@ export default component ReasonSheet(props: OverlayProps & {
 
     state told = null as string | null;
 
+    let sheet: HTMLElement | null = null;
+
     derived led = props.lead !== undefined;
 
     derived lead = props.lead ?? '';
@@ -40,6 +43,7 @@ export default component ReasonSheet(props: OverlayProps & {
         if (reason.length < REASON_MIN)
         {
             told = locale.t('admin.staff.reasonShort');
+            focusFirstInvalid(sheet);
             return;
         }
 
@@ -51,7 +55,7 @@ export default component ReasonSheet(props: OverlayProps & {
         props.close(reason);
     };
 
-    <div class="flex flex-col gap-5 p-5">
+    <div ref={ (element) => sheet = element } class="flex flex-col gap-5 p-5">
         <div>
             <h2 class="title text-ui-xl text-text">{ props.title }</h2>
             <Show when={ led }>
@@ -63,6 +67,7 @@ export default component ReasonSheet(props: OverlayProps & {
                 id="admin-reason"
                 value={ why }
                 maxlength={ 500 }
+                invalid={ told !== null }
                 describedBy={ told !== null ? 'admin-reason-error' : 'admin-reason-hint' }
                 onInput={ typed }
             />

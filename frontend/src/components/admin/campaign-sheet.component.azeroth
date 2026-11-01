@@ -2,7 +2,8 @@ import { untrack } from 'azerothjs';
 
 import { MILESTONES_MOST } from '../../../../backend/src/domains/admin/roles.ts';
 import type { AdminCampaignInput, AdminInviteCampaign } from '../../../../backend/src/schemas.ts';
-import { NAME_MAX, checked, localOf, type Step } from '../../lib/campaign-form.ts';
+import { NAME_MAX, checked, localOf, type Step, type WrongAt } from '../../lib/campaign-form.ts';
+import { focusFirstInvalid } from '../../lib/form.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
@@ -22,6 +23,9 @@ export interface CampaignAsk
 const REASON_MIN = 3;
 
 const FIRST_LOOK = 'nameplate.glow';
+
+/** The line that says the first thing wrong, which describes the field it is about. */
+const WRONG_LINE = 'admin-campaign-wrong';
 
 export default component CampaignSheet(props: OverlayProps & { campaign: AdminInviteCampaign | null; initial?: AdminCampaignInput })
 {
@@ -59,6 +63,10 @@ export default component CampaignSheet(props: OverlayProps & { campaign: AdminIn
 
     state told = null as MessageKey | null;
 
+    state toldAt = null as WrongAt | null;
+
+    let sheet: HTMLElement | null = null;
+
     state whyTold = null as string | null;
 
     derived title = props.campaign === null ? locale.t('admin.campaign.sheet.new') : locale.t('admin.campaign.sheet.change', { name: props.campaign.name });
@@ -70,6 +78,10 @@ export default component CampaignSheet(props: OverlayProps & { campaign: AdminIn
     derived said = told === null ? '' : locale.t(told);
 
     derived wrong = said !== '';
+
+    derived marked = told === null ? null : toldAt;
+
+    const markOf = (at: WrongAt) => (marked === at ? WRONG_LINE : undefined);
 
     const typedName = (value: string) =>
     {
@@ -137,10 +149,12 @@ export default component CampaignSheet(props: OverlayProps & { campaign: AdminIn
         const reason = why.trim();
 
         told = 'wrong' in result ? result.wrong : null;
+        toldAt = 'wrong' in result ? result.at : null;
         whyTold = reason.length < REASON_MIN ? locale.t('admin.staff.reasonShort') : null;
 
         if (!('input' in result) || whyTold !== null)
         {
+            focusFirstInvalid(sheet);
             return;
         }
 
@@ -149,7 +163,7 @@ export default component CampaignSheet(props: OverlayProps & { campaign: AdminIn
         props.close(ask);
     };
 
-    <div class="flex flex-col gap-5 p-5" data-campaign-sheet>
+    <div ref={ (element) => sheet = element } class="flex flex-col gap-5 p-5" data-campaign-sheet>
         <div>
             <h2 class="title text-ui-xl text-text">{ title }</h2>
             <Show when={ fresh }>
@@ -158,7 +172,7 @@ export default component CampaignSheet(props: OverlayProps & { campaign: AdminIn
         </div>
 
         <Field id="admin-campaign-name" label={ locale.t('admin.campaign.name') }>
-            <Input id="admin-campaign-name" value={ name } maxlength={ NAME_MAX } onInput={ typedName } />
+            <Input id="admin-campaign-name" value={ name } maxlength={ NAME_MAX } invalid={ marked === 'name' } describedBy={ markOf('name') } onInput={ typedName } />
         </Field>
 
         <Show when={ fixed }>
@@ -166,7 +180,7 @@ export default component CampaignSheet(props: OverlayProps & { campaign: AdminIn
         </Show>
 
         <div data-for="inviter">
-            <LookPicker label={ locale.t('admin.campaign.forInviter') } value={ inviterItem } none={ locale.t('admin.campaign.nothing') } disabled={ fixed } onChange={ choseInviter } />
+            <LookPicker label={ locale.t('admin.campaign.forInviter') } value={ inviterItem } none={ locale.t('admin.campaign.nothing') } disabled={ fixed } invalid={ marked === 'looks' } describedBy={ markOf('looks') } onChange={ choseInviter } />
         </div>
         <div data-for="invitee">
             <LookPicker label={ locale.t('admin.campaign.forInvitee') } value={ inviteeItem } none={ locale.t('admin.campaign.nothing') } disabled={ fixed } onChange={ choseInvitee } />
@@ -178,7 +192,7 @@ export default component CampaignSheet(props: OverlayProps & { campaign: AdminIn
                 <div class="flex flex-col gap-3 rounded-tile border border-line p-3" data-step>
                     <div class="flex items-end gap-2">
                         <Field id={ `admin-step-${ step.key }` } label={ locale.t('admin.campaign.friends') } class="min-w-0 flex-1">
-                            <Input id={ `admin-step-${ step.key }` } value={ step.count } inputmode="numeric" disabled={ fixed } onInput={ (value) => setStep(step.key, { count: value }) } />
+                            <Input id={ `admin-step-${ step.key }` } value={ step.count } inputmode="numeric" disabled={ fixed } invalid={ marked === step.key } describedBy={ markOf(step.key) } onInput={ (value) => setStep(step.key, { count: value }) } />
                         </Field>
                         <Show when={ open }>
                             <IconButton icon="trash" label={ locale.t('admin.campaign.removeMilestone') } onClick={ () => dropStep(step.key) } />
@@ -193,7 +207,7 @@ export default component CampaignSheet(props: OverlayProps & { campaign: AdminIn
         </fieldset>
 
         <Field id="admin-campaign-most" label={ locale.t('admin.campaign.mostLabel') } hint={ locale.t('admin.campaign.mostHint') } optional>
-            <Input id="admin-campaign-most" value={ most } inputmode="numeric" onInput={ typedMost } />
+            <Input id="admin-campaign-most" value={ most } inputmode="numeric" invalid={ marked === 'most' } describedBy={ markOf('most') ?? 'admin-campaign-most-hint' } onInput={ typedMost } />
         </Field>
 
         <Toggle checked={ review } label={ locale.t('admin.campaign.reviewLabel') } description={ locale.t('admin.campaign.reviewHint') } onChange={ (on) => review = on } />
@@ -201,10 +215,10 @@ export default component CampaignSheet(props: OverlayProps & { campaign: AdminIn
         <div class="flex flex-col gap-2">
             <div class="grid gap-3 sm:grid-cols-2">
                 <Field id="admin-campaign-starts" label={ locale.t('admin.campaign.starts') } optional>
-                    <Input id="admin-campaign-starts" type="datetime-local" value={ startsAt } onInput={ typedStart } />
+                    <Input id="admin-campaign-starts" type="datetime-local" value={ startsAt } invalid={ marked === 'starts' } describedBy={ markOf('starts') } onInput={ typedStart } />
                 </Field>
                 <Field id="admin-campaign-ends" label={ locale.t('admin.campaign.ends') } optional>
-                    <Input id="admin-campaign-ends" type="datetime-local" value={ endsAt } onInput={ typedEnd } />
+                    <Input id="admin-campaign-ends" type="datetime-local" value={ endsAt } invalid={ marked === 'ends' } describedBy={ markOf('ends') } onInput={ typedEnd } />
                 </Field>
             </div>
             <p class="text-ui-xs text-faint">{ locale.t('admin.campaign.whenHint') }</p>
@@ -215,13 +229,14 @@ export default component CampaignSheet(props: OverlayProps & { campaign: AdminIn
                 id="admin-campaign-why"
                 value={ why }
                 maxlength={ 500 }
+                invalid={ whyTold !== null }
                 describedBy={ whyTold !== null ? 'admin-campaign-why-error' : 'admin-campaign-why-hint' }
                 onInput={ typedWhy }
             />
         </Field>
 
         <Show when={ wrong }>
-            <p class="text-ui-sm text-danger" role="alert" data-wrong>{ said }</p>
+            <p id={ WRONG_LINE } class="text-ui-sm text-danger" role="alert" data-wrong>{ said }</p>
         </Show>
 
         <div class="flex flex-col gap-2 sm:flex-row-reverse">

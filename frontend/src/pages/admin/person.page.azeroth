@@ -29,6 +29,7 @@ import type { GameId } from '../../data/games.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { attempt } from '../../lib/attempt.ts';
 import { copyText } from '../../lib/clipboard.ts';
+import { focusFirstInvalid } from '../../lib/form.ts';
 import { createGuesses, type Guess } from '../../lib/guess.ts';
 import { nuraOf } from '../../lib/nura.ts';
 import { useAddress } from '../../lib/page-param.ts';
@@ -128,6 +129,8 @@ export default component PersonPage()
     state noteText = '';
 
     state noteTold = null as string | null;
+
+    let noteForm: HTMLElement | null = null;
 
     derived held = view.data();
 
@@ -583,6 +586,7 @@ export default component PersonPage()
 
         if (noteTold !== null)
         {
+            focusFirstInvalid(noteForm);
             return;
         }
 
@@ -840,15 +844,18 @@ export default component PersonPage()
                                         <h3 id="person-note" class="text-ui-md font-semibold text-text">{ locale.t('admin.person.note') }</h3>
                                         <p class="text-ui-sm text-muted">{ locale.t('admin.person.noteLead') }</p>
                                     </div>
-                                    <Field id="admin-person-note" label={ locale.t('admin.person.noteLabel') } error={ noteTold }>
-                                        <TextArea
-                                            id="admin-person-note"
-                                            value={ noteText }
-                                            maxlength={ 500 }
-                                            describedBy={ noteTold !== null ? 'admin-person-note-error' : undefined }
-                                            onInput={ typedNote }
-                                        />
-                                    </Field>
+                                    <div ref={ (element) => noteForm = element }>
+                                        <Field id="admin-person-note" label={ locale.t('admin.person.noteLabel') } error={ noteTold }>
+                                            <TextArea
+                                                id="admin-person-note"
+                                                value={ noteText }
+                                                maxlength={ 500 }
+                                                invalid={ noteTold !== null }
+                                                describedBy={ noteTold !== null ? 'admin-person-note-error' : undefined }
+                                                onInput={ typedNote }
+                                            />
+                                        </Field>
+                                    </div>
                                     <Button variant="primary" class="self-start" onClick={ () => void keep() }>{ locale.t('admin.person.noteSave') }</Button>
                                 </Panel>
                             </Show>

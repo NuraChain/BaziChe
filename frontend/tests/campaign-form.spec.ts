@@ -57,29 +57,36 @@ describe('a campaign as the form holds it', () =>
 
     it('says the first thing wrong, in the order the server asks', () =>
     {
-        expect(checked(form({ name: ' ab ' }))).toEqual({ wrong: 'admin.campaign.nameShort' });
-        expect(checked(form({ name: 'a'.repeat(NAME_MAX + 1) }))).toEqual({ wrong: 'admin.campaign.nameShort' });
+        expect(checked(form({ name: ' ab ' }))).toEqual({ wrong: 'admin.campaign.nameShort', at: 'name' });
+        expect(checked(form({ name: 'a'.repeat(NAME_MAX + 1) }))).toEqual({ wrong: 'admin.campaign.nameShort', at: 'name' });
         expect(checked(form({ name: 'a'.repeat(NAME_MAX) }))).toHaveProperty('input');
-        expect(checked(form({ name: 'ab', inviterItem: null }))).toEqual({ wrong: 'admin.campaign.nameShort' });
-        expect(checked(form({ inviterItem: null }))).toEqual({ wrong: 'admin.campaign.givesNothing' });
+        expect(checked(form({ name: 'ab', inviterItem: null }))).toEqual({ wrong: 'admin.campaign.nameShort', at: 'name' });
+        expect(checked(form({ inviterItem: null }))).toEqual({ wrong: 'admin.campaign.givesNothing', at: 'looks' });
 
         for (const count of ['', '0', '1001', '2.5', '-3', 'ten'])
         {
-            expect(checked(form({ steps: [step(1, count)] }))).toEqual({ wrong: 'admin.campaign.countWrong' });
+            expect(checked(form({ steps: [step(1, count)] }))).toEqual({ wrong: 'admin.campaign.countWrong', at: 1 });
         }
 
         expect(checked(form({ steps: [step(1, '1000')] }))).toHaveProperty('input');
-        expect(checked(form({ steps: [step(1, '5'), step(2, '05')] }))).toEqual({ wrong: 'admin.campaign.sameCount' });
+        expect(checked(form({ steps: [step(1, '5'), step(2, '05')] }))).toEqual({ wrong: 'admin.campaign.sameCount', at: 2 });
 
         for (const most of ['0', '1001', '1.5', 'some'])
         {
-            expect(checked(form({ most }))).toEqual({ wrong: 'admin.campaign.mostWrong' });
+            expect(checked(form({ most }))).toEqual({ wrong: 'admin.campaign.mostWrong', at: 'most' });
         }
 
         expect(checked(form({ most: '1000' }))).toHaveProperty('input');
-        expect(checked(form({ startsAt: localOf('2026-11-08T08:00:00.000Z'), endsAt: localOf('2026-11-01T08:00:00.000Z') }))).toEqual({ wrong: 'admin.campaign.windowWrong' });
-        expect(checked(form({ startsAt: localOf('2026-11-08T08:00:00.000Z'), endsAt: localOf('2026-11-08T08:00:00.000Z') }))).toEqual({ wrong: 'admin.campaign.windowWrong' });
-        expect(checked(form({ startsAt: 'soon' }))).toEqual({ wrong: 'admin.campaign.windowWrong' });
+        expect(checked(form({ startsAt: localOf('2026-11-08T08:00:00.000Z'), endsAt: localOf('2026-11-01T08:00:00.000Z') }))).toEqual({ wrong: 'admin.campaign.windowWrong', at: 'ends' });
+        expect(checked(form({ startsAt: localOf('2026-11-08T08:00:00.000Z'), endsAt: localOf('2026-11-08T08:00:00.000Z') }))).toEqual({ wrong: 'admin.campaign.windowWrong', at: 'ends' });
+        expect(checked(form({ startsAt: 'soon' }))).toEqual({ wrong: 'admin.campaign.windowWrong', at: 'starts' });
+        expect(checked(form({ endsAt: 'soon' }))).toEqual({ wrong: 'admin.campaign.windowWrong', at: 'ends' });
+    });
+
+    it('names the milestone that is wrong, by its key, whichever it is', () =>
+    {
+        expect(checked(form({ steps: [step(4, '5'), step(7, '0'), step(9, '1001')] }))).toEqual({ wrong: 'admin.campaign.countWrong', at: 7 });
+        expect(checked(form({ steps: [step(4, '5'), step(7, '6'), step(9, '05'), step(11, '6')] }))).toEqual({ wrong: 'admin.campaign.sameCount', at: 9 });
     });
 
     it('takes a start alone and an end alone', () =>

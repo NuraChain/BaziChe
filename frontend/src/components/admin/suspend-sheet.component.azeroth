@@ -1,6 +1,7 @@
 import { untrack } from 'azerothjs';
 
 import { SUSPEND_CATEGORIES, type SuspendCategory, type SuspendDays } from '../../../../backend/src/domains/admin/roles.ts';
+import { focusFirstInvalid } from '../../lib/form.ts';
 import { haptic } from '../../lib/haptics.ts';
 import { CATEGORY_WORDS, TERM_WORDS } from '../../lib/staff-words.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -43,6 +44,8 @@ export default component SuspendSheet(props: OverlayProps & { name: string; gues
 
     state categoryTold = null as string | null;
 
+    let sheet: HTMLElement | null = null;
+
     derived days = TERM_DAYS[term];
 
     derived termSaid = locale.t(days === null ? 'admin.suspend.term.good' : TERM_WORDS[String(days)] ?? 'admin.suspend.term.good');
@@ -84,6 +87,7 @@ export default component SuspendSheet(props: OverlayProps & { name: string; gues
 
         if (kind === undefined || whyTold !== null)
         {
+            focusFirstInvalid(sheet);
             return;
         }
 
@@ -94,7 +98,7 @@ export default component SuspendSheet(props: OverlayProps & { name: string; gues
         props.close(ask);
     };
 
-    <div class="flex flex-col gap-5 p-5" data-suspend-sheet>
+    <div ref={ (element) => sheet = element } class="flex flex-col gap-5 p-5" data-suspend-sheet>
         <div>
             <h2 class="title text-ui-xl text-text" data-ask>{ title }</h2>
             <p class="mt-2 text-ui-base text-muted" data-lead>{ lead }</p>
@@ -104,9 +108,16 @@ export default component SuspendSheet(props: OverlayProps & { name: string; gues
             <Segmented block items={ terms } value={ term } label={ locale.t('admin.suspend.howLong') } onChange={ (id) => term = TERMS.find((one) => one === id) ?? '1' } />
         </div>
         <div class="flex flex-col gap-1.5" data-category>
-            <Select label={ locale.t('admin.suspend.category') } value={ category } options={ categories } onChange={ chose } />
+            <Select
+                label={ locale.t('admin.suspend.category') }
+                value={ category }
+                options={ categories }
+                invalid={ missing }
+                describedBy={ missing ? 'admin-suspend-category-error' : undefined }
+                onChange={ chose }
+            />
             <Show when={ missing }>
-                <p class="text-ui-xs font-medium text-danger" role="alert">{ categoryWords }</p>
+                <p id="admin-suspend-category-error" class="text-ui-xs font-medium text-danger" role="alert">{ categoryWords }</p>
             </Show>
         </div>
         <Field id="admin-suspend-why" label={ locale.t('admin.staff.reason') } hint={ locale.t('admin.staff.reasonHint') } error={ whyTold }>
@@ -114,6 +125,7 @@ export default component SuspendSheet(props: OverlayProps & { name: string; gues
                 id="admin-suspend-why"
                 value={ why }
                 maxlength={ 500 }
+                invalid={ whyTold !== null }
                 describedBy={ whyTold !== null ? 'admin-suspend-why-error' : 'admin-suspend-why-hint' }
                 onInput={ typedWhy }
             />

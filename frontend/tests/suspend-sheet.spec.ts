@@ -101,9 +101,21 @@ describe('the sheet that suspends an account', () =>
         expect(said(container, '[data-category] [role="alert"]')).toBe('Choose what it is for.');
         expect(said(container, '#admin-suspend-why-error')).toBe('Say why, in three characters or more.');
 
+        const category = container.querySelector<HTMLElement>('[data-category] [aria-haspopup="listbox"]')!;
+
+        expect(category.getAttribute('aria-invalid')).toBe('true');
+        expect(category.getAttribute('aria-describedby')).toBe('admin-suspend-category-error');
+        expect(container.querySelector('#admin-suspend-why')?.getAttribute('aria-invalid')).toBe('true');
+
+        await Promise.resolve();
+
+        expect(document.activeElement, 'the keyboard was left on the button').toBe(category);
+
         await choose(container, 'Cheating');
 
         expect(container.querySelector('[data-category] [role="alert"]')).toBeNull();
+        expect(category.getAttribute('aria-invalid')).toBe('false');
+        expect(category.hasAttribute('aria-describedby')).toBe(false);
     });
 
     it('opens on what it was handed, so a refused suspension is asked again as it was', () =>

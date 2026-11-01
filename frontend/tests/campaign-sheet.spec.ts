@@ -131,15 +131,31 @@ describe('the sheet that writes a campaign', () =>
         expect(container.querySelector('[data-wrong]')?.getAttribute('role')).toBe('alert');
         expect(said(container, '#admin-campaign-why-error')).toBe('Say why, in three characters or more.');
 
+        const name = container.querySelector<HTMLInputElement>('#admin-campaign-name')!;
+
+        expect(name.getAttribute('aria-invalid')).toBe('true');
+        expect(name.getAttribute('aria-describedby')).toBe('admin-campaign-wrong');
+        expect(container.querySelector('#admin-campaign-why')?.getAttribute('aria-invalid')).toBe('true');
+        expect(document.activeElement, 'the keyboard was left on Save').toBe(name);
+
         typeInto(container, '#admin-campaign-name', 'Spring friends');
         await settle();
 
         expect(container.querySelector('[data-wrong]')).toBeNull();
+        expect(name.getAttribute('aria-invalid'), 'the name kept its mark once it was fixed').toBe('false');
+        expect(name.hasAttribute('aria-describedby')).toBe(false);
 
         fire(button(container, 'Save')!, 'click');
         await settle();
 
         expect(said(container, '[data-wrong]')).toBe('Choose at least one look to give.');
+        expect(name.getAttribute('aria-invalid'), 'a fixed name kept its mark').toBe('false');
+
+        const inviter = container.querySelector<HTMLElement>('[data-for="inviter"] [aria-haspopup="listbox"]')!;
+
+        expect(inviter.getAttribute('aria-invalid')).toBe('true');
+        expect(inviter.getAttribute('aria-describedby')).toBe('admin-campaign-wrong');
+        expect(document.activeElement).toBe(inviter);
 
         fire(button(container, 'Add a milestone')!, 'click');
         fire(button(container, 'Add a milestone')!, 'click');
@@ -158,6 +174,8 @@ describe('the sheet that writes a campaign', () =>
         await settle();
 
         expect(said(container, '[data-wrong]')).toBe('Two milestones ask for the same number of friends.');
+        expect(counts.map((field) => field.getAttribute('aria-invalid')), 'the second of the two is the one marked').toEqual(['false', 'true']);
+        expect(document.activeElement).toBe(counts[1]);
 
         typeInto(container, '#admin-campaign-starts', localOf('2026-11-08T08:00:00.000Z'));
         typeInto(container, '#admin-campaign-ends', localOf('2026-11-01T08:00:00.000Z'));
@@ -167,6 +185,8 @@ describe('the sheet that writes a campaign', () =>
         await settle();
 
         expect(said(container, '[data-wrong]')).toBe('It has to end after it starts.');
+        expect(container.querySelector('#admin-campaign-ends')?.getAttribute('aria-invalid')).toBe('true');
+        expect(container.querySelector('#admin-campaign-starts')?.getAttribute('aria-invalid')).toBe('false');
         expect(close).not.toHaveBeenCalled();
 
         fire(button(container, 'Cancel')!, 'click');

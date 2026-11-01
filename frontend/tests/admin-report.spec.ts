@@ -551,6 +551,8 @@ describe('one report', () =>
         expect(server.calls.filter((call) => call.startsWith('admin.review'))).toEqual([]);
         expect(said(container, '#admin-report-why-error')).toBe('Say why, in three characters or more.');
         expect(said(container, 'header [data-status]')).toBe('Waiting');
+        expect(container.querySelector('#admin-report-why')?.getAttribute('aria-invalid')).toBe('true');
+        expect(document.activeElement, 'the keyboard was left on the button').toBe(container.querySelector('#admin-report-why'));
     });
 
     it('offers no close on a report about the reader or about somebody at or above them, and says why', async () =>

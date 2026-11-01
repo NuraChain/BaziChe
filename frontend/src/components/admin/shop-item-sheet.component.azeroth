@@ -2,6 +2,7 @@ import { untrack } from 'azerothjs';
 
 import { SALE_HOURS, type SaleHours } from '../../../../backend/src/domains/admin/roles.ts';
 import { SHOP_ITEM_STATUSES, type ShopItemStatus } from '../../../../backend/src/domains/shop/policy.ts';
+import { focusFirstInvalid } from '../../lib/form.ts';
 import { nuraOf, parseNura, typedNura } from '../../lib/nura.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -91,6 +92,8 @@ export default component ShopItemSheet(props: OverlayProps & { item: AdminShopIt
     state told = null as string | null;
 
     state whyTold = null as string | null;
+
+    let sheet: HTMLElement | null = null;
 
     const amount = (wei: string | bigint) => locale.n(nuraOf(wei), { maximumFractionDigits: 4 });
 
@@ -215,6 +218,7 @@ export default component ShopItemSheet(props: OverlayProps & { item: AdminShopIt
 
         if (change === null || whyTold !== null)
         {
+            focusFirstInvalid(sheet);
             return;
         }
 
@@ -223,7 +227,7 @@ export default component ShopItemSheet(props: OverlayProps & { item: AdminShopIt
         props.close(ask);
     };
 
-    <div class="flex flex-col gap-5 p-5" data-shop-sheet>
+    <div ref={ (element) => sheet = element } class="flex flex-col gap-5 p-5" data-shop-sheet>
         <div class="flex items-center gap-3">
             <img src={ `/looks/${ props.item.id }.svg` } alt="" width="64" height="48" class="h-12 w-16 shrink-0 rounded-tile border border-line bg-sunk object-cover" />
             <h2 class="title min-w-0 text-ui-xl text-text" data-ask>{ props.name }</h2>
@@ -238,6 +242,7 @@ export default component ShopItemSheet(props: OverlayProps & { item: AdminShopIt
                     value={ priceTyped }
                     inputmode="decimal"
                     autocomplete="off"
+                    invalid={ telling }
                     describedBy={ telling ? 'admin-shop-price-error' : 'admin-shop-price-hint' }
                     onInput={ typedPrice }
                 />
@@ -258,6 +263,7 @@ export default component ShopItemSheet(props: OverlayProps & { item: AdminShopIt
                         value={ saleTyped }
                         inputmode="decimal"
                         autocomplete="off"
+                        invalid={ telling }
                         describedBy={ telling ? 'admin-shop-sale-error' : 'admin-shop-sale-hint' }
                         onInput={ typedSale }
                     />
@@ -288,6 +294,7 @@ export default component ShopItemSheet(props: OverlayProps & { item: AdminShopIt
                 id="admin-shop-why"
                 value={ why }
                 maxlength={ 500 }
+                invalid={ whyTold !== null }
                 describedBy={ whyTold !== null ? 'admin-shop-why-error' : 'admin-shop-why-hint' }
                 onInput={ typedWhy }
             />

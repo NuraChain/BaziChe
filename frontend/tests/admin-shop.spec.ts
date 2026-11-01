@@ -413,6 +413,8 @@ describe('the sheet that changes a look', () =>
 
             expect(error(container), typed).toBe(said);
             expect(close).not.toHaveBeenCalled();
+            expect(container.querySelector('#admin-shop-price')?.getAttribute('aria-invalid'), typed).toBe('true');
+            expect(document.activeElement, typed).toBe(container.querySelector('#admin-shop-price'));
         }
 
         typeInto(container.querySelector<HTMLInputElement>('#admin-shop-price')!, '۷٫۵');
@@ -512,6 +514,8 @@ describe('the sheet that changes a look', () =>
 
         expect(text(container.querySelector('#admin-shop-why-error'))).toBe('Say why, in three characters or more.');
         expect(close).not.toHaveBeenCalled();
+        expect(container.querySelector('#admin-shop-why')?.getAttribute('aria-invalid')).toBe('true');
+        expect(document.activeElement).toBe(container.querySelector('#admin-shop-why'));
     });
 
     it('opens on what was asked before', async () =>

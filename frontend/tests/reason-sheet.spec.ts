@@ -52,7 +52,7 @@ describe('the question that asks the staff why', () =>
         expect(close.mock.calls).toEqual([['A bug in the dice']]);
     });
 
-    it('refuses a reason under three characters and says so, until something is typed again', () =>
+    it('refuses a reason under three characters and says so, until something is typed again', async () =>
     {
         const close = vi.fn();
         const container = shown(close);
@@ -63,6 +63,11 @@ describe('the question that asks the staff why', () =>
         expect(close).not.toHaveBeenCalled();
         expect(error(container)).toBe('Say why, in three characters or more.');
         expect(container.querySelector('#admin-reason')?.getAttribute('aria-describedby')).toBe('admin-reason-error');
+        expect(container.querySelector('#admin-reason')?.getAttribute('aria-invalid')).toBe('true');
+
+        await Promise.resolve();
+
+        expect(document.activeElement, 'the keyboard was left on the button').toBe(container.querySelector('#admin-reason'));
 
         typeInto(container, ' abc');
 

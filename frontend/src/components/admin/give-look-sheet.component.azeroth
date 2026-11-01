@@ -1,6 +1,7 @@
 import { untrack } from 'azerothjs';
 
 import { LOOKS, SHOP_COLLECTIONS, lookOf } from '../../../../backend/src/domains/shop/catalogue.ts';
+import { focusFirstInvalid } from '../../lib/form.ts';
 import { collectionName, itemName, kindLabel } from '../../lib/shop.ts';
 import '../../locales/shop-catalogue.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -28,6 +29,8 @@ export default component GiveLookSheet(props: OverlayProps & { name: string; own
     state why = first?.reason ?? '';
 
     state whyTold = null as string | null;
+
+    let sheet: HTMLElement | null = null;
 
     derived collection = lookOf(item)?.collection ?? SHOP_COLLECTIONS[0];
 
@@ -61,6 +64,7 @@ export default component GiveLookSheet(props: OverlayProps & { name: string; own
 
         if (whyTold !== null)
         {
+            focusFirstInvalid(sheet);
             return;
         }
 
@@ -69,7 +73,7 @@ export default component GiveLookSheet(props: OverlayProps & { name: string; own
         props.close(ask);
     };
 
-    <div class="flex flex-col gap-5 p-5" data-give-sheet>
+    <div ref={ (element) => sheet = element } class="flex flex-col gap-5 p-5" data-give-sheet>
         <div>
             <h2 class="title text-ui-xl text-text">{ locale.t('admin.look.giveTitle', { name: props.name }) }</h2>
             <p class="mt-2 text-ui-base text-muted">{ locale.t('admin.look.giveLead') }</p>
@@ -92,6 +96,7 @@ export default component GiveLookSheet(props: OverlayProps & { name: string; own
                 id="admin-give-why"
                 value={ why }
                 maxlength={ 500 }
+                invalid={ whyTold !== null }
                 describedBy={ whyTold !== null ? 'admin-give-why-error' : 'admin-give-why-hint' }
                 onInput={ typedWhy }
             />

@@ -4,6 +4,7 @@ import { createSignal } from 'azerothjs';
 
 import Field from '../src/components/ui/field.component.azeroth';
 import Input from '../src/components/ui/input.component.azeroth';
+import Select from '../src/components/ui/select.component.azeroth';
 import TextArea from '../src/components/ui/text-area.component.azeroth';
 import { describedBy, focusFirstInvalid, refusedFields } from '../src/lib/form.ts';
 import '../src/locales/app-catalogue.ts';
@@ -123,6 +124,48 @@ describe('Input', () =>
         expect(shell.className).toContain('border-danger');
         expect(shell.className, 'the keyboard on it turns it blue').not.toContain('focus-within:border-accent');
         expect(shell.className).toContain('focus-within:ring-danger/20');
+    });
+});
+
+describe('Select', () =>
+{
+    it('is marked wrong while it is told it is, and described by what it is told, else by its hint', () =>
+    {
+        const [invalid, setInvalid] = createSignal(false);
+
+        const { container } = renderTest(() => Select({
+            label: 'What it is for',
+            value: '',
+            options: [{ value: '', label: 'Choose one' }, { value: 'spam', label: 'Spam' }],
+            hint: 'The staff read this.',
+            get invalid()
+            {
+                return invalid();
+            },
+            get describedBy()
+            {
+                return invalid() ? 'category-error' : undefined;
+            },
+            onChange: () => undefined
+        }) as Rendered);
+
+        const trigger = container.querySelector<HTMLElement>('[aria-haspopup="listbox"]')!;
+        const hint = container.querySelector('p')!.id;
+
+        expect(trigger.getAttribute('aria-invalid')).toBe('false');
+        expect(trigger.getAttribute('aria-describedby')).toBe(hint);
+        expect(trigger.className).not.toContain('border-danger');
+
+        setInvalid(true);
+
+        expect(trigger.getAttribute('aria-invalid')).toBe('true');
+        expect(trigger.getAttribute('aria-describedby')).toBe('category-error');
+        expect(trigger.className).toContain('border-danger');
+
+        setInvalid(false);
+
+        expect(trigger.getAttribute('aria-invalid')).toBe('false');
+        expect(trigger.getAttribute('aria-describedby')).toBe(hint);
     });
 });
 

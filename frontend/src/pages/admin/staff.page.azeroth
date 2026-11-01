@@ -15,6 +15,7 @@ import Segmented from '../../components/ui/segmented.component.azeroth';
 import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import TextArea from '../../components/ui/text-area.component.azeroth';
 import { attempt } from '../../lib/attempt.ts';
+import { focusFirstInvalid } from '../../lib/form.ts';
 import { createGuesses, type Guess } from '../../lib/guess.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { foldHandle, ROLE_WORDS, whyStaffRefused } from '../../lib/staff-words.ts';
@@ -148,6 +149,7 @@ export default component StaffPage()
 
         if (handleTold !== null || reasonTold !== null)
         {
+            focusFirstInvalid(form);
             return;
         }
 
@@ -259,6 +261,7 @@ export default component StaffPage()
                             class="max-w-xl"
                             value={ reasonText }
                             maxlength={ 500 }
+                            invalid={ reasonTold !== null }
                             describedBy={ reasonTold !== null ? 'admin-staff-reason-error' : 'admin-staff-reason-hint' }
                             onInput={ typedReason }
                         />

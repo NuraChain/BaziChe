@@ -47,8 +47,11 @@ const momentOf = (typed: string) => (typed === '' ? null : Date.parse(typed));
 
 const inRange = (typed: string, most: number) => WHOLE.test(typed) && Number(typed) >= 1 && Number(typed) <= most;
 
-/** The campaign the form holds, whole as the wire takes it, or the first thing wrong with it, in the server's order. */
-export function checked(form: CampaignForm): { input: Omit<AdminCampaignInput, 'reason'> } | { wrong: MessageKey }
+/** Where the first thing wrong with a campaign is: one of its fields, or a milestone by its key. */
+export type WrongAt = 'name' | 'looks' | 'most' | 'starts' | 'ends' | number;
+
+/** The campaign the form holds, whole as the wire takes it, or the first thing wrong with it and where, in the server's order. */
+export function checked(form: CampaignForm): { input: Omit<AdminCampaignInput, 'reason'> } | { wrong: MessageKey; at: WrongAt }
 {
     const name = form.name.trim();
     const starts = momentOf(form.startsAt);
@@ -58,32 +61,36 @@ export function checked(form: CampaignForm): { input: Omit<AdminCampaignInput, '
 
     if (name.length < NAME_MIN || name.length > NAME_MAX)
     {
-        return { wrong: 'admin.campaign.nameShort' };
+        return { wrong: 'admin.campaign.nameShort', at: 'name' };
     }
 
     if (form.inviterItem === null && form.inviteeItem === null && form.steps.length === 0)
     {
-        return { wrong: 'admin.campaign.givesNothing' };
+        return { wrong: 'admin.campaign.givesNothing', at: 'looks' };
     }
 
-    if (counts.some((one) => !inRange(one, MILESTONE_MOST)))
+    const outside = counts.findIndex((one) => !inRange(one, MILESTONE_MOST));
+
+    if (outside >= 0)
     {
-        return { wrong: 'admin.campaign.countWrong' };
+        return { wrong: 'admin.campaign.countWrong', at: form.steps[outside].key };
     }
 
-    if (new Set(counts.map(Number)).size !== counts.length)
+    const again = counts.findIndex((one, index) => counts.slice(0, index).some((before) => Number(before) === Number(one)));
+
+    if (again >= 0)
     {
-        return { wrong: 'admin.campaign.sameCount' };
+        return { wrong: 'admin.campaign.sameCount', at: form.steps[again].key };
     }
 
     if (most !== '' && !inRange(most, CAMPAIGN_MOST))
     {
-        return { wrong: 'admin.campaign.mostWrong' };
+        return { wrong: 'admin.campaign.mostWrong', at: 'most' };
     }
 
     if (Number.isNaN(starts) || Number.isNaN(ends) || (starts !== null && ends !== null && ends <= starts))
     {
-        return { wrong: 'admin.campaign.windowWrong' };
+        return { wrong: 'admin.campaign.windowWrong', at: Number.isNaN(starts) ? 'starts' : 'ends' };
     }
 
     return {

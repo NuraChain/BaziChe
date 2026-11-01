@@ -221,6 +221,29 @@ describe('a person, as the staff read them', () =>
         expect(server.staff.log.map((row) => `${ row.kind } ${ row.person } ${ row.reason }`)).toEqual(['note sara.k Rude at a Hokm table, twice.']);
     });
 
+    it('says a note under three characters under the box, marks it and takes the keyboard there, keeping nothing', async () =>
+    {
+        const sent = vi.spyOn(client.admin, 'note');
+        const container = await opened();
+        const box = container.querySelector<HTMLTextAreaElement>('#admin-person-note')!;
+
+        typeInto(box, ' ok ');
+        button(container, 'Keep the note')!.click();
+        await settle();
+
+        expect(said(container, '#admin-person-note-error')).toBe('Write three characters or more.');
+        expect(box.getAttribute('aria-invalid')).toBe('true');
+        expect(box.getAttribute('aria-describedby')).toBe('admin-person-note-error');
+        expect(document.activeElement, 'the keyboard was left on the button').toBe(box);
+        expect(sent).not.toHaveBeenCalled();
+
+        typeInto(box, 'Rude at a Hokm table.');
+        await settle();
+
+        expect(container.querySelector('#admin-person-note-error')).toBeNull();
+        expect(box.getAttribute('aria-invalid')).toBe('false');
+    });
+
     it('takes a refused note back and says why, keeping what was written', async () =>
     {
         vi.spyOn(client.admin, 'note').mockRejectedValueOnce(new ApiError(409, 'staff-rank', 'That is above what your role may do.', undefined));

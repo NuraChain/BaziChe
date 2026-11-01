@@ -1,4 +1,5 @@
 import type { ReportOutcome, ReportStatus } from '../../../../backend/src/domains/admin/roles.ts';
+import { focusFirstInvalid } from '../../lib/form.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import Button from '../ui/button.component.azeroth';
 import Field from '../ui/field.component.azeroth';
@@ -14,6 +15,8 @@ export default component ReportClose(props: { status: ReportStatus; onClose: (ou
     state why = '';
 
     state whyTold = null as string | null;
+
+    let form: HTMLElement | null = null;
 
     derived reviewable = props.status !== 'reviewed';
 
@@ -31,7 +34,13 @@ export default component ReportClose(props: { status: ReportStatus; onClose: (ou
 
         whyTold = reason.length < REASON_MIN ? locale.t('admin.staff.reasonShort') : null;
 
-        if (whyTold === null && await props.onClose(outcome, reason))
+        if (whyTold !== null)
+        {
+            focusFirstInvalid(form);
+            return;
+        }
+
+        if (await props.onClose(outcome, reason))
         {
             why = '';
         }
@@ -42,16 +51,19 @@ export default component ReportClose(props: { status: ReportStatus; onClose: (ou
             <h2 id="report-close" class="text-ui-md font-semibold text-text">{ locale.t('admin.report.close') }</h2>
             <p class="text-ui-sm text-muted">{ locale.t('admin.report.closeLead') }</p>
         </div>
-        <Field id="admin-report-why" label={ locale.t('admin.staff.reason') } hint={ locale.t('admin.staff.reasonHint') } error={ whyTold }>
-            <TextArea
-                id="admin-report-why"
-                class="max-w-xl"
-                value={ why }
-                maxlength={ 500 }
-                describedBy={ whyTold !== null ? 'admin-report-why-error' : 'admin-report-why-hint' }
-                onInput={ typed }
-            />
-        </Field>
+        <div ref={ (element) => form = element }>
+            <Field id="admin-report-why" label={ locale.t('admin.staff.reason') } hint={ locale.t('admin.staff.reasonHint') } error={ whyTold }>
+                <TextArea
+                    id="admin-report-why"
+                    class="max-w-xl"
+                    value={ why }
+                    maxlength={ 500 }
+                    invalid={ whyTold !== null }
+                    describedBy={ whyTold !== null ? 'admin-report-why-error' : 'admin-report-why-hint' }
+                    onInput={ typed }
+                />
+            </Field>
+        </div>
         <div class="flex flex-wrap gap-2" data-outcomes>
             <Show when={ reviewable }>
                 <Button variant="outline" onClick={ () => void close('reviewed') }>{ locale.t('admin.report.reviewed') }</Button>

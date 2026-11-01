@@ -118,7 +118,7 @@ describe('the sheet that gives somebody a look', () =>
         expect(close).not.toHaveBeenCalled();
     });
 
-    it('asks for a reason of three characters or more before it gives anything', () =>
+    it('asks for a reason of three characters or more before it gives anything', async () =>
     {
         const close = vi.fn();
         const container = shown(close);
@@ -128,6 +128,11 @@ describe('the sheet that gives somebody a look', () =>
 
         expect(said(container, '#admin-give-why-error')).toBe('Say why, in three characters or more.');
         expect(close).not.toHaveBeenCalled();
+        expect(container.querySelector('#admin-give-why')?.getAttribute('aria-invalid')).toBe('true');
+
+        await Promise.resolve();
+
+        expect(document.activeElement).toBe(container.querySelector('#admin-give-why'));
 
         typeInto(container, 'abc');
 

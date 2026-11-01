@@ -163,6 +163,22 @@ export default component FriendsPage()
 
     derived discoverable = groups.elsewhere().length > 0;
 
+    derived mineRead = groups.reading('mine');
+
+    derived elsewhereRead = groups.reading('elsewhere');
+
+    derived ungrouped = mineRead === 'read' && !grouped;
+
+    derived undiscovered = elsewhereRead === 'read' && !discoverable;
+
+    derived mineWaiting = mineRead === 'reading';
+
+    derived mineRefused = mineRead === 'failed';
+
+    derived elsewhereWaiting = elsewhereRead === 'reading';
+
+    derived elsewhereRefused = elsewhereRead === 'failed';
+
     const play = (person: Person) => playWith(person.id, true);
 
     const message = (person: Person) =>
@@ -409,9 +425,22 @@ export default component FriendsPage()
                             actions={ <Button variant="ghost" size="sm" leading="add" onClick={ makeGroup }>{ locale.t('groups.create') }</Button> }
                         />
 
-                        <Show
-                            when={ grouped }
-                            fallback={
+                        <Show when={ mineWaiting }>
+                            { () =>
+                                <div class="grid gap-2 @2xl:grid-cols-2" data-reading>
+                                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                                    <Skeleton avatar class="rounded-panel border border-line bg-field p-4" />
+                                    <Skeleton avatar class="rounded-panel border border-line bg-field p-4" />
+                                </div>
+                            }
+                        </Show>
+
+                        <Show when={ mineRefused }>
+                            { () => <ErrorState error={ groups.failure('mine') } onRetry={ () => void groups.refresh() } class="py-10" /> }
+                        </Show>
+
+                        <Show when={ ungrouped }>
+                            { () =>
                                 <EmptyState
                                     icon="people"
                                     title={ locale.t('groups.none') }
@@ -421,7 +450,9 @@ export default component FriendsPage()
                                     class="py-10"
                                 />
                             }
-                        >
+                        </Show>
+
+                        <Show when={ grouped }>
                             { () =>
                                 <ul class="grid gap-2 @2xl:grid-cols-2 @6xl:grid-cols-3" aria-label={ locale.t('groups.mine') }>
                                     <For each={ groups.mine() } key={ (group) => group.id } let={ group }>
@@ -436,10 +467,25 @@ export default component FriendsPage()
 
                     <section>
                         <SectionHeading title={ locale.t('groups.discover') } />
-                        <Show
-                            when={ discoverable }
-                            fallback={ <p class="text-ui-base text-muted">{ locale.t('groups.discoverNone') }</p> }
-                        >
+                        <Show when={ elsewhereWaiting }>
+                            { () =>
+                                <div class="grid gap-2 @2xl:grid-cols-2" data-reading>
+                                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                                    <Skeleton avatar class="rounded-panel border border-line bg-field p-4" />
+                                    <Skeleton avatar class="rounded-panel border border-line bg-field p-4" />
+                                </div>
+                            }
+                        </Show>
+
+                        <Show when={ elsewhereRefused }>
+                            { () => <ErrorState compact error={ groups.failure('elsewhere') } onRetry={ () => void groups.refresh() } /> }
+                        </Show>
+
+                        <Show when={ undiscovered }>
+                            { () => <p class="text-ui-base text-muted">{ locale.t('groups.discoverNone') }</p> }
+                        </Show>
+
+                        <Show when={ discoverable }>
                             { () =>
                                 <ul class="grid gap-2 @2xl:grid-cols-2 @6xl:grid-cols-3" aria-label={ locale.t('groups.discover') }>
                                     <For each={ groups.elsewhere() } key={ (group) => group.id } let={ group }>

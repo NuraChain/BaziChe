@@ -48,6 +48,14 @@ export default component DiscoverPage()
 
     derived joinable = groups.length > 0;
 
+    derived groupsRead = groups_.reading('elsewhere');
+
+    derived seeking = groupsRead === 'reading';
+
+    derived unsought = groupsRead === 'failed';
+
+    derived roomless = groupsRead === 'read' && !joinable;
+
     derived trending = [...catalogue.games].sort((a, b) => catalogue.stats(b.id).playersOnline - catalogue.stats(a.id).playersOnline).slice(0, 3);
 
     <Page
@@ -94,10 +102,22 @@ export default component DiscoverPage()
 
             <section>
                 <SectionHeading title={ locale.t('discover.rooms') } more={ locale.t('common.seeAll') } to="/app/friends?tab=groups" />
-                <Show
-                    when={ joinable }
-                    fallback={ <EmptyState icon="people" title={ locale.t('discover.roomsEmpty') } lead={ locale.t('discover.roomsEmptyLead') } class="rounded-panel border border-dashed border-line py-8" /> }
-                >
+                <Show when={ seeking }>
+                    { () =>
+                        <div class="grid gap-2 @2xl:grid-cols-2" data-reading>
+                            <span class="sr-only">{ locale.t('common.loading') }</span>
+                            <Skeleton avatar class="rounded-panel border border-line bg-field p-4" />
+                            <Skeleton avatar class="rounded-panel border border-line bg-field p-4" />
+                        </div>
+                    }
+                </Show>
+                <Show when={ unsought }>
+                    { () => <ErrorState error={ groups_.failure('elsewhere') } onRetry={ () => void groups_.refresh() } class="rounded-panel border border-dashed border-line py-8" /> }
+                </Show>
+                <Show when={ roomless }>
+                    { () => <EmptyState icon="people" title={ locale.t('discover.roomsEmpty') } lead={ locale.t('discover.roomsEmptyLead') } class="rounded-panel border border-dashed border-line py-8" /> }
+                </Show>
+                <Show when={ joinable }>
                     { () =>
                         <ul class="grid gap-2 @2xl:grid-cols-2 @6xl:grid-cols-3" aria-label={ locale.t('discover.rooms') }>
                             <For each={ groups } key={ (group) => group.id } let={ group }>

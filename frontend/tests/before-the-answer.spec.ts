@@ -11,6 +11,7 @@ import { manualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import '../src/locales/app-catalogue.ts';
 import DiscoverPage from '../src/pages/app/discover.page.azeroth';
+import FriendsPage from '../src/pages/app/friends.page.azeroth';
 import HomePage from '../src/pages/app/home.page.azeroth';
 import { useConnection } from '../src/stores/connection.store.ts';
 import { useDevice } from '../src/stores/device.store.ts';
@@ -384,4 +385,121 @@ describe('the friends online, on Home and beside the page', () =>
             }
         });
     }
+});
+
+describe('the groups, on the Friends page and on Discover, before the server has answered', () =>
+{
+    const groupRoutes = client.groups as unknown as Record<string, () => Promise<unknown>>;
+
+    /** Signs the reader in again with the groups' reads answered as given, so the store holds nothing it read before. */
+    const anewGroups = async (answers: { mine?: (real: () => Promise<unknown>) => Promise<unknown>; discover?: (real: () => Promise<unknown>) => Promise<unknown> }) =>
+    {
+        const real = { mine: groupRoutes.mine, discover: groupRoutes.discover };
+
+        groupRoutes.mine = () => (answers.mine ?? ((read) => read()))(real.mine);
+        groupRoutes.discover = () => (answers.discover ?? ((read) => read()))(real.discover);
+        useGroups().reset();
+        useSession().reset();
+        await settle();
+        useSession().establish(ALEX);
+        await settle();
+
+        return () =>
+        {
+            groupRoutes.mine = real.mine;
+            groupRoutes.discover = real.discover;
+        };
+    };
+
+    const sectionOf = (container: HTMLElement, key: 'groups.mine' | 'groups.discover' | 'discover.rooms') =>
+        [...container.querySelectorAll('section')].find((one) => one.querySelector('h2, h3')?.textContent?.includes(useLocale().t(key)))!;
+
+    it('draws the reader\'s groups and the ones to join as being read on the Friends page, and their empty words only once answered', async () =>
+    {
+        const mine = held();
+        const discover = held();
+        const restore = await anewGroups({ mine: mine.answer, discover: discover.answer });
+
+        try
+        {
+            const container = page(FriendsPage as unknown as () => HTMLElement, '/app/friends?tab=groups');
+
+            await settle();
+
+            expect(sectionOf(container, 'groups.mine').querySelector('[data-reading]')).not.toBeNull();
+            expect(sectionOf(container, 'groups.discover').querySelector('[data-reading]')).not.toBeNull();
+            expect(container.textContent).not.toContain(useLocale().t('groups.none'));
+            expect(container.textContent).not.toContain(useLocale().t('groups.discoverNone'));
+
+            mine.gate.open();
+            discover.gate.open();
+            await settle();
+
+            expect(container.querySelector('[data-reading]')).toBeNull();
+            expect(sectionOf(container, 'groups.mine').querySelectorAll('li').length).toBeGreaterThan(0);
+        }
+        finally
+        {
+            restore();
+        }
+    });
+
+    it('says what went wrong where each list of groups would be on the Friends page, and reads them again at Try again', async () =>
+    {
+        let refusing = true;
+        const restore = await anewGroups({
+            mine: (read) => (refusing ? refused() : read()),
+            discover: (read) => (refusing ? Promise.reject(new ApiError(500, 'internal', 'Internal server error', undefined)) : read())
+        });
+
+        try
+        {
+            const container = page(FriendsPage as unknown as () => HTMLElement, '/app/friends?tab=groups');
+
+            await settle();
+
+            expect(alertOf(sectionOf(container, 'groups.mine'))?.textContent).toContain(useLocale().t('failure.down'));
+            expect(alertOf(sectionOf(container, 'groups.discover'))?.textContent).toContain(useLocale().t('failure.server'));
+            expect(container.textContent).not.toContain(useLocale().t('groups.none'));
+            expect(container.textContent).not.toContain(useLocale().t('groups.discoverNone'));
+
+            refusing = false;
+            fire(retryOf(sectionOf(container, 'groups.mine'))!, 'click');
+            await settle();
+
+            expect(container.querySelector('[role="alert"]')).toBeNull();
+            expect(sectionOf(container, 'groups.mine').querySelectorAll('li').length).toBeGreaterThan(0);
+        }
+        finally
+        {
+            restore();
+        }
+    });
+
+    it('draws the groups worth joining as being read on Discover, then what went wrong, and never that there are none', async () =>
+    {
+        const { gate, answer } = held();
+        const restore = await anewGroups({ discover: (read) => answer(() => read().then(() => Promise.reject(new ApiError(503, 'unavailable', 'Down.', undefined)))) });
+
+        try
+        {
+            const container = page(DiscoverPage as unknown as () => HTMLElement, '/app/discover');
+
+            await settle();
+
+            expect(sectionOf(container, 'discover.rooms').querySelector('[data-reading]')).not.toBeNull();
+            expect(container.textContent).not.toContain(useLocale().t('discover.roomsEmpty'));
+
+            gate.open();
+            await settle();
+
+            expect(alertOf(sectionOf(container, 'discover.rooms'))?.textContent).toContain(useLocale().t('failure.down'));
+            expect(container.textContent).not.toContain(useLocale().t('discover.roomsEmpty'));
+            expect(sectionOf(container, 'discover.rooms').querySelector('[data-reading]')).toBeNull();
+        }
+        finally
+        {
+            restore();
+        }
+    });
 });

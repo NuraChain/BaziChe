@@ -1,6 +1,7 @@
 import { createStore, createResource, createSignal, untrack, type Getter } from 'azerothjs';
 
 import { ApiError, client, type GroupPrivacy, type GroupSummary } from '../api.ts';
+import { readingOf, type Reading } from '../lib/reading.ts';
 import { useAccount } from './account.store.ts';
 import { useRealtime } from './realtime.store.ts';
 
@@ -24,6 +25,9 @@ export interface GroupsApi
     /** Groups this account is not in. Lazy: only the discover page ever shows them. */
     elsewhere: Getter<GroupSummary[]>;
     want(): void;
+
+    reading(what: 'mine' | 'elsewhere'): Reading;
+    failure(what: 'mine' | 'elsewhere'): unknown;
 
     /** One group by slug, from whichever list already holds it. */
     byId(slug: string): GroupSummary | undefined;
@@ -130,6 +134,8 @@ export const useGroups = createStore((): GroupsApi =>
 
     const others = (): GroupSummary[] => elsewhere.data()?.groups ?? [];
 
+    const reads = { mine, elsewhere };
+
     return {
         mine: listed,
         loading: () => mine.loading(),
@@ -144,6 +150,9 @@ export const useGroups = createStore((): GroupsApi =>
                 setWanted(true);
             }
         },
+
+        reading: (what) => readingOf(reads[what]),
+        failure: (what) => reads[what].error(),
 
         byId: (slug) => listed().find((group) => group.id === slug) ?? others().find((group) => group.id === slug),
 

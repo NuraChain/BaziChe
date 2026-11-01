@@ -8,6 +8,7 @@ import RecoveryPanel from '../../components/app/recovery-panel.component.azeroth
 import Button from '../../components/ui/button.component.azeroth';
 import EmptyState from '../../components/ui/empty-state.component.azeroth';
 import SectionHeading from '../../components/ui/section-heading.component.azeroth';
+import { whyFailed } from '../../lib/failure.ts';
 import { useDevice } from '../../stores/device.store.ts';
 import { useDevices } from '../../stores/devices.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -31,9 +32,9 @@ export default component DevicesPage()
             await work;
             toasts.show({ kind: 'success', text: locale.t(said) });
         }
-        catch
+        catch (error)
         {
-            toasts.show({ kind: 'error', text: locale.t('devices.actionFailed') });
+            toasts.show({ kind: 'error', text: locale.t(whyFailed(error, 'devices.actionFailed')) });
         }
     };
 

@@ -2,6 +2,7 @@ import { useLocale } from '../stores/locale.store.ts';
 import { useOverlay } from '../stores/overlay.store.ts';
 import { usePeople } from '../stores/people.store.ts';
 import { useToasts } from '../stores/toasts.store.ts';
+import { whyFailed } from './failure.ts';
 
 const SHEET = 'play-with';
 
@@ -15,5 +16,5 @@ export function playWith(personId: string, teamable: boolean)
             { personId, teamable },
             { label: useLocale().t('party.sheet.title', { name: usePeople().byHandle(personId)?.displayName ?? personId }), id: SHEET }
         ))
-        .catch(() => useToasts().show({ kind: 'warning', text: useLocale().t('common.actionFailed'), dedupe: SHEET }));
+        .catch((error: unknown) => useToasts().show({ kind: 'warning', text: useLocale().t(whyFailed(error)), dedupe: SHEET }));
 }

@@ -304,7 +304,7 @@ describe('a chair the host can take somebody out of', () =>
         expect(useLocale().t('play.remove.started')).not.toBe(useLocale().t('common.actionFailed'));
     });
 
-    it('says only that it did not go through when they had already gone, or the request never arrived, and reads the table again', async () =>
+    it('says they are not there any more when they had already gone, that the server could not be reached when the request never got there, and reads the table again', async () =>
     {
         const { container, held } = await hosted();
         const tables = client.tables as unknown as Record<string, unknown>;
@@ -314,7 +314,7 @@ describe('a chair the host can take somebody out of', () =>
         fire(controls(container)[0], 'click');
         await answered(true);
 
-        await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t('common.actionFailed')]]), { timeout: 4000 });
+        await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t('failure.missing')]]), { timeout: 4000 });
         await vi.waitFor(() => expect(controls(container)).toEqual([]), { timeout: 4000 });
 
         held.chairs[1].who = 'sara.k';
@@ -332,7 +332,7 @@ describe('a chair the host can take somebody out of', () =>
             fire(controls(container)[0], 'click');
             await answered(true);
 
-            await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t('common.actionFailed')]]), { timeout: 4000 });
+            await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t('failure.unreached')]]), { timeout: 4000 });
         }
         finally
         {
@@ -629,7 +629,7 @@ describe('the button that says ready', () =>
         }
     });
 
-    it('says the generic sentence for a request that never arrived', async () =>
+    it('says the server could not be reached for a request that never got there', async () =>
     {
         const { container } = await seated();
         const pressed = button(container);
@@ -640,7 +640,7 @@ describe('the button that says ready', () =>
         }, async () =>
         {
             fire(pressed, 'click');
-            await vi.waitFor(() => expect(said()).toEqual([['warning', 'That did not go through. Try again.']]));
+            await vi.waitFor(() => expect(said()).toEqual([['warning', 'The server could not be reached. Check your connection, then try again.']]));
 
             expect(pressed.textContent?.trim()).toBe('I’m ready');
         });

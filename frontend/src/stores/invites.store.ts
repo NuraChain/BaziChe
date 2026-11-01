@@ -2,12 +2,11 @@ import { createSignal, createStore, type Getter } from 'azerothjs';
 
 import { ApiError, client } from '../api.ts';
 import type { InviteBoard, InvitedPeople, InviteSummary } from '../api.ts';
+import { whyFailed } from '../lib/failure.ts';
+import type { MessageKey } from '../locales/en.ts';
 import { usePeople } from './people.store.ts';
 
 export type InvitedPerson = InvitedPeople['people'][number];
-
-/** What a press of "Make a new code" came to. */
-export type Renewal = 'renewed' | 'soon' | 'failed';
 
 export interface InvitesApi
 {
@@ -38,8 +37,11 @@ export interface InvitesApi
     close(): void;
     more(): Promise<void>;
 
-    /** A new code, at most once a day. A second press while one is out is answered with the first. */
-    renew(): Promise<Renewal>;
+    /**
+     * A new code, at most once a day: null once it is made, and otherwise what to say. A second press
+     * while one is out is answered with the first.
+     */
+    renew(): Promise<MessageKey | null>;
 
     refresh(): void;
     reset(): void;
@@ -69,7 +71,7 @@ export const useInvites = createStore((): InvitesApi =>
 
     let asked = 0;
     let paged = 0;
-    let renewal: Promise<Renewal> | null = null;
+    let renewal: Promise<MessageKey | null> | null = null;
     let boarded = 0;
 
     const read = async () =>
@@ -226,7 +228,7 @@ export const useInvites = createStore((): InvitesApi =>
 
         renew()
         {
-            renewal ??= (async (): Promise<Renewal> =>
+            renewal ??= (async (): Promise<MessageKey | null> =>
             {
                 setRenewing(true);
 
@@ -238,17 +240,17 @@ export const useInvites = createStore((): InvitesApi =>
                     setSummary(answer);
                     setLoading(false);
                     setFailed(false);
-                    return 'renewed';
+                    return null;
                 }
                 catch (error)
                 {
                     if (error instanceof ApiError && error.code === 'invite-code-soon')
                     {
                         void read();
-                        return 'soon';
+                        return 'invite.page.soon';
                     }
 
-                    return 'failed';
+                    return whyFailed(error);
                 }
                 finally
                 {

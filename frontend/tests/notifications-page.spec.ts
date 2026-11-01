@@ -373,7 +373,7 @@ describe('the notifications page', () =>
                 await vi.waitFor(() => expect(rowsOf(container).map(unreadIn)).toEqual([true, true, true]), { timeout: 4000 });
                 expect(same(rowsOf(container), rows)).toBe(true);
                 expect(markAll(container)).not.toBeNull();
-                expect(said()).toEqual([['warning', 'That did not go through. Try again.']]);
+                expect(said()).toEqual([['warning', 'Something went wrong on the server. Try again in a moment.']]);
             });
         });
 
@@ -423,7 +423,7 @@ describe('the notifications page', () =>
                 expect(back[0]).toBe(first);
                 expect(back[1].textContent).toBe(sentence);
                 expect(back[2]).toBe(third);
-                expect(said()).toEqual([['warning', 'That did not go through. Try again.']]);
+                expect(said()).toEqual([['warning', 'Something went wrong on the server. Try again in a moment.']]);
             });
         });
 

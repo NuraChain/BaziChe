@@ -491,7 +491,7 @@ describe('a friend request answered on the friends page', () =>
             answer();
 
             await vi.waitFor(() => expect(rowOf(container, 'mahsa')).not.toBeNull(), { timeout: 4000 });
-            expect(said()).toEqual([['warning', 'That did not go through. Try again.']]);
+            expect(said()).toEqual([['warning', 'Something went wrong on the server. Try again in a moment.']]);
             expect(useSocial().relation('mahsa')).toBe('incoming');
         });
     });

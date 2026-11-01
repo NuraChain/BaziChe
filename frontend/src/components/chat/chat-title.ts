@@ -3,6 +3,7 @@ import type { Person } from '../../data/person.ts';
 import type { GameId } from '../../data/games.ts';
 import type { Conversation } from '../../data/chat.ts';
 import type { LocalizedText } from '../../lib/text.ts';
+import { whyFailed } from '../../lib/failure.ts';
 import { SealFailure } from '../../services/chat.source.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import type { MessageVars } from '../../locales/format.ts';
@@ -103,8 +104,8 @@ export function titleOf(
  * `SealNotice` above the composer shows. This maps one to the other, so a room that holds somebody
  * without a device says who is why, instead of the one generic line that blamed nobody. Anything
  * the sealing layer did not type - a request that never arrived, an envelope the server refused - is
- * the plain `common.actionFailed`: the line waits in the thread with Try again, and "it could not
- * be sealed" blamed the sealing for a request that never left the building.
+ * said as the failure it was (`whyFailed`): the line waits in the thread with Try again, and "it
+ * could not be sealed" blamed the sealing for a request that never left the building.
  */
 export function sealSentenceOf(
     error: unknown,
@@ -113,7 +114,7 @@ export function sealSentenceOf(
 {
     if (!(error instanceof SealFailure))
     {
-        return translate('common.actionFailed');
+        return translate(whyFailed(error));
     }
 
     if (error.failure === 'no-keys')

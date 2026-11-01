@@ -534,14 +534,14 @@ describe('a private table from the sheet', () =>
         expect(server.calls).not.toContain('parties.invite');
     });
 
-    it('says the table would not open, stays, and can be pressed again', async () =>
+    it('says why the table did not open, stays, and can be pressed again', async () =>
     {
         const { container, router, closed } = await opened('sara.k');
 
         await standing(client.tables, 'create', () => Promise.reject(new ApiError(500, 'internal', 'Something went wrong.', undefined)), async () =>
         {
             fire(button(rowOf(container, 'Hokm'), 'Private table')!, 'click');
-            await vi.waitFor(() => expect(told()).toEqual([['warning', 'That table would not open. Try again in a moment.']]), { timeout: 4000 });
+            await vi.waitFor(() => expect(told()).toEqual([['warning', 'Something went wrong on the server. Try again in a moment.']]), { timeout: 4000 });
             await settle();
         });
 

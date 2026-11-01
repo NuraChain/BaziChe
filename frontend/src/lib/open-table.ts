@@ -4,6 +4,7 @@ import type { MessageKey } from '../locales/en.ts';
 import { useLocale } from '../stores/locale.store.ts';
 import { useToasts } from '../stores/toasts.store.ts';
 import { isTableRefusal } from '../../../backend/src/domains/table/refusals.ts';
+import { whyFailed } from './failure.ts';
 
 /**
  * Goes to a table, once there is a table to go to.
@@ -37,7 +38,7 @@ export function whyRefused(error: unknown, otherwise: MessageKey, playing: Messa
 
     if (word === null)
     {
-        return otherwise;
+        return whyFailed(error, otherwise);
     }
 
     if (word === 'seated-max')
@@ -70,7 +71,7 @@ export function openTable(made: Promise<string>, go: (to: string) => void, settl
 
             useToasts().show({
                 kind: 'warning',
-                text: useLocale().t(ABOUT_THE_ASK.includes(why) || why.startsWith('tables.refused.paid-') ? why : 'play.openFailed'),
+                text: useLocale().t(ABOUT_THE_ASK.includes(why) || why.startsWith('tables.refused.paid-') || why.startsWith('failure.') ? why : 'play.openFailed'),
                 dedupe: 'open-table'
             });
         })

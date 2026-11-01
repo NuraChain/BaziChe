@@ -20,6 +20,7 @@ import {
 import { isShopRefusal } from '../../../backend/src/domains/shop/refusals.ts';
 import type { MessageKey } from '../locales/en.ts';
 import type { LocaleApi } from '../stores/locale.store.ts';
+import { whyFailed } from './failure.ts';
 
 export const SHOP_FILTERS = ['all', 'profile', 'ludo', 'hokm', 'poker', 'backgammon', 'chess'] as const;
 
@@ -151,12 +152,12 @@ const FAILURE: Readonly<Record<string, MessageKey>> = {
 /** What a payment the chain refused is said as: the contract's word when it has a sentence of its own. */
 export const failureOf = (word: string | undefined): MessageKey => (word === undefined ? undefined : FAILURE[word]) ?? 'shop.failure.other';
 
-/** What a refused request is said as: the shop's own word, NuraChain out of reach, or `otherwise`. */
+/** What a refused request is said as: the shop's own word, NuraChain out of reach, what went wrong on the way, or `otherwise`. */
 export function whyShop(error: unknown, otherwise: MessageKey = 'common.actionFailed'): MessageKey
 {
     if (!(error instanceof ApiError))
     {
-        return otherwise;
+        return whyFailed(error, otherwise);
     }
 
     if (error.code === 'chain-unreachable')
@@ -164,5 +165,5 @@ export function whyShop(error: unknown, otherwise: MessageKey = 'common.actionFa
         return 'shop.unreached';
     }
 
-    return isShopRefusal(error.code) ? `shop.refused.${ error.code }` : otherwise;
+    return isShopRefusal(error.code) ? `shop.refused.${ error.code }` : whyFailed(error, otherwise);
 }

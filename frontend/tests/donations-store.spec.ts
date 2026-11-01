@@ -274,11 +274,11 @@ describe('giving NURA', () =>
         expect(useDonations().giving()).toMatchObject({ step: 'failed', said: 'donate.refused.donate-funds', held: (2n * NURA).toString() });
     });
 
-    it('says each refusal in its own words, and a chain it could not reach as that', async () =>
+    it('says each refusal in its own words, a chain it could not reach as that, and anything else as the kind of refusal it was', async () =>
     {
         await signIn(walletAt(OWNER));
 
-        for (const [code, said] of [['donate-playing', 'donate.refused.donate-playing'], ['donate-nobody', 'donate.refused.donate-nobody'], ['chain-unreachable', 'donate.unreached'], ['nothing-we-know', 'common.actionFailed']] as const)
+        for (const [code, said] of [['donate-playing', 'donate.refused.donate-playing'], ['donate-nobody', 'donate.refused.donate-nobody'], ['chain-unreachable', 'donate.unreached'], ['nothing-we-know', 'failure.conflict']] as const)
         {
             server.donate.refuse = { status: 409, code };
 

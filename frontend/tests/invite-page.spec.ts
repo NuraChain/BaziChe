@@ -478,7 +478,7 @@ describe('a new code', () =>
         expect(container.querySelector('[data-invite-next]')?.textContent).toContain('in 21 hours');
     });
 
-    it('is one request however often it is pressed while it is out, and a failure says so', async () =>
+    it('is one request however often it is pressed while it is out, and a failure says what it was', async () =>
     {
         let let_go = (): void => undefined;
         server.myInvites.hold = new Promise((resolve) => (let_go = () => resolve()));
@@ -489,12 +489,26 @@ describe('a new code', () =>
         expect(second).toBe(first);
         let_go();
         await settle();
-        expect(await first).toBe('renewed');
+        expect(await first).toBeNull();
         expect(server.calls.filter((call) => call === 'invites.renew')).toHaveLength(1);
 
         server.myInvites.hold = null;
         server.myInvites.refuse = 'renew';
-        expect(await invites.renew()).toBe('failed');
+        expect(await invites.renew()).toBe('failure.down');
+    });
+
+    it('says a failure on the page in the words of what went wrong', async () =>
+    {
+        server.myInvites.refuse = 'renew';
+        const { container } = await page();
+
+        fire(buttonNamed(container, 'Make a new code')!, 'click');
+        await settle();
+        await answered(true);
+        await settle();
+
+        expect(toasts()).toContain('The server is not answering right now. Try again in a moment.');
+        expect(container.querySelector('[data-invite-code]')?.textContent).toBe('ABCD2345');
     });
 });
 

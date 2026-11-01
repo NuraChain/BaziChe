@@ -2,6 +2,7 @@ import { ApiError } from '../api.ts';
 import { isMarketRefusal } from '../../../backend/src/domains/market/refusals.ts';
 import type { MarketChoice, MarketPositionView } from '../api.ts';
 import type { MessageKey } from '../locales/en.ts';
+import { whyFailed } from './failure.ts';
 
 /** The most positions one claim names: what the claim route takes. */
 const CLAIM_MOST = 50;
@@ -15,12 +16,12 @@ const detailOf = (error: ApiError, name: string) =>
     return typeof value === 'string' ? value : null;
 };
 
-/** The sentence for a position or a claim the server or NuraChain would not take. */
+/** The sentence for a position or a claim the server or NuraChain would not take, or that never reached them. */
 export function whyMarket(error: unknown, otherwise: MessageKey = 'common.actionFailed'): MessageKey
 {
     if (!(error instanceof ApiError))
     {
-        return otherwise;
+        return whyFailed(error, otherwise);
     }
 
     if (error.code === 'chain-unreachable')
@@ -35,7 +36,7 @@ export function whyMarket(error: unknown, otherwise: MessageKey = 'common.action
         return `market.limit.${ limit }`;
     }
 
-    return isMarketRefusal(error.code) ? `market.refused.${ error.code }` : otherwise;
+    return isMarketRefusal(error.code) ? `market.refused.${ error.code }` : whyFailed(error, otherwise);
 }
 
 /** What a wallet short of a position holds, in wei, as its refusal says. */

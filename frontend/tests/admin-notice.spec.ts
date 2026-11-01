@@ -253,7 +253,7 @@ describe('putting an announcement up', () =>
 
         expect(container.querySelector('#admin-notice-now')).toBeNull();
         expect(said(container, '[data-empty] p')).toBe('Nothing is announced right now.');
-        expect(toasts()).toEqual(['That did not go through. Try again.']);
+        expect(toasts()).toEqual(['The server is not answering right now. Try again in a moment.']);
         expect(field(container, 'admin-notice-en').value).toBe(EN);
         expect(field(container, 'admin-notice-why').value).toBe('Maintenance tonight');
     });

@@ -275,12 +275,14 @@ a listed word gives `tables.refused.<word>`, a template literal over the list wi
 with no English or Persian sentence fails `check`. Two words keep the keys they had, because they are
 said in the words of where they happened: `seated-max` is `play.seatedMax`, and `playing` is whatever
 its caller says - `play.table.playing` for a chair, `play.leave.started` for a leave,
-`play.close.refused` for a close, the caller's own fallback anywhere else. A framework code, a match
-word and a request that never arrived are the fallback as well. A table that would not open keeps fewer of those answers than anybody: `openTable`
+`play.close.refused` for a close, the caller's own fallback anywhere else. A framework code and a
+match word are the fallback as well, and the plain fallback is told the kind of refusal; a request
+that never got there, a server that failed and the limiter are said as what they were whatever the
+fallback (`whyFailed`, `frontend/CLAUDE.md`, *What went wrong is said as what it was*). A table that would not open keeps fewer of those answers than anybody: `openTable`
 says the four sentences that are about what was asked - too many chairs, nobody to invite, a game
 that cannot be played, a table the game does not make - and every `paid-` word, because a table
 asked for at a stake is refused for its money and the reader has to learn which way (too little in
-the vault, the terms, a break), and "That table would not open" for every other word. Quick play used to reach it with the rest, from a table the browser tried and the reader
+the vault, the terms, a break), what went wrong on the way, and "That table would not open" for every other word. Quick play used to reach it with the rest, from a table the browser tried and the reader
 never chose; the server picks the table now and never answers with one of those.
 `table-refusals.spec.ts` on each side holds it: on the server every word's status and code, no word
 shared with a refused play or with a code the framework answers on its own, no code spelled by hand in

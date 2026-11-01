@@ -1041,7 +1041,7 @@ describe('PlayPage', () =>
             await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t('tables.refused.chairs-empty')]]), { timeout: 4000 });
         });
 
-        it('still says to check the connection when the start never arrived', async () =>
+        it('still says to check the connection when the start never got there', async () =>
         {
             const { container } = await hosting(true);
 
@@ -1052,7 +1052,7 @@ describe('PlayPage', () =>
             {
                 fire(pressable(container, 'match.start')!, 'click');
 
-                await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t('state.errorLead')]]), { timeout: 4000 });
+                await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t('failure.unreached')]]), { timeout: 4000 });
             });
         });
 
@@ -1102,7 +1102,7 @@ describe('PlayPage', () =>
             expect(container.textContent).not.toContain(useLocale().t('play.closedLead.staff'));
         });
 
-        it('says the table has closed to a host who switches voice too late, and otherwise only that voice could not be changed', async () =>
+        it('says the table has closed to a host who switches voice too late, what went wrong on the way, and otherwise only that voice could not be changed', async () =>
         {
             const { container, held } = await hosting(false);
             const voice = () => container.querySelector<HTMLButtonElement>(`button[aria-label="${ useLocale().t('voice.hostOn') }"]`)!;
@@ -1112,17 +1112,20 @@ describe('PlayPage', () =>
 
             await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t('tables.refused.table-closed')]]), { timeout: 4000 });
 
-            useToasts().reset();
-
-            await swapped('voice', async () =>
+            for (const [failure, key] of [[new TypeError('Failed to fetch'), 'failure.unreached'], [new ApiError(409, 'conflict', 'x', undefined), 'voice.switchFailed']] as const)
             {
-                throw new TypeError('Failed to fetch');
-            }, async () =>
-            {
-                fire(voice(), 'click');
+                useToasts().reset();
 
-                await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t('voice.switchFailed')]]), { timeout: 4000 });
-            });
+                await swapped('voice', async () =>
+                {
+                    throw failure;
+                }, async () =>
+                {
+                    fire(voice(), 'click');
+
+                    await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t(key)]]), { timeout: 4000 });
+                });
+            }
 
             expect(held.voice).toBe('off');
         });
@@ -1240,11 +1243,11 @@ describe('PlayPage', () =>
             expect(held.status).not.toBe('closed');
         });
 
-        it('says only that it did not go through when a close fails for any other reason, and stays at the table', async () =>
+        it('says what went wrong when a close fails for any other reason, and stays at the table', async () =>
         {
             const { container, held } = await hosting(false);
 
-            for (const failure of [new ApiError(500, 'internal', 'Something went wrong.', undefined), new TypeError('Failed to fetch')])
+            for (const [failure, key] of [[new ApiError(500, 'internal', 'Something went wrong.', undefined), 'failure.server'], [new TypeError('Failed to fetch'), 'failure.unreached']] as const)
             {
                 useToasts().reset();
 
@@ -1255,7 +1258,7 @@ describe('PlayPage', () =>
                 {
                     await closing(container);
 
-                    await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t('common.actionFailed')]]), { timeout: 4000 });
+                    await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t(key)]]), { timeout: 4000 });
                 });
 
                 useOverlay().reset();
@@ -1863,7 +1866,7 @@ describe('PlayPage', () =>
             expect((await asked(container)).props.lead).toBe(useLocale().t('play.leave.forfeit'));
         });
 
-        it('says only that it did not go through when the leave never arrived, and stays at the table', async () =>
+        it('says the server could not be reached when the leave never got there, and stays at the table', async () =>
         {
             const { container, held, router } = await seatedAt(false);
             const tables = client.tables as unknown as Record<string, unknown>;
@@ -1878,7 +1881,7 @@ describe('PlayPage', () =>
             {
                 useOverlay().close((await asked(container)).id, true);
 
-                await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t('common.actionFailed')]]), { timeout: 4000 });
+                await vi.waitFor(() => expect(said()).toEqual([['warning', useLocale().t('failure.unreached')]]), { timeout: 4000 });
             }
             finally
             {

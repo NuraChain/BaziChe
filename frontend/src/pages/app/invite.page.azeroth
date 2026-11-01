@@ -173,11 +173,11 @@ export default component InvitePage()
             return;
         }
 
-        const outcome = await invites.renew();
+        const refused = await invites.renew();
 
-        toasts.show(outcome === 'renewed'
+        toasts.show(refused === null
             ? { kind: 'success', text: locale.t('invite.page.renewed') }
-            : { kind: 'warning', text: locale.t(outcome === 'soon' ? 'invite.page.soon' : 'common.actionFailed'), dedupe: 'invite-renew' });
+            : { kind: 'warning', text: locale.t(refused), dedupe: 'invite-renew' });
     };
 
     const joined = (at: string) => locale.t('invite.page.joinedAt', { when: locale.relative(past(at), { now, style: 'short' }) });

@@ -674,16 +674,22 @@ describe('what the reader does about a team', () =>
         expect(await party.invite('sara.k', 'hokm')).toBe(true);
     });
 
-    it('says only that it did not go through when the server never answered, or answered something it has no word for', async () =>
+    it('says the server failed when it did, the kind of refusal it has no word for, and only that it did not go through for anything else', async () =>
     {
         const party = useParty();
 
-        for (const failure of [new ApiError(500, 'internal', 'Something went wrong.', undefined), new ApiError(409, 'a-word-from-a-newer-server', 'x', undefined), new Error('the network is away')])
+        const failures = [
+            [new ApiError(500, 'internal', 'Something went wrong.', undefined), 'Something went wrong on the server. Try again in a moment.'],
+            [new ApiError(409, 'a-word-from-a-newer-server', 'x', undefined), 'That changed while you were looking. Look again, then try.'],
+            [new Error('the network is away'), 'That did not go through. Try again.']
+        ] as const;
+
+        for (const [failure, sentence] of failures)
         {
             await swapped('invite', () => Promise.reject(failure), async () =>
             {
                 expect(await party.invite('sara.k', 'hokm')).toBe(false);
-                expect(heardAndForgotten()).toEqual([['warning', 'That did not go through. Try again.', 'attempt']]);
+                expect(heardAndForgotten()).toEqual([['warning', sentence, 'attempt']]);
             });
         }
     });

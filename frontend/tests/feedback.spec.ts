@@ -6,6 +6,7 @@ import { resetRuntime } from '../src/lib/runtime.ts';
 import '../src/locales/app-catalogue.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
+import { ApiError } from './fake-api.ts';
 
 const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
 
@@ -65,6 +66,27 @@ describe('an action that says how it went only once it has gone', () =>
         expect(shown).toHaveLength(1);
         expect(shown[0].kind).toBe('warning');
         expect(shown[0].text).toBe(useLocale().t('common.actionFailed'));
+    });
+
+    it('says what went wrong on the way, whatever its reader knows about refusals', async () =>
+    {
+        expect(await attempt(Promise.reject(new TypeError('Failed to fetch')), 'Blocked.', () => 'tables.refused.no-invitee')).toBe(false);
+
+        expect(useToasts().items().map((toast) => toast.text)).toEqual([useLocale().t('failure.unreached')]);
+    });
+
+    it('keeps its reader\'s words for a refusal the reader knows', async () =>
+    {
+        await attempt(Promise.reject(new ApiError(404, 'no-invitee', 'x', undefined)), 'Invited.', () => 'tables.refused.no-invitee');
+
+        expect(useToasts().items().map((toast) => toast.text)).toEqual([useLocale().t('tables.refused.no-invitee')]);
+    });
+
+    it('says the kind of refusal where nobody knew more than the plain sentence', async () =>
+    {
+        await attempt(Promise.reject(new ApiError(404, 'not-found', 'x', undefined)), 'Blocked.', () => 'common.actionFailed');
+
+        expect(useToasts().items().map((toast) => toast.text)).toEqual([useLocale().t('failure.missing')]);
     });
 });
 

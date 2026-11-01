@@ -1,6 +1,7 @@
 import { useLocale } from '../stores/locale.store.ts';
 import { useOverlay } from '../stores/overlay.store.ts';
 import { useToasts } from '../stores/toasts.store.ts';
+import { whyFailed } from './failure.ts';
 import { itemName } from './shop.ts';
 
 /** Opens the sheet about a look or a bundle, and settles once it is closed. */
@@ -12,8 +13,8 @@ export async function openLook(item: string)
 
         await useOverlay().open(module.default, { item }, { label: itemName(item, useLocale()), id: 'look-sheet' }).closed;
     }
-    catch
+    catch (error)
     {
-        useToasts().show({ kind: 'warning', text: useLocale().t('common.actionFailed'), dedupe: 'look-sheet' });
+        useToasts().show({ kind: 'warning', text: useLocale().t(whyFailed(error)), dedupe: 'look-sheet' });
     }
 }

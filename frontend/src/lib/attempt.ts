@@ -1,6 +1,7 @@
 import type { MessageKey } from '../locales/en.ts';
 import { useLocale } from '../stores/locale.store.ts';
 import { useToasts, type ToastKind } from '../stores/toasts.store.ts';
+import { whyFailed } from './failure.ts';
 
 export interface Done
 {
@@ -25,7 +26,7 @@ export async function attempt(work: Promise<unknown>, done?: Done | string, why?
     catch (error)
     {
         console.error('[attempt]', error);
-        useToasts().show({ kind: 'warning', text: useLocale().t(why?.(error) ?? 'common.actionFailed'), dedupe: 'attempt' });
+        useToasts().show({ kind: 'warning', text: useLocale().t(whyFailed(error, why?.(error))), dedupe: 'attempt' });
         return false;
     }
 }

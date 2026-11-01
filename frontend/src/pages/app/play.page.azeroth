@@ -35,6 +35,7 @@ import { gistOf } from '../../components/chat/gist.ts';
 import { holdScreen } from '../../lib/wake-lock.ts';
 import { watchEdge, watchFold, watchSheet, type SheetSize } from '../../lib/sheet-room.ts';
 import { chunk, reloadPage } from '../../lib/chunks.ts';
+import { inviteTo } from '../../lib/invite-sheet.ts';
 import { leaveLead, whyRefused } from '../../lib/open-table.ts';
 import { copyText } from '../../lib/clipboard.ts';
 import { joinVoice } from '../../lib/join-voice.ts';
@@ -795,13 +796,6 @@ export default component PlayPage()
         }
     }
 
-    const invite = (tableId: string) =>
-    {
-        void import('../../components/games/invite-sheet.component.azeroth')
-            .then((module) => overlay.open(module.default, { tableId }, { label: locale.t('play.lobby.invite') }))
-            .catch(() => toasts.show({ kind: 'warning', text: locale.t('common.actionFailed'), dedupe: 'invite-sheet' }));
-    };
-
     const starter = (step: (tableId: string) => Promise<void>) => async () =>
     {
         if (table === null || starting)
@@ -1122,7 +1116,7 @@ export default component PlayPage()
                                     paused,
                                     onStart: startable ? () => void begin() : undefined,
                                     onSit: standing && seatOffered ? () => void sitDown() : undefined,
-                                    onInvite: () => invite(shown.id),
+                                    onInvite: () => inviteTo(shown.id),
                                     onCopyLink: () => void copyLink(),
                                     onLeave: () => void leave(null),
                                     onClose: amHost && lobbyOpen ? () => void end() : undefined

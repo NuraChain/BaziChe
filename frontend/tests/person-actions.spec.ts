@@ -463,7 +463,7 @@ describe('what can be done about a person', () =>
         expect(closed).toHaveLength(1);
     });
 
-    it('says it did not go through when the server refuses, and the friend is still a friend', async () =>
+    it('says the server failed when it did, and the friend is still a friend', async () =>
     {
         const container = await sheet('sara.k');
         const routes = client.social as unknown as Record<string, (input: unknown) => Promise<unknown>>;
@@ -479,7 +479,7 @@ describe('what can be done about a person', () =>
             fire(action(container, 'Remove Sara from friends')!, 'click');
             await answered(true);
 
-            await vi.waitFor(() => expect(said()).toEqual([['warning', 'That did not go through. Try again.']]));
+            await vi.waitFor(() => expect(said()).toEqual([['warning', 'Something went wrong on the server. Try again in a moment.']]));
 
             expect(useSocial().relation('sara.k')).toBe('friend');
         }

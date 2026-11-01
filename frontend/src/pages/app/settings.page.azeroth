@@ -24,6 +24,7 @@ import { signOut } from '../../components/app/sign-out.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { shortAddress } from '../../lib/wallet.ts';
 import { attempt } from '../../lib/attempt.ts';
+import { whyFailed } from '../../lib/failure.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useAccount } from '../../stores/account.store.ts';
 import { useDonations } from '../../stores/donations.store.ts';
@@ -76,9 +77,9 @@ export default component SettingsPage()
         {
             await social.setPrivacy(patch);
         }
-        catch
+        catch (error)
         {
-            toasts.show({ kind: 'error', text: locale.t('settings.safety.saveFailed') });
+            toasts.show({ kind: 'error', text: locale.t(whyFailed(error, 'settings.safety.saveFailed')) });
         }
     };
 
@@ -96,9 +97,9 @@ export default component SettingsPage()
         {
             await social.toggleMute('notice', notice);
         }
-        catch
+        catch (error)
         {
-            toasts.show({ kind: 'error', text: locale.t('settings.safety.saveFailed') });
+            toasts.show({ kind: 'error', text: locale.t(whyFailed(error, 'settings.safety.saveFailed')) });
         }
     };
 

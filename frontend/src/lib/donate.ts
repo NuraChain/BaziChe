@@ -1,13 +1,14 @@
 import { ApiError } from '../api.ts';
 import { isDonateRefusal } from '../../../backend/src/domains/donate/refusals.ts';
 import type { MessageKey } from '../locales/en.ts';
+import { whyFailed } from './failure.ts';
 
-/** The sentence for a donation the server or NuraChain would not make. */
+/** The sentence for a donation the server or NuraChain would not make, or for one that never reached them. */
 export function whyDonate(error: unknown, otherwise: MessageKey = 'common.actionFailed'): MessageKey
 {
     if (!(error instanceof ApiError))
     {
-        return otherwise;
+        return whyFailed(error, otherwise);
     }
 
     if (error.code === 'chain-unreachable')
@@ -15,7 +16,7 @@ export function whyDonate(error: unknown, otherwise: MessageKey = 'common.action
         return 'donate.unreached';
     }
 
-    return isDonateRefusal(error.code) ? `donate.refused.${ error.code }` : otherwise;
+    return isDonateRefusal(error.code) ? `donate.refused.${ error.code }` : whyFailed(error, otherwise);
 }
 
 /** What a wallet short of a gift holds, in wei, as its refusal says. */

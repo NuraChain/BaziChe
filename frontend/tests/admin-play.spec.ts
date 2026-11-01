@@ -271,7 +271,7 @@ describe('the games, on and off', () =>
         expect(server.staff.log.map((one) => one.details)).toEqual([{ game: 'poker', from: 'disabled', to: 'available' }]);
     });
 
-    it('takes a refused switch back and says it did not go through', async () =>
+    it('takes a refused switch back and says why', async () =>
     {
         vi.spyOn(client.admin, 'switchGame').mockRejectedValueOnce(new ApiError(404, 'not-found', 'Nothing there.', undefined));
 
@@ -282,7 +282,7 @@ describe('the games, on and off', () =>
         await answered('Pausing it for a fix');
 
         expect(statuses(container)[0]).toEqual(['hokm', 'available']);
-        expect(toasts()).toEqual(['That did not go through. Try again.']);
+        expect(toasts()).toEqual(['That is not there any more.']);
         expect(server.staff.log).toEqual([]);
     });
 

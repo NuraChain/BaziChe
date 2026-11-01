@@ -15,7 +15,7 @@ import { useSession } from '../src/stores/session.store.ts';
 import { defaultSettings, useSettings } from '../src/stores/settings.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
-import { establishAccount, server } from './fake-api.ts';
+import { ApiError, client, establishAccount, server } from './fake-api.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
 
@@ -185,6 +185,34 @@ describe('the notification switches', () =>
         expect(switchFor('Friend requests').getAttribute('aria-checked')).toBe('true');
     });
 
+    it.each([
+        ['the request never got there', new TypeError('Failed to fetch'), 'The server could not be reached. Check your connection, then try again.'],
+        ['the server refused it', new ApiError(409, 'conflict', 'x', undefined), 'That setting did not save. It is still set the way it was.']
+    ] as const)('stay as they were and say why when %s', async (_, failure, sentence) =>
+    {
+        useSession().establish(establishAccount());
+        const container = await show(SettingsPage as unknown as () => HTMLElement, '/app/me/settings');
+        const messages = () =>
+            [...container.querySelectorAll<HTMLElement>('[role="switch"]')].find((one) => one.querySelector('span span')?.textContent === 'Messages')!;
+        const refused = vi.spyOn(client.social, 'mute').mockRejectedValueOnce(failure);
+
+        useToasts().reset();
+
+        try
+        {
+            messages().click();
+            await settle();
+
+            await vi.waitFor(() => expect(useToasts().items().map((one) => one.text)).toEqual([sentence]), { timeout: 4000 });
+            expect(messages().getAttribute('aria-checked')).toBe('true');
+            expect(server.mutes).not.toContainEqual({ kind: 'notice', id: 'messages' });
+        }
+        finally
+        {
+            refused.mockRestore();
+        }
+    });
+
     it('keep chess\'s horse and elephant on this device, under the sound at the table in a section of their own, in both languages', async () =>
     {
         useSettings().reset();
@@ -331,6 +359,43 @@ describe('the safety lists', () =>
         expect(lines()[0], 'the line about blocks was drawn again').toBe(drawn[0]);
         expect(lines()[1], 'the line about mutes was drawn again').toBe(drawn[1]);
         expect(lines()[2], 'the line about reports was drawn again').toBe(drawn[2]);
+    });
+});
+
+describe('a privacy switch the server does not keep', () =>
+{
+    const strangers = (container: HTMLElement) =>
+        [...container.querySelectorAll<HTMLElement>('#settings-safety [role="switch"]')]
+            .find((one) => one.querySelector('span span')?.textContent === useLocale().t('settings.safety.strangers'));
+
+    it.each([
+        ['the request never got there', new TypeError('Failed to fetch'), 'The server could not be reached. Check your connection, then try again.'],
+        ['the server failed', new ApiError(500, 'internal', 'x', undefined), 'Something went wrong on the server. Try again in a moment.'],
+        ['the server refused it', new ApiError(409, 'conflict', 'x', undefined), 'That setting did not save. It is still set the way it was.']
+    ] as const)('turns back and says why when %s', async (_, failure, sentence) =>
+    {
+        useSession().establish(establishAccount());
+        const container = await show(SettingsPage as unknown as () => HTMLElement, '/app/me/settings');
+
+        await vi.waitFor(() => expect(strangers(container)).toBeDefined(), { timeout: 4000 });
+
+        const before = strangers(container)!.getAttribute('aria-checked');
+        const refused = vi.spyOn(client.social, 'setPrivacy').mockRejectedValueOnce(failure);
+
+        useToasts().reset();
+
+        try
+        {
+            strangers(container)!.click();
+            await settle();
+
+            await vi.waitFor(() => expect(useToasts().items().map((one) => one.text)).toEqual([sentence]), { timeout: 4000 });
+            expect(strangers(container)!.getAttribute('aria-checked')).toBe(before);
+        }
+        finally
+        {
+            refused.mockRestore();
+        }
     });
 });
 
@@ -505,7 +570,7 @@ describe('whether the reader is shown among the top inviters', () =>
 
         expect(boardSwitch(container)?.getAttribute('aria-checked')).toBe('true');
         expect(server.myInvites.listed).toBe(true);
-        expect(useToasts().items().map((one) => one.text)).toContain('That did not go through. Try again.');
+        expect(useToasts().items().map((one) => one.text)).toContain('The server is not answering right now. Try again in a moment.');
         expect(useInviteListed().listed()).toBe(true);
     });
 

@@ -145,15 +145,26 @@ describe('the words for a refused table', () =>
 
     it('reads nothing off a code that is not a table word, or off anything that is not a refusal', () =>
     {
+        const fallback: MessageKey = 'play.openFailed';
+
         for (const code of ['conflict', 'forbidden', 'not-found', 'validation-failed', 'internal', 'not-your-turn', '', 'constructor', 'toString', '__proto__'])
         {
-            expect(whyRefused(new ApiError(409, code, 'x', undefined), OTHERWISE, PLAYING), code).toBe(OTHERWISE);
+            expect(whyRefused(new ApiError(409, code, 'x', undefined), fallback, PLAYING), code).toBe(fallback);
         }
 
-        expect(whyRefused(new Error('not-ready'), OTHERWISE, PLAYING)).toBe(OTHERWISE);
-        expect(whyRefused({ status: 409, code: 'not-ready' }, OTHERWISE, PLAYING)).toBe(OTHERWISE);
-        expect(whyRefused('not-ready', OTHERWISE, PLAYING)).toBe(OTHERWISE);
-        expect(whyRefused(undefined, OTHERWISE, PLAYING)).toBe(OTHERWISE);
+        expect(whyRefused(new Error('not-ready'), fallback, PLAYING)).toBe(fallback);
+        expect(whyRefused({ status: 409, code: 'not-ready' }, fallback, PLAYING)).toBe(fallback);
+        expect(whyRefused('not-ready', fallback, PLAYING)).toBe(fallback);
+        expect(whyRefused(undefined, fallback, PLAYING)).toBe(fallback);
+    });
+
+    it('says what went wrong on the way in place of any fallback, and the kind of refusal in place of the plain one', () =>
+    {
+        expect(whyRefused(new TypeError('Failed to fetch'), 'play.openFailed', PLAYING)).toBe('failure.unreached');
+        expect(whyRefused(new ApiError(503, 'unknown', 'x', undefined), 'voice.switchFailed', PLAYING)).toBe('failure.down');
+        expect(whyRefused(new ApiError(409, 'conflict', 'x', undefined), OTHERWISE, PLAYING)).toBe('failure.conflict');
+        expect(whyRefused(new ApiError(404, 'not-found', 'x', undefined), OTHERWISE, PLAYING)).toBe('failure.missing');
+        expect(whyRefused(refused('playing'), OTHERWISE, PLAYING)).toBe(PLAYING);
     });
 });
 
@@ -386,9 +397,10 @@ describe('a table that would not open', () =>
         }
     });
 
-    it('says only that it would not open for every other word, a setting, or a request that never arrived', async () =>
+    it('says only that it would not open for every other word or a setting, and what went wrong on the way for a request that did not get there', async () =>
     {
-        const failed = [['warning', useLocale().t('play.openFailed')]];
+        const locale = useLocale();
+        const failed = [['warning', locale.t('play.openFailed')]];
         const others = WORDS.filter((word) => !Object.hasOwn(SAID, word));
 
         expect(others).toEqual(expect.arrayContaining(['playing', 'table-closed']));
@@ -399,7 +411,8 @@ describe('a table that would not open', () =>
         }
 
         expect(await told(new ApiError(422, 'validation-failed', 'x', undefined))).toEqual(failed);
-        expect(await told(new TypeError('Failed to fetch'))).toEqual(failed);
+        expect(await told(new TypeError('Failed to fetch'))).toEqual([['warning', locale.t('failure.unreached')]]);
+        expect(await told(new ApiError(502, 'unknown', 'x', undefined))).toEqual([['warning', locale.t('failure.down')]]);
     });
 
     it.each(['en', 'fa'] as const)('says why the server would not run a quick search, in %s, and goes nowhere', async (language) =>
@@ -530,7 +543,7 @@ describe('inviting somebody to a table', () =>
         }
     });
 
-    it('says only that it did not go through when the request never arrived', async () =>
+    it('says the server could not be reached when the request never got there', async () =>
     {
         const { container } = await sheetAt();
 
@@ -541,7 +554,7 @@ describe('inviting somebody to a table', () =>
         {
             fire(rows(container)[0], 'click');
 
-            await vi.waitFor(() => expect(shown()).toEqual([['warning', useLocale().t('common.actionFailed')]]), { timeout: 4000 });
+            await vi.waitFor(() => expect(shown()).toEqual([['warning', useLocale().t('failure.unreached')]]), { timeout: 4000 });
         });
     });
 });
@@ -589,7 +602,7 @@ describe('opening a table from the create form', () =>
         expect(server.tables).toHaveLength(0);
     });
 
-    it('says the reader holds too many chairs, a setting the game does not make, or to check the connection', async () =>
+    it('says the reader holds too many chairs, a setting the game does not make, or that the server could not be reached', async () =>
     {
         const locale = useLocale();
         const { container, created } = await formWith();
@@ -597,7 +610,7 @@ describe('opening a table from the create form', () =>
         const answers: [unknown, MessageKey][] = [
             [refused('seated-max'), 'play.seatedMax'],
             [new ApiError(422, 'validation-failed', 'x', undefined), 'create.refused'],
-            [new TypeError('Failed to fetch'), 'state.errorLead']
+            [new TypeError('Failed to fetch'), 'failure.unreached']
         ];
 
         for (const [error, key] of answers)

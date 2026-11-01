@@ -1357,6 +1357,34 @@ words back in the toast to be copied by hand - except a `secret`, the recovery p
 into a toast a screen reader would announce. The wallet dialog is the one copy that stays inline, because
 the public pages have no toast host.
 
+**What went wrong is said as what it was.** Every failed action said "That did not go through. Try
+again." whatever happened, so a phone with no signal, a server being restarted and a refusal read
+alike (the owner's UX brief, 2026-11-01: "Do not turn every error into the same generic message").
+`whyFailed(error, said?)` in `lib/failure.ts` is the one classifier, in two tiers. What went wrong
+on the way is said in place of any reader's words, because it says more than a refusal's reader can:
+no answer at all (a `TypeError` in each browser's own words, a module that would not load among
+them; offline when `navigator.onLine` says so, unreached otherwise), no answer in time (the
+`TimeoutError` of `REQUEST_MS`, said as an outcome nobody knows: "this may or may not have gone
+through. Check before you try again."), a 502, 503 or 504 (the server is not answering), any other
+5xx (it failed), and the limiter's 429 (`too-many-requests`, or a proxy's page with no envelope). The
+kind of refusal is said only where the reader knew nothing more than the plain sentence: 401 signed
+out, 404 not there any more, 409 changed meanwhile, 400, 413 and 422 not accepted, and NuraChain out
+of reach. A 401 is never a passage, because the server answers a wrong signature or recovery phrase
+with it too, and neither is a domain's own 429 (a cooldown, a day's budget) nor `chain-unreachable`,
+which each domain has words for. Everything else is the plain sentence. `attempt` asks it of every
+reader it is handed, and so do `whyRefused`, the shop's, a gift's and a market's readers, the sheets
+fetched at a press (`lib/person-menu.ts` and the eight like it, the table's invite sheet among them),
+a failed chat line (`sealSentenceOf`), the invite page's new code, a privacy or notice switch in
+Settings and a browser signed out on the devices page. Eleven sentences, `failure.*` in ten languages.
+Adding this browser with the wallet keeps its two sentences: the devices store has already turned a
+request that never got there into its own word, and the only failure left after it is the read that
+follows a browser added, which "could not be reached" would misdescribe. A read that fails (a page's
+`ErrorState`) is not in it yet: its stores keep that they failed and not why. `failure.spec.ts` holds
+the tiers and the money's readers, `feedback.spec.ts` `attempt`, `table-refusals.spec.ts` the table's
+words, `sheet-loaders.spec.ts` the nine sheets (a module whose export throws the browser's own
+`TypeError`, because vitest wraps a factory that throws in an error of its own), and
+`settings.spec.ts` and `devices-page.spec.ts` the two pages.
+
 **What a press does is on screen in the same turn, and only a refusal is ever seen.** The owner:
 "when it click on ready button it should immidetly on client set it to active such as instagram
 like so that user never feel that app has delay". Ready sent its request, waited for the answer,

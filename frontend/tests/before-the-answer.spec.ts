@@ -503,3 +503,75 @@ describe('the groups, on the Friends page and on Discover, before the server has
         }
     });
 });
+
+describe('the activity beside the page, before the server has answered', () =>
+{
+    const lists = client.notifications as unknown as Record<string, (input: unknown) => Promise<unknown>>;
+
+    const activityOf = (container: HTMLElement) =>
+        [...container.querySelectorAll('section')].find((one) => one.querySelector('h2')?.textContent?.includes(useLocale().t('shell.activity')))!;
+
+    const anewList = async (list: (real: (input: unknown) => Promise<unknown>, input: unknown) => Promise<unknown>) =>
+    {
+        const real = lists.list;
+
+        lists.list = (input) => list(real, input);
+        useSession().reset();
+        await settle();
+        useSession().establish(ALEX);
+        await settle();
+
+        return () =>
+        {
+            lists.list = real;
+        };
+    };
+
+    it('is drawn as being read, and says there is nothing new only once the server has said so', async () =>
+    {
+        let open: () => void = () => undefined;
+        const restore = await anewList((real, input) => new Promise((resolve, reject) =>
+        {
+            open = () => void real(input).then(resolve, reject);
+        }));
+
+        try
+        {
+            const container = page(SocialPanel as unknown as () => HTMLElement, '/app');
+
+            await settle();
+
+            expect(activityOf(container).querySelector('[data-reading]')).not.toBeNull();
+            expect(container.textContent).not.toContain(useLocale().t('shell.activity.empty'));
+
+            open();
+            await settle();
+
+            expect(activityOf(container).querySelector('[data-reading]')).toBeNull();
+            expect(activityOf(container).textContent).toContain(useLocale().t('shell.activity.empty'));
+        }
+        finally
+        {
+            restore();
+        }
+    });
+
+    it('says what went wrong where the activity would be when it could not be read', async () =>
+    {
+        const restore = await anewList(() => Promise.reject(new ApiError(503, 'unavailable', 'Down.', undefined)));
+
+        try
+        {
+            const container = page(SocialPanel as unknown as () => HTMLElement, '/app');
+
+            await settle();
+
+            expect(alertOf(activityOf(container))?.textContent).toContain(useLocale().t('failure.down'));
+            expect(container.textContent).not.toContain(useLocale().t('shell.activity.empty'));
+        }
+        finally
+        {
+            restore();
+        }
+    });
+});

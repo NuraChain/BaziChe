@@ -3,6 +3,7 @@ import { createStore, createMemo, createResource, createSignal, untrack, type Ge
 import { client, type Notification } from '../api.ts';
 import type { Notice } from '../../../backend/src/domains/notify/notices.ts';
 import { createGuesses } from '../lib/guess.ts';
+import { readingOf, type Reading } from '../lib/reading.ts';
 import { useAccount } from './account.store.ts';
 import { usePeople } from './people.store.ts';
 import { useRealtime } from './realtime.store.ts';
@@ -35,6 +36,11 @@ export interface NotificationsApi
     unread: Getter<number>;
     loading: Getter<boolean>;
     failed: Getter<unknown>;
+
+    /** Where the page's list stands, and where the list beside the page does, with what it failed with. */
+    reading: Getter<Reading>;
+    latestReading: Getter<Reading>;
+    latestFailure: Getter<unknown>;
 
     /** Whether there is another page behind the one already held. */
     hasMore: Getter<boolean>;
@@ -188,6 +194,10 @@ export const useNotifications = createStore((): NotificationsApi =>
         unread: () => shown().unread,
         loading: () => first.loading(),
         failed: () => first.error(),
+
+        reading: () => readingOf(first),
+        latestReading: () => readingOf(notice() === null ? first : everything),
+        latestFailure: () => (notice() === null ? first : everything).error(),
 
         hasMore: () => nextCursor() !== undefined,
 

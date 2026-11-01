@@ -261,6 +261,82 @@ describe('the notifications page', () =>
         expect(chipOf(container, locale.t('notifications.kind.messages'))).toBeNull();
     });
 
+    describe('before the server has answered', () =>
+    {
+        const routes = client.notifications as unknown as Record<string, (input: unknown) => Promise<unknown>>;
+
+        const anew = async (list: (real: (input: unknown) => Promise<unknown>, input: unknown) => Promise<unknown>) =>
+        {
+            const real = routes.list;
+
+            routes.list = (input) => list(real, input);
+            useSession().reset();
+            await settle();
+            useSession().establish({ id: 'alex', handle: 'alex', displayName: 'Alex Morgan', bio: '', hue: 210, isMinor: false });
+
+            return () =>
+            {
+                routes.list = real;
+            };
+        };
+
+        it('is drawn as being read, and says there is nothing new only once the server has said so', async () =>
+        {
+            const locale = useLocale();
+            let open: () => void = () => undefined;
+            const restore = await anew((real, input) => new Promise((resolve, reject) =>
+            {
+                open = () => void real(input).then(resolve, reject);
+            }));
+
+            try
+            {
+                const container = await opened();
+
+                expect(container.querySelector('[data-reading]')).not.toBeNull();
+                expect(container.textContent, 'nothing new before the server has said what is').not.toContain(locale.t('notifications.empty'));
+
+                open();
+                await vi.waitFor(() => expect(container.textContent).toContain(locale.t('notifications.empty')), { timeout: 4000 });
+
+                expect(container.querySelector('[data-reading]')).toBeNull();
+            }
+            finally
+            {
+                restore();
+            }
+        });
+
+        it('says what went wrong where the notifications would be, and reads them again at Try again', async () =>
+        {
+            const locale = useLocale();
+            let refusing = true;
+            const restore = await anew((real, input) => (refusing ? Promise.reject(new ApiError(504, 'unknown', 'Gateway Timeout', undefined)) : real(input)));
+
+            try
+            {
+                arrive();
+
+                const container = await opened();
+                const alert = container.querySelector('[role="alert"]');
+
+                expect(alert?.textContent).toContain(locale.t('failure.down'));
+                expect(container.textContent).not.toContain(locale.t('notifications.empty'));
+
+                refusing = false;
+                fire([...alert!.querySelectorAll('button')].find((one) => one.textContent?.includes(locale.t('common.retry')))!, 'click');
+
+                await vi.waitFor(() => expect(rowsOf(container).length).toBe(3), { timeout: 4000 });
+
+                expect(container.querySelector('[role="alert"]')).toBeNull();
+            }
+            finally
+            {
+                restore();
+            }
+        });
+    });
+
     describe('when something on it is pressed', () =>
     {
         const routes = client.notifications as unknown as Record<string, (input: unknown) => Promise<unknown>>;

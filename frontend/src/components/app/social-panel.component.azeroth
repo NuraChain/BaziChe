@@ -35,6 +35,14 @@ export default component SocialPanel()
 
     derived busy = recent.length > 0;
 
+    derived activity = notifications.latestReading();
+
+    derived hearing = activity === 'reading';
+
+    derived unheard = activity === 'failed';
+
+    derived nothingNew = activity === 'read' && !busy;
+
     derived around = friends.length > 0;
 
     derived graph = social.reading('graph');
@@ -72,10 +80,22 @@ export default component SocialPanel()
     <aside class="flex min-h-0 w-[var(--social-w)] shrink-0 flex-col gap-7 overflow-y-auto border-s border-line bg-void px-4 py-6" aria-label={ locale.t('shell.panel') }>
         <section aria-labelledby="panel-activity">
             <SectionHeading id="panel-activity" title={ locale.t('shell.activity') } more={ locale.t('common.seeAll') } to="/app/notifications" class="mb-1" />
-            <Show
-                when={ busy }
-                fallback={ <p class="py-2 text-ui-sm text-muted">{ locale.t('shell.activity.empty') }</p> }
-            >
+            <Show when={ hearing }>
+                { () =>
+                    <div class="flex flex-col py-1" data-reading>
+                        <span class="sr-only">{ locale.t('common.loading') }</span>
+                        <Skeleton avatar lines={ 2 } class="py-2" />
+                        <Skeleton avatar lines={ 2 } class="py-2" />
+                    </div>
+                }
+            </Show>
+            <Show when={ unheard }>
+                { () => <ErrorState compact error={ notifications.latestFailure() } onRetry={ () => void notifications.refresh() } /> }
+            </Show>
+            <Show when={ nothingNew }>
+                { () => <p class="py-2 text-ui-sm text-muted">{ locale.t('shell.activity.empty') }</p> }
+            </Show>
+            <Show when={ busy }>
                 { () =>
                     <ul class="flex flex-col">
                         <For each={ recent } key={ (item) => item.id } let={ item }>

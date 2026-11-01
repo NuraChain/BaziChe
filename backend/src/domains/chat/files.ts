@@ -88,7 +88,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MIME = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$/i;
 
 /** Anything a name could carry that a save dialog or a screen should never be handed. */
-// eslint-disable-next-line no-control-regex
 const UNSAFE_NAME = /[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069/\\]/;
 
 const whole = (value: unknown, least: number, most: number): value is number =>

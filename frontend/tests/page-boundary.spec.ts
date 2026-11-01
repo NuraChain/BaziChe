@@ -6,7 +6,7 @@ import type { StaffRole } from '../../backend/src/domains/admin/roles.ts';
 import '../src/locales/admin-catalogue.ts';
 import '../src/locales/app-catalogue.ts';
 import { resetChunks } from '../src/lib/chunks.ts';
-import { manualClock } from '../src/lib/clock.ts';
+import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import { routes } from '../src/routes.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
@@ -90,6 +90,16 @@ const lost = async () =>
     return { default: page('lost') };
 };
 
+/** A page whose code comes when the test says, to everybody who asked for it, as one module's import does. */
+let arrive: () => void = () => undefined;
+
+let coming: Promise<{ default: () => HTMLElement }> | null = null;
+
+const slow = () => coming ??= new Promise((resolve) =>
+{
+    arrive = () => resolve({ default: page('slow') });
+});
+
 const shellOf = (path: string) => routes.find((route) => route.path === path)!;
 
 /** Made afresh for every test: the router keeps a lazy route's chunk by the route itself, so a page one test fetched would be there for the next. */
@@ -99,7 +109,8 @@ const app = (): Route[] => [
     { path: 'boom', component: broken },
     { path: 'flaky', component: flaky },
     { path: 'later', component: later },
-    { path: 'lost', lazy: lost }
+    { path: 'lost', lazy: lost },
+    { path: 'slow', lazy: slow }
 ];
 
 const ADMIN: Route[] = [
@@ -131,6 +142,14 @@ const opened = async (shell: string, children: Route[], at: string, ready: strin
     return { router, container };
 };
 
+/** After a navigation: the code of the page gone to, one turn of the clock for the router to commit it, and the page drawn. */
+const went = async () =>
+{
+    await settle();
+    clock.advance(0);
+    await settle();
+};
+
 const failed = (root: ParentNode) => root.querySelector<HTMLElement>('[data-page-failed]');
 
 const retry = (root: ParentNode) => [...root.querySelectorAll<HTMLButtonElement>('[data-page-failed] button')].find((one) => one.textContent?.trim() === useLocale().t('common.retry')) ?? null;
@@ -140,6 +159,8 @@ const home = (root: ParentNode) => root.querySelector<HTMLAnchorElement>('[data-
 let said: ReturnType<typeof vi.spyOn>;
 
 let reloads = 0;
+
+let clock: ManualClock;
 
 /** Whether the server answers the question `lib/chunks.ts` asks before it loads the page. */
 let answering = false;
@@ -152,7 +173,8 @@ beforeEach(() =>
     reloads = 0;
     answering = false;
     sessionStorage.clear();
-    setRuntime({ clock: manualClock(Date.parse('2026-11-01T21:00:00.000Z')), seed: 7, reload: () => reloads += 1 });
+    clock = manualClock(Date.parse('2026-11-01T21:00:00.000Z'));
+    setRuntime({ clock, seed: 7, reload: () => reloads += 1 });
     vi.stubGlobal('fetch', async () =>
     {
         if (!answering)
@@ -171,6 +193,7 @@ beforeEach(() =>
     builds = 0;
     fetches = 0;
     reachable = false;
+    coming = null;
     trip(false);
     said = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
@@ -222,7 +245,7 @@ describe('a page of the app that throws', () =>
         expect(document.title).toContain('This page stopped working. · Baziche');
 
         router.navigate('/app/fine');
-        await settle();
+        await went();
 
         expect(document.title, 'the failure named a tab it was no longer in').not.toContain('This page stopped working.');
     });
@@ -306,10 +329,45 @@ describe('a page of the app that throws', () =>
         const { router, container } = await opened('/app', app(), '/app/boom', '[data-page-failed]');
 
         router.navigate('/app/fine');
-        await settle();
+        await went();
 
         expect(failed(container)).toBeNull();
         expect(container.querySelector('[data-page="fine"]')).not.toBeNull();
+    });
+
+    it('draws a page whose code comes late, not the page that failed again in the meantime', async () =>
+    {
+        const { router, container } = await opened('/app', app(), '/app/boom', '[data-page-failed]');
+
+        router.navigate('/app/slow');
+        await went();
+
+        expect(container.querySelector('[data-page="slow"]')).toBeNull();
+
+        arrive();
+        await went();
+
+        expect(failed(container), 'the page gone to was never drawn').toBeNull();
+        expect(container.querySelector('[data-page="slow"]')).not.toBeNull();
+        expect(said.mock.calls.filter((call: unknown[]) => String(call[0]).startsWith('[nura] a page threw')), 'the page that failed was built again on the way out').toHaveLength(1);
+    });
+
+    it('says why a page gone to from a failure could not be had either, and stays', async () =>
+    {
+        const { router, container } = await opened('/app', app(), '/app/boom', '[data-page-failed]');
+
+        router.navigate('/app/lost');
+        await went();
+
+        expect(failed(container)).not.toBeNull();
+        expect(failed(container)?.querySelector('[data-failed-lead]')?.textContent).toBe('The server could not be reached. Check your connection, then try again.');
+
+        reachable = true;
+        retry(container)!.click();
+        await went();
+
+        expect(failed(container)).toBeNull();
+        expect(container.querySelector('[data-page="lost"]')).not.toBeNull();
     });
 
     it('is tried again when the reader comes back to it, and not built again on the way out', async () =>
@@ -317,13 +375,13 @@ describe('a page of the app that throws', () =>
         const { router, container } = await opened('/app', app(), '/app/flaky', '[data-page-failed]');
 
         router.navigate('/app/fine');
-        await settle();
+        await went();
 
         expect(container.querySelector('[data-page="fine"]')).not.toBeNull();
         expect(builds, 'the page that failed was built again on the way out').toBe(1);
 
         router.navigate('/app/flaky');
-        await settle();
+        await went();
 
         expect(failed(container)).toBeNull();
         expect(container.querySelector('[data-page="flaky"]')).not.toBeNull();
@@ -335,7 +393,7 @@ describe('a page of the app that throws', () =>
         const { container } = await opened('/app', app(), '/app/boom', '[data-page-failed]');
 
         home(container)!.click();
-        await settle();
+        await went();
 
         expect(failed(container)).toBeNull();
         expect(container.querySelector('[data-page="home"]')).not.toBeNull();
@@ -379,7 +437,7 @@ describe('a section of the admin that throws', () =>
         expect(home(container)?.textContent?.trim()).toBe('Go to the overview');
 
         home(container)!.click();
-        await settle();
+        await went();
 
         expect(failed(container)).toBeNull();
         expect(container.querySelector('[data-page="overview"]')).not.toBeNull();

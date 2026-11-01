@@ -1,25 +1,32 @@
-import { resolveRouteComponent, untrack, useHead, useMatch } from 'azerothjs';
+import { resolveRouteComponent, untrack, useHead, useMatch, type RouteMatch } from 'azerothjs';
 
 import Icon from '../../icons/icon.component.azeroth';
 import { reloadPage } from '../../lib/chunks.ts';
 import { whyFailed } from '../../lib/failure.ts';
+import { runtime } from '../../lib/runtime.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import Button from '../ui/button.component.azeroth';
 
 /**
- * What a shell draws where a page threw, so the nav around it stays. It lets go of the failure once
- * the router has committed another page, never at the address alone: the address moves before a
- * guard has answered, and the page drawn then would be the one that failed. Try again asks again
- * for whatever of the page's code could not be fetched (the router keeps a lost chunk's error until
- * it is asked again) and builds the page afresh; where the code still cannot be had, it loads the
- * page, the one way back from a chunk Chromium will not ask for twice (`lib/chunks.ts`).
+ * What a shell draws where a page threw, so the nav around it stays. Try again asks again for
+ * whatever of the page's code could not be fetched (the router keeps a lost chunk's error until it
+ * is asked again) and builds the page afresh; where the code still cannot be had, it loads the page,
+ * the one way back from a chunk Chromium will not ask for twice (`lib/chunks.ts`).
+ *
+ * A page the reader goes to is drawn once its code has come and the router has taken it up, a turn
+ * of the clock later. The router commits a page before its code comes and goes on drawing the last
+ * one until then, so letting go of the failure at the commit drew the page that had failed again,
+ * and its failure was then taken for the new page's and never let go. Nothing below `<Routes>` can
+ * read whether the router is still waiting.
  */
 export default component PageFailed(props: { error: unknown; reset: () => void; home: string; homeLabel: string; class?: string })
 {
     const locale = useLocale();
     const match = useMatch();
 
-    const failedAt = untrack(match);
+    let watching = untrack(match);
+
+    let gone = false;
 
     useHead({ title: () => locale.t('page.failed.title') });
 
@@ -54,17 +61,50 @@ export default component PageFailed(props: { error: unknown; reset: () => void; 
         props.reset();
     };
 
+    const follow = async (to: RouteMatch | null) =>
+    {
+        try
+        {
+            await Promise.all((to?.matched ?? []).map((level) => resolveRouteComponent(level)));
+        }
+        catch (error)
+        {
+            if (!gone && untrack(match) === to)
+            {
+                failure = error;
+            }
+
+            return;
+        }
+
+        runtime().clock.after(0, () =>
+        {
+            if (!gone && untrack(match) === to)
+            {
+                props.reset();
+            }
+        });
+    };
+
     effect
     {
-        if (match() !== failedAt)
+        const now = match();
+
+        if (now !== watching)
         {
-            untrack(() => props.reset());
+            watching = now;
+            untrack(() => void follow(now));
         }
     }
 
     mount
     {
         console.error('[nura] a page threw, and its shell kept the rest of the app', props.error);
+
+        return () =>
+        {
+            gone = true;
+        };
     }
 
     <div class={ [ 'flex flex-col items-center justify-center px-6 py-12 text-center', props.class ?? '' ].filter(Boolean).join(' ') } role="alert" data-page-failed>

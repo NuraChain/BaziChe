@@ -106,6 +106,10 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'notice.close': 'بستن اطلاعیه',
     'notice.gotIt': 'فهمیدم',
 
+    'page.failed.title': 'این صفحه از کار افتاد.',
+    'page.failed.lead': 'موقع نشون دادنش یه چیزی خراب شد. بقیهٔ بازیچه هنوز کار می‌کنه.',
+    'page.home': 'برو به خانه',
+
     'state.errorTitle': 'این بخش بالا نیومد.',
     'state.errorLead': 'اگه بازم این‌طوری شد، اینترنتت رو چک کن.'
 };

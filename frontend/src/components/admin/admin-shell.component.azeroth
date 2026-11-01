@@ -1,4 +1,4 @@
-import { Link, Outlet, untrack, useHead, useRoute, type MountNode } from 'azerothjs';
+import { ErrorBoundary, Link, Outlet, untrack, useHead, useRoute, type MountNode } from 'azerothjs';
 
 import { may } from '../../../../backend/src/domains/admin/roles.ts';
 
@@ -17,6 +17,7 @@ import { useSession } from '../../stores/session.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
 import { ACTIVE_ROW } from '../app/nav-items.ts';
 import OverlayHost from '../app/overlay-host.component.azeroth';
+import PageFailed from '../app/page-failed.component.azeroth';
 import { watchSignedOut } from '../app/sign-out.ts';
 import ToastHost from '../app/toast-host.component.azeroth';
 import Avatar from '../ui/avatar.component.azeroth';
@@ -221,7 +222,9 @@ export default component AdminShell(props: { children?: MountNode })
 
                 <main id="admin-main" class="min-w-0 px-4 pb-[calc(var(--nav-room)+1.5rem)] pt-5 sm:px-6 md:px-8 md:pb-12 md:pt-8">
                     <div class="mx-auto w-full max-w-[80rem]">
-                        <Outlet children={ props.children } />
+                        <ErrorBoundary fallback={ (error, reset) => <PageFailed error={ error } reset={ reset } home="/admin/overview" homeLabel={ locale.t('admin.home') } /> }>
+                            <Outlet children={ props.children } />
+                        </ErrorBoundary>
                     </div>
                 </main>
             </div>

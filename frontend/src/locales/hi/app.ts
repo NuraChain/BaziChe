@@ -106,6 +106,10 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'notice.close': 'यह घोषणा बंद करो',
     'notice.gotIt': 'समझ गया',
 
+    'page.failed.title': 'इस पेज में कुछ गड़बड़ हो गई।',
+    'page.failed.lead': 'इसे दिखाते समय कुछ टूट गया। बाज़ीचे का बाकी हिस्सा अब भी चल रहा है।',
+    'page.home': 'होम पर जाओ',
+
     'state.errorTitle': 'यह लोड नहीं हो पाया।',
     'state.errorLead': 'अगर ऐसा बार-बार हो, तो अपना कनेक्शन देख लो।'
 };

@@ -106,6 +106,10 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'notice.close': 'Cerrar este anuncio',
     'notice.gotIt': 'Entendido',
 
+    'page.failed.title': 'Esta página dejó de funcionar.',
+    'page.failed.lead': 'Algo falló al mostrarla. El resto de Baziche sigue funcionando.',
+    'page.home': 'Ir a Inicio',
+
     'state.errorTitle': 'No se ha podido cargar.',
     'state.errorLead': 'Si sigue pasando, revisa tu conexión.'
 };

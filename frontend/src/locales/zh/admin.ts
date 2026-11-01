@@ -25,6 +25,7 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.section.reports': '举报',
     'admin.section.play': '游戏',
     'admin.section.overview': '概览',
+    'admin.home': '前往概览',
     'admin.section.live': '当前在线',
     'admin.section.notice': '公告',
     'admin.notice.lead': '一行文字，显示在每个页面顶部，每个人都能用自己的语言看到。',

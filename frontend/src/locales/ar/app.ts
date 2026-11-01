@@ -106,6 +106,10 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'notice.close': 'أغلق هذا الإعلان',
     'notice.gotIt': 'فهمت',
 
+    'page.failed.title': 'توقفت هذه الصفحة عن العمل.',
+    'page.failed.lead': 'حدث خلل أثناء عرضها. بقية بازيچه ما زالت تعمل.',
+    'page.home': 'الذهاب إلى الرئيسية',
+
     'state.errorTitle': 'تعذّر تحميل هذا.',
     'state.errorLead': 'إن تكرر هذا، فتحقق من اتصالك.'
 };

@@ -25,6 +25,7 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.section.reports': 'Şikâyetler',
     'admin.section.play': 'Oyun',
     'admin.section.overview': 'Genel bakış',
+    'admin.home': 'Genel bakışa git',
     'admin.section.live': 'Şu an çevrimiçi',
     'admin.section.notice': 'Duyuru',
     'admin.notice.lead': 'Herkesin her sayfanın en üstünde, kendi dilinde gördüğü tek bir satır.',

@@ -106,6 +106,10 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'notice.close': 'Bu duyuruyu kapat',
     'notice.gotIt': 'Tamam',
 
+    'page.failed.title': 'Bu sayfa çalışmayı durdurdu.',
+    'page.failed.lead': 'Gösterilirken bir şey bozuldu. Baziche’nin geri kalanı hâlâ çalışıyor.',
+    'page.home': 'Ana sayfaya git',
+
     'state.errorTitle': 'Bu yüklenemedi.',
     'state.errorLead': 'Bu sık oluyorsa bağlantını kontrol et.'
 };

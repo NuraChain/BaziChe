@@ -1,0 +1,74 @@
+import { resolveRouteComponent, untrack, useMatch } from 'azerothjs';
+
+import Icon from '../../icons/icon.component.azeroth';
+import { whyFailed } from '../../lib/failure.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Button from '../ui/button.component.azeroth';
+
+/**
+ * What a shell draws where a page threw, so the nav around it stays. It lets go of the failure once
+ * the router has committed another page, never at the address alone: the address moves before a
+ * guard has answered, and the page drawn then would be the one that failed. Try again fetches again
+ * whatever of the page's code could not be fetched (the router keeps a lost chunk's error until it
+ * is asked again) and then builds the page afresh.
+ */
+export default component PageFailed(props: { error: unknown; reset: () => void; home: string; homeLabel: string; class?: string })
+{
+    const locale = useLocale();
+    const match = useMatch();
+
+    const failedAt = untrack(match);
+
+    state trying = false;
+
+    state failure: unknown = props.error;
+
+    derived lead = locale.t(whyFailed(failure, 'page.failed.lead'));
+
+    derived away = match()?.pathname !== props.home;
+
+    const again = async () =>
+    {
+        trying = true;
+
+        try
+        {
+            await Promise.all((untrack(match)?.matched ?? []).map((level) => resolveRouteComponent(level)));
+        }
+        catch (error)
+        {
+            failure = error;
+            trying = false;
+            return;
+        }
+
+        props.reset();
+    };
+
+    effect
+    {
+        if (match() !== failedAt)
+        {
+            untrack(() => props.reset());
+        }
+    }
+
+    mount
+    {
+        console.error('[nura] a page threw, and its shell kept the rest of the app', props.error);
+    }
+
+    <div class={ [ 'flex flex-col items-center justify-center px-6 py-12 text-center', props.class ?? '' ].filter(Boolean).join(' ') } role="alert" data-page-failed>
+        <span class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-danger/15 text-danger" aria-hidden="true">
+            <Icon name="alert" size={ 26 } />
+        </span>
+        <h1 class="title text-balance text-ui-xl text-text">{ locale.t('page.failed.title') }</h1>
+        <p class="mt-1.5 max-w-[34ch] text-balance text-ui-base text-muted" data-failed-lead>{ lead }</p>
+        <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
+            <Button variant="primary" size="md" leading="refresh" loading={ trying } onClick={ () => void again() }>{ locale.t('common.retry') }</Button>
+            <Show when={ away }>
+                <Button variant="outline" size="md" leading="home" to={ props.home }>{ props.homeLabel }</Button>
+            </Show>
+        </div>
+    </div>
+}

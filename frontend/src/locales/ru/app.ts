@@ -106,6 +106,10 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'notice.close': 'Закрыть объявление',
     'notice.gotIt': 'Понятно',
 
+    'page.failed.title': 'Эта страница перестала работать.',
+    'page.failed.lead': 'Что-то сломалось, пока она показывалась. Остальной Baziche работает.',
+    'page.home': 'На главную',
+
     'state.errorTitle': 'Не удалось загрузить.',
     'state.errorLead': 'Если это повторяется, проверь подключение.'
 };

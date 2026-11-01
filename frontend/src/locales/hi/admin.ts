@@ -25,6 +25,7 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.section.reports': 'रिपोर्ट',
     'admin.section.play': 'खेल',
     'admin.section.overview': 'ओवरव्यू',
+    'admin.home': 'ओवरव्यू पर जाओ',
     'admin.section.live': 'अभी ऑनलाइन',
     'admin.section.notice': 'घोषणा',
     'admin.notice.lead': 'एक लाइन जो हर किसी को हर पेज के ऊपर उसकी अपनी भाषा में दिखती है।',

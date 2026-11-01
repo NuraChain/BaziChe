@@ -103,6 +103,10 @@ export const app = {
     'notice.close': 'Close this announcement',
     'notice.gotIt': 'Got it',
 
+    'page.failed.title': 'This page stopped working.',
+    'page.failed.lead': 'Something broke while it was being shown. The rest of Baziche still works.',
+    'page.home': 'Go to Home',
+
     'state.errorTitle': 'Couldn’t load this.',
     'state.errorLead': 'If this keeps happening, check your connection.'
 };

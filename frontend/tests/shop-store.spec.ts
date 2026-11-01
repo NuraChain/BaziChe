@@ -209,6 +209,70 @@ describe('choosing a look', () =>
         expect(server.calls).toContain('shop.choose hokm.back classic');
     });
 
+    it('keeps the choice shown until the newest read of the collection has answered, when the server\'s ring reads it meanwhile', async () =>
+    {
+        server.shop.owned = [{ item: 'dice.glow', via: 'purchase', at: '2026-10-27T11:00:00.000Z' }];
+        await signIn(walletAt(OWNER));
+        const unlisten = useShop().listen();
+        useRealtime().start();
+        socket.accept();
+        clock.advance(NUDGE_WINDOW_MS);
+        await settle();
+
+        const answers: (() => void)[] = [];
+        server.shop.collectionHolds = [0, 1].map(() => new Promise<void>((resolve) =>
+        {
+            answers.push(resolve);
+        }));
+
+        const choosing = useShop().choose('ludo.dice', 'dice.glow');
+
+        await settle();
+        socket.deliver({ v: 1, t: 'nudge', n: 1, at: 0, scope: 'me', id: 'shop' });
+        clock.advance(NUDGE_WINDOW_MS);
+        await settle();
+        answers[0]();
+        await settle();
+
+        expect(useShop().inUse('dice.glow'), 'the read the ring began is still out').toBe(true);
+
+        answers[1]();
+
+        expect(await choosing).toBe(true);
+        expect(useShop().inUse('dice.glow')).toBe(true);
+
+        unlisten();
+    });
+
+    it('keeps the choice shown when the page is read again by hand meanwhile', async () =>
+    {
+        server.shop.owned = [{ item: 'dice.glow', via: 'purchase', at: '2026-10-27T11:00:00.000Z' }];
+        await signIn(walletAt(OWNER));
+
+        const answers: (() => void)[] = [];
+        server.shop.collectionHolds = [0, 1].map(() => new Promise<void>((resolve) =>
+        {
+            answers.push(resolve);
+        }));
+
+        const choosing = useShop().choose('ludo.dice', 'dice.glow');
+
+        await settle();
+        const refreshing = useShop().refresh();
+
+        await settle();
+        answers[0]();
+        await settle();
+
+        expect(useShop().inUse('dice.glow'), 'the read the page asked for is still out').toBe(true);
+
+        answers[1]();
+
+        expect(await choosing).toBe(true);
+        await refreshing;
+        expect(useShop().inUse('dice.glow')).toBe(true);
+    });
+
     it('takes a refused choice back and says why in the shop\'s own words', async () =>
     {
         await signIn(walletAt(OWNER));

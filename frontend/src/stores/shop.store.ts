@@ -12,6 +12,7 @@ import {
 import { bundleOf, bundlePriceFor, type ShopSlot } from '../../../backend/src/domains/shop/catalogue.ts';
 import { attempt } from '../lib/attempt.ts';
 import { createGuesses } from '../lib/guess.ts';
+import { newestRead } from '../lib/newest-read.ts';
 import { runtime } from '../lib/runtime.ts';
 import { failureOf, itemName, priceOf, whyShop, type Price } from '../lib/shop.ts';
 import { REFUSAL_OF, readyToSend, type SendRefusal } from '../lib/wallet-call.ts';
@@ -127,6 +128,8 @@ export const useShop = createStore((): ShopApi =>
 
     const held = createResource(reader, () => client.shop.collection(), { name: 'shop.collection' });
 
+    const readHeld = newestRead(held);
+
     const firstOrders = createResource(wants('orders'), () => client.shop.orders({ query: {} }), { name: 'shop.orders' });
 
     const earnings = createResource(wants('earnings'), () => client.shop.earnings(), { name: 'shop.earnings' });
@@ -186,7 +189,7 @@ export const useShop = createStore((): ShopApi =>
 
     const readAgain = async () =>
     {
-        await held.refetch();
+        await readHeld();
 
         const error = held.error();
 
@@ -198,7 +201,7 @@ export const useShop = createStore((): ShopApi =>
 
     const mine = () =>
     {
-        void held.refetch().then(() =>
+        void readHeld().then(() =>
         {
             if (held.error() === null)
             {
@@ -619,7 +622,7 @@ export const useShop = createStore((): ShopApi =>
 
         async refresh()
         {
-            await Promise.all([state.refetch(), held.refetch()]);
+            await Promise.all([state.refetch(), readHeld()]);
         },
 
         reset()

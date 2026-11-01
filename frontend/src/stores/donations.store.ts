@@ -4,6 +4,7 @@ import { client, type DonationsState, type DonationView } from '../api.ts';
 import { attempt } from '../lib/attempt.ts';
 import { heldOf, whyDonate } from '../lib/donate.ts';
 import { createGuesses } from '../lib/guess.ts';
+import { newestRead } from '../lib/newest-read.ts';
 import { runtime } from '../lib/runtime.ts';
 import { REFUSAL_OF, readyToSend, type SendRefusal } from '../lib/wallet-call.ts';
 import type { MessageKey } from '../locales/en.ts';
@@ -92,6 +93,8 @@ export const useDonations = createStore((): DonationsApi =>
 
     const state = createResource(reader, () => client.donations.state(), { name: 'donations.state' });
 
+    const readState = newestRead(state);
+
     const pages = {
         given: createResource(wants('given'), () => client.donations.history({ query: { side: 'given' } }), { name: 'donations.given' }),
         received: createResource(wants('received'), () => client.donations.history({ query: { side: 'received' } }), { name: 'donations.received' })
@@ -128,7 +131,7 @@ export const useDonations = createStore((): DonationsApi =>
 
     const readAgain = async () =>
     {
-        await state.refetch();
+        await readState();
 
         const error = state.error();
 
@@ -140,7 +143,7 @@ export const useDonations = createStore((): DonationsApi =>
 
     const mine = () =>
     {
-        void state.refetch().then(() =>
+        void readState().then(() =>
         {
             if (state.error() === null)
             {

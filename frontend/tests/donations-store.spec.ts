@@ -188,6 +188,40 @@ describe('donations, as the browser holds them', () =>
         expect(useDonations().accepting()).toBe(false);
     });
 
+    it('keeps the switch shown until the newest read of the state has answered, when a ring reads it meanwhile', async () =>
+    {
+        await signIn(walletAt(OWNER));
+        const unlisten = useDonations().listen();
+        useRealtime().start();
+        socket.accept();
+        clock.advance(NUDGE_WINDOW_MS);
+        await settle();
+
+        const answers: (() => void)[] = [];
+        server.donate.stateHolds = [0, 1].map(() => new Promise<void>((resolve) =>
+        {
+            answers.push(resolve);
+        }));
+
+        const switching = useDonations().accept(false);
+
+        await settle();
+        socket.deliver({ v: 1, t: 'nudge', n: 1, at: 0, scope: 'me', id: 'donations' });
+        clock.advance(NUDGE_WINDOW_MS);
+        await settle();
+        answers[0]();
+        await settle();
+
+        expect(useDonations().accepting(), 'the read the ring began is still out').toBe(false);
+
+        answers[1]();
+
+        expect(await switching).toBe(true);
+        expect(useDonations().accepting()).toBe(false);
+
+        unlisten();
+    });
+
     it('takes a refused switch back and says why in its own words', async () =>
     {
         await signIn(walletAt(OWNER));

@@ -871,6 +871,9 @@ const shopFresh = () => ({
 
     /** A promise a read of the shop waits on, so a spec can look at a page that has not read it again yet. */
     holdState: null as Promise<void> | null,
+
+    /** Promises the reads of the collection wait on, one a read in turn, so a spec can answer two reads in another order than they were asked. */
+    collectionHolds: [] as Promise<void>[],
     seq: 0
 });
 
@@ -940,6 +943,9 @@ const donateFresh = () => ({
 
     /** A promise a switch waits on before it is answered, so a spec can look between the press and the answer. */
     hold: null as Promise<void> | null,
+
+    /** Promises the reads of the state wait on, one a read in turn, so a spec can answer two reads in another order than they were asked. */
+    stateHolds: [] as Promise<void>[],
     seq: 0
 });
 
@@ -1006,6 +1012,9 @@ const marketsFresh = () => ({
 
     /** A promise the disclosure waits on before it is answered, so a spec can look between the press and the answer. */
     hold: null as Promise<void> | null,
+
+    /** Promises the reads of the state wait on, one a read in turn, so a spec can answer two reads in another order than they were asked. */
+    stateHolds: [] as Promise<void>[],
     seq: 0
 });
 
@@ -2721,6 +2730,14 @@ export const client =
         async collection()
         {
             server.calls.push('shop.collection');
+
+            const held = server.shop.collectionHolds.shift();
+
+            if (held !== undefined)
+            {
+                await held;
+            }
+
             shopRefusal();
             return { owned: structuredClone(server.shop.owned), chosen: structuredClone(server.shop.chosen) };
         },
@@ -2832,6 +2849,14 @@ export const client =
         async state()
         {
             server.calls.push('donations.state');
+
+            const held = server.donate.stateHolds.shift();
+
+            if (held !== undefined)
+            {
+                await held;
+            }
+
             donateRefusal();
             return structuredClone(server.donate.state);
         },
@@ -2910,6 +2935,14 @@ export const client =
         async state()
         {
             server.calls.push('markets.state');
+
+            const held = server.markets.stateHolds.shift();
+
+            if (held !== undefined)
+            {
+                await held;
+            }
+
             marketsRefusal();
             return structuredClone(server.markets.state);
         },

@@ -4,6 +4,7 @@ import { client, type MarketPositionView, type MarketsState, type MarketView } f
 import { attempt } from '../lib/attempt.ts';
 import { createGuesses } from '../lib/guess.ts';
 import { heldOf, whyMarket } from '../lib/market.ts';
+import { newestRead } from '../lib/newest-read.ts';
 import { runtime } from '../lib/runtime.ts';
 import { REFUSAL_OF, readyToSend, type SendRefusal } from '../lib/wallet-call.ts';
 import type { MessageKey } from '../locales/en.ts';
@@ -120,6 +121,8 @@ export const useMarkets = createStore((): MarketsApi =>
 
     const state = createResource(reader, () => client.markets.state(), { name: 'markets.state' });
 
+    const readState = newestRead(state);
+
     const guesses = createGuesses<MarketsState | null>();
 
     const shown = () => guesses.over(state.data() ?? null);
@@ -176,7 +179,7 @@ export const useMarkets = createStore((): MarketsApi =>
 
     const readAgain = async () =>
     {
-        await state.refetch();
+        await readState();
 
         const error = state.error();
 
@@ -201,7 +204,7 @@ export const useMarkets = createStore((): MarketsApi =>
 
     const mine = () =>
     {
-        void state.refetch().then(() =>
+        void readState().then(() =>
         {
             if (state.error() === null)
             {

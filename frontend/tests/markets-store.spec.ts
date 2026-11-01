@@ -240,6 +240,41 @@ describe('markets, as the browser holds them', () =>
         expect(useMarkets().state()).toMatchObject({ may: 'yes' });
     });
 
+    it('keeps the disclosure shown as read until the newest read of the state has answered, when a ring reads it meanwhile', async () =>
+    {
+        server.markets.state = { ...OPEN, may: 'market-disclosure' };
+        await signIn(walletAt(OWNER));
+        const unlisten = useMarkets().listen();
+        useRealtime().start();
+        socket.accept();
+        clock.advance(NUDGE_WINDOW_MS);
+        await settle();
+
+        const answers: (() => void)[] = [];
+        server.markets.stateHolds = [0, 1].map(() => new Promise<void>((resolve) =>
+        {
+            answers.push(resolve);
+        }));
+
+        const reading = useMarkets().disclose();
+
+        await settle();
+        socket.deliver({ v: 1, t: 'nudge', n: 1, at: 0, scope: 'me', id: 'markets' });
+        clock.advance(NUDGE_WINDOW_MS);
+        await settle();
+        answers[0]();
+        await settle();
+
+        expect(useMarkets().state(), 'the read the ring began is still out').toMatchObject({ may: 'yes' });
+
+        answers[1]();
+
+        expect(await reading).toBe(true);
+        expect(useMarkets().state()).toMatchObject({ may: 'yes' });
+
+        unlisten();
+    });
+
     it('takes a refused disclosure back and says why in its own words', async () =>
     {
         server.markets.state = { ...OPEN, may: 'market-disclosure' };

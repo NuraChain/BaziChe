@@ -100,6 +100,8 @@ export const social = {
     'search.peopleElsewhere': 'People are looked for on our side, by name and @handle. Messages never are.',
     'search.searching': 'Looking for people…',
     'search.peopleFailed': 'People could not be looked for just now.',
+    'search.reading': 'Still reading what there is to search…',
+    'search.partial': 'Some of what is searched here could not be read, so this may not be everything.',
     'search.locked': { one: 'One message here could not be opened, so it was not searched.', other: '{count} messages here could not be opened, so they were not searched.' },
     'search.results': { one: '{count} result', other: '{count} results' },
     'search.in': 'in {where}',

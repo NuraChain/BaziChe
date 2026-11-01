@@ -3,6 +3,7 @@ import { createMemo, createStore, createResource, createSignal, untrack, type Ge
 import { ApiError, client } from '../api.ts';
 import type { Conversation, Message, VoiceRecording } from '../data/chat.ts';
 import { createGuesses } from '../lib/guess.ts';
+import { readingOf, type Reading } from '../lib/reading.ts';
 import { runtime } from '../lib/runtime.ts';
 import { forgetAudio, holdAudio } from '../lib/voice-held.ts';
 import { sealAudio } from '../lib/voice-note.ts';
@@ -64,6 +65,7 @@ export interface ChatApi
     hasMoreConversations: Getter<boolean>;
     moreConversations(): void;
     listError: Getter<unknown>;
+    listReading: Getter<Reading>;
     conversation(id: string): Conversation | undefined;
 
     openThread(id: string): void;
@@ -602,6 +604,7 @@ export const useChat = createStore((): ChatApi =>
         hasMoreConversations: () => list.data()?.more === true,
         moreConversations: () => setPages((held) => held + 1),
         listError: () => list.error(),
+        listReading: () => readingOf(list),
         conversation: (id) => rowOf(id)?.conversation,
 
         openThread(id)

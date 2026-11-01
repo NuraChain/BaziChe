@@ -103,6 +103,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'search.peopleElsewhere': 'A la gente la buscamos en nuestro servidor, por nombre y @usuario. Los mensajes, nunca.',
     'search.searching': 'Buscando gente…',
     'search.peopleFailed': 'No se ha podido buscar gente ahora mismo.',
+    'search.reading': 'Todavía estamos leyendo lo que se puede buscar…',
+    'search.partial': 'Parte de lo que se busca aquí no se pudo leer, así que puede que esto no sea todo.',
     'search.locked': { one: 'Un mensaje de aquí no se ha podido abrir, así que no se ha buscado en él.', many: '{count} mensajes de aquí no se han podido abrir, así que no se ha buscado en ellos.', other: '{count} mensajes de aquí no se han podido abrir, así que no se ha buscado en ellos.' },
     'search.results': { one: '{count} resultado', many: '{count} resultados', other: '{count} resultados' },
     'search.in': 'en {where}',

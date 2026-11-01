@@ -103,6 +103,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'search.peopleElsewhere': 'Les joueurs sont cherchés de notre côté, par nom et @pseudo. Les messages, jamais.',
     'search.searching': 'Recherche de joueurs…',
     'search.peopleFailed': 'Impossible de chercher des joueurs pour le moment.',
+    'search.reading': 'On lit encore ce qu’il y a à chercher…',
+    'search.partial': 'Une partie de ce qui est cherché ici n’a pas pu être lue, ce n’est donc peut-être pas tout.',
     'search.locked': { one: '{count} message ici n’a pas pu être ouvert : il n’a donc pas été cherché.', many: '{count} messages ici n’ont pas pu être ouverts : ils n’ont donc pas été cherchés.', other: '{count} messages ici n’ont pas pu être ouverts : ils n’ont donc pas été cherchés.' },
     'search.results': { one: '{count} résultat', many: '{count} résultats', other: '{count} résultats' },
     'search.in': 'dans {where}',

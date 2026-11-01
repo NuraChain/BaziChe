@@ -103,6 +103,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'search.peopleElsewhere': '玩家会在我们这边按名字和 @用户名查找。消息从不会。',
     'search.searching': '正在查找玩家…',
     'search.peopleFailed': '暂时无法查找玩家。',
+    'search.reading': '仍在读取可搜索的内容…',
+    'search.partial': '这里搜索的部分内容未能读取，所以结果可能不完整。',
     'search.locked': { other: '这里有 {count} 条消息无法打开，所以没有被搜索。' },
     'search.results': { other: '{count} 个结果' },
     'search.in': '在 {where} 中',

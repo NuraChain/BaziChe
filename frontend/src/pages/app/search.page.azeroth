@@ -67,6 +67,7 @@ export default component SearchPage()
     mount
     {
         social.want('people');
+        groups.want();
         search.setScope(SEARCH_SCOPES.find((one) => one === address.text('scope')) ?? 'all');
         search.setQuery(address.text('q'));
     }
@@ -108,11 +109,17 @@ export default component SearchPage()
 
     derived unanswered = search.failed();
 
+    derived unread = search.reading();
+
+    derived gathering = unread && !looking;
+
+    derived partial = search.partial();
+
     derived peopled = search.scope() === 'all' || search.scope() === 'people';
 
     derived further = asking && peopled && !everybody;
 
-    derived settled = !looking && !unanswered;
+    derived settled = !looking && !unanswered && !unread && !partial;
 
     const widen = () =>
     {
@@ -199,6 +206,16 @@ export default component SearchPage()
                 </Show>
                 <Show when={ looking }>
                     <p class="px-1 text-ui-sm text-muted" role="status">{ locale.t('search.searching') }</p>
+                </Show>
+                <Show when={ gathering }>
+                    <p class="px-1 text-ui-sm text-muted" role="status" data-reading>{ locale.t('search.reading') }</p>
+                </Show>
+                <Show when={ partial }>
+                    <div class="flex flex-wrap items-center gap-3 rounded-tile border border-line bg-field px-3 py-2 text-ui-sm text-muted" role="status" data-partial>
+                        <Icon name="alert" size={ 15 } class="shrink-0 text-gold" />
+                        <span class="min-w-0 flex-1">{ locale.t('search.partial') }</span>
+                        <Button variant="outline" size="sm" onClick={ () => search.again() }>{ locale.t('common.retry') }</Button>
+                    </div>
                 </Show>
                 <Show when={ unanswered }>
                     <div class="flex flex-wrap items-center gap-3 rounded-tile border border-line bg-field px-3 py-2 text-ui-sm text-muted" role="status">

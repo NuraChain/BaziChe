@@ -359,6 +359,126 @@ describe('the search page, looking for a person', () =>
     });
 });
 
+describe('the search page, before what it searches has been read', () =>
+{
+    const routes = client.social as unknown as Record<string, () => Promise<unknown>>;
+
+    const type = async (container: HTMLElement, text: string) =>
+    {
+        const field = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+
+        field.value = text;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        await settle();
+    };
+
+    it('says it is still reading, and never that nothing was found, until the lists it searches have answered', async () =>
+    {
+        const real = routes.people;
+        let open: () => void = () => undefined;
+
+        routes.people = () => new Promise((resolve, reject) =>
+        {
+            open = () => void real().then(resolve, reject);
+        });
+
+        try
+        {
+            useSocial().reset();
+            await settle();
+
+            const container = opened();
+
+            await settle();
+            await type(container, 'zzzz');
+
+            expect(container.querySelector('[data-reading]')?.textContent).toBe(useLocale().t('search.reading'));
+            expect(container.textContent, 'nothing was found in a list that had not been read').not.toContain(useLocale().t('search.empty', { query: 'zzzz' }));
+
+            open();
+            await settle();
+
+            expect(container.querySelector('[data-reading]')).toBeNull();
+            expect(container.textContent).toContain(useLocale().t('search.empty', { query: 'zzzz' }));
+        }
+        finally
+        {
+            routes.people = real;
+        }
+    });
+
+    it('waits for the conversations it searches as well, and says nothing was found only once they have come', async () =>
+    {
+        const chats = client.chat as unknown as Record<string, (input: unknown) => Promise<unknown>>;
+        const real = chats.list;
+        let open: () => void = () => undefined;
+
+        chats.list = (input) => new Promise((resolve, reject) =>
+        {
+            open = () => void real(input).then(resolve, reject);
+        });
+
+        try
+        {
+            useSession().reset();
+            await settle();
+            useSession().establish({ id: 'alex', handle: 'alex', displayName: 'Alex Morgan', bio: '', hue: 210, isMinor: false });
+            await settle();
+
+            const container = opened();
+
+            await settle();
+            await type(container, 'zzzz');
+
+            expect(container.querySelector('[data-reading]')?.textContent).toBe(useLocale().t('search.reading'));
+            expect(container.textContent).not.toContain(useLocale().t('search.empty', { query: 'zzzz' }));
+
+            open();
+            await settle();
+
+            expect(container.querySelector('[data-reading]')).toBeNull();
+            expect(container.textContent).toContain(useLocale().t('search.empty', { query: 'zzzz' }));
+        }
+        finally
+        {
+            chats.list = real;
+        }
+    });
+
+    it('says some of it could not be read where it would have said nothing was found, and reads it again at Try again', async () =>
+    {
+        const real = routes.people;
+        let refusing = true;
+
+        routes.people = () => (refusing ? Promise.reject(new ApiError(503, 'unavailable', 'Down.', undefined)) : real());
+
+        try
+        {
+            useSocial().reset();
+            await settle();
+
+            const container = opened();
+
+            await settle();
+            await type(container, 'zzzz');
+
+            expect(container.querySelector('[data-partial]')?.textContent).toContain(useLocale().t('search.partial'));
+            expect(container.textContent).not.toContain(useLocale().t('search.empty', { query: 'zzzz' }));
+
+            refusing = false;
+            fire(container.querySelector('[data-partial] button')!, 'click');
+            await settle();
+
+            expect(container.querySelector('[data-partial]')).toBeNull();
+            expect(container.textContent).toContain(useLocale().t('search.empty', { query: 'zzzz' }));
+        }
+        finally
+        {
+            routes.people = real;
+        }
+    });
+});
+
 describe('a search that the server is not asked', () =>
 {
     it('still narrows to the people this browser holds when the reader types an @', async () =>

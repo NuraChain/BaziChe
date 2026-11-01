@@ -103,6 +103,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'search.peopleElsewhere': 'يُبحث عن الأشخاص من جهتنا، بالاسم و@اسم المستخدم. أما الرسائل فلا أبدًا.',
     'search.searching': 'جارٍ البحث عن أشخاص…',
     'search.peopleFailed': 'تعذّر البحث عن الأشخاص الآن.',
+    'search.reading': 'ما زلنا نقرأ ما يمكن البحث فيه…',
+    'search.partial': 'تعذّرت قراءة بعض ما يُبحث فيه هنا، لذا قد لا تكون هذه كل النتائج.',
     'search.locked': { zero: 'كل الرسائل هنا فُتحت وبُحث فيها.', one: 'رسالة واحدة هنا تعذّر فتحها، فلم يُبحث فيها.', two: 'رسالتان هنا تعذّر فتحهما، فلم يُبحث فيهما.', few: '{count} رسائل هنا تعذّر فتحها، فلم يُبحث فيها.', many: '{count} رسالة هنا تعذّر فتحها، فلم يُبحث فيها.', other: '{count} رسالة هنا تعذّر فتحها، فلم يُبحث فيها.' },
     'search.results': { zero: 'لا نتائج', one: 'نتيجة واحدة', two: 'نتيجتان', few: '{count} نتائج', many: '{count} نتيجة', other: '{count} نتيجة' },
     'search.in': 'في {where}',

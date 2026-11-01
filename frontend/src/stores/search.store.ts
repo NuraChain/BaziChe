@@ -5,6 +5,7 @@ import type { GroupSummary } from '../api.ts';
 import type { Person } from '../data/person.ts';
 import type { Message } from '../data/chat.ts';
 import { client } from '../api.ts';
+import type { Reading } from '../lib/reading.ts';
 import { runtime } from '../lib/runtime.ts';
 import { RECENTS_MAX, recallSearchTerms, rememberSearchTerms } from '../lib/search-terms.ts';
 import { pickText } from '../lib/text.ts';
@@ -56,6 +57,14 @@ export interface SearchApi
     searching: Getter<boolean>;
     failed: Getter<boolean>;
     retry(): void;
+
+    /** A list this browser searches, as far as the scope reaches, has not answered yet. */
+    reading: Getter<boolean>;
+
+    /** A list this browser searches could not be read, so what was found may not be everything. */
+    partial: Getter<boolean>;
+    again(): void;
+
     recents: Getter<string[]>;
     remember(term: string): void;
     forget(term: string): void;
@@ -85,6 +94,14 @@ export const useSearch = createStore((): SearchApi =>
     const named = (value: string) => fold(value.replace(/^\s*@/, ''));
 
     const everybody = () => scope() === 'people' || query().trimStart().startsWith('@');
+
+    const reaches = (kind: SearchScope) => scope() === 'all' || scope() === kind;
+
+    const sources = (): Reading[] => [
+        ...(reaches('people') ? [social.reading('graph'), social.reading('people')] : []),
+        ...(reaches('groups') ? [groups.reading('mine'), groups.reading('elsewhere')] : []),
+        ...(reaches('chats') ? [chat.listReading()] : [])
+    ];
 
     const found = createResource(
         () =>
@@ -168,20 +185,19 @@ export const useSearch = createStore((): SearchApi =>
             return empty;
         }
         const tag = locale.locale();
-        const want = (kind: SearchScope) => scope() === 'all' || scope() === kind;
 
         const held = social.people();
         const others = [...new Set([...social.friends(), ...told()])]
             .map((handle) => known.byHandle(handle))
             .filter((person): person is Person => person !== null && !held.some((one) => one.id === person.id));
 
-        const people = want('people')
+        const people = reaches('people')
             ? ranked([...held, ...others], named(query()), (person) => [person.handle, pickText(person.displayName, tag), pickText(person.bio, tag)])
             : [];
-        const games = want('games')
+        const games = reaches('games')
             ? ranked(GAMES, needle, (game) => [game.slug, locale.t(game.nameKey), locale.t(game.blurbKey)])
             : [];
-        const groups = want('groups')
+        const groups = reaches('groups')
             ? ranked(everyGroup(), needle, (group) => [group.name, group.blurb])
             : [];
         // Only what this browser actually opened. A locked message has an empty `text` and would
@@ -189,14 +205,14 @@ export const useSearch = createStore((): SearchApi =>
         // message with nothing in it, which reads as a bug rather than as "you cannot read this".
         // A voice message was opened and has no words either, so it is not looked through, and not
         // counted as one that could not be read.
-        const opened = want('chats') ? chat.archive().filter((message) => message.locked === undefined) : [];
+        const opened = reaches('chats') ? chat.archive().filter((message) => message.locked === undefined) : [];
         const readable = opened.filter((message) => message.kind === 'text');
 
-        const messages = want('chats')
+        const messages = reaches('chats')
             ? ranked(readable, needle, (message) => [locale.text(message.text), message.from]).slice(0, 30)
             : [];
 
-        const locked = want('chats')
+        const locked = reaches('chats')
             ? chat.archive().length - opened.length
             : 0;
 
@@ -235,6 +251,17 @@ export const useSearch = createStore((): SearchApi =>
         failed: () => asked() !== '' && !found.loading() && found.error() != null,
 
         retry: () => void found.refetch(),
+
+        reading: () => sources().includes('reading'),
+
+        partial: () => sources().includes('failed'),
+
+        again()
+        {
+            void social.refresh();
+            void groups.refresh();
+            void chat.refresh();
+        },
 
         recents,
 

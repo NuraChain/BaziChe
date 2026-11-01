@@ -103,6 +103,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'search.peopleElsewhere': 'Kişiler bizim tarafımızda, isme ve @kullanıcıadına göre aranır. Mesajlar asla.',
     'search.searching': 'Kişiler aranıyor…',
     'search.peopleFailed': 'Şu an kişi aranamadı.',
+    'search.reading': 'Aranabilecekler hâlâ okunuyor…',
+    'search.partial': 'Burada aranan şeylerin bir kısmı okunamadı, bu yüzden hepsi bu olmayabilir.',
     'search.locked': { one: 'Buradaki bir mesaj açılamadı, bu yüzden aranmadı.', other: 'Buradaki {count} mesaj açılamadı, bu yüzden aranmadı.' },
     'search.results': { one: '{count} sonuç', other: '{count} sonuç' },
     'search.in': 'Yer: {where}',

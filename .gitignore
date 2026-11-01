@@ -1,25 +1,33 @@
+# Dependencies, and what the build, the compiler and the tests write.
 node_modules/
-dist/
-dist-server/
 /.dist-backend/
 /.dist-frontend/
 /.dist-server/
 .azeroth/
 coverage/
-logs/
-/.logs/
 *.tsbuildinfo
+__pycache__/
+*.pyc
+
+# What a running server writes: `.logs/` at the root now, `logs/` (the logger's own default)
+# beside the server before that.
+/.logs/
+logs/
+*.log
+
 # Real values, at any depth and under any suffix - `.env`, `.env.local`, `.env.production`. The
 # committed template is the root `.env.example` and nothing else: this repository is public,
 # and a secret published once stays published whatever a later commit does.
 .env*
 !.env.example
 *.local
+
+# Editors and operating systems.
+.idea/
+.vscode/
 .DS_Store
 Thumbs.db
-.idea
-.vscode
-.claude/settings.local.json
+desktop.ini
 
 # Playwright / Chrome DevTools MCP scratch output (snapshots, traces) - never part of the app.
 .playwright-mcp/
@@ -34,20 +42,16 @@ tools/blender/scratch/
 tools/blender/out/
 tools/blender/preview.png
 *-browser.png
-/*.png
-
-__pycache__/
-*.pyc
 
 # The matrix's screenshots and reports, the browser passes' recordings, and the one-off checks
 # that import the repository's own packages.
 tools/qa/out/
-board.png
 
 # The register of AzerothJS defects found while building this. It is notes ABOUT a dependency,
 # not part of this product, and it is kept in the framework's own checkout.
 framework-bugs.md
 
-# Scratch scripts and reference images kept at the root while working, never part of the product.
-/*.jpg
+# Scratch kept at the root while working: scripts, screenshots and reference images.
 /.*.mjs
+/*.png
+/*.jpg

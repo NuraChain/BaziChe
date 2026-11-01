@@ -3,6 +3,7 @@ import { createStore, createResource, createSignal, untrack, type Getter } from 
 import { ApiError, client, type GroupPrivacy, type GroupSummary } from '../api.ts';
 import { readingOf, type Reading } from '../lib/reading.ts';
 import { useAccount } from './account.store.ts';
+import { usePeople } from './people.store.ts';
 import { useRealtime } from './realtime.store.ts';
 
 export interface GroupDraft
@@ -66,6 +67,7 @@ export interface GroupsApi
 export const useGroups = createStore((): GroupsApi =>
 {
     const account = useAccount();
+    const people = usePeople();
 
     const who = () => account.user()?.id ?? null;
 
@@ -93,7 +95,10 @@ export const useGroups = createStore((): GroupsApi =>
         {
             try
             {
-                return await client.groups.view({ params: { slug: current.slug } });
+                const group = await client.groups.view({ params: { slug: current.slug } });
+
+                void people.want(group.members);
+                return group;
             }
             catch (error)
             {

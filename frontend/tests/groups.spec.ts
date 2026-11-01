@@ -12,6 +12,7 @@ import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import { useGroups } from '../src/stores/groups.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
+import { usePeople } from '../src/stores/people.store.ts';
 import { NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useShell } from '../src/stores/shell.store.ts';
@@ -145,6 +146,19 @@ describe('the group page', () =>
 
         expect(useOverlay().items()[0].props, 'the group can be handed over by one stray Enter').toMatchObject({ confirm: useLocale().t('groups.transfer'), destructive: true });
         useOverlay().reset();
+    });
+
+    it('asks who the members are, so somebody the browser has not met is drawn among them', async () =>
+    {
+        usePeople().reset();
+        server.groups.find((one) => one.slug === 'friday-night-crew')!.members.push('peyman');
+
+        const container = opened('friday-night-crew');
+        const listed = () => container.querySelector(`ul[aria-label="${ useLocale().t('groups.members') }"]`)?.textContent ?? '';
+
+        await vi.waitFor(() => expect(usePeople().byHandle('peyman'), 'nobody asked who a member was').not.toBeNull(), { timeout: 4000 });
+        await vi.waitFor(() => expect(listed()).toContain(useLocale().text(usePeople().byHandle('peyman')!.displayName)), { timeout: 4000 });
+        expect(listed()).toContain(useLocale().text(usePeople().byHandle('mina')!.displayName));
     });
 
     it('opens what can be done with a member at a press on them, and draws no More beside the row', async () =>

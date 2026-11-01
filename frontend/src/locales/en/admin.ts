@@ -23,6 +23,7 @@ export const admin = {
     'admin.section.play': 'Play',
     'admin.section.overview': 'Overview',
     'admin.home': 'Go to the overview',
+    'admin.offline': 'You’re offline. Nothing here changes until you’re back.',
     'admin.section.live': 'Online now',
     'admin.section.notice': 'Announcement',
     'admin.notice.lead': 'One line everybody sees at the top of every page, in their own language.',

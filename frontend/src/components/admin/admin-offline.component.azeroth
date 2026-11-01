@@ -1,0 +1,32 @@
+import Icon from '../../icons/icon.component.azeroth';
+import { useLocale } from '../../stores/locale.store.ts';
+
+/** The admin opens no socket, so the browser's own word is all there is to go on: the app's connection strip follows its socket. */
+export default component AdminOffline()
+{
+    const locale = useLocale();
+
+    state offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+
+    mount
+    {
+        const went = () => offline = true;
+        const back = () => offline = false;
+
+        window.addEventListener('offline', went);
+        window.addEventListener('online', back);
+
+        return () =>
+        {
+            window.removeEventListener('offline', went);
+            window.removeEventListener('online', back);
+        };
+    }
+
+    <Show when={ offline }>
+        <div class="z-banner sticky top-[calc(3.5rem+1px+env(safe-area-inset-top,0px))] flex items-center justify-center gap-2 bg-[color-mix(in_oklab,var(--danger)_15%,var(--void))] px-4 py-2 text-ui-sm font-semibold text-danger md:top-0" role="status" aria-live="assertive" data-offline>
+            <Icon name="wifi-off" size={ 16 } />
+            <span>{ locale.t('admin.offline') }</span>
+        </div>
+    </Show>
+}

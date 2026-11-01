@@ -25,6 +25,7 @@ import Badge from '../ui/badge.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
 import Tooltip from '../ui/tooltip.component.azeroth';
 import AdminMore from './admin-more.component.azeroth';
+import AdminOffline from './admin-offline.component.azeroth';
 
 const LOOK: Record<AdminSection, { icon: IconName; label: MessageKey }> = {
     overview: { icon: 'activity', label: 'admin.section.overview' },
@@ -219,6 +220,8 @@ export default component AdminShell(props: { children?: MountNode })
                         </div>
                     </div>
                 </header>
+
+                <AdminOffline />
 
                 <main id="admin-main" class="min-w-0 px-4 pb-[calc(var(--nav-room)+1.5rem)] pt-5 sm:px-6 md:px-8 md:pb-12 md:pt-8">
                     <div class="mx-auto w-full max-w-[80rem]">

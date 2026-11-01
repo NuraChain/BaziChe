@@ -26,6 +26,7 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.section.play': 'Jeu',
     'admin.section.overview': 'Vue d’ensemble',
     'admin.home': 'Aller à la vue d’ensemble',
+    'admin.offline': 'Tu es hors ligne. Rien ne change ici avant ton retour.',
     'admin.section.live': 'En ligne',
     'admin.section.notice': 'Annonce',
     'admin.notice.lead': 'Une ligne que tout le monde voit en haut de chaque page, dans sa propre langue.',

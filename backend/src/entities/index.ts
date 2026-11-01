@@ -14,6 +14,10 @@ import { Escrow } from './escrow.entity.ts';
 import { EpochArchive } from './epoch-archive.entity.ts';
 import { EpochKey } from './epoch-key.entity.ts';
 import { ChatFile } from './chat-file.entity.ts';
+import { Channel } from './channel.entity.ts';
+import { ChannelMember } from './channel-member.entity.ts';
+import { ChannelPost } from './channel-post.entity.ts';
+import { ChannelVote } from './channel-vote.entity.ts';
 import { Conversation } from './conversation.entity.ts';
 import { FriendRequest } from './friend-request.entity.ts';
 import { Friendship } from './friendship.entity.ts';
@@ -65,7 +69,7 @@ import { VoicePlay } from './voice-play.entity.ts';
 import { Wallet } from './wallet.entity.ts';
 
 export {
-    Achievement, Avatar, Block, ChatFile, Conversation, ConversationEpoch, ConversationMember, Device, Discrepancy, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat, EstablishedPlayer,
+    Achievement, Avatar, Block, Channel, ChannelMember, ChannelPost, ChannelVote, ChatFile, Conversation, ConversationEpoch, ConversationMember, Device, Discrepancy, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat, EstablishedPlayer,
     EpochArchive, FriendRequest, Friendship,
     Game, GameRule, Group, GroupMember, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, Mute,
     Notice, Notification, OwnedItem, PaidAccount, PlayerStats, PushSubscription,
@@ -90,6 +94,7 @@ export const entities: Function[] = [
     Conversation, ConversationMember, VoiceNote, ChatFile, Message, VoicePlay, ConversationEpoch, EpochKey, EpochArchive,
     RecoveryVault, RecoveryNonce, InviteCode, InviteVisit, InviteCampaign, InviteReward, InviteBoardOff, Referral, EstablishedPlayer,
     Group, GroupMember,
+    Channel, ChannelMember, ChannelPost, ChannelVote,
     Table, TableSeat, TableRemoval, QuickTable,
     Match, MatchPlayer, MatchAction, PlayerStats, UserAchievement,
     Notification, PushSubscription,

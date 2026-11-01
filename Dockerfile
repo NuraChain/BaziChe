@@ -5,7 +5,8 @@
 #
 #   docker build --build-arg PUBLIC_ORIGIN=https://play.example.com -t baziche .
 #   docker run --rm --env-file .env baziche node .dist-backend/db/sync-cli.js
-#   docker run -d --name baziche --restart unless-stopped --env-file .env -p 127.0.0.1:4900:4900 #       -v baziche-logs:/app/.logs baziche
+#   docker run -d --name baziche --restart unless-stopped --env-file .env -p 127.0.0.1:4900:4900 \
+#       -v baziche-logs:/app/.logs baziche
 #
 # PUBLIC_ORIGIN is read by the client build for the link preview, and again by the server at start.
 

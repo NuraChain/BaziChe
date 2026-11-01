@@ -203,7 +203,7 @@ describe('my profile page', () =>
         server.chainFaces['dana.w'] = { username: 'dana', displayName: 'Dana on chain', bio: 'Chain bio', avatar: '' };
         const container = await page();
 
-        expect(container.querySelector('#profile-name')?.textContent).toBe('Dana on chain');
+        expect(container.querySelector('#profile-title')?.textContent).toBe('Dana on chain');
         expect(container.textContent).toContain('Chain bio');
         expect(container.textContent).not.toContain('Server Name');
         expect(container.textContent).not.toContain('Server bio');
@@ -238,7 +238,7 @@ describe('my profile page', () =>
         server.chain = { configured: true, profile: null };
         const container = await page();
 
-        expect(container.querySelector('#profile-name')?.textContent).toBe('dana.w');
+        expect(container.querySelector('#profile-title')?.textContent).toBe('dana.w');
         expect(container.textContent).not.toContain('Server Name');
         expect(container.textContent).not.toContain('Server bio');
         expect(container.textContent).toContain('Not on Nura Profile yet');
@@ -260,7 +260,7 @@ describe('my profile page', () =>
 
         const chip = container.querySelector('button[aria-label="Copy wallet address"]');
         expect(chip?.textContent).toContain('0x1111');
-        const name = container.querySelector('#profile-name')!;
+        const name = container.querySelector('#profile-title')!;
         expect(chip!.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
@@ -347,10 +347,10 @@ describe('somebody else\'s profile page', () =>
         const container = await halfwayOut(
             [{ path: '/app/people/:handle', component: (): HTMLElement => PersonPage() as HTMLElement }],
             '/app/people/mina',
-            (root) => root.querySelector('#profile-name')?.textContent === 'mina'
+            (root) => root.querySelector('#profile-title')?.textContent === 'mina'
         );
 
-        expect(container.querySelector('#profile-name')?.textContent).toBe('mina');
+        expect(container.querySelector('#profile-title')?.textContent).toBe('mina');
         expect(container.textContent).not.toContain(useLocale().t('person.notFound'));
     });
 
@@ -359,14 +359,14 @@ describe('somebody else\'s profile page', () =>
         usePeople().remember([{ id: 'mina', handle: 'mina', displayName: 'Mina', bio: '', hue: 150, isMinor: false }]);
 
         const container = visit('mina');
-        const drawn = container.querySelector('#profile-name');
+        const drawn = container.querySelector('#profile-title');
 
         expect(drawn).not.toBeNull();
 
         await vi.waitFor(() => expect(server.calls).toContain('social.person'), { timeout: 4000 });
         await settle();
 
-        expect(container.querySelector('#profile-name')).toBe(drawn);
+        expect(container.querySelector('#profile-title')).toBe(drawn);
         expect(server.calls.filter((one) => one === 'social.record')).toHaveLength(1);
     });
 
@@ -376,7 +376,7 @@ describe('somebody else\'s profile page', () =>
 
         expect(container.textContent).not.toContain(useLocale().t('person.notFound'));
 
-        await vi.waitFor(() => expect(container.querySelector('#profile-name')).not.toBeNull(), { timeout: 4000 });
+        await vi.waitFor(() => expect(container.querySelector('#profile-title')).not.toBeNull(), { timeout: 4000 });
 
         expect(container.textContent).not.toContain(useLocale().t('person.notFound'));
     });
@@ -390,7 +390,7 @@ describe('somebody else\'s profile page', () =>
 
         expect(container.textContent).toContain(useLocale().t('person.notFound'));
         expect(container.textContent).not.toContain(useLocale().t('state.errorTitle'));
-        expect(container.querySelector('#profile-name')).toBeNull();
+        expect(container.querySelector('#profile-title')).toBeNull();
     });
 
     it('says it could not load somebody it has never met when the server does not answer, and draws them on a retry', async () =>
@@ -407,7 +407,7 @@ describe('somebody else\'s profile page', () =>
             const again = [...container.querySelectorAll('button')].find((one) => one.textContent?.includes(useLocale().t('common.retry')));
             again!.click();
 
-            await vi.waitFor(() => expect(container.querySelector('#profile-name')).not.toBeNull(), { timeout: 4000 });
+            await vi.waitFor(() => expect(container.querySelector('#profile-title')).not.toBeNull(), { timeout: 4000 });
             expect(container.textContent).not.toContain(useLocale().t('state.errorTitle'));
         }
         finally
@@ -429,7 +429,7 @@ describe('somebody else\'s profile page', () =>
             await vi.waitFor(() => expect(asked).toHaveBeenCalled(), { timeout: 4000 });
             await settle();
 
-            expect(container.querySelector('#profile-name')).not.toBeNull();
+            expect(container.querySelector('#profile-title')).not.toBeNull();
             expect(container.textContent).not.toContain(useLocale().t('state.errorTitle'));
             expect(container.textContent).not.toContain(useLocale().t('person.notFound'));
         }
@@ -449,7 +449,7 @@ describe('somebody else\'s profile page', () =>
         await settle();
 
         expect(container.textContent).toContain(useLocale().t('person.notFound'));
-        expect(container.querySelector('#profile-name')).toBeNull();
+        expect(container.querySelector('#profile-title')).toBeNull();
     });
 
     it('still has a page for somebody the reader blocked, with the way to unblock them', async () =>
@@ -459,7 +459,7 @@ describe('somebody else\'s profile page', () =>
 
         const container = visit('mina');
 
-        await vi.waitFor(() => expect(container.querySelector('#profile-name')).not.toBeNull(), { timeout: 4000 });
+        await vi.waitFor(() => expect(container.querySelector('#profile-title')).not.toBeNull(), { timeout: 4000 });
         await settle();
 
         expect(container.textContent).toContain(useLocale().t('actions.unblock', { name: 'mina' }));
@@ -514,6 +514,17 @@ describe('the edit sheet', () =>
         useSession().establish(account);
         return render(() => ProfileSheet({ overlayId: 'sheet', close: () => undefined, ...(only === undefined ? {} : { only }) }) as unknown as HTMLElement, '/app/me');
     };
+
+    it('shares no id with the profile it is opened over, so each label names its own box', async () =>
+    {
+        await sheet();
+        await render(MePage as unknown as () => HTMLElement, '/app/me');
+
+        const ids = [...document.querySelectorAll('[id]')].map((one) => one.id);
+
+        expect(ids.filter((id, index) => ids.indexOf(id) !== index)).toEqual([]);
+        expect(document.getElementById('profile-name')?.tagName, 'its label names the heading').toBe('INPUT');
+    });
 
     it('asks for the handle, then the name, then the bio, and leaves the picture to its own dialog', async () =>
     {

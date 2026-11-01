@@ -164,7 +164,7 @@ export default component ProfileHeader(props: {
         stopReveal();
     });
 
-    <section class="hero-surface relative overflow-hidden rounded-hero" aria-labelledby="profile-name" ref={ (element) => head = element }>
+    <section class="hero-surface relative overflow-hidden rounded-hero" aria-labelledby="profile-title" ref={ (element) => head = element }>
         <div
             class="relative h-24 overflow-hidden @xl:h-32 [background:linear-gradient(120deg,hsl(var(--hue)_62%_42%/0.55),hsl(var(--hue)_55%_28%/0.25)_55%,transparent),radial-gradient(90%_140%_at_85%_0%,color-mix(in_oklab,var(--accent)_30%,transparent),transparent_65%)]"
             style={ `--hue: ${ props.person.hue }` }
@@ -227,7 +227,7 @@ export default component ProfileHeader(props: {
                                 { locale.t('profile.joined', { date: locale.date(new Date(props.joined ?? 0), { month: 'long', year: 'numeric' }) }) }
                             </p>
                         </Show>
-                        <h1 id="profile-name" class={ () => [ 'title mt-2 truncate text-ui-2xl @xl:text-ui-3xl', props.person.displayName === '' ? 'sr-only' : '' ].filter(Boolean).join(' ') } dir="auto">{ title }</h1>
+                        <h1 id="profile-title" class={ () => [ 'title mt-2 truncate text-ui-2xl @xl:text-ui-3xl', props.person.displayName === '' ? 'sr-only' : '' ].filter(Boolean).join(' ') } dir="auto">{ title }</h1>
                         <Show when={ (props.bio ?? '') !== '' }>
                             <p class="mt-2 max-w-[56ch] text-ui-md text-text" dir="auto">{ props.bio ?? '' }</p>
                         </Show>

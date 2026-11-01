@@ -111,5 +111,3 @@ export function createShopService(db: DataSource)
         }) satisfies LooksReader
     };
 }
-
-export type ShopService = ReturnType<typeof createShopService>;

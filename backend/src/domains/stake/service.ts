@@ -170,8 +170,6 @@ const stakeFrom = (row: { address: string; game: string; amount: string; fee_bps
     deadline: BigInt(Math.floor(row.deadline.getTime() / 1000))
 });
 
-export type StakeService = ReturnType<typeof createStakeService>;
-
 export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHooks)
 {
     const standingOf = async (me: string) =>

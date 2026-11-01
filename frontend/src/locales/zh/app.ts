@@ -27,7 +27,6 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'app.nav.settings': '设置',
     'app.nav.back': '返回',
     'app.nav.primary': '主导航',
-    'app.nav.signOut': '退出登录',
     'create.title': '创建牌桌',
     'app.nav.quickPlay': '快速开局',
     'app.sidebar.collapse': '收起菜单',

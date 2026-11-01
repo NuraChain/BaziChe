@@ -1736,5 +1736,3 @@ export function createMarketService(
         }
     };
 }
-
-export type MarketService = ReturnType<typeof createMarketService>;

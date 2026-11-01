@@ -74,10 +74,6 @@ export const admin = {
     'admin.overview.readAt': 'Read at {time}',
     'admin.overview.failed': 'The overview could not be read.',
     'admin.overview.people': 'Accounts',
-    'admin.overview.accounts': {
-        one: 'account',
-        other: 'accounts'
-    },
     'admin.overview.day': {
         one: 'joined in the last day',
         other: 'joined in the last day'
@@ -99,11 +95,6 @@ export const admin = {
         other: 'under 18'
     },
     'admin.overview.openPeople': 'Open People',
-    'admin.overview.onlineCount': {
-        one: 'person online now',
-        other: 'people online now'
-    },
-    'admin.overview.openLive': 'See who',
     'admin.overview.reportsWaiting': {
         one: 'report waiting',
         other: 'reports waiting'

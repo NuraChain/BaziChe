@@ -77,11 +77,6 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.overview.readAt': 'Lu à {time}',
     'admin.overview.failed': 'Impossible de lire la vue d’ensemble.',
     'admin.overview.people': 'Comptes',
-    'admin.overview.accounts': {
-        one: 'compte',
-        many: 'comptes',
-        other: 'comptes'
-    },
     'admin.overview.day': {
         one: 'inscrit ces dernières 24 heures',
         many: 'inscrits ces dernières 24 heures',
@@ -108,12 +103,6 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
         other: 'mineurs'
     },
     'admin.overview.openPeople': 'Ouvrir Personnes',
-    'admin.overview.onlineCount': {
-        one: 'personne en ligne',
-        many: 'personnes en ligne',
-        other: 'personnes en ligne'
-    },
-    'admin.overview.openLive': 'Voir qui',
     'admin.overview.reportsWaiting': {
         one: 'signalement en attente',
         many: 'signalements en attente',

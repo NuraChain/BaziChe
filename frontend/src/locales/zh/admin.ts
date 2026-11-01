@@ -77,9 +77,6 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.overview.readAt': '读取于 {time}',
     'admin.overview.failed': '无法读取概览。',
     'admin.overview.people': '账户',
-    'admin.overview.accounts': {
-        other: '个账户'
-    },
     'admin.overview.day': {
         other: '人在过去一天内注册'
     },
@@ -96,10 +93,6 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
         other: '人未满 18 岁'
     },
     'admin.overview.openPeople': '打开用户',
-    'admin.overview.onlineCount': {
-        other: '人当前在线'
-    },
-    'admin.overview.openLive': '查看是谁',
     'admin.overview.reportsWaiting': {
         other: '条举报待处理'
     },

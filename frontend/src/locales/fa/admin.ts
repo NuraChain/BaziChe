@@ -77,10 +77,6 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.overview.readAt': 'ساعت {time} خونده شد',
     'admin.overview.failed': 'نمای کلی خونده نشد.',
     'admin.overview.people': 'حساب‌ها',
-    'admin.overview.accounts': {
-        one: 'حساب',
-        other: 'حساب'
-    },
     'admin.overview.day': {
         one: 'نفر توی ۲۴ ساعت گذشته عضو شد',
         other: 'نفر توی ۲۴ ساعت گذشته عضو شدن'
@@ -102,11 +98,6 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
         other: 'نفر زیر ۱۸'
     },
     'admin.overview.openPeople': 'برو به کاربرها',
-    'admin.overview.onlineCount': {
-        one: 'نفر الان آنلاینه',
-        other: 'نفر الان آنلاینن'
-    },
-    'admin.overview.openLive': 'ببین کیا',
     'admin.overview.reportsWaiting': {
         one: 'گزارش منتظر بررسی',
         other: 'گزارش منتظر بررسی'

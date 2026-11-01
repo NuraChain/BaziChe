@@ -77,10 +77,6 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.overview.readAt': 'Okunma: {time}',
     'admin.overview.failed': 'Genel bakış okunamadı.',
     'admin.overview.people': 'Hesaplar',
-    'admin.overview.accounts': {
-        one: 'hesap',
-        other: 'hesap'
-    },
     'admin.overview.day': {
         one: 'son bir günde katıldı',
         other: 'son bir günde katıldı'
@@ -102,11 +98,6 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
         other: '18 yaş altı'
     },
     'admin.overview.openPeople': 'Kişileri aç',
-    'admin.overview.onlineCount': {
-        one: 'kişi şu an çevrimiçi',
-        other: 'kişi şu an çevrimiçi'
-    },
-    'admin.overview.openLive': 'Kim olduğunu gör',
     'admin.overview.reportsWaiting': {
         one: 'şikâyet bekliyor',
         other: 'şikâyet bekliyor'

@@ -973,5 +973,3 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
         }
     };
 }
-
-export type OrderService = ReturnType<typeof createOrderService>;

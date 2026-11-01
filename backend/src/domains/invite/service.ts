@@ -9,8 +9,6 @@ import { PROFILE_LOOKS, chosenIn, worn } from '../shop/looks.ts';
 import { CODE_ALPHABET, CODE_LENGTH, ESTABLISHED_DAYS, ESTABLISHED_GAMES, MANY_A_DAY, QUICK_MINUTES, TOP_INVITERS, codeFrom, type InviteFlag, type RewardKind } from './policy.ts';
 import { INVITE_REFUSALS, type InviteRefusal } from './refusals.ts';
 
-export type InviteService = ReturnType<typeof createInviteService>;
-
 export const inviteRefusal = (word: InviteRefusal, message: string, details?: Record<string, string>) =>
     new HttpError(INVITE_REFUSALS[word], message, { code: word, ...(details === undefined ? {} : { details }) });
 

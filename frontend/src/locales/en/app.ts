@@ -24,7 +24,6 @@ export const app = {
     'app.nav.settings': 'Settings',
     'app.nav.back': 'Back',
     'app.nav.primary': 'Main navigation',
-    'app.nav.signOut': 'Sign out',
     'create.title': 'Create a table',
     'app.nav.quickPlay': 'Quick play',
     'app.sidebar.collapse': 'Collapse the menu',

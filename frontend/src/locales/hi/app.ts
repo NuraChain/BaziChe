@@ -27,7 +27,6 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'app.nav.settings': 'सेटिंग्स',
     'app.nav.back': 'वापस',
     'app.nav.primary': 'मुख्य नेविगेशन',
-    'app.nav.signOut': 'साइन आउट',
     'create.title': 'टेबल बनाओ',
     'app.nav.quickPlay': 'क्विक प्ले',
     'app.sidebar.collapse': 'मेन्यू छोटा करो',

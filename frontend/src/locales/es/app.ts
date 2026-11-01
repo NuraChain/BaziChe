@@ -27,7 +27,6 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'app.nav.settings': 'Ajustes',
     'app.nav.back': 'Atrás',
     'app.nav.primary': 'Navegación principal',
-    'app.nav.signOut': 'Cerrar sesión',
     'create.title': 'Crear una mesa',
     'app.nav.quickPlay': 'Partida rápida',
     'app.sidebar.collapse': 'Contraer el menú',

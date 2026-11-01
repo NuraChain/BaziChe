@@ -693,5 +693,3 @@ export function createDonationService(
         }
     };
 }
-
-export type DonationService = ReturnType<typeof createDonationService>;

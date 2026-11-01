@@ -355,5 +355,3 @@ export function createReconciler(
         }
     };
 }
-
-export type Reconciler = ReturnType<typeof createReconciler>;

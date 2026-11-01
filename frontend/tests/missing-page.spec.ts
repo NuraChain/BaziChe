@@ -85,10 +85,11 @@ describe('an address inside the app that holds no page', () =>
 
     it('says so inside the app, which keeps its nav, with the way home', async () =>
     {
-        const { router, container } = await opened('/app/frinds', '#app-shell h2, #app-shell p.title');
+        const { router, container } = await opened('/app/frinds', '#app-main h1');
 
         expect(container.querySelector('[data-lost]'), 'the whole app gave way to the public page that is not there').toBeNull();
-        expect(container.querySelector('#app-main')?.textContent).toContain('There’s no page here.');
+        expect(container.querySelector('#app-main h1')?.textContent, 'the page did not name itself').toBe('There’s no page here.');
+        expect(container.querySelectorAll('h1'), 'two headings named the one page').toHaveLength(1);
         expect(container.querySelector('#app-main')?.textContent).toContain('The link may be out of date, or the address mistyped.');
         expect(container.querySelector('#app-shell a[href="/app/friends"]'), 'the nav went with the page').not.toBeNull();
         expect(home(container.querySelector('#app-main')!, 'Go to Home')?.getAttribute('href')).toBe('/app');

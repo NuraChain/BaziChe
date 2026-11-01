@@ -964,6 +964,7 @@ export default component PlayPage()
             { () =>
                 <EmptyState
                     icon="seat"
+                    heading
                     title={ locale.t('play.notFound') }
                     lead={ locale.t('play.notFoundLead') }
                     action={ locale.t('app.nav.games') }

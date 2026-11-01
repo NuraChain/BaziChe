@@ -70,7 +70,7 @@ export default component GamePage()
     <Page label={ name }>
         <Show
             when={ game !== null }
-            fallback={ <EmptyState icon="games" title={ locale.t('game.notFound') } action={ locale.t('app.nav.games') } to="/app/games" class="py-12" /> }
+            fallback={ <EmptyState icon="games" heading title={ locale.t('game.notFound') } action={ locale.t('app.nav.games') } to="/app/games" class="py-12" /> }
         >
             { () =>
                 <div class="flex flex-col gap-6">

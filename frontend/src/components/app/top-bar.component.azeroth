@@ -100,7 +100,9 @@ export default component TopBar()
                 { () => <IconButton icon="back" label={ locale.t('app.nav.back') } variant="ghost" flip onClick={ goBack } /> }
             </Show>
 
-            <h1 class={ () => titled ? 'min-w-0 flex-1 truncate text-ui-lg font-bold text-text' : 'sr-only' } dir="auto">{ title }</h1>
+            <Show when={ titled }>
+                { () => <p class="min-w-0 flex-1 truncate text-ui-lg font-bold text-text" dir="auto" data-bar-title>{ title }</p> }
+            </Show>
 
             <Show
                 when={ phone }

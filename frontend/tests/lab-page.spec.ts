@@ -92,6 +92,8 @@ describe('the fitting room', () =>
         expect(wearing(root)).toEqual({ collection: 'glow', frame: 'glow', cover: 'glow', plate: 'glow' });
         expect(looks(root)).toEqual(SHOP_KINDS.map((kind) => `${ kind }.glow`));
         expect(root.querySelector('h1')?.textContent).toBe('Fitting room');
+        expect(root.querySelectorAll('h1'), 'the reader drawn in a look named the page').toHaveLength(1);
+        expect(root.querySelector('h2#profile-title')).not.toBeNull();
     });
 
     it('offers every collection, and draws the reader in the one chosen, written into the address but for the featured one', async () =>

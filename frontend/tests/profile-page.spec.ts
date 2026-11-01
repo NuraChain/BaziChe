@@ -204,6 +204,7 @@ describe('my profile page', () =>
         const container = await page();
 
         expect(container.querySelector('#profile-title')?.textContent).toBe('Dana on chain');
+        expect(container.querySelector('#profile-title')?.tagName, 'a profile did not name the page').toBe('H1');
         expect(container.textContent).toContain('Chain bio');
         expect(container.textContent).not.toContain('Server Name');
         expect(container.textContent).not.toContain('Server bio');
@@ -612,6 +613,7 @@ describe('a profile for somebody with no wallet', () =>
         const container = await visit('kian16');
 
         expect(container.textContent).toContain('No such person');
+        expect(container.querySelector('h1')?.textContent, 'a page with nobody on it named nothing').toBe('No such person.');
         expect(server.calls.some((call) => call.startsWith('public.record'))).toBe(false);
     });
 });

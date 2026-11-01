@@ -11,6 +11,6 @@ export default component MissingPage()
     useHead({ title: () => locale.t('page.missing.title') });
 
     <Page label={ locale.t('page.missing.title') }>
-        <EmptyState icon="discover" title={ locale.t('page.missing.title') } lead={ locale.t('page.missing.lead') } action={ locale.t('page.home') } to="/app" class="py-16" />
+        <EmptyState icon="discover" heading title={ locale.t('page.missing.title') } lead={ locale.t('page.missing.lead') } action={ locale.t('page.home') } to="/app" class="py-16" />
     </Page>
 }

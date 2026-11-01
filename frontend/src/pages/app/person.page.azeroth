@@ -160,7 +160,7 @@ export default component PersonPage()
         </Show>
 
         <Show when={ missing }>
-            { () => <EmptyState icon="people" title={ locale.t('person.notFound') } action={ locale.t('app.nav.friends') } to="/app/friends" class="py-12" /> }
+            { () => <EmptyState icon="people" heading title={ locale.t('person.notFound') } action={ locale.t('app.nav.friends') } to="/app/friends" class="py-12" /> }
         </Show>
 
         <Show when={ person } let={ them }>

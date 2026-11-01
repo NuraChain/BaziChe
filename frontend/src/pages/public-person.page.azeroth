@@ -121,7 +121,7 @@ export default component PublicPersonPage()
             </Show>
 
             <Show when={ missing }>
-                { () => <EmptyState icon="me" title={ locale.t('person.notFound') } action={ locale.t('nav.connect') } onAction={ enter } class="py-12" /> }
+                { () => <EmptyState icon="me" heading title={ locale.t('person.notFound') } action={ locale.t('nav.connect') } onAction={ enter } class="py-12" /> }
             </Show>
 
             <Show when={ person } let={ them }>

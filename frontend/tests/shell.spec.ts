@@ -1008,13 +1008,24 @@ describe('the top bar', () =>
         const { container, router } = await subPage('/app/games/hokm/create');
 
         expect(backOf(container)).not.toBeNull();
-        expect(container.querySelector('h1')?.className).not.toContain('sr-only');
+        expect(container.querySelector('[data-bar-title]')?.textContent).toBe('Create a table');
+        expect(container.querySelector('h1, h2'), 'the bar named the page in a heading the page has of its own').toBeNull();
         expect(container.querySelector('a[aria-label="Home"]')).toBeNull();
 
         fire(backOf(container)!, 'click');
         await settle();
 
         expect(router.location().pathname).toBe('/app/games/hokm');
+    });
+
+    it('names no page beside the sidebar, where the page names itself', async () =>
+    {
+        useShell().reset();
+        useDevice().override('sidebar');
+        const { container } = await subPage('/app/games/hokm/create');
+
+        expect(container.querySelector('[data-bar-title]')).toBeNull();
+        expect(container.querySelector('h1, h2')).toBeNull();
     });
 
     it('goes back through history when this visit has one', async () =>

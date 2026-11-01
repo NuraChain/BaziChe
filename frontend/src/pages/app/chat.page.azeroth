@@ -868,7 +868,7 @@ export default component ChatPage()
                         >
                             { () =>
                                 <div class="px-4 py-10">
-                                    <EmptyState icon="chats" title={ locale.t('chat.notFound') } action={ locale.t('app.nav.chats') } to="/app/chats" />
+                                    <EmptyState icon="chats" heading title={ locale.t('chat.notFound') } action={ locale.t('app.nav.chats') } to="/app/chats" />
                                 </div>
                             }
                         </Show>

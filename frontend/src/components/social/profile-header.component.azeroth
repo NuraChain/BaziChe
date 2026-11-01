@@ -36,6 +36,8 @@ export default component ProfileHeader(props: {
     actions?: Child;
     theme?: string;
     effect?: string;
+    /** Drawn inside another page to show a look (the fitting room), so the name is not that page's heading. */
+    preview?: boolean;
 })
 {
     const locale = useLocale();
@@ -44,6 +46,10 @@ export default component ProfileHeader(props: {
     derived progress = props.progress ?? null;
 
     derived title = props.person.displayName === '' ? props.person.handle : props.person.displayName;
+
+    derived preview = props.preview === true;
+
+    derived titleClass = [ 'title mt-2 truncate text-ui-2xl @xl:text-ui-3xl', props.person.displayName === '' ? 'sr-only' : '' ].filter(Boolean).join(' ');
 
     derived through = progress === null || progress.span <= 0
         ? 0
@@ -227,7 +233,9 @@ export default component ProfileHeader(props: {
                                 { locale.t('profile.joined', { date: locale.date(new Date(props.joined ?? 0), { month: 'long', year: 'numeric' }) }) }
                             </p>
                         </Show>
-                        <h1 id="profile-title" class={ () => [ 'title mt-2 truncate text-ui-2xl @xl:text-ui-3xl', props.person.displayName === '' ? 'sr-only' : '' ].filter(Boolean).join(' ') } dir="auto">{ title }</h1>
+                        <Show when={ preview } fallback={ <h1 id="profile-title" class={ () => titleClass } dir="auto">{ title }</h1> }>
+                            { () => <h2 id="profile-title" class={ () => titleClass } dir="auto">{ title }</h2> }
+                        </Show>
                         <Show when={ (props.bio ?? '') !== '' }>
                             <p class="mt-2 max-w-[56ch] text-ui-md text-text" dir="auto">{ props.bio ?? '' }</p>
                         </Show>

@@ -12,11 +12,16 @@ export default component EmptyState(props: {
     to?: NavigateTarget;
     tone?: 'accent' | 'live';
     wayBack?: boolean;
+    heading?: boolean;
     class?: string;
     onAction?: () => void;
 })
 {
     derived wayBack = props.wayBack === true;
+
+    derived heading = props.heading === true;
+
+    derived title = props.title;
 
     <div class={ [ 'flex flex-col items-center px-6 py-10 text-center', props.class ?? '' ].filter(Boolean).join(' ') }>
         <Show when={ props.icon !== undefined }>
@@ -30,7 +35,9 @@ export default component EmptyState(props: {
                 </span>
             }
         </Show>
-        <p class="title text-balance text-ui-xl text-text">{ props.title }</p>
+        <Show when={ heading } fallback={ <p class="title text-balance text-ui-xl text-text">{ title }</p> }>
+            { () => <h1 class="title text-balance text-ui-xl text-text">{ title }</h1> }
+        </Show>
         <Show when={ props.lead !== undefined }>
             { () => <p class="mt-1.5 max-w-[34ch] text-balance text-ui-base text-muted">{ props.lead }</p> }
         </Show>

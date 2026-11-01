@@ -156,8 +156,11 @@ export default component ConnectDialog(props: { close: () => void; navigate: (to
 
     derived suspension = wallet.suspension();
 
-    const found = (choice: Choice) =>
-        present.find((one) => one.rdns === choice.rdns || one.rdns.startsWith(`${ choice.rdns }.`));
+    const known = (rdns: string) => (choice: Choice) => rdns === choice.rdns || rdns.startsWith(`${ choice.rdns }.`);
+
+    const found = (choice: Choice) => present.find((one) => known(one.rdns)(choice));
+
+    derived others = present.filter((one) => !CHOICES.some(known(one.rdns)));
 
     const enter = async (choice: Choice, announced: AnnouncedWallet) =>
     {
@@ -235,6 +238,33 @@ export default component ConnectDialog(props: { close: () => void; navigate: (to
                         </Show>
 
                         <ul class="flex flex-col gap-2.5">
+                            <For each={ others } key={ (one) => one.rdns } let={ other }>
+                                <li>
+                                    <button
+                                        type="button"
+                                        class={ LIVE }
+                                        disabled={ busy !== '' }
+                                        data-wallet={ other.rdns }
+                                        onClick={ () => void enter({ rdns: other.rdns, name: other.name, glyph: 'wallet', site: '' }, other) }
+                                    >
+                                        <span class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-control bg-sunk text-accent">
+                                            <Show when={ other.icon !== '' } fallback={ <Icon name="wallet" size={ 18 } /> }>
+                                                { () => <img src={ other.icon } alt="" class="h-9 w-9 object-cover" /> }
+                                            </Show>
+                                        </span>
+                                        <span class="flex min-w-0 flex-1 flex-col">
+                                            <span class="truncate text-ui-base font-semibold text-text">{ other.name }</span>
+                                            <span class="truncate text-ui-xs text-muted">{ locale.t('wallet.free') }</span>
+                                        </span>
+                                        <Show
+                                            when={ busy === other.rdns }
+                                            fallback={ <Icon name="forward" size={ 16 } class="icon-flip shrink-0 text-accent" /> }
+                                        >
+                                            { () => <Spinner size={ 16 } /> }
+                                        </Show>
+                                    </button>
+                                </li>
+                            </For>
                             <For each={ CHOICES } key={ (choice) => choice.rdns } let={ choice }>
                                 <li>
                                     <Show when={ found(choice) !== undefined }>

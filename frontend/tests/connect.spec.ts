@@ -457,6 +457,27 @@ describe('the wallet chooser', () =>
         warn.mockRestore();
     });
 
+    it('offers a wallet it does not know by the name it announced, first, and connects through it', async () =>
+    {
+        announce('io.rabby', 'Rabby Wallet', fakeProvider());
+        announce('io.metamask', 'MetaMask', fakeProvider());
+
+        const { navigate } = open();
+        await settle();
+
+        const rows = [...dialog().querySelectorAll('li')];
+        expect(rows).toHaveLength(4);
+        expect(rows[0].textContent).toContain('Rabby Wallet');
+        expect(rows[0].textContent).not.toContain('Not in this browser');
+        expect(((dialog().textContent ?? '').match(/Not in this browser/g) ?? []).length).toBe(2);
+
+        fire(rows[0].querySelector('button')!, 'click');
+        await vi.waitFor(() => expect(navigate).toHaveBeenCalled(), { timeout: 4000 });
+
+        expect(server.received?.providerRdns).toBe('io.rabby');
+        expect(navigate).toHaveBeenCalledWith('/app');
+    });
+
     it('recognises a variant of a wallet it knows, like MetaMask Flask', async () =>
     {
         announce('io.metamask.flask', 'MetaMask Flask', fakeProvider());

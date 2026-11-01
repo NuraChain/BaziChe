@@ -368,6 +368,13 @@ registers no url scheme, so there is nowhere to send a desktop browser. Its row 
 panel with a QR of this page and a copy button instead. A row that offered to install it, or that
 called connect and waited, would be a button that lies.
 
+**Any other wallet that announces itself is offered too, above the three**, by the name and the
+picture it announced, and connected as they are (`others` in the chooser). The dialog matched the
+announcements against its three and dropped the rest, so somebody holding Rabby, Coinbase Wallet or
+Brave's wallet was shown three rows saying "Not in this browser" and had no way in from the landing,
+or from an invite link's page, which opens the same chooser. The invite pass found it with a wallet
+of its own. `connect.spec.ts` (*offers a wallet it does not know*) holds it.
+
 `/sign-in` stays, wears the same `SiteHeader` (with `cta={ false }`, because that page IS the
 connect surface) and `SiteFooter`, and remains what `lib/guards.ts` redirects to and where guest
 and demo entry live.

@@ -360,6 +360,45 @@ describe('the safety lists', () =>
         expect(lines()[1], 'the line about mutes was drawn again').toBe(drawn[1]);
         expect(lines()[2], 'the line about reports was drawn again').toBe(drawn[2]);
     });
+
+    it('say nobody is blocked, muted or reported only once the server has, and what went wrong when it could not say', async () =>
+    {
+        const routes = client.social as unknown as Record<string, () => Promise<unknown>>;
+        const real = { graph: routes.graph, reports: routes.reports };
+        const gates: (() => void)[] = [];
+
+        routes.graph = () => new Promise((resolve, reject) => gates.push(() => void real.graph().then(resolve, reject)));
+        routes.reports = () => Promise.reject(new ApiError(503, 'unavailable', 'Down.', undefined));
+
+        try
+        {
+            useSession().reset();
+            await settle();
+            useSession().establish(establishAccount());
+
+            const container = await show(SettingsPage as unknown as () => HTMLElement, '/app/me/settings');
+            const safety = () => container.querySelector('#settings-safety')!;
+            const said = (key: 'settings.safety.blockedEmpty' | 'settings.safety.mutedEmpty' | 'report.empty') => safety().textContent?.includes(useLocale().t(key));
+
+            await vi.waitFor(() => expect(safety().querySelectorAll('[role="alert"]')).toHaveLength(1), { timeout: 4000 });
+
+            expect(safety().querySelectorAll('[data-reading]'), 'the blocked and the muted are not said to be on their way').toHaveLength(2);
+            expect([said('settings.safety.blockedEmpty'), said('settings.safety.mutedEmpty'), said('report.empty')]).toEqual([false, false, false]);
+            expect(safety().querySelector('[role="alert"]')?.textContent).toContain(useLocale().t('failure.down'));
+
+            gates.forEach((open) => open());
+            await vi.waitFor(() => expect(said('settings.safety.blockedEmpty')).toBe(true), { timeout: 4000 });
+
+            expect(said('settings.safety.mutedEmpty')).toBe(true);
+            expect(safety().querySelectorAll('[data-reading]')).toHaveLength(0);
+            expect(said('report.empty'), 'reports that could not be read are said to be none').toBe(false);
+        }
+        finally
+        {
+            routes.graph = real.graph;
+            routes.reports = real.reports;
+        }
+    });
 });
 
 describe('a privacy switch the server does not keep', () =>

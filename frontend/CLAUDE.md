@@ -1394,6 +1394,24 @@ words, `sheet-loaders.spec.ts` the nine sheets (a module whose export throws the
 `TypeError`, because vitest wraps a factory that throws in an error of its own), and
 `settings.spec.ts` and `devices-page.spec.ts` the two pages.
 
+**A list is empty only once the server has said so.** With every answer held two and a half seconds,
+the Friends page said "No friends yet. Everyone starts here.", Discover's people were a blank section,
+Settings said nobody was blocked, muted or reported, the invite and group sheets that there was nobody
+to add, and Home and the side panel that no friend was online, each before its read had answered, and
+the same words over a read that failed. `readingOf` in `lib/reading.ts` says where a read stands
+(`reading`, `failed`, `read`): a resource that answered once stays read through a later read that
+fails, so a list somebody is reading is never taken away for one. A store hands it out for each of its
+reads (`social.reading(what)` and `social.failure(what)`, over the graph, the directory, the
+suggestions and the reports), and a page draws a placeholder while its read is out (`data-reading`,
+with "Loading…" for a screen reader), the failure and Try again when it failed (`ErrorState`, or its
+`compact` line where there is no room for the panel), and its empty words only once it has been read.
+Who is online is the socket's to say: until its presence snapshot has come (`presence.ready()`) a list
+of friends online is still being read, and while the connection is down or never came it says who is
+online shows once the reader is connected (`shell.friends.unknown`). A reader with no friends is told
+nobody is online without waiting for the socket, which is true whatever it says.
+`friends-page.spec.ts` (*the friends page before the server has answered*), `before-the-answer.spec.ts`,
+`settings.spec.ts` (*the safety lists*) and `error-state.spec.ts` hold it.
+
 **What a press does is on screen in the same turn, and only a refusal is ever seen.** The owner:
 "when it click on ready button it should immidetly on client set it to active such as instagram
 like so that user never feel that app has delay". Ready sent its request, waited for the answer,

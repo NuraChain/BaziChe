@@ -2,6 +2,7 @@ import { createMemo, createStore, createResource, createSignal, untrack, type Ge
 
 import { client, type MuteSubject, type Privacy } from '../api.ts';
 import { createGuesses, type Guess } from '../lib/guess.ts';
+import { readingOf, type Reading } from '../lib/reading.ts';
 import { runtime } from '../lib/runtime.ts';
 
 import type { Person } from '../data/person.ts';
@@ -12,6 +13,9 @@ import { usePeople } from './people.store.ts';
 import { useRealtime } from './realtime.store.ts';
 
 export type Relation = 'me' | 'friend' | 'incoming' | 'outgoing' | 'blocked' | 'none';
+
+/** The graph (friends, requests, blocks and mutes) and the three lists a page asks for. */
+export type SocialRead = 'graph' | 'people' | 'suggestions' | 'reports';
 
 export interface SocialApi
 {
@@ -67,6 +71,9 @@ export interface SocialApi
      * needs one says so in its `mount`.
      */
     want(what: 'people' | 'suggestions' | 'reports'): void;
+
+    reading(what: SocialRead): Reading;
+    failure(what: SocialRead): unknown;
 
     loading: Getter<boolean>;
     refresh(): Promise<void>;
@@ -136,6 +143,8 @@ export const useSocial = createStore((): SocialApi =>
     }, { name: 'social.people' });
 
     const filed = createResource(asked('reports'), () => client.social.reports(), { name: 'social.reports' });
+
+    const reads = { graph, people: directory, suggestions: suggested, reports: filed };
 
     const OPEN: Privacy = { allowStrangerMessages: true, showOnline: true, isMinor: false };
 
@@ -486,6 +495,9 @@ export const useSocial = createStore((): SocialApi =>
                 setWanted({ ...untrack(wanted), [what]: true });
             }
         },
+
+        reading: (what) => readingOf(reads[what]),
+        failure: (what) => reads[what].error(),
 
         loading: () => graph.loading(),
         refresh: revalidate,

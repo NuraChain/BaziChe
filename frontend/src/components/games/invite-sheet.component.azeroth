@@ -9,8 +9,10 @@ import type { OverlayProps } from '../../stores/overlay.store.ts';
 import { usePresence } from '../../stores/presence.store.ts';
 import Avatar from '../ui/avatar.component.azeroth';
 import EmptyState from '../ui/empty-state.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
 import SearchInput from '../ui/search-input.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
 import { namesOf, narrowed } from '../../services/search.service.ts';
 import { attempt } from '../../lib/attempt.ts';
 import { whyRefused } from '../../lib/open-table.ts';
@@ -73,6 +75,14 @@ export default component InviteSheet(props: OverlayProps & { tableId: string })
         ? 'create.noFriends'
         : (social.friends().length === 0 ? 'create.friendless' : 'create.noneLeft'));
 
+    derived graph = social.reading('graph');
+
+    derived graphReading = graph === 'reading';
+
+    derived graphFailed = graph === 'failed';
+
+    derived quiet = !listed && graph === 'read';
+
     effect
     {
         const handles = lobby.table()?.keptOut ?? [];
@@ -91,10 +101,10 @@ export default component InviteSheet(props: OverlayProps & { tableId: string })
         <div class="px-5 pb-3">
             <SearchInput value={ query } onInput={ (value) => query = value } placeholder={ locale.t('create.search') } label={ locale.t('create.search') } autofocus />
         </div>
-        <Show
-            when={ listed }
-            fallback={ <EmptyState icon="people" title={ nobody } class="pb-8" /> }
-        >
+        <Show when={ quiet }>
+            { () => <EmptyState icon="people" title={ nobody } class="pb-8" /> }
+        </Show>
+        <Show when={ listed }>
             <div class="overflow-y-auto overscroll-contain [touch-action:pan-y] min-block-0 flex flex-col gap-3 px-3 pb-4">
                 <For each={ groups } key={ (group) => group.key } let={ group }>
                     <div class="flex flex-col gap-1">
@@ -133,6 +143,18 @@ export default component InviteSheet(props: OverlayProps & { tableId: string })
                     </div>
                 </For>
             </div>
+        </Show>
+        <Show when={ graphReading }>
+            { () =>
+                <div class="flex flex-col px-5 pb-4" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                    <Skeleton avatar lines={ 2 } class="py-2" />
+                    <Skeleton avatar lines={ 2 } class="py-2" />
+                </div>
+            }
+        </Show>
+        <Show when={ graphFailed }>
+            { () => <ErrorState compact error={ social.failure('graph') } onRetry={ () => void social.refresh() } class="px-5 pb-4" /> }
         </Show>
     </div>
 }

@@ -6,6 +6,7 @@ import PlayWithSheet from '../src/components/social/play-with-sheet.component.az
 import { manualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import FriendsPage from '../src/pages/app/friends.page.azeroth';
+import { useConnection } from '../src/stores/connection.store.ts';
 import { useGroups } from '../src/stores/groups.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
@@ -241,6 +242,9 @@ describe('the friends page', () =>
     {
         const container = await opened();
         const locale = useLocale();
+
+        useRealtime().start();
+        socket.deliver({ v: 1, t: 'presence', n: 1, full: true, people: [] });
 
         await choose(container, locale.t('friends.tab.online'));
 
@@ -513,5 +517,196 @@ describe('a friend request answered on the friends page', () =>
             await vi.waitFor(() => expect(server.outgoing.some((one) => one.to === 'maya.c')).toBe(false), { timeout: 4000 });
             expect(rowOf(container, 'maya.c')).toBeNull();
         });
+    });
+});
+
+describe('the friends page before the server has answered', () =>
+{
+    const routes = client.social as unknown as Record<string, () => Promise<unknown>>;
+
+    const mounted = async (path: string) =>
+    {
+        const table: Route[] = [{ path: '/app/friends', component: (): HTMLElement => FriendsPage() as HTMLElement }];
+        const router = createRouter({ routes: table, history: createMemoryHistory(path), scroll: false });
+        const { container } = renderTest(() => RouterProvider({ router, children: () => Routes({}) }) as HTMLElement);
+
+        await vi.waitFor(() => expect(container.querySelector('[role="tablist"]')).not.toBeNull(), { timeout: 4000 });
+        await settle();
+
+        return container;
+    };
+
+    const choose = async (container: HTMLElement, label: string) =>
+    {
+        [...container.querySelectorAll<HTMLElement>('[role="tab"]')].find((one) => one.textContent?.includes(label))!.click();
+        await settle();
+    };
+
+    /** Signs the reader in again with `verb` answering as `answer` says, so the store holds nothing it read before. */
+    const anew = async (verb: string, answer: (real: () => Promise<unknown>) => Promise<unknown>) =>
+    {
+        const real = routes[verb];
+
+        routes[verb] = () => answer(real);
+        useSession().reset();
+        await settle();
+        useSession().establish({ id: 'alex', handle: 'alex', displayName: 'Alex Morgan', bio: '', hue: 210, isMinor: false });
+
+        return () =>
+        {
+            routes[verb] = real;
+        };
+    };
+
+    it('draws the friends and the requests as being read, and no word that there are none, until the server answers', async () =>
+    {
+        const locale = useLocale();
+        let answer: () => void = () => undefined;
+        const restore = await anew('graph', (real) => new Promise((resolve, reject) =>
+        {
+            answer = () => void real().then(resolve, reject);
+        }));
+
+        try
+        {
+            const container = await mounted('/app/friends');
+
+            expect(container.querySelector('[data-reading]'), 'the friends are not said to be on their way').not.toBeNull();
+            expect(container.textContent, 'nobody is a friend before the server has said who is').not.toContain(locale.t('friends.empty.all'));
+
+            await choose(container, locale.t('friends.tab.requests'));
+
+            expect(container.querySelector('[data-reading]')).not.toBeNull();
+            expect(container.textContent).not.toContain(locale.t('friends.empty.requests'));
+
+            answer();
+            await vi.waitFor(() => expect(personOf(container, 'mahsa')).not.toBeNull(), { timeout: 4000 });
+
+            expect(container.querySelector('[data-reading]')).toBeNull();
+        }
+        finally
+        {
+            restore();
+        }
+    });
+
+    it('says what went wrong where the friends would be when the read fails, and reads them again at Try again', async () =>
+    {
+        const locale = useLocale();
+        let refusing = true;
+        const restore = await anew('graph', (real) => (refusing ? Promise.reject(new ApiError(503, 'unavailable', 'Down.', undefined)) : real()));
+
+        try
+        {
+            const container = await mounted('/app/friends');
+
+            await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull(), { timeout: 4000 });
+
+            const alert = container.querySelector('[role="alert"]')!;
+
+            expect(alert.textContent).toContain(locale.t('failure.down'));
+            expect(container.textContent, 'a read that failed is drawn as nobody').not.toContain(locale.t('friends.empty.all'));
+
+            refusing = false;
+            fire([...alert.querySelectorAll('button')].find((one) => one.textContent?.includes(locale.t('common.retry')))!, 'click');
+
+            await vi.waitFor(() => expect(personOf(container, 'sara.k')).not.toBeNull(), { timeout: 4000 });
+
+            expect(container.querySelector('[role="alert"]')).toBeNull();
+        }
+        finally
+        {
+            restore();
+        }
+    });
+
+    it('keeps the friends it has drawn when a later read of them fails', async () =>
+    {
+        const container = await mounted('/app/friends');
+
+        await vi.waitFor(() => expect(personOf(container, 'sara.k')).not.toBeNull(), { timeout: 4000 });
+
+        const real = routes.graph;
+
+        routes.graph = () => Promise.reject(new ApiError(503, 'unavailable', 'Down.', undefined));
+
+        try
+        {
+            await useSocial().refresh();
+            await settle();
+
+            expect(personOf(container, 'sara.k'), 'a list somebody is reading is taken away for a read that failed').not.toBeNull();
+            expect(container.querySelector('[role="alert"]')).toBeNull();
+            expect(container.querySelector('[data-reading]')).toBeNull();
+        }
+        finally
+        {
+            routes.graph = real;
+        }
+    });
+
+    it('draws the suggestions as being read, then as what went wrong, and never as nobody left to suggest', async () =>
+    {
+        const locale = useLocale();
+        let answer: () => void = () => undefined;
+        const real = routes.suggestions;
+
+        routes.suggestions = () => new Promise((_resolve, reject) =>
+        {
+            answer = () => reject(new ApiError(500, 'internal', 'Internal server error', undefined));
+        });
+
+        try
+        {
+            const container = await mounted('/app/friends?tab=suggestions');
+
+            expect(container.querySelector('[data-reading]')).not.toBeNull();
+            expect(container.textContent).not.toContain(locale.t('friends.empty.suggestions'));
+
+            answer();
+            await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull(), { timeout: 4000 });
+
+            expect(container.querySelector('[role="alert"]')!.textContent).toContain(locale.t('failure.server'));
+            expect(container.textContent).not.toContain(locale.t('friends.empty.suggestions'));
+            expect(container.querySelector('[data-reading]')).toBeNull();
+        }
+        finally
+        {
+            routes.suggestions = real;
+        }
+    });
+
+    it('says who is online only once the socket has, and why it cannot while there is no connection', async () =>
+    {
+        const locale = useLocale();
+        const container = await mounted('/app/friends?tab=online');
+
+        expect(container.querySelector('[data-reading]'), 'nobody is said to be online before the socket has said who is').not.toBeNull();
+        expect(container.textContent).not.toContain(locale.t('friends.empty.online'));
+
+        const stop = useConnection().start();
+
+        try
+        {
+            window.dispatchEvent(new Event('offline'));
+            await settle();
+
+            expect(container.textContent).toContain(locale.t('shell.friends.unknown'));
+            expect(container.textContent).not.toContain(locale.t('friends.empty.online'));
+            expect(container.querySelector('[data-reading]')).toBeNull();
+
+            window.dispatchEvent(new Event('online'));
+            useRealtime().start();
+            socket.deliver({ v: 1, t: 'presence', n: 1, full: true, people: [] });
+            await settle();
+
+            expect(container.textContent).toContain(locale.t('friends.empty.online'));
+            expect(container.textContent).not.toContain(locale.t('shell.friends.unknown'));
+        }
+        finally
+        {
+            stop();
+            useConnection().reset();
+        }
     });
 });

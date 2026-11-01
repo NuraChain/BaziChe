@@ -6,10 +6,12 @@ import FriendRow from '../../components/social/friend-row.component.azeroth';
 import LanguageSwitch from '../../components/layout/language-switch.component.azeroth';
 import Panel from '../../components/ui/panel.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
 import Pagination from '../../components/ui/pagination.component.azeroth';
 import Rail from '../../components/ui/rail.component.azeroth';
 import SectionHeading from '../../components/ui/section-heading.component.azeroth';
 import Segmented from '../../components/ui/segmented.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import Slider from '../../components/ui/slider.component.azeroth';
 import Toggle from '../../components/ui/switch.component.azeroth';
 import { NURA_CHAIN } from '../../data/chain.ts';
@@ -151,6 +153,24 @@ export default component SettingsPage()
     derived reports = visible(allReports, SAFETY_PAGE, reportsPage, paging);
 
     derived reported = allReports.length > 0;
+
+    derived graph = social.reading('graph');
+
+    derived graphReading = graph === 'reading';
+
+    derived graphFailed = graph === 'failed';
+
+    derived unblocked = graph === 'read' && !blocking;
+
+    derived unmuted = graph === 'read' && !muting;
+
+    derived reportsRead = social.reading('reports');
+
+    derived reportsReading = reportsRead === 'reading';
+
+    derived reportsFailed = reportsRead === 'failed';
+
+    derived unreported = reportsRead === 'read' && !reported;
 
     state leaving = false;
 
@@ -355,10 +375,16 @@ export default component SettingsPage()
                                 <div>
                                     <p class="label text-ui-sm text-text">{ locale.t('settings.safety.blocked') }</p>
                                     <p class="mt-1 text-ui-xs text-muted">{ locale.t('settings.safety.blockedLead') }</p>
-                                    <Show
-                                        when={ blocking }
-                                        fallback={ <p class="mt-2 text-ui-sm text-faint">{ locale.t('settings.safety.blockedEmpty') }</p> }
-                                    >
+                                    <Show when={ graphReading }>
+                                        { () => <div class="mt-2" data-reading><span class="sr-only">{ locale.t('common.loading') }</span><Skeleton lines={ 1 } /></div> }
+                                    </Show>
+                                    <Show when={ graphFailed }>
+                                        { () => <ErrorState compact error={ social.failure('graph') } onRetry={ () => void social.refresh() } class="mt-1" /> }
+                                    </Show>
+                                    <Show when={ unblocked }>
+                                        { () => <p class="mt-2 text-ui-sm text-faint">{ locale.t('settings.safety.blockedEmpty') }</p> }
+                                    </Show>
+                                    <Show when={ blocking }>
                                         { () =>
                                             <ul class="mt-2 flex flex-col gap-0.5" aria-label={ locale.t('settings.safety.blocked') }>
                                                 <For each={ blocked } key={ (person) => person.id } let={ person }>
@@ -390,10 +416,16 @@ export default component SettingsPage()
                                 <div>
                                     <p class="label text-ui-sm text-text">{ locale.t('settings.safety.muted') }</p>
                                     <p class="mt-1 text-ui-xs text-muted">{ locale.t('settings.safety.mutedLead') }</p>
-                                    <Show
-                                        when={ muting }
-                                        fallback={ <p class="mt-2 text-ui-sm text-faint">{ locale.t('settings.safety.mutedEmpty') }</p> }
-                                    >
+                                    <Show when={ graphReading }>
+                                        { () => <div class="mt-2" data-reading><span class="sr-only">{ locale.t('common.loading') }</span><Skeleton lines={ 1 } /></div> }
+                                    </Show>
+                                    <Show when={ graphFailed }>
+                                        { () => <ErrorState compact error={ social.failure('graph') } onRetry={ () => void social.refresh() } class="mt-1" /> }
+                                    </Show>
+                                    <Show when={ unmuted }>
+                                        { () => <p class="mt-2 text-ui-sm text-faint">{ locale.t('settings.safety.mutedEmpty') }</p> }
+                                    </Show>
+                                    <Show when={ muting }>
                                         { () =>
                                             <ul class="mt-2 flex flex-col gap-0.5" aria-label={ locale.t('settings.safety.muted') }>
                                                 <For each={ muted } key={ (person) => person.id } let={ person }>
@@ -425,10 +457,16 @@ export default component SettingsPage()
                                 <div>
                                     <p class="label text-ui-sm text-text">{ locale.t('settings.safety.reports') }</p>
                                     <p class="mt-1 text-ui-xs text-muted">{ locale.t('settings.safety.reportsLead') }</p>
-                                    <Show
-                                        when={ reported }
-                                        fallback={ <p class="mt-2 text-ui-sm text-faint">{ locale.t('report.empty') }</p> }
-                                    >
+                                    <Show when={ reportsReading }>
+                                        { () => <div class="mt-2" data-reading><span class="sr-only">{ locale.t('common.loading') }</span><Skeleton lines={ 1 } /></div> }
+                                    </Show>
+                                    <Show when={ reportsFailed }>
+                                        { () => <ErrorState compact error={ social.failure('reports') } onRetry={ () => void social.refresh() } class="mt-1" /> }
+                                    </Show>
+                                    <Show when={ unreported }>
+                                        { () => <p class="mt-2 text-ui-sm text-faint">{ locale.t('report.empty') }</p> }
+                                    </Show>
+                                    <Show when={ reported }>
                                         { () =>
                                             <ul class="mt-2 flex flex-col gap-1" aria-label={ locale.t('settings.safety.reports') }>
                                                 <For each={ reports } key={ (report) => report.id } let={ report }>

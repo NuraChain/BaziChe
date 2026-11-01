@@ -83,6 +83,21 @@ describe('a read that failed', () =>
 
         expect(lead({ error: answered(503, 'unknown') })).toBe('سرور الان جواب نمی‌ده. یه کم دیگه دوباره امتحان کن.');
     });
+
+    it('says the same in a line of its own where there is no room for the panel, with the same way to try again', () =>
+    {
+        let retried = 0;
+        const container = renderTest(() => ErrorState({ compact: true, error: answered(503, 'unavailable'), onRetry: () => retried += 1 }) as unknown as HTMLElement).container;
+        const alert = container.querySelector('[role="alert"]')!;
+
+        expect(alert.hasAttribute('data-compact')).toBe(true);
+        expect(alert.textContent).toContain(useLocale().t('state.errorTitle'));
+        expect(alert.querySelector('[data-error-lead]')?.textContent).toBe(useLocale().t('failure.down'));
+
+        (alert.querySelector('button') as HTMLButtonElement).click();
+
+        expect(retried).toBe(1);
+    });
 });
 
 describe('every page that says a read failed', () =>

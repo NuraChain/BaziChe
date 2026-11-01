@@ -5,8 +5,10 @@ import PageHeader from '../../components/app/page-header.component.azeroth';
 import GameGrid from '../../components/games/game-grid.component.azeroth';
 import GroupCard from '../../components/social/group-card.component.azeroth';
 import EmptyState from '../../components/ui/empty-state.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
 import UserCard from '../../components/social/user-card.component.azeroth';
 import SectionHeading from '../../components/ui/section-heading.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
 
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useGroups } from '../../stores/groups.store.ts';
@@ -34,6 +36,14 @@ export default component DiscoverPage()
 
     derived suggestions = social.suggestions().slice(0, 8);
 
+    derived suggestionsRead = social.reading('suggestions');
+
+    derived suggesting = suggestionsRead === 'reading';
+
+    derived unsuggested = suggestionsRead === 'failed';
+
+    derived nobody = suggestionsRead === 'read' && suggestions.length === 0;
+
     derived groups = groups_.elsewhere().slice(0, 12);
 
     derived joinable = groups.length > 0;
@@ -53,6 +63,21 @@ export default component DiscoverPage()
         <div class="flex flex-col gap-8">
             <section>
                 <SectionHeading title={ locale.t('discover.people') } more={ locale.t('common.seeAll') } to="/app/friends?tab=suggestions" />
+                <Show when={ suggesting }>
+                    { () =>
+                        <div class="grid grid-cols-2 gap-3 @lg:grid-cols-3 @3xl:grid-cols-4" data-reading>
+                            <span class="sr-only">{ locale.t('common.loading') }</span>
+                            <Skeleton lines={ 3 } class="rounded-panel border border-line bg-field p-4" />
+                            <Skeleton lines={ 3 } class="rounded-panel border border-line bg-field p-4" />
+                        </div>
+                    }
+                </Show>
+                <Show when={ unsuggested }>
+                    { () => <ErrorState error={ social.failure('suggestions') } onRetry={ () => void social.refresh() } class="rounded-panel border border-dashed border-line py-8" /> }
+                </Show>
+                <Show when={ nobody }>
+                    { () => <EmptyState icon="discover" title={ locale.t('friends.empty.suggestions') } class="rounded-panel border border-dashed border-line py-8" /> }
+                </Show>
                 <ul class="grid grid-cols-2 gap-3 @lg:grid-cols-3 @3xl:grid-cols-4 @5xl:grid-cols-5 @7xl:grid-cols-6" aria-label={ locale.t('discover.people') }>
                     <For each={ suggestions } key={ (person) => person.id } let={ person }>
                         <li class="flex min-w-0">

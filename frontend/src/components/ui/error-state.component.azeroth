@@ -3,7 +3,7 @@ import { whyFailed } from '../../lib/failure.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import Button from './button.component.azeroth';
 
-export default component ErrorState(props: { title?: string; lead?: string; error?: unknown; class?: string; onRetry?: () => void })
+export default component ErrorState(props: { title?: string; lead?: string; error?: unknown; class?: string; compact?: boolean; onRetry?: () => void })
 {
     const locale = useLocale();
 
@@ -11,18 +11,44 @@ export default component ErrorState(props: { title?: string; lead?: string; erro
 
     derived lead = said === 'state.errorLead' ? props.lead ?? locale.t(said) : locale.t(said);
 
-    <div class={ [ 'flex flex-col items-center px-6 py-10 text-center', props.class ?? '' ].filter(Boolean).join(' ') } role="alert">
-        <span class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-danger/15 text-danger" aria-hidden="true">
-            <Icon name="alert" size={ 26 } />
-        </span>
-        <p class="title text-ui-xl text-text">{ props.title ?? locale.t('state.errorTitle') }</p>
-        <p class="mt-1.5 max-w-[34ch] text-ui-base text-muted" data-error-lead>{ lead }</p>
-        <Show when={ props.onRetry !== undefined }>
-            { () =>
-                <div class="mt-5">
-                    <Button variant="secondary" size="md" leading="refresh" onClick={ () => props.onRetry?.() }>{ locale.t('common.retry') }</Button>
-                </div>
-            }
-        </Show>
-    </div>
+    derived title = props.title ?? locale.t('state.errorTitle');
+
+    derived compact = props.compact === true;
+
+    derived retried = props.onRetry !== undefined;
+
+    <Show
+        when={ compact }
+        fallback={
+            <div class={ [ 'flex flex-col items-center px-6 py-10 text-center', props.class ?? '' ].filter(Boolean).join(' ') } role="alert">
+                <span class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-danger/15 text-danger" aria-hidden="true">
+                    <Icon name="alert" size={ 26 } />
+                </span>
+                <p class="title text-ui-xl text-text">{ title }</p>
+                <p class="mt-1.5 max-w-[34ch] text-ui-base text-muted" data-error-lead>{ lead }</p>
+                <Show when={ retried }>
+                    { () =>
+                        <div class="mt-5">
+                            <Button variant="secondary" size="md" leading="refresh" onClick={ () => props.onRetry?.() }>{ locale.t('common.retry') }</Button>
+                        </div>
+                    }
+                </Show>
+            </div>
+        }
+    >
+        { () =>
+            <div class={ [ 'flex flex-col items-start gap-2 py-2', props.class ?? '' ].filter(Boolean).join(' ') } role="alert" data-compact>
+                <p class="flex items-start gap-2 text-ui-sm">
+                    <Icon name="alert" size={ 16 } class="mt-0.5 shrink-0 text-danger" />
+                    <span class="flex min-w-0 flex-col gap-0.5">
+                        <span class="font-semibold text-text">{ title }</span>
+                        <span class="text-muted" data-error-lead>{ lead }</span>
+                    </span>
+                </p>
+                <Show when={ retried }>
+                    { () => <Button variant="ghost" size="sm" leading="refresh" onClick={ () => props.onRetry?.() }>{ locale.t('common.retry') }</Button> }
+                </Show>
+            </div>
+        }
+    </Show>
 }

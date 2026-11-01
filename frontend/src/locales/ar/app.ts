@@ -38,6 +38,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'shell.activity': 'النشاط',
     'shell.activity.empty': 'طلبات الصداقة والدعوات والرسائل تصل إلى هنا.',
     'shell.friends.empty': 'لا أحد من أصدقائك متصل الآن.',
+    'shell.friends.unknown': 'سيظهر هنا من المتصل بمجرد أن تتصل.',
 
     'common.cancel': 'إلغاء',
     'common.more': 'المزيد',

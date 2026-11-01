@@ -8,8 +8,10 @@ import GameTile from '../../components/games/game-tile.component.azeroth';
 import TableRow from '../../components/games/table-row.component.azeroth';
 import Avatar from '../../components/ui/avatar.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
 import IconButton from '../../components/ui/icon-button.component.azeroth';
 import SectionHeading from '../../components/ui/section-heading.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import type { Game, GameId } from '../../data/games.ts';
 import type { Person } from '../../data/person.ts';
 import Icon from '../../icons/icon.component.azeroth';
@@ -17,6 +19,7 @@ import type { IconName } from '../../icons/registry.ts';
 import { findGame } from '../../lib/find-game.ts';
 import { aboutPerson } from '../../lib/person-menu.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
+import { useConnection } from '../../stores/connection.store.ts';
 import { useDevice } from '../../stores/device.store.ts';
 import { useLobby } from '../../stores/lobby.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -53,6 +56,7 @@ export default component HomePage()
     const record = useRecord();
     const device = useDevice();
     const notifications = useNotifications();
+    const connection = useConnection();
 
     useHead({ title: () => locale.t('app.nav.home') });
 
@@ -72,6 +76,22 @@ export default component HomePage()
     derived friends = presence.online(social.friends())
         .map((id) => people.byHandle(id))
         .filter((person): person is Person => person !== null);
+
+    derived around = friends.length > 0;
+
+    derived graph = social.reading('graph');
+
+    derived cut = connection.state() === 'unreached' || connection.state() === 'offline';
+
+    derived heard = social.friends().length === 0 || presence.ready();
+
+    derived waiting = graph === 'reading' || (graph === 'read' && !heard && !cut);
+
+    derived refused = graph === 'failed';
+
+    derived blind = graph === 'read' && !heard && cut;
+
+    derived quiet = graph === 'read' && heard && !around;
 
     derived panelShown = device.posture() === 'sidebar' && device.social();
 
@@ -209,10 +229,25 @@ export default component HomePage()
             <Show when={ !panelShown }>
                 <section aria-labelledby="home-friends">
                     <SectionHeading id="home-friends" title={ locale.t('home.friends.title') } more={ locale.t('common.seeAll') } to="/app/friends?tab=online" />
-                    <Show
-                        when={ friends.length > 0 }
-                        fallback={ <p class="rounded-panel border border-dashed border-line px-4 py-5 text-ui-sm text-muted">{ locale.t('shell.friends.empty') }</p> }
-                    >
+                    <Show when={ waiting }>
+                        { () =>
+                            <div class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field px-3.5" data-reading>
+                                <span class="sr-only">{ locale.t('common.loading') }</span>
+                                <Skeleton avatar lines={ 1 } class="py-3" />
+                                <Skeleton avatar lines={ 1 } class="py-3" />
+                            </div>
+                        }
+                    </Show>
+                    <Show when={ refused }>
+                        { () => <ErrorState compact error={ social.failure('graph') } onRetry={ () => void social.refresh() } class="rounded-panel border border-dashed border-line px-4 py-4" /> }
+                    </Show>
+                    <Show when={ blind }>
+                        { () => <p class="rounded-panel border border-dashed border-line px-4 py-5 text-ui-sm text-muted">{ locale.t('shell.friends.unknown') }</p> }
+                    </Show>
+                    <Show when={ quiet }>
+                        { () => <p class="rounded-panel border border-dashed border-line px-4 py-5 text-ui-sm text-muted">{ locale.t('shell.friends.empty') }</p> }
+                    </Show>
+                    <Show when={ around }>
                         { () =>
                             <ul class="flex flex-col rounded-panel border border-line bg-field px-3.5">
                                 <For each={ friends } key={ (person) => person.id } let={ person }>

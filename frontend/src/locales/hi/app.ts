@@ -38,6 +38,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'shell.activity': 'गतिविधि',
     'shell.activity.empty': 'फ्रेंड रिक्वेस्ट, न्योते और मैसेज यहीं आते हैं।',
     'shell.friends.empty': 'अभी तुम्हारा कोई दोस्त ऑनलाइन नहीं है।',
+    'shell.friends.unknown': 'कनेक्ट होते ही यहाँ दिखेगा कि कौन ऑनलाइन है।',
 
     'common.cancel': 'रद्द करो',
     'common.more': 'और',

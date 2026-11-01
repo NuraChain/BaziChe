@@ -35,6 +35,7 @@ export const app = {
     'shell.activity': 'Activity',
     'shell.activity.empty': 'Friend requests, invitations and messages land here.',
     'shell.friends.empty': 'None of your friends are online right now.',
+    'shell.friends.unknown': 'Who is online shows here once you are connected.',
 
     'common.cancel': 'Cancel',
     'common.more': 'More',

@@ -8,14 +8,17 @@ import GroupForm from '../../components/social/group-form.component.azeroth';
 import UserCard from '../../components/social/user-card.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
 import EmptyState from '../../components/ui/empty-state.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
 import IconButton from '../../components/ui/icon-button.component.azeroth';
 import Pagination from '../../components/ui/pagination.component.azeroth';
 import SearchInput from '../../components/ui/search-input.component.azeroth';
 import SectionHeading from '../../components/ui/section-heading.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import Tabs from '../../components/ui/tabs.component.azeroth';
 import type { Person } from '../../data/person.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useChat } from '../../stores/chat.store.ts';
+import { useConnection } from '../../stores/connection.store.ts';
 import { useGroups } from '../../stores/groups.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useOverlay } from '../../stores/overlay.store.ts';
@@ -44,6 +47,7 @@ export default component FriendsPage()
     const chat = useChat();
     const overlay = useOverlay();
     const people = usePeople();
+    const connection = useConnection();
     const { navigate, replace } = useNavigate();
     const address = useQuery();
 
@@ -77,6 +81,18 @@ export default component FriendsPage()
 
     derived online = friends.filter((person) => presence.isOnline(person.id));
 
+    derived graph = social.reading('graph');
+
+    derived read = graph === 'read';
+
+    derived cut = connection.state() === 'unreached' || connection.state() === 'offline';
+
+    derived heard = tab !== 'online' || friends.length === 0 || presence.ready();
+
+    derived waiting = graph === 'reading' || (read && !heard && !cut);
+
+    derived blind = read && !heard && cut;
+
     derived incoming = social.incoming();
 
     derived outgoing = social.outgoing();
@@ -107,11 +123,31 @@ export default component FriendsPage()
 
     derived browsing = tab === 'all' || tab === 'online';
 
-    derived searchable = browsing && friends.length > SEARCH_FROM;
+    derived graphed = browsing || tab === 'requests';
 
-    derived unmatched = browsing && pool.length > 0 && found.length === 0;
+    derived asking = graphed && waiting;
 
-    derived listing = browsing && (pool.length === 0 || found.length > 0);
+    derived refused = graphed && graph === 'failed';
+
+    derived unseen = browsing && blind;
+
+    derived shown = browsing && read && heard;
+
+    derived searchable = browsing && read && friends.length > SEARCH_FROM;
+
+    derived unmatched = shown && pool.length > 0 && found.length === 0;
+
+    derived listing = shown && (pool.length === 0 || found.length > 0);
+
+    derived requesting = tab === 'requests' && read;
+
+    derived suggestionsRead = social.reading('suggestions');
+
+    derived suggesting = tab === 'suggestions' && suggestionsRead === 'read';
+
+    derived suggestionsAsking = tab === 'suggestions' && suggestionsRead === 'reading';
+
+    derived suggestionsRefused = tab === 'suggestions' && suggestionsRead === 'failed';
 
     derived peopled = pool.length > 0;
 
@@ -173,6 +209,25 @@ export default component FriendsPage()
             class="mb-4"
             onChange={ show }
         />
+
+        <Show when={ asking }>
+            { () =>
+                <div class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field px-3" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                    <Skeleton avatar class="py-3" />
+                    <Skeleton avatar class="py-3" />
+                    <Skeleton avatar class="py-3" />
+                </div>
+            }
+        </Show>
+
+        <Show when={ refused }>
+            { () => <ErrorState error={ social.failure('graph') } onRetry={ () => void social.refresh() } class="py-10" /> }
+        </Show>
+
+        <Show when={ unseen }>
+            { () => <EmptyState icon="people" title={ locale.t('shell.friends.unknown') } class="py-10" /> }
+        </Show>
 
         <Show when={ searchable }>
             { () =>
@@ -247,7 +302,7 @@ export default component FriendsPage()
             }
         </Show>
 
-        <Show when={ tab === 'requests' }>
+        <Show when={ requesting }>
             { () =>
                 <Show
                     when={ asked }
@@ -305,7 +360,23 @@ export default component FriendsPage()
             }
         </Show>
 
-        <Show when={ tab === 'suggestions' }>
+        <Show when={ suggestionsAsking }>
+            { () =>
+                <div class="grid grid-cols-2 gap-3 @lg:grid-cols-3 @3xl:grid-cols-4" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                    <Skeleton lines={ 3 } class="rounded-panel border border-line bg-field p-4" />
+                    <Skeleton lines={ 3 } class="rounded-panel border border-line bg-field p-4" />
+                    <Skeleton lines={ 3 } class="rounded-panel border border-line bg-field p-4" />
+                    <Skeleton lines={ 3 } class="rounded-panel border border-line bg-field p-4" />
+                </div>
+            }
+        </Show>
+
+        <Show when={ suggestionsRefused }>
+            { () => <ErrorState error={ social.failure('suggestions') } onRetry={ () => void social.refresh() } class="py-10" /> }
+        </Show>
+
+        <Show when={ suggesting }>
             { () =>
                 <Show
                     when={ suggested }
@@ -384,7 +455,7 @@ export default component FriendsPage()
             }
         </Show>
 
-        <Show when={ tab === 'suggestions' }>
+        <Show when={ suggesting }>
             { () =>
                 <Pagination
                     total={ allSuggestions.length }

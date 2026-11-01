@@ -5,6 +5,7 @@ import type { Person } from '../../data/person.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { sayOf, targetOf } from '../../lib/notifications.ts';
 import { aboutPerson } from '../../lib/person-menu.ts';
+import { useConnection } from '../../stores/connection.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useNotifications } from '../../stores/notifications.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
@@ -12,13 +13,16 @@ import { usePresence } from '../../stores/presence.store.ts';
 import { useSocial } from '../../stores/social.store.ts';
 import NotificationLead from '../social/notification-lead.component.azeroth';
 import Avatar from '../ui/avatar.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
 import SectionHeading from '../ui/section-heading.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
 
 export default component SocialPanel()
 {
     const locale = useLocale();
     const presence = usePresence();
     const social = useSocial();
+    const connection = useConnection();
     const people = usePeople();
     const notifications = useNotifications();
     const { navigate } = useNavigate();
@@ -32,6 +36,20 @@ export default component SocialPanel()
     derived busy = recent.length > 0;
 
     derived around = friends.length > 0;
+
+    derived graph = social.reading('graph');
+
+    derived cut = connection.state() === 'unreached' || connection.state() === 'offline';
+
+    derived heard = social.friends().length === 0 || presence.ready();
+
+    derived waiting = graph === 'reading' || (graph === 'read' && !heard && !cut);
+
+    derived refused = graph === 'failed';
+
+    derived blind = graph === 'read' && !heard && cut;
+
+    derived quiet = graph === 'read' && heard && !around;
 
     const personOf = (item: Notification) => item.actor === undefined ? null : people.byHandle(item.actor);
 
@@ -79,10 +97,25 @@ export default component SocialPanel()
 
         <section aria-labelledby="panel-friends">
             <SectionHeading id="panel-friends" title={ locale.t('home.friends.title') } more={ locale.t('common.seeAll') } to="/app/friends?tab=online" class="mb-1" />
-            <Show
-                when={ around }
-                fallback={ <p class="py-2 text-ui-sm text-muted">{ locale.t('shell.friends.empty') }</p> }
-            >
+            <Show when={ waiting }>
+                { () =>
+                    <div class="flex flex-col py-1" data-reading>
+                        <span class="sr-only">{ locale.t('common.loading') }</span>
+                        <Skeleton avatar lines={ 1 } class="py-2" />
+                        <Skeleton avatar lines={ 1 } class="py-2" />
+                    </div>
+                }
+            </Show>
+            <Show when={ refused }>
+                { () => <ErrorState compact error={ social.failure('graph') } onRetry={ () => void social.refresh() } /> }
+            </Show>
+            <Show when={ blind }>
+                { () => <p class="py-2 text-ui-sm text-muted">{ locale.t('shell.friends.unknown') }</p> }
+            </Show>
+            <Show when={ quiet }>
+                { () => <p class="py-2 text-ui-sm text-muted">{ locale.t('shell.friends.empty') }</p> }
+            </Show>
+            <Show when={ around }>
                 { () =>
                     <ul class="flex flex-col">
                         <For each={ friends } key={ (person) => person.id } let={ person }>

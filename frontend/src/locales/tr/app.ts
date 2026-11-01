@@ -38,6 +38,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'shell.activity': 'Etkinlik',
     'shell.activity.empty': 'Arkadaşlık istekleri, davetler ve mesajlar buraya düşer.',
     'shell.friends.empty': 'Şu an çevrimiçi arkadaşın yok.',
+    'shell.friends.unknown': 'Bağlandığında kimin çevrimiçi olduğu burada görünür.',
 
     'common.cancel': 'Vazgeç',
     'common.more': 'Daha fazla',

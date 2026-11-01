@@ -38,6 +38,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'shell.activity': '动态',
     'shell.activity.empty': '好友请求、邀请和消息都会出现在这里。',
     'shell.friends.empty': '你的好友现在都不在线。',
+    'shell.friends.unknown': '连上网络后，这里会显示谁在线。',
 
     'common.cancel': '取消',
     'common.more': '更多',

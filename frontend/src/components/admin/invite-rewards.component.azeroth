@@ -18,6 +18,8 @@ import ErrorState from '../ui/error-state.component.azeroth';
 import FilterBar from '../ui/filter-bar.component.azeroth';
 import LoadMore from '../ui/load-more.component.azeroth';
 import Skeleton from '../ui/skeleton.component.azeroth';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
 import AdminEmpty from './admin-empty.component.azeroth';
 import ReasonSheet from './reason-sheet.component.azeroth';
 import RewardRow from './reward-row.component.azeroth';
@@ -43,7 +45,7 @@ const LIST_WORDS: Record<RewardList, MessageKey> = {
     all: 'admin.rewards.list.all'
 };
 
-const queryOf = (list: RewardList) => (list === 'review' ? {} : { list });
+const queryOf = (list: RewardList, person: string) => ({ ...(list === 'review' ? {} : { list }), ...(person === '' ? {} : { person }) });
 
 export default component InviteRewards()
 {
@@ -54,11 +56,13 @@ export default component InviteRewards()
 
     derived list = REWARD_LISTS.find((one) => one === address.text('list')) ?? 'review';
 
+    derived person = address.text('person').trim().replace(/^@/, '');
+
     state tail = null as Tail | null;
 
     state paging = false;
 
-    const first = createResource(() => list, (asked) => client.admin.rewards({ query: queryOf(asked) }), { name: 'admin.rewards' });
+    const first = createResource(() => ({ list, person }), (asked) => client.admin.rewards({ query: queryOf(asked.list, asked.person) }), { name: 'admin.rewards' });
 
     const guesses = createGuesses<Shown>();
 
@@ -87,6 +91,10 @@ export default component InviteRewards()
     derived empty = page !== null && rows.length === 0;
 
     derived blank = locale.t(list === 'review' ? 'admin.rewards.none' : 'admin.rewards.noneListed');
+
+    derived only = person !== '';
+
+    derived onlyWords = locale.t('admin.rewards.only', { person });
 
     derived me = session.account()?.handle ?? '';
 
@@ -129,7 +137,7 @@ export default component InviteRewards()
 
         await attempt((async () =>
         {
-            const next = await client.admin.rewards({ query: { ...queryOf(list), cursor: after } });
+            const next = await client.admin.rewards({ query: { ...queryOf(list, person), cursor: after } });
 
             if (first.data() === from)
             {
@@ -192,6 +200,13 @@ export default component InviteRewards()
 
     <div class="flex flex-col gap-4" data-invite-rewards>
         <FilterBar items={ lists } value={ list } label={ locale.t('admin.rewards.lists') } onChange={ choose } />
+
+        <Show when={ only }>
+            <div class="flex flex-wrap items-center gap-2" data-only>
+                <Badge text={ onlyWords } tone="accent" />
+                <Button variant="ghost" size="sm" leading="close" onClick={ () => address.write({ person: '' }) }>{ locale.t('admin.rewards.everybody') }</Button>
+            </div>
+        </Show>
 
         <Show when={ waiting }>
             { () => <Skeleton lines={ 4 } avatar /> }

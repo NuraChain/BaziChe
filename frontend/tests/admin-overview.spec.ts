@@ -13,6 +13,7 @@ import { useReports } from '../src/stores/reports.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
 import type { StaffRole } from '../../backend/src/domains/admin/roles.ts';
+import type { AdminInviteReward } from '../../backend/src/schemas.ts';
 import { ApiError, client, reportFiled, server, staffMember } from './fake-api.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
@@ -60,6 +61,16 @@ const all = (root: ParentNode, selector: string) => [...root.querySelectorAll(se
 const href = (root: ParentNode, selector: string) => root.querySelector(selector)?.getAttribute('href') ?? null;
 
 const reads = () => server.calls.filter((call) => call === 'admin.overview').length;
+
+const rewardOf = (id: string, state: AdminInviteReward['state'] = 'review'): AdminInviteReward => ({
+    id,
+    kind: 'inviter',
+    item: 'dice.storm',
+    state,
+    at: '2026-10-22T08:00:00.000Z',
+    campaign: { id: 'c1', name: 'Spring friends' },
+    person: { handle: 'sara.k', displayName: 'Sara Kamali', hue: 340, suspended: false }
+});
 
 const told = () =>
 {
@@ -188,6 +199,39 @@ describe('the overview', () =>
 
         expect(all(alone, '[data-needs] li')).toEqual(['1 disagreement with NuraChain']);
         expect(alone.querySelector('[data-calm]')).toBeNull();
+    });
+
+    it('says the rewards of inviting friends that wait need a role that opens Invites, leading to them, and shows a moderator none', async () =>
+    {
+        told();
+        server.invitesAdmin.rewards = [rewardOf('w1'), rewardOf('w2'), rewardOf('w3', 'given')];
+        const container = await opened();
+
+        expect(all(container, '[data-needs] li')).toEqual(['2 reports waiting', '2 invite rewards wait for a decision', '1 game stuck', '1 payment stuck on the way']);
+        expect(href(container, '[data-rewards-waiting]')).toBe('/admin/invites?view=rewards');
+        expect(container.querySelector('[data-rewards-waiting] .text-gold'), 'in gold, as a decision that waits').not.toBeNull();
+        cleanup();
+
+        as('moderator');
+        const looked = await opened();
+
+        expect(looked.querySelector('[data-rewards-waiting]')).toBeNull();
+        cleanup();
+
+        as('owner');
+        server.lookout.overview = { ...server.lookout.overview, stuck: 0, money: { playing: 0, inPlay: '0', stuck: 0 } };
+        server.desk.filed = [];
+        server.invitesAdmin.rewards = [rewardOf('w1')];
+        const alone = await opened();
+
+        expect(all(alone, '[data-needs] li')).toEqual(['1 invite reward waits for a decision']);
+        expect(alone.querySelector('[data-calm]')).toBeNull();
+        cleanup();
+
+        useLocale().setLocale('fa');
+        const persian = await opened();
+
+        expect(said(persian, '[data-rewards-waiting]')).toBe('۱ جایزه‌ی دعوت منتظر تصمیمه');
     });
 
     it('says nothing needs the reader when nothing does', async () =>

@@ -724,6 +724,7 @@ const accountView = (handle: string): AdminPerson =>
         games: [],
         paidGames: [],
         looks: [],
+        invites: { invited: { joined: 0, played: 0, flagged: 0 }, rewards: [] },
         ...structuredClone(server.accounts.about[handle] ?? {})
     };
 };
@@ -2027,6 +2028,7 @@ export const client =
                 ...(may(role, 'money') && money !== undefined ? { money } : {}),
                 ...(may(role, 'money') && shop !== undefined ? { shop } : {}),
                 ...(may(role, 'money') && checks !== undefined ? { checks } : {}),
+                ...(may(role, 'invites') ? { invites: { waiting: server.invitesAdmin.rewards.filter((one) => one.state === 'review').length } } : {}),
                 ...(may(role, 'health') && health !== undefined ? { health } : {}),
                 ...(may(role, 'money') && payouts !== undefined ? { payouts } : {})
             };
@@ -2624,14 +2626,16 @@ export const client =
             return structuredClone(campaign);
         },
 
-        async rewards({ query }: { query: { list?: RewardList; cursor?: string } })
+        async rewards({ query }: { query: { list?: RewardList; person?: string; cursor?: string } })
         {
             server.calls.push(`admin.rewards ${ JSON.stringify(query) }`);
             staffGate('invites');
 
             const list = query.list ?? 'review';
+            const person = (query.person ?? '').replace(/^@/, '').toLowerCase();
             const rewards = server.invitesAdmin.rewards;
-            const { rows, ...rest } = pageOf(rewards.filter((one) => list === 'all' || one.state === list), query.cursor, INVITES_PAGE);
+            const listed = rewards.filter((one) => (list === 'all' || one.state === list) && (person === '' || one.person.handle.toLowerCase() === person));
+            const { rows, ...rest } = pageOf(listed, query.cursor, INVITES_PAGE);
 
             return { rewards: rows, ...rest, waiting: rewards.filter((one) => one.state === 'review').length };
         },

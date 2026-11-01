@@ -856,6 +856,51 @@ describe('the rewards', () =>
         expect(rewardRow(container, 'r2').querySelector('[data-nothing]')).toBeNull();
     });
 
+    it('keeps to one person the address names, in any case and with its @, through every list and page, and goes back to everybody\'s at a press', async () =>
+    {
+        five();
+        const { router, container } = await mounted('/admin/invites?view=rewards&list=all&person=%40Sara.K');
+        const asks = () => server.calls.filter((call) => call.startsWith('admin.rewards '));
+
+        expect(rewardRows(container)).toEqual(['r1', 'r3', 'r4', 'r5']);
+        expect(asks().at(-1)).toBe('admin.rewards {"list":"all","person":"Sara.K"}');
+        expect(container.querySelector('[data-only]')?.firstElementChild?.textContent?.trim()).toBe('Only Sara.K');
+        expect(container.querySelector('[data-only] button')?.textContent?.trim()).toBe('Show everybody’s rewards');
+
+        chip(container, 'Waiting').click();
+        await settle();
+
+        expect(router.location().query).toMatchObject({ view: 'rewards', person: '@Sara.K' });
+        expect(router.location().query.list).toBeUndefined();
+        expect(rewardRows(container)).toEqual(['r1', 'r3']);
+
+        button(container, 'Show everybody’s rewards')!.click();
+        await settle();
+
+        expect(router.location().search).toBe('?view=rewards');
+        expect(rewardRows(container)).toEqual(['r1', 'r2', 'r3']);
+        expect(container.querySelector('[data-only]')).toBeNull();
+        cleanup();
+
+        server.invitesAdmin.rewards = [
+            ...Array.from({ length: INVITES_PAGE + 1 }, (_, at) => rewardOf(`s${ String(at).padStart(2, '0') }`)),
+            rewardOf('n1', { person: { ...face('nima.f'), suspended: false } })
+        ];
+        const paged = await mounted('/admin/invites?view=rewards&person=sara.k');
+
+        button(paged.container, 'Show older')!.click();
+        await settle();
+
+        expect(rewardRows(paged.container)).toHaveLength(INVITES_PAGE + 1);
+        expect(rewardRows(paged.container)).not.toContain('n1');
+        expect(asks().at(-1)).toBe(`admin.rewards {"person":"sara.k","cursor":"s${ INVITES_PAGE - 1 }"}`);
+
+        chip(paged.container, 'Campaigns').click();
+        await settle();
+
+        expect(paged.router.location().search, 'a view leaves the person behind').toBe('?view=campaigns');
+    });
+
     it('shows older rewards a page at a time, each once, and says when none waits or the rewards could not be read', async () =>
     {
         server.invitesAdmin.rewards = Array.from({ length: INVITES_PAGE + 1 }, (_, at) => rewardOf(`r${ String(at).padStart(2, '0') }`));

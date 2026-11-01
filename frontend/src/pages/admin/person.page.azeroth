@@ -1,12 +1,13 @@
 import { createResource, Link, untrack, useHead, useParams } from 'azerothjs';
 
 import { may, outranks, type ClearPart } from '../../../../backend/src/domains/admin/roles.ts';
-import type { AdminPerson } from '../../../../backend/src/schemas.ts';
+import type { AdminPerson, AdminPersonInvites } from '../../../../backend/src/schemas.ts';
 import { ApiError, client } from '../../api.ts';
 import type { GiveAsk } from '../../components/admin/give-look-sheet.component.azeroth';
 import LogEntry from '../../components/admin/log-entry.component.azeroth';
 import PersonActions from '../../components/admin/person-actions.component.azeroth';
 import type { AdminLook } from '../../components/admin/person-look.component.azeroth';
+import PersonInvites from '../../components/admin/person-invites.component.azeroth';
 import PersonLooks from '../../components/admin/person-looks.component.azeroth';
 import Said from '../../components/admin/said.component.azeroth';
 import type { SuspendAsk } from '../../components/admin/suspend-sheet.component.azeroth';
@@ -82,7 +83,9 @@ const PLAYED: RecordPart[] = ['level', 'record'];
 
 const UNPLAYED: RecordPart[] = ['level'];
 
-const TABS = ['overview', 'reports', 'games', 'looks', 'history'] as const;
+const TABS = ['overview', 'reports', 'games', 'looks', 'invites', 'history'] as const;
+
+const NO_INVITES: AdminPersonInvites = { invited: { joined: 0, played: 0, flagged: 0 }, rewards: [] };
 
 export default component PersonPage()
 {
@@ -307,6 +310,10 @@ export default component PersonPage()
 
     derived owned = looks.map((one) => one.item);
 
+    derived invites = person?.invites ?? NO_INVITES;
+
+    derived mayDecide = me !== null && may(me.staff ?? null, 'invites');
+
     derived tab = TABS.find((one) => one === address.text('tab')) ?? 'overview';
 
     derived onOverview = tab === 'overview';
@@ -317,6 +324,8 @@ export default component PersonPage()
 
     derived onLooks = tab === 'looks';
 
+    derived onInvites = tab === 'invites';
+
     derived onHistory = tab === 'history';
 
     derived tabs = [
@@ -324,6 +333,7 @@ export default component PersonPage()
         { id: 'reports', label: locale.t('admin.person.tab.reports'), count: reports.length },
         { id: 'games', label: locale.t('admin.person.tab.games') },
         { id: 'looks', label: locale.t('admin.person.tab.looks'), count: looks.length },
+        { id: 'invites', label: locale.t('admin.person.tab.invites'), count: invites.invited.joined },
         { id: 'history', label: locale.t('admin.person.tab.history') }
     ];
 
@@ -815,6 +825,10 @@ export default component PersonPage()
 
                         <div class="flex flex-col gap-4" role="tabpanel" aria-label={ locale.t('admin.person.tab.looks') } hidden={ !onLooks } data-panel="looks">
                             <PersonLooks looks={ looks } name={ calledBy } mayTake={ mayTake } onTake={ takeNow } />
+                        </div>
+
+                        <div class="flex flex-col gap-4" role="tabpanel" aria-label={ locale.t('admin.person.tab.invites') } hidden={ !onInvites } data-panel="invites">
+                            <PersonInvites invites={ invites } handle={ handle } decides={ mayDecide } />
                         </div>
 
                         <section class="flex flex-col gap-3" role="tabpanel" aria-labelledby="person-history" hidden={ !onHistory } data-panel="history">

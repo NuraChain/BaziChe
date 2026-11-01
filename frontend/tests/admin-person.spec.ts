@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderTest } from '@azerothjs/testing';
 import { createMemoryHistory, createRouter, RouterProvider, Routes, type Route } from 'azerothjs';
 
-import { LOG_PAGE, type StaffRole } from '../../backend/src/domains/admin/roles.ts';
+import { INVITES_PAGE, LOG_PAGE, type StaffRole } from '../../backend/src/domains/admin/roles.ts';
+import type { AdminInviteReward, AdminPersonInvites } from '../../backend/src/schemas.ts';
 import PersonPage from '../src/pages/admin/person.page.azeroth';
 import '../src/locales/app-catalogue.ts';
 import '../src/locales/admin-catalogue.ts';
@@ -405,10 +406,10 @@ describe('a person\'s page, laid out', () =>
 
         await settle();
 
-        expect([...container.querySelectorAll('[role="tab"]')].map((one) => one.textContent?.trim())).toEqual(['Overview', 'Reports2', 'Games', 'Looks', 'History']);
+        expect([...container.querySelectorAll('[role="tab"]')].map((one) => one.textContent?.trim())).toEqual(['Overview', 'Reports2', 'Games', 'Looks', 'Invites', 'History']);
         expect(shown()).toEqual(['overview']);
         expect(tab('overview').getAttribute('aria-selected')).toBe('true');
-        expect([...container.querySelectorAll('[data-panel]')].map((one) => one.getAttribute('role'))).toEqual(['tabpanel', 'tabpanel', 'tabpanel', 'tabpanel', 'tabpanel']);
+        expect([...container.querySelectorAll('[data-panel]')].map((one) => one.getAttribute('role'))).toEqual(['tabpanel', 'tabpanel', 'tabpanel', 'tabpanel', 'tabpanel', 'tabpanel']);
 
         tab('reports').click();
         await settle();
@@ -1019,7 +1020,7 @@ describe('a look given and taken back, from the person\'s page', () =>
         owns();
         const container = await opened('/admin/people/sara.k?tab=looks');
 
-        expect([...container.querySelectorAll('[role="tab"]')].map((one) => one.textContent?.trim())).toEqual(['Overview', 'Reports', 'Games', 'Looks3', 'History']);
+        expect([...container.querySelectorAll('[role="tab"]')].map((one) => one.textContent?.trim())).toEqual(['Overview', 'Reports', 'Games', 'Looks3', 'Invites', 'History']);
         expect([...container.querySelectorAll<HTMLElement>('[data-panel]')].filter((one) => !one.hidden).map((one) => one.dataset.panel)).toEqual(['looks']);
         expect(names(container)).toEqual(['Infernal Sovereign dice', 'Jade Dragon Dynasty pawns', 'Royal Gold card back']);
         expect(rows(container).map((one) => said(one, '[data-how]'))).toEqual(['Given by Nura’s team', 'A gift from mina', 'Bought']);
@@ -1294,5 +1295,159 @@ describe('a look given and taken back, from the person\'s page', () =>
 
         expect(all(container, '[data-history] [data-line]')).toEqual(['alex، تاس سلطان دوزخ رو از sara.k پس گرفت.']);
         expect(toasts()).toEqual(['Sara Kamali دیگه تاس سلطان دوزخ رو نداره.']);
+    });
+});
+
+describe('inviting friends, on the person\'s page', () =>
+{
+    const MINA = { handle: 'mina', displayName: 'Mina Sadeghi', hue: 280 };
+
+    const rewardOf = (id: string, change: Partial<AdminInviteReward> = {}): AdminInviteReward => ({
+        id,
+        kind: 'inviter',
+        item: 'dice.storm',
+        state: 'review',
+        at: hoursAgo(3),
+        campaign: { id: 'c1', name: 'Spring friends' },
+        person: { handle: 'sara.k', displayName: 'Sara Kamali', hue: 340, suspended: false },
+        friend: { handle: 'nima.f', displayName: 'Nima Farahani', hue: 150 },
+        ...change
+    });
+
+    const invited = (invites: Partial<AdminPersonInvites> = {}) =>
+    {
+        server.accounts.about['sara.k'] = {
+            invites: {
+                by: { person: MINA, code: 'K7QXH2AB', at: hoursAgo(48), countedAt: hoursAgo(40), flags: ['quick'], campaign: { id: 'c1', name: 'Spring friends' } },
+                invited: { joined: 3, played: 2, flagged: 1 },
+                rewards: [
+                    rewardOf('r1', { state: 'given', delivered: true, decidedBy: 'reza.t', decidedAt: hoursAgo(2), reason: 'Looks fair.' }),
+                    rewardOf('r2', { kind: 'invitee', item: 'pawns.jade', friend: MINA })
+                ],
+                ...invites
+            }
+        };
+    };
+
+    const panel = (root: ParentNode) => root.querySelector<HTMLElement>('[data-panel="invites"]')!;
+
+    const rewards = (root: ParentNode) => [...panel(root).querySelectorAll<HTMLElement>('[data-reward]')];
+
+    const tabs = (root: ParentNode) => [...root.querySelectorAll('[role="tab"]')].map((one) => one.textContent?.trim());
+
+    it('says who invited them, by which code and when, when it counted, in which campaign and with what flags, and what their own invites brought in', async () =>
+    {
+        invited();
+        const container = await opened('/admin/people/sara.k?tab=invites');
+        const at = panel(container);
+
+        expect(tabs(container)).toEqual(['Overview', 'Reports', 'Games', 'Looks', 'Invites3', 'History']);
+        expect([...container.querySelectorAll<HTMLElement>('[data-panel]')].filter((one) => !one.hidden).map((one) => one.dataset.panel)).toEqual(['invites']);
+        expect(said(at, '#person-invited-by')).toBe('Who invited them');
+        expect(at.querySelector('[data-inviter]')?.getAttribute('href')).toBe('/admin/people/mina');
+        expect(at.querySelector('[data-inviter] [role="img"]')?.getAttribute('aria-label')).toBe('Mina Sadeghi');
+        expect(at.querySelector('[data-inviter] [dir="ltr"]')?.textContent).toBe('@mina');
+        expect(at.querySelector('[data-facts] time')?.getAttribute('datetime')).toBe(hoursAgo(48));
+        expect(said(at, '[data-joined-at]')).toBe(`Joined ${ useLocale().relative(Date.parse(hoursAgo(48))) }`);
+        expect(said(at, '[data-code]')).toBe('Code K7QXH2AB');
+        expect(at.querySelector('[data-counted] time')?.getAttribute('datetime')).toBe(hoursAgo(40));
+        expect(said(at, '[data-counted]')).toBe(`Counted ${ useLocale().relative(Date.parse(hoursAgo(40))) }`);
+        expect(at.querySelector('[data-uncounted]')).toBeNull();
+        expect(said(at, '[data-campaign-name]')).toBe('In “Spring friends”');
+        expect([...at.querySelectorAll('[data-by] [data-flag]')].map((one) => [one.getAttribute('data-flag'), one.textContent])).toEqual([['quick', 'First game within 10 minutes of joining']]);
+        expect(at.querySelector('[data-by] [data-flag] span[aria-hidden="true"]'), 'a flag is said as a state is, its dot in danger').not.toBeNull();
+        expect(said(at, '#person-brought')).toBe('Friends they brought in');
+        expect(all(at, '[data-brought] dt')).toEqual(['Joined', 'Played a game', 'Flagged']);
+        expect([said(at, '[data-joined]'), said(at, '[data-played]'), said(at, '[data-flagged]')]).toEqual(['3', '2', '1']);
+        expect(at.querySelector('[data-flagged]')?.className).toContain('text-danger');
+        expect(at.querySelector('[data-joined]')?.className).not.toContain('text-danger');
+    });
+
+    it('lists their rewards as the rewards list says them, without their own name and with no decision, and leads a role that opens Invites to all of theirs', async () =>
+    {
+        invited();
+        const container = await opened('/admin/people/sara.k?tab=invites');
+        const at = panel(container);
+        const handleOf = (row: Element) => [...row.querySelectorAll('span')].find((one) => one.textContent === '@sara.k');
+
+        expect(said(at, '#person-rewards')).toBe('Their rewards');
+        expect(rewards(container).map((one) => one.dataset.reward)).toEqual(['r1', 'r2']);
+        expect(rewards(container).map((one) => said(one, '[data-what]'))).toEqual(['For inviting nima.f', 'For joining through mina’s link']);
+        expect(rewards(container).map((one) => said(one, '[data-look]'))).toEqual(['Stormforged Monarch dice', 'Jade Dragon Dynasty pawns']);
+        expect(rewards(container).map((one) => one.querySelector('[data-state]')?.getAttribute('data-state'))).toEqual(['given', 'review']);
+        expect(said(rewards(container)[0]!, '[data-decided]')).toBe('Decided by reza.t. “Looks fair.”');
+        expect(rewards(container).map((one) => one.querySelector('[role="img"]')), 'no picture of the person whose page it is').toEqual([null, null]);
+        expect(rewards(container).map((one) => handleOf(one)?.closest('[hidden]') !== null), 'nor their name').toEqual([true, true]);
+        expect(at.querySelector('[data-decide], [data-barred]'), 'a reward is decided in Invites').toBeNull();
+        expect(at.querySelector('[data-decide-in]')?.getAttribute('href')).toBe('/admin/invites?view=rewards&list=all&person=sara.k');
+        expect(said(at, '[data-decide-in]')).toBe('Decide in Invites');
+        expect(at.querySelector('[data-more]')).toBeNull();
+        cleanup();
+
+        server.staff.owners = ['reza.t'];
+        server.staff.members = [staffMember('alex', 'moderator', 'reza.t', hoursAgo(20))];
+        as('moderator');
+        const read = await opened('/admin/people/sara.k?tab=invites');
+
+        expect(rewards(read).map((one) => one.dataset.reward), 'a moderator reads them all the same').toEqual(['r1', 'r2']);
+        expect(panel(read).querySelector('[data-decide-in]'), 'and is not led to a section their role does not open').toBeNull();
+    });
+
+    it('says when only their newest rewards are shown', async () =>
+    {
+        invited({ rewards: Array.from({ length: INVITES_PAGE }, (_, at) => rewardOf(`r${ at }`)), more: true });
+        const container = await opened('/admin/people/sara.k?tab=invites');
+
+        expect(rewards(container)).toHaveLength(INVITES_PAGE);
+        expect(said(panel(container), '[data-more]')).toBe(`These are their newest ${ INVITES_PAGE }.`);
+    });
+
+    it('says they joined without an invite link, that an inviter\'s account is gone, an invite not counted yet, and that there is no reward yet', async () =>
+    {
+        server.accounts.about['sara.k'] = { invites: { invited: { joined: 0, played: 0, flagged: 0 }, rewards: [] } };
+        const alone = await opened('/admin/people/sara.k?tab=invites');
+        const at = panel(alone);
+
+        expect(tabs(alone)).toEqual(['Overview', 'Reports', 'Games', 'Looks', 'Invites', 'History']);
+        expect(said(at, '[data-alone]')).toBe('They joined without an invite link.');
+        expect(at.querySelector('[data-by]')).toBeNull();
+        expect([said(at, '[data-joined]'), said(at, '[data-played]'), said(at, '[data-flagged]')]).toEqual(['0', '0', '0']);
+        expect(at.querySelector('[data-flagged]')?.className).not.toContain('text-danger');
+        expect(at.querySelector('[data-person-rewards]')).toBeNull();
+        expect(at.textContent).toContain('No reward yet.');
+        expect(at.querySelector('[data-decide-in]'), 'nothing to lead to').toBeNull();
+        cleanup();
+
+        invited({ by: { at: hoursAgo(48) } });
+        const gone = await opened('/admin/people/sara.k?tab=invites');
+        const of = panel(gone);
+
+        expect(said(of, '[data-gone]')).toBe('Invited by an account that is gone');
+        expect(of.querySelector('[data-inviter]')).toBeNull();
+        expect(of.querySelector('[data-code]')).toBeNull();
+        expect(said(of, '[data-uncounted]')).toBe('Not counted yet');
+        expect(of.querySelector('[data-counted]')).toBeNull();
+        expect(of.querySelector('[data-campaign-name]')).toBeNull();
+        expect(of.querySelector('[data-by] [data-flags]')).toBeNull();
+    });
+
+    it('says it in Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+        invited();
+        const container = await opened('/admin/people/sara.k?tab=invites');
+        const at = panel(container);
+
+        expect(tabs(container)).toContain('دعوت‌ها۳');
+        expect(said(at, '#person-invited-by')).toBe('کی دعوتش کرده');
+        expect(said(at, '[data-joined-at]'), 'the time where Persian puts it').toBe(`${ useLocale().relative(Date.parse(hoursAgo(48))) } عضو شد`);
+        expect(said(at, '[data-code]')).toBe('کد K7QXH2AB');
+        expect(said(at, '[data-counted]')).toBe(`${ useLocale().relative(Date.parse(hoursAgo(40))) } حساب شد`);
+        expect(said(at, '[data-campaign-name]')).toBe('تو «Spring friends»');
+        expect(all(at, '[data-by] [data-flag]')).toEqual(['اولین بازی تو ۱۰ دقیقه‌ی اول عضویت']);
+        expect(said(at, '#person-brought')).toBe('دوست‌هایی که آورده');
+        expect([said(at, '[data-joined]'), said(at, '[data-played]'), said(at, '[data-flagged]')]).toEqual(['۳', '۲', '۱']);
+        expect(said(at, '#person-rewards')).toBe('جایزه‌هاش');
+        expect(said(at, '[data-decide-in]')).toBe('تو دعوت‌ها تصمیم بگیر');
     });
 });

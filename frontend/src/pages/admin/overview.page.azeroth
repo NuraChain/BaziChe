@@ -119,6 +119,12 @@ export default component OverviewPage()
 
     derived reported = reportCount > 0;
 
+    derived rewardCount = held?.invites?.waiting ?? 0;
+
+    derived rewardsWaiting = counted(rewardCount, 'admin.overview.rewardsWaiting');
+
+    derived rewarding = rewardCount > 0;
+
     derived playing = locale.n((held?.games ?? []).reduce((sum, one) => sum + one.matches, 0));
 
     derived tablesWaiting = counted((held?.games ?? []).reduce((sum, one) => sum + one.tables, 0), 'admin.play.tables');
@@ -272,7 +278,7 @@ export default component OverviewPage()
 
     derived alerting = alerts.length > 0;
 
-    derived needed = reported || jammed || owed || unpaidFor || disagreeing || alerting;
+    derived needed = reported || rewarding || jammed || owed || unpaidFor || disagreeing || alerting;
 
     const standingIn = (list: readonly Standing[], kind: AlertKind) => list.some((one) => one.alert === kind);
 
@@ -461,6 +467,15 @@ export default component OverviewPage()
                                     <Link to="/admin/reports" class="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-raised" data-reports>
                                         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold/15 text-gold" aria-hidden="true"><Icon name="flag" size={ 18 } /></span>
                                         <span class="min-w-0 flex-1 text-ui-base font-semibold text-text"><span class="tally">{ reportsWaiting.count }</span> { reportsWaiting.label }</span>
+                                        <Icon name="chevron-right" size={ 16 } class="icon-flip shrink-0 text-faint" />
+                                    </Link>
+                                </li>
+                            </Show>
+                            <Show when={ rewarding }>
+                                <li>
+                                    <Link to="/admin/invites?view=rewards" class="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-raised" data-rewards-waiting>
+                                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold/15 text-gold" aria-hidden="true"><Icon name="gift" size={ 18 } /></span>
+                                        <span class="min-w-0 flex-1 text-ui-base font-semibold text-text"><span class="tally">{ rewardsWaiting.count }</span> { rewardsWaiting.label }</span>
                                         <Icon name="chevron-right" size={ 16 } class="icon-flip shrink-0 text-faint" />
                                     </Link>
                                 </li>

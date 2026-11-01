@@ -703,12 +703,13 @@ plain.
 The mark is hidden from a screen reader, because the sentence beside it says the same.
 
 **Overview** is the first section, open to every role on the staff, and it is a dashboard. It
-opens with what needs the reader ("Needs you", with when it was read): the reports waiting in
-gold, and the games the sweep cannot play, the payments stuck on the way, the paid orders that
-delivered nothing and the disagreements with NuraChain still open in danger, each only when there
-are some and each leading to its place (stuck games for a role that opens Play alone, the orders and
-the disagreements for one that opens Money, to `/admin/shop?view=orders&state=undelivered` and
-`/admin/money/checks`);
+opens with what needs the reader ("Needs you", with when it was read): the reports waiting and
+the rewards of inviting friends that wait for a decision in gold, and the games the sweep cannot
+play, the payments stuck on the way, the paid orders that delivered nothing and the disagreements
+with NuraChain still open in danger, each only when there are some and each leading to its place
+(the rewards for a role that opens Invites alone, to `/admin/invites?view=rewards`, stuck games
+for a role that opens Play alone, the orders and the disagreements for one that opens Money, to
+`/admin/shop?view=orders&state=undelivered` and `/admin/money/checks`);
 when nothing does it says so, "Nothing needs you right now.". Then four tiles, two to a row on a
 phone and four from 1024px, each leading to its section and each named to a screen reader as one
 sentence ("Accounts: 1,234, 12 joined in the last day"): the accounts with the new ones of the
@@ -769,16 +770,27 @@ when, a line of facts (when they joined and were last seen, both exact under a p
 browsers they are signed in on, or "Signed in nowhere"), and their first wallet shortened with a
 button that copies the whole of it. Under it, in tabs kept in the address (`tab`: Overview, the
 default and never written, Reports with how many there are both ways, Games, Looks with how many
-they own, and History; a word the page does not know is Overview): their account and paid play,
+they own, Invites with how many friends they brought in, and History; a word the page does not know
+is Overview): their account and paid play,
 their wallets, where they are signed in now ("Chrome on Windows", or "An unknown browser" for an
 agent `agentOf` does not know) and the browsers holding their keys; the reports both ways (each a
 sentence with the other person's handle set apart, `handleParts`); their record (`PersonRecord`:
 the level, and the ratings once they have played, and "No rated games yet." in plain words where a
 player would be shown its invitation to sit down), their recent games and paid games; the looks
-they own (`PersonLooks`); and what the staff did about them, drawn by the log's own `LogEntry`,
+they own (`PersonLooks`); inviting friends (`PersonInvites`, read only: a moderator reads it all
+the same); and what the staff did about them, drawn by the log's own `LogEntry`,
 older pages under "Show older", kept by the first page's cursor and dropped once that cursor moves
-(a new action, read again), so nothing is skipped between the two. All five panels are drawn and
-the four not chosen are hidden, so a note half written survives a change of tab.
+(a new action, read again), so nothing is skipped between the two. All six panels are drawn and
+the five not chosen are hidden, so a note half written survives a change of tab.
+
+**Inviting friends on a person's page** says who invited them (their face leading to their page,
+"Invited by an account that is gone" where it is, or "They joined without an invite link."), when
+they joined and by which code, when their invite counted or that it has not yet, its campaign and
+its flags as dot badges in danger; then the friends they brought in, played and were flagged as
+three counts, the flagged in danger when there are some; then their rewards newest first, each the
+rewards list's own row (`RewardRow`) with no picture or name of theirs (`named={ false }`) and no
+decision, saying when only the newest fifty are shown. Rewards are decided in Invites: "Decide in
+Invites" leads a role that opens it to `/admin/invites?view=rewards&list=all&person=<handle>`.
 
 **The looks a person owns** are a list newest first, each its drawing, its name, "In use" while
 they wear it, how it came ("Bought", "A gift from mina" with the handle set apart, or "Given by
@@ -982,7 +994,10 @@ drawn only for somebody the reader outranks, never on the reader's own and never
 account, the row saying why where nothing is offered; each asks why in the reason sheet (a gift as a
 question that loses nothing, the other two as ones that do), is shown at the press with one off the
 waiting count where it waited, said once the server has ("sara.k has Stormforged Monarch dice now."),
-and taken back in the refusal's words, the reason kept for the next sheet for that reward.
+and taken back in the refusal's words, the reason kept for the next sheet for that reward. A
+handle in the address keeps every list to that person's (`person`, a leading @ dropped, through
+every page), said under the chips as "Only sara.k" beside "Show everybody’s rewards", and choosing
+another view lets it go with the rest.
 
 **Money** is the vault panel, and its calls are drawn for the owner alone (`may(role, 'wallet')`):
 an admin whose wallet happens to hold a role on the vault is told that only the owner changes it

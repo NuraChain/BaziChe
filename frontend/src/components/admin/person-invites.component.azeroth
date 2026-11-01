@@ -1,0 +1,150 @@
+import { Link } from 'azerothjs';
+
+import type { AdminPersonInvites } from '../../../../backend/src/schemas.ts';
+import { INVITES_PAGE } from '../../../../backend/src/domains/admin/roles.ts';
+import { FLAG_WORDS } from '../../lib/staff-words.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Avatar from '../ui/avatar.component.azeroth';
+import Badge from '../ui/badge.component.azeroth';
+import Panel from '../ui/panel.component.azeroth';
+import AdminEmpty from './admin-empty.component.azeroth';
+import RewardRow from './reward-row.component.azeroth';
+import When from './when.component.azeroth';
+
+const COUNT = 'rounded-tile border border-line bg-field px-4 py-3';
+
+/**
+ * Inviting friends on a person's page, read as it stands: who invited them, the friends they brought
+ * in, and their rewards. Deciding a reward is Invites' own, where `decides` leads to theirs.
+ */
+export default component PersonInvites(props: { invites: AdminPersonInvites; handle: string; decides: boolean })
+{
+    const locale = useLocale();
+
+    derived by = props.invites.by ?? null;
+
+    derived invited = by !== null;
+
+    derived inviter = by?.person ?? null;
+
+    derived joinedAt = by?.at ?? '';
+
+    derived joinedSaid = joinedAt === '' ? '' : locale.t('admin.people.joined', { when: locale.relative(Date.parse(joinedAt)) });
+
+    derived code = by?.code ?? '';
+
+    derived coded = code !== '';
+
+    derived codeSaid = locale.t('admin.person.invites.code', { code });
+
+    derived countedAt = by?.countedAt ?? '';
+
+    derived counted = countedAt !== '';
+
+    derived countedSaid = countedAt === '' ? '' : locale.t('admin.person.invites.counted', { when: locale.relative(Date.parse(countedAt)) });
+
+    derived campaign = by?.campaign === undefined ? '' : locale.t('admin.reward.in', { campaign: by.campaign.name });
+
+    derived inCampaign = campaign !== '';
+
+    derived flags = (by?.flags ?? []).map((one) => ({ flag: one, said: locale.t(FLAG_WORDS[one]) }));
+
+    derived flagged = flags.length > 0;
+
+    derived joined = locale.n(props.invites.invited.joined);
+
+    derived played = locale.n(props.invites.invited.played);
+
+    derived flaggedCount = locale.n(props.invites.invited.flagged);
+
+    derived anyFlagged = props.invites.invited.flagged > 0;
+
+    derived rewards = props.invites.rewards;
+
+    derived rewarded = rewards.length > 0;
+
+    derived more = props.invites.more === true;
+
+    derived moreSaid = locale.t('admin.person.invites.more', { count: locale.n(INVITES_PAGE) });
+
+    derived decides = props.decides && rewarded;
+
+    derived theirs = `/admin/invites?view=rewards&list=all&person=${ encodeURIComponent(props.handle) }`;
+
+    <div class="flex flex-col gap-4" data-person-invites>
+        <section class="flex flex-col gap-3" aria-labelledby="person-invited-by">
+            <h2 id="person-invited-by" class="text-ui-md font-semibold text-text">{ locale.t('admin.person.invites.by') }</h2>
+            <Panel pad="md">
+                <Show when={ invited } fallback={ <p class="text-ui-sm text-muted" data-alone>{ locale.t('admin.person.invites.alone') }</p> }>
+                    <div class="flex flex-col gap-3" data-by>
+                        <Show when={ inviter } let={ face } fallback={ <p class="text-ui-sm text-muted" data-gone>{ locale.t('admin.person.invites.gone') }</p> }>
+                            <Link to={ () => `/admin/people/${ face.handle }` } class="flex items-center gap-3 self-start rounded-tile pe-2 hover:bg-raised" data-inviter>
+                                <Avatar person={ face } size="sm" />
+                                <span class="flex min-w-0 flex-col">
+                                    <span class="truncate text-ui-sm font-semibold text-text">{ face.displayName }</span>
+                                    <span class="truncate text-ui-xs text-faint" dir="ltr">{ `@${ face.handle }` }</span>
+                                </span>
+                            </Link>
+                        </Show>
+                        <p class="facts text-ui-xs text-muted" data-facts>
+                            <span data-joined-at><When at={ joinedAt } said={ joinedSaid } /></span>
+                            <Show when={ coded }>
+                                <span data-code>{ codeSaid }</span>
+                            </Show>
+                            <Show when={ counted } fallback={ <span data-uncounted>{ locale.t('admin.person.invites.notCounted') }</span> }>
+                                <span data-counted><When at={ countedAt } said={ countedSaid } /></span>
+                            </Show>
+                            <Show when={ inCampaign }>
+                                <span dir="auto" data-campaign-name>{ campaign }</span>
+                            </Show>
+                        </p>
+                        <Show when={ flagged }>
+                            <ul class="flex flex-wrap gap-2" data-flags>
+                                <For each={ flags } key={ (one) => one.flag } let={ one }>
+                                    <li data-flag={ one.flag }><Badge dot text={ one.said } tone="danger" /></li>
+                                </For>
+                            </ul>
+                        </Show>
+                    </div>
+                </Show>
+            </Panel>
+        </section>
+
+        <section class="flex flex-col gap-3" aria-labelledby="person-brought">
+            <h2 id="person-brought" class="text-ui-md font-semibold text-text">{ locale.t('admin.person.invites.theirs') }</h2>
+            <dl class="grid grid-cols-3 gap-3" data-brought>
+                <div class={ COUNT }>
+                    <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.invites.joined') }</dt>
+                    <dd class="tally text-ui-xl font-bold text-text" data-joined>{ joined }</dd>
+                </div>
+                <div class={ COUNT }>
+                    <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.invites.played') }</dt>
+                    <dd class="tally text-ui-xl font-bold text-text" data-played>{ played }</dd>
+                </div>
+                <div class={ COUNT }>
+                    <dt class="text-ui-xs font-semibold text-muted">{ locale.t('admin.invites.flagged') }</dt>
+                    <dd class={ () => `tally text-ui-xl font-bold ${ anyFlagged ? 'text-danger' : 'text-text' }` } data-flagged>{ flaggedCount }</dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="flex flex-col gap-3" aria-labelledby="person-rewards">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 id="person-rewards" class="text-ui-md font-semibold text-text">{ locale.t('admin.person.invites.rewards') }</h2>
+                <Show when={ decides }>
+                    <Link to={ () => theirs } class="text-ui-sm font-semibold text-accent hover:underline" data-decide-in>{ locale.t('admin.person.invites.decide') }</Link>
+                </Show>
+            </div>
+            <Show when={ rewarded } fallback={ <AdminEmpty icon="gift" title={ locale.t('admin.person.invites.none') } /> }>
+                <ul class="divide-y divide-line overflow-hidden rounded-panel border border-line bg-field" data-person-rewards>
+                    <For each={ rewards } key={ (one) => one.id } let={ reward }>
+                        <li><RewardRow reward={ reward } decides={ false } named={ false } /></li>
+                    </For>
+                </ul>
+                <Show when={ more }>
+                    <p class="text-ui-xs text-faint" data-more>{ moreSaid }</p>
+                </Show>
+            </Show>
+        </section>
+    </div>
+}

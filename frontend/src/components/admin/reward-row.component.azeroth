@@ -1,8 +1,7 @@
 import type { RewardMove } from '../../../../backend/src/domains/admin/roles.ts';
-import type { InviteFlag } from '../../../../backend/src/domains/invite/policy.ts';
 import type { AdminInviteReward } from '../../../../backend/src/schemas.ts';
 import { itemName } from '../../lib/shop.ts';
-import { handleParts, ROLE_WORDS } from '../../lib/staff-words.ts';
+import { FLAG_WORDS, handleParts, ROLE_WORDS } from '../../lib/staff-words.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import '../../locales/shop-catalogue.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -20,13 +19,8 @@ const STATES: Record<AdminInviteReward['state'], { word: MessageKey; tone: Tone 
     taken: { word: 'admin.reward.state.taken', tone: 'danger' }
 };
 
-const FLAGS: Record<InviteFlag, MessageKey> = {
-    quick: 'admin.reward.flag.quick',
-    ring: 'admin.reward.flag.ring',
-    many: 'admin.reward.flag.many'
-};
-
-export default component RewardRow(props: { reward: AdminInviteReward; decides: boolean; why: MessageKey; onDecide: (to: RewardMove) => void })
+/** A reward as the staff read it. Without `named` it leaves out its person, whose page it is on; without `why` it says nothing of a decision it does not offer. */
+export default component RewardRow(props: { reward: AdminInviteReward; decides: boolean; named?: boolean; why?: MessageKey; onDecide?: (to: RewardMove) => void })
 {
     const locale = useLocale();
 
@@ -38,7 +32,7 @@ export default component RewardRow(props: { reward: AdminInviteReward; decides: 
 
     derived look = itemName(props.reward.item, locale);
 
-    derived flags = (props.reward.flags ?? []).map((one) => ({ flag: one, said: locale.t(FLAGS[one]) }));
+    derived flags = (props.reward.flags ?? []).map((one) => ({ flag: one, said: locale.t(FLAG_WORDS[one]) }));
 
     derived flagged = flags.length > 0;
 
@@ -60,7 +54,9 @@ export default component RewardRow(props: { reward: AdminInviteReward; decides: 
 
     derived quoted = ` “${ reason }”`;
 
-    derived whySaid = locale.t(props.why);
+    derived whySaid = props.why === undefined ? '' : locale.t(props.why);
+
+    derived named = props.named !== false;
 
     derived waits = props.reward.state === 'review';
 
@@ -72,13 +68,15 @@ export default component RewardRow(props: { reward: AdminInviteReward; decides: 
 
     derived takable = given && props.decides;
 
-    derived barred = (waits || given) && !props.decides;
+    derived barred = (waits || given) && !props.decides && whySaid !== '';
 
     <article class="flex flex-col gap-3 px-4 py-4" data-reward={ props.reward.id }>
         <div class="flex items-start gap-3">
-            <Avatar person={ props.reward.person } size="sm" />
+            <Show when={ named }>
+                <Avatar person={ props.reward.person } size="sm" />
+            </Show>
             <div class="flex min-w-0 flex-1 flex-col gap-1">
-                <div class="flex flex-wrap items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2" hidden={ !named }>
                     <span class="truncate text-ui-sm font-semibold text-text">{ props.reward.person.displayName }</span>
                     <span class="text-ui-xs text-faint" dir="ltr">{ `@${ props.reward.person.handle }` }</span>
                     <Show when={ staffed }>
@@ -126,13 +124,13 @@ export default component RewardRow(props: { reward: AdminInviteReward; decides: 
 
         <div class="flex flex-wrap gap-2">
             <Show when={ givable }>
-                <span data-decide="given"><Button variant="primary" size="sm" onClick={ () => props.onDecide('given') }>{ locale.t('admin.reward.give') }</Button></span>
+                <span data-decide="given"><Button variant="primary" size="sm" onClick={ () => props.onDecide?.('given') }>{ locale.t('admin.reward.give') }</Button></span>
             </Show>
             <Show when={ refusable }>
-                <span data-decide="refused"><Button variant="destructive-ghost" size="sm" onClick={ () => props.onDecide('refused') }>{ locale.t('admin.reward.refuse') }</Button></span>
+                <span data-decide="refused"><Button variant="destructive-ghost" size="sm" onClick={ () => props.onDecide?.('refused') }>{ locale.t('admin.reward.refuse') }</Button></span>
             </Show>
             <Show when={ takable }>
-                <span data-decide="taken"><Button variant="destructive-ghost" size="sm" onClick={ () => props.onDecide('taken') }>{ locale.t('admin.reward.take') }</Button></span>
+                <span data-decide="taken"><Button variant="destructive-ghost" size="sm" onClick={ () => props.onDecide?.('taken') }>{ locale.t('admin.reward.take') }</Button></span>
             </Show>
             <Show when={ barred }>
                 <p class="text-ui-xs text-faint" data-barred>{ whySaid }</p>

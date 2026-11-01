@@ -1,6 +1,7 @@
 import { ApiError } from '../api.ts';
 import { isStaffRefusal } from '../../../backend/src/domains/admin/refusals.ts';
 import { STAFF_ROLES, type ReportStatus, type StaffRole } from '../../../backend/src/domains/admin/roles.ts';
+import type { InviteFlag } from '../../../backend/src/domains/invite/policy.ts';
 import { SHOP_COLLECTIONS } from '../../../backend/src/domains/shop/catalogue.ts';
 import { normalizeName } from '../../../backend/src/lib/naming.ts';
 import type { StaffLog } from '../../../backend/src/schemas.ts';
@@ -17,6 +18,13 @@ export const ROLE_WORDS: Record<StaffRole, MessageKey> = {
     owner: 'admin.role.owner',
     admin: 'admin.role.admin',
     moderator: 'admin.role.moderator'
+};
+
+/** What a counted invite's flag says it saw. */
+export const FLAG_WORDS: Record<InviteFlag, MessageKey> = {
+    quick: 'admin.reward.flag.quick',
+    ring: 'admin.reward.flag.ring',
+    many: 'admin.reward.flag.many'
 };
 
 export const ROLE_IN: Record<StaffRole, MessageKey> = {

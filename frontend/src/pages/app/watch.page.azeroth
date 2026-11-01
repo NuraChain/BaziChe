@@ -149,7 +149,8 @@ export default component WatchPage()
 
             <Show when={ loading }>
                 { () =>
-                    <div class="flex flex-col gap-2" aria-busy="true">
+                    <div class="flex flex-col gap-2" data-reading>
+                        <span class="sr-only">{ locale.t('common.loading') }</span>
                         <Skeleton class="h-16 w-full rounded-tile" />
                         <Skeleton class="h-16 w-full rounded-tile" />
                         <Skeleton class="h-16 w-full rounded-tile" />

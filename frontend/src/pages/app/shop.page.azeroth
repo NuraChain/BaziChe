@@ -112,7 +112,8 @@ export default component ShopPage()
         />
 
         <Show when={ awaited }>
-            <div class="grid grid-cols-2 gap-3 @2xl:grid-cols-4" aria-hidden="true">
+            <div class="grid grid-cols-2 gap-3 @2xl:grid-cols-4" data-reading>
+                <span class="sr-only">{ locale.t('common.loading') }</span>
                 <Skeleton lines={ 4 } class="rounded-panel border border-line bg-field p-4" />
                 <Skeleton lines={ 4 } class="rounded-panel border border-line bg-field p-4" />
                 <Skeleton lines={ 4 } class="rounded-panel border border-line bg-field p-4" />

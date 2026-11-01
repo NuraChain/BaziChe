@@ -608,7 +608,7 @@ describe('PlayPage', () =>
             await vi.waitFor(() => expect(chunk.asked).toBe(asked + 1), { timeout: 4000 });
             await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull(), { timeout: 4000 });
 
-            expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+            expect(container.querySelector('[data-reading]')).toBeNull();
             const alert = container.querySelector('[role="alert"]');
             expect(alert?.textContent).toContain(useLocale().t('state.errorTitle'));
             expect(chunk.asked).toBe(asked + 1);
@@ -665,7 +665,7 @@ describe('PlayPage', () =>
 
             expect(reloads).toBe(1);
             expect(container.querySelector('[role="alert"]')).toBeNull();
-            expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+            expect(container.querySelector('[data-reading]')).not.toBeNull();
         }
         finally
         {
@@ -702,7 +702,7 @@ describe('PlayPage', () =>
             await vi.waitFor(() => expect(container.textContent).toContain(useLocale().t('match.cannotDraw')), { timeout: 4000 });
 
             expect(chunk.asked).toBe(asked);
-            expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+            expect(container.querySelector('[data-reading]')).toBeNull();
 
             const reload = [...container.querySelectorAll('button')].find((one) => one.textContent?.trim() === useLocale().t('match.cannotDrawAction'))!;
 
@@ -775,7 +775,7 @@ describe('PlayPage', () =>
             expect(asks).toBe(1);
             expect(lobbyOf(container)).toBeNull();
             expect(closing(container)).toBeUndefined();
-            expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+            expect(container.querySelector('[data-reading]')).not.toBeNull();
             expect(container.querySelector('[role="alert"]')).toBeNull();
 
             hand(game(id));
@@ -783,7 +783,7 @@ describe('PlayPage', () =>
             await vi.waitFor(() => expect(container.textContent).toContain(useLocale().t('match.cannotDraw')), { timeout: 4000 });
 
             expect(lobbyOf(container)).toBeNull();
-            expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+            expect(container.querySelector('[data-reading]')).toBeNull();
         });
 
         it('says the game could not be fetched, and goes on saying so while the page asks again by itself', async () =>
@@ -810,7 +810,7 @@ describe('PlayPage', () =>
 
             expect(lobbyOf(container)).toBeNull();
             expect(closing(container)).toBeUndefined();
-            expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+            expect(container.querySelector('[data-reading]')).toBeNull();
 
             held = new Promise((resolve) => fail = resolve);
 
@@ -824,7 +824,7 @@ describe('PlayPage', () =>
                 await vi.waitFor(() => expect(asks).toBe(before + 1), { timeout: 4000 });
 
                 expect(container.querySelector('[role="alert"]')).toBe(alert);
-                expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+                expect(container.querySelector('[data-reading]')).toBeNull();
 
                 fail();
                 await settle();
@@ -863,7 +863,7 @@ describe('PlayPage', () =>
             await settle();
 
             expect(container.querySelector('[role="alert"]')).toBeNull();
-            expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+            expect(container.querySelector('[data-reading]')).not.toBeNull();
             expect(reloads).toBe(0);
 
             hand(game(id));
@@ -2081,7 +2081,7 @@ describe('PlayPage', () =>
 
             expect(server.calls).toContain('matches.watch');
             expect(container.textContent).not.toContain(useLocale().t('play.table.sitDown'));
-            expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+            expect(container.querySelector('[data-reading]')).toBeNull();
         });
 
         it('keeps the board somebody is watching when the watch is read again, and still shows it a later move', async () =>
@@ -3386,7 +3386,7 @@ describe('PlayPage', () =>
             await settle();
 
             expect(container.querySelector('.bg-board')).not.toBeNull();
-            expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+            expect(container.querySelector('[data-reading]')).toBeNull();
             expect(container.querySelector('[role="alert"]')).toBeNull();
 
             fail();
@@ -3394,7 +3394,7 @@ describe('PlayPage', () =>
             await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull(), { timeout: 4000 });
 
             expect(container.querySelector('.bg-board')).toBeNull();
-            expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+            expect(container.querySelector('[data-reading]')).toBeNull();
 
             next = async () => ({ ...over(held.id), id: `next-${ held.id }`, rev: 1, winner: undefined, outcome: undefined, finishedAt: undefined, players: [{ seat: 0, who: 'alex', timeouts: 0 }, { seat: 1, who: 'sara.k', timeouts: 0 }] });
             fire(container.querySelector('[role="alert"] button')!, 'click');

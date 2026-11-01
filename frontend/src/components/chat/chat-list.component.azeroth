@@ -230,7 +230,7 @@ export default component ChatList(props: { active?: string; pane?: boolean; fold
                 }
             >
                 <Match when={ loading }>
-                    <ul class="flex flex-col gap-0.5" aria-label={ locale.t('common.loading') } aria-busy="true">
+                    <ul class="flex flex-col gap-0.5" aria-label={ locale.t('common.loading') } aria-busy="true" data-reading>
                         <For each={ [0, 1, 2, 3, 4] } key={ (row) => row } let={ row }>
                             <li class="flex items-center gap-3 rounded-tile px-3 py-3">
                                 <Skeleton class="h-11 w-11 shrink-0 rounded-full" />

@@ -80,6 +80,15 @@
         text-align: match-parent;
     }
 
+    /*
+     * A placeholder says it is loading once. A skeleton alone says so itself; inside a group that
+     * already does (`data-reading`) its words go, or a list of three rows says "Loading…" four times.
+     */
+    [data-reading] [data-skeleton] > .sr-only
+    {
+        display: none;
+    }
+
     @supports not selector(::-webkit-scrollbar)
     {
         *

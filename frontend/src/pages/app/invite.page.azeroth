@@ -189,7 +189,8 @@ export default component InvitePage()
 
         <div role="tabpanel" aria-label={ locale.t('invite.page.tab.link') } hidden={ !onLink } data-panel="link">
             <Show when={ awaited }>
-                <div class="flex flex-col gap-4" aria-hidden="true">
+                <div class="flex flex-col gap-4" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
                     <Skeleton lines={ 4 } class="rounded-hero border border-line bg-field p-5" />
                     <Skeleton lines={ 2 } class="rounded-panel border border-line bg-field p-4" />
                 </div>

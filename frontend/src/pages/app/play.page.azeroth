@@ -944,7 +944,8 @@ export default component PlayPage()
     <Page label={ title } fill class="page-table">
         <Show when={ loading }>
             { () =>
-                <div class="flex flex-col gap-4 pt-4">
+                <div class="flex flex-col gap-4 pt-4" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
                     <Skeleton class="h-8 w-48" />
                     <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
                         <Skeleton class="h-[9.5rem] rounded-panel" />
@@ -1078,7 +1079,8 @@ export default component PlayPage()
 
                     <Show when={ dealing || (playing !== '' && drawable(playing) && drawn !== playing && !boardFailed) }>
                         { () =>
-                            <div class="flex flex-col gap-3" aria-busy="true">
+                            <div class="flex flex-col gap-3" data-reading>
+                                <span class="sr-only">{ locale.t('common.loading') }</span>
                                 <Skeleton class="aspect-[16/10] w-full rounded-hero" />
                                 <Skeleton class="h-24 w-full rounded-panel" />
                             </div>

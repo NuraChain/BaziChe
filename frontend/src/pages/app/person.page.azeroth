@@ -148,7 +148,8 @@ export default component PersonPage()
     <Page label={ name }>
         <Show when={ loading }>
             { () =>
-                <div class="flex flex-col gap-6">
+                <div class="flex flex-col gap-6" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
                     <Skeleton avatar lines={ 3 } class="rounded-hero border border-line bg-field p-5" />
                     <Skeleton lines={ 4 } class="rounded-panel border border-line bg-field p-5" />
                 </div>

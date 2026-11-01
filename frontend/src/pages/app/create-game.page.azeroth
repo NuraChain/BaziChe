@@ -44,7 +44,8 @@ export default component CreateGamePage()
                             <Show
                                 when={ !catalogue.loading() }
                                 fallback={
-                                    <div class="flex flex-col gap-6" aria-busy="true">
+                                    <div class="flex flex-col gap-6" data-reading>
+                                        <span class="sr-only">{ locale.t('common.loading') }</span>
                                         <Skeleton lines={ 3 } />
                                         <Skeleton lines={ 4 } />
                                     </div>

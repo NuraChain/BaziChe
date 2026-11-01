@@ -1,6 +1,10 @@
 import { useLocale } from '../../stores/locale.store.ts';
 
-/** Its bars are hidden from a screen reader and its words are not, so a list still on its way is "Loading…" there, said to nobody unasked. */
+/**
+ * Its bars are hidden from a screen reader and its words are not, so a list still on its way is
+ * "Loading…" there, said to nobody unasked. Inside a group that says it once (`data-reading`) the
+ * stylesheet takes its words away: a placeholder of more than one skeleton is such a group.
+ */
 export default component Skeleton(props: { lines?: number; avatar?: boolean; class?: string })
 {
     const locale = useLocale();

@@ -137,7 +137,8 @@ export default component CheckPage()
         <PageHeader title={ locale.t('fair.title') } lead={ lead } />
 
         <Show when={ waiting }>
-            <div class="flex flex-col gap-3" aria-hidden="true">
+            <div class="flex flex-col gap-3" data-reading>
+                <span class="sr-only">{ locale.t('common.loading') }</span>
                 <Skeleton class="h-24 rounded-panel" />
                 <Skeleton class="h-40 rounded-panel" />
             </div>

@@ -86,6 +86,15 @@ describe('the profile header', () =>
         expect(counts.className).toContain('auto-cols-fr');
     });
 
+    it('lets a count\'s word break onto a second line on a phone rather than cut it short', async () =>
+    {
+        const container = await header({ progress: { xp: 340, level: 3, into: 40, span: 200 } });
+        const labels = [...container.querySelectorAll('dl dt')];
+
+        expect(labels.length).toBeGreaterThan(0);
+        expect(labels.every((one) => one.classList.contains('hyphens-auto') && one.classList.contains('wrap-break-word') && !one.classList.contains('truncate')), '"Achievements" is cut to "Achieve…" at 390').toBe(true);
+    });
+
     it('draws no level row when there is no record yet', async () =>
     {
         const container = await header({ progress: null });

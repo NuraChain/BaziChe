@@ -17,6 +17,7 @@ const LIMITED = new Set(['too-many-requests', 'unknown']);
 const REFUSED: Readonly<Partial<Record<number, MessageKey>>> = {
     400: 'failure.invalid',
     401: 'failure.session',
+    403: 'failure.forbidden',
     404: 'failure.missing',
     409: 'failure.conflict',
     413: 'failure.invalid',

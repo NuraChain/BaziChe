@@ -63,6 +63,7 @@ export const app = {
     'failure.session': 'You were signed out. Sign in again to carry on.',
     'failure.missing': 'That is not there any more.',
     'failure.conflict': 'That changed while you were looking. Look again, then try.',
+    'failure.forbidden': 'You are not allowed to do that, so nothing changed.',
     'failure.invalid': 'That was not accepted. Check what you entered, then try again.',
     'failure.chain': 'NuraChain could not be reached just now. Try again in a moment.',
     'common.copyFailed': 'This browser would not copy it. Select it and copy it by hand.',

@@ -66,6 +66,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'failure.session': 'Oturumun kapandı. Devam etmek için tekrar giriş yap.',
     'failure.missing': 'Bu artık burada değil.',
     'failure.conflict': 'Sen bakarken bu değişti. Tekrar bak, sonra dene.',
+    'failure.forbidden': 'Bunu yapmaya iznin yok, bu yüzden hiçbir şey değişmedi.',
     'failure.invalid': 'Bu kabul edilmedi. Girdiğin şeyi kontrol et, sonra tekrar dene.',
     'failure.chain': 'Şu anda NuraChain’e ulaşılamıyor. Biraz sonra tekrar dene.',
     'common.copyFailed': 'Bu tarayıcı kopyalamadı. Seçip elle kopyala.',

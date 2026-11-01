@@ -90,6 +90,7 @@ describe('a refusal nobody has words of their own for', () =>
     it('says what kind of refusal it was', () =>
     {
         expect(whyFailed(answered(401, 'unauthorized'))).toBe('failure.session');
+        expect(whyFailed(answered(403, 'forbidden'))).toBe('failure.forbidden');
         expect(whyFailed(answered(404, 'not-found'))).toBe('failure.missing');
         expect(whyFailed(answered(409, 'conflict'))).toBe('failure.conflict');
         expect(whyFailed(answered(400, 'bad-request'))).toBe('failure.invalid');
@@ -99,8 +100,8 @@ describe('a refusal nobody has words of their own for', () =>
 
     it('is the plain sentence where its kind says nothing to the reader', () =>
     {
-        expect(whyFailed(answered(403, 'forbidden'))).toBe('common.actionFailed');
         expect(whyFailed(answered(405, 'method-not-allowed'))).toBe('common.actionFailed');
+        expect(whyFailed(answered(415, 'unsupported-media-type'))).toBe('common.actionFailed');
         expect(whyFailed('refused')).toBe('common.actionFailed');
         expect(whyFailed(undefined)).toBe('common.actionFailed');
     });
@@ -125,7 +126,13 @@ describe('a reader that knows the refusal', () =>
     it('that knew nothing more than the plain sentence is told the kind of refusal', () =>
     {
         expect(whyFailed(answered(404, 'not-found'), 'common.actionFailed')).toBe('failure.missing');
-        expect(whyFailed(answered(403, 'forbidden'), 'common.actionFailed')).toBe('common.actionFailed');
+        expect(whyFailed(answered(403, 'forbidden'), 'common.actionFailed')).toBe('failure.forbidden');
+        expect(whyFailed(answered(405, 'method-not-allowed'), 'common.actionFailed')).toBe('common.actionFailed');
+    });
+
+    it('keeps its words for a refusal of permission it knows', () =>
+    {
+        expect(whyFailed(answered(403, 'forbidden'), 'play.close.refused')).toBe('play.close.refused');
     });
 });
 
@@ -159,8 +166,8 @@ describe('the words', () =>
     {
         const kinds = Object.keys(en).filter((key) => key.startsWith('failure.'));
 
-        expect(kinds.sort()).toEqual(['failure.busy', 'failure.chain', 'failure.conflict', 'failure.down', 'failure.invalid', 'failure.missing',
-            'failure.offline', 'failure.server', 'failure.session', 'failure.timeout', 'failure.unreached']);
+        expect(kinds.sort()).toEqual(['failure.busy', 'failure.chain', 'failure.conflict', 'failure.down', 'failure.forbidden', 'failure.invalid',
+            'failure.missing', 'failure.offline', 'failure.server', 'failure.session', 'failure.timeout', 'failure.unreached']);
 
         for (const kind of kinds)
         {

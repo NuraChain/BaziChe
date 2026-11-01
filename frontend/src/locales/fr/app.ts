@@ -66,6 +66,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'failure.session': 'Ta session a pris fin. Reconnecte-toi pour continuer.',
     'failure.missing': 'Ce n’est plus là.',
     'failure.conflict': 'Ça a changé pendant que tu regardais. Regarde à nouveau, puis réessaie.',
+    'failure.forbidden': 'Tu n’as pas le droit de faire ça, donc rien n’a changé.',
     'failure.invalid': 'Ça n’a pas été accepté. Vérifie ce que tu as saisi, puis réessaie.',
     'failure.chain': 'Impossible de joindre NuraChain pour le moment. Réessaie dans un instant.',
     'common.copyFailed': 'Ce navigateur refuse de le copier. Sélectionne-le et copie-le à la main.',

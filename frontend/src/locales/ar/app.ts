@@ -66,6 +66,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'failure.session': 'تم تسجيل خروجك. سجّل الدخول مجددًا لتكمل.',
     'failure.missing': 'لم يعد هذا موجودًا.',
     'failure.conflict': 'تغيّر هذا بينما كنت تنظر إليه. ألقِ نظرة مجددًا ثم حاول.',
+    'failure.forbidden': 'لا يُسمح لك بفعل ذلك، لذا لم يتغيّر شيء.',
     'failure.invalid': 'لم يُقبل ذلك. تحقق مما أدخلته ثم حاول مجددًا.',
     'failure.chain': 'تعذّر الوصول إلى NuraChain الآن. حاول مجددًا بعد قليل.',
     'common.copyFailed': 'هذا المتصفح لم ينسخه. حدّده وانسخه يدويًا.',

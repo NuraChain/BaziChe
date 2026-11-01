@@ -66,6 +66,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'failure.session': 'Sua sessão terminou. Entre de novo para continuar.',
     'failure.missing': 'Isso não está mais aqui.',
     'failure.conflict': 'Isso mudou enquanto você olhava. Olhe de novo e tente.',
+    'failure.forbidden': 'Você não tem permissão para fazer isso, então nada mudou.',
     'failure.invalid': 'Isso não foi aceito. Confira o que você digitou e tente de novo.',
     'failure.chain': 'Não foi possível chegar à NuraChain agora. Tente de novo daqui a pouco.',
     'common.copyFailed': 'Este navegador não deixou copiar. Selecione e copie na mão.',

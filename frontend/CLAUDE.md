@@ -1368,14 +1368,15 @@ them; offline when `navigator.onLine` says so, unreached otherwise), no answer i
 through. Check before you try again."), a 502, 503 or 504 (the server is not answering), any other
 5xx (it failed), and the limiter's 429 (`too-many-requests`, or a proxy's page with no envelope). The
 kind of refusal is said only where the reader knew nothing more than the plain sentence: 401 signed
-out, 404 not there any more, 409 changed meanwhile, 400, 413 and 422 not accepted, and NuraChain out
-of reach. A 401 is never a passage, because the server answers a wrong signature or recovery phrase
+out, 403 not allowed (the server answers it only where being refused is no secret: a private thing
+answers as a missing one), 404 not there any more, 409 changed meanwhile, 400, 413 and 422 not
+accepted, and NuraChain out of reach. A 401 is never a passage, because the server answers a wrong signature or recovery phrase
 with it too, and neither is a domain's own 429 (a cooldown, a day's budget) nor `chain-unreachable`,
 which each domain has words for. Everything else is the plain sentence. `attempt` asks it of every
 reader it is handed, and so do `whyRefused`, the shop's, a gift's and a market's readers, the sheets
 fetched at a press (`lib/person-menu.ts` and the eight like it, the table's invite sheet among them),
 a failed chat line (`sealSentenceOf`), the invite page's new code, a privacy or notice switch in
-Settings and a browser signed out on the devices page. Eleven sentences, `failure.*` in ten languages.
+Settings and a browser signed out on the devices page. Twelve sentences, `failure.*` in ten languages.
 Adding this browser with the wallet keeps its two sentences: the devices store has already turned a
 request that never got there into its own word, and the only failure left after it is the read that
 follows a browser added, which "could not be reached" would misdescribe. A read that fails (a page's

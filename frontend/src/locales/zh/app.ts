@@ -66,6 +66,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'failure.session': '你的会话已结束。请重新登录后继续。',
     'failure.missing': '它已经不在了。',
     'failure.conflict': '在你查看时它已发生变化。请重新查看后再试。',
+    'failure.forbidden': '你没有权限这样做，所以没有任何改动。',
     'failure.invalid': '没有被接受。请检查你输入的内容后重试。',
     'failure.chain': '暂时无法连接到 NuraChain，请稍后重试。',
     'common.copyFailed': '此浏览器无法复制，请手动选中后复制。',

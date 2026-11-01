@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FILE_CAPTION_MOST, FILE_MOST, FILE_NAME_MOST, FILE_THUMB_MOST } from '../../backend/src/domains/chat/files.ts';
+import { FILE_CAPTION_MOST, FILE_MOST, FILE_NAME_MOST, FILE_PHOTO_MOST, FILE_THUMB_MOST } from '../../backend/src/domains/chat/files.ts';
 import { decodeDisclosed, decodeFile, encodeFile, type FileBody } from '../src/lib/body.ts';
 import { openFile, sealFile, sniffShown } from '../src/lib/chat-file.ts';
 
@@ -67,6 +67,8 @@ describe('a file message’s document', () =>
         expect(decodeFile(withFile('bytes', 0)), 'no size').toBeNull();
         expect(decodeFile(withFile('bytes', FILE_MOST + 1)), 'larger than may be sent').toBeNull();
         expect(decodeFile(withFile('bytes', 1.5)), 'a size that is not whole').toBeNull();
+        expect(decodeFile(withFile('bytes', FILE_PHOTO_MOST + 1)), 'a photo larger than a photo may be').toBeNull();
+        expect(decodeFile(encodeFile(body({ as: 'video', mime: 'video/mp4', bytes: FILE_PHOTO_MOST + 1 })))?.file.bytes, 'which a video may be').toBe(FILE_PHOTO_MOST + 1);
         expect(decodeFile(withFile('w', undefined)), 'a width without its height').toBeNull();
         expect(decodeFile(withFile('ms', 1000)), 'a photo with a length').toBeNull();
         expect(decodeFile(withFile('thumb', 'x'.repeat(FILE_THUMB_MOST + 1))), 'a thumb too large').toBeNull();

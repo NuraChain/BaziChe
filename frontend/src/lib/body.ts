@@ -1,4 +1,4 @@
-import { FILE_AS, FILE_CAPTION_MOST, FILE_MOST, FILE_NAME_MOST, FILE_THUMB_MOST, type FileAs } from '../../../backend/src/domains/chat/files.ts';
+import { FILE_CAPTION_MOST, sentFileOf, type SentFile } from '../../../backend/src/domains/chat/files.ts';
 import { VOICE_FILE_MOST, VOICE_MOST_MS, VOICE_WAVE_BARS } from '../../../backend/src/domains/chat/voice.ts';
 
 export interface TextBody
@@ -33,19 +33,7 @@ export interface VoiceBody
  */
 export interface FileBody
 {
-    file: {
-        id: string;
-        key: string;
-        iv: string;
-        as: FileAs;
-        mime: string;
-        name: string;
-        bytes: number;
-        w?: number;
-        h?: number;
-        ms?: number;
-        thumb?: string;
-    };
+    file: SentFile;
     caption?: string;
     reply?: string;
     fwd?: true;
@@ -202,20 +190,6 @@ export function decodeVoice(raw: string): VoiceBody | null
     };
 }
 
-const FILE_KEYS = new Set(['id', 'key', 'iv', 'as', 'mime', 'name', 'bytes', 'w', 'h', 'ms', 'thumb']);
-
-/** The longest side a picture may claim, in pixels: far past any camera, short of a number that breaks a layout. */
-const SIDE_MOST = 20_000;
-
-/** The longest video, in milliseconds: a day, which no 50 MiB file holds watchably. */
-const FILM_MOST = 24 * 60 * 60_000;
-
-const MIME = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$/i;
-
-/** Anything a name could carry that a save dialog or a screen should never be handed. */
-// eslint-disable-next-line no-control-regex
-const UNSAFE_NAME = /[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069/\\]/;
-
 /**
  * A photo, a video or a file's document, exactly: anything else in its place opens as tampered,
  * because a reader acts on every field of it (fetches the file it names, opens it with the key,
@@ -231,32 +205,9 @@ export function decodeFile(raw: string): FileBody | null
         return null;
     }
 
-    const fields = file as Record<string, unknown>;
+    const sent = sentFileOf(file);
 
-    if (Object.keys(fields).some((one) => !FILE_KEYS.has(one)))
-    {
-        return null;
-    }
-
-    const { id, key, iv, as, mime, name, bytes, w, h, ms, thumb } = fields;
-
-    if (typeof id !== 'string' || !UUID.test(id)
-        || typeof key !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(key)
-        || typeof iv !== 'string' || !/^[A-Za-z0-9_-]{16}$/.test(iv)
-        || typeof as !== 'string' || !(FILE_AS as readonly string[]).includes(as)
-        || typeof mime !== 'string' || !MIME.test(mime)
-        || typeof name !== 'string' || name.trim() === '' || name.length > FILE_NAME_MOST || UNSAFE_NAME.test(name)
-        || !whole(bytes, 1, FILE_MOST)
-        || (w !== undefined && !whole(w, 1, SIDE_MOST))
-        || (h !== undefined && !whole(h, 1, SIDE_MOST))
-        || ((w === undefined) !== (h === undefined))
-        || (ms !== undefined && !whole(ms, 0, FILM_MOST))
-        || (thumb !== undefined && (typeof thumb !== 'string' || thumb.length > FILE_THUMB_MOST || !/^[A-Za-z0-9_-]+$/.test(thumb))))
-    {
-        return null;
-    }
-
-    if ((as === 'file' && (w !== undefined || ms !== undefined || thumb !== undefined)) || (as === 'photo' && ms !== undefined))
+    if (sent === null)
     {
         return null;
     }
@@ -269,12 +220,7 @@ export function decodeFile(raw: string): FileBody | null
     }
 
     return {
-        file: {
-            id, key, iv, as: as as FileAs, mime, name, bytes,
-            ...(typeof w === 'number' && typeof h === 'number' ? { w, h } : {}),
-            ...(typeof ms === 'number' ? { ms } : {}),
-            ...(typeof thumb === 'string' ? { thumb } : {})
-        },
+        file: sent,
         ...(typeof found.caption === 'string' ? { caption: found.caption } : {}),
         ...(typeof found.reply === 'string' ? { reply: found.reply } : {}),
         ...(found.fwd === true ? { fwd: true as const } : {})

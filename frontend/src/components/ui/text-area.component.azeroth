@@ -28,6 +28,7 @@ export default component TextArea(props: {
     disabled?: boolean;
     maxlength?: number;
     describedBy?: string;
+    invalid?: boolean;
     label?: string;
     enterkeyhint?: string;
     class?: string;
@@ -72,13 +73,15 @@ export default component TextArea(props: {
         fit();
     }
 
-    <div class={ [
+    derived shell = [
         'flex items-end gap-2 rounded-control border bg-field px-3 py-1.5 text-text',
-        'transition-colors duration-150 focus-within:border-accent',
-        'border-line',
+        'transition-colors duration-150',
+        props.invalid === true ? 'border-danger focus-within:ring-3 focus-within:ring-danger/20' : 'border-line focus-within:border-accent',
         props.disabled === true ? 'opacity-50' : '',
         props.class ?? ''
-    ].filter(Boolean).join(' ') }>
+    ].filter(Boolean).join(' ');
+
+    <div class={ shell }>
         <textarea
             ref={ (element) => { field = element; fit(); } }
             id={ props.id }
@@ -90,6 +93,7 @@ export default component TextArea(props: {
             disabled={ props.disabled === true }
             maxlength={ props.maxlength }
             enterkeyhint={ props.enterkeyhint }
+            aria-invalid={ props.invalid === true }
             aria-describedby={ props.describedBy }
             aria-label={ props.label }
             onInput={ (event) =>

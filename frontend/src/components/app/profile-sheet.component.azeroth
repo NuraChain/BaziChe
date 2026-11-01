@@ -1,6 +1,10 @@
+import { checkHandle, normalizeHandle, type HandleRefusal } from '../../../../backend/src/domains/identity/handle.ts';
 import { ApiError } from '../../api.ts';
 import { NURA_CHAIN } from '../../data/chain.ts';
+import { whyFailed } from '../../lib/failure.ts';
+import { describedBy, focusFirstInvalid, refusedFields } from '../../lib/form.ts';
 import { shrinkPicture } from '../../lib/picture.ts';
+import type { MessageKey } from '../../locales/en.ts';
 import { useAccount } from '../../stores/account.store.ts';
 import { PUBLISH_COPY, useChain } from '../../stores/chain.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -18,6 +22,20 @@ const NAME_MAX = 40;
 const BIO_MAX = 240;
 const HANDLE_MAX = 32;
 
+const HANDLE_WORDS: Readonly<Record<HandleRefusal, MessageKey>> = {
+    'too-short': 'profile.handleShape',
+    'too-long': 'profile.handleShape',
+    'bad-shape': 'profile.handleShape',
+    reserved: 'profile.handleReserved'
+};
+
+/** What the server said about a field, held while the field still says what it was told about. */
+interface Said
+{
+    value: string;
+    key: MessageKey;
+}
+
 /**
  * The things about an account that are its own to write.
  *
@@ -26,6 +44,10 @@ const HANDLE_MAX = 32;
  * name, the picture and the bio are then stored here and, on a deployment with a registry,
  * written to the person's Nura Profile by their own wallet - and the sheet says which of those
  * happened, because "saved" when the chain said no is the complaint this answers.
+ *
+ * A field is checked once the reader has left it changed, or pressed Save, and from then on as
+ * they type, so a fix is seen the moment it is made. Save is never greyed out: pressed with
+ * something wrong it takes the keyboard to the first field that is, and says why there.
  *
  * What is deliberately NOT here: anything to buy or earn. A profile effect somebody can unlock is
  * a claim about an economy this product does not have - no inventory, no balance, nothing that
@@ -49,18 +71,47 @@ export default component ProfileSheet(props: OverlayProps & { only?: 'picture' }
     state preview = '';
     state busy = false;
     state publishing = false;
-    state refusal = '';
     state pictureRefusal = '';
+    state tried = false;
+    state handleLeft = false;
+    state nameLeft = false;
+    state handleSaid = null as Said | null;
+    state nameSaid = null as Said | null;
+    state bioSaid = null as Said | null;
+    state failure = null as MessageKey | null;
 
+    let sheet: HTMLElement | null = null;
     let chooser: HTMLInputElement | null = null;
 
     derived pictureOnly = props.only === 'picture';
 
     derived trimmedName = displayName.trim();
 
-    derived changedHandle = handle.trim().toLowerCase() !== (current?.handle ?? '').toLowerCase();
+    derived changedHandle = normalizeHandle(handle) !== normalizeHandle(current?.handle ?? '');
 
-    derived valid = trimmedName.length > 0 && handle.trim().length >= 2;
+    derived handleWrong = changedHandle ? checkHandle(handle) : null;
+
+    derived handleKey = handleSaid !== null && normalizeHandle(handle) === handleSaid.value
+        ? handleSaid.key
+        : handleWrong === null ? null : HANDLE_WORDS[handleWrong];
+
+    derived nameKey = trimmedName === ''
+        ? 'profile.nameMissing'
+        : nameSaid !== null && displayName === nameSaid.value ? nameSaid.key : null;
+
+    derived bioKey = bioSaid !== null && bio === bioSaid.value ? bioSaid.key : null;
+
+    derived handleError = handleKey !== null && (tried || handleLeft) ? locale.t(handleKey) : null;
+
+    derived nameError = nameKey !== null && (tried || nameLeft) ? locale.t(nameKey) : null;
+
+    derived bioError = bioKey === null ? null : locale.t(bioKey);
+
+    derived blocked = !pictureOnly && (handleWrong !== null || trimmedName === '');
+
+    derived failed = failure !== null;
+
+    derived failureWords = failure === null ? '' : locale.t(failure);
 
     derived changedOnChain = trimmedName !== (current?.displayName ?? '')
         || bio.trim() !== (current?.bio ?? '')
@@ -111,15 +162,61 @@ export default component ProfileSheet(props: OverlayProps & { only?: 'picture' }
         props.close(true);
     };
 
+    /**
+     * Puts a refusal where it belongs: a picture the server would not keep under the picture, a
+     * handle it would not give under the handle, a name or a bio it would not store under that box,
+     * and anything else - no connection, a server that failed - once, above the buttons.
+     */
+    const refused = (step: 'picture' | 'handle' | 'profile', error: unknown) =>
+    {
+        if (step === 'picture')
+        {
+            pictureRefusal = locale.t(whyFailed(error, 'profile.pictureFailed'));
+            return;
+        }
+
+        const fields = refusedFields(error);
+
+        if (step === 'handle' && error instanceof ApiError && (error.status === 409 || error.status === 400 || error.status === 422))
+        {
+            handleSaid = {
+                value: normalizeHandle(handle),
+                key: error.status === 409 ? 'profile.handleTaken' : fields.get('handle') ?? 'profile.handleShape'
+            };
+            return;
+        }
+
+        const name = fields.get('displayName');
+        const words = fields.get('bio');
+
+        if (step === 'profile' && !pictureOnly && (name !== undefined || words !== undefined))
+        {
+            nameSaid = name === undefined ? null : { value: displayName, key: name };
+            bioSaid = words === undefined ? null : { value: bio, key: words };
+            return;
+        }
+
+        failure = whyFailed(error);
+    };
+
     const save = async () =>
     {
-        if (busy || !valid)
+        if (busy)
         {
             return;
         }
 
+        tried = true;
+        failure = null;
+
+        if (blocked)
+        {
+            focusFirstInvalid(sheet);
+            return;
+        }
+
         busy = true;
-        refusal = '';
+        let step: 'picture' | 'handle' | 'profile' = 'picture';
 
         try
         {
@@ -129,19 +226,20 @@ export default component ProfileSheet(props: OverlayProps & { only?: 'picture' }
                 picked = '';
             }
 
+            step = 'handle';
             if (changedHandle)
             {
                 await account.claimHandle(handle.trim());
             }
 
+            step = 'profile';
             await account.setProfile({ displayName: trimmedName, bio: bio.trim(), avatar: picture });
         }
         catch (error)
         {
             busy = false;
-            refusal = error instanceof ApiError && error.status === 409
-                ? locale.t('profile.handleTaken')
-                : locale.t('profile.failed');
+            refused(step, error);
+            focusFirstInvalid(sheet);
             return;
         }
 
@@ -185,7 +283,7 @@ export default component ProfileSheet(props: OverlayProps & { only?: 'picture' }
         finish('warning', locale.t('profile.savedNotChain', { reason: locale.t(PUBLISH_COPY[outcome], { chain: NURA_CHAIN.name }) }));
     };
 
-    <div class="flex flex-col gap-5 p-5">
+    <div ref={ (element) => sheet = element } class="flex flex-col gap-5 p-5">
         <SheetHeader title={ locale.t(pictureOnly ? 'profile.pictureTitle' : 'profile.title') } lead={ locale.t(lead) } onClose={ () => props.close(false) } />
 
         <Show when={ pictureOnly }>
@@ -224,41 +322,43 @@ export default component ProfileSheet(props: OverlayProps & { only?: 'picture' }
 
         <Show when={ !pictureOnly }>
             <div class="flex flex-col gap-5">
-                <Field
-                    id="profile-handle"
-                    label={ locale.t('profile.handle') }
-                    hint={ locale.t('profile.handleHint') }
-                    error={ refusal === '' ? undefined : refusal }
-                >
+                <Field id="profile-handle" label={ locale.t('profile.handle') } hint={ locale.t('profile.handleHint') } error={ handleError }>
                     <Input
                         id="profile-handle"
                         value={ handle }
                         onInput={ (value) => handle = value }
+                        onBlur={ () => handleLeft = handleLeft || changedHandle }
                         maxlength={ HANDLE_MAX }
                         leading="me"
-                        invalid={ refusal !== '' }
+                        invalid={ handleError !== null }
+                        describedBy={ describedBy('profile-handle', handleError) }
                         autocomplete="username"
                         label={ locale.t('profile.handle') }
                     />
                 </Field>
 
-                <Field id="profile-name" label={ locale.t('profile.name') } hint={ locale.t('profile.nameHint') }>
+                <Field id="profile-name" label={ locale.t('profile.name') } hint={ locale.t('profile.nameHint') } error={ nameError }>
                     <Input
                         id="profile-name"
                         value={ displayName }
                         onInput={ (value) => displayName = value }
+                        onBlur={ () => nameLeft = nameLeft || displayName !== (current?.displayName ?? '') }
                         maxlength={ NAME_MAX }
+                        invalid={ nameError !== null }
+                        describedBy={ describedBy('profile-name', nameError) }
                         autocomplete="nickname"
                         label={ locale.t('profile.name') }
                     />
                 </Field>
 
-                <Field id="profile-bio" label={ locale.t('profile.bio') } hint={ locale.plural('profile.bioLeft', BIO_MAX - bio.length) }>
+                <Field id="profile-bio" label={ locale.t('profile.bio') } hint={ locale.plural('profile.bioLeft', BIO_MAX - bio.length) } error={ bioError }>
                     <TextArea
                         id="profile-bio"
                         value={ bio }
                         onInput={ (value) => bio = value }
                         maxlength={ BIO_MAX }
+                        invalid={ bioError !== null }
+                        describedBy={ describedBy('profile-bio', bioError) }
                         label={ locale.t('profile.bio') }
                     />
                 </Field>
@@ -273,9 +373,13 @@ export default component ProfileSheet(props: OverlayProps & { only?: 'picture' }
             }
         </Show>
 
+        <Show when={ failed }>
+            <p role="alert" class="text-ui-sm text-danger" data-failed>{ failureWords }</p>
+        </Show>
+
         <div class="flex justify-end gap-2">
             <Button variant="ghost" disabled={ busy } onClick={ () => props.close(false) }>{ locale.t('common.cancel') }</Button>
-            <Button variant="primary" leading="check-circle" loading={ busy } disabled={ !valid } onClick={ () => void save() }>
+            <Button variant="primary" leading="check-circle" loading={ busy } onClick={ () => void save() }>
                 { locale.t('profile.save') }
             </Button>
         </div>

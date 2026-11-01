@@ -31,8 +31,8 @@ export default component Input(props: {
 
     derived shell = [
         'flex h-12 items-center gap-2 rounded-control border bg-field px-3 text-text',
-        'transition-colors duration-150 focus-within:border-accent',
-        props.invalid === true ? 'border-danger' : 'border-line',
+        'transition-colors duration-150',
+        props.invalid === true ? 'border-danger focus-within:ring-3 focus-within:ring-danger/20' : 'border-line focus-within:border-accent',
         props.disabled === true ? 'opacity-50' : '',
         props.class ?? ''
     ].filter(Boolean).join(' ');

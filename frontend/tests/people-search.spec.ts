@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { cleanup, fire, renderTest } from '@azerothjs/testing';
 import { RouterProvider, Routes, createMemoryHistory, createRouter, type Route } from 'azerothjs';
 
@@ -567,6 +567,31 @@ describe('a search kept in the address', () =>
         expect(container.querySelector<HTMLInputElement>('input[type="search"]')!.value).toBe('sara');
         expect(useSearch().scope()).toBe('people');
         expect(pressable(container, useLocale().t('search.scope.people'))!.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('offers to search everything when a search kept to one kind found nothing, and nothing more once it searched everything', async () =>
+    {
+        const { container, router } = at('/app/search?q=zzzz&scope=groups');
+        const empty = useLocale().t('search.empty', { query: 'zzzz' });
+
+        await settle();
+        await paused();
+
+        await vi.waitFor(() => expect(container.textContent).toContain(empty), { timeout: 4000 });
+
+        const back = container.querySelector<HTMLButtonElement>('[data-way-back] button');
+
+        expect(back?.textContent?.trim()).toBe(useLocale().t('search.everywhere'));
+
+        fire(back!, 'click');
+        await settle();
+
+        expect(useSearch().scope()).toBe('all');
+        expect(router.location().fullPath).toBe('/app/search?q=zzzz');
+        expect(document.activeElement).toBe(pressable(container, useLocale().t('search.scope.all')));
+
+        await vi.waitFor(() => expect(container.textContent).toContain(empty), { timeout: 4000 });
+        expect(container.querySelector('[data-way-back]'), 'a search of everything offered to search everything').toBeNull();
     });
 
     it('opens empty where the address names nothing, whatever was searched for last', async () =>

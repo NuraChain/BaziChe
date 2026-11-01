@@ -29,6 +29,7 @@ import { playWith } from '../../lib/play-with.ts';
 import { attempt } from '../../lib/attempt.ts';
 import { pagingFor, visible } from '../../lib/pagination.ts';
 import { usePageParams } from '../../lib/page-param.ts';
+import { SEARCH_FIELD, keyboardTo } from '../../lib/way-back.ts';
 import { namesOf, narrowed, SEARCH_FROM } from '../../services/search.service.ts';
 import { addFriend } from '../../lib/add-friend.ts';
 
@@ -179,6 +180,20 @@ export default component FriendsPage()
 
     derived elsewhereRefused = elsewhereRead === 'failed';
 
+    const search = (value: string) =>
+    {
+        query = value;
+        pages.turn('page', 1);
+    };
+
+    let searchBox: HTMLElement | null = null;
+
+    const clearSearch = () =>
+    {
+        keyboardTo(searchBox, SEARCH_FIELD);
+        search('');
+    };
+
     const play = (person: Person) => playWith(person.id, true);
 
     const message = (person: Person) =>
@@ -247,22 +262,29 @@ export default component FriendsPage()
 
         <Show when={ searchable }>
             { () =>
-                <SearchInput
-                    value={ query }
-                    onInput={ (value) =>
-                    {
-                        query = value;
-                        pages.turn('page', 1);
-                    } }
-                    placeholder={ locale.t('create.search') }
-                    label={ locale.t('create.search') }
-                    class="mb-3"
-                />
+                <div ref={ (element) => searchBox = element } class="mb-3">
+                    <SearchInput
+                        value={ query }
+                        onInput={ search }
+                        placeholder={ locale.t('create.search') }
+                        label={ locale.t('create.search') }
+                    />
+                </div>
             }
         </Show>
 
         <Show when={ unmatched }>
-            { () => <EmptyState icon="search" title={ locale.t('search.empty', { query: query.trim() }) } lead={ locale.t('search.emptyLead') } class="py-10" /> }
+            { () =>
+                <EmptyState
+                    icon="search"
+                    title={ locale.t('search.empty', { query: query.trim() }) }
+                    lead={ locale.t('search.emptyLead') }
+                    action={ locale.t('search.clearQuery') }
+                    wayBack
+                    onAction={ clearSearch }
+                    class="py-10"
+                />
+            }
         </Show>
 
         <Show when={ listing }>

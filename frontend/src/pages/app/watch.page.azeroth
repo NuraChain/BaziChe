@@ -15,6 +15,7 @@ import { client } from '../../api.ts';
 import { pagingFor, visible } from '../../lib/pagination.ts';
 import { usePageParams } from '../../lib/page-param.ts';
 import { runtime } from '../../lib/runtime.ts';
+import { FIRST_CHIP, keyboardTo } from '../../lib/way-back.ts';
 import { useDevice } from '../../stores/device.store.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -114,6 +115,18 @@ export default component WatchPage()
         ...GAMES.map((game) => ({ id: game.id, label: locale.t(game.nameKey), icon: undefined }))
     ];
 
+    derived narrowed = picked !== 'all';
+
+    derived pickedName = choices.find((choice) => choice.id === picked)?.label ?? '';
+
+    let filters: HTMLElement | null = null;
+
+    const showEvery = () =>
+    {
+        keyboardTo(filters, FIRST_CHIP);
+        void replace('/app/watch');
+    };
+
     const nameOf = (handle: string) =>
     {
         const person = people.byHandle(handle);
@@ -127,10 +140,12 @@ export default component WatchPage()
         <PageHeader title={ locale.t('watch.page.title') } lead={ locale.t('watch.page.lead') } />
 
         <div class="flex flex-col gap-4">
-            <FilterBar items={ choices } value={ picked } label={ locale.t('watch.page.filter') } onChange={ (id) =>
-            {
-                void replace(id === 'all' ? '/app/watch' : `/app/watch?game=${ id }`);
-            } } />
+            <div ref={ (element) => filters = element }>
+                <FilterBar items={ choices } value={ picked } label={ locale.t('watch.page.filter') } onChange={ (id) =>
+                {
+                    void replace(id === 'all' ? '/app/watch' : `/app/watch?game=${ id }`);
+                } } />
+            </div>
 
             <Show when={ loading }>
                 { () =>
@@ -148,14 +163,29 @@ export default component WatchPage()
 
             <Show when={ nobody }>
                 { () =>
-                    <EmptyState
-                        icon="activity"
-                        title={ locale.t('watch.page.empty') }
-                        lead={ locale.t('watch.page.emptyLead') }
-                        action={ locale.t('app.nav.games') }
-                        to="/app/games"
-                        class="py-10"
-                    />
+                    <Show
+                        when={ narrowed }
+                        fallback={
+                            <EmptyState
+                                icon="activity"
+                                title={ locale.t('watch.page.empty') }
+                                lead={ locale.t('watch.page.emptyLead') }
+                                action={ locale.t('app.nav.games') }
+                                to="/app/games"
+                                class="py-10"
+                            />
+                        }
+                    >
+                        <EmptyState
+                            icon="activity"
+                            title={ locale.t('watch.page.emptyGame', { game: pickedName }) }
+                            lead={ locale.t('watch.page.emptyLead') }
+                            action={ locale.t('watch.page.every') }
+                            wayBack
+                            onAction={ showEvery }
+                            class="py-10"
+                        />
+                    </Show>
                 }
             </Show>
 

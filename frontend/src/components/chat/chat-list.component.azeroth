@@ -13,6 +13,7 @@ import Skeleton from '../ui/skeleton.component.azeroth';
 import Tabs from '../ui/tabs.component.azeroth';
 import { flip, motion, type MotionKit } from '../../lib/motion.ts';
 import { runtime } from '../../lib/runtime.ts';
+import { FIRST_TAB, SEARCH_FIELD, keyboardTo } from '../../lib/way-back.ts';
 import { fold } from '../../services/search.service.ts';
 import { useDevice } from '../../stores/device.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
@@ -102,9 +103,10 @@ export default component ChatList(props: { active?: string; pane?: boolean; fold
 
     derived mine = chat.me();
 
+    derived needle = folded ? '' : fold(query);
+
     derived filtered = (() =>
     {
-        const needle = folded ? '' : fold(query);
         const byTab = all.filter((conversation) => folded || tab === 'all'
             || (tab === 'direct' && conversation.kind === 'direct')
             || (tab === 'groups' && conversation.kind === 'group')
@@ -135,6 +137,26 @@ export default component ChatList(props: { active?: string; pane?: boolean; fold
 
     derived quietly = none && !folded;
 
+    derived nothingYet = quietly && all.length === 0;
+
+    derived nothingFound = quietly && all.length > 0 && needle !== '';
+
+    derived nothingHere = quietly && all.length > 0 && needle === '';
+
+    let head: HTMLElement | null = null;
+
+    const clearSearch = () =>
+    {
+        keyboardTo(head, SEARCH_FIELD);
+        query = '';
+    };
+
+    const showEveryChat = () =>
+    {
+        keyboardTo(head, FIRST_TAB);
+        choose('all');
+    };
+
     derived failedQuietly = lost && !folded;
 
     derived failedFolded = lost && folded;
@@ -159,7 +181,7 @@ export default component ChatList(props: { active?: string; pane?: boolean; fold
     <div class={ () => [ 'flex min-h-0 flex-col', props.class ?? '' ].filter(Boolean).join(' ') }>
         <Show when={ searching }>
             { () =>
-                <div class={ () => pane ? 'shrink-0 px-3' : '' }>
+                <div ref={ (element) => head = element } class={ () => pane ? 'shrink-0 px-3' : '' }>
                     <SearchInput
                         value={ query }
                         onInput={ (value) => query = value }
@@ -239,13 +261,33 @@ export default component ChatList(props: { active?: string; pane?: boolean; fold
                         class="py-10"
                     />
                 </Match>
-                <Match when={ quietly }>
+                <Match when={ nothingYet }>
                     <EmptyState
                         icon="chats"
-                        title={ locale.t(all.length === 0 ? 'chats.empty' : 'chats.emptyFiltered') }
-                        lead={ all.length === 0 ? locale.t('chats.emptyLead') : undefined }
+                        title={ locale.t('chats.empty') }
+                        lead={ locale.t('chats.emptyLead') }
                         action={ locale.t('app.nav.friends') }
                         to="/app/friends"
+                        class="py-10"
+                    />
+                </Match>
+                <Match when={ nothingFound }>
+                    <EmptyState
+                        icon="search"
+                        title={ locale.t('search.empty', { query: query.trim() }) }
+                        action={ locale.t('search.clearQuery') }
+                        wayBack
+                        onAction={ clearSearch }
+                        class="py-10"
+                    />
+                </Match>
+                <Match when={ nothingHere }>
+                    <EmptyState
+                        icon="chats"
+                        title={ locale.t('chats.emptyFiltered') }
+                        action={ locale.t('chats.showAll') }
+                        wayBack
+                        onAction={ showEveryChat }
                         class="py-10"
                     />
                 </Match>

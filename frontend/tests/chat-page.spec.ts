@@ -1486,6 +1486,92 @@ describe('a conversation in the list, by the time of its last line and what was 
     });
 });
 
+describe('a list of conversations a search or a tab emptied', () =>
+{
+    const listed = () =>
+    {
+        useDevice().override('phone');
+
+        const table: Route[] = [{ path: '/app/chats', component: (): HTMLElement => ChatsPage() as HTMLElement }];
+        const router = createRouter({ routes: table, history: createMemoryHistory('/app/chats'), scroll: false });
+
+        return renderTest(() => RouterProvider({ router, children: () => Routes({}) }) as Rendered).container;
+    };
+
+    const rows = (container: HTMLElement) => container.querySelectorAll('a[href^="/app/chats/"]');
+
+    const tab = (container: HTMLElement, label: string) => [...container.querySelectorAll<HTMLElement>('[role="tab"]')].find((one) => one.textContent?.includes(label))!;
+
+    it('says what a search found nothing for, and clears it at a press with the keyboard back in the field', async () =>
+    {
+        const container = listed();
+
+        await vi.waitFor(() => expect(rows(container).length).toBeGreaterThan(0), { timeout: 4000 });
+
+        const field = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+        const all = rows(container).length;
+
+        field.value = 'zzzz';
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        await settle();
+
+        expect(container.textContent).toContain(useLocale().t('search.empty', { query: 'zzzz' }));
+        expect(container.textContent, 'a search that found nothing was said to be an empty tab').not.toContain(useLocale().t('chats.emptyFiltered'));
+
+        const back = container.querySelector<HTMLButtonElement>('[data-way-back] button');
+
+        expect(back?.textContent?.trim()).toBe(useLocale().t('search.clearQuery'));
+
+        fire(back!, 'click');
+        await settle();
+
+        expect(field.value).toBe('');
+        expect(document.activeElement).toBe(field);
+        expect(rows(container)).toHaveLength(all);
+        expect(container.querySelector('[data-way-back]')).toBeNull();
+    });
+
+    it('says a tab holds nothing, and shows every chat at a press with the keyboard on All', async () =>
+    {
+        server.conversations = server.conversations.filter((one) => one.kind !== 'group');
+        await useChat().refresh();
+
+        const container = listed();
+
+        await vi.waitFor(() => expect(rows(container).length).toBeGreaterThan(0), { timeout: 4000 });
+
+        fire(tab(container, useLocale().t('chats.tab.groups')), 'click');
+        await settle();
+
+        expect(container.textContent).toContain(useLocale().t('chats.emptyFiltered'));
+
+        const back = container.querySelector<HTMLButtonElement>('[data-way-back] button');
+
+        expect(back?.textContent?.trim()).toBe(useLocale().t('chats.showAll'));
+
+        fire(back!, 'click');
+        await settle();
+
+        expect(tab(container, useLocale().t('chats.tab.all')).getAttribute('aria-selected')).toBe('true');
+        expect(document.activeElement).toBe(tab(container, useLocale().t('chats.tab.all')));
+        expect(rows(container).length).toBeGreaterThan(0);
+        expect(container.querySelector('[data-way-back]')).toBeNull();
+    });
+
+    it('offers the friends, and no way back, to somebody with no conversations at all', async () =>
+    {
+        server.conversations = [];
+        await useChat().refresh();
+
+        const container = listed();
+
+        await vi.waitFor(() => expect(container.textContent).toContain(useLocale().t('chats.empty')), { timeout: 4000 });
+
+        expect(container.querySelector('[data-way-back]')).toBeNull();
+        expect(container.querySelector('a[href="/app/friends"]')).not.toBeNull();
+    });
+});
+
 describe('a thread searched for its words', () =>
 {
     /** c-parisa's three lines, oldest first: "Good game. You never resign, do you.", "Never.", and an invitation. */

@@ -12,7 +12,7 @@ import { SEARCH_PAUSE_MS } from '../src/services/search.service.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
-import { server } from './fake-api.ts';
+import { client, server } from './fake-api.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
 
@@ -126,6 +126,42 @@ describe('the people', () =>
 
         expect([...persian.container.querySelectorAll('[data-columns] > *')].map((one) => one.textContent)).toEqual(['کاربر', 'کیف پول', 'عضویت', 'وضعیت']);
         expect([...persian.container.querySelectorAll<HTMLElement>('[data-person="reza.t"] [data-wallet] > *')].filter((one) => !one.hidden).map((one) => one.textContent)).toEqual(['مهمان']);
+    });
+
+    it('says nobody has an account yet, with no way back, when nothing narrowed the list', async () =>
+    {
+        vi.spyOn(client.admin, 'people').mockResolvedValueOnce({ rows: [] });
+
+        const { container } = await opened();
+
+        expect(container.textContent).toContain('Nobody has an account yet.');
+        expect(container.querySelector('[data-way-back]')).toBeNull();
+    });
+
+    it('offers everybody back from a search or a list that found nobody, the keyboard going to the search', async () =>
+    {
+        const { router, container } = await opened('/admin/people?q=Sara&list=minors');
+        const field = container.querySelector<HTMLInputElement>('[role="search"] input')!;
+
+        expect(container.textContent).toContain('Nobody matches.');
+
+        typeInto(field, 'zz');
+        await settle();
+
+        const back = container.querySelector<HTMLButtonElement>('[data-way-back] button');
+
+        expect(back?.textContent?.trim()).toBe('Show everybody');
+
+        back!.click();
+        await settle();
+        clock.advance(SEARCH_PAUSE_MS);
+        await settle();
+
+        expect(router.location().fullPath, 'words typed before the press were written after it').toBe('/admin/people');
+        expect(field.value).toBe('');
+        expect(document.activeElement).toBe(field);
+        expect(handlesOf(container).length).toBeGreaterThan(1);
+        expect(container.querySelector('[data-way-back]')).toBeNull();
     });
 
     it('searches once the typing pauses, or at Enter, and keeps the words and the list in the address', async () =>

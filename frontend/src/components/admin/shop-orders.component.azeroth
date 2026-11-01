@@ -11,6 +11,7 @@ import { ownerSends } from '../../lib/owner-call.ts';
 import { useAddress } from '../../lib/page-param.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { itemName } from '../../lib/shop.ts';
+import { SEARCH_FIELD, keyboardTo } from '../../lib/way-back.ts';
 import { SEARCH_PAUSE_MS } from '../../services/search.service.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useOverlay } from '../../stores/overlay.store.ts';
@@ -146,6 +147,15 @@ export default component ShopOrders()
         pending = runtime().clock.after(SEARCH_PAUSE_MS, apply);
     };
 
+    let toolbar: HTMLElement | null = null;
+
+    const everyOrder = () =>
+    {
+        keyboardTo(toolbar, SEARCH_FIELD);
+        typed = '';
+        address.write({ state: '', person: '', item: '' });
+    };
+
     /** A paid order's price asked back of NuraChain: the owner's wallet sends it, and the order worker takes back what it delivered. */
     const refund = async (order: AdminShopOrder) =>
     {
@@ -214,7 +224,7 @@ export default component ShopOrders()
     };
 
     <div class="flex flex-col gap-4" data-shop-orders>
-        <div class="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:gap-4" data-toolbar>
+        <div ref={ (element) => toolbar = element } class="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:gap-4" data-toolbar>
             <SearchInput
                 class="@2xl:w-80 @2xl:shrink-0"
                 value={ typed }
@@ -246,7 +256,7 @@ export default component ShopOrders()
         </Show>
 
         <Show when={ noneFound }>
-            { () => <AdminEmpty icon="bag" title={ locale.t('admin.shop.orders.noneFound') } /> }
+            { () => <AdminEmpty icon="bag" title={ locale.t('admin.shop.orders.noneFound') } action={ locale.t('admin.shop.orders.everyOrder') } onAction={ everyOrder } /> }
         </Show>
 
         <Show when={ listed }>

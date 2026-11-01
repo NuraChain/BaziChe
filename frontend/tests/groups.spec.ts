@@ -161,6 +161,37 @@ describe('the group page', () =>
         expect(listed()).toContain(useLocale().text(usePeople().byHandle('mina')!.displayName));
     });
 
+    it('offers to clear a search of the members that found nobody, and puts the keyboard back in the field', async () =>
+    {
+        server.groups.find((one) => one.slug === 'friday-night-crew')!.members.push('kian16', 'reza.t', 'nima.f', 'arash');
+
+        const container = opened('friday-night-crew');
+        const field = () => container.querySelector<HTMLInputElement>('input[type="search"]');
+        const members = () => container.querySelectorAll(`ul[aria-label="${ useLocale().t('groups.members') }"] li`);
+
+        await vi.waitFor(() => expect(field()).not.toBeNull(), { timeout: 4000 });
+
+        const typed = field()!;
+
+        typed.value = 'zzzz';
+        typed.dispatchEvent(new Event('input', { bubbles: true }));
+
+        await vi.waitFor(() => expect(container.textContent).toContain(useLocale().t('search.empty', { query: 'zzzz' })), { timeout: 4000 });
+        expect(members()).toHaveLength(0);
+
+        const back = container.querySelector<HTMLButtonElement>('[data-way-back] button');
+
+        expect(back?.textContent?.trim()).toBe(useLocale().t('search.clearQuery'));
+
+        back!.click();
+        await settle();
+
+        expect(typed.value).toBe('');
+        expect(document.activeElement).toBe(typed);
+        expect(container.querySelector('[data-way-back]')).toBeNull();
+        expect(members().length).toBeGreaterThan(8);
+    });
+
     it('opens what can be done with a member at a press on them, and draws no More beside the row', async () =>
     {
         const container = opened('friday-night-crew');

@@ -244,6 +244,8 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'watch.page.filter': 'Hangi oyun',
     'watch.page.empty': 'Şu an açık bir masada oynayan kimse yok.',
     'watch.page.emptyLead': 'Kendin bir oyun başlat ya da birazdan tekrar bak.',
+    'watch.page.emptyGame': 'Şu an açık bir masada {game} oynayan kimse yok.',
+    'watch.page.every': 'Tüm oyunları göster',
     'watch.page.started': 'başladı: {when}',
     'watch.page.link': 'Canlı oyunları izle',
     'watch.page.more': 'Tüm canlı oyunları gör',

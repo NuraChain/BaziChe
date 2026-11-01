@@ -32,6 +32,7 @@ import { useToasts } from '../../stores/toasts.store.ts';
 import { attempt } from '../../lib/attempt.ts';
 import { pagingFor, visible } from '../../lib/pagination.ts';
 import { usePageParams } from '../../lib/page-param.ts';
+import { SEARCH_FIELD, keyboardTo } from '../../lib/way-back.ts';
 import { namesOf, narrowed, SEARCH_FROM } from '../../services/search.service.ts';
 import { useDevice } from '../../stores/device.store.ts';
 
@@ -121,6 +122,20 @@ export default component GroupPage()
     derived searchable = members.length > SEARCH_FROM;
 
     derived nobodyFound = found.length === 0 && members.length > 0;
+
+    const search = (value: string) =>
+    {
+        query = value;
+        pages.turn('page', 1);
+    };
+
+    let searchBox: HTMLElement | null = null;
+
+    const clearSearch = () =>
+    {
+        keyboardTo(searchBox, SEARCH_FIELD);
+        search('');
+    };
 
     derived me = account.user()?.id;
 
@@ -318,22 +333,28 @@ export default component GroupPage()
 
                     <Show when={ searchable }>
                         { () =>
-                            <SearchInput
-                                value={ query }
-                                onInput={ (value) =>
-                                {
-                                    query = value;
-                                    pages.turn('page', 1);
-                                } }
-                                placeholder={ locale.t('groups.searchMembers') }
-                                label={ locale.t('groups.searchMembers') }
-                                class="mb-3"
-                            />
+                            <div ref={ (element) => searchBox = element } class="mb-3">
+                                <SearchInput
+                                    value={ query }
+                                    onInput={ search }
+                                    placeholder={ locale.t('groups.searchMembers') }
+                                    label={ locale.t('groups.searchMembers') }
+                                />
+                            </div>
                         }
                     </Show>
 
                     <Show when={ nobodyFound }>
-                        { () => <EmptyState icon="search" title={ locale.t('search.empty', { query: query.trim() }) } class="py-8" /> }
+                        { () =>
+                            <EmptyState
+                                icon="search"
+                                title={ locale.t('search.empty', { query: query.trim() }) }
+                                action={ locale.t('search.clearQuery') }
+                                wayBack
+                                onAction={ clearSearch }
+                                class="py-8"
+                            />
+                        }
                     </Show>
 
                     <ul class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field px-2 empty:hidden" aria-label={ locale.t('groups.members') }>

@@ -25,6 +25,7 @@ import { useSocial } from '../../stores/social.store.ts';
 import Panel from '../../components/ui/panel.component.azeroth';
 import { pagingFor, visible } from '../../lib/pagination.ts';
 import { useAddress, usePageParams } from '../../lib/page-param.ts';
+import { FIRST_CHIP, keyboardTo } from '../../lib/way-back.ts';
 import { useDevice } from '../../stores/device.store.ts';
 
 const PEOPLE_PAGE = 8;
@@ -127,6 +128,17 @@ export default component SearchPage()
         pages.reset({ scope: 'people' });
     };
 
+    derived scoped = search.scope() !== 'all';
+
+    let scopes: HTMLElement | null = null;
+
+    const everywhere = () =>
+    {
+        keyboardTo(scopes, FIRST_CHIP);
+        search.setScope('all');
+        pages.reset({ scope: '' });
+    };
+
     const run = (term: string) =>
     {
         search.setQuery(term);
@@ -151,17 +163,18 @@ export default component SearchPage()
             />
         </header>
 
-        <FilterBar
-            label={ locale.t('search.scope.all') }
-            class="mb-5"
-            value={ search.scope() }
-            onChange={ (id) =>
-            {
-                search.setScope(id as SearchScope);
-                pages.reset({ scope: id === 'all' ? '' : id });
-            } }
-            items={ SEARCH_SCOPES.map((scope) => ({ id: scope, label: locale.t(`search.scope.${ scope }`) })) }
-        />
+        <div ref={ (element) => scopes = element } class="mb-5">
+            <FilterBar
+                label={ locale.t('search.scope.all') }
+                value={ search.scope() }
+                onChange={ (id) =>
+                {
+                    search.setScope(id as SearchScope);
+                    pages.reset({ scope: id === 'all' ? '' : id });
+                } }
+                items={ SEARCH_SCOPES.map((scope) => ({ id: scope, label: locale.t(`search.scope.${ scope }`) })) }
+            />
+        </div>
 
         <Show
             when={ asking }
@@ -228,7 +241,20 @@ export default component SearchPage()
                     when={ found }
                     fallback={
                         <Show when={ settled }>
-                            <EmptyState icon="search" title={ locale.t('search.empty', { query }) } lead={ locale.t('search.emptyLead') } class="py-10" />
+                            <Show
+                                when={ scoped }
+                                fallback={ <EmptyState icon="search" title={ locale.t('search.empty', { query }) } lead={ locale.t('search.emptyLead') } class="py-10" /> }
+                            >
+                                <EmptyState
+                                    icon="search"
+                                    title={ locale.t('search.empty', { query }) }
+                                    lead={ locale.t('search.emptyLead') }
+                                    action={ locale.t('search.everywhere') }
+                                    wayBack
+                                    onAction={ everywhere }
+                                    class="py-10"
+                                />
+                            </Show>
                         </Show>
                     }
                 >

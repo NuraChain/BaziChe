@@ -203,6 +203,37 @@ describe('the notifications page', () =>
             return { container, router };
         };
 
+        it('offers every notification back from a kind with nothing in it, the keyboard going to All', async () =>
+        {
+            server.notify({ kind: 'message', actor: 'sara.k', ref: { conversationId: 'c-1' }, dedupeKey: 'chat:c-1' });
+            await useNotifications().refresh();
+
+            const { container, router } = await openedAt('/app/notifications?kind=requests');
+            const locale = useLocale();
+
+            await vi.waitFor(() => expect(container.textContent).toContain(locale.t('notifications.emptyKind')), { timeout: 4000 });
+
+            const back = container.querySelector<HTMLButtonElement>('[data-way-back] button');
+
+            expect(back?.textContent?.trim()).toBe(locale.t('notifications.showAll'));
+
+            back!.click();
+
+            await vi.waitFor(() => expect(rowsOf(container)).toHaveLength(1), { timeout: 4000 });
+            expect(router.location().fullPath).toBe('/app/notifications');
+            expect(useNotifications().notice()).toBeNull();
+            expect(document.activeElement).toBe(chipOf(container, locale.t('notifications.kind.all')));
+            expect(container.querySelector('[data-way-back]')).toBeNull();
+        });
+
+        it('offers no way back when there is nothing at all', async () =>
+        {
+            const { container } = await openedAt('/app/notifications');
+
+            await vi.waitFor(() => expect(container.textContent).toContain(useLocale().t('notifications.empty')), { timeout: 4000 });
+            expect(container.querySelector('[data-way-back]')).toBeNull();
+        });
+
         it('is written into the address with replace, and All takes it out', async () =>
         {
             arrive();

@@ -244,6 +244,8 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'watch.page.filter': '哪个游戏',
     'watch.page.empty': '现在没有人在公开桌子上对局。',
     'watch.page.emptyLead': '自己开一局，或者过一会儿再来看看。',
+    'watch.page.emptyGame': '现在没有人在公开桌子上玩{game}。',
+    'watch.page.every': '显示全部游戏',
     'watch.page.started': '开始于 {when}',
     'watch.page.link': '观看实时对局',
     'watch.page.more': '查看所有实时对局',

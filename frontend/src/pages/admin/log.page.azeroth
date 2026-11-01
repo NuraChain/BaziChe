@@ -16,6 +16,7 @@ import { attempt } from '../../lib/attempt.ts';
 import { useAddress } from '../../lib/page-param.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { dayGroups, foldHandle, type LogRow } from '../../lib/staff-words.ts';
+import { FIRST_CHIP, keyboardTo } from '../../lib/way-back.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import { SEARCH_PAUSE_MS } from '../../services/search.service.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -156,6 +157,16 @@ export default component LogPage()
         address.write({ kind: id === 'all' ? '' : id });
     };
 
+    let toolbar: HTMLElement | null = null;
+
+    const clearFilters = () =>
+    {
+        keyboardTo(toolbar, FIRST_CHIP);
+        staffText = '';
+        personText = '';
+        address.write({ kind: '', staff: '', person: '' });
+    };
+
     const older = async () =>
     {
         const from = page;
@@ -185,7 +196,7 @@ export default component LogPage()
     <div class="flex flex-col gap-6">
         <AdminHead title={ locale.t('admin.section.log') } lead={ locale.t('admin.log.lead') } />
 
-        <div class="flex flex-col gap-4">
+        <div ref={ (element) => toolbar = element } class="flex flex-col gap-4">
             <FilterBar items={ kinds } value={ kind ?? 'all' } label={ locale.t('admin.log.kinds') } onChange={ choose } />
             <div class="grid gap-3 sm:grid-cols-2">
                 <Field id="admin-log-staff" label={ locale.t('admin.log.staff') }>
@@ -226,7 +237,7 @@ export default component LogPage()
         </Show>
 
         <Show when={ empty }>
-            { () => <AdminEmpty icon="history" title={ blank } /> }
+            { () => <AdminEmpty icon="history" title={ blank } action={ filtered ? locale.t('admin.log.clear') : undefined } onAction={ clearFilters } /> }
         </Show>
 
         <Show when={ listed }>

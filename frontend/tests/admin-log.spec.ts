@@ -622,6 +622,7 @@ describe('the log', () =>
         expect(container.textContent).toContain('Nothing has been logged yet.');
         expect(container.querySelector('[data-empty]')).not.toBeNull();
         expect(container.querySelector('.empty-art')).toBeNull();
+        expect(container.querySelector('[data-way-back]'), 'a log with nothing in it offered a way back').toBeNull();
         cleanup();
 
         story();
@@ -634,6 +635,34 @@ describe('the log', () =>
         const refused = await opened();
 
         expect(refused.container.textContent).toContain('The log could not be read.');
+    });
+
+    it('offers the way back from filters that found nothing, the keyboard going to the first of them', async () =>
+    {
+        story();
+        const { router, container } = await opened('/admin/log?kind=change&staff=nobody');
+        const field = (id: string) => container.querySelector<HTMLInputElement>(`#admin-log-${ id }`)!;
+
+        expect(container.textContent).toContain('Nothing in the log matches.');
+
+        typeInto(field('person'), 'mi');
+        await settle();
+
+        const back = container.querySelector<HTMLButtonElement>('[data-way-back] button');
+
+        expect(back?.textContent?.trim()).toBe('Clear the filters');
+
+        back!.click();
+        await settle();
+        clock.advance(SEARCH_PAUSE_MS);
+        await settle();
+
+        expect(router.location().fullPath, 'a handle typed before the press was written after it').toBe('/admin/log');
+        expect([field('staff').value, field('person').value]).toEqual(['', '']);
+        expect(document.activeElement?.textContent?.trim()).toBe('All');
+        expect(document.activeElement?.getAttribute('aria-pressed')).toBe('true');
+        expect(lines(container)).toHaveLength(3);
+        expect(container.querySelector('[data-way-back]')).toBeNull();
     });
 
     it('says it all in Persian', async () =>

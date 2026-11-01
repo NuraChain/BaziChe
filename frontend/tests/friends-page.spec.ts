@@ -238,6 +238,27 @@ describe('the friends page', () =>
         expect(container.textContent).not.toContain(useLocale().t('search.empty', { query: 'zzzz' }));
     });
 
+    it('offers to clear a search that found nobody, and puts the keyboard back in the field', async () =>
+    {
+        const container = await opened();
+        const field = fieldOf(container);
+
+        await type(field, 'zzzz');
+
+        const back = container.querySelector<HTMLButtonElement>('[data-way-back] button');
+
+        expect(back?.textContent?.trim()).toBe(useLocale().t('search.clearQuery'));
+
+        back!.click();
+        await settle();
+
+        expect(field.value).toBe('');
+        expect(fieldOf(container)).toBe(field);
+        expect(document.activeElement).toBe(field);
+        expect(rowOf(container, 'sara.k')).not.toBeNull();
+        expect(container.querySelector('[data-way-back]')).toBeNull();
+    });
+
     it('says nobody is online on that tab, and goes back to the list', async () =>
     {
         const container = await opened();

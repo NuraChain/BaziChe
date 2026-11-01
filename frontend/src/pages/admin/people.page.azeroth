@@ -14,6 +14,7 @@ import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import { attempt } from '../../lib/attempt.ts';
 import { useAddress } from '../../lib/page-param.ts';
 import { runtime } from '../../lib/runtime.ts';
+import { SEARCH_FIELD, keyboardTo } from '../../lib/way-back.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import { SEARCH_PAUSE_MS } from '../../services/search.service.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -94,7 +95,9 @@ export default component PeoplePage()
 
     derived empty = page !== null && rows.length === 0;
 
-    derived blank = locale.t(q !== '' || list !== 'newest' ? 'admin.people.noneFound' : 'admin.people.none');
+    derived narrowed = q !== '' || list !== 'newest';
+
+    derived blank = locale.t(narrowed ? 'admin.people.noneFound' : 'admin.people.none');
 
     derived lists = PEOPLE_LISTS.map((one) => ({ id: one, label: locale.t(LIST_WORDS[one]) }));
 
@@ -115,6 +118,15 @@ export default component PeoplePage()
     const choose = (id: string) =>
     {
         address.write({ list: id === 'newest' ? '' : id });
+    };
+
+    let toolbar: HTMLElement | null = null;
+
+    const everybody = () =>
+    {
+        keyboardTo(toolbar, SEARCH_FIELD);
+        typed = '';
+        address.write({ q: '', list: '' });
     };
 
     const older = async () =>
@@ -146,7 +158,7 @@ export default component PeoplePage()
     <div class="flex flex-col gap-6 @container">
         <AdminHead title={ locale.t('admin.section.people') } lead={ locale.t('admin.people.lead') } />
 
-        <div class="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:gap-4" data-toolbar>
+        <div ref={ (element) => toolbar = element } class="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:gap-4" data-toolbar>
             <SearchInput
                 class="@2xl:w-80 @2xl:shrink-0"
                 value={ typed }
@@ -167,7 +179,7 @@ export default component PeoplePage()
         </Show>
 
         <Show when={ empty }>
-            { () => <AdminEmpty icon="people" title={ blank } /> }
+            { () => <AdminEmpty icon="people" title={ blank } action={ narrowed ? locale.t('admin.people.everybody') : undefined } onAction={ everybody } /> }
         </Show>
 
         <Show when={ listed }>

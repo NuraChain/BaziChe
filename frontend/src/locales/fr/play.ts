@@ -244,6 +244,8 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'watch.page.filter': 'Quel jeu',
     'watch.page.empty': 'Personne ne joue à une table ouverte en ce moment.',
     'watch.page.emptyLead': 'Lance une partie toi-même, ou reviens dans un petit moment.',
+    'watch.page.emptyGame': 'Aucune partie de {game} à une table ouverte en ce moment.',
+    'watch.page.every': 'Afficher tous les jeux',
     'watch.page.started': 'commencée {when}',
     'watch.page.link': 'Regarder des parties en direct',
     'watch.page.more': 'Voir toutes les parties en direct',

@@ -16,6 +16,7 @@ import { attempt } from '../../lib/attempt.ts';
 import { targetOf } from '../../lib/notifications.ts';
 import { useAddress } from '../../lib/page-param.ts';
 import { runtime } from '../../lib/runtime.ts';
+import { FIRST_CHIP, keyboardTo } from '../../lib/way-back.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useNotifications } from '../../stores/notifications.store.ts';
 
@@ -49,6 +50,14 @@ export default component NotificationsPage()
         address.write({ kind: id === 'all' ? '' : id });
     };
 
+    let filters: HTMLElement | null = null;
+
+    const showAll = () =>
+    {
+        keyboardTo(filters, FIRST_CHIP);
+        choose('all');
+    };
+
     mount
     {
         notifications.only(NOTICES.find((one) => one === address.text('kind')) ?? null);
@@ -76,7 +85,16 @@ export default component NotificationsPage()
 
     derived quiet = read === 'read' && !listed;
 
-    derived filterable = listed || kind !== null;
+    /** Kept once drawn: a kind changed reads the list again, and a bar that went with the list took the chip from under the reader. */
+    state filterable = false;
+
+    effect
+    {
+        if (listed || kind !== null)
+        {
+            filterable = true;
+        }
+    }
 
     derived unfiltered = kind === null;
 
@@ -110,7 +128,11 @@ export default component NotificationsPage()
         />
 
         <Show when={ filterable }>
-            { () => <FilterBar items={ kinds } value={ kind ?? 'all' } label={ locale.t('notifications.filter') } class="mb-4" onChange={ choose } /> }
+            { () =>
+                <div ref={ (element) => filters = element } class="mb-4">
+                    <FilterBar items={ kinds } value={ kind ?? 'all' } label={ locale.t('notifications.filter') } onChange={ choose } />
+                </div>
+            }
         </Show>
 
         <Show when={ waiting }>
@@ -130,7 +152,7 @@ export default component NotificationsPage()
 
         <Show when={ quiet }>
             { () =>
-                <Show when={ unfiltered } fallback={ <EmptyState icon="bell" title={ locale.t('notifications.emptyKind') } class="py-10" /> }>
+                <Show when={ unfiltered } fallback={ <EmptyState icon="bell" title={ locale.t('notifications.emptyKind') } action={ locale.t('notifications.showAll') } wayBack onAction={ showAll } class="py-10" /> }>
                     { () => <EmptyState icon="bell" title={ locale.t('notifications.empty') } lead={ locale.t('notifications.emptyLead') } class="py-10" /> }
                 </Show>
             }

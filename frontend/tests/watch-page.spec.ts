@@ -278,17 +278,45 @@ describe('the live games page', () =>
         expect(router.location().fullPath, 'a game chosen kept the page of the game before').toBe('/app/watch?game=poker');
     });
 
-    it('narrows the list to one game and says so when nobody is playing it', async () =>
+    it('narrows the list to one game, says which when nobody is playing it, and offers every game back', async () =>
     {
         server.watching = [row('table-hokm', 'hokm')];
 
-        const container = await show();
+        const page = WatchPage as unknown as () => HTMLElement;
+        const router = createRouter({ routes: [{ path: '/app/watch', component: page }], history: createMemoryHistory('/app/watch'), scroll: false });
+        const { container } = renderTest(() => RouterProvider({ router, children: page }) as Rendered);
+
+        await settle();
+
         const poker = [...container.querySelectorAll('button')].find((one) => one.textContent?.includes('Poker'));
 
         fire(poker!, 'click');
         await settle();
 
-        expect(container.textContent).toContain('Nobody is playing at an open table right now.');
+        expect(container.textContent).toContain('Nobody is playing Poker at an open table right now.');
+        expect(container.textContent).not.toContain('Nobody is playing at an open table right now.');
         expect(server.calls.filter((call) => call === 'tables.watchable').length).toBeGreaterThanOrEqual(2);
+
+        const back = container.querySelector<HTMLElement>('[data-way-back] button');
+
+        expect(back?.textContent?.trim()).toBe('Show every game');
+
+        fire(back!, 'click');
+        await settle();
+
+        expect(router.location().fullPath).toBe('/app/watch');
+        expect(document.activeElement?.textContent?.trim()).toBe('All games');
+        expect(document.activeElement?.getAttribute('aria-pressed')).toBe('true');
+        expect(container.querySelector('[data-way-back]')).toBeNull();
+        expect(container.querySelectorAll('ul li')).toHaveLength(1);
+    });
+
+    it('offers the games, and no way back, when nobody is playing anything', async () =>
+    {
+        const container = await show();
+
+        expect(container.textContent).toContain('Nobody is playing at an open table right now.');
+        expect(container.querySelector('[data-way-back]')).toBeNull();
+        expect(container.querySelector('a[href="/app/games"]')).not.toBeNull();
     });
 });

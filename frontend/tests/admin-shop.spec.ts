@@ -195,7 +195,7 @@ describe('Admin › Shop: the looks', () =>
         await settle();
 
         expect(container.querySelectorAll('[data-item]')).toHaveLength(0);
-        expect(text(container.querySelector('[data-empty]'))).toBe('No look is like that.');
+        expect(text(container.querySelector('[data-empty] p'))).toBe('No look is like that.');
 
         await router.navigate('/admin/shop?list=retired');
         await settle();
@@ -623,12 +623,13 @@ describe('the orders', () =>
         const first = await opened('/admin/shop?view=orders');
 
         expect(text(first.container.querySelector('[data-empty]'))).toBe('No orders yet. An order is here as soon as somebody asks to buy a look.');
+        expect(first.container.querySelector('[data-way-back]'), 'no orders at all offered a way back').toBeNull();
 
         cleanup();
 
         const found = await opened('/admin/shop?view=orders&state=paid');
 
-        expect(text(found.container.querySelector('[data-empty]'))).toBe('No order is like that.');
+        expect(text(found.container.querySelector('[data-empty] p'))).toBe('No order is like that.');
 
         cleanup();
         server.staff.owners = [];
@@ -636,6 +637,48 @@ describe('the orders', () =>
         const failed = await opened('/admin/shop?view=orders');
 
         expect(text(failed.container.querySelector('[role="alert"]'))).toContain('The orders could not be read.');
+    });
+
+    it('offers every order back when what was chosen holds none, the keyboard going to the search', async () =>
+    {
+        const { router, container } = await opened('/admin/shop?view=orders&state=paid&person=sara.k&item=dice.glow');
+        const field = container.querySelector<HTMLInputElement>('[data-shop-orders] [role="search"] input')!;
+
+        expect(text(container.querySelector('[data-empty] p'))).toBe('No order is like that.');
+        expect(field.value).toBe('sara.k');
+        expect(container.querySelector('[data-only]')).not.toBeNull();
+
+        const back = container.querySelector<HTMLButtonElement>('[data-way-back] button');
+
+        expect(text(back)).toBe('Show every order');
+
+        back!.click();
+        await settle();
+
+        expect(router.location().fullPath).toBe('/admin/shop?view=orders');
+        expect(field.value).toBe('');
+        expect(document.activeElement).toBe(field);
+        expect(container.querySelector('[data-only]')).toBeNull();
+        expect(container.querySelector('[data-way-back]')).toBeNull();
+    });
+
+    it('offers every look back when what was chosen holds none, the keyboard going to the lists', async () =>
+    {
+        const { router, container } = await opened('/admin/shop?collection=jade&list=retired');
+
+        expect(text(container.querySelector('[data-empty] p'))).toBe('No look is like that.');
+
+        const back = container.querySelector<HTMLButtonElement>('[data-way-back] button');
+
+        expect(text(back)).toBe('Show every look');
+
+        back!.click();
+        await settle();
+
+        expect(router.location().fullPath).toBe('/admin/shop');
+        expect(container.querySelectorAll('[data-item]').length).toBeGreaterThan(1);
+        expect(document.activeElement).toBe(chip(container, 'All'));
+        expect(container.querySelector('[data-way-back]')).toBeNull();
     });
 
     it('finds the paid orders that delivered nothing, kept in the address as their own chip', async () =>

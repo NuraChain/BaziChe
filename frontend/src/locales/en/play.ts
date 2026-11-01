@@ -241,6 +241,8 @@ export const play = {
     'watch.page.filter': 'Which game',
     'watch.page.empty': 'Nobody is playing at an open table right now.',
     'watch.page.emptyLead': 'Start a game yourself, or look again in a little while.',
+    'watch.page.emptyGame': 'Nobody is playing {game} at an open table right now.',
+    'watch.page.every': 'Show every game',
     'watch.page.started': 'started {when}',
     'watch.page.link': 'Watch live games',
     'watch.page.more': 'See every live game',

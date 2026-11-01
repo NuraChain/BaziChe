@@ -116,7 +116,7 @@ export default component HomePage()
             </Show>
 
             <section class="hero-surface relative overflow-hidden rounded-hero px-5 py-6 @xl:px-7 @xl:py-7" aria-labelledby="home-hero">
-                <div class="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_auto] @3xl:items-center">
+                <div class="grid gap-6 @5xl:grid-cols-[minmax(0,1fr)_auto] @5xl:items-center">
                     <div class="min-w-0">
                         <p class="text-ui-xs font-semibold text-accent">{ locale.t('home.hero.eyebrow') }</p>
                         <h1 id="home-hero" class="title mt-2 text-ui-3xl @xl:text-ui-4xl">
@@ -137,7 +137,7 @@ export default component HomePage()
                             </p>
                         </div>
                     </div>
-                    <ul class="hidden w-[27rem] grid-cols-5 gap-2.5 @3xl:grid" aria-label={ locale.t('app.nav.games') }>
+                    <ul class="hidden w-[35rem] grid-cols-5 gap-2.5 @5xl:grid" aria-label={ locale.t('app.nav.games') }>
                         <For each={ games } key={ (game) => game.id } let={ game }>
                             <li class="min-w-0"><GameTile game={ game } /></li>
                         </For>
@@ -156,7 +156,7 @@ export default component HomePage()
                 </section>
             </Show>
 
-            <section class="@3xl:hidden" aria-labelledby="home-games">
+            <section class="@5xl:hidden" aria-labelledby="home-games">
                 <SectionHeading id="home-games" title={ locale.t('app.nav.games') } more={ locale.t('common.seeAll') } to="/app/games" />
                 <ul class="grid grid-cols-5 gap-1.5">
                     <For each={ games } key={ (game) => game.id } let={ game }>

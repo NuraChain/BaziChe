@@ -133,6 +133,20 @@ describe('the home page', () =>
         expect(order().filter((one) => one !== 'home-friends'), 'the reader\'s tables come after a list of games, or the games are listed twice').toEqual(['home-hero', 'home-continue', 'home-games', 'home-recent']);
     });
 
+    it('lists the games beside the opening only where five tiles and its words have room, and under it everywhere else, never both', async () =>
+    {
+        const container = await show();
+        const beside = container.querySelector('section[aria-labelledby="home-hero"] ul')!;
+        const below = container.querySelector('section[aria-labelledby="home-games"]')!;
+        const from = /@(\w+):grid(?:\s|$)/.exec(beside.className)?.[1] ?? '';
+        const tiles = Number(/w-\[(\d+(?:\.\d+)?)rem\]/.exec(beside.className)?.[1]);
+        const CONTAINERS: Record<string, number> = { '2xl': 42, '3xl': 48, '4xl': 56, '5xl': 64, '6xl': 72, '7xl': 80 };
+
+        expect(below.classList.contains(`@${ from }:hidden`), 'the games are drawn twice, or at no width at all').toBe(true);
+        expect((tiles * 16 - 4 * 10) / 5, 'a tile beside the opening is too narrow for "Backgammon" and its seats').toBeGreaterThanOrEqual(104);
+        expect(CONTAINERS[from], 'the opening\'s words are left too little room beside the tiles').toBeGreaterThanOrEqual(tiles + 27);
+    });
+
     it('lets a game\'s name in its tile break onto a second line rather than be cut short', async () =>
     {
         const container = await show();

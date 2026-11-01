@@ -1408,9 +1408,28 @@ with "Loading…" for a screen reader), the failure and Try again when it failed
 Who is online is the socket's to say: until its presence snapshot has come (`presence.ready()`) a list
 of friends online is still being read, and while the connection is down or never came it says who is
 online shows once the reader is connected (`shell.friends.unknown`). A reader with no friends is told
-nobody is online without waiting for the socket, which is true whatever it says.
+nobody is online without waiting for the socket, which is true whatever it says. The same holds for
+the groups (`groups.reading('mine' | 'elsewhere')`, on the Friends page's Groups tab and Discover),
+the notifications (`notifications.reading()`, and `latestReading()` for the list beside the page,
+which is the filtered one's when a kind is chosen), the reader's record and finished games
+(`record.failure()`, and `historyReading()`, read once its first page has come whatever a later page
+does: Home's "Recent games" and the profile's record and history), and the browsers signed in
+(`devices.reading()`). The devices page says nothing about this browser until its keys and the list
+are known (`devices.known()`: before, a browser that holds keys was told it was not added and offered
+Connect wallet), and offers no recovery phrase until the server has said whether there is one
+(`recovery.reading()`: before, an account that had one was offered to make one, which replaces it).
+The search page searches lists this browser holds, so it says it is still
+reading while any list the scope reaches has not answered (`search.reading()`: the friends, the
+directory, the groups, the conversations; `chat.listReading()`), says what was found as it comes,
+and says some of it could not be read, with Try again, where a list failed (`search.partial()`),
+never "Nothing for …" in either case; it asks for the groups to join in its mount, as the store's
+comment always said it did. And nobody is said to be playing before a count has come
+(`catalogue.counted()`): Home's line under Quick play, the games page's counts and a game's own are
+kept in their place but out of sight and out of a screen reader's hearing until then.
 `friends-page.spec.ts` (*the friends page before the server has answered*), `before-the-answer.spec.ts`,
-`settings.spec.ts` (*the safety lists*) and `error-state.spec.ts` hold it.
+`settings.spec.ts` (*the safety lists*), `notifications-page.spec.ts` (*before the server has answered*),
+`people-search.spec.ts` (*the search page, before what it searches has been read*), `record.spec.ts`,
+`devices-page.spec.ts` and `error-state.spec.ts` hold it.
 
 **What a press does is on screen in the same turn, and only a refusal is ever seen.** The owner:
 "when it click on ready button it should immidetly on client set it to active such as instagram

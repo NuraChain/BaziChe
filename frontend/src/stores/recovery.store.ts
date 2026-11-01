@@ -1,6 +1,7 @@
 import { createResource, createSignal, createStore, type Getter } from 'azerothjs';
 
 import { client, type RecoveryState } from '../api.ts';
+import { readingOf, type Reading } from '../lib/reading.ts';
 import { forgetArchiveKey, heldEpochKeys, holdsArchiveKey, recallArchiveKey, rememberArchiveKey, rememberEpochKey } from '../lib/epoch-keys.ts';
 import { forget } from '../lib/crypto.ts';
 import {
@@ -37,6 +38,8 @@ export interface RecoveryApi
 {
     state: Getter<RecoveryState | null>;
     loading: Getter<boolean>;
+    reading: Getter<Reading>;
+    failure: Getter<unknown>;
 
     /** A derivation is running. Long enough to matter, on every device. */
     busy: Getter<boolean>;
@@ -80,6 +83,8 @@ export const useRecovery = createStore((): RecoveryApi =>
     return {
         state: () => answer.data() ?? null,
         loading: () => answer.loading(),
+        reading: () => readingOf(answer),
+        failure: () => answer.error(),
         busy,
         freshPhrase,
         restored,

@@ -4,6 +4,7 @@ import { ApiError, client, type Device } from '../api.ts';
 import { deviceVerifies } from '../lib/device-id.ts';
 import { keyStore, type DeviceKeys } from '../lib/device-keys.ts';
 import { deviceState, readinessOf, type DeviceState, type Readiness } from '../lib/device-state.ts';
+import { readingOf, type Reading } from '../lib/reading.ts';
 import { useAccount } from './account.store.ts';
 import { useRealtime } from './realtime.store.ts';
 import { useWallet } from './wallet.store.ts';
@@ -22,6 +23,7 @@ export interface DevicesApi
 
     loading: Getter<boolean>;
     failed: Getter<unknown>;
+    reading: Getter<Reading>;
     busy: Getter<boolean>;
     failure: Getter<EnrolFailure | null>;
 
@@ -177,6 +179,7 @@ export const useDevices = createStore((): DevicesApi =>
 
         loading: () => listing.loading(),
         failed: () => listing.error(),
+        reading: () => readingOf(listing),
         busy,
         failure,
 

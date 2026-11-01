@@ -4,7 +4,9 @@ import { useRecovery } from '../../stores/recovery.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
 import Button from '../ui/button.component.azeroth';
 import Input from '../ui/input.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
 import Panel from '../ui/panel.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
 import { copyText } from '../../lib/clipboard.ts';
 
 /**
@@ -30,6 +32,14 @@ export default component RecoveryPanel(props: { device?: string })
     derived state = recovery.state();
 
     derived configured = state?.configured === true;
+
+    derived read = recovery.reading();
+
+    derived asking = read === 'reading';
+
+    derived refused = read === 'failed';
+
+    derived answered = read === 'read';
 
     const make = async () =>
     {
@@ -87,94 +97,109 @@ export default component RecoveryPanel(props: { device?: string })
     };
 
     <Panel stack="sm">
-        <Show
-            when={ recovery.freshPhrase() !== null }
-            fallback={
+        <Show when={ asking }>
+            { () =>
+                <div data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                    <Skeleton lines={ 3 } />
+                </div>
+            }
+        </Show>
+        <Show when={ refused }>
+            { () => <ErrorState compact error={ recovery.failure() } onRetry={ () => void recovery.refresh() } /> }
+        </Show>
+        <Show when={ answered }>
+            { () =>
                 <Show
-                    when={ props.device !== undefined && configured && recovery.holdsArchive() === false }
+                    when={ recovery.freshPhrase() !== null }
                     fallback={
-                        <div class="flex flex-col gap-3">
-                            <p class="text-ui-sm text-muted">
-                                { locale.t(configured ? 'recovery.onLead' : 'recovery.offLead') }
-                            </p>
+                        <Show
+                            when={ props.device !== undefined && configured && recovery.holdsArchive() === false }
+                            fallback={
+                                <div class="flex flex-col gap-3">
+                                    <p class="text-ui-sm text-muted">
+                                        { locale.t(configured ? 'recovery.onLead' : 'recovery.offLead') }
+                                    </p>
 
-                            <p class="flex items-start gap-2 text-ui-xs text-faint">
-                                <Icon name="alert" size={ 13 } class="mt-0.5 shrink-0" />
-                                <span>{ locale.t('recovery.cost') }</span>
-                            </p>
+                                    <p class="flex items-start gap-2 text-ui-xs text-faint">
+                                        <Icon name="alert" size={ 13 } class="mt-0.5 shrink-0" />
+                                        <span>{ locale.t('recovery.cost') }</span>
+                                    </p>
 
-                            <div class="flex flex-col gap-2">
-                                <Button
-                                    variant={ configured ? 'outline' : 'primary' }
-                                    block
-                                    leading="key"
-                                    loading={ recovery.busy() }
-                                    onClick={ () => void make() }
-                                >
-                                    { locale.t(configured ? 'recovery.roll' : 'recovery.make') }
-                                </Button>
-
-                                <Show when={ configured }>
-                                    { () =>
-                                        <Button variant="ghost" block leading="close" loading={ recovery.busy() } onClick={ () => void turnOff() }>
-                                            { locale.t('recovery.turnOff') }
+                                    <div class="flex flex-col gap-2">
+                                        <Button
+                                            variant={ configured ? 'outline' : 'primary' }
+                                            block
+                                            leading="key"
+                                            loading={ recovery.busy() }
+                                            onClick={ () => void make() }
+                                        >
+                                            { locale.t(configured ? 'recovery.roll' : 'recovery.make') }
                                         </Button>
-                                    }
-                                </Show>
-                            </div>
-                        </div>
+
+                                        <Show when={ configured }>
+                                            { () =>
+                                                <Button variant="ghost" block leading="close" loading={ recovery.busy() } onClick={ () => void turnOff() }>
+                                                    { locale.t('recovery.turnOff') }
+                                                </Button>
+                                            }
+                                        </Show>
+                                    </div>
+                                </div>
+                            }
+                        >
+                            { () =>
+                                <div class="flex flex-col gap-3">
+                                    <p class="text-ui-sm text-muted">{ locale.t('recovery.useLead') }</p>
+
+                                    <Input
+                                        id="recovery-phrase"
+                                        label={ locale.t('recovery.field') }
+                                        value={ typed }
+                                        autocomplete="off"
+                                        invalid={ wrong }
+                                        onEnter={ () => void use() }
+                                        onInput={ (value) => { typed = value; wrong = false; } }
+                                    />
+
+                                    <Show when={ wrong }>
+                                        { () => <p class="text-ui-sm text-danger" role="alert">{ locale.t('recovery.wrong') }</p> }
+                                    </Show>
+
+                                    <Button variant="primary" block leading="key" loading={ recovery.busy() } onClick={ () => void use() }>
+                                        { locale.t('recovery.use') }
+                                    </Button>
+                                </div>
+                            }
+                        </Show>
                     }
                 >
                     { () =>
                         <div class="flex flex-col gap-3">
-                            <p class="text-ui-sm text-muted">{ locale.t('recovery.useLead') }</p>
+                            <p class="flex items-start gap-2 text-ui-sm text-text">
+                                <Icon name="alert" size={ 15 } class="mt-0.5 shrink-0 text-gold" />
+                                <span>{ locale.t('recovery.writeItDown') }</span>
+                            </p>
 
-                            <Input
-                                id="recovery-phrase"
-                                label={ locale.t('recovery.field') }
-                                value={ typed }
-                                autocomplete="off"
-                                invalid={ wrong }
-                                onEnter={ () => void use() }
-                                onInput={ (value) => { typed = value; wrong = false; } }
-                            />
+                            <code
+                                dir="ltr"
+                                class="tally select-all rounded-tile bg-sunk px-3 py-3 text-center text-ui-lg tracking-widest text-text"
+                            >
+                                { recovery.freshPhrase() }
+                            </code>
 
-                            <Show when={ wrong }>
-                                { () => <p class="text-ui-sm text-danger" role="alert">{ locale.t('recovery.wrong') }</p> }
-                            </Show>
+                            <div class="flex flex-col gap-2">
+                                <Button variant="outline" block leading="copy" onClick={ () => void copy() }>
+                                    { locale.t('recovery.copy') }
+                                </Button>
 
-                            <Button variant="primary" block leading="key" loading={ recovery.busy() } onClick={ () => void use() }>
-                                { locale.t('recovery.use') }
-                            </Button>
+                                <Button variant="primary" block leading="check-circle" onClick={ () => recovery.dismissPhrase() }>
+                                    { locale.t('recovery.saved') }
+                                </Button>
+                            </div>
                         </div>
                     }
                 </Show>
-            }
-        >
-            { () =>
-                <div class="flex flex-col gap-3">
-                    <p class="flex items-start gap-2 text-ui-sm text-text">
-                        <Icon name="alert" size={ 15 } class="mt-0.5 shrink-0 text-gold" />
-                        <span>{ locale.t('recovery.writeItDown') }</span>
-                    </p>
-
-                    <code
-                        dir="ltr"
-                        class="tally select-all rounded-tile bg-sunk px-3 py-3 text-center text-ui-lg tracking-widest text-text"
-                    >
-                        { recovery.freshPhrase() }
-                    </code>
-
-                    <div class="flex flex-col gap-2">
-                        <Button variant="outline" block leading="copy" onClick={ () => void copy() }>
-                            { locale.t('recovery.copy') }
-                        </Button>
-
-                        <Button variant="primary" block leading="check-circle" onClick={ () => recovery.dismissPhrase() }>
-                            { locale.t('recovery.saved') }
-                        </Button>
-                    </div>
-                </div>
             }
         </Show>
     </Panel>

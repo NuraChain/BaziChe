@@ -3187,6 +3187,12 @@ export const chatMessage = object({
      */
     voice: string().optional(),
 
+    /**
+     * The file a photo, a video or a file message names, in the clear as a voice message's is. Its
+     * sealed document names it again, with its key, its name and its size.
+     */
+    file: string().optional(),
+
     /** A voice message the reader has played. */
     played: literal(true).optional(),
 
@@ -3259,11 +3265,14 @@ export type MessagePage = Infer<typeof messagePage>;
  */
 export const sendInput = object({
     id: string(),
-    kind: enumOf(['text', 'voice', 'reaction', 'edit']),
+    kind: enumOf(['text', 'voice', 'file', 'reaction', 'edit']),
     target: string().optional(),
 
     /** The file a voice message names: an upload of the sender's own, or a file a forward reuses. */
     voice: string().optional(),
+
+    /** The file a photo, a video or a file message names, under the same rule. */
+    file: string().optional(),
     epoch: number(),
     seq: number(),
     iv: string(),

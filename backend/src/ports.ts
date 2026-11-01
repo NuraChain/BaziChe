@@ -473,9 +473,10 @@ export interface ChatPort
      */
     send(me: string, sessionId: string, conversationId: string, input: {
         id: string;
-        kind: 'text' | 'voice' | 'reaction' | 'edit';
+        kind: 'text' | 'voice' | 'file' | 'reaction' | 'edit';
         target?: string;
         voice?: string;
+        file?: string;
         epoch: number;
         seq: number;
         iv: string;
@@ -494,6 +495,12 @@ export interface ChatPort
 
     /** A voice file's ciphertext, or null for anybody who may not hear it and for a file that is not there. */
     voiceFile(me: string, id: string): Promise<Uint8Array | null>;
+
+    /** Keeps a photo, a video or a file as its sender's browser sealed it. `fresh` is false for a retry. */
+    storeFile(me: string, id: string, bytes: Uint8Array): Promise<{ id: string; size: number; fresh: boolean }>;
+
+    /** A file's ciphertext, or null for anybody who may not fetch it and for a file that is not there. */
+    file(me: string, id: string): Promise<Uint8Array | null>;
 
     /** The reader has started a voice message: its dot goes, and its sender's when nobody had played it. */
     played(me: string, conversationId: string, messageId: string): Promise<void>;

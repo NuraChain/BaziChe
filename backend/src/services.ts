@@ -348,6 +348,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             message.voice = row.voice_id;
         }
 
+        if (row.file_id !== null)
+        {
+            message.file = row.file_id;
+        }
+
         if (row.played === true)
         {
             message.played = true;
@@ -501,6 +506,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 expires_at: row.last_expires_at,
                 target_id: null,
                 voice_id: row.last_voice_id,
+                file_id: row.last_file_id,
                 seen: row.last_seen
             });
 
@@ -523,7 +529,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 frank: null,
                 expires_at: row.edit_expires_at,
                 target_id: row.last_id,
-                voice_id: null
+                voice_id: null,
+                file_id: null
             }]).get(row.last_id);
 
             if (edited !== undefined)
@@ -3047,7 +3054,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     messageId: row.id,
                     text: disclosure.text,
                     frankingKey: disclosure.frankingKey,
-                    ...(row.kind === 'voice' && row.voice_id !== null ? { voiceId: row.voice_id } : {})
+                    ...(row.kind === 'voice' && row.voice_id !== null ? { voiceId: row.voice_id } : {}),
+                    ...(row.kind === 'file' && row.file_id !== null ? { fileId: row.file_id } : {})
                 });
             },
 
@@ -4063,6 +4071,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             storeVoice: (me, id, bytes) => chat.storeVoice(me, id, bytes),
 
             voiceFile: (me, id) => chat.voiceFile(me, id),
+
+            storeFile: (me, id, bytes) => chat.storeFile(me, id, bytes),
+
+            file: (me, id) => chat.file(me, id),
 
             async played(me, conversationId, messageId)
             {

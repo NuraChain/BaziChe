@@ -5,6 +5,7 @@ import type { Logger } from '@azerothjs/logger';
 import type { DataSource } from 'typeorm';
 
 import { buildApi } from './api.ts';
+import { FILE_REFUSALS, FILE_SEALED_MOST } from './domains/chat/files.ts';
 import { VOICE_FILE_MOST, VOICE_REFUSALS } from './domains/chat/voice.ts';
 import { avatarFile } from './domains/identity/avatar.ts';
 import { sameSiteWrites } from './http/origin.ts';
@@ -222,6 +223,72 @@ export function buildApp(deps: AppDeps)
             return new Response(null, { status: 304, headers });
         }
         return new Response(new Uint8Array(bytes), { headers: { ...headers, 'content-type': 'application/octet-stream' } });
+    });
+
+    // A photo, a video or a file, as the ciphertext its sender's browser made: a voice file's route
+    // with a file's bound. The server cannot tell which of the three it is.
+    app.put('/api/chat/files/:id', async (context) =>
+    {
+        const principal = await ports.identity.principal(context.request);
+        if (principal === null)
+        {
+            return new Response(null, { status: 401 });
+        }
+
+        if (mediaTypeOf(context.request) !== 'application/octet-stream')
+        {
+            throw new HttpError(FILE_REFUSALS['file-type'], 'A file is sent as application/octet-stream.', { code: 'file-type' });
+        }
+
+        let bytes: Uint8Array;
+
+        try
+        {
+            bytes = await readRaw(context.request, { limit: FILE_SEALED_MOST });
+        }
+        catch (error)
+        {
+            if (error instanceof PayloadTooLargeError)
+            {
+                throw new HttpError(FILE_REFUSALS['file-size'], 'That file is too large to keep.', { code: 'file-size' });
+            }
+            throw error;
+        }
+
+        const kept = await ports.chat.storeFile(principal.userId, context.params.id, bytes);
+
+        return json({ id: kept.id, size: kept.size }, { status: kept.fresh ? 201 : 200 });
+    });
+
+    // Answered only to whoever may fetch the file, and as a file that is not there to anybody else.
+    app.get('/api/chat/files/:id', async (context) =>
+    {
+        const principal = await ports.identity.principal(context.request);
+        if (principal === null)
+        {
+            return new Response(null, { status: 401 });
+        }
+
+        const bytes = await ports.chat.file(principal.userId, context.params.id);
+        if (bytes === null)
+        {
+            throw new HttpError(FILE_REFUSALS['file-missing'], 'No such file.', { code: 'file-missing' });
+        }
+
+        const headers = {
+            'cache-control': 'private, max-age=31536000, immutable',
+            'etag': `"${ context.params.id }"`,
+            'x-content-type-options': 'nosniff',
+            'content-security-policy': "default-src 'none'"
+        };
+
+        if (context.request.headers.get('if-none-match') === headers.etag)
+        {
+            return new Response(null, { status: 304, headers });
+        }
+        return new Response(new Uint8Array(bytes), {
+            headers: { ...headers, 'content-type': 'application/octet-stream', 'content-length': String(bytes.byteLength) }
+        });
     });
 
     // A reported voice message's file, which its report keeps, for whoever's role opens the reports, and

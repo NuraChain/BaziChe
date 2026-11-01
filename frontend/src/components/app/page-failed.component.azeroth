@@ -1,6 +1,7 @@
 import { resolveRouteComponent, untrack, useHead, useMatch } from 'azerothjs';
 
 import Icon from '../../icons/icon.component.azeroth';
+import { reloadPage } from '../../lib/chunks.ts';
 import { whyFailed } from '../../lib/failure.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import Button from '../ui/button.component.azeroth';
@@ -8,9 +9,10 @@ import Button from '../ui/button.component.azeroth';
 /**
  * What a shell draws where a page threw, so the nav around it stays. It lets go of the failure once
  * the router has committed another page, never at the address alone: the address moves before a
- * guard has answered, and the page drawn then would be the one that failed. Try again fetches again
- * whatever of the page's code could not be fetched (the router keeps a lost chunk's error until it
- * is asked again) and then builds the page afresh.
+ * guard has answered, and the page drawn then would be the one that failed. Try again asks again
+ * for whatever of the page's code could not be fetched (the router keeps a lost chunk's error until
+ * it is asked again) and builds the page afresh; where the code still cannot be had, it loads the
+ * page, the one way back from a chunk Chromium will not ask for twice (`lib/chunks.ts`).
  */
 export default component PageFailed(props: { error: unknown; reset: () => void; home: string; homeLabel: string; class?: string })
 {
@@ -39,6 +41,11 @@ export default component PageFailed(props: { error: unknown; reset: () => void; 
         }
         catch (error)
         {
+            if (await reloadPage())
+            {
+                return;
+            }
+
             failure = error;
             trying = false;
             return;

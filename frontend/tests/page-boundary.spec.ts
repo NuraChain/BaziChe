@@ -5,6 +5,7 @@ import { ErrorBoundary, RouterProvider, Routes, createEffect, createMemoryHistor
 import type { StaffRole } from '../../backend/src/domains/admin/roles.ts';
 import '../src/locales/admin-catalogue.ts';
 import '../src/locales/app-catalogue.ts';
+import { resetChunks } from '../src/lib/chunks.ts';
 import { manualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import { routes } from '../src/routes.ts';
@@ -91,7 +92,8 @@ const lost = async () =>
 
 const shellOf = (path: string) => routes.find((route) => route.path === path)!;
 
-const APP: Route[] = [
+/** Made afresh for every test: the router keeps a lazy route's chunk by the route itself, so a page one test fetched would be there for the next. */
+const app = (): Route[] => [
     { path: '', component: page('home') },
     { path: 'fine', component: page('fine') },
     { path: 'boom', component: broken },
@@ -137,11 +139,29 @@ const home = (root: ParentNode) => root.querySelector<HTMLAnchorElement>('[data-
 
 let said: ReturnType<typeof vi.spyOn>;
 
+let reloads = 0;
+
+/** Whether the server answers the question `lib/chunks.ts` asks before it loads the page. */
+let answering = false;
+
 beforeEach(() =>
 {
     cleanup();
     resetRuntime();
-    setRuntime({ clock: manualClock(Date.parse('2026-11-01T21:00:00.000Z')), seed: 7 });
+    resetChunks();
+    reloads = 0;
+    answering = false;
+    sessionStorage.clear();
+    setRuntime({ clock: manualClock(Date.parse('2026-11-01T21:00:00.000Z')), seed: 7, reload: () => reloads += 1 });
+    vi.stubGlobal('fetch', async () =>
+    {
+        if (!answering)
+        {
+            throw new TypeError('Failed to fetch');
+        }
+
+        return { status: 200 };
+    });
     server.reset();
     useLocale().setLocale('en');
     useSession().reset();
@@ -159,6 +179,7 @@ afterEach(() =>
 {
     cleanup();
     said.mockRestore();
+    vi.unstubAllGlobals();
     useSession().reset();
     useLocale().setLocale('en');
 });
@@ -172,7 +193,7 @@ describe('a page of the app that throws', () =>
 
     it('is a fallback inside the shell, which keeps its nav, and the whole app never falls', async () =>
     {
-        const { container } = await opened('/app', APP, '/app/boom', '[data-page-failed]');
+        const { container } = await opened('/app', app(), '/app/boom', '[data-page-failed]');
         const main = container.querySelector('#app-main');
 
         expect(container.querySelector('#app-shell')).not.toBeNull();
@@ -189,14 +210,14 @@ describe('a page of the app that throws', () =>
 
     it('is written down where every failure of a page is', async () =>
     {
-        await opened('/app', APP, '/app/boom', '[data-page-failed]');
+        await opened('/app', app(), '/app/boom', '[data-page-failed]');
 
         expect(said).toHaveBeenCalledWith('[nura] a page threw, and its shell kept the rest of the app', expect.objectContaining({ message: 'the page could not be drawn' }));
     });
 
     it('names the tab for what happened, until the reader goes elsewhere', async () =>
     {
-        const { router } = await opened('/app', APP, '/app/boom', '[data-page-failed]');
+        const { router } = await opened('/app', app(), '/app/boom', '[data-page-failed]');
 
         expect(document.title).toContain('This page stopped working. · Baziche');
 
@@ -208,7 +229,7 @@ describe('a page of the app that throws', () =>
 
     it('is caught when it throws after it was drawn', async () =>
     {
-        const { container } = await opened('/app', APP, '/app/later', '[data-page="later"]');
+        const { container } = await opened('/app', app(), '/app/later', '[data-page="later"]');
 
         trip(true);
         await settle();
@@ -221,7 +242,7 @@ describe('a page of the app that throws', () =>
 
     it('is built afresh at Try again', async () =>
     {
-        const { container } = await opened('/app', APP, '/app/flaky', '[data-page-failed]');
+        const { container } = await opened('/app', app(), '/app/flaky', '[data-page-failed]');
 
         retry(container)!.click();
         await settle();
@@ -233,7 +254,7 @@ describe('a page of the app that throws', () =>
 
     it('says why when its code could not be fetched, and fetches it again at Try again', async () =>
     {
-        const { container } = await opened('/app', APP, '/app/lost', '[data-page-failed]');
+        const { container } = await opened('/app', app(), '/app/lost', '[data-page-failed]');
         const lead = () => failed(container)?.querySelector('[data-failed-lead]')?.textContent;
 
         expect(lead()).toBe('The server could not be reached. Check your connection, then try again.');
@@ -256,18 +277,33 @@ describe('a page of the app that throws', () =>
         expect(failed(container)).not.toBeNull();
         expect(lead(), 'the second failure was said as the first').toBe('You are offline. Check your connection, then try again.');
         expect(retry(container)?.getAttribute('aria-busy')).not.toBe('true');
+        expect(reloads, 'the page was loaded again with no server to load it from').toBe(0);
 
         reachable = true;
+        answering = true;
         retry(container)!.click();
         await settle();
 
         expect(failed(container)).toBeNull();
         expect(container.querySelector('[data-page="lost"]')).not.toBeNull();
+        expect(reloads, 'the page was loaded again when asking for its code was enough').toBe(0);
+    });
+
+    it('loads the page at Try again when its code still cannot be had and the server answers', async () =>
+    {
+        const { container } = await opened('/app', app(), '/app/lost', '[data-page-failed]');
+
+        answering = true;
+        retry(container)!.click();
+        await settle();
+
+        expect(reloads).toBe(1);
+        expect(retry(container)?.getAttribute('aria-busy'), 'Try again said it was done while the page was going').toBe('true');
     });
 
     it('lets the failure go once the router has gone elsewhere, and draws where it went', async () =>
     {
-        const { router, container } = await opened('/app', APP, '/app/boom', '[data-page-failed]');
+        const { router, container } = await opened('/app', app(), '/app/boom', '[data-page-failed]');
 
         router.navigate('/app/fine');
         await settle();
@@ -278,7 +314,7 @@ describe('a page of the app that throws', () =>
 
     it('is tried again when the reader comes back to it, and not built again on the way out', async () =>
     {
-        const { router, container } = await opened('/app', APP, '/app/flaky', '[data-page-failed]');
+        const { router, container } = await opened('/app', app(), '/app/flaky', '[data-page-failed]');
 
         router.navigate('/app/fine');
         await settle();
@@ -296,7 +332,7 @@ describe('a page of the app that throws', () =>
 
     it('leads home, and offers no way home on Home itself', async () =>
     {
-        const { container } = await opened('/app', APP, '/app/boom', '[data-page-failed]');
+        const { container } = await opened('/app', app(), '/app/boom', '[data-page-failed]');
 
         home(container)!.click();
         await settle();
@@ -306,7 +342,7 @@ describe('a page of the app that throws', () =>
 
         cleanup();
 
-        const homeless = await opened('/app', [{ path: '', component: broken }, ...APP.slice(1)], '/app', '[data-page-failed]');
+        const homeless = await opened('/app', [{ path: '', component: broken }, ...app().slice(1)], '/app', '[data-page-failed]');
 
         expect(home(homeless.container)).toBeNull();
         expect(retry(homeless.container)).not.toBeNull();
@@ -316,7 +352,7 @@ describe('a page of the app that throws', () =>
     {
         useLocale().setLocale('fa');
 
-        const { container } = await opened('/app', APP, '/app/boom', '[data-page-failed]');
+        const { container } = await opened('/app', app(), '/app/boom', '[data-page-failed]');
 
         expect(failed(container)?.querySelector('h1')?.textContent).toBe('این صفحه از کار افتاد.');
         expect(failed(container)?.querySelector('[data-failed-lead]')?.textContent).toBe('موقع نشون دادنش یه چیزی خراب شد. بقیهٔ بازیچه هنوز کار می‌کنه.');

@@ -1,0 +1,42 @@
+import { useLocale } from '../../stores/locale.store.ts';
+
+/**
+ * The first thing the keyboard meets in a shell: past the navigation to the page, in the public
+ * shell's words and look.
+ *
+ * It hands the keyboard to the page's own `[data-route-focus]`, as the router does after a
+ * navigation, or to the region itself for as long as it holds it. The press never reaches the
+ * address: a `#` there is another entry in the history, which the back arrow would count.
+ * Until it holds the keyboard it is a clipped pixel, so it neither shows nor takes a press, and
+ * it stays `fixed` when it does, because a shell's root is a grid it would otherwise join.
+ */
+export default component SkipLink(props: { region: string })
+{
+    const locale = useLocale();
+
+    const skip = (event: MouseEvent) =>
+    {
+        event.preventDefault();
+        const region = document.getElementById(props.region);
+        const target = region?.querySelector<HTMLElement>('[data-route-focus]') ?? region;
+        if (target === null || target === undefined)
+        {
+            return;
+        }
+        if (!target.hasAttribute('tabindex'))
+        {
+            target.setAttribute('tabindex', '-1');
+            target.addEventListener('blur', () => target.removeAttribute('tabindex'), { once: true });
+        }
+        target.focus({ preventScroll: true });
+    };
+
+    <a
+        href={ `#${ props.region }` }
+        class="fixed start-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-(--z-overlay) h-px w-px overflow-hidden whitespace-nowrap rounded-control bg-accent-fill text-ui-base font-semibold text-accent-ink [clip-path:inset(50%)] focus:h-auto focus:w-auto focus:overflow-visible focus:px-4 focus:py-2 focus:[clip-path:none]"
+        onClick={ skip }
+        data-skip
+    >
+        { locale.t('a11y.skip') }
+    </a>
+}

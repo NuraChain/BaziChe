@@ -19,6 +19,7 @@ import { ACTIVE_ROW } from '../app/nav-items.ts';
 import OverlayHost from '../app/overlay-host.component.azeroth';
 import PageFailed from '../app/page-failed.component.azeroth';
 import { watchSignedOut } from '../app/sign-out.ts';
+import SkipLink from '../app/skip-link.component.azeroth';
 import ToastHost from '../app/toast-host.component.azeroth';
 import Avatar from '../ui/avatar.component.azeroth';
 import Badge from '../ui/badge.component.azeroth';
@@ -132,6 +133,7 @@ export default component AdminShell(props: { children?: MountNode })
 
     <div class="contents">
         <div id="admin-shell" inert={ overlay.blocking() } class="min-h-dvh bg-void text-text md:grid md:grid-cols-[4.5rem_minmax(0,1fr)] lg:grid-cols-[15rem_minmax(0,1fr)]">
+            <SkipLink region="admin-main" />
             <aside class="hidden border-e border-line md:block" data-side>
                 <div class="safe-t safe-b sticky top-0 flex h-dvh flex-col bg-void">
                     <div class="flex h-16 shrink-0 items-center gap-3 px-3.5 max-lg:justify-center">
@@ -223,7 +225,7 @@ export default component AdminShell(props: { children?: MountNode })
 
                 <AdminOffline />
 
-                <main id="admin-main" class="min-w-0 px-4 pb-[calc(var(--nav-room)+1.5rem)] pt-5 sm:px-6 md:px-8 md:pb-12 md:pt-8">
+                <main id="admin-main" class="min-w-0 px-4 pb-[calc(var(--nav-room)+1.5rem)] pt-5 focus:outline-none sm:px-6 md:px-8 md:pb-12 md:pt-8">
                     <div class="mx-auto w-full max-w-[80rem]">
                         <ErrorBoundary fallback={ (error, reset) => <PageFailed error={ error } reset={ reset } home="/admin/overview" homeLabel={ locale.t('admin.home') } /> }>
                             <Outlet children={ props.children } />

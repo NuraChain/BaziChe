@@ -32,6 +32,7 @@ import NavRail from './nav-rail.component.azeroth';
 import OverlayHost from './overlay-host.component.azeroth';
 import PageFailed from './page-failed.component.azeroth';
 import Sidebar from './sidebar.component.azeroth';
+import SkipLink from './skip-link.component.azeroth';
 import SocialPanel from './social-panel.component.azeroth';
 import ToastHost from './toast-host.component.azeroth';
 import EmojiPopover from '../chat/emoji-popover.component.azeroth';
@@ -159,6 +160,7 @@ export default component AppShell(props: { children?: MountNode })
                 posture === 'phone' || bare ? 'grid-cols-1' : (compact ? 'grid-cols-[var(--rail-w)_minmax(0,1fr)]' : 'grid-cols-[var(--sidebar-w)_minmax(0,1fr)]')
             ].join(' ') }
         >
+            <SkipLink region="app-main" />
             <Show when={ compact }>{ () => <NavRail /> }</Show>
             <Show when={ posture === 'sidebar' && !compact && !bare }>{ () => <Sidebar /> }</Show>
 
@@ -166,7 +168,7 @@ export default component AppShell(props: { children?: MountNode })
                 <Show when={ showTopBar }>{ () => <TopBar /> }</Show>
                 <Show when={ stripped && !immersive }>{ () => strips.draw?.() }</Show>
                 <div class="flex min-h-0 flex-1">
-                    <main id="app-main" class="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+                    <main id="app-main" class="relative min-h-0 min-w-0 flex-1 overflow-hidden focus:outline-none">
                         <ErrorBoundary fallback={ (error, reset) => <PageFailed error={ error } reset={ reset } home="/app" homeLabel={ locale.t('page.home') } class="h-full overflow-y-auto" /> }>
                             <Outlet children={ props.children } />
                         </ErrorBoundary>

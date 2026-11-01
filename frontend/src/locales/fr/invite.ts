@@ -50,5 +50,38 @@ export const invite: Pick<Dictionary, keyof typeof reference> = {
     'invite.page.renewLead': 'Tous les liens avec ton code actuel cessent de fonctionner, où que tu les aies partagés, et tu ne pourras en créer un autre qu’au bout d’un jour.',
     'invite.page.renewed': 'Ton nouveau code est prêt. Partage le nouveau lien.',
     'invite.page.soon': 'Tu as créé un nouveau code il y a moins d’un jour.',
-    'invite.page.nextAt': 'Tu pourras en créer un autre {when}.'
+    'invite.page.nextAt': 'Tu pourras en créer un autre {when}.',
+    'invite.page.tabs': 'Vos invitations',
+    'invite.page.tab.link': 'Votre lien',
+    'invite.page.tab.top': 'Meilleurs parrains',
+    'invite.top.title': 'Meilleurs parrains',
+    'invite.top.inCampaign': 'Amis qui ont joué pendant « {campaign} »',
+    'invite.top.allTime': 'Amis qui ont joué, depuis le début',
+    'invite.top.friends': {
+        one: 'ami',
+        many: 'amis',
+        other: 'amis'
+    },
+    'invite.top.yourPlace': 'Votre place : {place}',
+    'invite.top.notYet': 'Vous n’y êtes pas encore. Un ami qui arrive par votre lien et joue une partie vous y fait entrer.',
+    'invite.top.hidden': 'Vous avez choisi de ne pas apparaître ici.',
+    'invite.top.settings': 'Le changer dans les Réglages',
+    'invite.top.minor': 'Les joueurs de moins de 18 ans n’apparaissent pas ici.',
+    'invite.top.empty': 'Personne pour l’instant.',
+    'invite.top.failed': 'La liste des meilleurs parrains n’a pas pu être lue.',
+    'invite.campaign.title': '« {campaign} » est en cours',
+    'invite.campaign.forYou': 'À vous pour chaque ami qui joue',
+    'invite.campaign.forFriend': 'À votre ami dès sa première partie',
+    'invite.campaign.milestone': {
+        one: 'À vous quand {friends} ami a joué',
+        many: 'À vous quand {friends} amis ont joué',
+        other: 'À vous quand {friends} amis ont joué'
+    },
+    'invite.campaign.most': {
+        one: 'Jusqu’à {looks} apparence chacun',
+        many: 'Jusqu’à {looks} apparences chacun',
+        other: 'Jusqu’à {looks} apparences chacun'
+    },
+    'invite.campaign.review': 'Notre équipe vérifie chaque récompense avant de la donner.',
+    'invite.campaign.until': 'Jusqu’au {when}'
 };

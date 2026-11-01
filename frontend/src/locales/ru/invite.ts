@@ -50,5 +50,41 @@ export const invite: Pick<Dictionary, keyof typeof reference> = {
     'invite.page.renewLead': 'Все ссылки с текущим кодом перестанут работать, где бы ты ими ни делился, а следующий код можно будет создать только через день.',
     'invite.page.renewed': 'Новый код готов. Поделись новой ссылкой.',
     'invite.page.soon': 'Новый код создавался меньше суток назад.',
-    'invite.page.nextAt': 'Следующий можно будет создать {when}.'
+    'invite.page.nextAt': 'Следующий можно будет создать {when}.',
+    'invite.page.tabs': 'Ваши приглашения',
+    'invite.page.tab.link': 'Ваша ссылка',
+    'invite.page.tab.top': 'Лучшие пригласившие',
+    'invite.top.title': 'Лучшие пригласившие',
+    'invite.top.inCampaign': 'Друзья, сыгравшие во время «{campaign}»',
+    'invite.top.allTime': 'Друзья, сыгравшие за всё время',
+    'invite.top.friends': {
+        one: 'друг',
+        few: 'друга',
+        many: 'друзей',
+        other: 'друга'
+    },
+    'invite.top.yourPlace': 'Ваше место: {place}',
+    'invite.top.notYet': 'Вас пока нет в списке. Друг, который придёт по вашей ссылке и сыграет партию, добавит вас туда.',
+    'invite.top.hidden': 'Вы решили не показываться здесь.',
+    'invite.top.settings': 'Изменить в настройках',
+    'invite.top.minor': 'Игроки младше 18 лет здесь не показываются.',
+    'invite.top.empty': 'Здесь пока никого нет.',
+    'invite.top.failed': 'Не удалось прочитать список лучших пригласивших.',
+    'invite.campaign.title': '«{campaign}» идёт сейчас',
+    'invite.campaign.forYou': 'Ваш за каждого сыгравшего друга',
+    'invite.campaign.forFriend': 'Вашего друга после его первой партии',
+    'invite.campaign.milestone': {
+        one: 'Ваш, когда сыграет {friends} друг',
+        few: 'Ваш, когда сыграют {friends} друга',
+        many: 'Ваш, когда сыграют {friends} друзей',
+        other: 'Ваш, когда сыграют {friends} друга'
+    },
+    'invite.campaign.most': {
+        one: 'До {looks} облика на человека',
+        few: 'До {looks} обликов на человека',
+        many: 'До {looks} обликов на человека',
+        other: 'До {looks} облика на человека'
+    },
+    'invite.campaign.review': 'Наша команда проверяет каждую награду перед выдачей.',
+    'invite.campaign.until': 'До {when}'
 };

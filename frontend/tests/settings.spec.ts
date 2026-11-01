@@ -9,10 +9,12 @@ import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import '../src/locales/app-catalogue.ts';
 import { useAccount } from '../src/stores/account.store.ts';
 import { useDonations } from '../src/stores/donations.store.ts';
+import { useInviteListed } from '../src/stores/invite-listed.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { defaultSettings, useSettings } from '../src/stores/settings.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
+import { useToasts } from '../src/stores/toasts.store.ts';
 import { establishAccount, server } from './fake-api.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
@@ -449,5 +451,128 @@ describe('NURA from people watching', () =>
         const container = await show(SettingsPage as unknown as () => HTMLElement, '/app/me/settings');
 
         expect(donationsSwitch(container, 'تماشاچیا بتونن واسم NURA بفرستن')?.getAttribute('aria-checked')).toBe('false');
+    });
+});
+
+describe('whether the reader is shown among the top inviters', () =>
+{
+    let seq = 0;
+
+    const signedIn = () =>
+    {
+        seq += 1;
+        useSession().establish(establishAccount('alex', { id: `u-board-${ seq }`, handle: `board${ seq }` }));
+    };
+
+    const boardSwitch = (container: HTMLElement, label = 'Show me among the top inviters') =>
+        [...container.querySelectorAll<HTMLElement>('#settings-safety [role="switch"]')].find((one) => one.querySelector('span span')?.textContent === label);
+
+    const settingsPage = () => show(SettingsPage as unknown as () => HTMLElement, '/app/me/settings');
+
+    it('is a switch of the privacy section, on until the reader turns it off, turned at the press and written through the server', async () =>
+    {
+        signedIn();
+        const container = await settingsPage();
+        const toggle = () => boardSwitch(container);
+
+        expect(toggle()?.getAttribute('aria-checked')).toBe('true');
+        expect(toggle()?.textContent).toContain('Off keeps your name off the top inviters.');
+
+        let let_go = (): void => undefined;
+        server.myInvites.hold = new Promise((resolve) => (let_go = () => resolve()));
+        toggle()!.click();
+        await settle();
+
+        expect(toggle()?.getAttribute('aria-checked')).toBe('false');
+        expect(server.calls).toContain('invites.list false');
+
+        server.myInvites.hold = null;
+        let_go();
+        await settle();
+
+        expect(server.myInvites.listed).toBe(false);
+        expect(toggle()?.getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('turns back when the server refuses, and says so', async () =>
+    {
+        signedIn();
+        const container = await settingsPage();
+
+        server.myInvites.refuse = 'list';
+        boardSwitch(container)!.click();
+        await settle();
+
+        expect(boardSwitch(container)?.getAttribute('aria-checked')).toBe('true');
+        expect(server.myInvites.listed).toBe(true);
+        expect(useToasts().items().map((one) => one.text)).toContain('That did not go through. Try again.');
+        expect(useInviteListed().listed()).toBe(true);
+    });
+
+    it('is drawn off and locked for somebody under 18, with the sentence why', async () =>
+    {
+        server.minor = true;
+        signedIn();
+        const container = await settingsPage();
+        const toggle = boardSwitch(container);
+
+        expect(toggle?.getAttribute('aria-checked')).toBe('false');
+        expect(toggle?.hasAttribute('disabled')).toBe(true);
+        expect(toggle?.textContent).toContain('Players under 18 are never shown among the top inviters.');
+    });
+
+    it('is not drawn until the server has said where the reader stands', async () =>
+    {
+        server.myInvites.refuse = 'listed';
+        signedIn();
+        const container = await settingsPage();
+
+        expect(container.querySelector('#settings-safety')).not.toBeNull();
+        expect(boardSwitch(container)).toBeUndefined();
+    });
+
+    it('says it in Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+        server.myInvites.listed = false;
+        signedIn();
+        const container = await settingsPage();
+
+        expect(boardSwitch(container, 'اسمم بین بهترین دعوت‌کننده‌ها بیاد')?.getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('is where the page opens when the address names its section, as the board\'s way to it does, and nowhere is scrolled to without one', async () =>
+    {
+        const scrolled: string[] = [];
+        const spy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(function (this: Element)
+        {
+            scrolled.push(this.id);
+        });
+
+        for (const at of ['/app/me/settings', '/app/me/settings#nowhere'])
+        {
+            cleanup();
+            signedIn();
+            const plain = await show(SettingsPage as unknown as () => HTMLElement, at);
+
+            clock.advance(1);
+            await settle();
+
+            expect(scrolled.filter((id) => id.startsWith('settings-')), at).toEqual([]);
+            expect(plain.querySelector('[data-section="settings-account"]')?.getAttribute('aria-current'), at).toBe('true');
+        }
+
+        cleanup();
+        signedIn();
+        const container = await show(SettingsPage as unknown as () => HTMLElement, '/app/me/settings#settings-safety');
+
+        expect(scrolled.filter((id) => id.startsWith('settings-'))).toEqual([]);
+
+        clock.advance(1);
+        await settle();
+
+        expect(scrolled).toContain('settings-safety');
+        expect(container.querySelector('[data-section="settings-safety"]')?.getAttribute('aria-current')).toBe('true');
+        spy.mockRestore();
     });
 });

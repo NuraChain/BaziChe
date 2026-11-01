@@ -132,6 +132,9 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.safety.onlineHint': 'Tes amis voient un point vert et à quoi tu joues.',
     'settings.safety.donations': 'Laisser ceux qui regardent t’envoyer des NURA',
     'settings.safety.donationsHint': 'Désactivé, personne qui regarde tes parties ne peut t’envoyer de NURA.',
+    'settings.safety.inviteBoard': 'M’afficher parmi les meilleurs parrains',
+    'settings.safety.inviteBoardHint': 'Désactivé, votre nom n’apparaît pas parmi les meilleurs parrains. Vos amis et vos récompenses restent tels quels.',
+    'settings.safety.inviteBoardLocked': 'Les joueurs de moins de 18 ans n’apparaissent jamais parmi les meilleurs parrains.',
     'settings.safety.reports': 'Mes signalements',
     'settings.safety.reportsLead': 'Chaque signalement que tu envoies, et où il en est.',
 

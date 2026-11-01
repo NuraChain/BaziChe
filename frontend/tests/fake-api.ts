@@ -41,6 +41,7 @@ import type {
     Device,
     DonationsState,
     DonationView,
+    InviteBoard,
     InvitedPeople,
     InviteSummary,
     MarketPositionView,
@@ -953,8 +954,14 @@ const invitesFresh = () => ({
     /** When the next code may be made, which refuses a renewal as `invite-code-soon` while it is set. */
     soon: null as string | null,
 
+    /** The top inviters; `listed` on it is the reader's own switch below, as the server reads it. */
+    board: { listed: true, rows: [] } as InviteBoard,
+
+    /** Whether the reader lets themselves be shown among the top inviters. */
+    listed: true,
+
     /** A read that fails, so a page can be shown and either part of it refused. */
-    refuse: null as 'summary' | 'people' | 'renew' | null,
+    refuse: null as 'summary' | 'people' | 'renew' | 'board' | 'listed' | 'list' | null,
 
     /** A promise every read and the renewal wait on before they are answered. */
     hold: null as Promise<void> | null
@@ -3072,6 +3079,47 @@ export const client =
                 people: structuredClone(server.myInvites.people.slice(from, to)),
                 ...(to < server.myInvites.people.length ? { cursor: String(to) } : {})
             };
+        },
+
+        async board()
+        {
+            server.calls.push('invites.board');
+            await server.myInvites.hold;
+
+            if (server.myInvites.refuse === 'board')
+            {
+                throw new ApiError(503, 'unavailable', 'Not now.', undefined);
+            }
+
+            return structuredClone({ ...server.myInvites.board, listed: server.myInvites.listed });
+        },
+
+        async listed()
+        {
+            server.calls.push('invites.listed');
+            await server.myInvites.hold;
+
+            if (server.myInvites.refuse === 'listed')
+            {
+                throw new ApiError(503, 'unavailable', 'Not now.', undefined);
+            }
+
+            return { listed: server.myInvites.listed };
+        },
+
+        async list({ input }: { input: { on: boolean } })
+        {
+            server.calls.push(`invites.list ${ input.on }`);
+            await server.myInvites.hold;
+
+            if (server.myInvites.refuse === 'list')
+            {
+                throw new ApiError(503, 'unavailable', 'Not now.', undefined);
+            }
+
+            server.myInvites.listed = input.on;
+
+            return { listed: input.on };
         }
     },
 

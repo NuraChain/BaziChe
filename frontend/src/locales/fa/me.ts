@@ -132,6 +132,9 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.safety.onlineHint': 'دوستات یه نقطه‌ی سبز می‌بینن و اینکه داری چی بازی می‌کنی.',
     'settings.safety.donations': 'تماشاچیا بتونن واسم NURA بفرستن',
     'settings.safety.donationsHint': 'اگه خاموش باشه، هیچ‌کس موقع تماشای بازی‌هات نمی‌تونه واست NURA بفرسته.',
+    'settings.safety.inviteBoard': 'اسمم بین بهترین دعوت‌کننده‌ها بیاد',
+    'settings.safety.inviteBoardHint': 'اگه خاموشش کنی، اسمت توی فهرست بهترین دعوت‌کننده‌ها نمیاد. دوست‌ها و جایزه‌هات سر جاشون می‌مونن.',
+    'settings.safety.inviteBoardLocked': 'اسم بازیکن‌های زیر ۱۸ سال هیچ‌وقت بین بهترین دعوت‌کننده‌ها نمیاد.',
     'settings.safety.reports': 'گزارش‌های من',
     'settings.safety.reportsLead': 'هر گزارشی که فرستادی، و اینکه به کجا رسیده.',
 

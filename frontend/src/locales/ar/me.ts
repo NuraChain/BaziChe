@@ -132,6 +132,9 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.safety.onlineHint': 'يرى أصدقاؤك نقطة خضراء وما تلعبه.',
     'settings.safety.donations': 'السماح للمشاهدين بإرسال NURA إليك',
     'settings.safety.donationsHint': 'عند الإيقاف لا يستطيع أحد ممن يشاهدون ألعابك إرسال NURA إليك.',
+    'settings.safety.inviteBoard': 'أظهرني بين أفضل الداعين',
+    'settings.safety.inviteBoardHint': 'إيقافه يُبقي اسمك خارج قائمة أفضل الداعين. أصدقاؤك ومكافآتك تبقى كما هي.',
+    'settings.safety.inviteBoardLocked': 'لا يظهر اللاعبون دون 18 عامًا بين أفضل الداعين أبدًا.',
     'settings.safety.reports': 'بلاغاتي',
     'settings.safety.reportsLead': 'كل بلاغ أرسلته، وإلى أين وصل.',
 

@@ -50,5 +50,35 @@ export const invite: Pick<Dictionary, keyof typeof reference> = {
     'invite.page.renewLead': 'Mevcut kodunu taşıyan tüm bağlantılar, nerede paylaştıysan, çalışmayı bırakır ve bir sonrakini ancak bir gün sonra oluşturabilirsin.',
     'invite.page.renewed': 'Yeni kodun hazır. Yeni bağlantıyı paylaş.',
     'invite.page.soon': 'Bir günden kısa süre önce yeni bir kod oluşturdun.',
-    'invite.page.nextAt': 'Bir tane daha {when} oluşturabilirsin.'
+    'invite.page.nextAt': 'Bir tane daha {when} oluşturabilirsin.',
+    'invite.page.tabs': 'Davetlerin',
+    'invite.page.tab.link': 'Bağlantın',
+    'invite.page.tab.top': 'En çok davet edenler',
+    'invite.top.title': 'En çok davet edenler',
+    'invite.top.inCampaign': '“{campaign}” sırasında oynayan arkadaşlar',
+    'invite.top.allTime': 'Oynayan arkadaşlar, tüm zamanlar',
+    'invite.top.friends': {
+        one: 'arkadaş',
+        other: 'arkadaş'
+    },
+    'invite.top.yourPlace': 'Sıran: {place}',
+    'invite.top.notYet': 'Henüz listede değilsin. Bağlantınla katılıp bir oyun oynayan bir arkadaş seni buraya taşır.',
+    'invite.top.hidden': 'Burada görünmemeyi seçtin.',
+    'invite.top.settings': 'Ayarlar’dan değiştir',
+    'invite.top.minor': '18 yaşından küçük oyuncular burada görünmez.',
+    'invite.top.empty': 'Henüz kimse yok.',
+    'invite.top.failed': 'En çok davet edenler listesi okunamadı.',
+    'invite.campaign.title': '“{campaign}” sürüyor',
+    'invite.campaign.forYou': 'Oynayan her arkadaş için senin',
+    'invite.campaign.forFriend': 'Bir oyun oynadığında arkadaşının',
+    'invite.campaign.milestone': {
+        one: '{friends} arkadaşın oynadığında senin',
+        other: '{friends} arkadaşın oynadığında senin'
+    },
+    'invite.campaign.most': {
+        one: 'Kişi başı {looks} görünüme kadar',
+        other: 'Kişi başı {looks} görünüme kadar'
+    },
+    'invite.campaign.review': 'Ekibimiz her ödülü vermeden önce kontrol eder.',
+    'invite.campaign.until': '{when} tarihine kadar'
 };

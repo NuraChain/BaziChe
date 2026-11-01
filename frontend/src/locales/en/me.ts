@@ -129,6 +129,9 @@ export const me = {
     'settings.safety.onlineHint': 'Friends see a green dot and what you’re playing.',
     'settings.safety.donations': 'Let people watching send you NURA',
     'settings.safety.donationsHint': 'Off means nobody watching your games can send you NURA.',
+    'settings.safety.inviteBoard': 'Show me among the top inviters',
+    'settings.safety.inviteBoardHint': 'Off keeps your name off the top inviters. Your friends and your rewards stay as they are.',
+    'settings.safety.inviteBoardLocked': 'Players under 18 are never shown among the top inviters.',
     'settings.safety.reports': 'My reports',
     'settings.safety.reportsLead': 'Every report you send, and where it got to.',
 

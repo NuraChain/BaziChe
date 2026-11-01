@@ -50,5 +50,38 @@ export const invite: Pick<Dictionary, keyof typeof reference> = {
     'invite.page.renewLead': 'Todo link com o seu código atual para de funcionar, onde quer que você tenha compartilhado, e você só pode criar outro depois de um dia.',
     'invite.page.renewed': 'Seu código novo está pronto. Compartilhe o link novo.',
     'invite.page.soon': 'Você criou um código novo há menos de um dia.',
-    'invite.page.nextAt': 'Você pode criar outro {when}.'
+    'invite.page.nextAt': 'Você pode criar outro {when}.',
+    'invite.page.tabs': 'Seus convites',
+    'invite.page.tab.link': 'Seu link',
+    'invite.page.tab.top': 'Quem mais convidou',
+    'invite.top.title': 'Quem mais convidou',
+    'invite.top.inCampaign': 'Amigos que jogaram durante “{campaign}”',
+    'invite.top.allTime': 'Amigos que jogaram, desde sempre',
+    'invite.top.friends': {
+        one: 'amigo',
+        many: 'amigos',
+        other: 'amigos'
+    },
+    'invite.top.yourPlace': 'Sua posição: {place}',
+    'invite.top.notYet': 'Você ainda não está na lista. Um amigo que entrar pelo seu link e jogar uma partida coloca você nela.',
+    'invite.top.hidden': 'Você escolheu não aparecer aqui.',
+    'invite.top.settings': 'Mude nas Configurações',
+    'invite.top.minor': 'Jogadores com menos de 18 anos não aparecem aqui.',
+    'invite.top.empty': 'Ainda não há ninguém.',
+    'invite.top.failed': 'Não foi possível ler a lista de quem mais convidou.',
+    'invite.campaign.title': '“{campaign}” está rolando',
+    'invite.campaign.forYou': 'Seu a cada amigo que jogar',
+    'invite.campaign.forFriend': 'Do seu amigo quando ele jogar uma partida',
+    'invite.campaign.milestone': {
+        one: 'Seu quando {friends} amigo tiver jogado',
+        many: 'Seu quando {friends} amigos tiverem jogado',
+        other: 'Seu quando {friends} amigos tiverem jogado'
+    },
+    'invite.campaign.most': {
+        one: 'Até {looks} visual por pessoa',
+        many: 'Até {looks} visuais por pessoa',
+        other: 'Até {looks} visuais por pessoa'
+    },
+    'invite.campaign.review': 'Nossa equipe confere cada recompensa antes de entregá-la.',
+    'invite.campaign.until': 'Até {when}'
 };

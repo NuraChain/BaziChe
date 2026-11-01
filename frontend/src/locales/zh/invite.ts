@@ -50,5 +50,32 @@ export const invite: Pick<Dictionary, keyof typeof reference> = {
     'invite.page.renewLead': '带有当前邀请码的所有链接都会失效，无论你分享到哪里；而且一天之后才能再生成新的。',
     'invite.page.renewed': '新邀请码已就绪。分享新的链接吧。',
     'invite.page.soon': '你在一天之内已经生成过新邀请码。',
-    'invite.page.nextAt': '你可以在{when}再生成一个。'
+    'invite.page.nextAt': '你可以在{when}再生成一个。',
+    'invite.page.tabs': '你的邀请',
+    'invite.page.tab.link': '你的链接',
+    'invite.page.tab.top': '邀请排行',
+    'invite.top.title': '邀请排行',
+    'invite.top.inCampaign': '在“{campaign}”期间玩过的朋友',
+    'invite.top.allTime': '玩过的朋友，全部时间',
+    'invite.top.friends': {
+        other: '位朋友'
+    },
+    'invite.top.yourPlace': '你的名次：{place}',
+    'invite.top.notYet': '你还不在榜上。有朋友通过你的链接加入并玩一局，你就会上榜。',
+    'invite.top.hidden': '你选择了不在这里显示。',
+    'invite.top.settings': '在设置中更改',
+    'invite.top.minor': '未满 18 岁的玩家不会显示在这里。',
+    'invite.top.empty': '榜上还没有人。',
+    'invite.top.failed': '无法读取邀请排行。',
+    'invite.campaign.title': '“{campaign}”进行中',
+    'invite.campaign.forYou': '每有一位朋友玩过，你得一件',
+    'invite.campaign.forFriend': '朋友玩过一局后归他所有',
+    'invite.campaign.milestone': {
+        other: '有 {friends} 位朋友玩过后归你'
+    },
+    'invite.campaign.most': {
+        other: '每人最多 {looks} 件外观'
+    },
+    'invite.campaign.review': '每份奖励发放前都会经过我们团队审核。',
+    'invite.campaign.until': '截至 {when}'
 };

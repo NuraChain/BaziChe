@@ -157,15 +157,46 @@ draws whole. While `next` is ahead the button is not offered and the page says w
 clock and the server's time put on this device's (`toLocal`), and a renewal refused `invite-code-soon`
 says so and reads the summary again.
 
+**What the campaign running now gives stands under the link** (`InviteCampaign`, a chunk of its own
+behind `LazyInviteCampaign`, because it reads the shop's words): each look in its drawing with what it
+is given for (each friend who plays, the friend's own once they play, a milestone of friends), the most
+anybody is given and when it ends, and that every reward is looked at first where it is; a look
+pressed opens the shop's own sheet about it. A look this copy of the app does not sell is not drawn,
+and with no campaign running there is nothing.
+
+**The top inviters are the page's second tab** (`tab=top` in the address, the link never written, a
+word the page does not know the link): read each time the tab is opened (`readBoard`, the newest
+answer only, and nothing kept once the page has gone) and drawn by `TopInviters`
+(`components/social/top-inviters`) as the game leaderboard's rows: the place, the face, "You" on the
+reader's own row and the friends who played, under whose campaign they count in or that they count
+all time. Under the rows, one sentence of where the reader stands: their place past the twenty with
+their friends, that they are not on it yet, that they chose not to be shown with the way to the
+switch in Settings, or that somebody under 18 is never shown. "Nobody is on it yet." only once the
+server has said so, a read that failed is a failure with Try again, and a row pressed opens the sheet
+about that person. The store asks who the people on the board are, and the friends invited, once each
+list lands (`people.want`): the sheet about somebody names them only from what the people store holds,
+and until the walk found it the sheet named everybody on these two lists by their handle and a "?".
+
+**The switch is in Settings › Privacy & safety** ("Show me among the top inviters",
+`stores/invite-listed.store.ts`): drawn once the server has said where the reader stands, turned at
+the press and back with the refusal's sentence, and drawn off and locked, with the sentence why, for
+somebody under 18. An answer counts only for the account it was read for, so another account signed
+in on the page is never shown the last one's. The board's way to it is
+`/app/me/settings#settings-safety`, and Settings opens on the section its address names.
+
 **Its doors**: "Invite friends" beside Add friend at the head of the Friends page, and a chip on
 `/app/me` beside the collection's (`components/social/invite-chip`, which imports nothing of the page).
-The words are the invite catalogue's (`invite.page.*`), and the two doors' the app's (`me.invite`,
-`me.inviteLead`, `friends.invite`), in ten languages.
+The words are the invite catalogue's (`invite.page.*`, `invite.top.*`, `invite.campaign.*`), and the
+two doors' and the switch's the app's (`me.invite`, `me.inviteLead`, `friends.invite`,
+`settings.safety.inviteBoard*`), in ten languages.
 
 `invite-page.spec.ts` holds the page in each state and in Persian, the QR drawn as the code for the
 link and nothing else, the three apps' links and the system's sheet, the friends a page at a time
-with the rows kept, the renewal and every way it ends, and its place in the route table;
-`invite-doors.spec.ts` the two doors.
+with the rows kept, the renewal and every way it ends, the top inviters (the tab and the address, the
+rows, where the reader stands, a read held and one refused, the rows kept, a late answer) and the
+campaign (its looks, the sheet, what it leaves out, Persian, and the shop kept out of the page's own
+chunk), and its place in the route table; `invite-doors.spec.ts` the two doors; `settings.spec.ts`
+(*whether the reader is shown among the top inviters*) the switch.
 
 ## A friend who played
 

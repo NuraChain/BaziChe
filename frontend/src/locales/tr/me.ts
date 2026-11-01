@@ -132,6 +132,9 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.safety.onlineHint': 'Arkadaşların yeşil bir nokta ve ne oynadığını görür.',
     'settings.safety.donations': 'İzleyenler sana NURA gönderebilsin',
     'settings.safety.donationsHint': 'Kapalıyken oyunlarını izleyen hiç kimse sana NURA gönderemez.',
+    'settings.safety.inviteBoard': 'Beni en çok davet edenler arasında göster',
+    'settings.safety.inviteBoardHint': 'Kapalıyken adın en çok davet edenler arasında görünmez. Arkadaşların ve ödüllerin olduğu gibi kalır.',
+    'settings.safety.inviteBoardLocked': '18 yaşından küçük oyuncular en çok davet edenler arasında hiç görünmez.',
     'settings.safety.reports': 'Şikâyetlerim',
     'settings.safety.reportsLead': 'Gönderdiğin her şikâyet ve vardığı yer.',
 

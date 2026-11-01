@@ -132,6 +132,9 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.safety.onlineHint': 'Друзья видят зелёную точку и во что ты играешь.',
     'settings.safety.donations': 'Разрешить зрителям отправлять тебе NURA',
     'settings.safety.donationsHint': 'Если выключено, никто из смотрящих твои игры не сможет отправить тебе NURA.',
+    'settings.safety.inviteBoard': 'Показывать меня среди лучших пригласивших',
+    'settings.safety.inviteBoardHint': 'Если выключить, вашего имени не будет среди лучших пригласивших. Друзья и награды останутся как есть.',
+    'settings.safety.inviteBoardLocked': 'Игроки младше 18 лет никогда не показываются среди лучших пригласивших.',
     'settings.safety.reports': 'Мои жалобы',
     'settings.safety.reportsLead': 'Все отправленные тобой жалобы и что с ними стало.',
 

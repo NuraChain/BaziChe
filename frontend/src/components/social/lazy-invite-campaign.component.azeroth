@@ -1,0 +1,26 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+import type { RunningCampaign } from './invite-campaign.component.azeroth';
+
+type Campaign = (props: { campaign: RunningCampaign }) => MountNode;
+
+/** The campaign running now, a chunk of its own, so the invite page carries none of the shop's words. */
+export default component LazyInviteCampaign(props: { campaign: RunningCampaign })
+{
+    let Campaign: Campaign | null = null;
+
+    state loaded = false;
+
+    mount
+    {
+        void import('./invite-campaign.component.azeroth').then((module) =>
+        {
+            Campaign = module.default as Campaign;
+            loaded = true;
+        }, () => undefined);
+    }
+
+    <Show when={ loaded }>
+        { () => <Dynamic component={ Campaign! } props={ () => ({ campaign: props.campaign }) } /> }
+    </Show>
+}

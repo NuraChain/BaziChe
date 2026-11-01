@@ -50,5 +50,38 @@ export const invite: Pick<Dictionary, keyof typeof reference> = {
     'invite.page.renewLead': 'Todos los enlaces con tu código actual dejan de funcionar, dondequiera que los compartieras, y no podrás crear otro hasta dentro de un día.',
     'invite.page.renewed': 'Tu código nuevo está listo. Comparte el enlace nuevo.',
     'invite.page.soon': 'Creaste un código nuevo hace menos de un día.',
-    'invite.page.nextAt': 'Podrás crear otro {when}.'
+    'invite.page.nextAt': 'Podrás crear otro {when}.',
+    'invite.page.tabs': 'Tus invitaciones',
+    'invite.page.tab.link': 'Tu enlace',
+    'invite.page.tab.top': 'Mejores anfitriones',
+    'invite.top.title': 'Mejores anfitriones',
+    'invite.top.inCampaign': 'Amigos que jugaron durante «{campaign}»',
+    'invite.top.allTime': 'Amigos que jugaron, desde siempre',
+    'invite.top.friends': {
+        one: 'amigo',
+        many: 'amigos',
+        other: 'amigos'
+    },
+    'invite.top.yourPlace': 'Tu puesto: {place}',
+    'invite.top.notYet': 'Aún no estás en la lista. Un amigo que entre con tu enlace y juegue una partida te pone en ella.',
+    'invite.top.hidden': 'Elegiste no aparecer aquí.',
+    'invite.top.settings': 'Cámbialo en Ajustes',
+    'invite.top.minor': 'Los jugadores menores de 18 no aparecen aquí.',
+    'invite.top.empty': 'Todavía no hay nadie.',
+    'invite.top.failed': 'No se pudo leer la lista de mejores anfitriones.',
+    'invite.campaign.title': '«{campaign}» está en marcha',
+    'invite.campaign.forYou': 'Tuyo por cada amigo que juegue',
+    'invite.campaign.forFriend': 'De tu amigo cuando juegue una partida',
+    'invite.campaign.milestone': {
+        one: 'Tuyo cuando haya jugado {friends} amigo',
+        many: 'Tuyo cuando hayan jugado {friends} amigos',
+        other: 'Tuyo cuando hayan jugado {friends} amigos'
+    },
+    'invite.campaign.most': {
+        one: 'Hasta {looks} aspecto por persona',
+        many: 'Hasta {looks} aspectos por persona',
+        other: 'Hasta {looks} aspectos por persona'
+    },
+    'invite.campaign.review': 'Nuestro equipo revisa cada recompensa antes de darla.',
+    'invite.campaign.until': 'Hasta el {when}'
 };

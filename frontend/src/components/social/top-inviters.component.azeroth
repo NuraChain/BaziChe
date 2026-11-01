@@ -1,0 +1,125 @@
+import { Link } from 'azerothjs';
+
+import { TOP_INVITERS } from '../../../../backend/src/domains/invite/policy.ts';
+import type { InviteBoard } from '../../api.ts';
+import { aboutPerson } from '../../lib/person-menu.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Avatar from '../ui/avatar.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Panel from '../ui/panel.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+
+/**
+ * The top inviters: whose friends played, in the campaign running now or all time, each in a place of
+ * their own, the reader's row marked, and below it why the reader is not there or where they are when
+ * that is past the twenty.
+ */
+export default component TopInviters(props: { board: InviteBoard | null; failed: boolean; me: string; minor: boolean; onRetry: () => void })
+{
+    const locale = useLocale();
+
+    derived held = props.board;
+
+    derived waiting = held === null && !props.failed;
+
+    derived lost = held === null && props.failed;
+
+    derived shown = held !== null;
+
+    derived rows = held?.rows ?? [];
+
+    derived placed = rows.length > 0;
+
+    derived empty = shown && !placed;
+
+    derived scope = held?.campaign === undefined ? locale.t('invite.top.allTime') : locale.t('invite.top.inCampaign', { campaign: held.campaign.name });
+
+    derived standing = held?.me ?? null;
+
+    derived counted = held !== null && !props.minor && held.listed;
+
+    derived minor = shown && props.minor;
+
+    derived hidden = held !== null && !props.minor && !held.listed;
+
+    derived past = counted && standing !== null && standing.place > TOP_INVITERS;
+
+    derived absent = counted && standing === null;
+
+    derived place = locale.t('invite.top.yourPlace', { place: locale.n(standing?.place ?? 0) });
+
+    derived friends = locale.n(standing?.friends ?? 0);
+
+    derived friendsWord = locale.plural('invite.top.friends', standing?.friends ?? 0);
+
+    <section class="flex flex-col gap-3" aria-labelledby="invite-top" data-top-inviters>
+        <h2 id="invite-top" class="sr-only">{ locale.t('invite.top.title') }</h2>
+        <Show when={ shown }>
+            <p class="text-ui-sm text-muted" data-top-scope>{ scope }</p>
+        </Show>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 5 } avatar class="rounded-panel border border-line bg-field p-4" /> }
+        </Show>
+
+        <Show when={ lost }>
+            { () => <ErrorState title={ locale.t('invite.top.failed') } onRetry={ () => props.onRetry() } /> }
+        </Show>
+
+        <Show when={ empty }>
+            <p class="rounded-panel border border-line bg-field p-4 text-ui-sm text-muted" data-top-empty>{ locale.t('invite.top.empty') }</p>
+        </Show>
+
+        <Show when={ placed }>
+            <Panel pad="none" class="px-2 py-1">
+                <ol class="flex flex-col" data-top-rows>
+                    <For each={ rows } key={ (row) => row.person.handle } let={ row }>
+                        <li class={ () => [ 'border-b border-line last:border-b-0', row.person.handle === props.me ? '-mx-2 rounded-tile bg-accent/8 px-2' : '' ].join(' ') } data-inviter={ row.person.handle }>
+                            <button type="button" class="group flex min-h-14 w-full items-center gap-3 px-2 py-2 text-start" aria-haspopup="dialog" onClick={ () => aboutPerson(row.person.handle) }>
+                                <span class={ () => [
+                                    'tally flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ui-sm font-bold',
+                                    row.place === 1 ? 'bg-gold/15 text-gold' : (row.place <= 3 ? 'bg-raised text-text' : 'text-faint')
+                                ].join(' ') } data-place>
+                                    { locale.n(row.place) }
+                                </span>
+                                <Avatar person={ row.person } size="sm" />
+                                <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+                                    <span class="flex min-w-0 items-center gap-1.5">
+                                        <span class="truncate text-ui-sm font-semibold text-text transition-colors group-hover:text-accent" dir="auto">{ row.person.displayName }</span>
+                                        <span class={ () => [ 'shrink-0 rounded-full bg-accent/15 px-1.5 text-ui-2xs font-semibold text-accent', row.person.handle === props.me ? '' : 'hidden' ].join(' ') } data-you>{ locale.t('common.you') }</span>
+                                    </span>
+                                    <span class="truncate text-ui-xs text-faint" dir="ltr">{ `@${ row.person.handle }` }</span>
+                                </span>
+                                <span class="shrink-0 text-ui-sm text-muted" data-friends>
+                                    <span class="tally font-bold text-text">{ locale.n(row.friends) }</span> { locale.plural('invite.top.friends', row.friends) }
+                                </span>
+                            </button>
+                        </li>
+                    </For>
+                </ol>
+            </Panel>
+        </Show>
+
+        <Show when={ past }>
+            <p class="facts text-ui-sm text-muted" data-top-past>
+                <span class="font-semibold text-text">{ place }</span>
+                <span><span class="tally">{ friends }</span> { friendsWord }</span>
+            </p>
+        </Show>
+
+        <Show when={ absent }>
+            <p class="text-ui-sm text-muted" data-top-absent>{ locale.t('invite.top.notYet') }</p>
+        </Show>
+
+        <Show when={ hidden }>
+            <p class="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-ui-sm text-muted" data-top-hidden>
+                <span>{ locale.t('invite.top.hidden') }</span>
+                <Link to="/app/me/settings#settings-safety" class="font-semibold text-accent hover:underline">{ locale.t('invite.top.settings') }</Link>
+            </p>
+        </Show>
+
+        <Show when={ minor }>
+            <p class="text-ui-sm text-muted" data-top-minor>{ locale.t('invite.top.minor') }</p>
+        </Show>
+    </section>
+}

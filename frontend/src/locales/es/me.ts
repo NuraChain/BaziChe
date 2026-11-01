@@ -132,6 +132,9 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.safety.onlineHint': 'Tus amigos ven un punto verde y a qué estás jugando.',
     'settings.safety.donations': 'Que quien mira pueda enviarte NURA',
     'settings.safety.donationsHint': 'Si está desactivado, nadie que mire tus partidas podrá enviarte NURA.',
+    'settings.safety.inviteBoard': 'Mostrarme entre los mejores anfitriones',
+    'settings.safety.inviteBoardHint': 'Desactivado, tu nombre no sale entre los mejores anfitriones. Tus amigos y tus recompensas siguen igual.',
+    'settings.safety.inviteBoardLocked': 'Los jugadores menores de 18 nunca aparecen entre los mejores anfitriones.',
     'settings.safety.reports': 'Mis denuncias',
     'settings.safety.reportsLead': 'Cada denuncia que envías y en qué ha quedado.',
 

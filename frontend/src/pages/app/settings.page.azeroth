@@ -1,4 +1,4 @@
-import { useHead } from 'azerothjs';
+import { untrack, useHead, useRoute } from 'azerothjs';
 
 import Page from '../../components/app/page.component.azeroth';
 import PageHeader from '../../components/app/page-header.component.azeroth';
@@ -27,6 +27,7 @@ import { attempt } from '../../lib/attempt.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useAccount } from '../../stores/account.store.ts';
 import { useDonations } from '../../stores/donations.store.ts';
+import { useInviteListed } from '../../stores/invite-listed.store.ts';
 import { useDevice } from '../../stores/device.store.ts';
 import { pagingFor, visible } from '../../lib/pagination.ts';
 import { usePageParams } from '../../lib/page-param.ts';
@@ -65,6 +66,7 @@ export default component SettingsPage()
     const voice = useVoice();
     const vaults = useVault();
     const donations = useDonations();
+    const inviteListed = useInviteListed();
 
     useHead({ title: () => locale.t('settings.title') });
 
@@ -129,6 +131,10 @@ export default component SettingsPage()
 
     derived donationsOff = donations.state()?.open === false;
 
+    derived boardKnown = inviteListed.listed() !== null;
+
+    derived onBoard = inviteListed.listed() === true && !privacy.isMinor;
+
     derived muted = visible(allMuted, SAFETY_PAGE, mutedPage, paging);
 
     derived muting = allMuted.length > 0;
@@ -189,24 +195,34 @@ export default component SettingsPage()
         active = current?.id ?? SECTIONS[0].id;
     };
 
-    const go = (id: string) =>
+    const go = (id: string, smooth = true) =>
     {
         active = id;
         pinned?.();
         pinned = runtime().clock.after(900, () => pinned = null);
-        document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: device.reducedMotion() ? 'auto' : 'smooth' });
+        document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: smooth && !device.reducedMotion() ? 'smooth' : 'auto' });
     };
+
+    const route = useRoute();
 
     mount
     {
         const page = body?.closest('.page') ?? null;
+        const asked = untrack(route).hash.slice(1);
 
         page?.addEventListener('scroll', spot, { passive: true });
         spot();
 
+        // A turn later: `Page` puts its scroll back to the top in its own mount, and until then this
+        // page may not be in the document for the section to be found in.
+        const opening = SECTIONS.some((section) => section.id === asked)
+            ? runtime().clock.after(0, () => go(asked, false))
+            : null;
+
         return () =>
         {
             page?.removeEventListener('scroll', spot);
+            opening?.();
             pinned?.();
         };
     }
@@ -322,6 +338,15 @@ export default component SettingsPage()
                                 </Show>
                                 <Show when={ donationsOff }>
                                     <FeatureOff feature="donations" brief />
+                                </Show>
+                                <Show when={ boardKnown }>
+                                    <Toggle
+                                        checked={ onBoard }
+                                        disabled={ privacy.isMinor }
+                                        label={ locale.t('settings.safety.inviteBoard') }
+                                        description={ privacy.isMinor ? locale.t('settings.safety.inviteBoardLocked') : locale.t('settings.safety.inviteBoardHint') }
+                                        onChange={ (checked) => void inviteListed.list(checked) }
+                                    />
                                 </Show>
                             </div>
 

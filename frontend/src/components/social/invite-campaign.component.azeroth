@@ -1,0 +1,79 @@
+import type { InviteSummary } from '../../api.ts';
+import { openLook } from '../../lib/look-sheet.ts';
+import { itemName } from '../../lib/shop.ts';
+import { lookOf } from '../../../../backend/src/domains/shop/catalogue.ts';
+import '../../locales/shop-catalogue.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+
+export type RunningCampaign = NonNullable<InviteSummary['campaign']>;
+
+/**
+ * What the campaign running now gives: the look whoever invites is given for each friend who plays,
+ * the friend's, each milestone's, the most anybody is given and when it ends, each look opening the
+ * shop's own sheet about it.
+ */
+export default component InviteCampaign(props: { campaign: RunningCampaign })
+{
+    const locale = useLocale();
+
+    derived given = [
+        ...(props.campaign.inviter === undefined ? [] : [ { id: 'inviter', item: props.campaign.inviter, said: locale.t('invite.campaign.forYou') } ]),
+        ...(props.campaign.invitee === undefined ? [] : [ { id: 'invitee', item: props.campaign.invitee, said: locale.t('invite.campaign.forFriend') } ]),
+        ...props.campaign.milestones.map((one) => ({
+            id: `milestone-${ one.count }`,
+            item: one.item,
+            said: locale.plural('invite.campaign.milestone', one.count, { friends: locale.n(one.count) })
+        }))
+    ].filter((one) => lookOf(one.item) !== undefined);
+
+    derived title = locale.t('invite.campaign.title', { campaign: props.campaign.name });
+
+    derived capped = props.campaign.most !== undefined;
+
+    derived most = locale.plural('invite.campaign.most', props.campaign.most ?? 0, { looks: locale.n(props.campaign.most ?? 0) });
+
+    derived ends = props.campaign.endsAt !== undefined;
+
+    derived until = props.campaign.endsAt === undefined ? '' : locale.t('invite.campaign.until', { when: locale.date(Date.parse(props.campaign.endsAt), { dateStyle: 'long', timeStyle: 'short' }) });
+
+    derived bounded = capped || ends;
+
+    derived reviewed = props.campaign.review;
+
+    <section class="flex flex-col gap-3 rounded-panel border border-line bg-field p-4 @container sm:p-5" aria-labelledby="invite-campaign" data-invite-campaign>
+        <div class="flex flex-col gap-1">
+            <h2 id="invite-campaign" class="text-ui-lg font-semibold text-text">{ title }</h2>
+            <Show when={ bounded }>
+                <p class="facts text-ui-xs text-muted">
+                    <Show when={ capped }>
+                        <span data-campaign-most>{ most }</span>
+                    </Show>
+                    <Show when={ ends }>
+                        <span data-campaign-until>{ until }</span>
+                    </Show>
+                </p>
+            </Show>
+        </div>
+        <ul class="grid grid-cols-2 gap-2 @md:grid-cols-3 @2xl:grid-cols-4">
+            <For each={ given } key={ (one) => one.id } let={ one }>
+                <li>
+                    <button
+                        type="button"
+                        class="flex h-full w-full flex-col overflow-hidden rounded-tile border border-line bg-sunk text-start transition-colors hover:border-line-strong"
+                        data-gives={ one.id }
+                        onClick={ () => void openLook(one.item) }
+                    >
+                        <img src={ `/looks/${ one.item }.svg` } alt="" width="160" height="120" loading="lazy" decoding="async" draggable={ false } class="block aspect-[4/3] w-full object-cover" />
+                        <span class="flex flex-1 flex-col gap-0.5 p-2.5">
+                            <span class="line-clamp-2 text-ui-xs font-semibold leading-tight text-text">{ itemName(one.item, locale) }</span>
+                            <span class="text-ui-2xs leading-tight text-muted">{ one.said }</span>
+                        </span>
+                    </button>
+                </li>
+            </For>
+        </ul>
+        <Show when={ reviewed }>
+            <p class="text-ui-xs text-muted" data-campaign-review>{ locale.t('invite.campaign.review') }</p>
+        </Show>
+    </section>
+}

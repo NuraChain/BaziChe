@@ -50,5 +50,35 @@ export const invite: Pick<Dictionary, keyof typeof reference> = {
     'invite.page.renewLead': 'همه‌ی لینک‌هایی که با کد الانت فرستادی، هر جا که باشن، دیگه کار نمی‌کنن؛ و کد بعدی رو فقط یه روز دیگه می‌تونی بسازی.',
     'invite.page.renewed': 'کد تازه‌ت آماده‌ست. لینک جدید رو بفرست.',
     'invite.page.soon': 'کمتر از یه روز پیش یه کد تازه ساختی.',
-    'invite.page.nextAt': 'یه کد دیگه رو {when} می‌تونی بسازی.'
+    'invite.page.nextAt': 'یه کد دیگه رو {when} می‌تونی بسازی.',
+    'invite.page.tabs': 'دعوت‌هات',
+    'invite.page.tab.link': 'لینکت',
+    'invite.page.tab.top': 'بهترین دعوت‌کننده‌ها',
+    'invite.top.title': 'بهترین دعوت‌کننده‌ها',
+    'invite.top.inCampaign': 'دوست‌هایی که توی «{campaign}» بازی کردن',
+    'invite.top.allTime': 'دوست‌هایی که بازی کردن، از اول تا حالا',
+    'invite.top.friends': {
+        one: 'دوست',
+        other: 'دوست'
+    },
+    'invite.top.yourPlace': 'رتبه‌ت: {place}',
+    'invite.top.notYet': 'هنوز اسمت اینجا نیست. دوستی که با لینکت بیاد و یه بازی کنه، اسمت رو میاره اینجا.',
+    'invite.top.hidden': 'خودت خواستی اسمت اینجا نیاد.',
+    'invite.top.settings': 'توی تنظیمات عوضش کن',
+    'invite.top.minor': 'اسم بازیکن‌های زیر ۱۸ سال اینجا نمیاد.',
+    'invite.top.empty': 'هنوز کسی اینجا نیست.',
+    'invite.top.failed': 'فهرست بهترین دعوت‌کننده‌ها خونده نشد.',
+    'invite.campaign.title': '«{campaign}» در جریانه',
+    'invite.campaign.forYou': 'به ازای هر دوستی که بازی کنه، مال تو',
+    'invite.campaign.forFriend': 'مال دوستت، وقتی یه بازی بکنه',
+    'invite.campaign.milestone': {
+        one: 'وقتی {friends} دوستت بازی کنه، مال تو',
+        other: 'وقتی {friends} تا از دوست‌هات بازی کنن، مال تو'
+    },
+    'invite.campaign.most': {
+        one: 'هر نفر تا {looks} استایل',
+        other: 'هر نفر تا {looks} استایل'
+    },
+    'invite.campaign.review': 'تیم ما هر جایزه رو قبل از دادن بررسی می‌کنه.',
+    'invite.campaign.until': 'تا {when}'
 };

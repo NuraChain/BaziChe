@@ -132,6 +132,9 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.safety.onlineHint': '好友会看到一个绿点，以及你正在玩什么。',
     'settings.safety.donations': '允许观看的人给你送 NURA',
     'settings.safety.donationsHint': '关闭后，观看你对局的人都不能给你送 NURA。',
+    'settings.safety.inviteBoard': '在邀请排行中显示我',
+    'settings.safety.inviteBoardHint': '关闭后，你的名字不会出现在邀请排行中。你的朋友和奖励保持不变。',
+    'settings.safety.inviteBoardLocked': '未满 18 岁的玩家永远不会显示在邀请排行中。',
     'settings.safety.reports': '我的举报',
     'settings.safety.reportsLead': '你提交的每一条举报，以及处理进度。',
 

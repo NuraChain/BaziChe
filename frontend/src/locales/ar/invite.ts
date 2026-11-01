@@ -50,5 +50,47 @@ export const invite: Pick<Dictionary, keyof typeof reference> = {
     'invite.page.renewLead': 'كل رابط يحمل رمزك الحالي يتوقف عن العمل أينما شاركته، ولا يمكنك إنشاء رمز آخر إلا بعد يوم.',
     'invite.page.renewed': 'رمزك الجديد جاهز. شارك الرابط الجديد.',
     'invite.page.soon': 'أنشأت رمزًا جديدًا قبل أقل من يوم.',
-    'invite.page.nextAt': 'يمكنك إنشاء رمز آخر {when}.'
+    'invite.page.nextAt': 'يمكنك إنشاء رمز آخر {when}.',
+    'invite.page.tabs': 'دعواتك',
+    'invite.page.tab.link': 'رابطك',
+    'invite.page.tab.top': 'أفضل الداعين',
+    'invite.top.title': 'أفضل الداعين',
+    'invite.top.inCampaign': 'أصدقاء لعبوا خلال «{campaign}»',
+    'invite.top.allTime': 'أصدقاء لعبوا، منذ البداية',
+    'invite.top.friends': {
+        zero: 'صديق',
+        one: 'صديق',
+        two: 'صديقان',
+        few: 'أصدقاء',
+        many: 'صديقًا',
+        other: 'صديق'
+    },
+    'invite.top.yourPlace': 'مركزك: {place}',
+    'invite.top.notYet': 'لست في القائمة بعد. صديق ينضم عبر رابطك ويلعب مباراة يضعك فيها.',
+    'invite.top.hidden': 'اخترت ألا يظهر اسمك هنا.',
+    'invite.top.settings': 'غيّر ذلك من الإعدادات',
+    'invite.top.minor': 'لا يظهر هنا اللاعبون دون 18 عامًا.',
+    'invite.top.empty': 'لا أحد في القائمة بعد.',
+    'invite.top.failed': 'تعذّرت قراءة قائمة أفضل الداعين.',
+    'invite.campaign.title': '«{campaign}» جارية الآن',
+    'invite.campaign.forYou': 'لك عن كل صديق يلعب',
+    'invite.campaign.forFriend': 'لصديقك بعد أن يلعب مباراة',
+    'invite.campaign.milestone': {
+        zero: 'لك حين يلعب {friends} من أصدقائك',
+        one: 'لك حين يلعب صديق واحد',
+        two: 'لك حين يلعب صديقان',
+        few: 'لك حين يلعب {friends} أصدقاء',
+        many: 'لك حين يلعب {friends} صديقًا',
+        other: 'لك حين يلعب {friends} صديق'
+    },
+    'invite.campaign.most': {
+        zero: 'حتى {looks} مظهر لكل شخص',
+        one: 'حتى مظهر واحد لكل شخص',
+        two: 'حتى مظهرين لكل شخص',
+        few: 'حتى {looks} مظاهر لكل شخص',
+        many: 'حتى {looks} مظهرًا لكل شخص',
+        other: 'حتى {looks} مظهر لكل شخص'
+    },
+    'invite.campaign.review': 'يراجع فريقنا كل مكافأة قبل منحها.',
+    'invite.campaign.until': 'حتى {when}'
 };

@@ -213,6 +213,12 @@ and the background behind a table with what plays (each game's own music, rain o
 what is heard and the table's own switches, drawn by `components/voice/` (*Settings › Voice* in
 `.claude/rules/games.md`), and the same spec holds each of them in it.
 
+**An address that names a section opens Settings on it** (`/app/me/settings#settings-safety`, as the
+top inviters' way to the switch that hides the reader is), a turn of the product clock after the page
+mounts: `Page` puts its own scroll back to the top in its mount, and the router's own jump to an anchor
+scrolls the window, which is not what scrolls here. A word that names no section opens the page as
+usual. `settings.spec.ts` (*whether the reader is shown among the top inviters*) holds both.
+
 **Shape is crisp**: `rounded-control` (8px) for buttons, chips, icon buttons and inputs,
 `rounded-tile` (10px) for rows and tiles, `rounded-panel` (14px) for cards, `rounded-hero` (16px)
 for hero cards (`hero-surface`), `rounded-sheet` (18px). `rounded-full` is for avatars, presence

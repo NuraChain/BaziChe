@@ -47,5 +47,35 @@ export const invite = {
     'invite.page.renewLead': 'Every link with your current code stops working, wherever you shared it, and you can make another only after a day.',
     'invite.page.renewed': 'Your new code is ready. Share the new link.',
     'invite.page.soon': 'You made a new code less than a day ago.',
-    'invite.page.nextAt': 'You can make another one {when}.'
+    'invite.page.nextAt': 'You can make another one {when}.',
+    'invite.page.tabs': 'Your invites',
+    'invite.page.tab.link': 'Your link',
+    'invite.page.tab.top': 'Top inviters',
+    'invite.top.title': 'Top inviters',
+    'invite.top.inCampaign': 'Friends who played during “{campaign}”',
+    'invite.top.allTime': 'Friends who played, all time',
+    'invite.top.friends': {
+        one: 'friend',
+        other: 'friends'
+    },
+    'invite.top.yourPlace': 'Your place: {place}',
+    'invite.top.notYet': 'You are not on it yet. A friend who joins through your link and plays a game puts you there.',
+    'invite.top.hidden': 'You chose not to be shown here.',
+    'invite.top.settings': 'Change it in Settings',
+    'invite.top.minor': 'Players under 18 are not shown here.',
+    'invite.top.empty': 'Nobody is on it yet.',
+    'invite.top.failed': 'The top inviters could not be read.',
+    'invite.campaign.title': '“{campaign}” is on',
+    'invite.campaign.forYou': 'Yours for each friend who plays',
+    'invite.campaign.forFriend': 'Your friend’s once they play a game',
+    'invite.campaign.milestone': {
+        one: 'Yours once {friends} friend has played',
+        other: 'Yours once {friends} friends have played'
+    },
+    'invite.campaign.most': {
+        one: 'Up to {looks} look each',
+        other: 'Up to {looks} looks each'
+    },
+    'invite.campaign.review': 'Our team checks every reward before it is given.',
+    'invite.campaign.until': 'Until {when}'
 };

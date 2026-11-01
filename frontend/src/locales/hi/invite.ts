@@ -50,5 +50,35 @@ export const invite: Pick<Dictionary, keyof typeof reference> = {
     'invite.page.renewLead': 'तुम्हारे मौजूदा कोड वाला हर लिंक, जहाँ भी भेजा हो, काम करना बंद कर देगा, और अगला कोड एक दिन बाद ही बन सकेगा।',
     'invite.page.renewed': 'तुम्हारा नया कोड तैयार है। नया लिंक शेयर करो।',
     'invite.page.soon': 'तुमने एक दिन से कम समय पहले नया कोड बनाया था।',
-    'invite.page.nextAt': 'तुम {when} एक और बना सकते हो।'
+    'invite.page.nextAt': 'तुम {when} एक और बना सकते हो।',
+    'invite.page.tabs': 'तुम्हारे न्योते',
+    'invite.page.tab.link': 'तुम्हारा लिंक',
+    'invite.page.tab.top': 'सबसे ज़्यादा न्योते',
+    'invite.top.title': 'सबसे ज़्यादा न्योते',
+    'invite.top.inCampaign': '“{campaign}” के दौरान खेलने वाले दोस्त',
+    'invite.top.allTime': 'खेलने वाले दोस्त, शुरू से अब तक',
+    'invite.top.friends': {
+        one: 'दोस्त',
+        other: 'दोस्त'
+    },
+    'invite.top.yourPlace': 'तुम्हारी जगह: {place}',
+    'invite.top.notYet': 'तुम अभी इसमें नहीं हो। जो दोस्त तुम्हारे लिंक से जुड़कर एक गेम खेलेगा, वह तुम्हें यहाँ ले आएगा।',
+    'invite.top.hidden': 'तुमने यहाँ न दिखने का चुना है।',
+    'invite.top.settings': 'सेटिंग्स में बदलो',
+    'invite.top.minor': '18 से कम उम्र के खिलाड़ी यहाँ नहीं दिखते।',
+    'invite.top.empty': 'अभी यहाँ कोई नहीं है।',
+    'invite.top.failed': 'सबसे ज़्यादा न्योतों की सूची पढ़ी नहीं जा सकी।',
+    'invite.campaign.title': '“{campaign}” चल रहा है',
+    'invite.campaign.forYou': 'खेलने वाले हर दोस्त पर तुम्हारा',
+    'invite.campaign.forFriend': 'एक गेम खेलने पर तुम्हारे दोस्त का',
+    'invite.campaign.milestone': {
+        one: '{friends} दोस्त के खेलने पर तुम्हारा',
+        other: '{friends} दोस्तों के खेलने पर तुम्हारा'
+    },
+    'invite.campaign.most': {
+        one: 'हर किसी को {looks} लुक तक',
+        other: 'हर किसी को {looks} लुक तक'
+    },
+    'invite.campaign.review': 'हमारी टीम हर इनाम देने से पहले उसे जाँचती है।',
+    'invite.campaign.until': '{when} तक'
 };

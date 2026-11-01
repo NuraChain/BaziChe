@@ -132,6 +132,9 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.safety.onlineHint': 'दोस्तों को हरा डॉट दिखता है और यह कि तुम क्या खेल रहे हो।',
     'settings.safety.donations': 'देखने वाले तुम्हें NURA भेज सकें',
     'settings.safety.donationsHint': 'बंद रहने पर तुम्हारे गेम देखने वाला कोई भी तुम्हें NURA नहीं भेज पाएगा।',
+    'settings.safety.inviteBoard': 'मुझे सबसे ज़्यादा न्योते देने वालों में दिखाओ',
+    'settings.safety.inviteBoardHint': 'बंद करने पर तुम्हारा नाम इस सूची में नहीं आएगा। तुम्हारे दोस्त और इनाम जैसे हैं वैसे रहेंगे।',
+    'settings.safety.inviteBoardLocked': '18 से कम उम्र के खिलाड़ी कभी इस सूची में नहीं दिखते।',
     'settings.safety.reports': 'मेरी रिपोर्ट',
     'settings.safety.reportsLead': 'तुम्हारी भेजी हर रिपोर्ट, और वह कहाँ तक पहुँची।',
 

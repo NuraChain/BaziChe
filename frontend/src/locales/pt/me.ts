@@ -132,6 +132,9 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.safety.onlineHint': 'Amigos veem uma bolinha verde e o que você está jogando.',
     'settings.safety.donations': 'Deixar quem assiste te enviar NURA',
     'settings.safety.donationsHint': 'Desligado, ninguém que assiste suas partidas pode te enviar NURA.',
+    'settings.safety.inviteBoard': 'Mostrar meu nome entre quem mais convidou',
+    'settings.safety.inviteBoardHint': 'Desligado, seu nome não aparece entre quem mais convidou. Seus amigos e suas recompensas continuam como estão.',
+    'settings.safety.inviteBoardLocked': 'Jogadores com menos de 18 anos nunca aparecem entre quem mais convidou.',
     'settings.safety.reports': 'Minhas denúncias',
     'settings.safety.reportsLead': 'Cada denúncia que você enviou, e em que pé ela está.',
 

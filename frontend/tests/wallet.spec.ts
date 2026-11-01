@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+import { watchSignedOut } from '../src/components/app/sign-out.ts';
 import { NURA_CHAIN, chainIsConfigured } from '../src/data/chain.ts';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetKeyStore, setKeyStore, type DeviceKeys, type KeyStore } from '../src/lib/device-keys.ts';
@@ -212,6 +213,32 @@ describe('a wallet whose account goes while the page is open', () =>
 
         expect(wallet.gone).toEqual([]);
         wallet.stop();
+    });
+
+    it('signs the session’s account out to sign in again, saying the wallet left', async () =>
+    {
+        const replace = vi.spyOn(window.location, 'replace').mockImplementation(() => undefined);
+        const wallet = await live();
+        const watching = watchSignedOut();
+
+        window.history.replaceState({}, '', '/app/chats');
+        useSession().establish(walletAccount(ADDRESS));
+
+        try
+        {
+            await wallet.say([OTHER]);
+            await vi.waitFor(() => expect(replace).toHaveBeenCalled());
+
+            expect(replace).toHaveBeenCalledWith('/sign-in?next=%2Fapp%2Fchats&why=wallet');
+            expect(useSession().signedIn()).toBe(false);
+        }
+        finally
+        {
+            watching();
+            wallet.stop();
+            replace.mockRestore();
+            window.history.replaceState({}, '', '/');
+        }
     });
 
     it('says nothing about an account it had not offered, or one offered again in another case', async () =>

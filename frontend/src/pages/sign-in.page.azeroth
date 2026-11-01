@@ -1,14 +1,21 @@
 import { useHead, useNavigate, useQuery, type MountNode } from 'azerothjs';
 
 import '../icons/all.ts';
+import type { SignedOutWhy } from '../components/app/sign-out.ts';
 import WalletPanel from '../components/app/wallet-panel.component.azeroth';
 import SiteFooter from '../components/layout/site-footer.component.azeroth';
 import SiteHeader from '../components/layout/site-header.component.azeroth';
+import Icon from '../icons/icon.component.azeroth';
 import '../locales/app-catalogue.ts';
+import type { MessageKey } from '../locales/en.ts';
 import { safeNext } from '../lib/guards.ts';
 import { useAccount } from '../stores/account.store.ts';
 import { useLocale } from '../stores/locale.store.ts';
 import { useWallet } from '../stores/wallet.store.ts';
+
+const WHY: Record<SignedOutWhy, MessageKey> = { ended: 'wallet.ended', wallet: 'wallet.left' };
+
+const whyOf = (value: unknown) => (typeof value === 'string' && Object.hasOwn(WHY, value) ? WHY[value as SignedOutWhy] : null);
 
 export default component SignInPage()
 {
@@ -17,6 +24,8 @@ export default component SignInPage()
     const wallet = useWallet();
     const query = useQuery();
     const { navigate } = useNavigate();
+
+    derived why = whyOf(query().why);
 
     useHead({ title: () => `${ locale.t('wallet.title') } · ${ locale.t('app.title') }` });
 
@@ -68,6 +77,13 @@ export default component SignInPage()
 
         <main id="main" class="page-pad safe-b relative mx-auto flex w-full max-w-[40rem] flex-1 flex-col pb-12 pt-24 sm:pt-28">
             <h1 class="sr-only">{ locale.t('wallet.title') }</h1>
+
+            <Show when={ why } let={ said }>
+                <p class="relative mb-5 flex items-start gap-2 rounded-tile bg-accent/10 p-3 text-ui-sm text-text" role="status" data-signed-out>
+                    <Icon name="info" size={ 16 } class="mt-0.5 shrink-0 text-accent" />
+                    <span>{ locale.t(said) }</span>
+                </p>
+            </Show>
 
             <WalletPanel
                 onConnected={ (established) =>

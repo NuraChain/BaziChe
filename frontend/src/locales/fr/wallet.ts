@@ -4,6 +4,8 @@ import type { wallet as reference } from '../en/wallet.ts';
 export const wallet: Pick<Dictionary, keyof typeof reference> = {
     'wallet.title': 'Ton portefeuille, c’est ta place.',
     'wallet.lead': 'Baziche fonctionne sur {chain}. Connecte un portefeuille, signe une fois, et la table te reconnaît. Pas d’e-mail, pas de mot de passe, pas de formulaire d’inscription.',
+    'wallet.ended': 'Ta session a été fermée. Reconnecte-toi pour revenir là où tu étais.',
+    'wallet.left': 'Ton portefeuille a changé de compte ou s’est déconnecté de ce site, ta session a donc été fermée ici.',
     'wallet.connect': 'Connecter le portefeuille',
     'wallet.connecting': 'En attente de {wallet}…',
     'wallet.signing': 'Signe le message dans {wallet}',

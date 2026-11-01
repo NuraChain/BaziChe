@@ -4,6 +4,8 @@ import type { wallet as reference } from '../en/wallet.ts';
 export const wallet: Pick<Dictionary, keyof typeof reference> = {
     'wallet.title': 'کیف پولت، صندلی خودته.',
     'wallet.lead': 'بازیچه روی {chain} کار می‌کنه. کیف پولت رو وصل کن، یه بار امضا کن، میز خودش می‌شناسدت. نه ایمیل می‌خواد، نه رمز، نه فرم ثبت‌نام.',
+    'wallet.ended': 'از حسابت خارج شدی. دوباره وارد شو تا برگردی همون‌جایی که بودی.',
+    'wallet.left': 'کیف پولت حسابش رو عوض کرد یا اتصالش به این سایت رو قطع کرد، واسه همین اینجا از حسابت خارج شدی.',
     'wallet.connect': 'وصل کردن کیف پول',
     'wallet.connecting': 'منتظر {wallet}…',
     'wallet.signing': 'پیام رو توی {wallet} امضا کن',

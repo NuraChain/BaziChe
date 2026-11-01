@@ -1,6 +1,8 @@
 export const wallet = {
     'wallet.title': 'Your wallet is your seat.',
     'wallet.lead': 'Baziche runs on {chain}. Connect a wallet, sign once, and the table knows you. No email, no password, no signup form.',
+    'wallet.ended': 'You were signed out. Sign in again and you’ll be back where you were.',
+    'wallet.left': 'Your wallet switched accounts or disconnected this site, so you were signed out here.',
     'wallet.connect': 'Connect wallet',
     'wallet.connecting': 'Waiting for {wallet}…',
     'wallet.signing': 'Sign the message in {wallet}',

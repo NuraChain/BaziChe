@@ -4,6 +4,8 @@ import type { wallet as reference } from '../en/wallet.ts';
 export const wallet: Pick<Dictionary, keyof typeof reference> = {
     'wallet.title': '你的钱包就是你的座位。',
     'wallet.lead': 'Baziche 运行在 {chain} 上。连接钱包，签名一次，牌桌就认识你了。不需要邮箱、密码或注册表单。',
+    'wallet.ended': '你已退出登录。重新登录即可回到刚才的位置。',
+    'wallet.left': '你的钱包切换了账户或断开了与本站的连接，因此你在这里已退出登录。',
     'wallet.connect': '连接钱包',
     'wallet.connecting': '正在等待 {wallet}…',
     'wallet.signing': '在 {wallet} 中签署消息',

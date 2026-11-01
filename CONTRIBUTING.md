@@ -59,7 +59,8 @@ And, where they apply:
 
 - **`npm run test:db --workspace backend`** for anything that touches the database, with
   `TEST_DATABASE_URL` naming a database you do not mind losing: it empties the tables before every
-  test. A claim about the database is proved there and nowhere else.
+  test. Where Postgres asks for a password, write it in that URL, since the spec of `npm run setup`
+  types it from there. A claim about the database is proved there and nowhere else.
 - **`npm run build`**, which also fails when the first load or any page outgrows its budget.
 - **`npm run qa`** and the passes in `tools/qa/` for anything a page draws. They sign in as the
   development accounts, so they run against a built server on a database a development start has
@@ -111,7 +112,7 @@ one of them wrong, the same change puts it right.
 ## Translations
 
 The interface is in English, Persian, Arabic, Spanish, Portuguese, Hindi, Chinese, Russian, French
-and Turkish, one folder a language in `frontend/src/locales/`. Corrections from people who speak a
+and Turkish, one folder per language in `frontend/src/locales/`. Corrections from people who speak a
 language are among the most useful contributions there are: a sentence that reads like a
 translation is a bug.
 

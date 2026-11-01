@@ -53,7 +53,9 @@ import type {
     PersonSummary,
     PersonView,
     PublicPerson,
+    InviteBoard,
     InviteCard,
+    InviteListed,
     InviteSummary,
     InvitedPeople,
     Privacy,
@@ -623,6 +625,15 @@ export interface InvitePort
 
     /** The people the reader invited, newest first, twenty a page; a suspended account left out. */
     people(me: string, cursor: string | null): Promise<InvitedPeople>;
+
+    /** The top inviters, in the campaign running now or all time with none, and the reader's own place when they are on it. */
+    board(me: string): Promise<InviteBoard>;
+
+    /** Whether the reader is shown among the top inviters. */
+    listed(me: string): Promise<InviteListed>;
+
+    /** Shows the reader among the top inviters, or takes them off. */
+    list(me: string, on: boolean): Promise<InviteListed>;
 
     /** Who a link invites to, as their public profile shows them; a link that no longer works is `invite-missing`. */
     card(code: string): Promise<InviteCard>;

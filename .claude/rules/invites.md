@@ -113,6 +113,32 @@ when they joined and whether they have played, and nothing else of them: no onli
 seen (RF-D11). A block between the two hides nothing here, because a friend who vanished from the list
 would tell their inviter they had been blocked.
 
+## The top inviters
+
+**`GET /api/invites/top` places whoever invited by the friends whose invite counted** (`board` in the
+invite service, RF-D12): counted, with no flag, the friend not suspended, in the campaign running now
+or all time while none runs (`campaign` names it). Twenty places (`TOP_INVITERS`), each a person's
+own (`rank()` with the handle inside the window, as the game boards rank): the most friends first, a
+tie to whoever reached that many first (the earliest of their last counted invite), then the handle.
+Never a minor, a suspended account or somebody who took themselves off. A row is the face a list
+draws and how many friends; `me` is the reader's own place whenever they are on it, inside the twenty
+or past them, and `listed` whether they let themselves be shown. A flag holds an invite off the board
+as it holds its rewards for the staff (RF-D17), so a farm's invites never climb it.
+
+**Somebody takes themselves off it** (`GET /api/invites/listed`, `POST /api/invites/listed { on }`,
+both answering `{ listed }`): a row of `invite_board_off`, and nothing while they are on it, which is
+everybody to begin with, as `donations_off` is. Their code, what came of their invites and their
+rewards stay as they are; only the board stops naming them.
+
+**What the running campaign gives is on the reader's own summary** (`campaign` on `GET /api/invites`
+and on a new code): its name, the look whoever invited is given for each friend who counts, the
+friend's look, its milestones, its most, whether every reward is looked at first, and its end;
+nothing while none runs. Never which reward waits for whom (RF-D24).
+
+`invite.db.spec.ts` (*the top inviters*, *whether somebody is shown among the top inviters*, *what the
+campaign running now gives*) holds all three against Postgres and `app.spec.ts` (*inviting friends*)
+the routes, their shapes and that nothing of a person the list does not draw leaves the server.
+
 ## The page a person shares their link from
 
 **`/app/invite` is the reader's own link** (`pages/app/invite.page.azeroth`, lazy, under Friends;

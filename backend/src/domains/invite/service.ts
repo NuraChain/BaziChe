@@ -3,10 +3,10 @@ import { randomInt } from 'node:crypto';
 import { HttpError } from '@azerothjs/http';
 import { IsNull, Not, type DataSource, type EntityManager } from 'typeorm';
 
-import { EstablishedPlayer, InviteCampaign, InviteCode, InviteReward, InviteVisit, Match, MatchPlayer, OwnedItem, Referral, User } from '../../entities/index.ts';
+import { EstablishedPlayer, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Match, MatchPlayer, OwnedItem, Referral, User } from '../../entities/index.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan } from '../../lib/keyset.ts';
 import { PROFILE_LOOKS, chosenIn, worn } from '../shop/looks.ts';
-import { CODE_ALPHABET, CODE_LENGTH, ESTABLISHED_DAYS, ESTABLISHED_GAMES, MANY_A_DAY, QUICK_MINUTES, codeFrom, type InviteFlag, type RewardKind } from './policy.ts';
+import { CODE_ALPHABET, CODE_LENGTH, ESTABLISHED_DAYS, ESTABLISHED_GAMES, MANY_A_DAY, QUICK_MINUTES, TOP_INVITERS, codeFrom, type InviteFlag, type RewardKind } from './policy.ts';
 import { INVITE_REFUSALS, type InviteRefusal } from './refusals.ts';
 
 export type InviteService = ReturnType<typeof createInviteService>;
@@ -27,6 +27,21 @@ const freshCode = () => Array.from({ length: CODE_LENGTH }, () => CODE_ALPHABET[
 
 /** A campaign gives while it is active and inside its window, by Postgres's clock. */
 export const RUNNING = `campaign.state = 'active' and (campaign.starts_at is null or campaign.starts_at <= now()) and (campaign.ends_at is null or campaign.ends_at > now())`;
+
+/** Where an inviter stands: the most friends counted, then whoever reached that many first, then the handle, so no place repeats. */
+const PLACED = 'rank() over (order by count(*) desc, max(referral.counted_at) asc, inviter.handle asc)';
+
+interface PlacedRow
+{
+    id: string;
+    handle: string;
+    display_name: string;
+    avatar: string | null;
+    hue: number;
+    deco: string | null;
+    friends: number;
+    place: number;
+}
 
 type Runner = DataSource | EntityManager;
 
@@ -170,13 +185,109 @@ export function createInviteService(db: DataSource, owners: () => readonly strin
         return { visits: opened?.visits ?? 0, joined: friends?.joined ?? 0, played: friends?.played ?? 0 };
     };
 
-    /** The reader's live code, made the first time it is asked for, and what came of their links. */
+    const running = () => db.getRepository(InviteCampaign).createQueryBuilder('campaign').where(RUNNING).getOne();
+
+    /** What the campaign running now gives, as the invite page says it, and nothing while none runs. */
+    const shownCampaign = async () =>
+    {
+        const campaign = await running();
+
+        return campaign === null ? {} : {
+            campaign: {
+                name: campaign.name,
+                ...(campaign.inviterItem === null ? {} : { inviter: campaign.inviterItem }),
+                ...(campaign.inviteeItem === null ? {} : { invitee: campaign.inviteeItem }),
+                milestones: campaign.milestones.map((one) => ({ count: one.count, item: one.item })),
+                ...(campaign.most === null ? {} : { most: campaign.most }),
+                review: campaign.review,
+                ...(campaign.endsAt === null ? {} : { endsAt: campaign.endsAt.toISOString() })
+            }
+        };
+    };
+
+    /** The reader's live code, made the first time it is asked for, what came of their links, and what the running campaign gives. */
     const summary = async (userId: string) =>
-        ({ ...viewOf(await makeCode(db, userId), await nextCode(db, userId)), ...await cameOf(userId) });
+        ({ ...viewOf(await makeCode(db, userId), await nextCode(db, userId)), ...await cameOf(userId), ...await shownCampaign() });
+
+    /**
+     * Every inviter the top inviters may show, each in a place of their own: the friends whose invite
+     * counted, with no flag and not suspended, in the campaign given or all time with none; never a
+     * minor, a suspended account or somebody who took themselves off.
+     */
+    const placed = (campaignId: string | null) => db.createQueryBuilder()
+        .select('board.*')
+        .from((inner) =>
+        {
+            const ranked = inner
+                .select('inviter.id', 'id')
+                .addSelect('inviter.handle::text', 'handle')
+                .addSelect('inviter.display_name', 'display_name')
+                .addSelect('inviter.avatar', 'avatar')
+                .addSelect('inviter.hue', 'hue')
+                .addSelect(chosenIn('inviter', PROFILE_LOOKS.deco), 'deco')
+                .addSelect('count(*)::int', 'friends')
+                .addSelect(`(${ PLACED })::int`, 'place')
+                .from(Referral, 'referral')
+                .innerJoin(User, 'inviter', 'inviter.id = referral.inviter_id')
+                .innerJoin(User, 'friend', 'friend.id = referral.invitee_id')
+                .where('referral.counted_at is not null')
+                .andWhere('referral.flags is null')
+                .andWhere('friend.is_suspended = false')
+                .andWhere('inviter.is_suspended = false')
+                .andWhere('inviter.is_minor = false')
+                .andWhere((query) => `not exists ${ query.subQuery().select('1').from(InviteBoardOff, 'o').where('o.user_id = inviter.id').getQuery() }`)
+                .groupBy('inviter.id');
+
+            return campaignId === null ? ranked : ranked.andWhere('referral.campaign_id = :campaignId', { campaignId });
+        }, 'board');
 
     return {
         ownerOf,
         summary,
+
+        /** The top inviters, in the campaign running now or all time with none, and the reader's own place when they are on it. */
+        async board(userId: string)
+        {
+            const campaign = await running();
+            const scope = campaign?.id ?? null;
+            const [rows, mine, off] = await Promise.all([
+                placed(scope).where('board.place <= :most', { most: TOP_INVITERS }).orderBy('board.place').getRawMany<PlacedRow>(),
+                placed(scope).where('board.id = :userId', { userId }).getRawOne<PlacedRow>(),
+                db.getRepository(InviteBoardOff).existsBy({ userId })
+            ]);
+
+            return {
+                listed: !off,
+                ...(campaign === null ? {} : { campaign: { name: campaign.name } }),
+                rows: rows.map((row) => ({
+                    place: row.place,
+                    person: { handle: row.handle, displayName: row.display_name, ...(row.avatar === null ? {} : { avatar: row.avatar }), hue: row.hue, ...worn('deco', row.deco) },
+                    friends: row.friends
+                })),
+                ...(mine === undefined ? {} : { me: { place: mine.place, friends: mine.friends } })
+            };
+        },
+
+        /** Whether the reader is shown among the top inviters. */
+        async listed(userId: string)
+        {
+            return { listed: !await db.getRepository(InviteBoardOff).existsBy({ userId }) };
+        },
+
+        /** Shows the reader among the top inviters, or takes them off. What came of their invites stays either way. */
+        async list(userId: string, on: boolean)
+        {
+            if (on)
+            {
+                await db.getRepository(InviteBoardOff).delete({ userId });
+            }
+            else
+            {
+                await db.getRepository(InviteBoardOff).createQueryBuilder().insert().values({ userId }).orIgnore().execute();
+            }
+
+            return { listed: on };
+        },
 
         /**
          * The people the reader invited, newest first, twenty a page: each as a list draws a person,

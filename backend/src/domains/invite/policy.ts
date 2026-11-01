@@ -22,6 +22,9 @@ export const CAMPAIGN_STATES = ['draft', 'active', 'paused', 'ended'] as const;
 
 export type CampaignState = (typeof CAMPAIGN_STATES)[number];
 
+/** How many places the top inviters show. */
+export const TOP_INVITERS = 20;
+
 /** A number of friends counted, and the look it gives whoever reaches it. */
 export interface Milestone
 {

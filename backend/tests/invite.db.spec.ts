@@ -7,11 +7,13 @@ import { DataSource } from 'typeorm';
 
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
-import { EquippedItem, EstablishedPlayer, InviteCampaign, InviteCode, InviteReward, InviteVisit, Match, MatchPlayer, Notification, OwnedItem, Referral, StaffMember, User, entities } from '../src/entities/index.ts';
+import { EquippedItem, EstablishedPlayer, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Match, MatchPlayer, Notification, OwnedItem, Referral, StaffMember, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
+import { TOP_INVITERS, type InviteFlag } from '../src/domains/invite/policy.ts';
 import { createInviteService } from '../src/domains/invite/service.ts';
 import { rowsOf } from '../src/lib/rows.ts';
+import type { InviteBoard } from '../src/schemas.ts';
 import { buildPorts, type Services, type WriteListener } from '../src/services.ts';
 
 const url = process.env.TEST_DATABASE_URL;
@@ -1058,6 +1060,207 @@ describe.skipIf(!active)('invites, against a real database', () =>
 
             expect((await all(inviterId)).seen.map((one) => one.handle)).toEqual([kept.handle]);
             expect((await ports.invites.people(inviterId, 'not-a-cursor')).people.map((one) => one.person.handle)).toEqual([kept.handle]);
+        });
+    });
+
+    describe('the top inviters', () =>
+    {
+        const made = async (handle: string, extra: Partial<User> = {}) =>
+        {
+            seq += 1;
+
+            return (await db.getRepository(User).save({ handle, displayName: `${ handle[0].toUpperCase() }${ handle.slice(1) }`, hue: seq % 360, ...extra })).id;
+        };
+
+        /** A friend of `inviter` whose invite counted at `counted`, or never with null, flagged or not, in a campaign or none. */
+        const friend = async (inviter: string, counted: Date | null = new Date(), extra: { flags?: InviteFlag[]; campaign?: string; suspended?: boolean } = {}) =>
+        {
+            const id = await made(`f${ seq + 1 }x${ randomUUID().slice(0, 6) }`, { isSuspended: extra.suspended ?? false });
+
+            await db.getRepository(Referral).insert({ inviteeId: id, inviterId: inviter, code: null, campaignId: extra.campaign ?? null, countedAt: counted, flags: extra.flags ?? null });
+        };
+
+        const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000);
+
+        const places = (board: InviteBoard) => board.rows.map((row) => [row.place, row.person.handle, row.friends]);
+
+        it('places whoever invited by the friends whose invite counted, a tie to whoever got there first and then by handle, and the reader in theirs', async () =>
+        {
+            const ana = await made('ana');
+            const bob = await made('bob');
+            const cyrus = await made('cyrus');
+            const dara = await made('dara');
+            const eve = await made('eve');
+            const fay = await made('fay');
+            const same = ago(50);
+
+            for (const minutes of [30, 20, 10])
+            {
+                await friend(ana, ago(minutes));
+            }
+
+            for (const minutes of [40, 35, 5])
+            {
+                await friend(bob, ago(minutes));
+            }
+
+            await friend(cyrus, same);
+            await friend(cyrus, ago(60));
+            await friend(dara, same);
+            await friend(dara, ago(70));
+            await friend(eve, ago(1));
+            await friend(eve, null);
+            await friend(eve, ago(2), { flags: ['quick'] });
+            await friend(eve, ago(3), { suspended: true });
+            await friend(fay, null);
+
+            const board = await ports.invites.board(eve);
+
+            expect(places(board), 'a friend not counted, flagged or suspended counts for nobody').toEqual([[1, 'ana', 3], [2, 'bob', 3], [3, 'cyrus', 2], [4, 'dara', 2], [5, 'eve', 1]]);
+            expect(board.me).toEqual({ place: 5, friends: 1 });
+            expect(board.listed).toBe(true);
+            expect(board).not.toHaveProperty('campaign');
+            expect(board.rows[0].person, 'a face as a list draws it, and nothing else of them').toEqual({ handle: 'ana', displayName: 'Ana', hue: expect.any(Number) });
+            expect((await ports.invites.board(fay)).me, 'nobody counted, no place').toBeUndefined();
+        });
+
+        it('never shows a minor, a suspended account or somebody who took themselves off, and gives the reader no place when they are not on it', async () =>
+        {
+            const gil = await made('gil', { isMinor: true, allowStrangerMessages: false });
+            const hal = await made('hal', { isSuspended: true });
+            const ivy = await made('ivy');
+            const jo = await made('jo');
+
+            for (const inviter of [gil, hal, ivy])
+            {
+                for (let one = 0; one < 4; one += 1)
+                {
+                    await friend(inviter);
+                }
+            }
+
+            await friend(jo);
+            await ports.invites.list(ivy, false);
+
+            expect(places(await ports.invites.board(jo))).toEqual([[1, 'jo', 1]]);
+            expect(await ports.invites.board(ivy), 'off the board, and told so').toMatchObject({ listed: false, rows: [{ place: 1 }] });
+            expect((await ports.invites.board(ivy)).me).toBeUndefined();
+            expect((await ports.invites.board(gil)).me, 'a minor is never placed').toBeUndefined();
+
+            await ports.invites.list(ivy, true);
+
+            expect(places(await ports.invites.board(jo))).toEqual([[1, 'ivy', 4], [2, 'jo', 1]]);
+            expect((await ports.invites.board(ivy)).me).toEqual({ place: 1, friends: 4 });
+        });
+
+        it('counts only the campaign running now and names it, and all time while none runs', async () =>
+        {
+            const kim = await made('kim');
+            const lee = await made('lee');
+            const ended = await campaign({ name: 'Last spring', state: 'ended' });
+            const running = await campaign({ name: 'Autumn friends' });
+
+            for (let one = 0; one < 3; one += 1)
+            {
+                await friend(kim, ago(10), { campaign: ended });
+            }
+
+            await friend(kim, ago(5), { campaign: running });
+            await friend(lee, ago(5), { campaign: running });
+            await friend(lee, ago(4), { campaign: running });
+
+            const now = await ports.invites.board(kim);
+
+            expect(now.campaign).toEqual({ name: 'Autumn friends' });
+            expect(places(now)).toEqual([[1, 'lee', 2], [2, 'kim', 1]]);
+            expect(now.me).toEqual({ place: 2, friends: 1 });
+
+            await db.getRepository(InviteCampaign).update({ id: running }, { state: 'paused' });
+
+            const always = await ports.invites.board(kim);
+
+            expect(always).not.toHaveProperty('campaign');
+            expect(places(always)).toEqual([[1, 'kim', 4], [2, 'lee', 2]]);
+        });
+
+        it('shows twenty places, and the reader\'s own past them', async () =>
+        {
+            const inviters: string[] = [];
+
+            for (let at = 0; at <= TOP_INVITERS; at += 1)
+            {
+                const id = await made(`inv${ String(at).padStart(2, '0') }`);
+
+                await friend(id, ago(100 - at));
+                inviters.push(id);
+            }
+
+            const board = await ports.invites.board(inviters[TOP_INVITERS]);
+
+            expect(board.rows.map((row) => row.place)).toEqual(Array.from({ length: TOP_INVITERS }, (_, at) => at + 1));
+            expect(board.rows[0].person.handle).toBe('inv00');
+            expect(board.me).toEqual({ place: TOP_INVITERS + 1, friends: 1 });
+        });
+    });
+
+    describe('whether somebody is shown among the top inviters', () =>
+    {
+        it('is so unless they took themselves off, which they may undo, and what came of their invites stays', async () =>
+        {
+            const { id } = await enter();
+            const { code } = await ports.invites.summary(id);
+
+            await enter(code);
+
+            expect(await ports.invites.listed(id)).toEqual({ listed: true });
+            expect(await ports.invites.list(id, false)).toEqual({ listed: false });
+            expect(await ports.invites.list(id, false), 'off twice is off once').toEqual({ listed: false });
+            expect(await db.getRepository(InviteBoardOff).countBy({ userId: id })).toBe(1);
+            expect(await ports.invites.listed(id)).toEqual({ listed: false });
+            expect((await ports.invites.summary(id)).joined).toBe(1);
+            expect(await ports.invites.list(id, true)).toEqual({ listed: true });
+            expect(await db.getRepository(InviteBoardOff).countBy({ userId: id })).toBe(0);
+            expect(await ports.invites.listed(id)).toEqual({ listed: true });
+        });
+    });
+
+    describe('what the campaign running now gives, on the reader\'s own page', () =>
+    {
+        it('says what it gives and until when, and nothing while none runs', async () =>
+        {
+            const { id } = await enter();
+
+            expect(await ports.invites.summary(id)).not.toHaveProperty('campaign');
+
+            const ends = new Date(Date.now() + DAY);
+            const running = await campaign({ name: 'Spring friends', inviterItem: 'dice.storm', inviteeItem: 'pawns.jade', milestones: [{ count: 5, item: 'decoration.void' }], most: 3, review: true, endsAt: ends });
+
+            expect((await ports.invites.summary(id)).campaign).toEqual({
+                name: 'Spring friends',
+                inviter: 'dice.storm',
+                invitee: 'pawns.jade',
+                milestones: [{ count: 5, item: 'decoration.void' }],
+                most: 3,
+                review: true,
+                endsAt: ends.toISOString()
+            });
+
+            await db.getRepository(InviteCampaign).update({ id: running }, { inviterItem: null, most: null, review: false, endsAt: null });
+
+            expect((await ports.invites.summary(id)).campaign, 'what it does not give is left out').toEqual({ name: 'Spring friends', invitee: 'pawns.jade', milestones: [{ count: 5, item: 'decoration.void' }], review: false });
+            expect((await ports.invites.renew(id)).campaign?.name, 'a new code says it too').toBe('Spring friends');
+
+            await db.getRepository(InviteCampaign).update({ id: running }, { startsAt: new Date(Date.now() + DAY), endsAt: new Date(Date.now() + 2 * DAY) });
+
+            expect(await ports.invites.summary(id), 'not begun').not.toHaveProperty('campaign');
+
+            await db.getRepository(InviteCampaign).update({ id: running }, { startsAt: new Date(Date.now() - 2 * DAY), endsAt: new Date(Date.now() - DAY) });
+
+            expect(await ports.invites.summary(id), 'over').not.toHaveProperty('campaign');
+
+            await db.getRepository(InviteCampaign).update({ id: running }, { startsAt: null, endsAt: null, state: 'paused' });
+
+            expect(await ports.invites.summary(id), 'paused').not.toHaveProperty('campaign');
         });
     });
 });

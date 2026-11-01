@@ -179,7 +179,7 @@ const SPARED = new Set([
     '/parties/:id/accept', '/parties/:id/decline', '/parties/:id/leave',
     '/notifications/:id/read', '/notifications/read-all', '/notifications/:id/dismiss', '/devices/:id/revoke', '/devices/recovery/off',
     '/chat/:id/read', '/chat/:id/expiry', '/chat/:id/pin', '/chat/:id/messages/:messageId/played', '/vault/terms', '/vault/break', '/admin/vault/pause', '/admin/shop/money/pause',
-    '/shop/earnings/claim', '/donations/accepting', '/markets/disclosure', '/invites/code'
+    '/shop/earnings/claim', '/donations/accepting', '/markets/disclosure', '/invites/code', '/invites/listed'
 ]);
 
 const SIGNED_OUT = new Set(['/auth/challenge', '/auth/wallet']);

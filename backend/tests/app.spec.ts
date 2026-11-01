@@ -125,13 +125,17 @@ describe('a profile for somebody signed out', () =>
 
 describe('inviting friends', () =>
 {
-    const SUMMARY = { code: 'ABCD2345', link: 'http://localhost:3100/join/ABCD2345', since: '2026-10-30T10:00:00.000Z', visits: 3, joined: 2, played: 1 };
+    const CAMPAIGN = { name: 'Spring friends', inviter: 'dice.storm', milestones: [{ count: 5, item: 'decoration.void' }], review: false };
+
+    const SUMMARY = { code: 'ABCD2345', link: 'http://localhost:3100/join/ABCD2345', since: '2026-10-30T10:00:00.000Z', visits: 3, joined: 2, played: 1, campaign: CAMPAIGN };
 
     const RENEWED = { code: 'WXYZ6789', link: 'http://localhost:3100/join/WXYZ6789', since: '2026-10-30T11:00:00.000Z', next: '2026-10-31T11:00:00.000Z', visits: 3, joined: 2, played: 1 };
 
     const FACE = { handle: 'sara.k', displayName: 'Sara', hue: 40, avatar: 'http://localhost:3100/avatars/abc.webp', deco: 'decoration.jade' };
 
     const PEOPLE = { people: [{ person: FACE, joinedAt: '2026-10-30T12:00:00.000Z', played: true }], cursor: '1792540800000000|00000000-0000-4000-8000-000000000001' };
+
+    const BOARD = { listed: true, campaign: { name: 'Spring friends' }, rows: [{ place: 1, person: FACE, friends: 3 }], me: { place: 1, friends: 3 } };
 
     const VISITOR = 'Ab3_-xyzAb3_-xyzAb3_-x';
 
@@ -145,7 +149,7 @@ describe('inviting friends', () =>
                 summary: (...said: unknown[]) =>
                 {
                     told.push(['summary', ...said]);
-                    return Promise.resolve(SUMMARY);
+                    return Promise.resolve({ ...SUMMARY, campaign: { ...CAMPAIGN, id: 'a-uuid', state: 'active', createdBy: 'a-uuid' } });
                 },
                 people: (...said: unknown[]) =>
                 {
@@ -159,6 +163,21 @@ describe('inviting friends', () =>
                 {
                     told.push(['renew', ...said]);
                     return Promise.resolve(RENEWED);
+                },
+                board: (...said: unknown[]) =>
+                {
+                    told.push(['board', ...said]);
+                    return Promise.resolve({ ...BOARD, rows: BOARD.rows.map((row) => ({ ...row, id: 'a-uuid', person: { ...row.person, id: 'a-uuid', isMinor: false, bio: 'Plays Hokm' } })) });
+                },
+                listed: (...said: unknown[]) =>
+                {
+                    told.push(['listed', ...said]);
+                    return Promise.resolve({ listed: true });
+                },
+                list: (...said: unknown[]) =>
+                {
+                    told.push(['list', ...said]);
+                    return Promise.resolve({ listed: said[1] });
                 },
                 card: (...said: unknown[]) =>
                 {
@@ -193,6 +212,9 @@ describe('inviting friends', () =>
         const manifest = await (await invitesAs(told).handle(new Request('http://local/api/_manifest'))).json() as Record<string, Record<string, { method: string; path: string }>>;
 
         expect(Object.entries(manifest.invites).map(([name, route]) => `${ name } ${ route.method } ${ route.path }`).sort()).toEqual([
+            'board GET /invites/top',
+            'list POST /invites/listed',
+            'listed GET /invites/listed',
             'people GET /invites/people',
             'renew POST /invites/code',
             'summary GET /invites'
@@ -219,6 +241,30 @@ describe('inviting friends', () =>
         expect((await call(invitesAs(nobody, null), '/api/invites')).status).toBe(401);
         expect((await post(invitesAs(nobody, null), '/invites/code')).status).toBe(401);
         expect((await call(invitesAs(nobody, null), '/api/invites/people')).status).toBe(401);
+        expect(nobody).toEqual([]);
+    });
+
+    it('shows the top inviters with nothing of a person the list does not draw, and the reader on them or off them, to nobody who is not signed in', async () =>
+    {
+        const told: unknown[][] = [];
+
+        expect(await (await call(invitesAs(told), '/api/invites/top')).json()).toEqual(BOARD);
+        expect(await (await call(invitesAs(told), '/api/invites/listed')).json()).toEqual({ listed: true });
+        expect(await (await post(invitesAs(told), '/invites/listed', { on: false })).json()).toEqual({ listed: false });
+        expect(await (await post(invitesAs(told), '/invites/listed', { on: true })).json()).toEqual({ listed: true });
+
+        for (const body of [{}, { on: 'no' }, { on: 1 }])
+        {
+            expect((await post(invitesAs(told), '/invites/listed', body)).status, JSON.stringify(body)).toBe(422);
+        }
+
+        expect(told).toEqual([['board', 'somebody'], ['listed', 'somebody'], ['list', 'somebody', false], ['list', 'somebody', true]]);
+
+        const nobody: unknown[][] = [];
+
+        expect((await call(invitesAs(nobody, null), '/api/invites/top')).status).toBe(401);
+        expect((await call(invitesAs(nobody, null), '/api/invites/listed')).status).toBe(401);
+        expect((await post(invitesAs(nobody, null), '/invites/listed', { on: false })).status).toBe(401);
         expect(nobody).toEqual([]);
     });
 
@@ -270,6 +316,7 @@ describe('inviting friends', () =>
         expect(bodies).toContain(`'/public/invites/:code/visit': (bad) => [`);
         expect(bodies).toContain('invite: bad.slice(0, 32)');
         expect(pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='))).toContain(`'/invites/code'`);
+        expect(pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='))).toContain(`'/invites/listed'`);
         expect(pass).toContain(`'/public/invites/':`);
         expect(pass.slice(pass.indexOf('const QUERIES ='), pass.indexOf('const message ='))).toContain(`'/invites/people': ['cursor']`);
     });

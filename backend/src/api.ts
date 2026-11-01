@@ -176,7 +176,10 @@ import {
     pushSubscribeInput,
     personView,
     publicPerson,
+    inviteBoard,
     inviteCard,
+    inviteListed,
+    inviteListedInput,
     inviteSummary,
     invitedPeople,
     invitedQuery,
@@ -717,14 +720,24 @@ export function buildApi(ports: Ports)
                 (context) => ports.vault.reclaim(context.principal.userId, context.input.id))
         })),
 
-        /** The reader's own invite code with what came of it, a new code in its place, and the people they invited. */
+        /**
+         * The reader's own invite code with what came of it, a new code in its place, the people they
+         * invited, the top inviters, and whether the reader is shown among them.
+         */
         invites: feature('/invites', [session], (routes) => ({
             summary: routes.get('/', { output: inviteSummary }, (context) => ports.invites.summary(context.principal.userId)),
 
             renew: routes.post('/code', { output: inviteSummary }, (context) => ports.invites.renew(context.principal.userId)),
 
             people: routes.get('/people', { query: invitedQuery, output: invitedPeople },
-                (context) => ports.invites.people(context.principal.userId, context.query.cursor ?? null))
+                (context) => ports.invites.people(context.principal.userId, context.query.cursor ?? null)),
+
+            board: routes.get('/top', { output: inviteBoard }, (context) => ports.invites.board(context.principal.userId)),
+
+            listed: routes.get('/listed', { output: inviteListed }, (context) => ports.invites.listed(context.principal.userId)),
+
+            list: routes.post('/listed', { input: inviteListedInput, output: inviteListed },
+                (context) => ports.invites.list(context.principal.userId, context.input.on))
         })),
 
         shop: feature('/shop', [session], (routes) => ({

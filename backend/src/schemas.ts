@@ -1493,10 +1493,26 @@ export const publicPerson = object({
 
 export type PublicPerson = Infer<typeof publicPerson>;
 
-/** The reader's live invite code and the link that carries it; `next` is when a new one may be made, while that is still ahead. */
 /**
- * The reader's own code, and what came of their links, every code they have had: the devices
- * that opened one (a device a day), the friends who joined and those who played.
+ * What the campaign running now gives: a look to whoever invited for each friend whose invite
+ * counts, one to the friend, a look for a number of friends, at most `most` rewards a person, and
+ * whether every reward is looked at first. Never which reward is waiting for whom.
+ */
+const inviteCampaign = object({
+    name: string(),
+    inviter: string().optional(),
+    invitee: string().optional(),
+    milestones: array(object({ count: number(), item: string() })),
+    most: number().optional(),
+    review: boolean(),
+    endsAt: string().optional()
+});
+
+/**
+ * The reader's own code and the link that carries it (`next` is when a new one may be made, while
+ * that is still ahead), what came of their links over every code they have had (the devices that
+ * opened one, a device a day, the friends who joined and those who played), and the campaign
+ * running now.
  */
 export const inviteSummary = object({
     code: string(),
@@ -1505,7 +1521,8 @@ export const inviteSummary = object({
     next: string().optional(),
     visits: number(),
     joined: number(),
-    played: number()
+    played: number(),
+    campaign: inviteCampaign.optional()
 });
 
 export type InviteSummary = Infer<typeof inviteSummary>;
@@ -1535,6 +1552,27 @@ export const invitedPeople = object({
 export type InvitedPeople = Infer<typeof invitedPeople>;
 
 export const invitedQuery = object({ cursor: string({ max: 80 }).optional() });
+
+/**
+ * The top inviters: friends whose invite counted, in the campaign running now or all time with
+ * none, each in a place of their own; and the reader's own place when they are on it. `listed`
+ * says whether the reader let themselves be shown.
+ */
+export const inviteBoard = object({
+    listed: boolean(),
+    campaign: object({ name: string() }).optional(),
+    rows: array(object({ place: number(), person: inviteFace, friends: number() })),
+    me: object({ place: number(), friends: number() }).optional()
+});
+
+export type InviteBoard = Infer<typeof inviteBoard>;
+
+/** Whether the reader is shown among the top inviters. */
+export const inviteListed = object({ listed: boolean() });
+
+export type InviteListed = Infer<typeof inviteListed>;
+
+export const inviteListedInput = object({ on: boolean() });
 
 export const inviteVisitInput = object({ visitor: string({ pattern: VISITOR_SHAPE }) });
 

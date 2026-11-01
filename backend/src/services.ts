@@ -1903,6 +1903,12 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
             people: (me, cursor) => invites.people(me, cursor),
 
+            board: (me) => invites.board(me),
+
+            listed: (me) => invites.listed(me),
+
+            list: (me, on) => invites.list(me, on),
+
             /** A link's page shows its inviter only where their public profile would, so a minor's link works with no face. */
             async card(code)
             {

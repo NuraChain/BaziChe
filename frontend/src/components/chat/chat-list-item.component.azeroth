@@ -91,7 +91,7 @@ export default component ChatListItem(props: {
 
     derived muted = social.isMuted('conversation', props.conversation.id);
 
-    derived said = last !== undefined && (last.kind === 'text' || last.kind === 'voice') && last.from === props.me && last.locked === undefined;
+    derived said = last !== undefined && (last.kind === 'text' || last.kind === 'voice' || last.kind === 'file') && last.from === props.me && last.locked === undefined;
 
     derived seen = last?.read === true;
 
@@ -121,7 +121,7 @@ export default component ChatListItem(props: {
         {
             return locale.t(props.conversation.quiet ? 'chat.emptyQuiet' : 'chat.empty');
         }
-        if (last.kind !== 'text' && last.kind !== 'voice')
+        if (last.kind !== 'text' && last.kind !== 'voice' && last.kind !== 'file')
         {
             const line = last.line;
             if (line !== undefined && isLineKey(line.key))

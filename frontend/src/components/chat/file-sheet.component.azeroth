@@ -1,0 +1,214 @@
+import type { FileDraft } from '../../data/chat.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { FILE_CAPTION_MOST, FILE_MOST } from '../../../../backend/src/domains/chat/files.ts';
+import { mostOf, overUnread, prepare, showable, tooLarge } from '../../lib/file-prepare.ts';
+import { useChat } from '../../stores/chat.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import Button from '../ui/button.component.azeroth';
+import SheetHeader from '../ui/sheet-header.component.azeroth';
+import Spinner from '../ui/spinner.component.azeroth';
+import Toggle from '../ui/switch.component.azeroth';
+import TextArea from '../ui/text-area.component.azeroth';
+import { sizeSaid } from './gist.ts';
+
+/**
+ * What is about to be sent: the photo, the video's first frame or the file's name, how large it is,
+ * "Send as a file" for a photo or a video, and the caption, which starts as whatever the composer
+ * held. A file over its limit is said at once and Send is off; nothing is read that need not be.
+ */
+export default component FileSheet(props: OverlayProps & {
+    room: string;
+    file: File;
+    caption: string;
+
+    /** The composer's words became the caption: it empties once the file has gone. */
+    onSent: () => void;
+})
+{
+    const locale = useLocale();
+    const chat = useChat();
+
+    state asFile = false;
+
+    state draft = null as FileDraft | null;
+
+    state preparing = true;
+
+    state unreadable = false;
+
+    state caption = props.caption.slice(0, FILE_CAPTION_MOST);
+
+    state preview = '';
+
+    state sending = false;
+
+    let asked = 0;
+
+    derived choosable = showable(props.file);
+
+    derived unread = overUnread(props.file, asFile);
+
+    derived over = unread || (draft !== null && tooLarge(draft));
+
+    derived size = sizeSaid(unread ? props.file.size : (draft?.plain.byteLength ?? props.file.size), locale);
+
+    derived most = sizeSaid(draft === null ? FILE_MOST : mostOf(draft), locale);
+
+    derived title = locale.t(draft?.as === 'photo' ? 'chat.attach.title.photo' : (draft?.as === 'video' ? 'chat.attach.title.video' : 'chat.attach.title.file'));
+
+    derived hint = draft?.as === 'video' ? locale.t('chat.attach.videoHint') : locale.t('chat.attach.photoHint');
+
+    derived ready = draft !== null && !preparing && !over && !sending;
+
+    const make = async (file: boolean) =>
+    {
+        asked += 1;
+
+        const mine = asked;
+
+        preparing = true;
+        unreadable = false;
+
+        if (preview !== '')
+        {
+            URL.revokeObjectURL(preview);
+            preview = '';
+        }
+
+        if (overUnread(props.file, file))
+        {
+            draft = null;
+            preparing = false;
+            return;
+        }
+
+        try
+        {
+            const made = await prepare(props.file, file);
+
+            if (mine !== asked)
+            {
+                return;
+            }
+
+            draft = made;
+            preview = made.as === 'photo' ? URL.createObjectURL(new Blob([made.plain as BlobPart], { type: made.mime })) : '';
+        }
+        catch
+        {
+            if (mine === asked)
+            {
+                draft = null;
+                unreadable = true;
+            }
+        }
+        finally
+        {
+            if (mine === asked)
+            {
+                preparing = false;
+            }
+        }
+    };
+
+    mount
+    {
+        void make(false);
+
+        return () =>
+        {
+            asked += 1;
+
+            if (preview !== '')
+            {
+                URL.revokeObjectURL(preview);
+            }
+        };
+    }
+
+    const toggle = (checked: boolean) =>
+    {
+        asFile = checked;
+        void make(checked);
+    };
+
+    const send = () =>
+    {
+        const made = draft;
+
+        if (made === null || !ready)
+        {
+            return;
+        }
+
+        sending = true;
+        props.onSent();
+        props.close(true);
+        void chat.sendFile(props.room, made, caption).catch(() => undefined);
+    };
+
+    <div class="flex flex-col gap-4 p-5" data-file-sheet>
+        <SheetHeader title={ title } onClose={ () => props.close() } />
+
+        <div class="flex min-h-24 items-center justify-center overflow-hidden rounded-tile border border-line bg-field">
+            <Show
+                when={ !preparing }
+                fallback={
+                    <span class="flex items-center gap-2 p-6 text-ui-sm text-muted" role="status">
+                        <Spinner size={ 18 } />
+                        { locale.t('chat.attach.preparing') }
+                    </span>
+                }
+            >
+                { () =>
+                    <Show
+                        when={ preview !== '' }
+                        fallback={
+                            <span class="flex w-full min-w-0 items-center gap-3 p-4">
+                                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent-fill text-accent-ink">
+                                    <Icon name={ draft?.as === 'video' ? 'film' : 'file' } size={ 20 } />
+                                </span>
+                                <span class="flex min-w-0 flex-col">
+                                    <span class="truncate text-ui-sm font-semibold text-text" dir="auto">{ draft?.name ?? props.file.name }</span>
+                                    <span class="text-ui-xs tabular-nums text-muted" data-size>{ size }</span>
+                                </span>
+                            </span>
+                        }
+                    >
+                        { () =>
+                            <span class="relative flex w-full justify-center bg-black/30">
+                                <img src={ preview } alt={ draft?.name ?? '' } class="max-h-72 max-w-full object-contain" />
+                                <span class="absolute start-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-ui-2xs font-medium tabular-nums text-white" data-size>{ size }</span>
+                            </span>
+                        }
+                    </Show>
+                }
+            </Show>
+        </div>
+
+        <Show when={ over && !preparing }>
+            { () => <p class="text-ui-sm text-danger" role="alert" data-over>{ locale.t('chat.attach.tooLarge', { size, most }) }</p> }
+        </Show>
+
+        <Show when={ unreadable }>
+            { () => <p class="text-ui-sm text-danger" role="alert">{ locale.t('chat.attach.unreadable') }</p> }
+        </Show>
+
+        <Show when={ choosable }>
+            { () => <Toggle checked={ asFile } label={ locale.t('chat.attach.asFile') } description={ hint } disabled={ preparing } onChange={ toggle } /> }
+        </Show>
+
+        <TextArea
+            value={ caption }
+            onInput={ (value) => caption = value }
+            placeholder={ locale.t('chat.attach.caption') }
+            label={ locale.t('chat.attach.caption') }
+            maxlength={ FILE_CAPTION_MOST }
+            enterkeyhint="send"
+            onEnter={ send }
+        />
+
+        <Button variant="primary" block leading="send" disabled={ !ready } loading={ sending } onClick={ send }>{ locale.t('chat.attach.send') }</Button>
+    </div>
+}

@@ -321,3 +321,25 @@ describe('a photo, a video or a file on its way', () =>
         expect(files.uploads, 'up once').toHaveLength(1);
     });
 });
+
+describe('a file in search', () =>
+{
+    it('is found by its caption, and one without a caption is not a row of nothing', async () =>
+    {
+        const chat = useChat();
+        const search = useSearch();
+
+        chat.openThread('c-reza');
+        await chat.sendFile('c-reza', photo(), 'sunset over the harbour');
+        await chat.sendFile('c-reza', photo(), '');
+        await chat.refresh();
+
+        search.setQuery('harbour');
+
+        expect(search.results().messages.map((one) => one.text)).toEqual(['sunset over the harbour']);
+
+        search.setQuery('alex');
+
+        expect(search.results().messages.some((one) => one.kind === 'file' && one.text === ''), 'no caption, no row').toBe(false);
+    });
+});

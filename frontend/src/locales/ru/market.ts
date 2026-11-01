@@ -22,6 +22,7 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.otherBad': 'Напиши сумму от {least} до {most} NURA, не больше четырёх знаков после запятой.',
     'market.pick': 'Выбери, кто, по-твоему, победит',
     'market.place': 'Поставить {amount} NURA: {name}',
+    'market.placeSome': 'Поставить NURA: {name}',
     'market.estimate': 'Если победит {name}, тебе вернётся около {amount} NURA при нынешнем банке. Сумма меняется, когда ставят другие.',
     'market.fee.none': 'Весь банк достаётся победителям: Baziche ничего не берёт.',
     'market.fee.some': 'Baziche берёт {percent} банка до раздела.',

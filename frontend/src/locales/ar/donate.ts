@@ -9,6 +9,7 @@ export const donate: Pick<Dictionary, keyof typeof reference> = {
     'donate.otherHint': 'من {least} إلى {most} NURA',
     'donate.otherBad': 'اكتب مبلغًا من {least} إلى {most} NURA، بأربع خانات عشرية على الأكثر.',
     'donate.send': 'أرسل {amount} NURA',
+    'donate.sendSome': 'أرسل NURA',
     'donate.step.preparing': 'جارٍ التجهيز…',
     'donate.step.wallet': 'أكّد في محفظتك: {amount} NURA من {address}، بالإضافة إلى رسوم NuraChain.',
     'donate.step.chain': 'بانتظار NuraChain…',

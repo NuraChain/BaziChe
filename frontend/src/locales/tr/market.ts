@@ -22,6 +22,7 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.otherBad': '{least} ile {most} NURA arasında, en fazla dört ondalıkla bir miktar yaz.',
     'market.pick': 'Sence kim kazanır, seç',
     'market.place': '{name} için {amount} NURA koy',
+    'market.placeSome': '{name} için NURA koy',
     'market.estimate': '{name} kazanırsa, havuzun şu anki haliyle sana yaklaşık {amount} NURA döner. Başkaları tahmin koydukça değişir.',
     'market.fee.none': 'Havuzun tamamı kazananlara gider: Baziche hiçbir şey almaz.',
     'market.fee.some': 'Baziche paylaşımdan önce havuzun {percent} kadarını alır.',

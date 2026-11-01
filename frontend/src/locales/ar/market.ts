@@ -29,6 +29,7 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.otherBad': 'اكتب مبلغًا من {least} إلى {most} NURA، بأربع خانات عشرية على الأكثر.',
     'market.pick': 'اختر من تتوقع أن يفوز',
     'market.place': 'ضع {amount} NURA على {name}',
+    'market.placeSome': 'ضع NURA على {name}',
     'market.estimate': 'إذا فاز {name}، يعود إليك نحو {amount} NURA بحسب الصندوق الآن. يتغيّر الرقم كلما توقّع آخرون.',
     'market.fee.none': 'الصندوق كله يذهب إلى الفائزين: لا تأخذ بازيچه منه شيئًا.',
     'market.fee.some': 'تأخذ بازيچه {percent} من الصندوق قبل تقسيمه.',

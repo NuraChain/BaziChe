@@ -6,6 +6,7 @@ export const donate = {
     'donate.otherHint': '{least} to {most} NURA',
     'donate.otherBad': 'Write an amount from {least} to {most} NURA, with four places at most.',
     'donate.send': 'Send {amount} NURA',
+    'donate.sendSome': 'Send NURA',
     'donate.step.preparing': 'Getting it ready…',
     'donate.step.wallet': 'Confirm in your wallet: {amount} NURA from {address}, plus NuraChain’s fee.',
     'donate.step.chain': 'Waiting for NuraChain…',

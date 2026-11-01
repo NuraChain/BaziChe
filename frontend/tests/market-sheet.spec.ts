@@ -258,8 +258,41 @@ describe('the market on a watched game', () =>
         field.dispatchEvent(new Event('input', { bubbles: true }));
         await settle();
 
-        expect(text(root, '[data-bad-amount]')).toBe('Write an amount from 1 to 500 NURA, with four places at most.');
+        expect(root.querySelector('[data-bad-amount]'), 'said while it was being typed').toBeNull();
+        expect(text(root, '#market-other-hint')).toBe('1 to 500 NURA');
         expect(root.querySelector('[data-estimate]'), 'no estimate for an amount it cannot take').toBeNull();
+        expect(button(root, 'Back Sara with NURA')?.disabled, 'the press that says what is wrong is greyed out').toBe(false);
+
+        field.dispatchEvent(new FocusEvent('blur'));
+        await settle();
+
+        expect(text(root, '[data-bad-amount]')).toBe('Write an amount from 1 to 500 NURA, with four places at most.');
+        expect(root.querySelector('[data-bad-amount]')?.getAttribute('role')).toBe('alert');
+        expect(field.getAttribute('aria-invalid')).toBe('true');
+        expect(field.getAttribute('aria-describedby')).toBe('market-other-error');
+    });
+
+    it('says what is wrong with the amount when the outcome is backed, takes the keyboard to it and places nothing', async () =>
+    {
+        walletWith();
+        const { root } = await sheet();
+
+        outcome(root, 1)?.click();
+        root.querySelector<HTMLButtonElement>('[data-other]')?.click();
+        await settle();
+
+        const field = root.querySelector<HTMLInputElement>('input')!;
+
+        field.value = '0.5';
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        await settle();
+
+        button(root, 'Back Reza with NURA')?.click();
+        await settle();
+
+        expect(text(root, '[data-bad-amount]')).toBe('Write an amount from 1 to 500 NURA, with four places at most.');
+        expect(document.activeElement).toBe(field);
+        expect(server.calls.some((call) => call.startsWith('markets.place')), 'an amount it cannot take was placed').toBe(false);
     });
 
     it('asks a reader who has not read what a market is to read it first, and lets them back once they have', async () =>

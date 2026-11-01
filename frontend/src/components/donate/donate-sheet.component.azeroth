@@ -2,6 +2,7 @@ import { Link, untrack } from 'azerothjs';
 
 import { NURA_CHAIN } from '../../data/chain.ts';
 import Icon from '../../icons/icon.component.azeroth';
+import { describedBy, focusFirstInvalid } from '../../lib/form.ts';
 import { amountOf, explorerTx, nuraOf } from '../../lib/nura.ts';
 import { shortAddress } from '../../lib/wallet.ts';
 import { useDonations } from '../../stores/donations.store.ts';
@@ -18,6 +19,9 @@ import '../../locales/donate-catalogue.ts';
 /**
  * NURA for a player of the game the reader watches: an amount, then the reader's own wallet sends
  * it to `ArcadeTips`, which passes the whole of it to the player there and then.
+ *
+ * An amount typed is questioned once the reader leaves the box with something in it, or presses
+ * Send, never at each keystroke on its way to being right.
  */
 export default component DonateSheet(props: OverlayProps & { match: string; to: string })
 {
@@ -30,6 +34,12 @@ export default component DonateSheet(props: OverlayProps & { match: string; to: 
     state typed = '';
 
     state typing = false;
+
+    state left = false;
+
+    state tried = false;
+
+    let sheet: HTMLElement | null = null;
 
     const figure = (wei: string) => locale.n(nuraOf(wei), { maximumFractionDigits: 4 });
 
@@ -53,7 +63,7 @@ export default component DonateSheet(props: OverlayProps & { match: string; to: 
 
     derived ready = amount !== '';
 
-    derived badTyping = typing && typed.trim() !== '' && written === null;
+    derived badTyping = typing && written === null && (tried || (left && typed.trim() !== ''));
 
     derived giving = donations.giving();
 
@@ -95,7 +105,7 @@ export default component DonateSheet(props: OverlayProps & { match: string; to: 
 
     derived choosing = may === 'yes' && !working && !finished && !elsewhere;
 
-    derived sendWords = locale.t('donate.send', { amount: ready ? figure(amount) : '' });
+    derived sendWords = ready ? locale.t('donate.send', { amount: figure(amount) }) : locale.t('donate.sendSome');
 
     derived rangeWords = locale.t('donate.otherHint', { least: figure(least), most: figure(most) });
 
@@ -126,15 +136,22 @@ export default component DonateSheet(props: OverlayProps & { match: string; to: 
 
     const send = () =>
     {
-        if (!ready || working)
+        if (working)
         {
+            return;
+        }
+
+        if (!ready)
+        {
+            tried = true;
+            focusFirstInvalid(sheet);
             return;
         }
 
         void donations.give(props.match, props.to, amount);
     };
 
-    <div class="flex flex-col gap-4 p-4" data-donate>
+    <div ref={ (element) => sheet = element } class="flex flex-col gap-4 p-4" data-donate>
         <header class="flex items-center gap-3">
             <Avatar person={ person } size="md" />
             <span class="flex min-w-0 flex-1 flex-col">
@@ -190,17 +207,19 @@ export default component DonateSheet(props: OverlayProps & { match: string; to: 
                 <Show when={ typing }>
                     <div class="flex flex-col gap-1">
                         <Input
+                            id="donate-other"
                             value={ typed }
                             onInput={ (value) => typed = value }
+                            onBlur={ () => left = left || typed.trim() !== '' }
                             inputmode="decimal"
                             autofocus
                             label={ locale.t('donate.other') }
-                            placeholder={ rangeWords }
                             invalid={ badTyping }
+                            describedBy={ describedBy('donate-other', badTyping ? badWords : null) }
                             onEnter={ send }
                         />
-                        <Show when={ badTyping }>
-                            <p class="text-ui-xs text-danger" data-bad-amount>{ badWords }</p>
+                        <Show when={ badTyping } fallback={ <p id="donate-other-hint" class="text-ui-xs text-muted">{ rangeWords }</p> }>
+                            <p id="donate-other-error" class="text-ui-xs font-medium text-danger" role="alert" data-bad-amount>{ badWords }</p>
                         </Show>
                     </div>
                 </Show>
@@ -248,7 +267,7 @@ export default component DonateSheet(props: OverlayProps & { match: string; to: 
         </Show>
 
         <Show when={ choosing }>
-            <Button variant="primary" size="lg" block leading="coins" disabled={ !ready } onClick={ send }>{ sendWords }</Button>
+            <Button variant="primary" size="lg" block leading="coins" onClick={ send }>{ sendWords }</Button>
         </Show>
     </div>
 }

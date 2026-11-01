@@ -2,6 +2,7 @@ import { Link, onCleanup, untrack } from 'azerothjs';
 
 import { NURA_CHAIN } from '../../data/chain.ts';
 import Icon from '../../icons/icon.component.azeroth';
+import { describedBy, focusFirstInvalid } from '../../lib/form.ts';
 import { choiceName, claimsOf, estimateOf, handlesOf, shareOf } from '../../lib/market.ts';
 import { amountOf, explorerTx, nuraOf } from '../../lib/nura.ts';
 import { shortAddress } from '../../lib/wallet.ts';
@@ -32,6 +33,9 @@ const STATE_WORDS: Partial<Record<string, MessageKey>> = {
 /**
  * The market on a game the reader watches: who it may go to and what the chain holds on each, a
  * position placed from the reader's own wallet into `ArcadeMarkets`, and what theirs came to.
+ *
+ * An amount typed is questioned once the reader leaves the box with something in it, or presses
+ * to back an outcome, never at each keystroke on its way to being right.
  */
 export default component MarketSheet(props: OverlayProps & { match: string })
 {
@@ -47,6 +51,12 @@ export default component MarketSheet(props: OverlayProps & { match: string })
     state typed = '';
 
     state typing = false;
+
+    state left = false;
+
+    state tried = false;
+
+    let sheet: HTMLElement | null = null;
 
     const figure = (wei: string | bigint) => locale.n(nuraOf(wei), { maximumFractionDigits: 4 });
 
@@ -134,7 +144,7 @@ export default component MarketSheet(props: OverlayProps & { match: string })
 
     derived ready = amount !== '' && picked >= 0;
 
-    derived badTyping = typing && typed.trim() !== '' && written === null;
+    derived badTyping = typing && written === null && (tried || (left && typed.trim() !== ''));
 
     derived placing = markets.placing();
 
@@ -189,9 +199,11 @@ export default component MarketSheet(props: OverlayProps & { match: string })
 
     derived open = choosing;
 
+    derived unpicked = picked < 0;
+
     derived placeWords = ready
         ? locale.t('market.place', { name: pickedName, amount: figure(amount) })
-        : locale.t('market.pick');
+        : unpicked ? locale.t('market.pick') : locale.t('market.placeSome', { name: pickedName });
 
     derived estimate = ready && market !== null && market.outcomes[picked] !== undefined
         ? estimateOf(market.pool, market.outcomes[picked].pool, amount, market.feeBps)
@@ -281,8 +293,15 @@ export default component MarketSheet(props: OverlayProps & { match: string })
 
     const place = () =>
     {
-        if (!ready || working || market === null)
+        if (working || market === null || unpicked)
         {
+            return;
+        }
+
+        if (!ready)
+        {
+            tried = true;
+            focusFirstInvalid(sheet);
             return;
         }
 
@@ -303,7 +322,7 @@ export default component MarketSheet(props: OverlayProps & { match: string })
         ? locale.t('market.claimTo', { amount: figure(total), address: shortAddress(address) })
         : locale.t('market.claim', { amount: figure(total) }));
 
-    <div class="flex flex-col gap-4 p-4" data-market>
+    <div ref={ (element) => sheet = element } class="flex flex-col gap-4 p-4" data-market>
         <header class="flex items-start gap-3">
             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold/15 text-gold">
                 <Icon name="trophy" size={ 20 } />
@@ -404,17 +423,19 @@ export default component MarketSheet(props: OverlayProps & { match: string })
                 <Show when={ typing }>
                     <div class="flex flex-col gap-1">
                         <Input
+                            id="market-other"
                             value={ typed }
                             onInput={ (value) => typed = value }
+                            onBlur={ () => left = left || typed.trim() !== '' }
                             inputmode="decimal"
                             autofocus
                             label={ locale.t('market.other') }
-                            placeholder={ rangeWords }
                             invalid={ badTyping }
+                            describedBy={ describedBy('market-other', badTyping ? badWords : null) }
                             onEnter={ place }
                         />
-                        <Show when={ badTyping }>
-                            <p class="text-ui-xs text-danger" data-bad-amount>{ badWords }</p>
+                        <Show when={ badTyping } fallback={ <p id="market-other-hint" class="text-ui-xs text-muted">{ rangeWords }</p> }>
+                            <p id="market-other-error" class="text-ui-xs font-medium text-danger" role="alert" data-bad-amount>{ badWords }</p>
                         </Show>
                     </div>
                 </Show>
@@ -462,7 +483,7 @@ export default component MarketSheet(props: OverlayProps & { match: string })
         </Show>
 
         <Show when={ choosing }>
-            <Button variant="primary" size="lg" block leading="coins" disabled={ !ready } onClick={ place }>{ placeWords }</Button>
+            <Button variant="primary" size="lg" block leading="coins" disabled={ unpicked } onClick={ place }>{ placeWords }</Button>
             <Show when={ estimated }>
                 <p class="text-ui-sm text-muted" data-estimate>{ estimateWords }</p>
             </Show>

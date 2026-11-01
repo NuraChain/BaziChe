@@ -22,6 +22,7 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.otherBad': '请写 {least} 到 {most} NURA 之间的金额，最多四位小数。',
     'market.pick': '选你认为会赢的一方',
     'market.place': '押 {amount} NURA 给 {name}',
+    'market.placeSome': '押 NURA 给 {name}',
     'market.estimate': '如果 {name} 赢，按现在的奖池，你大约能拿回 {amount} NURA。其他人押注时这个数会变。',
     'market.fee.none': '整个奖池都归赢家：Baziche 一分不拿。',
     'market.fee.some': '分配前 Baziche 从奖池中拿走 {percent}。',

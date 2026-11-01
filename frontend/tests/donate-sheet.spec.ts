@@ -176,7 +176,7 @@ describe('the sheet that sends NURA to a player', () =>
         expect(button(root, 'Send 25 NURA'), 'nothing more to send once it is given').toBeUndefined();
     });
 
-    it('takes another amount to four places within the range, and says what is wrong with one that is not', async () =>
+    it('takes another amount to four places within the range, and says what is wrong with one once the box is left', async () =>
     {
         const { root } = await sheet();
 
@@ -185,11 +185,23 @@ describe('the sheet that sends NURA to a player', () =>
 
         const field = root.querySelector<HTMLInputElement>('input')!;
 
+        expect(root.querySelector('#donate-other-hint')?.textContent, 'the range, said before anything is typed').toBe('1 to 1,000 NURA');
+        expect(field.getAttribute('aria-describedby')).toBe('donate-other-hint');
+
         typeInto(field, '2.5');
         await settle();
 
         expect(button(root, 'Send 2.5 NURA')).toBeDefined();
         expect(root.querySelector('[data-bad-amount]')).toBeNull();
+
+        typeInto(field, '0.5');
+        await settle();
+
+        expect(root.querySelector('[data-bad-amount]'), 'said while it was being typed').toBeNull();
+        expect(button(root, 'Send NURA')?.disabled, 'Send greyed out with nothing said').toBe(false);
+
+        field.dispatchEvent(new FocusEvent('blur'));
+        await settle();
 
         for (const bad of ['0.5', '1001', '1.23456', 'five'])
         {
@@ -197,13 +209,49 @@ describe('the sheet that sends NURA to a player', () =>
             await settle();
 
             expect(root.querySelector('[data-bad-amount]')?.textContent, bad).toBe('Write an amount from 1 to 1,000 NURA, with four places at most.');
-            expect([...root.querySelectorAll('button')].find((one) => one.textContent?.trim().startsWith('Send'))?.hasAttribute('disabled'), bad).toBe(true);
+            expect(root.querySelector('[data-bad-amount]')?.getAttribute('role'), bad).toBe('alert');
+            expect(field.getAttribute('aria-invalid'), bad).toBe('true');
+            expect(field.getAttribute('aria-describedby'), bad).toBe('donate-other-error');
         }
 
         typeInto(field, '۳٫۲۵');
         await settle();
 
         expect(button(root, 'Send 3.25 NURA'), 'Persian digits are read as digits').toBeDefined();
+        expect(root.querySelector('[data-bad-amount]'), 'a fixed amount kept its error').toBeNull();
+        expect(field.getAttribute('aria-describedby')).toBe('donate-other-hint');
+    });
+
+    it('says what is wrong with the amount when Send is pressed, takes the keyboard to it and sends nothing', async () =>
+    {
+        walletWith();
+        const { root } = await sheet();
+
+        button(root, 'Another amount')!.click();
+        await settle();
+
+        const field = root.querySelector<HTMLInputElement>('input')!;
+
+        button(root, 'Send NURA')!.click();
+        await settle();
+
+        expect(root.querySelector('[data-bad-amount]')?.textContent, 'nothing typed').toBe('Write an amount from 1 to 1,000 NURA, with four places at most.');
+
+        typeInto(field, '1001');
+        await settle();
+
+        button(root, 'Send NURA')!.click();
+        await settle();
+
+        expect(document.activeElement).toBe(field);
+        expect(server.calls.some((call) => call.startsWith('donations.give')), 'an amount it cannot take was sent').toBe(false);
+
+        typeInto(field, '12');
+        await settle();
+        button(root, 'Send 12 NURA')!.click();
+        await settle();
+
+        expect(server.calls).toContain(`donations.give m-1 sara.k ${ (12n * NURA).toString() }`);
     });
 
     it('says a wallet short of the gift with what it holds, and where NURA is had', async () =>

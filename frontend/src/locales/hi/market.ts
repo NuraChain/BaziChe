@@ -22,6 +22,7 @@ export const market: Pick<Dictionary, keyof typeof reference> = {
     'market.otherBad': '{least} से {most} NURA के बीच रकम लिखो, ज़्यादा से ज़्यादा चार दशमलव तक।',
     'market.pick': 'चुनो, तुम्हारे हिसाब से कौन जीतेगा',
     'market.place': '{name} पर {amount} NURA लगाओ',
+    'market.placeSome': '{name} पर NURA लगाओ',
     'market.estimate': 'अगर {name} जीते, तो अभी के पूल के हिसाब से लगभग {amount} NURA तुम्हें मिलेंगे। दूसरे लोग अनुमान लगाएँगे तो यह बदलेगा।',
     'market.fee.none': 'पूरा पूल विजेताओं को जाता है: बाज़ीचे इसमें से कुछ नहीं लेता।',
     'market.fee.some': 'बाँटने से पहले बाज़ीचे पूल का {percent} लेता है।',

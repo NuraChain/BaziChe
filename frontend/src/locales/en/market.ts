@@ -19,6 +19,7 @@ export const market = {
     'market.otherBad': 'Write an amount from {least} to {most} NURA, with four places at most.',
     'market.pick': 'Choose who you think wins',
     'market.place': 'Back {name} with {amount} NURA',
+    'market.placeSome': 'Back {name} with NURA',
     'market.estimate': 'If {name} wins, about {amount} NURA would come back to you, as the pool stands now. It moves as others back the game.',
     'market.fee.none': 'The pool goes to the winners in full: Baziche takes nothing from it.',
     'market.fee.some': 'Baziche takes {percent} of the pool before it is shared.',

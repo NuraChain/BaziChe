@@ -67,6 +67,10 @@ export interface ToastPatch
 export const TOAST_VISIBLE = 3;
 export const TOAST_DURATION = 4000;
 export const TOAST_ACTION_DURATION = 6500;
+export const TOAST_LONGEST = 10_000;
+
+/** About sixteen characters a second, after a second to find the toast. */
+const READ_MS = 60;
 
 export interface ToastsApi
 {
@@ -105,7 +109,13 @@ export interface ToastsApi
     reset(): void;
 }
 
-function durationFor(input: ToastInput, kind: ToastKind): number
+/**
+ * Long enough to be read, and longer for what matters more: a warning, which says something went
+ * only part of the way, waits as long as a toast with a button, and a long sentence the time its
+ * words take, up to `TOAST_LONGEST`. Four seconds took "Saved on this server, but not on the
+ * chain..." away halfway through its second line.
+ */
+function durationFor(input: ToastInput, kind: ToastKind)
 {
     if (input.duration !== undefined)
     {
@@ -115,7 +125,9 @@ function durationFor(input: ToastInput, kind: ToastKind): number
     {
         return Infinity;
     }
-    return input.action !== undefined ? TOAST_ACTION_DURATION : TOAST_DURATION;
+    const least = input.action !== undefined || kind === 'warning' ? TOAST_ACTION_DURATION : TOAST_DURATION;
+    const reading = 1000 + (input.text.length + (input.detail?.length ?? 0)) * READ_MS;
+    return Math.max(least, Math.min(reading, TOAST_LONGEST));
 }
 
 export const useToasts = createStore(() =>
@@ -258,7 +270,7 @@ export const useToasts = createStore(() =>
             const now = runtime().clock.now();
             const duration = patch.duration ?? (patch.kind === undefined || patch.kind === 'pending' || patch.kind === 'error'
                 ? current.duration
-                : TOAST_DURATION);
+                : durationFor({ text: patch.text ?? current.text, detail: (patch.detail === undefined ? current.detail : patch.detail) ?? undefined, action: (patch.action === undefined ? current.action : patch.action) ?? undefined }, patch.kind));
             patchItem(id, { ...patch, duration, startedAt: now, remaining: duration });
             const refreshed = untrack(items).find((toast) => toast.id === id);
             if (refreshed !== undefined)

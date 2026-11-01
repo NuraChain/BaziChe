@@ -18,7 +18,7 @@ import { defaultSettings, useSettings } from '../src/stores/settings.store.ts';
 import { useShell } from '../src/stores/shell.store.ts';
 import { usePeople } from '../src/stores/people.store.ts';
 import { usePresence } from '../src/stores/presence.store.ts';
-import { TOAST_DURATION, TOAST_VISIBLE, useToasts } from '../src/stores/toasts.store.ts';
+import { TOAST_ACTION_DURATION, TOAST_DURATION, TOAST_LONGEST, TOAST_VISIBLE, useToasts } from '../src/stores/toasts.store.ts';
 import { answeredUnauthorized, ApiError, client, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
 
@@ -893,6 +893,36 @@ describe('toasts', () =>
         expect(toasts.items().length).toBe(1);
         clock.advance(2);
         expect(toasts.items().length).toBe(0);
+    });
+
+    it('keeps a toast long enough to be read, a warning as long as one with a button, and none past ten seconds', () =>
+    {
+        const toasts = useToasts();
+        const timeOf = (id: string) => toasts.items().find((toast) => toast.id === id)?.duration;
+
+        const copied = toasts.show({ kind: 'success', text: 'Copied' });
+        const warned = toasts.show({ kind: 'warning', text: 'Not on the chain yet' });
+        const said = toasts.show({ kind: 'info', text: 'x'.repeat(60), detail: 'y'.repeat(40) });
+
+        expect(timeOf(copied)).toBe(TOAST_DURATION);
+        expect(timeOf(warned)).toBe(TOAST_ACTION_DURATION);
+        expect(timeOf(said)).toBe(1000 + 100 * 60);
+
+        toasts.dismissAll();
+
+        const rambling = toasts.show({ kind: 'warning', text: 'x'.repeat(400), detail: 'y'.repeat(40) });
+        const working = toasts.show({ kind: 'pending', text: 'Saving' });
+
+        expect(timeOf(rambling)).toBe(TOAST_LONGEST);
+
+        toasts.update(working, { kind: 'success', text: 'z'.repeat(120) });
+
+        expect(timeOf(working), 'a toast that settles keeps four seconds for a long sentence').toBe(1000 + 120 * 60);
+
+        clock.advance(1000 + 120 * 60 - 1);
+        expect(toasts.items().some((toast) => toast.id === working)).toBe(true);
+        clock.advance(2);
+        expect(toasts.items().some((toast) => toast.id === working)).toBe(false);
     });
 
     it('keeps an error until it is dismissed by hand', () =>

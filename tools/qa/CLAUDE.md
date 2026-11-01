@@ -1521,3 +1521,57 @@ clearing the alert on the overview and in the log.
 
 **Its first run found a fault of its own**: it read the shop's `saleOf` as an object, where viem
 answers a function with several outputs as an array.
+
+## The invite pass
+
+**`tools/qa/invite-pass.mjs` is inviting friends from end to end in real browsers on the built
+server**: `PGDATABASE=<the server's database> QA_BASE=http://localhost:5300 node
+tools/qa/invite-pass.mjs`, about two minutes, 39 checks. The server runs built, in production, with
+the limiter raised, on a database nobody else uses, and with `ADMIN_WALLET_ADDRESS` set to hardhat's
+#6 (`QA_OWNER_KEY` names another owner's key), because the owner writes the campaign, plays each
+friend's first game and decides the rewards. PGDATABASE names the server's database because a
+referral is dated by hand and the looks people own are read there. A campaign already running is
+ended first, so a second run on the same database is a run like the first.
+
+Four people, each a page of their own: the owner and the inviter signed in by their keys, and two
+friends nobody has been yet, each with a wallet in their page that announces itself as EIP-6963
+says, so they sign in through the page itself, which is how a link's code reaches the server. In
+order:
+
+- **The campaign**: the owner writes one (a look for whoever invites, one for the friend, a
+  milestone at two friends) and starts it; the invite page says what it gives, and the top
+  inviters are empty and say the reader is not on them yet.
+- **The first friend**, a desk in English: the link opened in lower case names who sent it; Connect
+  wallet, the wallet in the chooser, one signature, and the app; the friend credited and the device
+  that opened the link counted; the inviter told, and the friend listed on the inviter's page as
+  joined. Their referral is dated twenty minutes back by hand, so their first game is no quick one.
+  A chess game a move a day against the owner, a move each and then the friend gives up: the invite
+  counts, the inviter is told, both looks are given at once and both people told, the page says the
+  friend played, and the inviter is first among the top inviters with one friend, marked as the
+  reader.
+- **The second friend**, a phone in Persian: the link right to left naming who sent it, nothing
+  wider than the phone, signed in from that page, the same game at once. A first game finished
+  within ten minutes of joining is flagged `quick`, so both its rewards wait for the staff, and two
+  friends played is the milestone, which always waits; nobody is told of a reward that waits, and
+  the overview counts three.
+- **The owner decides in Admin › Invites**: the second friend's look given (shown 2 ms after the
+  press in this run, owned by the server's word and told), the inviter's second look refused (told
+  nothing), the milestone given (owned and told) and taken back (its look gone, told nothing), and
+  the log keeping each with its reason.
+- **The switch**: the inviter takes themselves off the top inviters in Settings, shown at the press
+  and kept by the server; the board says so with its way to Settings, which opens Settings on the
+  section, and turned back on they are on the board again.
+- No console says anything.
+
+**Its first run found a fault of the product's**: the landing's chooser, which an invite link's page
+opens, offered Nura Wallet, MetaMask and Trust Wallet and dropped every other wallet that announced
+itself, so the pass's own wallet, like Rabby or Coinbase Wallet, had no way in
+(`.claude/rules/identity-and-profile.md`, *Any other wallet that announces itself is offered too*).
+**And one of its own**: psql on Windows ends its lines with a carriage return, so a look read back
+from the database matched only when it was the last line. Split a psql answer on `\r?\n`.
+
+**Proved red** against the compiled server broken three ways at once and put back from saved copies
+(the board naming somebody who took themselves off it, no first game ever quick, nobody told that a
+friend joined): 8 of 39 failed, the lines each fault touches and no other (the joined notice; the
+held rewards, the notice nobody should get, the overview's count, the two decisions about rewards
+that never waited and the log's four rows; and the board).

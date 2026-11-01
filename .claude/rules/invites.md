@@ -198,6 +198,11 @@ campaign (its looks, the sheet, what it leaves out, Persian, and the shop kept o
 chunk), and its place in the route table; `invite-doors.spec.ts` the two doors; `settings.spec.ts`
 (*whether the reader is shown among the top inviters*) the switch.
 
+**`tools/qa/invite-pass.mjs` holds all of it end to end** in four real browsers on the built server:
+a link shared and opened, two friends joined through it, a first game each against the owner, looks
+given at once, held, given, refused and taken back from Admin › Invites, the top inviters and the
+switch (`tools/qa/CLAUDE.md`, *The invite pass*).
+
 ## A friend who played
 
 **An invite counts when the friend finishes a game their inviter did not play in** (`countedBy` in the

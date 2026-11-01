@@ -158,3 +158,39 @@ same upload and fetch with a key that sits in the post.
 - **CF3** `feat(chat)`: the browser's sealing, the document, the upload and the outbox.
 - **CF4** `feat(chat)`: the bubble, the download, the viewer, the list's gist.
 - **CF5** `feat(chat)`: the composer's paperclip, paste, drop and sheet.
+
+## As built
+
+CF0 `345a1315`, CF1 `d90b5773`, CF2 `458f6c42`, CF3 `05ea088b` (and `04c50cba`, its spec's unused
+imports), CF4 `3704dfed`, CF5 `a5d0d29b`.
+
+What changed on the way, against the design:
+
+- **A drop lands on the composer, not on the whole thread.** Paste and the paperclip are as designed.
+- **A reported file is kept for the staff** (`reports.file_id`, and no sweep lets it go), **but the
+  staff's report page has no viewer for it yet**: the disclosed caption or name is what they read.
+- **A message body is held to 16,000 characters for a file** (8,000 for the rest): a document with
+  its thumb and a long caption in a script that takes two bytes a letter seals past 8,000, and a body
+  cut short opens as nothing, so a file's is refused whole rather than cut.
+- **A photo or a video whose bytes are not one is refused** ("This is not a picture or a video that
+  can be shown"), whatever its document says, and anything sent as a file is held as
+  `application/octet-stream`, so it is saved and never shown.
+
+Verification, as run:
+
+- The server's typecheck (both configs) and suite: 2,467 passed, the database specs skipped.
+- The browser's typecheck and the full suite: 5,409 passed in 230 files before CF5, and the file
+  specs (`chat-file`, `chat-file-send`, `file-note`, `file-attach`) after it; lint on every file
+  touched.
+- Faults put in one at a time: a row naming another file opening as anything but tampered, and a
+  photo whose bytes are no picture being shown; each was caught.
+
+Not done, stated:
+
+- **No Postgres was at hand.** The schema snapshot was edited by hand rather than recorded, and
+  `chat-files.db.spec.ts` was typechecked and never run. `schema.db.spec.ts` is what holds the
+  snapshot to a real database; `npm run test:db --workspace backend` with `TEST_DATABASE_URL` set
+  runs both.
+- No real browser was driven: re-drawing a photo on a canvas, a video's first frame and length,
+  and the upload and download over HTTP are held by the code and not by a run. jsdom has no canvas,
+  so the specs see a photo fall back to a file.

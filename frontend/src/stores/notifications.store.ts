@@ -101,9 +101,19 @@ export const useNotifications = createStore((): NotificationsApi =>
 
     const first = createResource(
         key,
-        () => listed(asked()),
+        async (asking) => ({ ...(await listed(asked())), asking }),
         { name: 'notifications.list' }
     );
+
+    /** The first page of the kind asked for now: while another kind is read, the resource still holds the last one's. */
+    const head = () =>
+    {
+        const page = first.data();
+
+        return page?.asking === key() ? page : undefined;
+    };
+
+    const heading = { data: head, error: first.error };
 
     const everything = createResource(
         createMemo(() => (notice() === null ? null : who())),
@@ -112,7 +122,7 @@ export const useNotifications = createStore((): NotificationsApi =>
     );
 
     /** Where the next page starts: the head's cursor until `more` has run, then the tail's. */
-    const nextCursor = () => (older().length === 0 ? first.data()?.cursor : tailCursor());
+    const nextCursor = () => (older().length === 0 ? head()?.cursor : tailCursor());
 
     let inFlight: Promise<void> = Promise.resolve();
 
@@ -127,12 +137,12 @@ export const useNotifications = createStore((): NotificationsApi =>
 
     const known = (): Held =>
     {
-        const head = first.data()?.items ?? [];
-        const seen = new Set(head.map((row) => row.id));
+        const top = head()?.items ?? [];
+        const seen = new Set(top.map((row) => row.id));
 
         return {
-            items: [...head, ...older().filter((row) => !seen.has(row.id))],
-            latest: (notice() === null ? first.data()?.items : everything.data()?.items) ?? [],
+            items: [...top, ...older().filter((row) => !seen.has(row.id))],
+            latest: (notice() === null ? top : everything.data()?.items) ?? [],
             unread: first.data()?.unread ?? 0
         };
     };
@@ -195,8 +205,8 @@ export const useNotifications = createStore((): NotificationsApi =>
         loading: () => first.loading(),
         failed: () => first.error(),
 
-        reading: () => readingOf(first),
-        latestReading: () => readingOf(notice() === null ? first : everything),
+        reading: () => readingOf(heading),
+        latestReading: () => readingOf(notice() === null ? heading : everything),
         latestFailure: () => (notice() === null ? first : everything).error(),
 
         hasMore: () => nextCursor() !== undefined,

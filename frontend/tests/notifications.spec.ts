@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { cleanup, renderTest } from '@azerothjs/testing';
 
 import type { Notification } from '../src/api.ts';
@@ -299,6 +299,49 @@ describe('the notifications store', () =>
 
         expect(notifications.items().length).toBe(3);
         expect(notifications.hasMore()).toBe(true);
+    });
+
+    it('says a kind it has just been asked for is being read, and never hands out the last kind\'s list for it', async () =>
+    {
+        const notifications = useNotifications();
+
+        server.notify({ kind: 'message', actor: 'sara.k', ref: {}, dedupeKey: 'chat:c-1' });
+        await notifications.refresh();
+
+        notifications.only('requests');
+        await settle();
+
+        expect(notifications.reading()).toBe('read');
+        expect(notifications.items()).toEqual([]);
+
+        const list = client.notifications.list.bind(client.notifications);
+        let release: () => void = () => undefined;
+        const held = vi.spyOn(client.notifications, 'list').mockImplementationOnce((request) => new Promise((resolve) =>
+        {
+            release = () => void list(request).then(resolve);
+        }));
+
+        try
+        {
+            notifications.only(null);
+            await settle();
+
+            expect(held).toHaveBeenCalledTimes(1);
+            expect(notifications.reading(), 'the empty list of requests was handed out as every notification').toBe('reading');
+            expect(notifications.latestReading()).toBe('reading');
+            expect(notifications.items()).toEqual([]);
+            expect(notifications.hasMore()).toBe(false);
+            expect(notifications.unread(), 'the count is the whole account\'s, and stays while a kind is read').toBe(1);
+
+            release();
+
+            await vi.waitFor(() => expect(notifications.reading()).toBe('read'), { timeout: 4000 });
+            expect(notifications.items().map((item) => item.kind)).toEqual(['message']);
+        }
+        finally
+        {
+            held.mockRestore();
+        }
     });
 
     it('re-reads itself when the server says one of its own notifications moved, and not on other doorbells', async () =>

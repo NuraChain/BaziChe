@@ -72,7 +72,7 @@ describe('key material in the repository', () =>
 
     it('names no key in the specs or the documents but one of hardhat\'s, whatever else is written there as hex', () =>
     {
-        const keyish = found(['backend/tests', 'frontend/tests', 'docs', 'README.md', 'CLAUDE.md', 'backend/CLAUDE.md', 'frontend/CLAUDE.md', '.claude/rules'])
+        const keyish = found(['backend/tests', 'frontend/tests', 'docs', 'README.md', 'CONTRIBUTING.md', 'CLAUDE.md','backend/CLAUDE.md', 'frontend/CLAUDE.md', '.claude/rules'])
             .filter((key) => !key.published && KEYISH.test(key.said));
 
         expect(keyish.map((key) => `${ key.file }:${ key.line }`)).toEqual([]);

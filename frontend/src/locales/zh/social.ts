@@ -489,6 +489,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.friendRequest': '{who} 想加你为好友',
     'notify.friendAccepted': '{who} 接受了你的请求',
     'notify.groupAdded': '{who} 把你加入了一个群组',
+    'notify.channelInvite': '{who} 把你加入了一个频道',
     'notify.inviteJoined': '{who} 通过你的链接加入了',
     'notify.invitePlayed': '{who} 玩了第一局：你的邀请已计入',
     'notify.inviteReward': '一个来自邀请的新外观已加入你的收藏',

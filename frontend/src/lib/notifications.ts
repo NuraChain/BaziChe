@@ -17,7 +17,8 @@ export const NOTIFICATION_ICON: Record<NotificationKind, IconName> = {
     'invite-played': 'dice',
     'invite-reward': 'gift',
     'gift': 'gift',
-    'donation': 'coins'
+    'donation': 'coins',
+    'channel-invite': 'megaphone'
 };
 
 const SAYS: Record<NotificationKind, MessageKey> = {
@@ -32,7 +33,8 @@ const SAYS: Record<NotificationKind, MessageKey> = {
     'invite-played': 'notify.invitePlayed',
     'invite-reward': 'notify.inviteReward',
     'gift': 'notify.gift',
-    'donation': 'notify.donation'
+    'donation': 'notify.donation',
+    'channel-invite': 'notify.channelInvite'
 };
 
 export function sayOf(item: Notification, who: string, locale: Pick<LocaleApi, 't' | 'plural' | 'n'>)
@@ -85,6 +87,10 @@ export function targetOf(item: Notification): string | null
     if (item.ref.groupId !== undefined)
     {
         return `/app/groups/${ item.ref.groupId }`;
+    }
+    if (item.ref.channelId !== undefined)
+    {
+        return `/app/channels/${ encodeURIComponent(item.ref.channelId) }`;
     }
     if (item.ref.conversationId !== undefined)
     {

@@ -489,6 +489,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.friendRequest': '{who} می‌خواد باهات دوست بشه',
     'notify.friendAccepted': '{who} درخواستت رو قبول کرد',
     'notify.groupAdded': '{who} تو رو به یه گروه اضافه کرد',
+    'notify.channelInvite': '{who} تو رو به یه کانال اضافه کرد',
     'notify.inviteJoined': '{who} با لینک تو اومد',
     'notify.invitePlayed': '{who} اولین بازیش رو کرد؛ دعوتت حساب شد',
     'notify.inviteReward': 'یه استایل تازه از دعوت، توی کلکسیونته',

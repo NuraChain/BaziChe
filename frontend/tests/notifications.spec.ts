@@ -103,6 +103,7 @@ describe('where a notice leads', () =>
         expect(targetOf(notice('turn', { ref: { tableId: 't-2' } }))).toBe('/app/play/t-2');
         expect(targetOf(notice('group-added', { actor: 'maya.c', ref: { groupId: 'g-1' } }))).toBe('/app/groups/g-1');
         expect(targetOf(notice('message', { actor: 'maya.c', ref: { conversationId: 'c-1' } }))).toBe('/app/chats/c-1');
+        expect(targetOf(notice('channel-invite', { actor: 'maya.c', ref: { channelId: 'friday-chess' } }))).toBe('/app/channels/friday-chess');
     });
 
     it.each([

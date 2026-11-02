@@ -94,7 +94,7 @@ const tagOf = (row) =>
         return 'request';
     }
 
-    return `${ row.kind }:${ row.ref.tableId ?? row.ref.groupId ?? row.ref.conversationId ?? row.actor ?? '' }`;
+    return `${ row.kind }:${ row.ref.tableId ?? row.ref.groupId ?? row.ref.channelId ?? row.ref.conversationId ?? row.actor ?? '' }`;
 };
 
 const leadOf = (row) =>
@@ -127,6 +127,11 @@ const leadOf = (row) =>
     if (row.ref.groupId !== undefined)
     {
         return `/app/groups/${ row.ref.groupId }`;
+    }
+
+    if (row.ref.channelId !== undefined)
+    {
+        return `/app/channels/${ encodeURIComponent(row.ref.channelId) }`;
     }
 
     if (row.ref.conversationId !== undefined)

@@ -486,6 +486,7 @@ export const social = {
     'notify.friendRequest': '{who} wants to be friends',
     'notify.friendAccepted': '{who} accepted your request',
     'notify.groupAdded': '{who} added you to a group',
+    'notify.channelInvite': '{who} added you to a channel',
     'notify.inviteJoined': '{who} joined through your link',
     'notify.invitePlayed': '{who} played a first game: your invite counts',
     'notify.inviteReward': 'A new look from an invite is in your collection',

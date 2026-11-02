@@ -184,6 +184,8 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.collection.gifts': 'Hediyeler',
     'shop.collection.from': 'Gönderen: {name}',
     'shop.collection.noGifts': 'Henüz kimse sana görünüm göndermedi.',
+    'shop.collection.chain': 'NuraChain üzerinde',
+    'shop.collection.chainLead': 'Sahip olduğun her görünüm, cüzdanına taşınamayan bir NFT olarak basılır: senin olduğunun kanıtı.',
     'shop.collection.orders': 'Siparişlerin',
     'shop.collection.noOrders': 'Henüz bir şey satın almadın.',
     'shop.collection.older': 'Eskileri göster',

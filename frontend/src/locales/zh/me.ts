@@ -56,6 +56,8 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'rarity.rare': '稀有',
     'rarity.legendary': '传奇',
     'rarity.holders': '的玩家拥有',
+    'nft.onChain': '在 NuraChain 上',
+    'nft.minting': '铸造中…',
     'achievements.locked': '尚未获得',
     'achievements.earnedOne': '已获得',
 

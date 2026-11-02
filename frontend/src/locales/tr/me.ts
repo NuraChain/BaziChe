@@ -56,6 +56,8 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'rarity.rare': 'Nadir',
     'rarity.legendary': 'Efsanevi',
     'rarity.holders': 'oyuncuda var',
+    'nft.onChain': 'NuraChain üzerinde',
+    'nft.minting': 'Basılıyor…',
     'achievements.locked': 'Henüz kazanılmadı',
     'achievements.earnedOne': 'Kazanıldı',
 

@@ -1,0 +1,38 @@
+import { NURA_CHAIN } from '../../data/chain.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { explorerTx } from '../../lib/nura.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+
+/**
+ * That a look or a legendary achievement is held on NuraChain as a soulbound token: "On NuraChain",
+ * linking to the transaction that minted it, or "Minting" while it is on its way. Nothing for a
+ * thing that is not a token, so it can be put beside anything a person owns.
+ */
+export default component NftMark(props: { mark?: { state: 'minting' | 'minted'; hash?: string }; class?: string })
+{
+    const locale = useLocale();
+
+    derived link = props.mark?.state === 'minted' && props.mark.hash !== undefined ? explorerTx(Number(NURA_CHAIN.chainId), props.mark.hash) : null;
+
+    derived shell = [ 'inline-flex items-center gap-1 text-ui-2xs font-semibold', props.class ?? '' ].join(' ');
+
+    <Switch>
+        <Match when={ link !== null }>
+            <a href={ link ?? undefined } target="_blank" rel="noopener noreferrer" class={ `${ shell } text-accent hover:underline` } data-nft="minted">
+                <Icon name="verified" size={ 12 } />
+                <span>{ locale.t('nft.onChain') }</span>
+            </a>
+        </Match>
+        <Match when={ props.mark?.state === 'minted' }>
+            <span class={ `${ shell } text-accent` } data-nft="minted">
+                <Icon name="verified" size={ 12 } />
+                <span>{ locale.t('nft.onChain') }</span>
+            </span>
+        </Match>
+        <Match when={ props.mark?.state === 'minting' }>
+            <span class={ `${ shell } text-faint` } data-nft="minting">
+                <span>{ locale.t('nft.minting') }</span>
+            </span>
+        </Match>
+    </Switch>
+}

@@ -249,6 +249,21 @@ describe.skipIf(!active)('coming into a group by a link and by asking, against a
             expect((await ports.group.links(owner.id, made.slug))?.links.map((one) => [one.most, one.ends !== undefined])).toEqual([[100, true]]);
         });
 
+        it('is answered first by the request that made it, whatever was made after it', async () =>
+        {
+            const owner = await makeUser();
+            const made = await group(owner);
+            const other = await newest(owner, made.slug, { approval: false });
+
+            // Stamped after the next one, as a link another admin made in the same moment would be.
+            await db.query(`update group_invites set created_at = now() + interval '1 minute' where id = $1`, [other.id]);
+
+            const answer = await ports.group.makeLink(owner.id, made.slug, { approval: true });
+
+            expect(answer.links.map((one) => one.approval), 'the one just made leads the answer').toEqual([true, false]);
+            expect((await ports.group.links(owner.id, made.slug))?.links.map((one) => one.approval), 'the list itself is newest first').toEqual([false, true]);
+        });
+
         it('lets in no more than its limit when people use it at once', async () =>
         {
             const owner = await makeUser();

@@ -1,0 +1,66 @@
+import { attempt } from '../../lib/attempt.ts';
+import { whyGroup } from '../../lib/group-words.ts';
+import { useGroupAdmin, type GroupKept } from '../../stores/group-admin.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Button from '../ui/button.component.azeroth';
+import EmptyState from '../ui/empty-state.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import FriendRow from './friend-row.component.azeroth';
+
+/**
+ * Who is kept out of a group, newest first, each let back at a press: the row leaves at once and comes
+ * back with the refusal's words if the server says no. Being let back is not being let in.
+ */
+export default component GroupBanned()
+{
+    const locale = useLocale();
+    const admin = useGroupAdmin();
+
+    mount
+    {
+        admin.want('banned');
+    }
+
+    derived kept = admin.banned();
+
+    derived reading = admin.bannedReading() === 'reading' && kept.length === 0;
+
+    derived failed = admin.bannedReading() === 'failed' && kept.length === 0;
+
+    derived none = admin.bannedReading() === 'read' && kept.length === 0;
+
+    const unban = (one: GroupKept) =>
+        void attempt(admin.unban(one.person.handle), locale.t('groups.unbannedToast', { name: one.person.displayName }), whyGroup);
+
+    <section class="flex flex-col gap-3" aria-label={ locale.t('groups.tab.banned') }>
+        <Show when={ reading }>
+            { () =>
+                <div class="flex flex-col gap-2" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                    <Skeleton class="h-16 w-full rounded-tile" />
+                </div>
+            }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState compact error={ admin.bannedFailure() } title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => void admin.refresh() } /> }
+        </Show>
+
+        <Show when={ none }>
+            { () => <EmptyState icon="block" title={ locale.t('groups.bannedEmpty') } class="py-8" /> }
+        </Show>
+
+        <ul class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field px-2 empty:hidden" aria-label={ locale.t('groups.tab.banned') }>
+            <For each={ kept } key={ (one) => one.person.handle } let={ one }>
+                <li>
+                    <FriendRow
+                        person={ one.person }
+                        subtitle={ locale.t('groups.bannedWhen', { when: locale.relative(Date.parse(one.at), { style: 'short' }) }) }
+                        actions={ <Button variant="outline" size="sm" onClick={ () => unban(one) }>{ locale.t('groups.unban') }</Button> }
+                    />
+                </li>
+            </For>
+        </ul>
+    </section>
+}

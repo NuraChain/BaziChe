@@ -129,6 +129,11 @@ const leadOf = (row) =>
         return `/app/play/${ row.ref.tableId }`;
     }
 
+    if (row.kind === 'group-request' && row.ref.groupId !== undefined)
+    {
+        return `/app/groups/${ row.ref.groupId }?tab=requests`;
+    }
+
     if (row.ref.groupId !== undefined)
     {
         return `/app/groups/${ row.ref.groupId }`;

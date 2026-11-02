@@ -1,0 +1,75 @@
+import { attempt } from '../../lib/attempt.ts';
+import { whyGroup } from '../../lib/group-words.ts';
+import { useGroupAdmin, type GroupWaiting } from '../../stores/group-admin.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Button from '../ui/button.component.azeroth';
+import EmptyState from '../ui/empty-state.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import FriendRow from './friend-row.component.azeroth';
+
+/**
+ * Who waits to be let into a group, the longest waiting first, each let in or turned away at a press:
+ * the row leaves at once, the toast says so once the server has, and a refusal brings it back.
+ */
+export default component GroupRequests()
+{
+    const locale = useLocale();
+    const admin = useGroupAdmin();
+
+    mount
+    {
+        admin.want('requests');
+    }
+
+    derived waiting = admin.requests();
+
+    derived reading = admin.requestsReading() === 'reading' && waiting.length === 0;
+
+    derived failed = admin.requestsReading() === 'failed' && waiting.length === 0;
+
+    derived none = admin.requestsReading() === 'read' && waiting.length === 0;
+
+    const answer = (one: GroupWaiting, approve: boolean) =>
+    {
+        const name = one.person.displayName;
+        void attempt(admin.answer(one.person.handle, approve), locale.t(approve ? 'groups.approvedToast' : 'groups.declinedToast', { name }), whyGroup);
+    };
+
+    const facts = (one: GroupWaiting) =>
+    {
+        const asked = locale.t('groups.askedWhen', { when: locale.relative(Date.parse(one.at), { style: 'short' }) });
+        return one.byLink ? `${ asked } · ${ locale.t('groups.viaLink') }` : asked;
+    };
+
+    <section class="@container flex flex-col gap-3" aria-label={ locale.t('groups.tab.requests') }>
+        <Show when={ reading }>
+            { () =>
+                <div class="flex flex-col gap-2" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                    <Skeleton class="h-16 w-full rounded-tile" />
+                </div>
+            }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState compact error={ admin.requestsFailure() } title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => void admin.refresh() } /> }
+        </Show>
+
+        <Show when={ none }>
+            { () => <EmptyState icon="friend-check" title={ locale.t('groups.requestsEmpty') } class="py-8" /> }
+        </Show>
+
+        <ul class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field px-2 empty:hidden" aria-label={ locale.t('groups.tab.requests') }>
+            <For each={ waiting } key={ (one) => one.person.handle } let={ one }>
+                <li class="flex flex-col pb-2.5 @md:flex-row @md:items-center @md:pb-0">
+                    <FriendRow person={ one.person } subtitle={ facts(one) } actionsApart class="min-w-0 @md:flex-1" />
+                    <span class="flex items-center gap-1.5 ps-15 @md:ps-0 @md:pe-2">
+                        <Button variant="primary" size="sm" onClick={ () => answer(one, true) }>{ locale.t('groups.approve') }</Button>
+                        <Button variant="ghost" size="sm" onClick={ () => answer(one, false) }>{ locale.t('groups.decline') }</Button>
+                    </span>
+                </li>
+            </For>
+        </ul>
+    </section>
+}

@@ -88,6 +88,10 @@ export function targetOf(item: Notification): string | null
     {
         return `/app/play/${ item.ref.tableId }`;
     }
+    if (item.kind === 'group-request' && item.ref.groupId !== undefined)
+    {
+        return `/app/groups/${ item.ref.groupId }?tab=requests`;
+    }
     if (item.ref.groupId !== undefined)
     {
         return `/app/groups/${ item.ref.groupId }`;

@@ -3571,8 +3571,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 }
 
                 const found = await mustSee(me, slug);
-                await group.makeLink(me, found.id, { hours: input.hours ?? null, uses: input.uses ?? null, approval: input.approval });
-                return { links: ((await group.links(me, found.id)) ?? []).map(asLink) };
+                const made = await group.makeLink(me, found.id, { hours: input.hours ?? null, uses: input.uses ?? null, approval: input.approval });
+                const links = ((await group.links(me, found.id)) ?? []).map(asLink);
+
+                // The one just made leads, so the page shows the address it asked for, whoever made another meanwhile.
+                return { links: [...links.filter((one) => one.id === made), ...links.filter((one) => one.id !== made)] };
             },
 
             async revokeLink(me, slug, id)

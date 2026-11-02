@@ -1,0 +1,73 @@
+import { handleParts } from '../../lib/staff-words.ts';
+import type { GroupLink } from '../../stores/group-admin.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+
+/**
+ * One invite link: its address to copy while it works, a line of facts (its uses, how long it lasts,
+ * whether it asks first, who made it), why it stopped once it has, and the way to stop it.
+ */
+export default component GroupLinkRow(props: { link: GroupLink; onCopy: (link: GroupLink) => void; onRevoke: (link: GroupLink) => void })
+{
+    const locale = useLocale();
+
+    derived live = props.link.live;
+
+    derived address = props.link.link;
+
+    derived shown = live ? 'min-w-0 flex-1 truncate text-ui-sm text-text' : 'min-w-0 flex-1 truncate text-ui-sm text-faint line-through';
+
+    /** Several languages count nought with the form for one, so a link nobody used has a sentence of its own. */
+    derived uses = props.link.most !== undefined
+        ? locale.t('groups.linkUsesOf', { count: locale.n(props.link.uses), most: locale.n(props.link.most) })
+        : (props.link.uses === 0 ? locale.t('groups.linkUnused') : locale.plural('groups.linkUses', props.link.uses));
+
+    derived lasts = props.link.ends === undefined
+        ? locale.t('groups.linkForever')
+        : locale.t('groups.linkEnds', { when: locale.date(Date.parse(props.link.ends), { dateStyle: 'medium', timeStyle: 'short' }) });
+
+    derived asks = props.link.approval;
+
+    /** Who made it, the handle a part of its own: inside a Persian sentence an unset handle runs the wrong way, "dana.w@". */
+    derived maker = props.link.by === undefined ? [] : handleParts(locale.t('groups.linkBy', { who: '{who}' }), { who: `@${ props.link.by }` });
+
+    derived made = maker.length > 0;
+
+    derived stopped = props.link.revoked !== undefined
+        ? locale.t('groups.linkRevoked')
+        : (props.link.most !== undefined && props.link.uses >= props.link.most ? locale.t('groups.linkUsedUp') : locale.t('groups.linkEnded'));
+
+    <div class="flex flex-col gap-1 p-3" data-live={ live ? 'true' : 'false' }>
+        <div class="flex min-w-0 items-center gap-2">
+            <span class={ shown } dir="ltr">{ address }</span>
+            <Show when={ live } fallback={ <Badge dot text={ stopped } tone="neutral" /> }>
+                { () => <IconButton icon="copy" label={ locale.t('groups.linkCopy') } variant="ghost" size="sm" onClick={ () => props.onCopy(props.link) } /> }
+            </Show>
+        </div>
+        <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <p class="facts min-w-0 flex-1 text-ui-xs text-muted">
+                <span>{ uses }</span>
+                <Show when={ live }>
+                    { () => <span>{ lasts }</span> }
+                </Show>
+                <Show when={ asks }>
+                    { () => <span>{ locale.t('groups.linkAsks') }</span> }
+                </Show>
+                <Show when={ made }>
+                    { () =>
+                        <span data-maker>
+                            <For each={ maker } key={ (part) => String(part.at) } let={ part }>
+                                <span dir={ part.handle ? 'ltr' : undefined }>{ part.text }</span>
+                            </For>
+                        </span>
+                    }
+                </Show>
+            </p>
+            <Show when={ live }>
+                { () => <Button variant="destructive-ghost" size="sm" class="shrink-0" onClick={ () => props.onRevoke(props.link) }>{ locale.t('groups.linkRevoke') }</Button> }
+            </Show>
+        </div>
+    </div>
+}

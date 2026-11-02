@@ -11,6 +11,9 @@ export default component FriendRow(props: {
     person: Person;
     subtitle?: string;
     actions?: Child;
+
+    /** Its list draws what can be done with this person beside or under the row, so the row ends in no mark of its own. */
+    actionsApart?: boolean;
     class?: string;
 })
 {
@@ -24,6 +27,8 @@ export default component FriendRow(props: {
     derived plate = plateOf(props.person.nameplate) ?? undefined;
 
     derived acting = props.actions !== undefined;
+
+    derived marked = !acting && props.actionsApart !== true;
 
     derived status = props.subtitle ?? (!state.known
         ? `@${ props.person.handle }`
@@ -41,7 +46,7 @@ export default component FriendRow(props: {
                 </span>
                 <span class="truncate text-ui-sm text-muted" dir="auto">{ status }</span>
             </span>
-            <Show when={ !acting }>
+            <Show when={ marked }>
                 <Icon name="more" size={ 16 } class="shrink-0 text-faint transition-colors group-hover:text-muted" />
             </Show>
         </button>

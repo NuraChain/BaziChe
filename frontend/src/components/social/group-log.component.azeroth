@@ -1,0 +1,61 @@
+import { worded } from '../../lib/group-words.ts';
+import { useGroupAdmin } from '../../stores/group-admin.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import EmptyState from '../ui/empty-state.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import LoadMore from '../ui/load-more.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import GroupLogEntry from './group-log-entry.component.azeroth';
+
+/** What the staff did in a group, newest first, older ones a page at a time. */
+export default component GroupLog()
+{
+    const locale = useLocale();
+    const admin = useGroupAdmin();
+
+    mount
+    {
+        admin.want('log');
+    }
+
+    derived rows = admin.log().filter(worded);
+
+    derived reading = admin.logReading() === 'reading' && rows.length === 0;
+
+    derived failed = admin.logReading() === 'failed' && rows.length === 0;
+
+    derived none = admin.logReading() === 'read' && rows.length === 0;
+
+    derived older = admin.logHasMore();
+
+    <section class="flex flex-col gap-3" aria-label={ locale.t('groups.tab.log') }>
+        <Show when={ reading }>
+            { () =>
+                <div class="flex flex-col gap-2" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                    <Skeleton class="h-14 w-full rounded-tile" />
+                </div>
+            }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState compact error={ admin.logFailure() } title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => void admin.refresh() } /> }
+        </Show>
+
+        <Show when={ none }>
+            { () => <EmptyState icon="history" title={ locale.t('groups.logEmpty') } class="py-8" /> }
+        </Show>
+
+        <ol class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field empty:hidden" aria-label={ locale.t('groups.tab.log') }>
+            <For each={ rows } key={ (row) => row.id } let={ row }>
+                <li>
+                    <GroupLogEntry row={ row } />
+                </li>
+            </For>
+        </ol>
+
+        <Show when={ older }>
+            { () => <LoadMore label={ locale.t('groups.logMore') } icon="history" onMore={ () => void admin.logMore() } /> }
+        </Show>
+    </section>
+}

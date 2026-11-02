@@ -131,7 +131,7 @@ describe('where a notice leads', () =>
 
         const about = { actor: 'maya.c', ref: { groupId: 'g-1' } };
 
-        expect(targetOf(notice('group-request', about))).toBe('/app/groups/g-1');
+        expect(targetOf(notice('group-request', about)), 'to the requests waiting').toBe('/app/groups/g-1?tab=requests');
         expect(targetOf(notice('group-approved', about))).toBe('/app/groups/g-1');
         expect(targetOf(notice('group-owner', about))).toBe('/app/groups/g-1');
         expect(sayOf(notice('group-request', about), 'Maya', useLocale())).toBe(asked);

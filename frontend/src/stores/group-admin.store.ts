@@ -1,7 +1,7 @@
 import { createResource, createSignal, createStore, untrack, type Getter } from 'azerothjs';
 
 import { GROUP_RIGHTS, type GroupRight, type GroupRole } from '../../../backend/src/domains/group/roles.ts';
-import { client, type GroupMembers } from '../api.ts';
+import { client, type GroupLinks, type GroupLog, type GroupMembers, type GroupRequests } from '../api.ts';
 import { createGuesses } from '../lib/guess.ts';
 import { readingOf, type Reading } from '../lib/reading.ts';
 import { runtime } from '../lib/runtime.ts';
@@ -11,6 +11,23 @@ import { usePeople } from './people.store.ts';
 import { useRealtime } from './realtime.store.ts';
 
 export type GroupMember = GroupMembers['members'][number];
+
+export type GroupWaiting = GroupRequests['requests'][number];
+
+export type GroupLink = GroupLinks['links'][number];
+
+export type GroupLogRow = GroupLog['rows'][number];
+
+export interface GroupKept
+{
+    person: GroupMember['person'];
+    at: string;
+}
+
+/** The panels only some of the staff open, read once their tab asks and never before. */
+export type GroupPanel = 'requests' | 'links' | 'banned' | 'log';
+
+const PANELS: readonly GroupPanel[] = ['requests', 'links', 'banned', 'log'];
 
 export interface GroupAdminApi
 {
@@ -37,7 +54,36 @@ export interface GroupAdminApi
     ban(handle: string): Promise<void>;
     handOn(handle: string): Promise<void>;
 
-    /** Reads the members again: after a change, and at the social doorbell. */
+    /** Asks for a panel's read, once its tab is shown. */
+    want(panel: GroupPanel): void;
+
+    /** Who waits to be let in, and an answer to one of them, shown at the press. */
+    requests: Getter<GroupWaiting[]>;
+    requestsReading: Getter<Reading>;
+    requestsFailure: Getter<unknown>;
+    answer(handle: string, approve: boolean): Promise<void>;
+
+    /** The group's links, a new one drawn once the server has made it, and one revoked at the press. */
+    links: Getter<GroupLink[]>;
+    linksReading: Getter<Reading>;
+    linksFailure: Getter<unknown>;
+    makeLink(input: { hours?: number; uses?: number; approval: boolean }): Promise<GroupLink | undefined>;
+    revokeLink(id: string): Promise<void>;
+
+    /** Who is kept out, and one let back at the press. */
+    banned: Getter<GroupKept[]>;
+    bannedReading: Getter<Reading>;
+    bannedFailure: Getter<unknown>;
+    unban(handle: string): Promise<void>;
+
+    /** What the staff did here, newest first, a page at a time. */
+    log: Getter<GroupLogRow[]>;
+    logReading: Getter<Reading>;
+    logFailure: Getter<unknown>;
+    logHasMore: Getter<boolean>;
+    logMore(): Promise<void>;
+
+    /** Reads the members and every panel asked for again: after a change, and at the social doorbell. */
     refresh(): Promise<void>;
 
     start(): () => void;
@@ -65,6 +111,18 @@ export const useGroupAdmin = createStore((): GroupAdminApi =>
     const [cursor, setCursor] = createSignal<string | undefined>(undefined);
 
     const guesses = createGuesses<GroupMember[]>();
+    const waitingGuesses = createGuesses<GroupWaiting[]>();
+    const linkGuesses = createGuesses<GroupLink[]>();
+    const keptGuesses = createGuesses<GroupKept[]>();
+
+    const wants: Record<GroupPanel, ReturnType<typeof createSignal<boolean>>> = {
+        requests: createSignal(false),
+        links: createSignal(false),
+        banned: createSignal(false),
+        log: createSignal(false)
+    };
+    const [olderLog, setOlderLog] = createSignal<GroupLogRow[]>([]);
+    const [logCursor, setLogCursor] = createSignal<string | undefined>(undefined);
 
     const who = () => account.user()?.id ?? null;
 
@@ -85,11 +143,62 @@ export const useGroupAdmin = createStore((): GroupAdminApi =>
         { name: 'groupAdmin.members' }
     );
 
+    /** A panel's read, keyed by the group and whether its tab has asked, so nothing is read before. */
+    const panel = <T>(name: GroupPanel, read: (open: string) => Promise<T>) => createResource(
+        () => (slug() === '' || !wants[name][0]() ? null : { slug: slug(), who: who() }),
+        (current) => read(current.slug),
+        { name: `groupAdmin.${ name }` }
+    );
+
+    const requests = panel('requests', async (open) =>
+    {
+        const answer = await client.groups.requests({ params: { slug: open } });
+        people.remember(answer.requests.map((one) => one.person));
+        waitingGuesses.landed();
+        return answer;
+    });
+
+    const links = panel('links', async (open) =>
+    {
+        const answer = await client.groups.links({ params: { slug: open } });
+        linkGuesses.landed();
+        return answer;
+    });
+
+    const banned = panel('banned', async (open) =>
+    {
+        const answer = await client.groups.banned({ params: { slug: open } });
+        people.remember(answer.people.map((one) => one.person));
+        keptGuesses.landed();
+        return answer;
+    });
+
+    const firstLog = panel('log', async (open) =>
+    {
+        const page = await client.groups.log({ params: { slug: open }, query: {} });
+        setOlderLog([]);
+        setLogCursor(page.cursor);
+        return page;
+    });
+
+    const reads = { requests, links, banned, log: firstLog };
+
     const refresh = async () =>
     {
         if (untrack(slug) !== '')
         {
-            await Promise.all([first.refetch(), groups.refresh()]);
+            const asked = PANELS.filter((name) => untrack(wants[name][0]));
+            await Promise.all([first.refetch(), groups.refresh(), ...asked.map((name) => reads[name].refetch())]);
+        }
+    };
+
+    /** Reads after a change, and fails when the read a guess waits for failed, so the guess stands until it lands. */
+    const rereadFor = (read: { error: Getter<unknown> }) => async () =>
+    {
+        await refresh();
+        if (read.error() !== null)
+        {
+            throw read.error();
         }
     };
 
@@ -120,6 +229,8 @@ export const useGroupAdmin = createStore((): GroupAdminApi =>
         await guesses.during(guess, () => send(open), reread);
     };
 
+    const without = <T extends { person: { handle: string } }>(handle: string) => (held: T[]) => held.filter((one) => one.person.handle !== handle);
+
     return {
         slug,
 
@@ -129,6 +240,13 @@ export const useGroupAdmin = createStore((): GroupAdminApi =>
             {
                 setQuery('');
                 guesses.clear();
+                waitingGuesses.clear();
+                linkGuesses.clear();
+                keptGuesses.clear();
+                for (const name of PANELS)
+                {
+                    wants[name][1](false);
+                }
                 setSlug(next);
             }
         },
@@ -212,6 +330,89 @@ export const useGroupAdmin = createStore((): GroupAdminApi =>
             (open) => client.groups.transfer({ params: { slug: open }, input: { id: handle } })
         ),
 
+        want(name)
+        {
+            if (!untrack(wants[name][0]))
+            {
+                wants[name][1](true);
+            }
+        },
+
+        requests: () => waitingGuesses.over(requests.data()?.requests ?? []),
+        requestsReading: () => readingOf(requests),
+        requestsFailure: () => requests.error(),
+
+        async answer(handle, approve)
+        {
+            const open = untrack(slug);
+            await waitingGuesses.during(
+                without<GroupWaiting>(handle),
+                () => client.groups.answer({ params: { slug: open }, input: { id: handle, approve } }),
+                rereadFor(requests)
+            );
+        },
+
+        links: () => linkGuesses.over(links.data()?.links ?? []),
+        linksReading: () => readingOf(links),
+        linksFailure: () => links.error(),
+
+        async makeLink(input)
+        {
+            const open = untrack(slug);
+            const made = await client.groups.makeLink({ params: { slug: open }, input: { approval: input.approval, ...(input.hours === undefined ? {} : { hours: input.hours }), ...(input.uses === undefined ? {} : { uses: input.uses }) } });
+            await links.refetch();
+            return made.links[0];
+        },
+
+        async revokeLink(id)
+        {
+            const open = untrack(slug);
+            const at = new Date(runtime().clock.now()).toISOString();
+            await linkGuesses.during(
+                (held) => held.map((one) => (one.id === id && one.revoked === undefined ? { ...one, revoked: at, live: false } : one)),
+                () => client.groups.revokeLink({ params: { slug: open, linkId: id } }),
+                rereadFor(links)
+            );
+        },
+
+        banned: () => keptGuesses.over(banned.data()?.people ?? []),
+        bannedReading: () => readingOf(banned),
+        bannedFailure: () => banned.error(),
+
+        async unban(handle)
+        {
+            const open = untrack(slug);
+            await keptGuesses.during(
+                without<GroupKept>(handle),
+                () => client.groups.unban({ params: { slug: open }, input: { id: handle } }),
+                rereadFor(banned)
+            );
+        },
+
+        log: () => [...(firstLog.data()?.rows ?? []), ...olderLog()],
+        logReading: () => readingOf(firstLog),
+        logFailure: () => firstLog.error(),
+        logHasMore: () => logCursor() !== undefined,
+
+        async logMore()
+        {
+            const open = untrack(slug);
+            const after = untrack(logCursor);
+
+            if (open === '' || after === undefined)
+            {
+                return;
+            }
+
+            const page = await client.groups.log({ params: { slug: open }, query: { cursor: after } });
+
+            if (untrack(slug) === open && untrack(logCursor) === after)
+            {
+                setOlderLog((current) => [...current, ...page.rows]);
+                setLogCursor(page.cursor);
+            }
+        },
+
         refresh,
 
         start()
@@ -231,7 +432,16 @@ export const useGroupAdmin = createStore((): GroupAdminApi =>
             setQuery('');
             setLater([]);
             setCursor(undefined);
+            setOlderLog([]);
+            setLogCursor(undefined);
             guesses.clear();
+            waitingGuesses.clear();
+            linkGuesses.clear();
+            keptGuesses.clear();
+            for (const name of PANELS)
+            {
+                wants[name][1](false);
+            }
         }
     };
 });

@@ -1,0 +1,23 @@
+import { groupLogParts } from '../../lib/group-words.ts';
+import type { GroupLogRow } from '../../stores/group-admin.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import When from '../admin/when.component.azeroth';
+
+/** One row of a group's log: what was done as a sentence, each handle set apart, and when, exact under a pointer. */
+export default component GroupLogEntry(props: { row: GroupLogRow })
+{
+    const locale = useLocale();
+
+    derived parts = groupLogParts(props.row, locale);
+
+    derived at = props.row.at;
+
+    <div class="flex flex-col gap-1 px-3 py-3">
+        <p class="text-ui-sm text-text">
+            <For each={ parts } key={ (part) => String(part.at) } let={ part }>
+                <span class={ part.handle ? 'font-semibold' : '' } dir={ part.handle ? 'ltr' : undefined }>{ part.text }</span>
+            </For>
+        </p>
+        <span class="text-ui-xs text-faint"><When at={ at } /></span>
+    </div>
+}

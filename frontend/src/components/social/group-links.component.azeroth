@@ -1,0 +1,88 @@
+import { attempt } from '../../lib/attempt.ts';
+import { copyText } from '../../lib/clipboard.ts';
+import { whyGroup } from '../../lib/group-words.ts';
+import { useGroupAdmin, type GroupLink } from '../../stores/group-admin.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import ConfirmSheet from '../app/confirm-sheet.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import EmptyState from '../ui/empty-state.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import GroupLinkRow from './group-link-row.component.azeroth';
+import GroupLinkSheet from './group-link-sheet.component.azeroth';
+
+/**
+ * A group's invite links, newest first, each copied while it works and stopped behind a question. A
+ * new one is made in a sheet and drawn once the server has made it, because its address is the
+ * server's to draw; a revoke is drawn at the press and taken back with the refusal's words.
+ */
+export default component GroupLinks()
+{
+    const locale = useLocale();
+    const admin = useGroupAdmin();
+    const overlay = useOverlay();
+
+    mount
+    {
+        admin.want('links');
+    }
+
+    derived links = admin.links();
+
+    derived reading = admin.linksReading() === 'reading' && links.length === 0;
+
+    derived failed = admin.linksReading() === 'failed' && links.length === 0;
+
+    derived none = admin.linksReading() === 'read' && links.length === 0;
+
+    const make = () => void overlay.open(GroupLinkSheet, {}, { label: locale.t('groups.linkNewTitle') });
+
+    const copy = (link: GroupLink) => void copyText(link.link, 'groups.linkCopied', { dedupe: `group-link:${ link.id }` });
+
+    const revoke = async (link: GroupLink) =>
+    {
+        const asked = overlay.open(ConfirmSheet, {
+            title: locale.t('groups.linkRevokeTitle'),
+            lead: locale.t('groups.linkRevokeLead'),
+            confirm: locale.t('groups.linkRevoke'),
+            destructive: true
+        }, { label: locale.t('groups.linkRevokeTitle') });
+
+        if ((await asked.closed) === true)
+        {
+            await attempt(admin.revokeLink(link.id), locale.t('groups.linkStopped'), whyGroup);
+        }
+    };
+
+    <section class="flex flex-col gap-3" aria-label={ locale.t('groups.tab.links') }>
+        <div class="flex justify-end">
+            <Button variant="primary" size="sm" leading="add" onClick={ make }>{ locale.t('groups.linkNew') }</Button>
+        </div>
+
+        <Show when={ reading }>
+            { () =>
+                <div class="flex flex-col gap-2" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                    <Skeleton class="h-20 w-full rounded-tile" />
+                </div>
+            }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState compact error={ admin.linksFailure() } title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => void admin.refresh() } /> }
+        </Show>
+
+        <Show when={ none }>
+            { () => <EmptyState icon="invite" title={ locale.t('groups.linksEmpty') } class="py-8" /> }
+        </Show>
+
+        <ul class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field empty:hidden" aria-label={ locale.t('groups.tab.links') }>
+            <For each={ links } key={ (link) => link.id } let={ link }>
+                <li>
+                    <GroupLinkRow link={ link } onCopy={ copy } onRevoke={ (one) => void revoke(one) } />
+                </li>
+            </For>
+        </ul>
+    </section>
+}

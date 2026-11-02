@@ -1,14 +1,19 @@
 import { untrack, useHead, useNavigate, useParams } from 'azerothjs';
 
+import { mayIn } from '../../../../backend/src/domains/group/roles.ts';
 import type { GroupSummary } from '../../api.ts';
 import ConfirmSheet from '../../components/app/confirm-sheet.component.azeroth';
 import Page from '../../components/app/page.component.azeroth';
 import OpenHereSheet from '../../components/games/open-here-sheet.component.azeroth';
 import GroupAdd from '../../components/social/group-add.component.azeroth';
+import GroupBanned from '../../components/social/group-banned.component.azeroth';
 import GroupCrest from '../../components/social/group-crest.component.azeroth';
 import GroupForm from '../../components/social/group-form.component.azeroth';
+import GroupLinks from '../../components/social/group-links.component.azeroth';
+import GroupLog from '../../components/social/group-log.component.azeroth';
 import GroupMemberRow from '../../components/social/group-member-row.component.azeroth';
 import GroupMemberSheet from '../../components/social/group-member-sheet.component.azeroth';
+import GroupRequests from '../../components/social/group-requests.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
 import EmptyState from '../../components/ui/empty-state.component.azeroth';
 import ErrorState from '../../components/ui/error-state.component.azeroth';
@@ -17,6 +22,7 @@ import LoadMore from '../../components/ui/load-more.component.azeroth';
 import SearchInput from '../../components/ui/search-input.component.azeroth';
 import SectionHeading from '../../components/ui/section-heading.component.azeroth';
 import Skeleton from '../../components/ui/skeleton.component.azeroth';
+import Tabs from '../../components/ui/tabs.component.azeroth';
 import type { GameId } from '../../data/games.ts';
 import { formatsWithin } from '../../data/tables.ts';
 import Icon from '../../icons/icon.component.azeroth';
@@ -29,6 +35,7 @@ import { usePresence } from '../../stores/presence.store.ts';
 import { useShell } from '../../stores/shell.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
 import { attempt } from '../../lib/attempt.ts';
+import { useAddress } from '../../lib/page-param.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { SEARCH_FIELD, keyboardTo } from '../../lib/way-back.ts';
 import { SEARCH_FROM, SEARCH_PAUSE_MS } from '../../services/search.service.ts';
@@ -91,6 +98,47 @@ export default component GroupPage()
     derived owns = group?.role === 'owner';
 
     derived joined = group?.role !== undefined;
+
+    derived standing = { role: group?.role ?? null, rights: group?.rights ?? [], muted: group?.muted !== undefined };
+
+    derived answers = group !== null && mayIn(standing, group.switches, 'approve');
+
+    derived links = group !== null && mayIn(standing, group.switches, 'links');
+
+    derived bans = group !== null && mayIn(standing, group.switches, 'ban');
+
+    derived logged = group !== null && mayIn(standing, group.switches, 'log');
+
+    derived waiting = group?.requests ?? 0;
+
+    /** The staff's panels, each only for a reader whose place opens it; the members are everybody's. */
+    derived tabs = [
+        { id: 'members', label: locale.t('groups.tab.members') },
+        ...(answers ? [{ id: 'requests', label: locale.t('groups.tab.requests'), ...(waiting > 0 ? { count: waiting } : {}) }] : []),
+        ...(links ? [{ id: 'links', label: locale.t('groups.tab.links') }] : []),
+        ...(bans ? [{ id: 'banned', label: locale.t('groups.tab.banned') }] : []),
+        ...(logged ? [{ id: 'log', label: locale.t('groups.tab.log') }] : [])
+    ];
+
+    derived tabbed = tabs.length > 1;
+
+    const address = useAddress();
+
+    derived asked = address.text('tab');
+
+    derived tab = tabs.some((one) => one.id === asked) ? asked : 'members';
+
+    derived onMembers = tab === 'members';
+
+    derived onRequests = tab === 'requests';
+
+    derived onLinks = tab === 'links';
+
+    derived onBanned = tab === 'banned';
+
+    derived onLog = tab === 'log';
+
+    const show = (id: string) => address.write({ tab: id === 'members' ? '' : id });
 
     derived online = (group?.members ?? []).filter((handle) => presence.isOnline(handle));
 
@@ -284,7 +332,27 @@ export default component GroupPage()
                     </div>
                 </section>
 
-                <section>
+                <Show when={ tabbed }>
+                    { () => <Tabs label={ name } value={ tab } onChange={ show } items={ tabs } /> }
+                </Show>
+
+                <Show when={ onRequests }>
+                    { () => <GroupRequests /> }
+                </Show>
+
+                <Show when={ onLinks }>
+                    { () => <GroupLinks /> }
+                </Show>
+
+                <Show when={ onBanned }>
+                    { () => <GroupBanned /> }
+                </Show>
+
+                <Show when={ onLog }>
+                    { () => <GroupLog /> }
+                </Show>
+
+                <section hidden={ !onMembers }>
                     <SectionHeading
                         title={ locale.t('groups.members') }
                         actions={

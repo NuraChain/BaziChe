@@ -1,0 +1,130 @@
+import { LINK_HOURS, LINK_USES } from '../../../../backend/src/domains/group/roles.ts';
+import { copyText } from '../../lib/clipboard.ts';
+import { whyGroup } from '../../lib/group-words.ts';
+import { useGroupAdmin, type GroupLink } from '../../stores/group-admin.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import Button from '../ui/button.component.azeroth';
+import SheetHeader from '../ui/sheet-header.component.azeroth';
+import Toggle from '../ui/switch.component.azeroth';
+
+/** How long a link works, or none for until it is revoked. */
+type Lasts = (typeof LINK_HOURS)[number] | null;
+
+/** How often it can be used, or none for any number of times. */
+type Limit = (typeof LINK_USES)[number] | null;
+
+const LASTS: readonly Lasts[] = [...LINK_HOURS, null];
+
+const LIMITS: readonly Limit[] = [...LINK_USES, null];
+
+/**
+ * A new invite link: how long it works, how often it can be used and whether it asks first. Its
+ * address is the server's to make, so the sheet waits for it and then draws it ready to copy; a
+ * refusal is said above the button in its own words and every choice stays as it was.
+ */
+export default component GroupLinkSheet(props: OverlayProps)
+{
+    const locale = useLocale();
+    const admin = useGroupAdmin();
+
+    state hours: Lasts = 24;
+    state uses: Limit = null;
+    state approval = false;
+    state making = false;
+    state made: GroupLink | null = null;
+    state refused = '';
+
+    derived ready = made !== null;
+
+    derived hasRefusal = refused !== '';
+
+    derived address = made?.link ?? '';
+
+    const lastsLabel = (choice: Lasts) => locale.t(choice === null ? 'groups.linkHours.ever' : `groups.linkHours.${ choice }`);
+
+    const limitLabel = (choice: Limit) => locale.t(choice === null ? 'groups.linkTimes.ever' : `groups.linkTimes.${ choice }`);
+
+    const chip = (chosen: boolean) => [
+        'min-h-11 cursor-pointer rounded-control border px-3 py-2 text-ui-sm transition-colors',
+        chosen ? 'border-accent bg-accent/10 text-text' : 'border-line bg-field text-muted hover:text-text'
+    ].join(' ');
+
+    const make = async () =>
+    {
+        if (making)
+        {
+            return;
+        }
+        making = true;
+        refused = '';
+
+        try
+        {
+            made = await admin.makeLink({ approval, ...(hours === null ? {} : { hours }), ...(uses === null ? {} : { uses }) }) ?? null;
+        }
+        catch (error)
+        {
+            refused = locale.t(whyGroup(error));
+        }
+        finally
+        {
+            making = false;
+        }
+    };
+
+    const copy = () =>
+    {
+        if (made !== null)
+        {
+            void copyText(made.link, 'groups.linkCopied', { dedupe: `group-link:${ made.id }` });
+        }
+    };
+
+    <div class="flex flex-col gap-5 p-5">
+        <SheetHeader title={ locale.t(ready ? 'groups.linkMade' : 'groups.linkNewTitle') } onClose={ () => props.close(made) } />
+
+        <Show
+            when={ ready }
+            fallback={
+                <div class="flex flex-col gap-5">
+                    <fieldset class="flex flex-col gap-2">
+                        <legend class="mb-2 text-ui-md font-semibold text-text">{ locale.t('groups.linkLasts') }</legend>
+                        <div class="flex flex-wrap gap-2">
+                            <For each={ [...LASTS] } key={ (choice) => String(choice) } let={ choice }>
+                                <button type="button" class={ () => chip(hours === choice) } aria-pressed={ hours === choice } onClick={ () => hours = choice }>{ lastsLabel(choice) }</button>
+                            </For>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="flex flex-col gap-2">
+                        <legend class="mb-2 text-ui-md font-semibold text-text">{ locale.t('groups.linkLimit') }</legend>
+                        <div class="flex flex-wrap gap-2">
+                            <For each={ [...LIMITS] } key={ (choice) => String(choice) } let={ choice }>
+                                <button type="button" class={ () => chip(uses === choice) } aria-pressed={ uses === choice } onClick={ () => uses = choice }>{ limitLabel(choice) }</button>
+                            </For>
+                        </div>
+                    </fieldset>
+
+                    <div class="rounded-panel border border-line bg-field px-3">
+                        <Toggle label={ locale.t('groups.linkApproval') } checked={ approval } onChange={ (on) => approval = on } />
+                    </div>
+
+                    <Show when={ hasRefusal }>
+                        { () => <p class="text-ui-sm text-danger" role="alert">{ refused }</p> }
+                    </Show>
+
+                    <Button variant="primary" block leading="invite" loading={ making } onClick={ () => void make() }>{ locale.t('groups.linkMake') }</Button>
+                </div>
+            }
+        >
+            { () =>
+                <div class="flex flex-col gap-3">
+                    <p class="break-all rounded-tile border border-line bg-sunk px-3 py-3 text-ui-sm text-text" dir="ltr">{ address }</p>
+                    <Button variant="primary" block leading="copy" onClick={ copy }>{ locale.t('groups.linkCopy') }</Button>
+                    <Button variant="ghost" block onClick={ () => props.close(made) }>{ locale.t('common.close') }</Button>
+                </div>
+            }
+        </Show>
+    </div>
+}

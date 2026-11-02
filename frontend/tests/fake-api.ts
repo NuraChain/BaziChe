@@ -4,7 +4,7 @@ import { threadSize } from '../../backend/src/domains/chat/pages.ts';
 import { WATCH_TAIL } from '../../backend/src/domains/match/turns.ts';
 import { codeFrom } from '../../backend/src/domains/invite/policy.ts';
 import { NOTICE_OF } from '../../backend/src/domains/notify/notices.ts';
-import { GROUP_RIGHTS, MEMBERS_PAGE, RANK, SWITCH_DEFAULTS, type GroupRight, type GroupRole, type GroupSwitches } from '../../backend/src/domains/group/roles.ts';
+import { GROUP_LOG_PAGE, GROUP_RIGHTS, MEMBERS_PAGE, RANK, SWITCH_DEFAULTS, mayIn, type GroupAct, type GroupEventKind, type GroupRight, type GroupRole, type GroupSwitches } from '../../backend/src/domains/group/roles.ts';
 import { PEOPLE_FOUND_MAX, SEARCH_FROM, searchNeedle } from '../../backend/src/domains/social/names.ts';
 import { handleFromAddress } from '../../backend/src/domains/identity/handle.ts';
 import { createParties, type Parties, type PartyWhy } from '../../backend/src/domains/party/parties.ts';
@@ -103,6 +103,8 @@ interface GroupWire
     role?: GroupRole;
     rights?: GroupRight[];
     muted?: { until?: string };
+    requested?: true;
+    requests?: number;
     faces: string[];
     members: string[];
     memberCount: number;
@@ -115,6 +117,39 @@ interface GroupPlace
     role: Exclude<GroupRole, 'owner'>;
     rights?: GroupRight[];
     muted?: { until?: string };
+}
+
+/** Somebody who asked to join, by handle. */
+interface GroupWaitingWire
+{
+    handle: string;
+    at: string;
+    byLink: boolean;
+}
+
+interface GroupLinkWire
+{
+    id: string;
+    link: string;
+    by?: string;
+    at: string;
+    ends?: string;
+    most?: number;
+    uses: number;
+    approval: boolean;
+    revoked?: string;
+    live: boolean;
+}
+
+interface GroupLogWire
+{
+    id: string;
+    at: string;
+    kind: GroupEventKind;
+    actor?: string;
+    actorRole?: GroupRole;
+    person?: string;
+    details: Record<string, string>;
 }
 
 interface NotificationWire
@@ -347,6 +382,21 @@ const staffAct = (slug: string) =>
     }
     return mustGroup(slug);
 };
+
+/** A panel's read: the group as one only somebody who may open the panel is told about, as the real server answers it. */
+const panelOf = (slug: string, act: GroupAct) =>
+{
+    const group = mustGroup(slug);
+    const place = placeOf(group, server.me);
+
+    if (!group.members.includes(server.me) || !mayIn({ role: place.role, rights: place.rights ?? [], muted: place.muted !== undefined }, group.switches, act))
+    {
+        throw new ApiError(404, 'not-found', 'No group there.', undefined);
+    }
+    return group;
+};
+
+const linksOf = (slug: string) => ({ links: structuredClone(server.groupLinks[slug] ?? []) });
 
 function mustGroup(slug: string)
 {
@@ -1211,6 +1261,13 @@ export const server =
      */
     groupPlaces: {} as Record<string, Record<string, GroupPlace>>,
     groupBans: {} as Record<string, string[]>,
+
+    /** Who waits to join each group, longest waiting first; its links, newest first; and its log, newest first. */
+    groupRequests: {} as Record<string, GroupWaitingWire[]>,
+    groupLinks: {} as Record<string, GroupLinkWire[]>,
+    groupLogs: {} as Record<string, GroupLogWire[]>,
+    groupLogPage: GROUP_LOG_PAGE,
+    linkSeq: 0,
     groupMembersPage: MEMBERS_PAGE,
     refuseGroupAct: null as { status: number; code: string } | null,
     tableSeq: 0,
@@ -1442,6 +1499,11 @@ export const server =
         server.refuseGroup = null;
         server.groupPlaces = {};
         server.groupBans = {};
+        server.groupRequests = {};
+        server.groupLinks = {};
+        server.groupLogs = {};
+        server.groupLogPage = GROUP_LOG_PAGE;
+        server.linkSeq = 0;
         server.groupMembersPage = MEMBERS_PAGE;
         server.refuseGroupAct = null;
         server.tables = [];
@@ -3905,6 +3967,111 @@ export const client =
             delete server.groupPlaces[group.slug]?.[input.id];
             (server.groupBans[group.slug] ??= []).push(input.id);
             return structuredClone(group);
+        },
+
+        async unban({ params, input }: { params: { slug: string }; input: { id: string } })
+        {
+            server.calls.push('groups.unban');
+            const group = staffAct(params.slug);
+            server.groupBans[group.slug] = (server.groupBans[group.slug] ?? []).filter((handle) => handle !== input.id);
+            return structuredClone(group);
+        },
+
+        async banned({ params }: { params: { slug: string } })
+        {
+            server.calls.push('groups.banned');
+            const group = panelOf(params.slug, 'ban');
+            const kept = server.groupBans[group.slug] ?? [];
+
+            return { people: kept.map((handle, index) => ({ person: personWire(handle), at: new Date(index * 60_000).toISOString() })).reverse() };
+        },
+
+        async requests({ params }: { params: { slug: string } })
+        {
+            server.calls.push('groups.requests');
+            const group = panelOf(params.slug, 'approve');
+
+            return { requests: (server.groupRequests[group.slug] ?? []).map((one) => ({ person: personWire(one.handle), at: one.at, byLink: one.byLink })) };
+        },
+
+        async answer({ params, input }: { params: { slug: string }; input: { id: string; approve: boolean } })
+        {
+            server.calls.push('groups.answer');
+            const group = staffAct(params.slug);
+            const waiting = server.groupRequests[group.slug] ?? [];
+
+            if (!waiting.some((one) => one.handle === input.id))
+            {
+                throw new ApiError(404, 'group-member', 'Nobody waits by that name.', undefined);
+            }
+            server.groupRequests[group.slug] = waiting.filter((one) => one.handle !== input.id);
+            if (group.requests !== undefined)
+            {
+                group.requests = server.groupRequests[group.slug].length;
+            }
+            if (input.approve && !group.members.includes(input.id))
+            {
+                group.members.push(input.id);
+                group.memberCount = group.members.length;
+            }
+            return structuredClone(group);
+        },
+
+        async links({ params }: { params: { slug: string } })
+        {
+            server.calls.push('groups.links');
+            return linksOf(panelOf(params.slug, 'links').slug);
+        },
+
+        async makeLink({ params, input }: { params: { slug: string }; input: { hours?: number; uses?: number; approval: boolean } })
+        {
+            server.calls.push('groups.makeLink');
+            const group = staffAct(params.slug);
+            server.linkSeq += 1;
+
+            const at = runtime().clock.now();
+            const made: GroupLinkWire = {
+                id: `link-${ server.linkSeq }`,
+                link: `http://localhost:1/g/${ String(server.linkSeq).padStart(22, 'k') }`,
+                by: server.me,
+                at: new Date(at).toISOString(),
+                ...(input.hours === undefined ? {} : { ends: new Date(at + input.hours * 3_600_000).toISOString() }),
+                ...(input.uses === undefined ? {} : { most: input.uses }),
+                uses: 0,
+                approval: input.approval,
+                live: true
+            };
+
+            (server.groupLinks[group.slug] ??= []).unshift(made);
+            return linksOf(group.slug);
+        },
+
+        async revokeLink({ params }: { params: { slug: string; linkId: string } })
+        {
+            server.calls.push('groups.revokeLink');
+            const group = staffAct(params.slug);
+            const link = (server.groupLinks[group.slug] ?? []).find((one) => one.id === params.linkId);
+
+            if (link !== undefined && link.revoked === undefined)
+            {
+                link.revoked = new Date(runtime().clock.now()).toISOString();
+                link.live = false;
+            }
+            return linksOf(group.slug);
+        },
+
+        async log({ params, query }: { params: { slug: string }; query: { cursor?: string } })
+        {
+            server.calls.push('groups.log');
+            const group = panelOf(params.slug, 'log');
+            const rows = server.groupLogs[group.slug] ?? [];
+            const start = query.cursor === undefined ? 0 : Number(query.cursor);
+            const page = rows.slice(start, start + server.groupLogPage);
+
+            return {
+                rows: structuredClone(page),
+                ...(start + page.length < rows.length ? { cursor: String(start + page.length) } : {})
+            };
         }
     },
 

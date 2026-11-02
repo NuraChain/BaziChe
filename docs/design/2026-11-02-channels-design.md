@@ -137,3 +137,6 @@ Not done, stated:
   was written by hand.
 - No real browser was driven; the page, the polls and the posts are held by rendered specs.
 - CN-D6 stands: no comments, reactions, view counts, scheduled or edited posts.
+- **Every change rings every member**, and each reads the list, the open channel and its posts again
+  (and moves its mark): a vote in a public channel of thousands is thousands of reads. Fine before
+  release; a channel's change wants coalescing, or carrying, before it is large.

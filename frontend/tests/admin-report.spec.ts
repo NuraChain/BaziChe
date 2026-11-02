@@ -3,14 +3,17 @@ import { cleanup, renderTest } from '@azerothjs/testing';
 import { createMemoryHistory, createRouter, RouterProvider, Routes, type Route } from 'azerothjs';
 
 import type { StaffRole } from '../../backend/src/domains/admin/roles.ts';
+import type { AlbumMark, FileAs } from '../../backend/src/domains/chat/files.ts';
 import ReportPage from '../src/pages/admin/report.page.azeroth';
 import '../src/locales/app-catalogue.ts';
 import '../src/locales/admin-catalogue.ts';
-import { encodeVoice } from '../src/lib/body.ts';
+import { encodeFile, encodeVoice, type FileBody } from '../src/lib/body.ts';
+import { sealFile } from '../src/lib/chat-file.ts';
 import { manualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import { setVoiceAudio, type VoiceAudio } from '../src/lib/voice-audio.ts';
 import { encodeWave, sealAudio } from '../src/lib/voice-note.ts';
+import { ChatFileError, reportedFile, setReportedFile } from '../src/services/chat-files.ts';
 import { setVoiceFiles, VoiceFileError, voiceFiles } from '../src/services/voice-files.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useReports } from '../src/stores/reports.store.ts';
@@ -90,6 +93,7 @@ afterEach(() =>
     useSession().reset();
     useLocale().setLocale('en');
     setVoiceFiles(null);
+    setReportedFile(null);
     setVoiceAudio(null);
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -622,5 +626,333 @@ describe('one report', () =>
         expect(button(container, 'بررسی شد، کاری لازم نیست')).toBeDefined();
         expect(button(container, 'رسیدگی کردم')).toBeDefined();
         expect(said(container, '#report-close')).toBe('بستن گزارش');
+    });
+});
+
+describe('a reported photo, video or file', () =>
+{
+    const PHOTO = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...Array.from({ length: 40 }, (_, at) => at)]);
+    const FILM = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, ...Array.from({ length: 40 }, (_, at) => at)]);
+    const PAPER = new TextEncoder().encode('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n');
+    const PROGRAM = new Uint8Array([0x4d, 0x5a, 0x90, 0x00, ...Array.from({ length: 40 }, () => 0)]);
+
+    const disclosedFile = async (as: FileAs, plain: Uint8Array, extra: Omit<FileBody, 'file'> & { name?: string } = {}) =>
+    {
+        const id = crypto.randomUUID();
+        const sealed = await sealFile(plain, id);
+        const { name, ...rest } = extra;
+        const message = encodeFile({
+            file: {
+                id,
+                key: sealed.key,
+                iv: sealed.iv,
+                as,
+                mime: as === 'photo' ? 'image/jpeg' : (as === 'video' ? 'video/webm' : 'application/pdf'),
+                name: name ?? (as === 'photo' ? 'beach.jpg' : (as === 'video' ? 'clip.webm' : 'notes.pdf')),
+                bytes: plain.length,
+                ...(as === 'file' ? {} : { w: 4, h: 3, thumb: 'AAAA' }),
+                ...(as === 'video' ? { ms: 3000 } : {})
+            },
+            ...rest
+        });
+
+        return { body: sealed.body, message };
+    };
+
+    /** The staff's route for a report's file: what it was asked for, what it answers, and the addresses made and let go of. */
+    const reporting = (answer: (reportId: string, signal?: AbortSignal) => Promise<Uint8Array>) =>
+    {
+        const asked: string[] = [];
+        const made: string[] = [];
+        const opened: Uint8Array[] = [];
+        const revoked: string[] = [];
+
+        vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) =>
+        {
+            void (blob as Blob).arrayBuffer().then((bytes) => opened.push(new Uint8Array(bytes)));
+            made.push(`blob:report-file-${ made.length + 1 }`);
+            return made.at(-1) ?? '';
+        });
+        vi.spyOn(URL, 'revokeObjectURL').mockImplementation((url) =>
+        {
+            revoked.push(url);
+        });
+        setReportedFile((reportId, progress, signal) =>
+        {
+            asked.push(reportId);
+            progress(0.5);
+            return answer(reportId, signal);
+        });
+
+        return { asked, made, opened, revoked };
+    };
+
+    it('shows a reported photo only once asked, opened under the key it disclosed, with its caption and its place in an album', async () =>
+    {
+        const album: AlbumMark = { id: crypto.randomUUID(), at: 1, of: 4, holds: 'photo' };
+        const { body, message } = await disclosedFile('photo', PHOTO, { caption: 'Look at this', album, fwd: true });
+        const id = reportFiled({ at: hoursAgo(1), by: 'sara.k', about: 'reza.t', message });
+        const store = reporting(() => Promise.resolve(body));
+        const page = await opened(id);
+
+        expect(said(page, '[data-message="file"] p'), 'what it is').toBe('The one photo the reporter chose to show, kept with the report. The server checked it against what passed through when it was sent, so this is what was sent.');
+        expect(page.querySelector('[data-veil] img'), 'its thumb, blurred').not.toBeNull();
+        expect(said(page, '[data-veiled]')).toBe('Hidden until you ask, so nobody sees it by chance.');
+        expect(said(page, '[data-caption]'), 'its caption').toBe('Look at this');
+        expect(page.querySelector('[data-caption]')?.getAttribute('dir'), 'in its own direction').toBe('auto');
+        expect(said(page, '[data-album]'), 'and where it stood in its album').toBe('Number 2 of 4 in an album');
+        expect(page.querySelector<HTMLElement>('[data-forwarded]')?.hidden, 'and that it was forwarded').toBe(false);
+        expect(page.querySelector('blockquote[data-message]'), 'not drawn as words').toBeNull();
+        expect(store.asked, 'nothing fetched before a press').toEqual([]);
+
+        button(page, 'Show the photo')!.click();
+        await settle();
+
+        expect(store.asked, 'the report’s own file').toEqual([id]);
+        expect(store.opened, 'opened as the photo it was').toEqual([PHOTO]);
+        expect(page.querySelector('[data-shown]')?.getAttribute('src')).toBe('blob:report-file-1');
+        expect(page.querySelector('[data-shown]')?.getAttribute('alt')).toBe('The reported photo');
+        expect(page.querySelector('[data-veil]'), 'the veil lifted').toBeNull();
+    });
+
+    it('plays a reported video in the product’s own player, once asked', async () =>
+    {
+        const { body, message } = await disclosedFile('video', FILM);
+        const id = reportFiled({ at: hoursAgo(1), by: 'sara.k', about: 'reza.t', message });
+        const store = reporting(() => Promise.resolve(body));
+        const page = await opened(id);
+
+        expect(said(page, '[data-message="file"] p')).toBe('The one video the reporter chose to show, kept with the report. The server checked it against what passed through when it was sent, so this is what was sent.');
+        expect(page.querySelector<HTMLElement>('[data-album]')?.hidden, 'no album').toBe(true);
+        expect(page.querySelector('[data-caption]'), 'no caption').toBeNull();
+
+        button(page, 'Show the video')!.click();
+        await settle();
+
+        expect(store.opened, 'opened as the video it was').toEqual([FILM]);
+        expect(page.querySelector('[data-media-box] [data-player-coming], [data-media-box] video'), 'its player').not.toBeNull();
+        expect(page.querySelector('[data-shown]'), 'never drawn as a picture').toBeNull();
+    });
+
+    it('saves a reported file under its name once it is fetched and judged, and saves nothing of a kind nobody is handed', async () =>
+    {
+        const paper = await disclosedFile('file', PAPER);
+        const program = await disclosedFile('file', PROGRAM, { name: 'invoice.pdf' });
+        const fine = reportFiled({ at: hoursAgo(2), by: 'sara.k', about: 'reza.t', message: paper.message });
+        const harmful = reportFiled({ at: hoursAgo(1), by: 'sara.k', about: 'reza.t', message: program.message });
+        const store = reporting((reportId) => Promise.resolve(reportId === fine ? paper.body : program.body));
+
+        const first = await opened(fine);
+
+        expect(said(first, '[data-message="file"] p')).toBe('The one file the reporter chose to show, kept with the report. The server checked it against what passed through when it was sent, so this is what was sent.');
+        expect(said(first, '[data-name]')).toBe('notes.pdf');
+        expect(first.querySelector('[data-download]')?.getAttribute('aria-label')).toBe(`Download notes.pdf, ${ PAPER.length } B`);
+        expect(store.asked, 'nothing fetched before a press').toEqual([]);
+
+        first.querySelector<HTMLButtonElement>('[data-download]')!.click();
+        await settle();
+
+        const save = first.querySelector<HTMLAnchorElement>('[data-save]');
+
+        expect(save?.getAttribute('download'), 'saved under its name').toBe('notes.pdf');
+        expect(save?.getAttribute('href')).toBe('blob:report-file-1');
+        expect(save?.getAttribute('aria-label')).toBe('Save notes.pdf');
+        expect(store.opened).toEqual([PAPER]);
+        cleanup();
+
+        const second = await opened(harmful);
+
+        second.querySelector<HTMLButtonElement>('[data-download]')!.click();
+        await settle();
+
+        expect(second.querySelector('[data-save]'), 'nothing to save').toBeNull();
+        expect(second.querySelector('[data-refused]'), 'marked in danger').not.toBeNull();
+        expect(second.querySelector('[data-fault]')?.getAttribute('role'), 'an alarm').toBe('alert');
+        expect(said(second, '[data-fault] span')).toBe('This file could harm a device, so it cannot be saved here.');
+        expect(store.made, 'no address for what was refused').toEqual(['blob:report-file-1']);
+    });
+
+    it('says what kept a reported photo away, and fetches it again at Try again', async () =>
+    {
+        const { body, message } = await disclosedFile('photo', PHOTO);
+        const notPhoto = await disclosedFile('photo', PAPER);
+        const gone = reportFiled({ at: hoursAgo(4), by: 'sara.k', about: 'reza.t', message });
+        const changed = reportFiled({ at: hoursAgo(3), by: 'sara.k', about: 'reza.t', message });
+        const fake = reportFiled({ at: hoursAgo(2), by: 'sara.k', about: 'reza.t', message: notPhoto.message });
+        const dropped = reportFiled({ at: hoursAgo(1), by: 'sara.k', about: 'reza.t', message });
+        let reachable = false;
+        const store = reporting((reportId) =>
+        {
+            if (reportId === gone)
+            {
+                return Promise.reject(new ChatFileError('file-missing'));
+            }
+
+            if (reportId === changed)
+            {
+                return Promise.resolve(new Uint8Array(body.length).fill(7));
+            }
+
+            if (reportId === fake)
+            {
+                return Promise.resolve(notPhoto.body);
+            }
+
+            return reachable ? Promise.resolve(body) : Promise.reject(new ChatFileError('network'));
+        });
+
+        const first = await opened(gone);
+
+        button(first, 'Show the photo')!.click();
+        await settle();
+        expect(said(first, '[data-fault] span'), 'a file the report does not keep').toBe('This file is no longer here.');
+        cleanup();
+
+        const second = await opened(changed);
+
+        button(second, 'Show the photo')!.click();
+        await settle();
+        expect(second.querySelector('[data-fault]')?.getAttribute('role'), 'an alarm').toBe('alert');
+        expect(said(second, '[data-fault] span')).toBe('This file was changed after it was sent, so it is not shown.');
+        cleanup();
+
+        const third = await opened(fake);
+
+        button(third, 'Show the photo')!.click();
+        await settle();
+        expect(said(third, '[data-fault] span'), 'said to be a photo and none').toBe('This is not a picture or a video that can be shown.');
+        expect(third.querySelector('[data-shown]')).toBeNull();
+        cleanup();
+
+        const fourth = await opened(dropped);
+
+        button(fourth, 'Show the photo')!.click();
+        await settle();
+        expect(said(fourth, '[data-fault] span'), 'a file that could not be fetched').toBe('This file could not be downloaded.');
+
+        reachable = true;
+        button(fourth, 'Try again')!.click();
+        await settle();
+
+        expect(fourth.querySelector('[data-fault]'), 'gone once it is shown').toBeNull();
+        expect(fourth.querySelector('[data-shown]')).not.toBeNull();
+        expect(store.asked).toEqual([gone, changed, fake, dropped, dropped]);
+    });
+
+    it('stops a file on its way at a second press, and lets go of what it opened when the page goes', async () =>
+    {
+        const { body, message } = await disclosedFile('photo', PHOTO);
+        const id = reportFiled({ at: hoursAgo(1), by: 'sara.k', about: 'reza.t', message });
+        let release: (bytes: Uint8Array) => void = () => undefined;
+        const store = reporting((_reportId, signal) => new Promise((resolve, reject) =>
+        {
+            release = resolve;
+            signal?.addEventListener('abort', () => reject(new ChatFileError('cancelled')));
+        }));
+        const page = await opened(id);
+
+        button(page, 'Show the photo')!.click();
+        await settle();
+
+        expect(page.querySelector('[data-show]')?.getAttribute('data-show'), 'on its way').toBe('loading');
+        expect(page.querySelector('[data-fraction]'), 'how far it has come').not.toBeNull();
+
+        button(page, 'Stop downloading')!.click();
+        await settle();
+
+        expect(page.querySelector('[data-show]')?.getAttribute('data-show'), 'back as it was').toBe('idle');
+        expect(page.querySelector('[data-fault]'), 'and nothing said to be wrong').toBeNull();
+
+        button(page, 'Show the photo')!.click();
+        await settle();
+        release(body);
+        await settle();
+
+        expect(page.querySelector('[data-shown]')).not.toBeNull();
+
+        cleanup();
+
+        expect(store.revoked, 'let go of with the page').toEqual(['blob:report-file-1']);
+    });
+
+    it('opens nothing once the page has gone, however far the file had come', async () =>
+    {
+        const { body, message } = await disclosedFile('photo', PHOTO);
+        const id = reportFiled({ at: hoursAgo(1), by: 'sara.k', about: 'reza.t', message });
+        let release: (bytes: Uint8Array) => void = () => undefined;
+        const store = reporting(() => new Promise((resolve) =>
+        {
+            release = resolve;
+        }));
+        const page = await opened(id);
+
+        button(page, 'Show the photo')!.click();
+        await settle();
+        release(body);
+        cleanup();
+        await settle();
+
+        expect(store.made, 'no address made for a page that has gone').toEqual([]);
+    });
+
+    it('asks the staff’s own route for a report’s file, and reads a page that is not there as a file that is not there', async () =>
+    {
+        const asked: string[] = [];
+
+        class FakeRequest
+        {
+            public status = 0;
+            public response: ArrayBuffer | null = null;
+            public responseType = '';
+            public withCredentials = false;
+            public onload: (() => void) | null = null;
+            public onerror: (() => void) | null = null;
+            public onabort: (() => void) | null = null;
+            public onprogress: ((event: ProgressEvent) => void) | null = null;
+            #url = '';
+
+            public open(_method: string, url: string)
+            {
+                this.#url = url;
+                asked.push(url);
+            }
+
+            public send()
+            {
+                this.status = this.#url.includes('missing') ? 404 : (this.#url.includes('broken') ? 500 : 200);
+                this.response = new Uint8Array([1, 2, 3]).buffer;
+                queueMicrotask(() => this.onload?.());
+            }
+
+            public abort()
+            {
+                this.onabort?.();
+            }
+        }
+
+        vi.stubGlobal('XMLHttpRequest', FakeRequest);
+
+        const failureOf = (attempt: Promise<unknown>) => attempt.then(() => null, (error: unknown) => (error instanceof ChatFileError ? error.failure : 'thrown'));
+
+        expect([...await reportedFile()('r 1', () => undefined)]).toEqual([1, 2, 3]);
+        expect(await failureOf(reportedFile()('missing', () => undefined)), 'a file the report does not keep').toBe('file-missing');
+        expect(await failureOf(reportedFile()('broken', () => undefined)), 'anything else').toBe('server');
+        expect(asked).toEqual(['/api/admin/reports/r%201/file', '/api/admin/reports/missing/file', '/api/admin/reports/broken/file']);
+    });
+
+    it('says a reported photo in Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+        const album: AlbumMark = { id: crypto.randomUUID(), at: 1, of: 4, holds: 'photo' };
+        const { message } = await disclosedFile('photo', PHOTO, { album });
+        const id = reportFiled({ at: hoursAgo(1), by: 'sara.k', about: 'reza.t', message });
+
+        reporting(() => Promise.reject(new ChatFileError('network')));
+        const page = await opened(id);
+
+        expect(said(page, '[data-message="file"] p')).toBe('همون یه عکسی که گزارش‌دهنده خواست نشون بده و همراه گزارش نگه داشته شده. سرور با چیزی که موقع فرستادنش ازش رد شده چکش کرده، پس همین فرستاده شده.');
+        expect(button(page, 'عکس رو نشون بده'), 'the press, in Persian').toBeDefined();
+        expect(said(page, '[data-veiled]')).toBe('تا خودت نخوای پنهونه، که کسی یهویی نبینتش.');
+        expect(said(page, '[data-album]'), 'in the reader’s digits').toBe('شمارهٔ ۲ از ۴ توی یه آلبوم');
     });
 });

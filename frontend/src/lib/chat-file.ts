@@ -1,5 +1,7 @@
 import { fileAad } from '../../../backend/src/domains/chat/envelope.ts';
+import type { SentFile } from '../../../backend/src/domains/chat/files.ts';
 import { fromBase64Url, toBase64Url } from './device-id.ts';
+import { judgeFile } from './file-kind.ts';
 
 /**
  * A photo, a video or a file, sealed under a key made for it alone and bound to its own id, so it is
@@ -105,4 +107,34 @@ export function sniffShown(bytes: Uint8Array): ShownType | null
     }
 
     return null;
+}
+
+/**
+ * A fetched file opened under the key its message carries and judged by its own bytes, or why it is
+ * neither shown nor saved: it does not open (`tampered`), it is said to be a photo or a video and its
+ * bytes are neither (`unshowable`), or it is a kind of file nobody is handed (`refused`). The chat's
+ * bubbles and the staff's page of a report ask it alike, so a file is judged one way wherever it is.
+ */
+export async function openSent(body: Uint8Array, file: Pick<SentFile, 'id' | 'key' | 'iv' | 'as' | 'name'>)
+{
+    const plain = await openFile(body, file.key, file.iv, file.id);
+
+    if (plain === null)
+    {
+        return 'tampered' as const;
+    }
+
+    const shown = file.as === 'file' ? null : sniffShown(plain);
+
+    if (file.as !== 'file' && (shown === null || !shown.startsWith(file.as === 'photo' ? 'image/' : 'video/')))
+    {
+        return 'unshowable' as const;
+    }
+
+    if (file.as === 'file' && !judgeFile(plain, file.name).goes)
+    {
+        return 'refused' as const;
+    }
+
+    return { plain, type: shown ?? 'application/octet-stream' };
 }

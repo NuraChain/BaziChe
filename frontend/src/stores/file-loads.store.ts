@@ -1,8 +1,7 @@
 import { createSignal, createStore, untrack } from 'azerothjs';
 
 import type { Message } from '../data/chat.ts';
-import { openFile, sniffShown } from '../lib/chat-file.ts';
-import { judgeFile } from '../lib/file-kind.ts';
+import { openSent } from '../lib/chat-file.ts';
 import { forgetFile, heldFile, holdFile, onFileHeld } from '../lib/file-held.ts';
 import { ChatFileError, chatFiles } from '../services/chat-files.ts';
 
@@ -95,29 +94,15 @@ export const useFileLoads = createStore((): FileLoadsApi =>
                 }
             }, stop.signal);
 
-            const plain = await openFile(body, file.key, file.iv, file.id);
+            const opened = await openSent(body, file);
 
-            if (plain === null)
+            if (typeof opened === 'string')
             {
-                setLoads((current) => ({ ...current, [file.id]: 'tampered' }));
+                setLoads((current) => ({ ...current, [file.id]: opened }));
                 return;
             }
 
-            const shown = file.as === 'file' ? null : sniffShown(plain);
-
-            if (file.as !== 'file' && (shown === null || !shown.startsWith(file.as === 'photo' ? 'image/' : 'video/')))
-            {
-                setLoads((current) => ({ ...current, [file.id]: 'unshowable' }));
-                return;
-            }
-
-            if (file.as === 'file' && !judgeFile(plain, file.name).goes)
-            {
-                setLoads((current) => ({ ...current, [file.id]: 'refused' }));
-                return;
-            }
-
-            holdFile(file.id, plain, shown ?? 'application/octet-stream');
+            holdFile(file.id, opened.plain, opened.type);
             setLoads((current) => without(current, file.id));
         }
         catch (error)

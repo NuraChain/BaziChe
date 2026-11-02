@@ -1,0 +1,242 @@
+import type { SentFile } from '../../../../backend/src/domains/chat/files.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { openSent } from '../../lib/chat-file.ts';
+import { ChatFileError, reportedFile } from '../../services/chat-files.ts';
+import type { FileFault } from '../../stores/file-loads.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { extensionOf, FILE_FAULTS, middleOf, thumbOf } from '../chat/file-parts.ts';
+import { sizeSaid } from '../chat/gist.ts';
+import LazyMediaPlayer from '../chat/lazy-media-player.component.azeroth';
+import Spinner from '../ui/spinner.component.azeroth';
+
+/**
+ * A reported photo, video or file, fetched from the file its report keeps and opened under the key
+ * its disclosed document carries, as a reader's browser would open it. Nothing is fetched until it is
+ * asked for: a photo or a video waits behind its thumb, blurred, so nobody on the staff is shown it by
+ * chance, and a file says its name, size and kind. Judged by its own bytes as the chat judges it: a
+ * photo or a video its bytes do not show to be one is not shown, and a kind of file nobody is handed is
+ * not saved.
+ */
+export default component ReportFile(props: { report: string; file: SentFile })
+{
+    const locale = useLocale();
+
+    let address: string | null = null;
+    let stop: AbortController | null = null;
+
+    state loading = false;
+    state fraction = 0;
+    state url = '';
+    state fault = null as FileFault | null;
+
+    derived file = props.file;
+
+    derived shown = file.as !== 'file';
+
+    derived photo = file.as === 'photo';
+
+    derived ready = url !== '';
+
+    derived thumb = thumbOf(file.thumb);
+
+    derived ratio = file.w !== undefined && file.h !== undefined ? `${ file.w } / ${ file.h }` : '4 / 3';
+
+    derived size = sizeSaid(file.bytes, locale);
+
+    derived refused = fault === 'refused';
+
+    derived alarming = fault === 'tampered' || refused;
+
+    derived faulted = fault !== null;
+
+    derived retry = fault === 'failed';
+
+    derived said = fault === null ? '' : locale.t(FILE_FAULTS[fault]);
+
+    derived asking = loading
+        ? locale.t('chat.file.cancel')
+        : (shown ? locale.t(photo ? 'admin.report.showPhoto' : 'admin.report.showVideo') : locale.t('chat.file.download', { name: file.name, size }));
+
+    derived percent = `${ Math.round(fraction * 100) }%`;
+
+    const letGo = () =>
+    {
+        stop?.abort();
+        stop = null;
+
+        if (address !== null)
+        {
+            URL.revokeObjectURL(address);
+            address = null;
+        }
+    };
+
+    /** Fetches it and opens it, or stops it while it comes; what kept it away is said under it. */
+    const ask = async () =>
+    {
+        if (loading)
+        {
+            stop?.abort();
+            return;
+        }
+
+        const asked = new AbortController();
+
+        stop = asked;
+        loading = true;
+        fraction = 0;
+        fault = null;
+
+        try
+        {
+            const body = await reportedFile()(props.report, (part) =>
+            {
+                if (!asked.signal.aborted)
+                {
+                    fraction = part;
+                }
+            }, asked.signal);
+            const opened = await openSent(body, file);
+
+            // Stopped, or the page let go of it, while it was being opened: nothing is shown or kept.
+            if (asked.signal.aborted)
+            {
+                return;
+            }
+
+            if (typeof opened === 'string')
+            {
+                fault = opened;
+                return;
+            }
+
+            address = URL.createObjectURL(new Blob([opened.plain as BlobPart], { type: opened.type }));
+            url = address;
+        }
+        catch (error)
+        {
+            if (!(error instanceof ChatFileError && error.failure === 'cancelled'))
+            {
+                fault = error instanceof ChatFileError && error.failure === 'file-missing' ? 'gone' : 'failed';
+            }
+        }
+        finally
+        {
+            if (stop === asked)
+            {
+                stop = null;
+            }
+
+            loading = false;
+        }
+    };
+
+    mount
+    {
+        return letGo;
+    }
+
+    <div class="flex flex-col gap-2" data-report-file={ file.as }>
+        <Show
+            when={ shown }
+            fallback={
+                <div class="flex min-w-0 items-center gap-3 rounded-tile border-s-2 border-accent bg-sunk px-3 py-2" dir={ locale.dir() }>
+                    <Show
+                        when={ ready }
+                        fallback={
+                            <Show
+                                when={ refused }
+                                fallback={
+                                    <button
+                                        type="button"
+                                        class="relative flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent-fill text-accent-ink transition-transform duration-150 active:scale-95 motion-reduce:transition-none"
+                                        aria-label={ asking }
+                                        aria-busy={ loading ? 'true' : undefined }
+                                        data-download={ loading ? 'loading' : 'idle' }
+                                        onClick={ () => void ask() }
+                                    >
+                                        <Icon name={ loading ? 'close' : 'download' } size={ 18 } />
+                                    </button>
+                                }
+                            >
+                                { () => <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-danger-fill text-accent-ink" aria-hidden="true" data-refused><Icon name="alert" size={ 18 } /></span> }
+                            </Show>
+                        }
+                    >
+                        { () =>
+                            <a
+                                href={ url }
+                                download={ file.name }
+                                class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent-fill text-accent-ink"
+                                aria-label={ locale.t('chat.file.save', { name: file.name }) }
+                                data-save
+                            >
+                                <Icon name="file" size={ 18 } />
+                            </a>
+                        }
+                    </Show>
+                    <span class="flex min-w-0 flex-1 flex-col">
+                        <span class="truncate text-ui-sm font-semibold text-text" dir="auto" title={ file.name } data-name>{ middleOf(file.name) }</span>
+                        <span class="flex items-center gap-1 text-ui-2xs tabular-nums text-muted">
+                            <span data-size>{ size }</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{ extensionOf(file.name, file.mime) }</span>
+                        </span>
+                    </span>
+                    <Show when={ loading }>
+                        { () => <span class="shrink-0 text-ui-2xs tabular-nums text-muted" dir="ltr" data-fraction>{ percent }</span> }
+                    </Show>
+                </div>
+            }
+        >
+            { () =>
+                <div class="relative w-full max-w-md overflow-hidden rounded-tile bg-black" style={ `aspect-ratio: ${ ratio }; max-height: 28rem` } data-media-box>
+                    <Show
+                        when={ ready }
+                        fallback={
+                            <div class="absolute inset-0" data-veil>
+                                <Show when={ thumb !== null }>
+                                    { () => <img src={ thumb ?? '' } alt="" class="absolute inset-0 h-full w-full scale-110 object-cover blur-xl" aria-hidden="true" /> }
+                                </Show>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/45 p-4 text-center">
+                                    <button
+                                        type="button"
+                                        class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-control bg-void/85 px-4 text-ui-sm font-semibold text-text ring-1 ring-line-strong transition-colors hover:bg-raised"
+                                        aria-busy={ loading ? 'true' : undefined }
+                                        data-show={ loading ? 'loading' : 'idle' }
+                                        onClick={ () => void ask() }
+                                    >
+                                        <Show when={ loading } fallback={ <Icon name={ photo ? 'image' : 'play' } size={ 18 } /> }>
+                                            { () => <Spinner size={ 16 } /> }
+                                        </Show>
+                                        <span>{ asking }</span>
+                                    </button>
+                                    <span class="max-w-64 text-balance text-ui-2xs text-white/80" data-veiled>{ locale.t('admin.report.veiled') }</span>
+                                </div>
+                                <Show when={ loading }>
+                                    { () => <span class="absolute inset-x-0 bottom-0 h-1 origin-left bg-accent" style={ `transform: scaleX(${ fraction })` } aria-hidden="true" data-fraction></span> }
+                                </Show>
+                            </div>
+                        }
+                    >
+                        { () =>
+                            <Show when={ photo } fallback={ <LazyMediaPlayer url={ url } label={ locale.t('chat.video.label') } ms={ file.ms } /> }>
+                                { () => <img src={ url } alt={ locale.t('admin.report.photoAlt') } class="absolute inset-0 h-full w-full object-contain" data-shown /> }
+                            </Show>
+                        }
+                    </Show>
+                </div>
+            }
+        </Show>
+        <Show when={ faulted }>
+            { () =>
+                <p class={ () => [ 'flex flex-wrap items-center gap-x-2 text-ui-sm', alarming ? 'text-danger' : 'text-muted' ].join(' ') } role={ alarming ? 'alert' : 'status' } data-fault={ fault ?? '' }>
+                    <span>{ said }</span>
+                    <Show when={ retry }>
+                        { () => <button type="button" class="relative cursor-pointer font-semibold text-accent underline-offset-2 hover:underline coarse:before:absolute coarse:before:-inset-x-1 coarse:before:-inset-y-3.5" onClick={ () => void ask() }>{ locale.t('common.retry') }</button> }
+                    </Show>
+                </p>
+            }
+        </Show>
+    </div>
+}

@@ -377,7 +377,8 @@ thread.
 A reported photo, video or file is kept for the staff (`reports.file_id`, as the merge built it), and the
 staff's report page now shows it: the photo and the video opened in the staff's browser under the
 disclosed key from a route of their own (`GET /api/admin/reports/:id/file`, beside the voice route), the
-file offered to save once its bytes pass MS-D22.
+file offered to save once its bytes pass MS-D22. Nothing is fetched until it is asked for: a photo or a
+video waits behind its thumb, blurred, so nobody on the staff is shown it by chance (MS-D49).
 
 ### What the server learns (MS-D23)
 
@@ -551,6 +552,7 @@ goes nowhere. The page says calls are "encrypted on the way, not end to end".
 | MS-D46 | Albums | Telegram's shape: two to ten photo and video messages sent in one request, grouped by the sender's album id (in the clear, and in each document with its place, its count and what it holds); the caption the first item's; one bubble |
 | MS-D47 | Player | ours: poster, play and pause, a timeline, the time, volume and mute, speed, full screen, its states; never plays by itself |
 | MS-D48 | Attachments | the paperclip's menu: photo or video (several, and the camera on a phone) and file; a sheet that orders, removes and captions |
+| MS-D49 | A reported photo or video on the staff's page | behind its thumb, blurred, until a member of the staff asks for it, and fetched only then; judged by its bytes as a reader's browser judges it |
 
 ## Not in this work
 

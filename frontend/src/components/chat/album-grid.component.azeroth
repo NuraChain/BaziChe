@@ -71,7 +71,7 @@ export default component AlbumGrid(props: {
                 <div class="flex gap-0.5" style={ () => `aspect-ratio: ${ row.shape }` } data-row>
                     <For each={ row.tiles } key={ (tile) => tile.message.id } let={ tile }>
                         <div class="relative min-w-0 overflow-hidden bg-black/20" style={ () => `flex: ${ tile.shape } 1 0%` }>
-                            <MediaTile message={ tile.message } />
+                            <MediaTile message={ tile.message } inAlbum />
                         </div>
                     </For>
                 </div>

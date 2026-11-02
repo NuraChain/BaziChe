@@ -174,8 +174,35 @@ describe('an album in its bubble', () =>
         expect(grid?.getAttribute('role')).toBe('group');
         expect(grid?.getAttribute('aria-label')).toBe('4 photos');
         expect(container.querySelectorAll('[data-album] [data-row]'), 'two and two').toHaveLength(2);
-        expect([...container.querySelectorAll('[data-tile]')].map((tile) => tile.querySelector('[data-size]')?.textContent)).toEqual(['1 MB', '1 MB', '1 MB', '1 MB']);
+        expect(container.querySelector('[data-all]')?.textContent?.trim(), 'how much they come to, said once under the grid').toBe('Download all (4 MB)');
         expect(container.querySelector('[data-file]'), 'not a photo alone').toBeNull();
+    });
+
+    it('marks a video’s tile with its length alone, and a photo’s with nothing, so a narrow tile is never crossed by words', async () =>
+    {
+        const [first, second, third] = await items(3);
+        const film = new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d, ...Array.from({ length: 200 }, (_, at) => at % 100)]);
+        const id = crypto.randomUUID();
+        const sealed = await sealFile(film, id);
+
+        kept.set(id, sealed.body);
+
+        const video: Message = { ...second, file: { ...second.file!, id, key: sealed.key, iv: sealed.iv, as: 'video', mime: 'video/mp4', ms: 3_000 } };
+        const all = [first, video, third].map((one) => ({ ...one, album: { ...one.album!, holds: 'both' as const } }));
+        const { container } = show(all);
+        const chips = () => [...container.querySelectorAll('[data-tile]')].map((tile) => tile.querySelector('[data-size]')?.textContent?.trim() ?? null);
+
+        expect(chips()).toEqual([null, '0:03', null]);
+        expect(container.querySelector('[data-size]')?.className, 'on one line').toContain('whitespace-nowrap');
+
+        useLocale().setLocale('fa');
+
+        await vi.waitFor(() => expect(chips()).toEqual([null, '۰:۰۳', null]));
+
+        fire(container.querySelector(`[data-tile="${ id }"] [data-download]`)!, 'click');
+
+        await vi.waitFor(() => expect(container.querySelector(`[data-tile="${ id }"] video`)).not.toBeNull());
+        expect(chips(), 'nothing on a video that has come').toEqual([null, null, null]);
     });
 
     it('says its caption once, under the grid', async () =>

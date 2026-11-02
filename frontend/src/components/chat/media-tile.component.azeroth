@@ -13,9 +13,11 @@ import FileViewer from './file-viewer.component.azeroth';
  * A photo or a video as it stands in its place, filling whatever box it is given: alone in its bubble
  * at its own proportions, or one of an album's tiles. Its thumb, blurred, with how large it is (and a
  * video how long) until it is pressed; a ring fills as it comes (a second press stops it); come, a
- * photo is shown and opens full screen and a video plays where it is.
+ * photo is shown and opens full screen and a video plays where it is. An album's tile says a video's
+ * length and nothing more, because a third of a phone's bubble cannot hold a size in every language,
+ * and the line under the album says what they come to.
  */
-export default component MediaTile(props: { message: Message })
+export default component MediaTile(props: { message: Message; inAlbum?: boolean })
 {
     const locale = useLocale();
     const chat = useChat();
@@ -46,6 +48,12 @@ export default component MediaTile(props: { message: Message })
     derived length = file.ms === undefined ? '' : voiceClock(Math.round(file.ms / 1000), locale.n);
 
     derived meta = file.as === 'video' && length !== '' ? `${ length } · ${ size }` : size;
+
+    derived tiled = props.inAlbum === true;
+
+    derived marked = !ready && (!tiled || length !== '');
+
+    derived mark = tiled ? length : meta;
 
     derived sending = chat.uploadOf(props.message.id);
 
@@ -111,13 +119,13 @@ export default component MediaTile(props: { message: Message })
                 </span>
             }
         </Show>
-        <Show when={ !ready || photo }>
+        <Show when={ marked }>
             { () =>
-                <span class="pointer-events-none absolute start-1.5 top-1.5 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-ui-2xs font-medium tabular-nums text-white backdrop-blur-sm" data-size>
+                <span class="pointer-events-none absolute start-1.5 top-1.5 flex items-center gap-1 whitespace-nowrap rounded-full bg-black/55 px-2 py-0.5 text-ui-2xs font-medium tabular-nums text-white backdrop-blur-sm" data-size>
                     <Show when={ !photo }>
                         { () => <Icon name="film" size={ 12 } /> }
                     </Show>
-                    { meta }
+                    { mark }
                 </span>
             }
         </Show>

@@ -137,6 +137,7 @@ describe('a file in its bubble', () =>
         await vi.waitFor(() => expect(container.querySelector('button[aria-label="Open the photo"] img')).not.toBeNull());
         expect(downloads).toEqual([ID]);
         expect(container.querySelector('[data-download]'), 'nothing left to download').toBeNull();
+        expect(container.querySelector('[data-size]'), 'nor a size over the photo').toBeNull();
     });
 
     it('says a video’s length beside its size', async () =>
@@ -144,6 +145,7 @@ describe('a file in its bubble', () =>
         const container = show(await sent({ as: 'video', mime: 'video/mp4', ms: 42_000, w: 1920, h: 1080 }));
 
         expect(container.querySelector('[data-size]')?.textContent).toContain('0:42 · 2.4 MB');
+        expect(container.querySelector('[data-size]')?.className, 'on one line').toContain('whitespace-nowrap');
     });
 
     it('shows a file by its name, size and type, and offers it to be saved once it has come, never shown', async () =>

@@ -60,9 +60,9 @@ another one using its database says so in its log.
 3. `npm run build`
 
 4. `npm start`, kept running by whatever supervises processes on the machine. The logs are in
-   `.logs/`. The first start builds the schema on an empty database. After an update that changes
-   the entities, `npm run schema:sync` makes the database match them exactly, so a column an entity
-   no longer has is dropped with everything in it: take a dump first ([rollout.md](rollout.md)).
+   `.logs/`. Every start brings the database to the version it was built for, by itself: the first
+   builds the schema on an empty database, and each after applies the migrations an update brought,
+   one at a time ([rollout.md](rollout.md)). Take a dump before starting an update all the same.
 
 5. Point the proxy at `http://127.0.0.1:4900` (or the `PORT` you wrote), upgrading the WebSocket
    on `/ws`:
@@ -120,13 +120,13 @@ commands:
 
 ```sh
 docker build --build-arg PUBLIC_ORIGIN=https://play.example.com -t baziche .
-docker run --rm --env-file .env baziche node .dist-backend/db/sync-cli.js
+docker run --rm --env-file .env baziche node .dist-backend/db/migrate-cli.js
 docker run -d --name baziche --restart unless-stopped --env-file .env -p 127.0.0.1:4900:4900 \
     -v baziche-logs:/app/.logs baziche
 ```
 
-The second makes the database match the entities, as `npm run schema:sync` does, for after an update
-that changes them (take a dump first). A container's `127.0.0.1` is its own, so inside one the server binds `0.0.0.0`:
+The second migrates the database, as `npm run migrate` does and as every start does anyway; run it
+by itself to see the migrations through before the server starts (take a dump first). A container's `127.0.0.1` is its own, so inside one the server binds `0.0.0.0`:
 write `HOST=0.0.0.0` in the `.env` the container is given, since it wins over the image's, and point
 `DATABASE_URL` at a Postgres the container can reach. Publish the port to the proxy alone, as above.
 `PUBLIC_ORIGIN` is a build argument as well as a name in the `.env`, because the client's link
@@ -135,8 +135,8 @@ preview is written against it when it is built.
 ## Updating
 
 `git pull`, `npm ci`, `npm run build`, `npm run setup` (it adds any name the update put in
-`.env.example`, a feature's empty, and changes nothing else), `pg_dump` the database,
-`npm run schema:sync`, then restart the server. [rollout.md](rollout.md) has the same steps as
+`.env.example`, a feature's empty, and changes nothing else), `pg_dump` the database, then restart
+the server: it applies the update's migrations before it serves anything. [rollout.md](rollout.md) has the same steps as
 commands, with how to see what an update changes first and how to go back.
 
 A running server serves the pages of the build it started on, and a build in its folder deletes the

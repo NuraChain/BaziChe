@@ -1,4 +1,4 @@
-import type { DataSource } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 
 export const REQUIRED_EXTENSIONS = ['citext', 'pgcrypto'] as const;
 
@@ -96,7 +96,7 @@ export async function createUnexpressibleIndexes(db: DataSource)
  * `not valid` is deliberately NOT used. A constraint that is not validated is one that lets the
  * rows it was added to stop obeying it, which is the opposite of why any of these exist.
  */
-export async function rewriteChecks(db: DataSource)
+export async function rewriteChecks(db: DataSource, runner: DataSource | EntityManager = db)
 {
     for (const entity of db.entityMetadatas)
     {
@@ -107,8 +107,8 @@ export async function rewriteChecks(db: DataSource)
                 continue;
             }
 
-            await db.query(`alter table ${ entity.tablePath } drop constraint if exists "${ check.name }"`);
-            await db.query(`alter table ${ entity.tablePath } add constraint "${ check.name }" check (${ check.expression })`);
+            await runner.query(`alter table ${ entity.tablePath } drop constraint if exists "${ check.name }"`);
+            await runner.query(`alter table ${ entity.tablePath } add constraint "${ check.name }" check (${ check.expression })`);
         }
     }
 }

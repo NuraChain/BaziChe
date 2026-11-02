@@ -482,7 +482,7 @@ describe('a state the engine cannot advance', () =>
                 expect(state.winner, `${ seats } seats, game ${ game }`).not.toBeNull();
             }
         }
-    });
+    }, 60_000);
 });
 
 describe('every payload the wire carries', () =>

@@ -1,8 +1,7 @@
+import { redraw } from './redraw.ts';
+
 const SIDE = 256;
 const QUALITY = 0.85;
-
-const encode = (canvas: HTMLCanvasElement, type: string): Promise<Blob | null> =>
-    new Promise((resolve) => canvas.toBlob(resolve, type, QUALITY));
 
 const base64Of = (bytes: Uint8Array) =>
 {
@@ -18,28 +17,15 @@ export async function shrinkPicture(file: Blob): Promise<{ data: string; preview
 {
     const bitmap = await createImageBitmap(file);
     const side = Math.min(bitmap.width, bitmap.height);
+    const square = { width: SIDE, height: SIDE, quality: QUALITY, ground: '#111827' };
+    const [webp, jpeg] = await redraw(bitmap, [ { ...square, type: 'image/webp' }, { ...square, type: 'image/jpeg' } ], {
+        x: (bitmap.width - side) / 2,
+        y: (bitmap.height - side) / 2,
+        width: side,
+        height: side
+    });
+    const blob = webp !== null && webp.type === 'image/webp' ? webp : jpeg;
 
-    const canvas = document.createElement('canvas');
-    canvas.width = SIDE;
-    canvas.height = SIDE;
-
-    const context = canvas.getContext('2d');
-    if (context === null)
-    {
-        bitmap.close();
-        throw new Error('This browser cannot draw a picture.');
-    }
-
-    context.fillStyle = '#111827';
-    context.fillRect(0, 0, SIDE, SIDE);
-    context.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, SIDE, SIDE);
-    bitmap.close();
-
-    let blob = await encode(canvas, 'image/webp');
-    if (blob === null || blob.type !== 'image/webp')
-    {
-        blob = await encode(canvas, 'image/jpeg');
-    }
     if (blob === null)
     {
         throw new Error('This browser cannot encode a picture.');

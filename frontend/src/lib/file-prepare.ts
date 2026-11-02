@@ -7,6 +7,7 @@ import {
 } from '../../../backend/src/domains/chat/files.ts';
 import type { FileDraft } from '../data/chat.ts';
 import { toBase64Url } from './device-id.ts';
+import { redraw, type Drawing } from './redraw.ts';
 
 /** The longest side of a thumb, in pixels: a few hundred bytes of JPEG, drawn blurred. */
 const THUMB_SIDE = 40;
@@ -64,11 +65,6 @@ const canvasOf = (width: number, height: number) =>
     return canvas;
 };
 
-const blobOf = (canvas: HTMLCanvasElement, type: string, quality?: number) => new Promise<Blob | null>((done) =>
-{
-    canvas.toBlob(done, type, quality);
-});
-
 const bytesOf = async (blob: Blob) => new Uint8Array(await blob.arrayBuffer());
 
 /** Scaled to fit `side` on its longest side, never up. */
@@ -79,15 +75,12 @@ const fit = (width: number, height: number, side: number) =>
     return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 };
 
-/** A thumb of what is drawn, as base64url JPEG, or nothing when it would be larger than a document takes. */
-const thumbOf = async (source: CanvasImageSource, width: number, height: number) =>
+/** A thumb at most `THUMB_SIDE` on its longest side, encoded as a document keeps it. */
+const thumbSized = (width: number, height: number, ground?: string): Drawing => ({ ...fit(width, height, THUMB_SIDE), type: 'image/jpeg', quality: 0.6, ground });
+
+/** A thumb as base64url JPEG, or nothing when it would be larger than a document takes. */
+const thumbOf = async (blob: Blob | null) =>
 {
-    const size = fit(width, height, THUMB_SIDE);
-    const canvas = canvasOf(size.width, size.height);
-
-    canvas.getContext('2d')?.drawImage(source, 0, 0, size.width, size.height);
-
-    const blob = await blobOf(canvas, 'image/jpeg', 0.6);
     const text = blob === null ? '' : toBase64Url(await bytesOf(blob));
 
     return text === '' || text.length > FILE_THUMB_MOST ? undefined : text;
@@ -141,26 +134,13 @@ async function photoOf(file: File): Promise<FileDraft | null>
     try
     {
         const size = fit(bitmap.width, bitmap.height, FILE_PHOTO_SIDE);
-        const canvas = canvasOf(size.width, size.height);
-        const context = canvas.getContext('2d');
-
-        if (context === null)
-        {
-            return null;
-        }
-
         const clear = (file.type === 'image/png' || file.type === 'image/webp') && seeThrough(bitmap);
         const type = clear ? 'image/png' : 'image/jpeg';
-
-        if (!clear)
-        {
-            context.fillStyle = '#fff';
-            context.fillRect(0, 0, size.width, size.height);
-        }
-
-        context.drawImage(bitmap, 0, 0, size.width, size.height);
-
-        const blob = await blobOf(canvas, type, clear ? undefined : 0.86);
+        const ground = clear ? undefined : '#fff';
+        const [blob, small] = await redraw(bitmap, [
+            { ...size, type, quality: clear ? undefined : 0.86, ground },
+            thumbSized(size.width, size.height, ground)
+        ]);
 
         if (blob === null)
         {
@@ -168,7 +148,7 @@ async function photoOf(file: File): Promise<FileDraft | null>
         }
 
         const stem = nameOf(file.name).replace(/\.[^.]{1,8}$/, '');
-        const thumb = await thumbOf(canvas, size.width, size.height);
+        const thumb = await thumbOf(small);
 
         return {
             plain: await bytesOf(blob),
@@ -230,7 +210,8 @@ async function videoOf(file: File): Promise<FileDraft | null>
             return null;
         }
 
-        const thumb = await thumbOf(video, video.videoWidth, video.videoHeight);
+        const frame = await createImageBitmap(video).catch(() => null);
+        const thumb = frame === null ? undefined : await thumbOf((await redraw(frame, [thumbSized(video.videoWidth, video.videoHeight)]))[0]);
 
         return {
             plain: new Uint8Array(await file.arrayBuffer()),

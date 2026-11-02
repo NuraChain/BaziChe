@@ -2467,6 +2467,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 return await ableTo(me, 'reports') === null ? null : await desk.voiceOf(id);
             },
 
+            async reportFile(me, id)
+            {
+                return await ableTo(me, 'reports') === null ? null : await desk.fileOf(id);
+            },
+
             async review(me, id, input)
             {
                 const actor = await ableTo(me, 'reports');

@@ -1,6 +1,6 @@
 import type { DataSource, EntityManager } from 'typeorm';
 
-import { Match, MatchPlayer, Report, User, VoiceNote } from '../../entities/index.ts';
+import { ChatFile, Match, MatchPlayer, Report, User, VoiceNote } from '../../entities/index.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import type { AdminReports } from '../../schemas.ts';
 import { REPORTS_PAGE, type GrantedRole, type ReportList, type ReportOutcome, type ReportStatus } from './roles.ts';
@@ -142,6 +142,22 @@ export function createReportsService(db: DataSource, owners: () => readonly stri
             const row = await db.getRepository(VoiceNote).createQueryBuilder('v')
                 .innerJoin(Report, 'r', 'r.voice_id = v.id and r.id = :id', { id })
                 .select('v.bytes', 'bytes')
+                .getRawOne<{ bytes: Buffer }>();
+
+            return row === undefined ? null : new Uint8Array(row.bytes);
+        },
+
+        /** The photo, video or file a report disclosed, which the report keeps as it keeps a voice message's. */
+        async fileOf(id: string)
+        {
+            if (!UUID.test(id))
+            {
+                return null;
+            }
+
+            const row = await db.getRepository(ChatFile).createQueryBuilder('f')
+                .innerJoin(Report, 'r', 'r.file_id = f.id and r.id = :id', { id })
+                .select('f.bytes', 'bytes')
                 .getRawOne<{ bytes: Buffer }>();
 
             return row === undefined ? null : new Uint8Array(row.bytes);

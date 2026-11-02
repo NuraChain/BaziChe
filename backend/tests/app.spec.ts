@@ -2524,7 +2524,10 @@ describe('a voice message’s file', () =>
     });
 });
 
-describe('a reported voice message’s file, for the staff', () =>
+describe.each([
+    ['voice', 'reportVoice'],
+    ['file', 'reportFile']
+] as const)('a file a report keeps (its %s), for the staff', (kind, port) =>
 {
     const REPORT = '5f1c7a0e-3b2d-4c8e-9a61-2d4e6f8a0b1c';
 
@@ -2537,9 +2540,9 @@ describe('a reported voice message’s file, for the staff', () =>
                 principal: () => Promise.resolve(options.signedIn === false ? null : { userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' })
             },
             admin: {
-                reportVoice: (me: string, id: string) =>
+                [port]: (me: string, id: string) =>
                 {
-                    told.push(['reportVoice', me, id]);
+                    told.push([port, me, id]);
                     return Promise.resolve(options.held === undefined ? new Uint8Array([5, 6, 7]) : options.held);
                 },
                 report: () => Promise.resolve(null)
@@ -2547,7 +2550,7 @@ describe('a reported voice message’s file, for the staff', () =>
         } as unknown as Ports
     });
 
-    const asked = (app: ReturnType<typeof buildApp>, path = `/api/admin/reports/${ REPORT }/voice`) => app.handle(new Request(`http://local${ path }`));
+    const asked = (app: ReturnType<typeof buildApp>, path = `/api/admin/reports/${ REPORT }/${ kind }`) => app.handle(new Request(`http://local${ path }`));
 
     it('is answered as bytes nobody keeps, to whoever the report port answers', async () =>
     {
@@ -2562,17 +2565,17 @@ describe('a reported voice message’s file, for the staff', () =>
             'x-content-type-options': 'nosniff',
             'content-security-policy': "default-src 'none'"
         });
-        expect(told).toEqual([['reportVoice', 'somebody', REPORT]]);
+        expect(told).toEqual([[port, 'somebody', REPORT]]);
     });
 
     it('is answered to anybody else in the bytes of an admin page that is not there, and to nobody signed in as such', async () =>
     {
         const app = desk([], { held: null });
-        const voice = await asked(app);
+        const kept = await asked(app);
         const page = await asked(app, `/api/admin/reports/${ REPORT }`);
 
-        expect(voice.status).toBe(404);
-        expect(await voice.text(), 'the bytes of the report itself, refused').toBe(await page.text());
+        expect(kept.status).toBe(404);
+        expect(await kept.text(), 'the bytes of the report itself, refused').toBe(await page.text());
         expect((await asked(desk([], { signedIn: false }))).status).toBe(401);
     });
 });

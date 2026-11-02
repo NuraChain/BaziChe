@@ -1,5 +1,7 @@
 import 'reflect-metadata';
 
+import { createHmac, randomBytes } from 'node:crypto';
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DataSource } from 'typeorm';
 
@@ -10,7 +12,7 @@ import { createFranking } from '../src/domains/chat/franking.ts';
 import { createChatService, type SealedInput } from '../src/domains/chat/service.ts';
 import { FILE_HOLD_MINUTES, FILE_SEALED_LEAST, FILE_SEALED_MOST, type FileAs } from '../src/domains/chat/files.ts';
 import { createSocialService } from '../src/domains/social/service.ts';
-import { rowsOf } from '../src/lib/rows.ts';
+import { firstRow, rowsOf } from '../src/lib/rows.ts';
 import { buildPorts, type Services, type WriteListener } from '../src/services.ts';
 
 /**
@@ -345,6 +347,35 @@ describe.skipIf(!active)('a photo, a video or a file, against a real database', 
         await db.query(`update messages set expires_at = now() - interval '1 second' where id = $1`, [sent.id]);
         await chat.sweepExpired();
         expect(await filesHeld(), 'gone when its message ran out').toBe(0);
+    });
+
+    it('keeps a reported file for the staff when its message is deleted, and answers it to them and to nobody else', async () =>
+    {
+        const [a, b, staff] = [await makeUser(), await makeUser(), await makeUser()];
+        const room = await chat.openDirect(a, b);
+        const id = await upload(a);
+        const frankingKey = randomBytes(32).toString('base64url');
+        const document = JSON.stringify({ file: { id } });
+        const commitment = createHmac('sha256', Buffer.from(frankingKey, 'base64url')).update(document, 'utf8').digest('base64url');
+        const sent = await chat.send(a, room, null, { ...await sealed(a, room, 'file', { file: id }), commitment });
+        const handle = (await db.getRepository(User).findOneByOrFail({ id: a })).handle;
+        const reported = await ports.social.report(b, handle, 'harassment', { conversationId: room, messageId: sent.id, text: document, frankingKey });
+        const unseen = await ports.social.report(b, handle, 'spam');
+
+        expect(firstRow<{ file_id: string }>(await db.query('select file_id from reports where id = $1', [reported]))?.file_id, 'kept beside what it disclosed').toBe(id);
+
+        await chat.remove(a, room, sent.id);
+
+        expect(await filesHeld(), 'deleting the message keeps the file').toBe(1);
+        expect(await fetchedBy(b, id), 'which the room no longer fetches').toBe(false);
+
+        await db.query(`insert into staff_members (user_id, role) values ($1, 'moderator')`, [staff]);
+
+        expect(await ports.admin.reportFile(staff, reported), 'to whoever reads the reports').toEqual(sealedFile());
+        expect(await ports.admin.reportFile(b, reported), 'and to nobody else').toBeNull();
+        expect(await ports.admin.reportFile(staff, unseen), 'a report that disclosed none').toBeNull();
+        expect(await ports.admin.reportFile(staff, 'not-a-report'), 'an id that is none').toBeNull();
+        expect(await ports.admin.reportVoice(staff, reported), 'nor is a file a voice message').toBeNull();
     });
 
     it('lets go of an upload nobody sent once it is older than the hold, and keeps the rest', async () =>

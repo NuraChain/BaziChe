@@ -333,18 +333,11 @@ export function buildApp(deps: AppDeps)
         });
     });
 
-    // A reported voice message's file, which its report keeps, for whoever's role opens the reports, and
-    // as a page that is not there to anybody else. The key is in the disclosed document, so the staff's
-    // browser opens it as a reader's would; nothing here can.
-    app.get('/api/admin/reports/:id/voice', async (context) =>
+    // A file a report keeps (the voice message it disclosed, or the photo, video or file), for whoever's
+    // role opens the reports, and as a page that is not there to anybody else. The key is in the
+    // disclosed document, so the staff's browser opens it as a reader's would; nothing here can.
+    const reportedFile = (bytes: Uint8Array | null) =>
     {
-        const principal = await ports.identity.principal(context.request);
-        if (principal === null)
-        {
-            return new Response(null, { status: 401 });
-        }
-
-        const bytes = await ports.admin.reportVoice(principal.userId, context.params.id);
         if (bytes === null)
         {
             throw new NotFoundError('Nothing there.');
@@ -358,6 +351,24 @@ export function buildApp(deps: AppDeps)
                 'content-type': 'application/octet-stream'
             }
         });
+    };
+
+    app.get('/api/admin/reports/:id/voice', async (context) =>
+    {
+        const principal = await ports.identity.principal(context.request);
+
+        return principal === null
+            ? new Response(null, { status: 401 })
+            : reportedFile(await ports.admin.reportVoice(principal.userId, context.params.id));
+    });
+
+    app.get('/api/admin/reports/:id/file', async (context) =>
+    {
+        const principal = await ports.identity.principal(context.request);
+
+        return principal === null
+            ? new Response(null, { status: 401 })
+            : reportedFile(await ports.admin.reportFile(principal.userId, context.params.id));
     });
 
     app.get('/avatars/:file', async (context) =>

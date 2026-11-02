@@ -239,6 +239,16 @@ describe('the viewer', () =>
         expect(counted(container)).toBe('۳ از ۳');
     });
 
+    it('reads a caption in its own direction, whatever way the page reads', async () =>
+    {
+        useLocale().setLocale('fa');
+
+        const all = [await media(0, 'photo', 'From the coast!')];
+        const { container } = await open(all, all[0]);
+
+        expect(container.querySelector('[data-caption]')?.getAttribute('dir')).toBe('auto');
+    });
+
     it('takes a swipe across to the next or the previous, the way the page reads, and a drag down closes it', async () =>
     {
         const all = [await media(0), await media(1), await media(2)];

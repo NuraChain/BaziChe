@@ -546,7 +546,7 @@ export default component MediaViewer(props: OverlayProps & {
 
         <Show when={ captioned }>
             { () =>
-                <div class="max-h-[30dvh] shrink-0 overflow-y-auto px-4 pb-3 pt-2 text-ui-sm" data-caption>
+                <div class="max-h-[30dvh] shrink-0 overflow-y-auto px-4 pb-3 pt-2 text-ui-sm" dir="auto" data-caption>
                     <RichText text={ caption } />
                 </div>
             }

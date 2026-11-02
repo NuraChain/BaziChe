@@ -3526,6 +3526,9 @@ export const chatMessage = object({
      */
     file: string().optional(),
 
+    /** What that file was sent as. The document says it again, and a reader refuses a message whose two disagree. */
+    fileAs: enumOf(FILE_AS).optional(),
+
     /**
      * Where the author stands in the room's group, where that is above a member: what the page asks
      * before offering to take the line away. Absent from a member's line, from the line of somebody
@@ -3621,6 +3624,9 @@ export const sendInput = object({
 
     /** The file a photo, a video or a file message names, under the same rule. */
     file: string().optional(),
+
+    /** What that file is sent as, which a file message states; in the clear for the gallery, and in the document again. */
+    fileAs: enumOf(FILE_AS).optional(),
     epoch: number(),
     seq: number(),
     iv: string(),

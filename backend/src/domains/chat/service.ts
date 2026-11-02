@@ -10,6 +10,7 @@ import {
     FILE_REFUSALS,
     FILE_SEALED_LEAST,
     FILE_SEALED_MOST,
+    type FileAs,
     type FileRefusal
 } from './files.ts';
 import type { Franking } from './franking.ts';
@@ -75,6 +76,7 @@ export interface ConversationRow
     last_expires_at: Date | null;
     last_voice_id: string | null;
     last_file_id: string | null;
+    last_file_as: FileAs | null;
 
     /** When the room last moved, in microseconds since 1970, and 0 for a room nothing was said in. */
     last_key: string;
@@ -130,6 +132,9 @@ export interface MessageRow
     /** The file a photo, a video or a file message names. */
     file_id: string | null;
 
+    /** What that file was sent as, in the clear for the gallery; the sealed document says it again. */
+    file_as: FileAs | null;
+
     /** Mine, and read by somebody else in the room. Only the history read asks. */
     seen?: boolean | null;
 
@@ -152,6 +157,9 @@ export interface SealedInput
 
     /** The file a photo, a video or a file message names, which its sealed document names again. */
     file?: string;
+
+    /** What that file is sent as, in the clear for the gallery; a file message states it. */
+    fileAs?: FileAs;
     epoch: number;
     seq: number;
     iv: string;
@@ -284,7 +292,8 @@ export function createChatService(
         .addSelect('x.expires_at', 'expires_at')
         .addSelect('x.target_id', 'target_id')
         .addSelect('x.voice_id', 'voice_id')
-        .addSelect('x.file_id', 'file_id');
+        .addSelect('x.file_id', 'file_id')
+        .addSelect('x.file_as', 'file_as');
 
     /**
      * The membership row, which IS the authorisation.
@@ -537,6 +546,7 @@ export function createChatService(
                         last.expires_at                                                  as last_expires_at,
                         last.voice_id                                                    as last_voice_id,
                         last.file_id                                                     as last_file_id,
+                        last.file_as                                                     as last_file_as,
                         (last.sender_account_id = $1
                          and last.created_at <= (select max(o.last_read_at) from conversation_members o
                                                   where o.conversation_id = c.id and o.user_id <> $1)) as last_seen,
@@ -561,7 +571,7 @@ export function createChatService(
                      select x.id, x.kind, x.body, x.payload, x.created_at, su.handle as sender,
                             x.sender_id as sender_account_id,
                             x.epoch, x.seq, x.iv, x.sender_device_id, x.signature, x.client_at,
-                            x.commitment, x.frank, x.expires_at, x.voice_id, x.file_id
+                            x.commitment, x.frank, x.expires_at, x.voice_id, x.file_id, x.file_as
                      from messages x
                      left join users su on su.id = x.sender_id
                      where x.conversation_id = c.id
@@ -777,9 +787,14 @@ export function createChatService(
                 throw refused('voice-missing', 'There is no voice recording of yours with that id.');
             }
 
-            if (input.kind !== 'file' && input.file !== undefined)
+            if (input.kind !== 'file' && (input.file !== undefined || input.fileAs !== undefined))
             {
                 throw new BadRequestError('Only a photo, a video or a file message names a file.');
+            }
+
+            if (input.kind === 'file' && input.fileAs === undefined)
+            {
+                throw new BadRequestError('A file message says whether it is a photo, a video or a file.');
             }
 
             // A sender may name a file they may fetch: their own upload, or one a live message in a
@@ -968,7 +983,8 @@ export function createChatService(
                         expiresAt,
                         targetId: input.kind === 'reaction' || input.kind === 'edit' ? input.target ?? null : null,
                         voiceId: input.kind === 'voice' ? input.voice ?? null : null,
-                        fileId: input.kind === 'file' ? input.file ?? null : null
+                        fileId: input.kind === 'file' ? input.file ?? null : null,
+                        fileAs: input.kind === 'file' ? input.fileAs ?? null : null
                     })
                     .returning('*')
                     .execute();
@@ -1061,7 +1077,8 @@ export function createChatService(
                     commitment: null,
                     frank: null,
                     voiceId: null,
-                    fileId: null
+                    fileId: null,
+                    fileAs: null
                 });
                 await letGo(tx, found.voiceId === null ? [] : [found.voiceId], found.fileId === null ? [] : [found.fileId]);
 
@@ -1161,7 +1178,7 @@ export function createChatService(
                  values ($1, $2, $3, $4)
                  returning id, conversation_id, kind, body, payload, created_at,
                            epoch, seq, iv, sender_device_id, signature, client_at, commitment,
-                           frank, expires_at, target_id, voice_id, file_id`,
+                           frank, expires_at, target_id, voice_id, file_id, file_as`,
                 [conversationId, senderId, kind, JSON.stringify(payload)]
             );
             const message = rowsOf<Omit<MessageRow, 'sender' | 'sender_account_id'>>(inserted)[0];
@@ -1191,7 +1208,7 @@ export function createChatService(
                 `select x.id, x.conversation_id, x.kind, x.body, x.payload, x.created_at,
                         su.handle as sender, x.sender_id as sender_account_id,
                         x.epoch, x.seq, x.iv, x.sender_device_id, x.signature, x.client_at,
-                        x.commitment, x.frank, x.expires_at, x.target_id, x.voice_id, x.file_id
+                        x.commitment, x.frank, x.expires_at, x.target_id, x.voice_id, x.file_id, x.file_as
                  from messages x
                  left join users su on su.id = x.sender_id
                  where x.conversation_id = $1 and x.id = $2 and x.kind in ('text', 'voice', 'file', 'edit')

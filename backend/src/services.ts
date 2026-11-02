@@ -381,6 +381,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             message.file = row.file_id;
         }
 
+        if (row.file_as !== null)
+        {
+            message.fileAs = row.file_as;
+        }
+
         if (row.played === true)
         {
             message.played = true;
@@ -535,6 +540,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 target_id: null,
                 voice_id: row.last_voice_id,
                 file_id: row.last_file_id,
+                file_as: row.last_file_as,
                 seen: row.last_seen
             });
 
@@ -558,7 +564,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 expires_at: row.edit_expires_at,
                 target_id: row.last_id,
                 voice_id: null,
-                file_id: null
+                file_id: null,
+                file_as: null
             }]).get(row.last_id);
 
             if (edited !== undefined)

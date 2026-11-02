@@ -21,6 +21,7 @@ import {
     type OpenedMessage
 } from '../lib/sealing.ts';
 import type { MemberSeal } from '../lib/seal-state.ts';
+import type { FileAs } from '../../../backend/src/domains/chat/files.ts';
 import { THREAD_MOST, THREAD_PAGE } from '../../../backend/src/domains/chat/pages.ts';
 
 export interface ChatScope
@@ -486,7 +487,7 @@ export function createApiSource()
     {
         const body = decodeFile(read.text);
 
-        if (body === null || body.file.id !== wire.file)
+        if (body === null || body.file.id !== wire.file || body.file.as !== wire.fileAs)
         {
             return asMessage(born, wire, '', 'tampered');
         }
@@ -573,7 +574,7 @@ export function createApiSource()
         target?: string,
         id?: string,
         voice?: string,
-        file?: string
+        file?: { id: string; as: FileAs }
     ) =>
     {
         const secrets = await keyStore().secrets();
@@ -599,7 +600,7 @@ export function createApiSource()
             {
                 await client.chat.send({
                     params: { id: conversationId },
-                    input: { ...sealed, ...(target === undefined ? {} : { target }), ...(voice === undefined ? {} : { voice }), ...(file === undefined ? {} : { file }) }
+                    input: { ...sealed, ...(target === undefined ? {} : { target }), ...(voice === undefined ? {} : { voice }), ...(file === undefined ? {} : { file: file.id, fileAs: file.as }) }
                 });
                 return;
             }
@@ -804,7 +805,7 @@ export function createApiSource()
                 ...(message.forwarded === true ? { fwd: true as const } : {})
             });
 
-            await deliver(message.conversationId, message.from, plain, message.at, expiresAt, 'file', undefined, message.id, undefined, file.id);
+            await deliver(message.conversationId, message.from, plain, message.at, expiresAt, 'file', undefined, message.id, undefined, { id: file.id, as: file.as });
         },
 
         async played(conversationId, messageId)

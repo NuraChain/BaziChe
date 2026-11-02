@@ -6,6 +6,7 @@ import '../src/entities/index.ts';
 
 import { GAME_SEEDS } from '../src/db/seed-reference.ts';
 import { RUNGS } from '../src/domains/achieve/families.ts';
+import { FILE_AS } from '../src/domains/chat/files.ts';
 import type { Plan } from '../src/domains/match/judge.ts';
 import { NOTICES, NOTICE_OF } from '../src/domains/notify/notices.ts';
 import { quickOf, seatsByDefault } from '../src/domains/table/quick.ts';
@@ -218,6 +219,22 @@ describe('notices: the kinds a person can switch off hold together', () =>
         }
 
         expect(notificationKind.safeParse('invite-sent').ok).toBe(false);
+    });
+});
+
+describe('a file sent as: the database and the code name the same three', () =>
+{
+    const listed = (name: string): string[] =>
+        [...(getMetadataArgsStorage().checks.find((one) => one.name === name)?.expression ?? '').matchAll(/'([a-z-]+)'/g)].map((match) => match[1]);
+
+    it('keeps in its CHECK exactly what a file can be sent as', () =>
+    {
+        expect(listed('messages_file_as_known').sort()).toEqual([...FILE_AS].sort());
+    });
+
+    it('lets an album hold the two of them that are shown, and never a file', () =>
+    {
+        expect(listed('messages_album_is_media').filter((one) => one !== 'file').sort()).toEqual(FILE_AS.filter((one) => one !== 'file').sort());
     });
 });
 

@@ -205,7 +205,7 @@ const filed = async (person: Person, conversationId: string) =>
 {
     const file = crypto.randomUUID();
     await chat.storeFile(person.id, file, new Uint8Array(4096).fill(9));
-    return chat.send(person.id, conversationId, null, { ...await sealed(person.id, conversationId, 'file'), file });
+    return chat.send(person.id, conversationId, null, { ...await sealed(person.id, conversationId, 'file'), file, fileAs: 'photo' });
 };
 
 /** A picture this server keeps, by the address it answers it under. */

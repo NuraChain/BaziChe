@@ -1,4 +1,5 @@
 import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import type { FileAs } from '../domains/chat/files.ts';
 import { ChatFile } from './chat-file.entity.ts';
 import { Conversation } from './conversation.entity.ts';
 import { Device } from './device.entity.ts';
@@ -30,6 +31,10 @@ export type MessageKind = 'text' | 'voice' | 'file' | 'reaction' | 'edit' | 'del
  *
  * A photo, a video or a file (`file`) is the same again: sealed as a line is, `file_id` naming its
  * file in the clear, and the sealed document naming it again with its key, its name and its size.
+ * What it was sent as (`file_as`) is in the clear as well, so a conversation's photos and videos can be
+ * paged apart from its files; the document says it again, and a reader refuses a row whose two
+ * disagree. Photos and videos sent together are an album: each its own message, all with the album id
+ * their sender chose (`album_id`), which every item's document names again with its place.
  */
 @Check('messages_body_xor_payload', `(kind in ('text', 'voice', 'file', 'reaction', 'edit') and body is not null and payload is null) or (kind in ('system', 'invite', 'result') and payload is not null and body is null) or (kind = 'deleted' and body is null and payload is null)`)
 @Check('messages_kind_known', `kind in ('text', 'voice', 'file', 'reaction', 'edit', 'deleted', 'system', 'invite', 'result')`)
@@ -45,6 +50,13 @@ export type MessageKind = 'text' | 'voice' | 'file' | 'reaction' | 'edit' | 'del
 @Index('messages_target', ['targetId'], { where: `target_id is not null` })
 @Index('messages_file', ['fileId'], { where: `file_id is not null` })
 @Index('messages_voice', ['voiceId'], { where: `voice_id is not null` })
+@Check('messages_file_as_known', `file_as is null or file_as in ('photo', 'video', 'file')`)
+@Check('messages_file_says_as', `(kind = 'file') = (file_as is not null)`)
+@Check('messages_album_is_media', `album_id is null or (kind = 'file' and file_as in ('photo', 'video'))`)
+@Index('messages_album', ['albumId'], { where: `album_id is not null` })
+@Index('messages_media', ['conversationId', 'createdAt', 'id'], { where: `file_as in ('photo', 'video')` })
+@Index('messages_files', ['conversationId', 'createdAt', 'id'], { where: `file_as = 'file'` })
+@Index('messages_voices', ['conversationId', 'createdAt', 'id'], { where: `kind = 'voice'` })
 @Entity('messages')
 export class Message
 {
@@ -130,6 +142,14 @@ export class Message
     @ManyToOne(() => ChatFile, { nullable: true })
     @JoinColumn({ name: 'file_id', referencedColumnName: 'id' })
     file!: ChatFile | null;
+
+    /** What the file was sent as: `photo`, `video` or `file`. Null on everything that names no file. */
+    @Column({ name: 'file_as', type: 'varchar', length: 8, nullable: true })
+    fileAs!: FileAs | null;
+
+    /** The album its sender sent it in, photos and videos alone. Null on everything else, a tombstone included. */
+    @Column({ name: 'album_id', type: 'uuid', nullable: true })
+    albumId!: string | null;
 
     @ManyToOne(() => Message, { onDelete: 'CASCADE', nullable: true })
     @JoinColumn({ name: 'target_id', referencedColumnName: 'id' })

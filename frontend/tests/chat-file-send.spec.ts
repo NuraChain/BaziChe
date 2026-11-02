@@ -194,6 +194,25 @@ describe('a photo, a video or a file on its way', () =>
         expect(heldFile(file.id)?.type, 'the sender sees it without fetching it, as the picture its bytes say it is').toBe('image/jpeg');
     });
 
+    it('says what it was sent as in the clear, for the gallery, and opens as tampered when the server says otherwise', async () =>
+    {
+        const chat = useChat();
+
+        chat.openThread('c-reza');
+        await chat.sendFile('c-reza', photo(), '');
+        await chat.refresh();
+
+        const sent = server.messages.at(-1)!;
+
+        expect(sent.fileAs, 'stated beside the file it names').toBe('photo');
+        expect(chat.messages().find((one) => one.id === sent.id)?.locked, 'and opened as the document says').toBeUndefined();
+
+        sent.fileAs = 'file';
+        await chat.refresh();
+
+        expect(chat.messages().find((one) => one.id === sent.id)?.locked).toBe('tampered');
+    });
+
     it('opens as tampered when the server moves the message onto another file', async () =>
     {
         const chat = useChat();

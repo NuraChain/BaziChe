@@ -8,8 +8,9 @@ import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import { createFranking } from '../src/domains/chat/franking.ts';
 import { createChatService, type SealedInput } from '../src/domains/chat/service.ts';
-import { FILE_HOLD_MINUTES, FILE_SEALED_LEAST, FILE_SEALED_MOST } from '../src/domains/chat/files.ts';
+import { FILE_HOLD_MINUTES, FILE_SEALED_LEAST, FILE_SEALED_MOST, type FileAs } from '../src/domains/chat/files.ts';
 import { createSocialService } from '../src/domains/social/service.ts';
+import { rowsOf } from '../src/lib/rows.ts';
 import { buildPorts, type Services, type WriteListener } from '../src/services.ts';
 
 /**
@@ -83,7 +84,7 @@ const seqOf = new Map<string, number>();
 const minted = new Set<string>();
 
 /** The envelope the schema requires and none of the cryptography, as `chat.db.spec.ts` does. */
-const sealed = async (userId: string, conversationId: string, kind: SealedInput['kind'], options: { target?: string; voice?: string; file?: string; expiresAt?: number } = {}): Promise<SealedInput> =>
+const sealed = async (userId: string, conversationId: string, kind: SealedInput['kind'], options: { target?: string; voice?: string; file?: string; fileAs?: FileAs | null; expiresAt?: number } = {}): Promise<SealedInput> =>
 {
     let device = deviceOf.get(userId);
 
@@ -128,6 +129,7 @@ const sealed = async (userId: string, conversationId: string, kind: SealedInput[
         ...(options.target === undefined ? {} : { target: options.target }),
         ...(options.voice === undefined ? {} : { voice: options.voice }),
         ...(options.file === undefined ? {} : { file: options.file }),
+        ...(options.fileAs === null || (kind !== 'file' && options.fileAs === undefined) ? {} : { fileAs: options.fileAs ?? 'photo' }),
         commitment: 'a-commitment',
         expiresAt: options.expiresAt ?? 0
     };
@@ -263,6 +265,45 @@ describe.skipIf(!active)('a photo, a video or a file, against a real database', 
         expect(await refusalOf(sendFile(a, room, theirs)), 'a file of a room they are not in').toEqual({ status: 404, code: 'file-missing' });
         expect(await refusalOf(chat.send(a, room, null, await sealed(a, room, 'text', { file: await upload(a) }))), 'a line names no file').toMatchObject({ status: 400 });
         expect(await refusalOf(chat.send(a, room, null, await sealed(a, room, 'file'))), 'a file message names one').toEqual({ status: 404, code: 'file-missing' });
+    });
+
+    it('keeps what each file was sent as, hands it back with the line, and refuses a file message that does not say', async () =>
+    {
+        const [a, b] = [await makeUser(), await makeUser()];
+        const room = await chat.openDirect(a, b);
+        const photo = await sendFile(a, room, await upload(a));
+        const document = await chat.send(a, room, null, await sealed(a, room, 'file', { file: await upload(a), fileAs: 'file' }));
+        const page = (await ports.chat.messages(b, room, undefined)).messages;
+
+        expect([photo.file_as, document.file_as]).toEqual(['photo', 'file']);
+        expect(page.find((one) => one.id === photo.id)?.fileAs, 'the wire says it').toBe('photo');
+        expect(page.find((one) => one.id === document.id)?.fileAs).toBe('file');
+        expect((await ports.chat.list(b)).conversations.find((one) => one.id === room)?.last?.fileAs, 'and the list’s last line').toBe('file');
+
+        expect(await refusalOf(chat.send(a, room, null, await sealed(a, room, 'file', { file: await upload(a), fileAs: null }))), 'a file that does not say').toMatchObject({ status: 400 });
+        expect(await refusalOf(chat.send(a, room, null, await sealed(a, room, 'text', { fileAs: 'photo' }))), 'a line was sent as nothing').toMatchObject({ status: 400 });
+
+        await chat.remove(a, room, photo.id);
+        expect(rowsOf<{ kind: string; file_as: string | null }>(await db.query('select kind, file_as from messages where id = $1', [photo.id]))[0], 'a tombstone says nothing').toEqual({ kind: 'deleted', file_as: null });
+    });
+
+    it('holds what a row was sent as to its kind, and an album to photos and videos, whoever writes it', async () =>
+    {
+        const [a, b] = [await makeUser(), await makeUser()];
+        const room = await chat.openDirect(a, b);
+        const photo = await sendFile(a, room, await upload(a));
+        const line = await chat.send(a, room, null, await sealed(a, room, 'text'));
+        const broken = async (sql: string, params: unknown[]) =>
+            db.query(sql, params).then(() => null, (error: { code?: string; constraint?: string }) => error.constraint ?? error.code ?? 'refused');
+
+        expect(await broken('update messages set file_as = null where id = $1', [photo.id]), 'a file says what it was sent as').toBe('messages_file_says_as');
+        expect(await broken(`update messages set file_as = 'sticker' where id = $1`, [photo.id]), 'one of three').toBe('messages_file_as_known');
+        expect(await broken(`update messages set file_as = 'photo' where id = $1`, [line.id]), 'a line was sent as nothing').toBe('messages_file_says_as');
+        expect(await broken('update messages set album_id = gen_random_uuid() where id = $1', [line.id]), 'a line is in no album').toBe('messages_album_is_media');
+
+        await db.query('update messages set album_id = gen_random_uuid() where id = $1', [photo.id]);
+
+        expect(await broken(`update messages set file_as = 'file' where id = $1`, [photo.id]), 'an album holds photos and videos alone').toBe('messages_album_is_media');
     });
 
     it('lets a member forward a file they may fetch, which references it rather than copying it', async () =>

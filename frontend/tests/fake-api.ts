@@ -1760,6 +1760,7 @@ interface FakeSend
     target?: string;
     voice?: string;
     file?: string;
+    fileAs?: 'photo' | 'video' | 'file';
     epoch: number;
     seq: number;
     iv: string;
@@ -3710,6 +3711,10 @@ export const client =
             {
                 throw new ApiError(server.refuseSend.status, server.refuseSend.code, 'Refused.', undefined);
             }
+            if ((input.kind === 'file') !== (input.fileAs !== undefined))
+            {
+                throw new ApiError(400, 'bad-request', 'A file message says whether it is a photo, a video or a file.', undefined);
+            }
             counter += 1;
 
             // The id is the CLIENT's, because it is bound into the AAD - a server-assigned id could
@@ -3731,7 +3736,8 @@ export const client =
                 clientAt: input.clientAt,
                 commitment: input.commitment,
                 ...(input.voice === undefined ? {} : { voice: input.voice }),
-                ...(input.file === undefined ? {} : { file: input.file })
+                ...(input.file === undefined ? {} : { file: input.file }),
+                ...(input.fileAs === undefined ? {} : { fileAs: input.fileAs })
             };
 
             // The real server also stamps its own MAC here. This one does not, because franking is

@@ -156,7 +156,7 @@ export default component GroupLinkPage()
                     heading
                     title={ locale.t('groups.linkPageDead') }
                     lead={ locale.t('groups.linkPageDeadLead') }
-                    action={ locale.t('app.nav.friends') }
+                    action={ locale.t('groups.mine') }
                     to="/app/friends?tab=groups"
                     class="py-12"
                 />

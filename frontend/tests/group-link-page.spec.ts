@@ -209,7 +209,7 @@ describe('the page a group\'s invitation link opens', () =>
             await vi.waitFor(() => expect(container.textContent).toContain(t('groups.linkPageDead')), { timeout: 4000 });
             expect(container.textContent).toContain(t('groups.linkPageDeadLead'));
             expect(face(container)).toBeNull();
-            expect(container.querySelector('a[href="/app/friends?tab=groups"]')).not.toBeNull();
+            expect(container.querySelector('a[href="/app/friends?tab=groups"]')?.textContent).toContain(t('groups.mine'));
         }
     });
 

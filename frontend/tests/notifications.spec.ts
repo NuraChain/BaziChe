@@ -158,6 +158,23 @@ describe('where a notice leads', () =>
         useLocale().setLocale('en');
     });
 
+    it.each([
+        ['en', 'Maya is calling you', 'You missed a call from Maya'],
+        ['fa', 'Maya داره بهت زنگ می‌زنه', 'یه تماس بی‌جواب از Maya داری']
+    ] as const)('sends a call ringing and one missed to the conversation it was in, and says each in %s', (language, ringing, missed) =>
+    {
+        useLocale().setLocale(language);
+
+        const about = { actor: 'maya.c', ref: { conversationId: 'c-1' } };
+
+        expect(targetOf(notice('call', about))).toBe('/app/chats/c-1');
+        expect(targetOf(notice('call-missed', about))).toBe('/app/chats/c-1');
+        expect(sayOf(notice('call', about), 'Maya', useLocale())).toBe(ringing);
+        expect(sayOf(notice('call-missed', about), 'Maya', useLocale())).toBe(missed);
+        expect(wordsOf(language).says, 'the worker says what the page says').toMatchObject({ 'call': messageOf(language, 'notify.call'), 'call-missed': messageOf(language, 'notify.callMissed') });
+        useLocale().setLocale('en');
+    });
+
     it('sends somebody a host took out of a table to the games, not back to a table with no chair for them', () =>
     {
         expect(targetOf(notice('table-removed', { actor: 'maya.c', ref: { tableId: 't-1', game: 'ludo' } }))).toBe('/app/games');

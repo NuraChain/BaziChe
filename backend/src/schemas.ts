@@ -3413,7 +3413,13 @@ export const notificationKind = enumOf([
     'channel-invite',
 
     /** A line in a group the reader helps run was reported, and the copy is theirs to work. Nobody is named. */
-    'group-report'
+    'group-report',
+
+    /** Somebody is calling the reader; taken back once it is answered or declined (MS-D35). */
+    'call',
+
+    /** A call the reader did not answer: missed, called off by whoever rang, or rung while they were busy. */
+    'call-missed'
 ]);
 
 export type NotificationKind = Infer<typeof notificationKind>;

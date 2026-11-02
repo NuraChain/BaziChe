@@ -149,6 +149,7 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.notifications.turns': '游戏：轮到你，以及对局开始',
     'settings.notifications.gifts': '别人送你的礼物和 NURA',
     'settings.notifications.inviting': '你邀请的好友',
+    'settings.notifications.calls': '通话：来电和未接来电',
     'settings.notifications.haptics': '振动',
     'settings.notifications.hapticsHint': '牌桌就绪、赢下一手或手势生效时短暂振动一下。',
 

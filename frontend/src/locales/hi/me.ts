@@ -149,6 +149,7 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.notifications.turns': 'गेम्स: तुम्हारी बारी, और गेम शुरू होना',
     'settings.notifications.gifts': 'तुम्हें भेजे गए तोहफ़े और NURA',
     'settings.notifications.inviting': 'जिन दोस्तों को तुमने बुलाया',
+    'settings.notifications.calls': 'कॉल: बजती हुई कॉल और छूटी हुई कॉल',
     'settings.notifications.haptics': 'वाइब्रेशन',
     'settings.notifications.hapticsHint': 'जब टेबल तैयार हो, हाथ जीता जाए या कोई इशारा पहुँचे, तो एक छोटी-सी थरथराहट।',
 

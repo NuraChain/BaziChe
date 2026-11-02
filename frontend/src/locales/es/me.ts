@@ -149,6 +149,7 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.notifications.turns': 'Partidas: tu turno y el inicio de una partida',
     'settings.notifications.gifts': 'Regalos y NURA que te envían',
     'settings.notifications.inviting': 'Amigos que invitaste',
+    'settings.notifications.calls': 'Llamadas: una que suena y las que perdiste',
     'settings.notifications.haptics': 'Vibración',
     'settings.notifications.hapticsHint': 'Una vibración corta cuando una mesa está lista, se gana una mano o llega un gesto.',
 

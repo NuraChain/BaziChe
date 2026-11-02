@@ -25,7 +25,9 @@ export const CUE_KEYS: Record<NotificationKind, MessageKey> = {
     'group-approved': 'notify.groupApproved',
     'group-owner': 'notify.groupOwner',
     'channel-invite': 'notify.channelInvite',
-    'group-report': 'notify.groupReport'
+    'group-report': 'notify.groupReport',
+    'call': 'notify.call',
+    'call-missed': 'notify.callMissed'
 };
 
 export interface NoticeWords
@@ -71,7 +73,9 @@ export function wordsOf(lang: Locale): NoticeWords
             'group-approved': said('group-approved'),
             'group-owner': said('group-owner'),
             'channel-invite': said('channel-invite'),
-            'group-report': said('group-report')
+            'group-report': said('group-report'),
+            'call': said('call'),
+            'call-missed': said('call-missed')
         },
         games: Object.fromEntries(GAMES.map((game) => [game.id, messageText(messageOf(lang, game.nameKey))]))
     };

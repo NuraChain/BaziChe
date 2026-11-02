@@ -755,6 +755,18 @@ describe.skipIf(!active)('running a group, against a real database', () =>
 
     describe('a group made with what it starts with', () =>
     {
+        it('logs one change\'s rows in the order they were written, the making first and each member after it', async () =>
+        {
+            const owner = await makeUser();
+            const firsts = [await makeUser(), await makeUser(), await makeUser(), await makeUser()];
+
+            const made = await group(owner, 'In Order', { members: firsts.map((one) => one.handle) });
+            const read = await ports.group.log(owner.id, made.slug, undefined);
+
+            expect(read?.rows.map((row) => `${ row.kind } ${ row.person ?? '-' }`), 'newest first')
+                .toEqual([...firsts.map((one) => `joined ${ one.handle }`).reverse(), 'created -']);
+        });
+
         it('seats its first members, tells them, keeps what members may do, and leaves out anybody the policy refuses', async () =>
         {
             const owner = await makeUser();

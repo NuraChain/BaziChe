@@ -378,6 +378,8 @@ export function createGroupService(db: DataSource, social: SocialService)
     {
         const handles = await handlesIn(tx, [actor?.id, person].filter((id): id is string => id !== undefined && id !== null));
 
+        // The moment it is written, not the transaction's start: the rows one change writes would all
+        // share that, and the log, newest first, would read them in the order of their random ids.
         await tx.getRepository(GroupEvent).insert({
             groupId,
             actorId: actor?.id ?? null,
@@ -386,7 +388,8 @@ export function createGroupService(db: DataSource, social: SocialService)
             kind,
             personId: person,
             personHandle: person === null ? null : handles.get(person) ?? null,
-            details
+            details,
+            createdAt: () => 'clock_timestamp()'
         });
     };
 

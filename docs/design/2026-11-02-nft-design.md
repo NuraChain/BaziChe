@@ -184,6 +184,17 @@ What changed on the way, against the design:
   receipt can never mark a burn as a mint.
 - **A look owned again before its burn was sent** goes back to `minted` rather than being burned and
   minted again.
+- **A send with no receipt for thirty minutes is taken for lost** (dropped, replaced, a node that
+  restarted): its hash is cleared and the token read again, so it is sent again only if the chain
+  says it still needs it, and a token never says "Minting" for ever.
+- **A profile links nowhere.** A legendary achievement on somebody's profile says "On NuraChain"
+  without its transaction, because a transaction's page names the wallet it went to and a profile
+  does not show a stranger anybody's wallet. Only the owner's own collection links to the chain.
+  What stays public is what any NFT is: the explorer lists the wallets holding a token id, so a
+  legendary achievement held by very few people can be matched to a wallet by somebody looking.
+- **One server per database**, as every other sweep assumes: two servers passing at once would
+  send twice and the second send would revert (`AlreadyHeld`, `AlreadyEarned`) and heal, at the
+  cost of gas.
 - **No admin view of tokens put aside.** A `failed` token keeps its reason in `nft_tokens.failure`
   and is not tried again; the staff read it from the database for now.
 - **The medal** is drawn by the server from the tier's colours, the step and the name, under a CSP

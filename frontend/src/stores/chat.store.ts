@@ -270,19 +270,37 @@ export const useChat = createStore((): ChatApi =>
 
     const listed = (id: string) => (list.data()?.rows ?? []).some((row) => row.conversation.id === id);
 
+    /**
+     * The open conversation once a read of the list has found it gone: the reader left it, and a page
+     * that still shows it (a table's, after a leave from elsewhere) keeps it open. A later ring finds
+     * it unlisted on both sides of its read and would take it for one the list's pages have not
+     * reached, which every connection's ring then asked for, and was refused.
+     */
+    let left = '';
+
     const nudgedOpen = (id: string) => queue(async () =>
     {
+        const held = listed(id);
+
         await list.refetch();
 
-        if (untrack(openId) === id && listed(id))
+        if (untrack(openId) !== id)
         {
-            for (const listener of threaders)
-            {
-                listener(id);
-            }
-
-            await thread.refetch();
+            return;
         }
+
+        if (!listed(id))
+        {
+            left = held ? id : left;
+            return;
+        }
+
+        for (const listener of threaders)
+        {
+            listener(id);
+        }
+
+        await thread.refetch();
     });
 
     const nudgedAll = () => queue(async () =>
@@ -292,8 +310,9 @@ export const useChat = createStore((): ChatApi =>
 
         await list.refetch();
 
-        if (held && !listed(open))
+        if (open !== '' && !listed(open) && (held || left === open))
         {
+            left = open;
             return;
         }
 
@@ -986,6 +1005,7 @@ export const useChat = createStore((): ChatApi =>
             sweep = null;
             announced.clear();
             setOpenId('');
+            left = '';
             setDepth(THREAD_PAGE);
             setPages(1);
             setSeen({});

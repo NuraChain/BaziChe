@@ -281,6 +281,9 @@ const goneFromTheChair = async () =>
         ok('two sit ready at a public live table', sittingAt(before).length === 2 && before?.chairs?.filter((chair) => chair.ready).length === 2 && before?.status === 'open',
             sittingAt(before).join(' '));
 
+        // A stranger is told somebody has gone only by a socket whose page shows them, as the table's
+        // page shows every plate; a socket that says nothing of the sort is told of nobody's going.
+        stays.socket.send(JSON.stringify({ v: 1, t: 'see', who: [goes.handle] }));
         await pause(1000);
         stays.rung.length = 0;
         goes.socket.close();

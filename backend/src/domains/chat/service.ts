@@ -17,6 +17,7 @@ import {
 import { cursorFor, cursorOf, instantOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import { firstRow, rowsOf } from '../../lib/rows.ts';
 import { ConversationMember } from '../../entities/conversation-member.entity.ts';
+import { ConversationPin } from '../../entities/conversation-pin.entity.ts';
 import { Conversation } from '../../entities/conversation.entity.ts';
 import { Device } from '../../entities/device.entity.ts';
 import { Table } from '../../entities/table.entity.ts';
@@ -26,7 +27,7 @@ import { VoiceNote } from '../../entities/voice-note.entity.ts';
 import { VoicePlay } from '../../entities/voice-play.entity.ts';
 import type { SocialService } from '../social/service.ts';
 import { GROUP_REFUSALS } from '../group/refusals.ts';
-import { SWITCH_COLUMNS, SWITCHES, mayIn, type GroupRight, type GroupRole } from '../group/roles.ts';
+import { PINS_MOST, SWITCH_COLUMNS, SWITCHES, mayIn, type GroupRight, type GroupRole } from '../group/roles.ts';
 
 export interface ConversationRow
 {
@@ -209,6 +210,24 @@ export interface VoiceLimits
     dayBytes: number;
     pending: number;
 }
+
+/**
+ * What a group says about an act in its thread, asked inside the chat's own transaction.
+ *
+ * Each takes the group's row first, as every change to a group does, so a role taken away a moment
+ * earlier is a role this act no longer has, and only then does the chat take the rows it changes.
+ */
+export interface GroupGate
+{
+    /** Refuses whoever may not pin in the group, and answers how a change is written into its log. */
+    pinGate(tx: EntityManager, me: string, groupId: string): Promise<(pinned: boolean, messageId: string) => Promise<void>>;
+
+    /** Refuses whoever may not take that author's line away, and writes it into the log. */
+    deleteGate(tx: EntityManager, me: string, groupId: string, authorId: string, messageId: string): Promise<void>;
+}
+
+/** A line pinned at the head of its room, as the first page of its thread carries it. */
+export type PinRow = MessageRow & { pinned_by: string | null; pinned_at: Date };
 
 export function createChatService(db: DataSource, social: SocialService, franking: Franking, voice: VoiceLimits = { dayBytes: VOICE_DAY_BYTES, pending: VOICE_PENDING_MOST })
 {
@@ -559,7 +578,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
          * other end while somebody scrolls up, and an OFFSET page silently repeats or skips a
          * message every time one arrives. The cursor is the last row of the previous page.
          */
-        async messages(me: string, conversationId: string, cursor: string | null | undefined, size: number = PAGE): Promise<{ messages: MessageRow[]; hasMore: boolean; reactions: MessageRow[]; edits: MessageRow[]; cursor?: string }>
+        async messages(me: string, conversationId: string, cursor: string | null | undefined, size: number = PAGE): Promise<{ messages: MessageRow[]; hasMore: boolean; reactions: MessageRow[]; edits: MessageRow[]; pins: PinRow[] | null; cursor?: string }>
         {
             await mustBeMember(me, conversationId);
 
@@ -588,7 +607,23 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 .getRawMany<MessageRow & Keyed>();
             const hasMore = page.length > size;
             const shown = page.slice(0, size).reverse();
-            const texts = shown.filter((row) => row.kind === 'text').map((row) => row.id);
+
+            // Only the first page: a page further back is read for its lines, and the pins are the
+            // head of the room, which the first page is.
+            const pins = after !== null ? null : await envelope()
+                .innerJoin(ConversationPin, 'p', 'p.message_id = x.id and p.conversation_id = x.conversation_id')
+                .leftJoin(User, 'pu', 'pu.id = p.pinned_by')
+                .addSelect('pu.handle', 'pinned_by')
+                .addSelect('p.created_at', 'pinned_at')
+                .where('x.conversation_id = :conversationId', { conversationId })
+                .andWhere(`x.kind in ('text', 'voice')`)
+                .andWhere('(x.expires_at is null or x.expires_at > now())')
+                .orderBy('p.created_at', 'DESC')
+                .addOrderBy('x.id', 'DESC')
+                .limit(PINS_MOST)
+                .getRawMany<PinRow>();
+
+            const texts = [...new Set([...shown, ...(pins ?? [])].filter((row) => row.kind === 'text').map((row) => row.id))];
             const said = shown.filter((row) => row.kind === 'text' || row.kind === 'voice').map((row) => row.id);
 
             const reactions = said.length === 0 ? [] : await envelope()
@@ -612,7 +647,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 .addOrderBy('x.id', 'DESC')
                 .getRawMany<MessageRow>();
 
-            return { messages: shown, hasMore, reactions, edits, ...cursorOf(page, size) };
+            return { messages: shown, hasMore, reactions, edits, pins, ...cursorOf(page, size) };
         },
 
         /**
@@ -898,7 +933,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
             };
         },
 
-        async remove(me: string, conversationId: string, messageId: string): Promise<'deleted' | 'withdrawn'>
+        async remove(me: string, conversationId: string, messageId: string, gate?: GroupGate): Promise<'deleted' | 'withdrawn'>
         {
             await mustBeMember(me, conversationId);
 
@@ -911,9 +946,28 @@ export function createChatService(db: DataSource, social: SocialService, frankin
             {
                 const messages = tx.getRepository(Message);
 
+                // Whose line it is decides who is asked. Its author takes it away alone; anybody else
+                // only in a group, with the group's say, which takes the group's row before this takes
+                // the line's. A reaction is never somebody else's to take back.
+                const said = await messages.findOne({ select: { senderId: true, kind: true }, where: { id: messageId, conversationId } });
+                const author = said?.senderId ?? null;
+
+                if (said !== null && author !== null && author !== me)
+                {
+                    const room = said.kind === 'text' || said.kind === 'voice'
+                        ? await tx.getRepository(Conversation).findOne({ select: { groupId: true }, where: { id: conversationId, kind: 'group' } })
+                        : null;
+
+                    if (gate === undefined || room === null || room.groupId === null)
+                    {
+                        throw new NotFoundError('No such message of yours here.');
+                    }
+                    await gate.deleteGate(tx, me, room.groupId, author, messageId);
+                }
+
                 const found = await messages.findOne({
                     select: { id: true, kind: true, voiceId: true },
-                    where: { id: messageId, conversationId, senderId: me },
+                    where: { id: messageId, conversationId, senderId: author === null ? me : author },
                     lock: { mode: 'pessimistic_write' }
                 });
 
@@ -930,6 +984,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
 
                 await messages.delete({ targetId: messageId, kind: In(['reaction', 'edit']) });
                 await tx.getRepository(VoicePlay).delete({ messageId });
+                await tx.getRepository(ConversationPin).delete({ messageId });
                 await messages.update({ id: messageId }, {
                     kind: 'deleted',
                     body: null,
@@ -943,6 +998,89 @@ export function createChatService(db: DataSource, social: SocialService, frankin
 
                 return 'deleted';
             });
+        },
+
+        /**
+         * Pins a line for everybody in the room, or takes its pin away: a line of words or a voice
+         * message still alive, never at a table, twenty at most. In a direct chat either person may;
+         * in a group the group says who may, and its log says who did. Answers whether anything moved.
+         */
+        async pin(me: string, conversationId: string, messageId: string, pinned: boolean, gate?: GroupGate)
+        {
+            await mustBeMember(me, conversationId);
+
+            return db.transaction(async (tx) =>
+            {
+                const rooms = tx.getRepository(Conversation);
+                const room = await rooms.findOne({ select: { id: true, kind: true, groupId: true }, where: { id: conversationId } });
+
+                if (room === null || room.kind === 'game')
+                {
+                    throw new NotFoundError('No such message here.');
+                }
+
+                const log = room.kind === 'group' && room.groupId !== null ? await gate?.pinGate(tx, me, room.groupId) : null;
+                if (log === undefined)
+                {
+                    throw new NotFoundError('No such message here.');
+                }
+
+                // The room's row, so two pins at once count one after the other. NO KEY UPDATE, so a
+                // line being written into the room, which holds the row by its key, is not waited on.
+                await rooms.findOne({ select: { id: true }, where: { id: conversationId }, lock: { mode: 'for_no_key_update' } });
+
+                const pins = tx.getRepository(ConversationPin);
+
+                if (pinned)
+                {
+                    const line = UUID.test(messageId)
+                        ? await tx.getRepository(Message).createQueryBuilder('x')
+                            .select('x.id', 'id')
+                            .where('x.id = :messageId', { messageId })
+                            .andWhere('x.conversation_id = :conversationId', { conversationId })
+                            .andWhere(`x.kind in ('text', 'voice')`)
+                            .andWhere('(x.expires_at is null or x.expires_at > now())')
+                            .getRawOne<{ id: string }>()
+                        : undefined;
+
+                    if (line === undefined)
+                    {
+                        throw new NotFoundError('No such message here.');
+                    }
+                    if (await pins.existsBy({ conversationId, messageId }))
+                    {
+                        return false;
+                    }
+                    if (await pins.countBy({ conversationId }) >= PINS_MOST)
+                    {
+                        throw new HttpError(409, 'A conversation holds twenty pinned messages at most. Unpin one first.', { code: 'pins-full' });
+                    }
+                    await pins.insert({ conversationId, messageId, pinnedBy: me });
+                }
+                else
+                {
+                    const gone = UUID.test(messageId) ? await pins.delete({ conversationId, messageId }) : null;
+                    if ((gone?.affected ?? 0) === 0)
+                    {
+                        return false;
+                    }
+                }
+
+                if (log !== null)
+                {
+                    await log(pinned, messageId);
+                }
+                return true;
+            });
+        },
+
+        /** The group a room belongs to, or nothing for a room that is no group's. */
+        async groupOf(conversationId: string)
+        {
+            const room = UUID.test(conversationId)
+                ? await db.getRepository(Conversation).findOne({ select: { groupId: true }, where: { id: conversationId, kind: 'group' } })
+                : null;
+            return room?.groupId ?? null;
         },
 
         /** A server-authored line: `{ key, params }`, never prose. */

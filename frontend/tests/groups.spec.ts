@@ -278,16 +278,17 @@ describe('the group lines', () =>
      *
      * `closed` and `opened` arrived with private groups, for the reason the expiry lines exist: a
      * rule about who can walk in is not something to change behind the room's back. `photo` came with
-     * the group's picture, said as a renaming is.
+     * the group's picture, said as a renaming is, and `pinned` with pinned lines: who pinned one is
+     * said in the room, and an unpin is not.
      */
-    it('declares exactly the nine the group domain writes', () =>
+    it('declares exactly the ten the group domain writes', () =>
     {
-        for (const key of ['created', 'joined', 'left', 'removed', 'renamed', 'owner', 'closed', 'opened', 'photo'])
+        for (const key of ['created', 'joined', 'left', 'removed', 'renamed', 'owner', 'closed', 'opened', 'photo', 'pinned'])
         {
             expect(isLineKey(`chat.line.group.${ key }`)).toBe(true);
         }
         expect(isLineKey('chat.line.group.exploded')).toBe(false);
-        expect(LINE_KEYS.filter((key) => key.startsWith('chat.line.group.')).length).toBe(9);
+        expect(LINE_KEYS.filter((key) => key.startsWith('chat.line.group.')).length).toBe(10);
     });
 });
 

@@ -3394,13 +3394,21 @@ export const conversationList = object({ conversations: array(conversationSummar
  * Keyset, not offset: a conversation grows at one end while somebody reads the other, and an
  * offset page repeats or skips a line every time a message arrives.
  */
+/** A line pinned at the head of its room: the line as the thread draws it, who pinned it and when. */
+export const pinnedLine = object({ message: chatMessage, by: string().optional(), at: string() });
+
 export const messagePage = object({
     messages: array(chatMessage),
     hasMore: boolean(),
-    cursor: string().optional()
+    cursor: string().optional(),
+
+    /** The room's pins, newest first, on the first page and on no other. */
+    pins: array(pinnedLine).optional()
 });
 
 export type MessagePage = Infer<typeof messagePage>;
+
+export const pinLineInput = object({ messageId: string({ min: 1, max: 64 }) });
 
 /**
  * What sending a sealed message states.

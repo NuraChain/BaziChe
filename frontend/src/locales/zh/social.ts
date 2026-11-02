@@ -287,6 +287,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.line.group.closed': '{who} 将这个群组设为私密',
     'chat.line.group.opened': '{who} 将这个群组设为公开',
     'chat.line.group.photo': '{who} 更换了群组头像',
+    'chat.line.group.pinned': '{who} 置顶了一条消息',
     'chat.line.expiry.on': '这里的新消息现在会在 {name} 后消失',
     'chat.line.expiry.off': '这里的新消息会一直保留，直到有人删除',
     'chat.line.donation': '{who} 给 {to} 送了 {amount} NURA',

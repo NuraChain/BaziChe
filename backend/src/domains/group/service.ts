@@ -1086,6 +1086,31 @@ export function createGroupService(db: DataSource, social: SocialService)
             });
         },
 
+        /** The group's say in a pin, inside the chat's transaction: its row, the right, and how it is logged. */
+        async pinGate(tx: EntityManager, me: string, groupId: string)
+        {
+            const { switches } = await lockGroup(tx, groupId);
+            const actor = await actorIn(tx, me, groupId);
+            must(actor, switches, 'pin');
+
+            return (pinned: boolean, messageId: string) =>
+                record(tx, groupId, { id: me, role: actor.role }, pinned ? 'pinned' : 'unpinned', null, { message: messageId });
+        },
+
+        /**
+         * The group's say in taking somebody else's line out of its thread, inside the chat's own
+         * transaction: the right to, and an author ranked below the actor, which somebody who left is.
+         * The log says whose line it was; the author is told nothing.
+         */
+        async deleteGate(tx: EntityManager, me: string, groupId: string, authorId: string, messageId: string)
+        {
+            const { switches } = await lockGroup(tx, groupId);
+            const actor = await actorIn(tx, me, groupId);
+            must(actor, switches, 'delete');
+            mustReach(me, actor, authorId, await standingIn(tx, authorId, groupId));
+            await record(tx, groupId, { id: me, role: actor.role }, 'deleted', authorId, { message: messageId });
+        },
+
         /** A link that brings people in, made by whoever may make them: an end, a limit of uses, and whether it asks first. */
         async makeLink(me: string, groupId: string, input: { hours: number | null; uses: number | null; approval: boolean }): Promise<string>
         {

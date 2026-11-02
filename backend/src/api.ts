@@ -183,6 +183,7 @@ import {
     personList,
     pinInput,
     personRef,
+    pinLineInput,
     pushEndpoint,
     pushKey,
     pushSubscribeInput,
@@ -1554,6 +1555,18 @@ export function buildApi(ports: Ports)
             {
                 await ports.chat.played(context.principal.userId, context.params.id, context.params.messageId);
                 return { ok: true };
+            }),
+
+            pinLine: routes.post('/:id/pins', { input: pinLineInput, output: ack }, async (context) =>
+            {
+                await ports.chat.pinLine(context.principal.userId, context.params.id, context.input.messageId);
+                return { ok: true as const };
+            }),
+
+            unpinLine: routes.del('/:id/pins/:messageId', { output: ack }, async (context) =>
+            {
+                await ports.chat.unpinLine(context.principal.userId, context.params.id, context.params.messageId);
+                return { ok: true as const };
             }),
 
             remove: routes.del('/:id/messages/:messageId', { output: ack }, async (context) =>

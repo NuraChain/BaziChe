@@ -112,6 +112,7 @@ const BODIES = {
     '/groups/:slug/unban': (bad) => [{ id: bad }],
     '/groups/:slug/unmute': (bad) => [{ id: bad }],
     '/groups/:slug/links': (bad) => [{ hours: 24, uses: 10, approval: true }, { hours: bad.length, uses: bad.length, approval: false }],
+    '/chat/:id/pins': (bad) => [{ messageId: bad.slice(0, 64) }],
     '/groups/:slug/requests/answer': (bad) => [{ id: bad.slice(0, 32), approve: true }, { id: bad.slice(0, 32), approve: false }],
     '/groups/:slug/members': (bad) => [{ id: bad }],
     '/groups/:slug/members/remove': (bad) => [{ id: bad }],

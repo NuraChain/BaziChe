@@ -543,6 +543,10 @@ export interface ChatPort
 
     remove(me: string, conversationId: string, messageId: string): Promise<void>;
 
+    /** Pins a line for everybody in the room, or takes its pin away; a group says who may. */
+    pinLine(me: string, conversationId: string, messageId: string): Promise<void>;
+    unpinLine(me: string, conversationId: string, messageId: string): Promise<void>;
+
     /** Keeps a voice file as its sender's browser sealed it. `fresh` is false for a retry of one already kept. */
     storeVoice(me: string, id: string, bytes: Uint8Array): Promise<{ id: string; size: number; fresh: boolean }>;
 

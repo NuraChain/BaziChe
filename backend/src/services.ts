@@ -648,7 +648,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const announce = (
         row: GroupRow,
         actor: string | null,
-        what: 'created' | 'joined' | 'left' | 'removed' | 'renamed' | 'owner' | 'closed' | 'opened' | 'photo',
+        what: 'created' | 'joined' | 'left' | 'removed' | 'renamed' | 'owner' | 'closed' | 'opened' | 'photo' | 'pinned',
         params: Record<string, string>
     ) => courtesy(`group line ${ what }`, async () =>
     {
@@ -4451,20 +4451,27 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 const page = await chat.messages(me, conversationId, cursor, threadSize(limit));
                 const reactions = asRelations(page.reactions);
                 const edits = asRelations(page.edits);
+                const edited = (row: Parameters<typeof asMessage>[0]) =>
+                {
+                    const changed = edits.get(row.id);
+                    return { ...asMessage(row), ...(changed === undefined ? {} : { edits: changed }) };
+                };
+
                 return {
                     messages: page.messages.map((row) =>
                     {
                         const on = reactions.get(row.id);
-                        const changed = edits.get(row.id);
-
-                        return {
-                            ...asMessage(row),
-                            ...(on === undefined ? {} : { reactions: on }),
-                            ...(changed === undefined ? {} : { edits: changed })
-                        };
+                        return { ...edited(row), ...(on === undefined ? {} : { reactions: on }) };
                     }),
                     hasMore: page.hasMore,
-                    ...(page.cursor === undefined ? {} : { cursor: page.cursor })
+                    ...(page.cursor === undefined ? {} : { cursor: page.cursor }),
+                    ...(page.pins === null ? {} : {
+                        pins: page.pins.map((row) => ({
+                            message: edited(row),
+                            ...(row.pinned_by === null ? {} : { by: row.pinned_by }),
+                            at: row.pinned_at.toISOString()
+                        }))
+                    })
                 };
             },
 
@@ -4501,8 +4508,32 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
             async remove(me, conversationId, messageId)
             {
-                await chat.remove(me, conversationId, messageId);
+                await chat.remove(me, conversationId, messageId, group);
                 live?.chatChanged(conversationId);
+            },
+
+            async pinLine(me, conversationId, messageId)
+            {
+                if (!await chat.pin(me, conversationId, messageId, true, group))
+                {
+                    return;
+                }
+
+                const groupId = await chat.groupOf(conversationId);
+                const row = groupId === null ? null : await group.byId(me, groupId);
+                if (row !== null)
+                {
+                    await announce(row, me, 'pinned', {});
+                }
+                live?.chatChanged(conversationId);
+            },
+
+            async unpinLine(me, conversationId, messageId)
+            {
+                if (await chat.pin(me, conversationId, messageId, false, group))
+                {
+                    live?.chatChanged(conversationId);
+                }
             },
 
             storeVoice: (me, id, bytes) => chat.storeVoice(me, id, bytes),

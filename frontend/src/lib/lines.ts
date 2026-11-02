@@ -35,6 +35,7 @@ export const LINE_KEYS = [
     'chat.line.group.closed',
     'chat.line.group.opened',
     'chat.line.group.photo',
+    'chat.line.group.pinned',
 
     // Written by `setExpiry` in the chat half of `services.ts`. A rule about how long words last is
     // not something to change behind somebody's back.

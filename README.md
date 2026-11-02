@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="frontend/public/favicon.svg" width="64" height="64" alt="" />
+<img src="frontend/public/icon-192.png" width="64" height="64" alt="" />
 
 # Baziche
 

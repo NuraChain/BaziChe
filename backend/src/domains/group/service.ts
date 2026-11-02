@@ -11,8 +11,10 @@ import { GroupEvent } from '../../entities/group-event.entity.ts';
 import { GroupInvite } from '../../entities/group-invite.entity.ts';
 import { GroupMember } from '../../entities/group-member.entity.ts';
 import { GroupMute } from '../../entities/group-mute.entity.ts';
+import { GroupReport } from '../../entities/group-report.entity.ts';
 import { GroupRequest } from '../../entities/group-request.entity.ts';
 import { Group, type GroupPrivacy } from '../../entities/group.entity.ts';
+import { Report, type ReportCategory } from '../../entities/report.entity.ts';
 import { User } from '../../entities/user.entity.ts';
 import { instantOf, keysetAfter } from '../../lib/keyset.ts';
 import { firstRow, rowsOf } from '../../lib/rows.ts';
@@ -20,8 +22,8 @@ import { folded, likeLiteral, SEARCH_FROM, searchNeedle } from '../social/names.
 import type { SocialService } from '../social/service.ts';
 import { GROUP_REFUSALS, type GroupRefusal } from './refusals.ts';
 import {
-    FIRST_MEMBERS_MOST, GROUP_LOG_PAGE, GROUP_RIGHTS, LINK_TOKEN, MEMBERS_PAGE, SWITCH_COLUMNS, SWITCH_DEFAULTS, SWITCHES, mayIn, outranks,
-    type GroupAct, type GroupEventKind, type GroupRight, type GroupRole, type GroupSwitches
+    FIRST_MEMBERS_MOST, GROUP_LOG_PAGE, GROUP_REPORTS_PAGE, GROUP_RIGHTS, LINK_TOKEN, MEMBERS_PAGE, RANK, SWITCH_COLUMNS, SWITCH_DEFAULTS, SWITCHES, mayIn, outranks,
+    type GroupAct, type GroupEventKind, type GroupReportState, type GroupRight, type GroupRole, type GroupSwitches
 } from './roles.ts';
 import { candidatesFor, checkSlug, slugFromName } from './slug.ts';
 
@@ -60,6 +62,9 @@ export interface GroupRow
     requested: boolean;
     request_count: number;
 
+    /** How many open reports about a line in its room this viewer outranks the person reported in. */
+    report_count: number;
+
     /** Whether a mute is in force on this viewer, and until when when it ends by itself. */
     muted: boolean;
     muted_until: Date | null;
@@ -95,6 +100,23 @@ export interface EventRow
     person_handle: string | null;
     details: Record<string, string>;
     created_at: Date;
+    at_key: string;
+}
+
+/** A report about a line in a group's room as its staff read it: the report's words and person, never who filed it. */
+export interface ReportCopyRow
+{
+    id: string;
+    state: GroupReportState;
+    created_at: Date;
+    closed_at: Date | null;
+    closed_by: string | null;
+    category: ReportCategory;
+    against: string;
+    disclosed: string | null;
+
+    /** The line, while it is still in the room: an edit's line by its target. */
+    line: string | null;
     at_key: string;
 }
 
@@ -144,6 +166,26 @@ export const refused = (word: GroupRefusal, message: string, details?: Record<st
 
 const rankOf = (alias: string) => `case ${ alias }.role when 'owner' then 3 when 'admin' then 2 when 'moderator' then 1 else 0 end`;
 
+/** Whoever may work the group's reports, as `mayIn(…, 'reports')` answers it: the owner, an admin holding `delete`, a moderator. */
+const readsReports = (alias: string) => `(${ alias }.role in ('owner', 'moderator') or (${ alias }.role = 'admin' and 'delete' = any(${ alias }.rights)))`;
+
+/**
+ * A copy of a report as its staff read it. Raw for the expiry it asks of the line against Postgres's
+ * `now()`, and the list for its keyset by row value; `am` is where the person reported stands.
+ */
+const REPORT_COPY = `
+    select gr.id, gr.state, gr.created_at, gr.closed_at, cu.handle::text as closed_by,
+           r.category, r.against, r.disclosed,
+           case when m.id is not null and m.kind <> 'deleted' and (m.expires_at is null or m.expires_at > now())
+                then coalesce(m.target_id, m.id) end as line,
+           (extract(epoch from gr.created_at) * 1000000)::bigint::text as at_key
+      from group_reports gr
+      join reports r on r.id = gr.report_id
+      left join messages m on m.id = r.message_id
+      left join users cu on cu.id = gr.closed_by
+      left join group_members am on am.group_id = gr.group_id and am.user_id = r.against
+`;
+
 const apart = (viewer: string, other: string) => `not exists (select 1 from blocks b
                          where (b.user_id = ${ viewer } and b.blocked_id = ${ other })
                             or (b.user_id = ${ other } and b.blocked_id = ${ viewer }))`;
@@ -186,6 +228,14 @@ const GROUP_COLUMNS = `
              where r.group_id = g.id and r.user_id = $1)                   as requested,
 
     (select count(*)::int from group_requests r where r.group_id = g.id)  as request_count,
+
+    (select count(*)::int
+       from group_reports gr
+       join reports rp on rp.id = gr.report_id
+       left join group_members am on am.group_id = gr.group_id and am.user_id = rp.against
+      where gr.group_id = g.id and gr.state = 'open'
+        and ${ rankOf('am') } < (select ${ rankOf('vm') } from group_members vm
+                                 where vm.group_id = g.id and vm.user_id = $1)) as report_count,
 
     (select coalesce(array_agg(f.handle order by f.rank desc, f.since nulls last, f.joined, f.handle), '{}')
        from (select u.handle::text as handle, ${ rankOf('gm') } as rank, gm.role_since as since, gm.joined_at as joined
@@ -1481,6 +1531,120 @@ export function createGroupService(db: DataSource, social: SocialService)
             const last = page.at(-1);
 
             return { rows: page, ...(rows.length > GROUP_LOG_PAGE && last !== undefined ? { cursor: `${ last.at_key }|${ last.id }` } : {}) };
+        },
+
+        /**
+         * Whoever reads a copy of a report about `againstId` (MS-D41): may work the group's reports and
+         * outranks them. Never the person reported, and never `except`, whoever filed it.
+         */
+        async reportReaders(groupId: string, againstId: string, except: string): Promise<string[]>
+        {
+            const rows = await db.getRepository(GroupMember).createQueryBuilder('gm')
+                .leftJoin(GroupMember, 'am', 'am.group_id = gm.group_id and am.user_id = :against', { against: againstId })
+                .select('gm.user_id', 'user_id')
+                .where('gm.group_id = :groupId', { groupId })
+                .andWhere('gm.user_id not in (:...not)', { not: [againstId, except] })
+                .andWhere(readsReports('gm'))
+                .andWhere(`${ rankOf('gm') } > ${ rankOf('am') }`)
+                .getRawMany<{ user_id: string }>();
+            return rows.map((row) => row.user_id);
+        },
+
+        /** Everybody who may work the group's reports, each with how many open copies they read. */
+        async reportLoad(groupId: string)
+        {
+            return db.getRepository(GroupMember).createQueryBuilder('gm')
+                .select('gm.user_id', 'user_id')
+                .addSelect(`(select count(*)::int
+                               from group_reports gr
+                               join reports r on r.id = gr.report_id
+                               left join group_members am on am.group_id = gr.group_id and am.user_id = r.against
+                              where gr.group_id = gm.group_id and gr.state = 'open' and ${ rankOf('am') } < ${ rankOf('gm') })`, 'open')
+                .where('gm.group_id = :groupId', { groupId })
+                .andWhere(readsReports('gm'))
+                .getRawMany<{ user_id: string; open: number }>();
+        },
+
+        /**
+         * The copies of reports about lines in the group's room the reader may work (MS-D43), newest
+         * first, fifty a page by the microsecond keyset, and only about somebody they outrank. Null for
+         * anybody who may work none, answered as a page that is not there.
+         */
+        async reports(me: string, groupId: string, list: 'open' | 'closed' | 'all', cursor: string | undefined): Promise<{ rows: ReportCopyRow[]; cursor?: string } | null>
+        {
+            const found = await one(me, groupId);
+            if (found === null || found.role === null || !mayIn({ role: found.role, rights: found.rights }, switchesOf(found), 'reports'))
+            {
+                return null;
+            }
+
+            const after = keysetAfter(cursor);
+            const rows = rowsOf<ReportCopyRow>(await db.query(
+                `${ REPORT_COPY }
+                  where gr.group_id = $1
+                    and ($2 = 'all' or ($2 = 'open') = (gr.state = 'open'))
+                    and ${ rankOf('am') } < $3
+                    and ($4::text is null or (gr.created_at, gr.id) < (${ instantOf('$4') }, $5::uuid))
+                  order by gr.created_at desc, gr.id desc
+                  limit $6`,
+                [groupId, list, RANK[found.role], after?.micros ?? null, after?.id ?? '00000000-0000-0000-0000-000000000000', GROUP_REPORTS_PAGE + 1]
+            ));
+
+            const page = rows.slice(0, GROUP_REPORTS_PAGE);
+            const last = page.at(-1);
+
+            return { rows: page, ...(rows.length > GROUP_REPORTS_PAGE && last !== undefined ? { cursor: `${ last.at_key }|${ last.id }` } : {}) };
+        },
+
+        /**
+         * Closes a copy as nothing to do or dealt with, with the log's row, in one transaction under the
+         * group's lock and then the copy's. One already closed stays as it was and writes nothing; one
+         * the reader may not read, another group's and one that is not there are nothing (null).
+         */
+        async closeReport(me: string, groupId: string, id: string, outcome: 'dismissed' | 'actioned'): Promise<{ changed: boolean; row: ReportCopyRow } | null>
+        {
+            if (!UUID.test(id))
+            {
+                return null;
+            }
+
+            return db.transaction(async (tx) =>
+            {
+                const { switches } = await lockGroup(tx, groupId);
+                const actor = await standingIn(tx, me, groupId);
+
+                if (actor === null || !mayIn(actor, switches, 'reports'))
+                {
+                    return null;
+                }
+
+                const copy = await tx.getRepository(GroupReport).findOne({ where: { id, groupId }, lock: { mode: 'pessimistic_write' } });
+                const about = copy === null ? null : await tx.getRepository(Report).findOne({ select: { id: true, against: true }, where: { id: copy.reportId } });
+
+                if (copy === null || about === null || !outranks(actor.role, (await standingIn(tx, about.against, groupId))?.role ?? null))
+                {
+                    return null;
+                }
+
+                const changed = copy.state === 'open';
+
+                if (changed)
+                {
+                    await tx.getRepository(GroupReport).update({ id }, { state: outcome, closedBy: me, closedAt: () => 'now()' });
+                    await record(tx, groupId, { id: me, role: actor.role }, 'report', about.against, { report: id, to: outcome });
+                }
+
+                const row = firstRow<ReportCopyRow>(await tx.query(`${ REPORT_COPY } where gr.id = $1`, [id]));
+
+                return row === null ? null : { changed, row };
+            });
+        },
+
+        /** A group's slug by its id, for what is told about it to people who may not have it open. */
+        async slugOf(groupId: string)
+        {
+            const found = UUID.test(groupId) ? await db.getRepository(Group).findOne({ select: { slug: true }, where: { id: groupId } }) : null;
+            return found?.slug ?? null;
         },
 
         /** Who is kept out, newest first, for whoever may lift a ban. */

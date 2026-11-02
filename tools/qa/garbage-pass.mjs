@@ -61,6 +61,7 @@ const QUERIES = {
     '/invites/people': ['cursor'],
     '/groups/:slug/members': ['q', 'cursor'],
     '/groups/:slug/log': ['cursor'],
+    '/groups/:slug/reports': ['list', 'cursor'],
     '/admin/log': ['cursor', 'staff', 'person', 'kind'],
     '/admin/people': ['q', 'list', 'cursor'],
     '/admin/people/:handle/history': ['cursor'],
@@ -97,7 +98,7 @@ const BODIES = {
     '/social/blocks': (bad) => [{ id: bad }],
     '/social/blocks/remove': (bad) => [{ id: bad }],
     '/social/mutes': (bad) => ['person', 'conversation', 'game', 'notice'].flatMap((kind) => [{ kind, id: bad, muted: true }, { kind, id: bad, muted: false }]),
-    '/social/reports': (bad) => [{ id: bad, category: 'spam' }, { id: bad, category: 'spam', conversationId: bad, messageId: bad, text: bad, frankingKey: bad }],
+    '/social/reports': (bad) => [{ id: bad, category: 'spam' }, { id: bad, category: 'spam', conversationId: bad, messageId: bad, text: bad, frankingKey: bad, group: true }],
     '/groups': (bad) => [
         { name: bad.slice(0, 60), blurb: bad.slice(0, 240), crest: bad.slice(0, 24), hue: 1, privacy: 'private', game: bad.slice(0, 24) },
         { name: 'Garbage group', blurb: '', crest: 'crest-moon', hue: 1, privacy: 'private', game: '', photo: bad.slice(0, 300), members: [bad.slice(0, 32)] }
@@ -114,6 +115,7 @@ const BODIES = {
     '/groups/:slug/links': (bad) => [{ hours: 24, uses: 10, approval: true }, { hours: bad.length, uses: bad.length, approval: false }],
     '/chat/:id/pins': (bad) => [{ messageId: bad.slice(0, 64) }],
     '/groups/:slug/requests/answer': (bad) => [{ id: bad.slice(0, 32), approve: true }, { id: bad.slice(0, 32), approve: false }],
+    '/groups/:slug/reports/:id/close': () => [{ outcome: 'dismissed' }, { outcome: 'actioned' }],
     '/groups/:slug/members': (bad) => [{ id: bad }],
     '/groups/:slug/members/remove': (bad) => [{ id: bad }],
     '/groups/:slug/owner': (bad) => [{ id: bad }],

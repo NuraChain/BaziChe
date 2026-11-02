@@ -15,7 +15,8 @@ import { namesDevice } from './domains/device/resource.ts';
 import { createRecoveryService } from './domains/device/recovery-service.ts';
 import { createDeviceService, type DeviceRow } from './domains/device/service.ts';
 import { createChannelService } from './domains/channel/service.ts';
-import { createGroupService, refused as refusedInGroup, switchesOf, type GroupRow, type LinkRow } from './domains/group/service.ts';
+import { createGroupService, refused as refusedInGroup, switchesOf, type GroupRow, type LinkRow, type ReportCopyRow } from './domains/group/service.ts';
+import { saidOf } from './domains/group/reports.ts';
 import { LINK_HOURS, LINK_USES, MUTE_HOURS, mayIn } from './domains/group/roles.ts';
 import { createNotifyService, type NotificationRow } from './domains/notify/service.ts';
 import { isNotice, NOTICE_OF, type Notice } from './domains/notify/notices.ts';
@@ -613,6 +614,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             {
                 summary.requests = row.request_count;
             }
+            if (mayIn({ role: row.role, rights: row.rights }, switchesOf(row), 'reports'))
+            {
+                summary.reports = row.report_count;
+            }
 
             // Only a member is given the thread. A non-member holding the id could not read it -
             // `mustBeMember` sees to that - but an id it has no use for is an id it should not
@@ -744,6 +749,35 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             });
         }
         live?.socialChanged(asker, ...approvers);
+    });
+
+    /** A line reported in a group: whoever reads the copy is told, with nobody named (MS-D44), and rung for its count. */
+    const toldOfReport = (groupId: string, againstId: string, reporter: string) => courtesy('group report notices', async () =>
+    {
+        const [readers, slug] = await Promise.all([group.reportReaders(groupId, againstId, reporter), group.slugOf(groupId)]);
+
+        if (slug === null)
+        {
+            return;
+        }
+
+        for (const reader of readers)
+        {
+            await tell({ userId: reader, kind: 'group-report', actorId: null, ref: { groupId: slug }, dedupeKey: `group-report:${ groupId }` });
+        }
+        live?.socialChanged(...readers);
+    });
+
+    /** A copy closed: whoever has no open copy left to read is no longer told of one, and every reader's count is rung. */
+    const quietedReports = (groupId: string) => courtesy('group report notices', async () =>
+    {
+        const load = await group.reportLoad(groupId);
+
+        for (const one of load.filter((row) => row.open === 0))
+        {
+            await retract(one.user_id, 'group-report', `group-report:${ groupId }`);
+        }
+        live?.socialChanged(...load.map((row) => row.user_id));
     });
 
     /** A queue of requests that has emptied takes back what told the staff of it. */
@@ -1863,6 +1897,33 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
      * filter is a payload one component forgets to filter. If it is not in the JSON, no render
      * path can leak it.
      */
+    /** Copies of reports as the group's staff are shown them: the person reported, what was said, never who filed it. */
+    const copiesFor = async (me: string, rows: ReportCopyRow[]) =>
+    {
+        const viewer = await social.person(me);
+        const people = new Map((await social.peopleOf(rows.map((row) => row.against))).map((row) => [row.id, row]));
+        const friends = new Set((await social.friends(me)).map((row) => row.id));
+
+        return rows.flatMap((row) =>
+        {
+            const person = people.get(row.against);
+
+            return person === undefined || viewer === null
+                ? []
+                : [{
+                    id: row.id,
+                    person: seenBy(viewer, person, friends.has(person.id) ? 'friend' : 'none'),
+                    category: row.category,
+                    at: row.created_at.toISOString(),
+                    state: row.state,
+                    said: saidOf(row.disclosed),
+                    ...(row.line === null ? {} : { line: row.line }),
+                    ...(row.closed_by === null ? {} : { closedBy: row.closed_by }),
+                    ...(row.closed_at === null ? {} : { closedAt: row.closed_at.toISOString() })
+                }];
+        });
+    };
+
     const seenBy = (viewer: PersonRow, row: PersonRow, relation: Parameters<typeof maySeeOnline>[2]) =>
     {
         const summary: PersonSummary = {
@@ -3180,13 +3241,20 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     throw new ForbiddenError('That message cannot be verified, so it cannot be reported.');
                 }
 
-                return social.report(me, againstId, kind, {
+                const groupId = disclosure.group === true ? await chat.groupOf(disclosure.conversationId) : null;
+                const id = await social.report(me, againstId, kind, {
                     messageId: row.id,
                     text: disclosure.text,
                     frankingKey: disclosure.frankingKey,
                     ...(row.kind === 'voice' && row.voice_id !== null ? { voiceId: row.voice_id } : {}),
                     ...(row.kind === 'file' && row.file_id !== null ? { fileId: row.file_id } : {})
-                });
+                }, groupId);
+
+                if (groupId !== null)
+                {
+                    await toldOfReport(groupId, againstId, me);
+                }
+                return id;
             },
 
             async reports(me)
@@ -3840,6 +3908,34 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                             : [{ person: seenBy(viewer, person, friends.has(person.id) ? 'friend' : 'none'), at: row.created_at.toISOString(), byLink: row.by_link }];
                     })
                 };
+            },
+
+            async reports(me, slug, query)
+            {
+                const found = await mustSee(me, slug);
+                const page = await group.reports(me, found.id, query.list ?? 'open', query.cursor);
+
+                if (page === null)
+                {
+                    return null;
+                }
+                return { reports: await copiesFor(me, page.rows), ...(page.cursor === undefined ? {} : { cursor: page.cursor }) };
+            },
+
+            async closeReport(me, slug, id, outcome)
+            {
+                const found = await mustSee(me, slug);
+                const closed = await group.closeReport(me, found.id, id, outcome);
+
+                if (closed === null)
+                {
+                    return null;
+                }
+                if (closed.changed)
+                {
+                    await quietedReports(found.id);
+                }
+                return (await copiesFor(me, [closed.row]))[0] ?? null;
             },
 
             async answer(me, slug, input)

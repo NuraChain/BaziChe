@@ -177,6 +177,10 @@ import {
     groupMembersQuery,
     groupMuteInput,
     groupRequests,
+    groupReport,
+    groupReports,
+    groupReportsQuery,
+    groupReportCloseInput,
     groupRoleInput,
     groupSummary,
     groupSwitchesInput,
@@ -1146,7 +1150,28 @@ export function buildApi(ports: Ports)
                 (context) => ports.group.answer(context.principal.userId, context.params.slug, context.input)),
 
             withdraw: routes.post('/:slug/requests/withdraw', { output: groupSummary },
-                (context) => ports.group.withdraw(context.principal.userId, context.params.slug))
+                (context) => ports.group.withdraw(context.principal.userId, context.params.slug)),
+
+            /** The reports about lines in its room the reader may work, and a page that is not there to anybody else. */
+            reports: routes.get('/:slug/reports', { output: groupReports, query: groupReportsQuery }, async (context) =>
+            {
+                const found = await ports.group.reports(context.principal.userId, context.params.slug, context.query);
+                if (found === null)
+                {
+                    throw new NotFoundError('No group there.');
+                }
+                return found;
+            }),
+
+            closeReport: routes.post('/:slug/reports/:id/close', { input: groupReportCloseInput, output: groupReport }, async (context) =>
+            {
+                const closed = await ports.group.closeReport(context.principal.userId, context.params.slug, context.params.id, context.input.outcome);
+                if (closed === null)
+                {
+                    throw new NotFoundError('No report there.');
+                }
+                return closed;
+            })
         })),
 
         /**

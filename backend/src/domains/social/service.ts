@@ -10,6 +10,7 @@ import { Mute, type MuteSubject } from '../../entities/mute.entity.ts';
 import { isNotice } from '../notify/notices.ts';
 import { folded, likeLiteral, SEARCH_FROM, searchNeedle } from './names.ts';
 import { PROFILE_LOOKS, chosenIn, profileLookColumns, type ProfileLooks } from '../shop/looks.ts';
+import { GroupReport } from '../../entities/group-report.entity.ts';
 import { Report, type ReportCategory } from '../../entities/report.entity.ts';
 import { clampPrivacy, mayDiscover, mayMessage, maySeeOnline, maySendRequest, type Party, type Relation } from './policy.ts';
 
@@ -653,11 +654,16 @@ export function createSocialService(db: DataSource)
          *
          * The caller verifies the disclosure before this is reached - this writes what it is given.
          */
+        /**
+         * Files a report with Nura's team, and with a disclosed line of a group's room a copy for that
+         * group's staff when the reporter asks (`groupId`, MS-D40), in one transaction.
+         */
         async report(
             me: string,
             againstId: string,
             category: ReportCategory,
-            disclosure: { messageId: string; text: string; frankingKey: string; voiceId?: string; fileId?: string } | null = null
+            disclosure: { messageId: string; text: string; frankingKey: string; voiceId?: string; fileId?: string } | null = null,
+            groupId: string | null = null
         ): Promise<string>
         {
             if (me === againstId)
@@ -665,19 +671,28 @@ export function createSocialService(db: DataSource)
                 throw new BadRequestError('You cannot report yourself.');
             }
 
-            const made = await db.getRepository(Report).insert({
-                reporter: me,
-                against: againstId,
-                category,
-                messageId: disclosure?.messageId ?? null,
-                disclosed: disclosure?.text ?? null,
-                disclosedKey: disclosure?.frankingKey ?? null,
-                disclosedAt: disclosure === null ? null : new Date(),
-                voiceId: disclosure?.voiceId ?? null,
-                fileId: disclosure?.fileId ?? null
-            });
+            return db.transaction(async (tx) =>
+            {
+                const made = await tx.getRepository(Report).insert({
+                    reporter: me,
+                    against: againstId,
+                    category,
+                    messageId: disclosure?.messageId ?? null,
+                    disclosed: disclosure?.text ?? null,
+                    disclosedKey: disclosure?.frankingKey ?? null,
+                    disclosedAt: disclosure === null ? null : new Date(),
+                    voiceId: disclosure?.voiceId ?? null,
+                    fileId: disclosure?.fileId ?? null
+                });
+                const id = made.identifiers[0].id as string;
 
-            return made.identifiers[0].id as string;
+                if (groupId !== null)
+                {
+                    await tx.getRepository(GroupReport).insert({ groupId, reportId: id, state: 'open' });
+                }
+
+                return id;
+            });
         },
 
         async reportsBy(me: string): Promise<{ id: string; against: string; category: ReportCategory; status: string; created_at: Date }[]>

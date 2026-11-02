@@ -14,7 +14,7 @@ import { REASONS } from './domains/match/chess/state.ts';
 import { CLOCKS } from './domains/table/clocks.ts';
 import { PARTNERS } from './domains/table/teams.ts';
 import { VOICE_SCOPES } from './domains/table/voices.ts';
-import { FIRST_MEMBERS_MOST, GROUP_EVENTS, GROUP_RIGHTS, GROUP_ROLES } from './domains/group/roles.ts';
+import { FIRST_MEMBERS_MOST, GROUP_EVENTS, GROUP_REPORT_STATES, GROUP_RIGHTS, GROUP_ROLES } from './domains/group/roles.ts';
 import { CHANNEL_BIO_MOST, CHANNEL_NAME_MOST, CHANNEL_POST_KINDS, CHANNEL_PRIVACY, CHANNEL_ROLES, CHANNEL_TEXT_MOST, POLL_ANSWER_MOST, POLL_ANSWERS_MOST, POLL_QUESTION_MOST } from './domains/channel/rules.ts';
 import { FILE_AS } from './domains/chat/files.ts';
 import { ALERT_KINDS, ALERT_LEVELS, FAMILIES, QUEUES, WORKERS } from './ops/measures.ts';
@@ -1613,7 +1613,10 @@ export const reportInput = object({
     text: string().optional(),
 
     /** The key the commitment was made under. Sealed inside the message until a reader shows it. */
-    frankingKey: string().optional()
+    frankingKey: string().optional(),
+
+    /** Also to the staff of the group whose room the line is in (MS-D40). Only with the line shown. */
+    group: literal(true).optional()
 });
 
 export const reportResult = object({ id: string() });
@@ -2084,6 +2087,9 @@ export const groupSummary = object({
     /** How many wait for an answer, to whoever may give one. */
     requests: number().optional(),
 
+    /** How many reports about a line in its room wait for this viewer, to whoever may work them. */
+    reports: number().optional(),
+
     /** Up to six members, the staff first: who the card and the head draw. Never every member: the list is paged. */
     faces: array(string()),
 
@@ -2239,6 +2245,45 @@ export const groupRequests = object({ requests: array(object({ person: personSum
 export type GroupRequests = Infer<typeof groupRequests>;
 
 export const groupAnswerInput = object({ id: string({ min: 1, max: 32 }), approve: boolean() });
+
+/** A line as a group's staff are shown it in a report: its words, or what a voice message or a file is, never what opens it (MS-D45). */
+export const groupReportSaid = object({
+    text: string().optional(),
+
+    /** A voice message's length, in milliseconds. */
+    voice: number().optional(),
+    file: object({ name: string(), as: enumOf(['photo', 'video', 'file']) }).optional()
+});
+
+/** A report about a line in a group's room, as its staff are shown it: never who filed it (MS-D42). */
+export const groupReport = object({
+    id: string(),
+    person: personSummary,
+    category: reportCategory,
+    at: string(),
+    state: enumOf(GROUP_REPORT_STATES),
+    said: groupReportSaid,
+
+    /** The line, while it is still in the room, so the staff can take it away from where they read it. */
+    line: string().optional(),
+
+    /** Who closed it and when, once it is closed. */
+    closedBy: string().optional(),
+    closedAt: string().optional()
+});
+
+export type GroupReport = Infer<typeof groupReport>;
+
+export const groupReports = object({ reports: array(groupReport), cursor: string().optional() });
+
+export type GroupReports = Infer<typeof groupReports>;
+
+export const groupReportsQuery = object({
+    list: enumOf(['open', 'closed', 'all']).optional(),
+    cursor: string({ max: 80 }).optional()
+});
+
+export const groupReportCloseInput = object({ outcome: enumOf(['dismissed', 'actioned']) });
 
 /* ---------------------------------------------------------------------- channels */
 

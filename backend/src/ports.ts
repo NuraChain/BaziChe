@@ -74,6 +74,8 @@ import type {
     GroupLog,
     GroupMembers,
     GroupRequests,
+    GroupReport,
+    GroupReports,
     GroupPrivacy,
     GroupSummary,
     GroupSwitchesWire,
@@ -230,6 +232,7 @@ export interface SocialPort
         messageId?: string;
         text?: string;
         frankingKey?: string;
+        group?: true;
     }): Promise<string>;
     reports(me: string): Promise<{ id: string; against: string; category: string; status: string; at: string }[]>;
 
@@ -305,6 +308,12 @@ export interface GroupPort
     requests(me: string, slug: string): Promise<GroupRequests | null>;
     answer(me: string, slug: string, input: { id: string; approve: boolean }): Promise<GroupSummary>;
     withdraw(me: string, slug: string): Promise<GroupSummary>;
+
+    /** The reports about lines in its room the reader may work, newest first; null for anybody else. */
+    reports(me: string, slug: string, query: { list?: 'open' | 'closed' | 'all'; cursor?: string }): Promise<GroupReports | null>;
+
+    /** Closes one as nothing to do or dealt with; one already closed stays as it was. Null where the reader may not read it. */
+    closeReport(me: string, slug: string, id: string, outcome: 'dismissed' | 'actioned'): Promise<GroupReport | null>;
 
     join(me: string, slug: string): Promise<GroupSummary>;
 

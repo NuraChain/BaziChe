@@ -4,7 +4,7 @@ import { RAIL, aroundStadium } from '../src/game/poker-seats.ts';
 
 const SHAPES = [0.5, 0.54, 0.8, 1, 1.25, 1.6, 2, 2.3];
 
-const COUNTS = [2, 6, 9];
+const COUNTS = [2, 3, 4, 5, 6, 7, 8, 9];
 
 const sizeOf = (ratio: number) => ({ width: ratio >= 1 ? ratio : 1, height: ratio >= 1 ? 1 : 1 / ratio });
 

@@ -1,6 +1,6 @@
 import type { Category } from './evaluator.ts';
 
-export const SEATS = [2, 6, 9] as const;
+export const SEATS = [2, 3, 4, 5, 6, 7, 8, 9] as const;
 
 export const STACK = 1500;
 

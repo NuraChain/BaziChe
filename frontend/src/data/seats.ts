@@ -8,7 +8,7 @@ import type { GameId } from './games.ts';
  */
 export const SEATS: Readonly<Record<GameId, readonly number[]>> = {
     hokm: [2, 3, 4],
-    poker: [2, 6, 9],
+    poker: [2, 3, 4, 5, 6, 7, 8, 9],
     backgammon: [2],
     ludo: [2, 3, 4],
     chess: [2]

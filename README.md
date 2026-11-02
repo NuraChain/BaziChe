@@ -53,7 +53,7 @@ with PostgreSQL and a WebSocket gateway, and a browser client built on
 |---|---|---|
 | Chess | 2 | live with a clock, 3+2 to 30+0, or a move a day |
 | Hokm | 2, 3 or 4, the four as two against two | live, or a move a day |
-| Poker | 2, 6 or 9 | live: no-limit Texas Hold'em, as a sit-and-go |
+| Poker | any number from 2 to 9 | live: no-limit Texas Hold'em, as a sit-and-go |
 | Backgammon | 2 | live, or a move a day: matches to 1, 3 or 5 points, with the cube |
 | Ludo | 2, 3 or 4, or two against two | live, or a move a day |
 

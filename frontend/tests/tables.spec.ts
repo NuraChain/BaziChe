@@ -778,7 +778,7 @@ describe('the lobby store', () =>
             { game: 'hokm', seats: 4, teams: true },
             { game: 'ludo', seats: 4, teams: true },
             { game: 'ludo', seats: 3, teams: false },
-            { game: 'poker', seats: 6, teams: false }
+            { game: 'poker', seats: 4, teams: false }
         ]);
     });
 

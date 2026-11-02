@@ -203,6 +203,36 @@ describe('Admin › Shop: the looks', () =>
         expect([...container.querySelectorAll('[data-item]')].map((one) => one.getAttribute('data-item'))).toEqual(['felt.gold']);
     });
 
+    it('moves every price by a typed percentage, asking for the reason with what it does to the looks\' prices first', async () =>
+    {
+        const { container } = await opened();
+        const field = container.querySelector<HTMLInputElement>('#admin-shop-every')!;
+        const send = [...container.querySelectorAll<HTMLButtonElement>('button')].find((one) => text(one) === 'Change every price')!;
+
+        typeInto(field, '0');
+        send.click();
+        await settle();
+
+        expect(text(container.querySelector('#admin-shop-every-error'))).toBe('Write a whole percentage from -90 to 500, and not 0.');
+        expect(useOverlay().items().filter((one) => one.phase !== 'closing')).toHaveLength(0);
+
+        typeInto(field, '20');
+        send.click();
+        await settle();
+
+        expect(asked().component).toBe(ReasonSheet);
+        expect(asked().props).toMatchObject({ title: 'Change every price by +20%?', confirm: 'Change every price' });
+        expect(String(asked().props.lead)).toMatch(/^Looks that cost \d+–\d+ NURA will cost \d+–\d+ NURA/);
+
+        await answered('Prices up a fifth');
+
+        expect(server.calls).toContain('admin.shopReprice 20 Prices up a fifth');
+        expect(toasts()).toEqual(['Every price changed by +20%.']);
+        expect(item('dice.glow').price).toBe(nura(14n));
+        expect(text(row(container, 'dice.glow')!.querySelector('[data-now]'))).toBe('14 NURA');
+        expect(field.value).toBe('');
+    });
+
     it('changes a price at the press, says so once the server has, and keeps the sheet\'s place for nothing', async () =>
     {
         const { container } = await opened();

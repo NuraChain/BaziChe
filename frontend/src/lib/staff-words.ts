@@ -209,6 +209,13 @@ const said = (row: LogRow, locale: LocaleApi) =>
         return locale.t(CHECK_LINES[row.details.family ?? ''] ?? 'admin.log.line.check.contract', slots);
     }
 
+    if (row.kind === 'shop-item' && row.details.field === 'every')
+    {
+        const percent = Number(row.details.percent ?? '0');
+
+        return locale.t('admin.log.line.shop.every', { ...slots, percent: `${ percent > 0 ? '+' : '' }${ locale.n(percent) }%` });
+    }
+
     if (row.kind === 'shop-item')
     {
         const look = itemName(row.details.item ?? '', locale);

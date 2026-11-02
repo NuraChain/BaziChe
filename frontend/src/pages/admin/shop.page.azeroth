@@ -10,6 +10,7 @@ import ShopGroup from '../../components/admin/shop-group.component.azeroth';
 import ShopItemSheet, { type ShopAsk, type ShopChange } from '../../components/admin/shop-item-sheet.component.azeroth';
 import type { AdminShopItem } from '../../components/admin/shop-item-row.component.azeroth';
 import ShopOrders from '../../components/admin/shop-orders.component.azeroth';
+import ShopReprice from '../../components/admin/shop-reprice.component.azeroth';
 import ErrorState from '../../components/ui/error-state.component.azeroth';
 import FilterBar from '../../components/ui/filter-bar.component.azeroth';
 import Select from '../../components/ui/select.component.azeroth';
@@ -233,6 +234,7 @@ export default component ShopAdminPage()
             </Show>
 
             <Show when={ ready }>
+                <ShopReprice items={ shop?.items ?? [] } onDone={ reread } />
                 <div ref={ (element) => toolbar = element } class="flex flex-col gap-3 @2xl:flex-row @2xl:items-end @2xl:gap-4" data-toolbar>
                     <Select class="@2xl:w-72 @2xl:shrink-0" label={ locale.t('admin.shop.collection') } value={ only ?? '' } options={ collections } onChange={ (value) => address.write({ collection: value }) } />
                     <FilterBar class="min-w-0 @2xl:flex-1" items={ lists } value={ list } label={ locale.t('admin.shop.lists') } onChange={ (id) => address.write({ list: id === 'all' ? '' : id }) } />

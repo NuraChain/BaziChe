@@ -1,0 +1,99 @@
+import { lookOf } from '../../../../backend/src/domains/shop/catalogue.ts';
+import { REPRICE_LEAST, REPRICE_MOST, isRepricePercent, movedBy } from '../../../../backend/src/domains/shop/reprice.ts';
+import { client } from '../../api.ts';
+import { attempt } from '../../lib/attempt.ts';
+import { nuraOf } from '../../lib/nura.ts';
+import { whyStaffRefused } from '../../lib/staff-words.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import Panel from '../ui/panel.component.azeroth';
+import ReasonSheet from './reason-sheet.component.azeroth';
+
+/**
+ * Every price in the shop moved at once by a percentage the owner types: up (20) or down (-10).
+ * The sheet that asks for the reason says what it does to the looks' prices before anything moves;
+ * bundles are priced again from their looks, and running sales move with them (`reprice.ts`).
+ */
+export default component ShopReprice(props: { items: readonly { id: string; price: string }[]; onDone: () => Promise<void> })
+{
+    const locale = useLocale();
+    const overlay = useOverlay();
+
+    state typed = '';
+
+    state told = null as string | null;
+
+    const whole = (wei: bigint) => locale.n(nuraOf(wei.toString()), { maximumFractionDigits: 0 });
+
+    const signed = (percent: number) => `${ percent > 0 ? '+' : '' }${ locale.n(percent) }%`;
+
+    const send = async () =>
+    {
+        const percent = Number(typed.trim());
+
+        if (typed.trim() === '' || !isRepricePercent(percent))
+        {
+            told = locale.t('admin.shop.every.bad', { least: locale.n(REPRICE_LEAST), most: locale.n(REPRICE_MOST) });
+            return;
+        }
+
+        const looks = props.items.filter((one) => lookOf(one.id) !== undefined).map((one) => BigInt(one.price)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+        const cheapest = looks[0] ?? 0n;
+        const dearest = looks.at(-1) ?? 0n;
+
+        const reason = await overlay.open(
+            ReasonSheet,
+            {
+                title: locale.t('admin.shop.every.ask', { percent: signed(percent) }),
+                lead: locale.t('admin.shop.every.askLead', {
+                    from: `${ whole(cheapest) }–${ whole(dearest) }`,
+                    to: `${ whole(movedBy(cheapest, percent)) }–${ whole(movedBy(dearest, percent)) }`
+                }),
+                confirm: locale.t('admin.shop.every.send')
+            },
+            { label: locale.t('admin.shop.every.title') }
+        ).closed;
+
+        if (typeof reason !== 'string')
+        {
+            return;
+        }
+
+        const done = await attempt(client.admin.shopReprice({ input: { percent, reason } }), locale.t('admin.shop.every.done', { percent: signed(percent) }), whyStaffRefused);
+
+        if (done)
+        {
+            typed = '';
+            await props.onDone();
+        }
+    };
+
+    <Panel pad="md" stack="sm">
+        <h2 class="text-ui-md font-semibold text-text">{ locale.t('admin.shop.every.title') }</h2>
+        <p class="text-ui-sm text-muted">{ locale.t('admin.shop.every.lead') }</p>
+        <Field id="admin-shop-every" label={ locale.t('admin.shop.every.label') } hint={ locale.t('admin.shop.every.hint') } error={ told }>
+            <div class="flex flex-wrap items-center gap-2">
+                <Input
+                    id="admin-shop-every"
+                    class="w-28"
+                    value={ typed }
+                    inputmode="numeric"
+                    autocomplete="off"
+                    enterkeyhint="send"
+                    invalid={ told !== null }
+                    describedBy={ told !== null ? 'admin-shop-every-error' : 'admin-shop-every-hint' }
+                    onInput={ (value) =>
+                    {
+                        typed = value;
+                        told = null;
+                    } }
+                    onEnter={ () => void send() }
+                />
+                <Button variant="outline" onClick={ () => void send() }>{ locale.t('admin.shop.every.send') }</Button>
+            </div>
+        </Field>
+    </Panel>
+}

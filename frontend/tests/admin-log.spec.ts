@@ -113,6 +113,8 @@ const shopped = () =>
 {
     const wei = (whole: number) => (BigInt(whole) * 10n ** 18n).toString();
 
+    staffLogged({ at: hoursAgo(9), staff: 'alex', staffRole: 'owner', kind: 'shop-item', reason: 'Prices up a fifth.', details: { item: '*', field: 'every', percent: '20', items: '204' } });
+    staffLogged({ at: hoursAgo(8), staff: 'alex', staffRole: 'owner', kind: 'shop-item', reason: 'A little back down.', details: { item: '*', field: 'every', percent: '-10', items: '204' } });
     staffLogged({ at: hoursAgo(7), staff: 'mina', staffRole: 'admin', kind: 'shop-item', reason: 'Cheaper for the launch.', details: { item: 'dice.glow', field: 'price', from: wei(12), to: wei(7) } });
     staffLogged({ at: hoursAgo(6), staff: 'alex', staffRole: 'owner', kind: 'shop-item', reason: 'A weekend sale.', details: { item: 'back.glow', field: 'sale', to: wei(6), hours: '72' } });
     staffLogged({ at: hoursAgo(5), staff: 'mina', staffRole: 'admin', kind: 'shop-item', reason: 'The weekend is over.', details: { item: 'back.glow', field: 'sale', from: wei(6) } });
@@ -307,7 +309,9 @@ describe('the log', () =>
             'mina put Midnight Neon chips back in the shop.',
             'mina ended the sale on Nura Glow card back.',
             'alex put Nura Glow card back on sale at 6 NURA for 3 days.',
-            'mina set the price of Nura Glow dice at 7 NURA, from 12.'
+            'mina set the price of Nura Glow dice at 7 NURA, from 12.',
+            'alex changed every price in the shop by -10%.',
+            'alex changed every price in the shop by +20%.'
         ]);
         expect(isolated(entry(container, 0), ':scope')).toEqual(['mina']);
         expect(container.querySelector('[aria-pressed="true"]')?.textContent?.trim()).toBe('Shop');
@@ -722,7 +726,9 @@ describe('the log', () =>
             'mina، ژتون نئون نیمه‌شب رو برگردوند توی فروشگاه.',
             'mina، تخفیف پشت کارت درخشش نورا رو تموم کرد.',
             'alex، پشت کارت درخشش نورا رو برای ۳ روز با ۶ NURA گذاشت توی تخفیف.',
-            'mina، قیمت تاس درخشش نورا رو از ۱۲ کرد ۷ NURA.'
+            'mina، قیمت تاس درخشش نورا رو از ۱۲ کرد ۷ NURA.',
+            'alex همه‌ی قیمت‌های فروشگاه رو ‎−۱۰% تغییر داد.',
+            'alex همه‌ی قیمت‌های فروشگاه رو +۲۰% تغییر داد.'
         ]);
     });
 

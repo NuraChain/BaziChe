@@ -1970,6 +1970,7 @@ describe('a group the reader may only read', () =>
             group.muted = stand.muted;
         }
         await useGroups().refresh();
+        await useChat().refresh();
         return room.id;
     };
 

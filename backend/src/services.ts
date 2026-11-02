@@ -582,7 +582,6 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             approval: row.approval,
             owner: row.owner ?? '',
             faces: row.faces,
-            members: row.members,
             memberCount: row.member_count,
             createdAt: row.created_at.toISOString()
         };
@@ -3711,6 +3710,28 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     {
                         const person = people.get(row.user_id);
                         return person === undefined || viewer === null ? [] : [{ person: seenBy(viewer, person, 'none'), at: row.created_at.toISOString() }];
+                    })
+                };
+            },
+
+            async addable(me, slug)
+            {
+                const found = await mustSee(me, slug);
+                const ids = await group.addable(me, found.id);
+
+                if (ids === null)
+                {
+                    return null;
+                }
+
+                const viewer = await social.person(me);
+                const people = new Map((await social.peopleOf(ids)).map((row) => [row.id, row]));
+
+                return {
+                    people: ids.flatMap((id) =>
+                    {
+                        const person = people.get(id);
+                        return person === undefined || viewer === null ? [] : [seenBy(viewer, person, 'friend')];
                     })
                 };
             },

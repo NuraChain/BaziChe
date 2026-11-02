@@ -18,11 +18,12 @@ export default component GroupCard(props: { group: GroupSummary; class?: string 
     const catalogue = useCatalogue();
     const people = usePeople();
 
-    derived members = props.group.members
+    derived faces = props.group.faces
         .map((id) => people.byHandle(id))
         .filter((person): person is Person => person !== null);
 
-    derived online = props.group.members.filter((id) => presence.isOnline(id)).length;
+    /** Counted among the faces alone, so said only for a group they are the whole of: of a larger one it would be a guess. */
+    derived online = props.group.faces.length < props.group.memberCount ? 0 : props.group.faces.filter((id) => presence.isOnline(id)).length;
 
     derived lively = online > 0;
 
@@ -50,6 +51,6 @@ export default component GroupCard(props: { group: GroupSummary; class?: string 
                 </Show>
             </span>
         </span>
-        <AvatarGroup people={ members } size="xs" max={ 3 } class="hidden shrink-0 @xs:flex" />
+        <AvatarGroup people={ faces } total={ props.group.memberCount } size="xs" max={ 3 } class="hidden shrink-0 @xs:flex" />
     </Link>
 }

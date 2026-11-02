@@ -286,6 +286,9 @@ export interface GroupPort
     /** Who is kept out, for whoever may lift a ban; null for anybody else. */
     banned(me: string, slug: string): Promise<{ people: { person: PersonSummary; at: string }[] } | null>;
 
+    /** The reader's friends who could be added, for whoever may add somebody; null for anybody else. */
+    addable(me: string, slug: string): Promise<{ people: PersonSummary[] } | null>;
+
     /** The group's links, for whoever may make them; null for anybody else. */
     links(me: string, slug: string): Promise<GroupLinks | null>;
     makeLink(me: string, slug: string, input: { hours?: number; uses?: number; approval: boolean }): Promise<GroupLinks>;

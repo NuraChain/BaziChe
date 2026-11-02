@@ -153,6 +153,7 @@ import {
     deviceRef,
     enrolInput,
     gameList,
+    groupAddable,
     groupAnswerInput,
     groupBanned,
     groupCreateInput,
@@ -1102,6 +1103,16 @@ export function buildApi(ports: Ports)
                     throw new NotFoundError('No group there.');
                 }
                 return kept;
+            }),
+
+            addable: routes.get('/:slug/addable', { output: groupAddable }, async (context) =>
+            {
+                const offered = await ports.group.addable(context.principal.userId, context.params.slug);
+                if (offered === null)
+                {
+                    throw new NotFoundError('No group there.');
+                }
+                return offered;
             }),
 
             links: routes.get('/:slug/links', { output: groupLinks }, async (context) =>

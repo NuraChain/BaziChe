@@ -2,6 +2,7 @@ import { createStore, createResource, createSignal, untrack, type Getter } from 
 
 import type { GroupSwitches } from '../../../backend/src/domains/group/roles.ts';
 import { ApiError, client, type GroupLinkFace, type GroupPrivacy, type GroupSummary } from '../api.ts';
+import type { Person } from '../data/person.ts';
 import { readingOf, type Reading } from '../lib/reading.ts';
 import { useAccount } from './account.store.ts';
 import { usePeople } from './people.store.ts';
@@ -64,6 +65,9 @@ export interface GroupsApi
     /** Takes back a request to join that nobody has answered yet. */
     withdraw(slug: string): Promise<void>;
 
+    /** The reader's friends the group could take in, as the server answers whoever may add somebody: nobody in it or kept out of it. */
+    addable(slug: string): Promise<Person[]>;
+
     /** What an invitation link opens and where the reader stands with it, or null for a link that no longer works. */
     byLink(token: string): Promise<GroupLinkFace | null>;
 
@@ -102,11 +106,18 @@ export const useGroups = createStore((): GroupsApi =>
     const [openId, setOpenId] = createSignal('');
     const [wanted, setWanted] = createSignal(false);
 
-    const mine = createResource(who, () => client.groups.mine(), { name: 'groups.mine' });
+    /** A list of groups, whose cards draw their faces by name. */
+    const faced = (read: { groups: GroupSummary[] }) =>
+    {
+        void people.want(read.groups.flatMap((group) => group.faces));
+        return read;
+    };
+
+    const mine = createResource(who, async () => faced(await client.groups.mine()), { name: 'groups.mine' });
 
     const elsewhere = createResource(
         () => (wanted() ? who() : null),
-        () => client.groups.discover(),
+        async () => faced(await client.groups.discover()),
         { name: 'groups.discover' }
     );
 
@@ -114,8 +125,7 @@ export const useGroups = createStore((): GroupsApi =>
      * The open group, fetched by slug.
      *
      * Separate from the list rather than filtered out of it, because a group page can be opened
-     * for a group this account is not in - that is what discover leads to - and because the view
-     * carries the member list the list rows do not need.
+     * for a group this account is not in - that is what discover leads to.
      */
     const viewing = createResource(
         () => (openId() === '' ? null : { slug: openId(), who: who() }),
@@ -125,7 +135,7 @@ export const useGroups = createStore((): GroupsApi =>
             {
                 const group = await client.groups.view({ params: { slug: current.slug } });
 
-                void people.want(group.members);
+                void people.want(group.faces);
                 return group;
             }
             catch (error)
@@ -223,6 +233,11 @@ export const useGroups = createStore((): GroupsApi =>
         {
             await client.groups.withdraw({ params: { slug } });
             await revalidate();
+        },
+
+        async addable(slug)
+        {
+            return (await client.groups.addable({ params: { slug } })).people;
         },
 
         async byLink(token)

@@ -4,6 +4,7 @@ import { ConflictError, ForbiddenError, HttpError, NotFoundError, ValidationErro
 import type { DataSource, EntityManager } from 'typeorm';
 
 import { ConversationMember } from '../../entities/conversation-member.entity.ts';
+import { Friendship } from '../../entities/friendship.entity.ts';
 import { GroupBan } from '../../entities/group-ban.entity.ts';
 import { GroupEvent } from '../../entities/group-event.entity.ts';
 import { GroupInvite } from '../../entities/group-invite.entity.ts';
@@ -64,9 +65,6 @@ export interface GroupRow
 
     /** Up to six handles, the staff first, minus anyone this viewer cannot see. */
     faces: string[];
-
-    /** Handles, oldest member first, minus anyone this viewer cannot see. */
-    members: string[];
 
     /** Everyone, including the ones this viewer has blocked. The blurb says "12 members". */
     member_count: number;
@@ -158,7 +156,7 @@ const LIVE_LINK = `(i.revoked_at is null and (i.expires_at is null or i.expires_
  * The columns every group read returns, parameterised by the viewer.
  *
  * `$1` is always the viewer. `u.handle::text` is not decoration: handle is `citext`, and
- * `array_agg` over it hands node-pg an OID it has no parser for, so the members arrive as the
+ * `array_agg` over it hands node-pg an OID it has no parser for, so the faces arrive as the
  * literal string `{alex,sara.k}` instead of an array. It has happened once already in chat.
  */
 const GROUP_COLUMNS = `
@@ -194,10 +192,6 @@ const GROUP_COLUMNS = `
               where gm.group_id = g.id and u.is_suspended = false and ${ apart('$1', 'u.id') }
               order by rank desc, gm.role_since nulls last, gm.joined_at, u.handle
               limit 6) f)                                                   as faces,
-
-    (select coalesce(array_agg(u.handle::text order by gm.joined_at, u.handle), '{}')
-       from group_members gm join users u on u.id = gm.user_id
-      where gm.group_id = g.id and ${ apart('$1', 'u.id') })                as members,
 
     (select c.id from conversations c
       where c.group_id = g.id and c.kind = 'group')                         as conversation_id
@@ -1283,6 +1277,33 @@ export function createGroupService(db: DataSource, social: SocialService)
         },
 
         /** Who waits to be let in, the longest waiting first, for whoever may answer. */
+        /**
+         * The reader's friends who could be added: not in the group, not kept out of it and not
+         * suspended, for whoever may add somebody, and nothing for anybody else. The page offers these
+         * and no others, so it needs no list of who is in a group of any size.
+         */
+        async addable(me: string, groupId: string): Promise<string[] | null>
+        {
+            const found = await one(me, groupId);
+            if (found === null || found.role === null || !mayIn({ role: found.role, rights: found.rights, muted: found.muted }, switchesOf(found), 'add'))
+            {
+                return null;
+            }
+
+            const rows = await db.getRepository(Friendship).createQueryBuilder('f')
+                .innerJoin(User, 'u', 'u.id = f.friendId')
+                .select('f.friendId', 'id')
+                .where('f.userId = :me', { me })
+                .andWhere('u.isSuspended = false')
+                .andWhere((outer) => `not exists ${ outer.subQuery().select('1').from(GroupMember, 'gm').where('gm.groupId = :groupId').andWhere('gm.userId = f.friendId').getQuery() }`)
+                .andWhere((outer) => `not exists ${ outer.subQuery().select('1').from(GroupBan, 'b').where('b.groupId = :groupId').andWhere('b.userId = f.friendId').getQuery() }`)
+                .setParameter('groupId', groupId)
+                .orderBy('u.handle')
+                .getRawMany<{ id: string }>();
+
+            return rows.map((row) => row.id);
+        },
+
         async requests(me: string, groupId: string): Promise<{ user_id: string; created_at: Date; by_link: boolean }[] | null>
         {
             const found = await one(me, groupId);

@@ -255,10 +255,16 @@ describe('the sheet that adds a friend to a group, before the friends are read',
 {
     const group = () => structuredClone(server.groups.find((one) => one.slug === 'friday-night-crew')!) as unknown as GroupSummary;
 
-    it('draws the friends as being read, then what went wrong, and never that everybody is already in the group', async () =>
+    it('draws the friends as being read, then what went wrong, never that everybody is already in the group, and reads them again at Try again', async () =>
     {
-        const { gate, answer } = held();
-        const restore = await anew('graph', (real) => answer(() => real().then(() => Promise.reject(new ApiError(500, 'internal', 'Internal server error', undefined)))));
+        const asked = client.groups as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
+        const real = asked.addable;
+        let refuse: () => void = () => undefined;
+
+        asked.addable = () => new Promise((_, reject) =>
+        {
+            refuse = () => reject(new ApiError(500, 'internal', 'Internal server error', undefined));
+        });
 
         try
         {
@@ -269,17 +275,37 @@ describe('the sheet that adds a friend to a group, before the friends are read',
             expect(container.querySelector('[data-reading]')).not.toBeNull();
             expect(container.textContent).not.toContain(useLocale().t('groups.addNone'));
 
-            gate.open();
+            refuse();
             await settle();
 
             expect(alertOf(container)?.textContent).toContain(useLocale().t('failure.server'));
             expect(container.textContent).not.toContain(useLocale().t('groups.addNone'));
             expect(container.querySelector('[data-reading]')).toBeNull();
+
+            asked.addable = real;
+            fire(retryOf(container)!, 'click');
+            await settle();
+
+            expect(alertOf(container)).toBeNull();
+            expect(container.querySelectorAll('ul button').length).toBeGreaterThan(0);
         }
         finally
         {
-            restore();
+            asked.addable = real;
         }
+    });
+
+    it('offers the friends the server says could be added, and nobody in the group', async () =>
+    {
+        const container = renderTest(() => GroupAdd({ overlayId: 'add', close: () => undefined, group: group() }) as HTMLElement).container;
+        await settle();
+
+        const offered = [...container.querySelectorAll('ul button')].map((one) => one.textContent ?? '');
+        const crew = server.groups.find((one) => one.slug === 'friday-night-crew')!;
+
+        expect(offered.length).toBeGreaterThan(0);
+        expect(offered.some((words) => crew.members.some((handle) => words.includes(`@${ handle }`))), 'nobody already in it').toBe(false);
+        expect(server.calls).toContain('groups.addable');
     });
 
     it('says what kept a friend out of the group as what it was', async () =>

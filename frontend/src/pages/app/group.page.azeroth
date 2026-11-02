@@ -170,9 +170,12 @@ export default component GroupPage()
 
     const show = (id: string) => address.write({ tab: id === 'members' ? '' : id });
 
-    derived online = (group?.members ?? []).filter((handle) => presence.isOnline(handle));
-
     derived members = admin.members();
+
+    /** Counted from the members list once it is read whole and not narrowed by a search; a part of it would undercount the group, so then it says nothing. */
+    derived whole = admin.reading() === 'read' && !admin.hasMore() && admin.query().trim() === '';
+
+    derived online = whole ? members.filter((member) => presence.isOnline(member.person.handle)) : [];
 
     derived listReading = admin.reading() === 'reading' && members.length === 0;
 

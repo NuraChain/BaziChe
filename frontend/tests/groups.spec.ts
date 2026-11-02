@@ -13,6 +13,7 @@ import { isLineKey, LINE_KEYS } from '../src/lib/lines.ts';
 import GroupPage from '../src/pages/app/group.page.azeroth';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import { SEARCH_PAUSE_MS } from '../src/services/search.service.ts';
+import { useGroupAdmin } from '../src/stores/group-admin.store.ts';
 import { useGroups } from '../src/stores/groups.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
@@ -291,6 +292,27 @@ describe('the group lines', () =>
 
 describe('the groups store', () =>
 {
+    it('asks who the faces of the groups it lists are, so a card can draw strangers too', async () =>
+    {
+        usePeople().reset();
+        const groups = useGroups();
+        groups.want();
+
+        await vi.waitFor(() => expect(groups.elsewhere().some((group) => group.slug === 'lunch-ludo')).toBe(true), { timeout: 4000 });
+        await vi.waitFor(() => expect(usePeople().byHandle('roya.m'), 'the owner of a group to join, a stranger').not.toBeNull(), { timeout: 4000 });
+    });
+
+    it('asks who the faces of the group it opens are', async () =>
+    {
+        usePeople().reset();
+        const groups = useGroups();
+        groups.open('lunch-ludo');
+
+        await vi.waitFor(() => expect(groups.viewing()?.slug).toBe('lunch-ludo'), { timeout: 4000 });
+        await vi.waitFor(() => expect(usePeople().byHandle('hamed.z')).not.toBeNull(), { timeout: 4000 });
+        groups.close();
+    });
+
     /**
      * A private group is not a group you have not joined yet - it is one you are never told about.
      *
@@ -393,14 +415,16 @@ describe('the groups store', () =>
         const made = await groups.create({ name: 'Small Room', blurb: '', crest: 'crest-cup', hue: 90, game: '', privacy: 'public' });
 
         await groups.add(made.id, 'sara.k');
-        expect(groups.byId(made.id)?.members).toContain('sara.k');
+        expect(groups.byId(made.id)?.faces).toContain('sara.k');
+        expect(groups.byId(made.id)?.memberCount).toBe(2);
 
         await groups.transfer(made.id, 'sara.k');
         expect(groups.byId(made.id)?.owner).toBe('sara.k');
         expect(groups.byId(made.id)?.role, 'the old owner stays on, as an admin').toBe('admin');
 
         await groups.remove(made.id, 'sara.k');
-        expect(groups.byId(made.id)?.members).not.toContain('sara.k');
+        expect(groups.byId(made.id)?.faces).not.toContain('sara.k');
+        expect(groups.byId(made.id)?.memberCount).toBe(1);
     });
 
     it('asks for a group by slug, and never by whatever id is on the next route', async () =>
@@ -1143,6 +1167,29 @@ describe('where the reader stands, as a group\'s head says it', () =>
         const free = await opened('friday-night-crew');
         expect(free.querySelector('[data-muted]')).toBeNull();
     });
+
+    it('says who is online once its members list is read whole, and nothing while only a part of it is', async () =>
+    {
+        useRealtime().start();
+        socket.accept();
+        socket.deliver({ v: 1, t: 'presence', n: 2, full: true, people: [{ who: 'babak.r', state: 'online', since: clock.now() }] });
+
+        const facts = (container: HTMLElement) => container.querySelector('#group-name')?.parentElement?.querySelector('.facts')?.textContent ?? '';
+
+        const whole = await opened('friday-night-crew');
+        await vi.waitFor(() => expect(facts(whole)).toContain(useLocale().plural('groups.onlineLabel', 1)), { timeout: 4000 });
+
+        cleanup();
+        useGroups().reset();
+        useGroupAdmin().reset();
+        server.groupMembersPage = 2;
+        const part = await opened('friday-night-crew');
+        await vi.waitFor(() => expect(useGroupAdmin().hasMore(), 'a first page read, with more behind it').toBe(true), { timeout: 4000 });
+        expect(useGroupAdmin().members().map((member) => member.person.handle), 'the one online is on it').toContain('babak.r');
+        await settle();
+
+        expect(facts(part), 'a page of the list is not the group').not.toContain(useLocale().plural('groups.onlineLabel', 1));
+    });
 });
 
 describe('a group\'s card', () =>
@@ -1174,6 +1221,30 @@ describe('a group\'s card', () =>
         expect(facts.textContent).not.toContain('·');
         expect(facts.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2);
         expect(facts.textContent).toContain(useLocale().t('games.hokm.name'));
+    });
+
+    it('says who is online only where its faces are the whole group, since of a larger one it would be a guess', () =>
+    {
+        online(server.groups[0].members[0]);
+
+        const whole = drawn({ game: 'hokm' });
+        expect(whole.querySelector('[data-facts]')?.textContent).toContain(useLocale().plural('chat.online', 1));
+
+        cleanup();
+        const larger = drawn({ game: 'hokm', memberCount: 54 });
+        expect(larger.querySelector('[data-facts]')?.textContent).not.toContain(useLocale().plural('chat.online', 1));
+        expect(larger.querySelector('[data-facts]')?.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1);
+    });
+
+    it('counts everybody past the faces it draws from the group\'s own count', async () =>
+    {
+        const container = drawn({ memberCount: 54 });
+        await settle();
+
+        const plus = [...container.querySelectorAll('span')].find((one) => /^\+\d+$/.test(one.textContent?.trim() ?? ''));
+        const faces = plus?.parentElement?.querySelectorAll('[role="img"]').length ?? 0;
+
+        expect(plus?.textContent?.trim()).toBe(`+${ 54 - faces }`);
     });
 
     it('draws no dot before a fact that is not there', () =>

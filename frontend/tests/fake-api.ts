@@ -398,6 +398,21 @@ const panelOf = (slug: string, act: GroupAct) =>
 
 const linksOf = (slug: string) => ({ links: structuredClone(server.groupLinks[slug] ?? []) });
 
+/**
+ * A group as the server hands it to a reader: never every member's handle, which only the members list
+ * pages through, and the faces worked out from who is in it now, the owner first, without anybody the
+ * reader blocked.
+ */
+const summaryOf = (group: GroupWire) =>
+{
+    const { members, ...summary } = structuredClone(group);
+    const faces = [group.owner, ...members.filter((handle) => handle !== group.owner)]
+        .filter((handle) => members.includes(handle) && !server.blocks.includes(handle))
+        .slice(0, FACES);
+
+    return { ...summary, faces };
+};
+
 /** The group and its live link a token names, as the server finds them: nothing for a link that no longer works. */
 const linkOf = (token: string) =>
 {
@@ -3756,7 +3771,7 @@ export const client =
         async mine()
         {
             server.calls.push('groups.mine');
-            return { groups: structuredClone(server.groups.filter((group) => group.members.includes(server.me))) };
+            return { groups: server.groups.filter((group) => group.members.includes(server.me)).map(summaryOf) };
         },
 
         async discover()
@@ -3767,8 +3782,8 @@ export const client =
             // about. The real server filters it out of this list, so this one has to as well, or a
             // spec would pass against a server this product does not have.
             return {
-                groups: structuredClone(server.groups.filter((group) =>
-                    group.privacy === 'public' && !group.members.includes(server.me)))
+                groups: server.groups.filter((group) =>
+                    group.privacy === 'public' && !group.members.includes(server.me)).map(summaryOf)
             };
         },
 
@@ -3784,7 +3799,7 @@ export const client =
             {
                 throw new ApiError(404, 'not-found', 'No group there.', undefined);
             }
-            return structuredClone(group);
+            return summaryOf(group);
         },
 
         async create({ input }: {
@@ -3831,7 +3846,7 @@ export const client =
                 createdAt: new Date(0).toISOString()
             };
             server.groups.push(made);
-            return made;
+            return summaryOf(made);
         },
 
         async edit({ params, input }: { params: { slug: string }; input: { name: string; blurb: string; crest: string; game: string; privacy: 'private' | 'public'; photo?: string } })
@@ -3858,7 +3873,7 @@ export const client =
             {
                 group.game = input.game;
             }
-            return group;
+            return summaryOf(group);
         },
 
         async join({ params }: { params: { slug: string } })
@@ -3881,7 +3896,7 @@ export const client =
                     waiting.push({ handle: server.me, at: new Date(runtime().clock.now()).toISOString(), byLink: false });
                 }
                 group.requested = true;
-                return structuredClone(group);
+                return summaryOf(group);
             }
             if (!group.members.includes(server.me))
             {
@@ -3890,7 +3905,7 @@ export const client =
                 group.role = 'member';
                 group.conversationId = `conv-${ group.slug }`;
             }
-            return group;
+            return summaryOf(group);
         },
 
         async permissions({ params, input }: { params: { slug: string }; input: { switches: GroupSwitches; approval: boolean } })
@@ -3899,7 +3914,7 @@ export const client =
             const group = staffAct(params.slug);
             group.switches = { ...input.switches };
             group.approval = input.approval;
-            return structuredClone(group);
+            return summaryOf(group);
         },
 
         async withdraw({ params }: { params: { slug: string } })
@@ -3908,7 +3923,7 @@ export const client =
             const group = mustGroup(params.slug);
             server.groupRequests[group.slug] = (server.groupRequests[group.slug] ?? []).filter((one) => one.handle !== server.me);
             delete group.requested;
-            return structuredClone(group);
+            return summaryOf(group);
         },
 
         async leave({ params }: { params: { slug: string } })
@@ -3935,7 +3950,7 @@ export const client =
                 group.members.push(input.id);
                 group.memberCount = group.members.length;
             }
-            return group;
+            return summaryOf(group);
         },
 
         async remove({ params, input }: { params: { slug: string }; input: { id: string } })
@@ -3945,7 +3960,7 @@ export const client =
             group.members = group.members.filter((handle) => handle !== input.id);
             group.memberCount = group.members.length;
             delete server.groupPlaces[group.slug]?.[input.id];
-            return group;
+            return summaryOf(group);
         },
 
         async transfer({ params, input }: { params: { slug: string }; input: { id: string } })
@@ -3963,7 +3978,7 @@ export const client =
                 group.role = server.me === input.id ? 'owner' : placeOf(group, server.me).role;
                 group.rights = group.role === 'admin' ? [...GROUP_RIGHTS] : undefined;
             }
-            return structuredClone(group);
+            return summaryOf(group);
         },
 
         async members({ params, query }: { params: { slug: string }; query: { q?: string; cursor?: string } })
@@ -4008,7 +4023,7 @@ export const client =
             places[input.id] = input.role === 'admin'
                 ? { ...held, role: 'admin', rights: GROUP_RIGHTS.filter((right) => (input.rights ?? []).includes(right)) }
                 : { ...held, role: input.role };
-            return structuredClone(group);
+            return summaryOf(group);
         },
 
         async mute({ params, input }: { params: { slug: string }; input: { id: string; hours?: number } })
@@ -4021,7 +4036,7 @@ export const client =
                 ...(places[input.id] ?? { role: 'member' }),
                 muted: input.hours === undefined ? {} : { until: new Date(input.hours * 3_600_000).toISOString() }
             };
-            return structuredClone(group);
+            return summaryOf(group);
         },
 
         async unmute({ params, input }: { params: { slug: string }; input: { id: string } })
@@ -4033,7 +4048,7 @@ export const client =
             {
                 delete place.muted;
             }
-            return structuredClone(group);
+            return summaryOf(group);
         },
 
         async ban({ params, input }: { params: { slug: string }; input: { id: string } })
@@ -4044,7 +4059,7 @@ export const client =
             group.memberCount = group.members.length;
             delete server.groupPlaces[group.slug]?.[input.id];
             (server.groupBans[group.slug] ??= []).push(input.id);
-            return structuredClone(group);
+            return summaryOf(group);
         },
 
         async unban({ params, input }: { params: { slug: string }; input: { id: string } })
@@ -4052,7 +4067,7 @@ export const client =
             server.calls.push('groups.unban');
             const group = staffAct(params.slug);
             server.groupBans[group.slug] = (server.groupBans[group.slug] ?? []).filter((handle) => handle !== input.id);
-            return structuredClone(group);
+            return summaryOf(group);
         },
 
         async banned({ params }: { params: { slug: string } })
@@ -4062,6 +4077,19 @@ export const client =
             const kept = server.groupBans[group.slug] ?? [];
 
             return { people: kept.map((handle, index) => ({ person: personWire(handle), at: new Date(index * 60_000).toISOString() })).reverse() };
+        },
+
+        async addable({ params }: { params: { slug: string } })
+        {
+            server.calls.push('groups.addable');
+            const group = panelOf(params.slug, 'add');
+            const kept = server.groupBans[group.slug] ?? [];
+
+            return {
+                people: server.friends
+                    .filter((handle) => reachable(handle) && !group.members.includes(handle) && !kept.includes(handle) && !server.accounts.suspended.includes(handle))
+                    .map(personWire)
+            };
         },
 
         async requests({ params }: { params: { slug: string } })
@@ -4092,7 +4120,7 @@ export const client =
                 group.members.push(input.id);
                 group.memberCount = group.members.length;
             }
-            return structuredClone(group);
+            return summaryOf(group);
         },
 
         async links({ params }: { params: { slug: string } })
@@ -4164,7 +4192,7 @@ export const client =
             {
                 throw deadLink();
             }
-            return { group: structuredClone(found.group), can: standingByLink(found.group, found.link) };
+            return { group: summaryOf(found.group), can: standingByLink(found.group, found.link) };
         },
 
         async join({ params }: { params: { token: string } })
@@ -4179,7 +4207,7 @@ export const client =
             const { group, link } = found;
             if (group.members.includes(server.me))
             {
-                return { group: structuredClone(group), can: 'member' as const };
+                return { group: summaryOf(group), can: 'member' as const };
             }
             if ((server.groupBans[group.slug] ?? []).includes(server.me))
             {
@@ -4192,7 +4220,7 @@ export const client =
                 {
                     waiting.push({ handle: server.me, at: new Date(runtime().clock.now()).toISOString(), byLink: true });
                 }
-                return { group: structuredClone(group), can: 'requested' as const };
+                return { group: summaryOf(group), can: 'requested' as const };
             }
 
             link.uses += 1;
@@ -4201,7 +4229,7 @@ export const client =
             group.memberCount = group.members.length;
             group.role = 'member';
             group.conversationId = `conv-${ group.slug }`;
-            return { group: structuredClone(group), can: 'member' as const };
+            return { group: summaryOf(group), can: 'member' as const };
         },
 
         async withdraw({ params }: { params: { token: string } })
@@ -4213,7 +4241,7 @@ export const client =
                 throw deadLink();
             }
             server.groupRequests[found.group.slug] = (server.groupRequests[found.group.slug] ?? []).filter((one) => one.handle !== server.me);
-            return { group: structuredClone(found.group), can: standingByLink(found.group, found.link) };
+            return { group: summaryOf(found.group), can: standingByLink(found.group, found.link) };
         }
     },
 

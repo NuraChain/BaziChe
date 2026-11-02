@@ -285,7 +285,7 @@ describe.skipIf(!active)('groups, against a real database', () =>
 
             const seen = (await groups.byId(watcher, id))!;
             expect(seen.member_count).toBe(3);
-            expect(seen.members.length).toBe(2);
+            expect(seen.faces.length, 'the faces drawn leave out whoever the viewer blocked').toBe(2);
         });
 
         it('gives a non-member a PUBLIC group, but not its thread', async () =>

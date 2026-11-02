@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 
 import { errorResponse } from '@azerothjs/http';
 
-import { Avatar, GroupEvent, GroupMember, GroupMute, Notification, User, entities } from '../src/entities/index.ts';
+import { Avatar, Friendship, GroupEvent, GroupMember, GroupMute, Notification, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import { createFranking } from '../src/domains/chat/franking.ts';
@@ -721,6 +721,50 @@ describe.skipIf(!active)('running a group, against a real database', () =>
             const groups = createGroupService(db, createSocialService(db));
             const rows = await groups.members(owner.id, (await groups.bySlug(owner.id, made.slug))!.id, undefined, undefined);
             expect(rows.rows.map((row) => row.user_id).sort()).toEqual([owner.id, sara.id].sort());
+        });
+    });
+
+    describe('who can be added', () =>
+    {
+        const befriend = async (one: Person, other: Person) =>
+            db.getRepository(Friendship).insert([{ userId: one.id, friendId: other.id }, { userId: other.id, friendId: one.id }]);
+
+        it('offers the reader\'s friends who are not in the group, not kept out of it and not suspended', async () =>
+        {
+            const owner = await makeUser();
+            const [inside, outside, banned, suspended] = [await makeUser(), await makeUser(), await makeUser(), await makeUser({ isSuspended: true })];
+            const stranger = await makeUser();
+            const made = await group(owner);
+
+            for (const one of [inside, outside, banned, suspended])
+            {
+                await befriend(owner, one);
+            }
+            await seat(made.slug, inside, banned, stranger);
+            await ports.group.ban(owner.id, made.slug, banned.handle);
+
+            const offered = await ports.group.addable(owner.id, made.slug);
+            expect(offered?.people.map((person) => person.handle)).toEqual([outside.handle]);
+
+            const groups = createGroupService(db, createSocialService(db));
+            const id = (await groups.bySlug(owner.id, made.slug))!.id;
+            expect(await groups.addable(owner.id, id), 'the domain leaves out a suspended friend itself').toEqual([outside.id]);
+        });
+
+        it('is nothing to somebody outside the group, nor to a member once members may not add', async () =>
+        {
+            const owner = await makeUser();
+            const [member, stranger] = [await makeUser(), await makeUser()];
+            const made = await group(owner);
+            await seat(made.slug, member);
+
+            expect(await ports.group.addable(member.id, made.slug), 'a member may add while the switch is on').toEqual({ people: [] });
+            expect(await ports.group.addable(stranger.id, made.slug), 'somebody who can see a public group is not in it').toBeNull();
+
+            await ports.group.permissions(owner.id, made.slug, { switches: { ...SWITCH_DEFAULTS, add: false }, approval: false });
+
+            expect(await ports.group.addable(member.id, made.slug)).toBeNull();
+            expect(await ports.group.addable(owner.id, made.slug)).toEqual({ people: [] });
         });
     });
 

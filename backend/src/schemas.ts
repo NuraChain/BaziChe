@@ -2084,10 +2084,9 @@ export const groupSummary = object({
     /** How many wait for an answer, to whoever may give one. */
     requests: number().optional(),
 
-    /** Up to six members, the staff first: who the card and the head draw. */
+    /** Up to six members, the staff first: who the card and the head draw. Never every member: the list is paged. */
     faces: array(string()),
 
-    members: array(string()),
     memberCount: number(),
 
     /** Absent for a group this viewer is not in - a non-member has no thread to open. */
@@ -2195,6 +2194,9 @@ export const groupLog = object({ rows: array(groupLogRow), cursor: string().opti
 export type GroupLog = Infer<typeof groupLog>;
 
 export const groupBanned = object({ people: array(object({ person: personSummary, at: string() })) });
+
+/** The reader's friends a group could take in: not in it, not kept out of it. */
+export const groupAddable = object({ people: array(personSummary) });
 
 /** A link made to bring people into a group: an end in hours and a limit of uses, each from a short list, and whether it asks first. */
 export const groupLinkInput = object({

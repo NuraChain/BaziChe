@@ -3,7 +3,8 @@ import { useLocale } from '../../stores/locale.store.ts';
 import Avatar from './avatar.component.azeroth';
 import { AVATAR_SIZE, type AvatarSize } from './variants.ts';
 
-export default component AvatarGroup(props: { people: Person[]; size?: AvatarSize; max?: number; class?: string })
+/** `total` is everybody the row stands for, where `people` are only the first few of them. */
+export default component AvatarGroup(props: { people: Person[]; total?: number; size?: AvatarSize; max?: number; class?: string })
 {
     const locale = useLocale();
 
@@ -11,7 +12,7 @@ export default component AvatarGroup(props: { people: Person[]; size?: AvatarSiz
 
     derived shown = props.people.slice(0, limit);
 
-    derived rest = Math.max(0, props.people.length - limit);
+    derived rest = Math.max(0, (props.total ?? props.people.length) - shown.length);
 
     <span class={ () => [ 'inline-flex items-center', props.class ?? '' ].filter(Boolean).join(' ') }>
         <For each={ shown } key={ (person) => person.id } let={ person } index={ index }>

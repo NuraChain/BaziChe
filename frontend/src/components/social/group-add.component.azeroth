@@ -1,12 +1,13 @@
+import { createResource } from 'azerothjs';
+
 import type { GroupSummary } from '../../api.ts';
 import type { Person } from '../../data/person.ts';
 import Icon from '../../icons/icon.component.azeroth';
-import { usePeople } from '../../stores/people.store.ts';
+import { readingOf } from '../../lib/reading.ts';
 import { useGroups } from '../../stores/groups.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
 import { usePresence } from '../../stores/presence.store.ts';
-import { useSocial } from '../../stores/social.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
 import Avatar from '../ui/avatar.component.azeroth';
 import EmptyState from '../ui/empty-state.component.azeroth';
@@ -17,8 +18,8 @@ import { whyFailed } from '../../lib/failure.ts';
 import { namesOf, narrowed, SEARCH_FROM } from '../../services/search.service.ts';
 
 /**
- * Who can be brought into a group: the people this account has added, minus whoever is already
- * here.
+ * Who can be brought into a group: the people this account has added who are not in it and not
+ * kept out of it, as the server answers them, so no list of every member is needed to leave them out.
  *
  * Friends only, and not because the server insists - it gates on `mayMessage`, which a stranger
  * with open settings would pass. It is a product decision: a group is somebody's room, and being
@@ -29,33 +30,30 @@ export default component GroupAdd(props: OverlayProps & { group: GroupSummary })
 {
     const locale = useLocale();
     const groups = useGroups();
-    const social = useSocial();
     const presence = usePresence();
     const toasts = useToasts();
-    const people = usePeople();
 
     state pending = '';
     state query = '';
 
-    derived everyone = social.friends()
-        .filter((handle) => !props.group.members.includes(handle))
-        .map((handle) => people.byHandle(handle))
-        .filter((person): person is Person => person !== null)
+    const offer = createResource(() => props.group.id, (slug) => groups.addable(slug), { name: 'groups.addable' });
+
+    derived everyone = [...(offer.data() ?? [])]
         .sort((a, b) => (presence.isOnline(a.id) ? 0 : 1) - (presence.isOnline(b.id) ? 0 : 1));
 
     derived candidates = narrowed(everyone, query, namesOf);
 
-    derived graph = social.reading('graph');
+    derived reading = readingOf(offer);
 
-    derived graphReading = graph === 'reading';
+    derived offerReading = reading === 'reading';
 
-    derived graphFailed = graph === 'failed';
+    derived offerFailed = reading === 'failed';
 
-    derived searchable = graph === 'read' && everyone.length > SEARCH_FROM;
+    derived searchable = reading === 'read' && everyone.length > SEARCH_FROM;
 
     derived offered = candidates.length > 0;
 
-    derived quiet = graph === 'read' && !offered;
+    derived quiet = reading === 'read' && !offered;
 
     const add = async (person: Person) =>
     {
@@ -90,7 +88,7 @@ export default component GroupAdd(props: OverlayProps & { group: GroupSummary })
             { () => <SearchInput value={ query } onInput={ (value) => query = value } placeholder={ locale.t('create.search') } label={ locale.t('create.search') } /> }
         </Show>
 
-        <Show when={ graphReading }>
+        <Show when={ offerReading }>
             { () =>
                 <div class="flex flex-col" data-reading>
                     <span class="sr-only">{ locale.t('common.loading') }</span>
@@ -100,8 +98,8 @@ export default component GroupAdd(props: OverlayProps & { group: GroupSummary })
             }
         </Show>
 
-        <Show when={ graphFailed }>
-            { () => <ErrorState compact error={ social.failure('graph') } onRetry={ () => void social.refresh() } /> }
+        <Show when={ offerFailed }>
+            { () => <ErrorState compact error={ offer.error() } onRetry={ () => void offer.refetch() } /> }
         </Show>
 
         <Show when={ quiet }>

@@ -67,6 +67,21 @@ describe('relative time units', () =>
         expect(relativeUnit(-40 * DAY)).toEqual({ unit: 'month', value: -1 });
         expect(relativeUnit(-400 * DAY)).toEqual({ unit: 'year', value: -1 });
     });
+
+    it('says the next unit once the count would round up to it, never "60 minutes" or "24 hours"', () =>
+    {
+        expect(relativeUnit(-59.6 * 1000)).toEqual({ unit: 'minute', value: -1 });
+        expect(relativeUnit(-59.4 * 1000)).toEqual({ unit: 'second', value: -59 });
+        expect(relativeUnit(-59.6 * MINUTE)).toEqual({ unit: 'hour', value: -1 });
+        expect(relativeUnit(-59.4 * MINUTE)).toEqual({ unit: 'minute', value: -59 });
+        expect(relativeUnit(-23.6 * HOUR)).toEqual({ unit: 'day', value: -1 });
+        expect(relativeUnit(23.4 * HOUR)).toEqual({ unit: 'hour', value: 23 });
+        expect(relativeUnit(-6.6 * DAY)).toEqual({ unit: 'week', value: -1 });
+        expect(relativeUnit(-6.4 * DAY)).toEqual({ unit: 'day', value: -6 });
+        expect(relativeUnit(-29.9 * DAY)).toEqual({ unit: 'week', value: -4 });
+        expect(relativeUnit(-346 * DAY)).toEqual({ unit: 'year', value: -1 });
+        expect(relativeUnit(-344 * DAY)).toEqual({ unit: 'month', value: -11 });
+    });
 });
 
 describe('locale store formatting', () =>

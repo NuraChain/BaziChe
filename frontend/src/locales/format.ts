@@ -59,23 +59,27 @@ const WEEK = 7 * DAY;
 const MONTH = 30 * DAY;
 const YEAR = 365 * DAY;
 
+/**
+ * A unit is said while its rounded count stays under the next unit's: 59.6 minutes is an hour, never
+ * "60 minutes", so each limit is half a unit short of where the next begins.
+ */
 export function relativeUnit(diffMs: number): { unit: Intl.RelativeTimeFormatUnit; value: number }
 {
     const size = Math.abs(diffMs);
     const sign = diffMs < 0 ? -1 : 1;
-    if (size < MINUTE)
+    if (size < MINUTE - 500)
     {
         return { unit: 'second', value: sign * Math.round(size / 1000) };
     }
-    if (size < HOUR)
+    if (size < HOUR - MINUTE / 2)
     {
         return { unit: 'minute', value: sign * Math.round(size / MINUTE) };
     }
-    if (size < DAY)
+    if (size < DAY - HOUR / 2)
     {
         return { unit: 'hour', value: sign * Math.round(size / HOUR) };
     }
-    if (size < WEEK)
+    if (size < WEEK - DAY / 2)
     {
         return { unit: 'day', value: sign * Math.round(size / DAY) };
     }
@@ -83,7 +87,7 @@ export function relativeUnit(diffMs: number): { unit: Intl.RelativeTimeFormatUni
     {
         return { unit: 'week', value: sign * Math.round(size / WEEK) };
     }
-    if (size < YEAR)
+    if (size < 11.5 * MONTH)
     {
         return { unit: 'month', value: sign * Math.round(size / MONTH) };
     }

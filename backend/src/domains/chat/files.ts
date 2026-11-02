@@ -26,6 +26,11 @@ export const FILE_PENDING_MOST = 10;
 /** How long an upload no message names is kept for its sender to send, in minutes. */
 export const FILE_HOLD_MINUTES = 60;
 
+/** The fewest and the most photos and videos one album holds (MS-D46). */
+export const FILE_ALBUM_LEAST = 2;
+
+export const FILE_ALBUM_MOST = 10;
+
 /** The longest caption, in characters. */
 export const FILE_CAPTION_MOST = 1024;
 

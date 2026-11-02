@@ -3,7 +3,7 @@ import 'reflect-metadata';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DataSource } from 'typeorm';
 
-import { ChatFile, User, entities } from '../src/entities/index.ts';
+import { ChatFile, Notification, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import { createFranking } from '../src/domains/chat/franking.ts';
@@ -362,5 +362,171 @@ describe.skipIf(!active)('a photo, a video or a file, against a real database', 
         expect(await fetchedBy(a, old), 'the old upload').toBe(false);
         expect(await fetchedBy(a, sent), 'the sent one').toBe(true);
         expect(await fetchedBy(a, fresh), 'the fresh one').toBe(true);
+    });
+    describe('an album, and the gallery', () =>
+    {
+        /** A service whose limits let an album of ten wait to be sent. */
+        const roomy = () => createChatService(db, createSocialService(db), createFranking(CONFIG.secret), undefined, { dayBytes: 64 * 1024 * 24, pending: 16 });
+
+        const items = async (service: ReturnType<typeof roomy>, userId: string, conversationId: string, kinds: readonly ('photo' | 'video')[]) =>
+        {
+            const made: SealedInput[] = [];
+
+            for (const kind of kinds)
+            {
+                const file = crypto.randomUUID();
+                await service.storeFile(userId, file, sealedFile());
+                made.push(await sealed(userId, conversationId, 'file', { file, fileAs: kind }));
+            }
+            return made;
+        };
+
+        const messagesIn = async (conversationId: string) => Number(rowsOf<{ n: string }>(await db.query('select count(*) as n from messages where conversation_id = $1', [conversationId]))[0].n);
+
+        it('writes two to ten photos and videos as one album, in the order chosen, and counts each for the room', async () =>
+        {
+            const [a, b] = [await makeUser(), await makeUser()];
+            const service = roomy();
+            const room = await service.openDirect(a, b);
+            const album = crypto.randomUUID();
+            const asked = await service.send(b, room, null, await sealed(b, room, 'text'));
+            const sent = await items(service, a, room, ['photo', 'video', 'photo']);
+
+            const { messages } = await ports.chat.sendAlbum(a, crypto.randomUUID(), room, { album, messages: sent });
+
+            expect(messages.map((one) => one.id), 'in the order chosen').toEqual(sent.map((one) => one.id));
+            expect(messages.map((one) => [one.album, one.fileAs])).toEqual([[album, 'photo'], [album, 'video'], [album, 'photo']]);
+
+            const stored = rowsOf<{ id: string; at: string }>(await db.query(`select id, (extract(epoch from created_at) * 1000000)::bigint::text as at from messages where album_id = $1 order by created_at, id`, [album]));
+
+            expect(stored.map((one) => one.id), 'each at its own instant, so the thread keeps the order').toEqual(sent.map((one) => one.id));
+            expect(new Set(stored.map((one) => one.at)).size).toBe(3);
+
+            const page = (await ports.chat.messages(b, room, undefined)).messages;
+
+            expect(page.filter((one) => one.album === album).map((one) => one.id), 'the reader is handed the album').toEqual(sent.map((one) => one.id));
+            expect((await db.getRepository(Notification).findOneByOrFail({ userId: b, dedupeKey: `chat:${ room }` })).count, 'the room counts each item').toBe(3);
+            expect((await ports.chat.list(a)).conversations.find((one) => one.id === room)?.unread, 'nothing of it unread to its sender').toBe(0);
+            expect(page.find((one) => one.id === asked.id)?.read, 'sending it read what came before it').toBe(true);
+        });
+
+        it('refuses an album that is not one, and writes nothing of it', async () =>
+        {
+            const [a, b, c] = [await makeUser(), await makeUser(), await makeUser()];
+            const service = roomy();
+            const room = await service.openDirect(a, b);
+            const before = await messagesIn(room);
+            const two = await items(service, a, room, ['photo', 'photo']);
+            const send = (album: string, inputs: SealedInput[]) => refusalOf(service.sendAlbum(a, room, null, album, inputs));
+
+            expect(await send(crypto.randomUUID(), two.slice(0, 1)), 'one is no album').toMatchObject({ status: 400 });
+            expect(await send(crypto.randomUUID(), await items(service, a, room, ['photo', 'photo', 'photo', 'photo', 'photo', 'photo', 'photo', 'photo', 'photo', 'photo', 'photo'])), 'eleven is too many').toMatchObject({ status: 400 });
+            expect(await send('an-album', two), 'an id that is no uuid').toMatchObject({ status: 400 });
+            expect(await send(crypto.randomUUID(), [two[0], { ...two[1], fileAs: 'file' }]), 'a file in an album').toMatchObject({ status: 400 });
+            expect(await send(crypto.randomUUID(), [two[0], await sealed(a, room, 'text')]), 'a line in an album').toMatchObject({ status: 400 });
+            expect(await send(crypto.randomUUID(), [two[0], { ...two[1], id: two[0].id }]), 'one message twice').toMatchObject({ status: 400 });
+
+            const theirs = crypto.randomUUID();
+            await service.storeFile(c, theirs, sealedFile());
+
+            expect(await send(crypto.randomUUID(), [two[0], await sealed(a, room, 'file', { file: theirs, fileAs: 'photo' })]), 'somebody else’s file').toEqual({ status: 404, code: 'file-missing' });
+            expect(await messagesIn(room), 'nothing of any of them written').toBe(before);
+
+            const album = crypto.randomUUID();
+            await service.sendAlbum(a, room, null, album, two);
+
+            expect(await send(album, await items(service, a, room, ['photo', 'video'])), 'an album id already sent').toMatchObject({ status: 409 });
+        });
+
+        it('holds every item to what the group lets its members send', async () =>
+        {
+            const [owner, member] = [await makeUser(), await makeUser()];
+            const service = roomy();
+            const made = await ports.group.create(owner, { name: `Album crew ${ Math.floor(Math.random() * 100000) }`, blurb: '', crest: 'crest-moon', hue: 200, game: '', privacy: 'public' });
+            const slug = made.id;
+
+            await ports.group.join(member, slug);
+
+            const room = rowsOf<{ id: string }>(await db.query(`select c.id from conversations c join groups g on g.id = c.group_id where g.slug = $1 and c.kind = 'group'`, [slug]))[0].id;
+
+            await db.query(`update groups set members_media = false where slug = $1`, [slug]);
+
+            expect(await refusalOf(service.sendAlbum(member, room, null, crypto.randomUUID(), await items(service, member, room, ['photo', 'video']))), 'media kept to the staff').toMatchObject({ status: 403 });
+        });
+
+        it('takes an album away whole, its files with it, and never somebody else’s', async () =>
+        {
+            const [a, b] = [await makeUser(), await makeUser()];
+            const service = roomy();
+            const room = await service.openDirect(a, b);
+            const album = crypto.randomUUID();
+            const sent = await items(service, a, room, ['photo', 'photo', 'video']);
+
+            await service.sendAlbum(a, room, null, album, sent);
+
+            const held = await filesHeld();
+
+            expect(await refusalOf(service.removeAlbum(b, room, album)), 'not theirs to take').toMatchObject({ status: 404 });
+            expect(await refusalOf(service.removeAlbum(a, room, crypto.randomUUID())), 'no album there').toMatchObject({ status: 404 });
+            expect(await refusalOf(service.removeAlbum(a, room, 'nonsense')), 'no album there').toMatchObject({ status: 404 });
+
+            await service.removeAlbum(a, room, album);
+
+            const left = rowsOf<{ kind: string; album_id: string | null; file_id: string | null }>(await db.query('select kind, album_id, file_id from messages where id = any($1)', [sent.map((one) => one.id)]));
+
+            expect(left, 'every item a tombstone').toEqual(sent.map(() => ({ kind: 'deleted', album_id: null, file_id: null })));
+            expect(await filesHeld(), 'its files let go').toBe(held - 3);
+        });
+
+        it('lists a room’s photos and videos, its files and its voice apart, newest first, a page at a time', async () =>
+        {
+            const [a, b, stranger] = [await makeUser(), await makeUser(), await makeUser()];
+            const service = roomy();
+            const room = await service.openDirect(a, b);
+            const album = await items(service, a, room, ['photo', 'video']);
+
+            await service.sendAlbum(a, room, null, crypto.randomUUID(), album);
+
+            const document = crypto.randomUUID();
+            await service.storeFile(a, document, sealedFile());
+            const filed = await service.send(a, room, null, await sealed(a, room, 'file', { file: document, fileAs: 'file' }));
+
+            const voice = crypto.randomUUID();
+            await service.storeVoice(a, voice, new Uint8Array(512).fill(3));
+            const spoken = await service.send(a, room, null, await sealed(a, room, 'voice', { voice }));
+
+            await service.send(a, room, null, await sealed(a, room, 'text'));
+
+            const read = async (kind: 'media' | 'files' | 'voice', cursor?: string) => ports.chat.media(b, room, kind, cursor);
+
+            expect((await read('media')).messages.map((one) => one.id), 'photos and videos, newest first').toEqual([album[1].id, album[0].id]);
+            expect((await read('files')).messages.map((one) => one.id)).toEqual([filed.id]);
+            expect((await read('voice')).messages.map((one) => one.id)).toEqual([spoken.id]);
+            expect(await refusalOf(ports.chat.media(stranger, room, 'media', undefined)), 'a stranger is answered as nothing').toMatchObject({ status: 404 });
+
+            await db.query(`update messages set expires_at = now() - interval '1 second' where id = $1`, [filed.id]);
+            expect((await read('files')).messages, 'what has run out is gone').toEqual([]);
+
+            // Fifty-two photos more, the two that meet at the page's edge a microsecond apart.
+            await db.query(
+                `insert into messages (id, conversation_id, sender_id, kind, body, epoch, seq, iv, sender_device_id, signature, client_at,
+                                       commitment, frank, file_id, file_as, created_at)
+                 select gen_random_uuid(), m.conversation_id, m.sender_id, 'file', m.body, m.epoch, 1000 + n, m.iv, m.sender_device_id,
+                        m.signature, m.client_at, m.commitment, m.frank, m.file_id, 'photo',
+                        timestamptz '2026-01-01' + make_interval(secs => case when n = 5 then 4 else n end) + (case when n = 5 then interval '1 microsecond' else interval '0' end)
+                 from messages m, generate_series(1, 52) n
+                 where m.id = $1`,
+                [album[0].id]
+            );
+
+            const first = await read('media');
+            const second = await read('media', first.cursor);
+            const all = [...first.messages, ...second.messages];
+
+            expect(first.messages, 'fifty a page').toHaveLength(50);
+            expect(first.cursor, 'and a way to the rest').toBeDefined();
+            expect(second.cursor, 'and none past the end').toBeUndefined();
+            expect(new Set(all.map((one) => one.id)).size, 'every one once, across a millisecond').toBe(54);
+        });
     });
 });

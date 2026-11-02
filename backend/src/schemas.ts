@@ -16,7 +16,8 @@ import { PARTNERS } from './domains/table/teams.ts';
 import { VOICE_SCOPES } from './domains/table/voices.ts';
 import { FIRST_MEMBERS_MOST, GROUP_EVENTS, GROUP_REPORT_STATES, GROUP_RIGHTS, GROUP_ROLES } from './domains/group/roles.ts';
 import { CHANNEL_BIO_MOST, CHANNEL_NAME_MOST, CHANNEL_POST_KINDS, CHANNEL_PRIVACY, CHANNEL_ROLES, CHANNEL_TEXT_MOST, POLL_ANSWER_MOST, POLL_ANSWERS_MOST, POLL_QUESTION_MOST } from './domains/channel/rules.ts';
-import { FILE_AS } from './domains/chat/files.ts';
+import { FILE_ALBUM_LEAST, FILE_ALBUM_MOST, FILE_AS } from './domains/chat/files.ts';
+import { MEDIA_KINDS } from './domains/chat/pages.ts';
 import { ALERT_KINDS, ALERT_LEVELS, FAMILIES, QUEUES, WORKERS } from './ops/measures.ts';
 
 const NUL = String.fromCharCode(0);
@@ -3529,6 +3530,9 @@ export const chatMessage = object({
     /** What that file was sent as. The document says it again, and a reader refuses a message whose two disagree. */
     fileAs: enumOf(FILE_AS).optional(),
 
+    /** The album it was sent in, a photo or a video alone. Its document names it again with its place. */
+    album: string().optional(),
+
     /**
      * Where the author stands in the room's group, where that is above a member: what the page asks
      * before offering to take the line away. Absent from a member's line, from the line of somebody
@@ -3754,6 +3758,28 @@ export const cursorQuery = object({ cursor: string().optional() });
 export const notificationQuery = object({ cursor: string().optional(), notice: string({ max: 16 }).optional() });
 
 export const threadQuery = object({ cursor: string().optional(), limit: string({ max: 3 }).optional() });
+
+/**
+ * Two to ten photos and videos sent together as one album (MS-D46): each its own sealed message, as
+ * one sent alone states it, under the album id their sender chose.
+ */
+export const albumInput = object({
+    album: string({ max: 36 }),
+    messages: array(sendInput, { min: FILE_ALBUM_LEAST, max: FILE_ALBUM_MOST })
+});
+
+export const albumSent = object({ messages: array(chatMessage) });
+
+/** Which of a conversation's lists the gallery reads, and from where. */
+export const mediaQuery = object({
+    kind: enumOf(MEDIA_KINDS),
+    cursor: string({ max: 80 }).optional()
+});
+
+/** A page of a conversation's gallery: the sealed rows, newest first, with the cursor to the next. */
+export const mediaPage = object({ messages: array(chatMessage), cursor: string().optional() });
+
+export type MediaPage = Infer<typeof mediaPage>;
 
 const playFace = object({ handle: string(), displayName: string(), hue: number(), avatar: string().optional() });
 

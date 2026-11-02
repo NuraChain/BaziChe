@@ -133,6 +133,10 @@ import {
     cursorQuery,
     notificationQuery,
     threadQuery,
+    albumInput,
+    albumSent,
+    mediaPage,
+    mediaQuery,
     chainPerson,
     chainProfileState,
     chainPublish,
@@ -1675,6 +1679,27 @@ export function buildApi(ports: Ports)
                     context.params.id,
                     context.input
                 )
+            ),
+
+            /** Two to ten photos and videos sent together as one album (MS-D46). */
+            album: routes.post(
+                '/:id/album',
+                { input: albumInput, output: albumSent },
+                (context) => ports.chat.sendAlbum(context.principal.userId, context.principal.sessionId, context.params.id, context.input)
+            ),
+
+            /** Every photo and video of an album taken away at once, as its sender or the group's staff may. */
+            removeAlbum: routes.del('/:id/albums/:album', { output: ack }, async (context) =>
+            {
+                await ports.chat.removeAlbum(context.principal.userId, context.params.id, context.params.album);
+                return { ok: true };
+            }),
+
+            /** A conversation's photos and videos, its files or its voice messages, newest first (MS-D25). */
+            media: routes.get(
+                '/:id/media',
+                { output: mediaPage, query: mediaQuery },
+                (context) => ports.chat.media(context.principal.userId, context.params.id, context.query.kind, context.query.cursor)
             ),
 
             /** The reader has started a voice message. Nothing is sent: the path says which. */

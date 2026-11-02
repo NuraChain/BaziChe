@@ -294,7 +294,7 @@ describe('the seat plate every table draws', () =>
                 v: 1,
                 t: 'voice',
                 n: 41,
-                table: 'table-ring',
+                room: 'table-ring',
                 joined: true,
                 mine: 'join-alex',
                 peers: [

@@ -192,7 +192,7 @@ describe('how loud somebody in the call is, from the sheet about them', () =>
             v: 1,
             t: 'voice',
             n: frames,
-            table: 'table-1',
+            room: 'table-1',
             joined: true,
             mine: 'join-alex',
             peers: [

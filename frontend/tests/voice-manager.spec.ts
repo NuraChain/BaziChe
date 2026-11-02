@@ -73,7 +73,7 @@ const room = async (peers = [
     { who: 'mina', muted: true, talk: true, join: 'j3', opus: false }
 ]) =>
 {
-    socket.deliver({ v: 1, t: 'voice', n: 3, table: TABLE, joined: true, mine: 'j1', peers });
+    socket.deliver({ v: 1, t: 'voice', n: 3, room: TABLE, joined: true, mine: 'j1', peers });
     await settle();
 };
 

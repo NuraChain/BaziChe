@@ -254,19 +254,19 @@ export function attachRealtime(server: Server, deps: GatewayDeps): () => void
 
                 if (frame.t === 'voice')
                 {
-                    deps.hub.voice(connection, frame.table, frame.on, frame.muted, frame.opus);
+                    deps.hub.voice(connection, frame.room, frame.on, frame.muted, frame.opus);
                     return;
                 }
 
                 if (frame.t === 'sound')
                 {
-                    deps.hub.sound(connection, frame.table, frame.to, frame.codec, frame.at, frame.data);
+                    deps.hub.sound(connection, frame.room, frame.to, frame.codec, frame.at, frame.data);
                     return;
                 }
 
                 if (frame.t === 'signal')
                 {
-                    deps.hub.signal(connection, frame.table, frame.to, frame.join, frame.kind, frame.data);
+                    deps.hub.signal(connection, frame.room, frame.to, frame.join, frame.kind, frame.data);
                     return;
                 }
 

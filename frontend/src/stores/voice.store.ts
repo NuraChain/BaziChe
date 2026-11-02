@@ -364,7 +364,7 @@ export const useVoice = createStore((): VoiceApi =>
 
     const onVoice = (frame: VoiceFrame) =>
     {
-        if (frame.table !== untrack(table))
+        if (frame.room !== untrack(table))
         {
             return;
         }
@@ -383,7 +383,7 @@ export const useVoice = createStore((): VoiceApi =>
 
     const sounded = (frame: SoundFrame) =>
     {
-        if (frame.table === untrack(table))
+        if (frame.room === untrack(table))
         {
             call?.heard(frame.join, frame.codec, frame.at, frame.data);
         }
@@ -391,7 +391,7 @@ export const useVoice = createStore((): VoiceApi =>
 
     const signalled = (frame: SignalFrame) =>
     {
-        if (frame.table === untrack(table))
+        if (frame.room === untrack(table))
         {
             void call?.receive(frame.join, { kind: frame.kind, data: frame.data });
         }

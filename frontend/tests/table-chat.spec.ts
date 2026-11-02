@@ -115,7 +115,7 @@ describe('the players beside a table’s chat, while a call is on', () =>
             v: 1,
             t: 'voice',
             n: frames,
-            table: tableId,
+            room: tableId,
             joined: true,
             mine: 'join-alex',
             peers: [
@@ -313,7 +313,7 @@ describe('the players beside a table’s chat, while a call is on', () =>
         expect(hers().querySelector('button[aria-pressed]')).not.toBeNull();
 
         frames += 1;
-        socket.deliver({ v: 1, t: 'voice', n: frames, table: tableId, joined: false, mine: '', peers: [] });
+        socket.deliver({ v: 1, t: 'voice', n: frames, room: tableId, joined: false, mine: '', peers: [] });
         await settle();
 
         expect(hers().querySelector('button[aria-pressed]')).toBeNull();

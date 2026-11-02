@@ -109,7 +109,7 @@ interface Caller
     muted: boolean;
     opus: boolean;
     join: string;
-    table: string;
+    room: string;
 }
 
 const OUTBOX_FRAMES = 256;
@@ -260,7 +260,7 @@ export function createHub(deps: HubDeps): Hub
                 opus: other.opus
             }));
 
-            emit(member.socket, (n) => voice(n, member.table, true, member.join, peers));
+            emit(member.socket, (n) => voice(n, member.room, true, member.join, peers));
         }
     };
 
@@ -303,7 +303,7 @@ export function createHub(deps: HubDeps): Hub
 
             if (tell)
             {
-                emit(member.socket, (n) => voice(n, member.table, false, '', []));
+                emit(member.socket, (n) => voice(n, member.room, false, '', []));
             }
 
             if (room.size === 0)
@@ -686,7 +686,7 @@ export function createHub(deps: HubDeps): Hub
         for (const call of callsOf(tableId))
         {
             const members = [...(rooms.get(call)?.values() ?? [])];
-            const verdicts = await Promise.all(members.map((member) => deps.voiceCall(member.socket.userId, member.table)));
+            const verdicts = await Promise.all(members.map((member) => deps.voiceCall(member.socket.userId, member.room)));
 
             members.forEach((member, index) =>
             {
@@ -1184,10 +1184,10 @@ export function createHub(deps: HubDeps): Hub
 
                     if (previous !== undefined)
                     {
-                        emit(previous.socket, (n) => voice(n, previous.table, false, '', []));
+                        emit(previous.socket, (n) => voice(n, previous.room, false, '', []));
                     }
 
-                    room.set(socket.userId, { socket, muted, opus, join: randomBytes(9).toString('base64url'), table: tableId });
+                    room.set(socket.userId, { socket, muted, opus, join: randomBytes(9).toString('base64url'), room: tableId });
                     rooms.set(call, room);
                     roster(call);
                 })
@@ -1213,7 +1213,7 @@ export function createHub(deps: HubDeps): Hub
                 return;
             }
 
-            emit(target.socket, (n) => signal(n, target.table, socket.handle, sender.join, kind, data));
+            emit(target.socket, (n) => signal(n, target.room, socket.handle, sender.join, kind, data));
         },
 
         sound(connection, tableId, to, codec, at, data)
@@ -1237,7 +1237,7 @@ export function createHub(deps: HubDeps): Hub
                     continue;
                 }
 
-                sounded(target.socket, (n) => sound(n, target.table, sender.join, codec, at, data));
+                sounded(target.socket, (n) => sound(n, target.room, sender.join, codec, at, data));
             }
         },
 

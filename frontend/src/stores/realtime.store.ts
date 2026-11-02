@@ -809,7 +809,7 @@ export const useRealtime = createStore((): RealtimeApi =>
 
         toLocal: (serverAt) => serverAt - offset,
 
-        voice: (table, on, muted, opus) => active.send({ t: 'voice', table, on, muted, opus }),
+        voice: (room, on, muted, opus) => active.send({ t: 'voice', room, on, muted, opus }),
 
         hold()
         {
@@ -848,11 +848,11 @@ export const useRealtime = createStore((): RealtimeApi =>
 
         check,
 
-        signal: (table, to, join, kind, data) => active.send({ t: 'signal', table, to, join, kind, data }),
+        signal: (room, to, join, kind, data) => active.send({ t: 'signal', room, to, join, kind, data }),
 
-        sound(table, to, codec, at, data)
+        sound(room, to, codec, at, data)
         {
-            return status() === 'connected' && active.send({ t: 'sound', table, to, codec, at, data }, SOUND_BACKLOG);
+            return status() === 'connected' && active.send({ t: 'sound', room, to, codec, at, data }, SOUND_BACKLOG);
         },
 
         onTyping(listener)

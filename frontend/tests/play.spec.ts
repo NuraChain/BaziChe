@@ -2631,7 +2631,7 @@ describe('PlayPage', () =>
         {
             const id = await seated();
 
-            socket.deliver({ v: 1, t: 'voice', n: 9, table: id, joined: false, mine: '', peers: [] });
+            socket.deliver({ v: 1, t: 'voice', n: 9, room: id, joined: false, mine: '', peers: [] });
             await settle();
 
             expect(useVoice().table()).toBeNull();

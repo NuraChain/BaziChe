@@ -6,20 +6,20 @@ describe('the voice frames', () =>
 {
     it('reads a join, a leave and a mute change, and whether the caller can hear Opus', () =>
     {
-        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'voice', table: 't-1', on: true, muted: false, opus: true })))
-            .toEqual({ t: 'voice', table: 't-1', on: true, muted: false, opus: true });
-        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'voice', table: 't-1', on: 'yes', muted: false, opus: true }))).toBeNull();
-        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'voice', table: 't-1', on: true, muted: false })), 'a caller that did not say what it can hear').toBeNull();
-        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'voice', table: 't-1', on: true, muted: false, opus: 'yes' }))).toBeNull();
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'voice', room: 't-1', on: true, muted: false, opus: true })))
+            .toEqual({ t: 'voice', room: 't-1', on: true, muted: false, opus: true });
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'voice', room: 't-1', on: 'yes', muted: false, opus: true }))).toBeNull();
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'voice', room: 't-1', on: true, muted: false })), 'a caller that did not say what it can hear').toBeNull();
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'voice', room: 't-1', on: true, muted: false, opus: 'yes' }))).toBeNull();
     });
 
     it('carries sound for up to eight joinings, in a codec it knows, as base64 under its ceiling', () =>
     {
-        const frame = (over: Record<string, unknown>) => parseClientFrame(JSON.stringify({ v: 1, t: 'sound', table: 't-1', to: ['j2', 'j3'], codec: 'opus', at: 3, data: 'AQID', ...over }));
+        const frame = (over: Record<string, unknown>) => parseClientFrame(JSON.stringify({ v: 1, t: 'sound', room: 't-1', to: ['j2', 'j3'], codec: 'opus', at: 3, data: 'AQID', ...over }));
         const most = 'A'.repeat(SOUND_DATA_MAX);
 
-        expect(frame({ data: most })).toEqual({ t: 'sound', table: 't-1', to: ['j2', 'j3'], codec: 'opus', at: 3, data: most });
-        expect(frame({ codec: 'law', at: 0 })).toEqual({ t: 'sound', table: 't-1', to: ['j2', 'j3'], codec: 'law', at: 0, data: 'AQID' });
+        expect(frame({ data: most })).toEqual({ t: 'sound', room: 't-1', to: ['j2', 'j3'], codec: 'opus', at: 3, data: most });
+        expect(frame({ codec: 'law', at: 0 })).toEqual({ t: 'sound', room: 't-1', to: ['j2', 'j3'], codec: 'law', at: 0, data: 'AQID' });
         expect(frame({ to: Array.from({ length: SOUND_TO_MOST }, (_, index) => `j${ index }`) })).not.toBeNull();
 
         for (const [why, over] of [
@@ -44,29 +44,44 @@ describe('the voice frames', () =>
     {
         const sdp = 'x'.repeat(8000);
 
-        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', table: 't-1', to: 'sara.k', join: 'j2', kind: 'offer', data: sdp })))
-            .toEqual({ t: 'signal', table: 't-1', to: 'sara.k', join: 'j2', kind: 'offer', data: sdp });
-        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', table: 't-1', to: 'sara.k', join: 'j2', kind: 'offer', data: 'x'.repeat(SIGNAL_DATA_MAX + 1) }))).toBeNull();
-        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', table: 't-1', to: 'sara.k', join: 'j2', kind: 'hangup', data: 'x' }))).toBeNull();
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', room: 't-1', to: 'sara.k', join: 'j2', kind: 'offer', data: sdp })))
+            .toEqual({ t: 'signal', room: 't-1', to: 'sara.k', join: 'j2', kind: 'offer', data: sdp });
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', room: 't-1', to: 'sara.k', join: 'j2', kind: 'offer', data: 'x'.repeat(SIGNAL_DATA_MAX + 1) }))).toBeNull();
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', room: 't-1', to: 'sara.k', join: 'j2', kind: 'hangup', data: 'x' }))).toBeNull();
     });
 
     it('refuses a signal that does not say which joining it is for', () =>
     {
-        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', table: 't-1', to: 'sara.k', kind: 'offer', data: 'x' }))).toBeNull();
-        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', table: 't-1', to: 'sara.k', join: '', kind: 'offer', data: 'x' }))).toBeNull();
-        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', table: 't-1', to: 'sara.k', join: 7, kind: 'offer', data: 'x' }))).toBeNull();
-        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', table: 't-1', to: 'sara.k', join: 'j'.repeat(65), kind: 'offer', data: 'x' }))).toBeNull();
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', room: 't-1', to: 'sara.k', kind: 'offer', data: 'x' }))).toBeNull();
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', room: 't-1', to: 'sara.k', join: '', kind: 'offer', data: 'x' }))).toBeNull();
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', room: 't-1', to: 'sara.k', join: 7, kind: 'offer', data: 'x' }))).toBeNull();
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', room: 't-1', to: 'sara.k', join: 'j'.repeat(65), kind: 'offer', data: 'x' }))).toBeNull();
     });
 
     it('keeps the four kilobyte ceiling for every frame that is not a signal', () =>
     {
-        const padded = `{"v":1,"t":"voice","table":"signal","on":true,"muted":false${ ' '.repeat(5000) }}`;
+        const frame = (room: number) => `{"v":1,"t":"voice","room":"signal","on":true,"muted":false,"opus":true${ ' '.repeat(room) }}`;
 
-        expect(parseClientFrame(padded)).toBeNull();
+        expect(parseClientFrame(frame(0)), 'the same frame, small').not.toBeNull();
+        expect(parseClientFrame(frame(5000))).toBeNull();
+    });
+
+    it('names the room it is about, a table or a call, and never by the word it used to', () =>
+    {
+        const call = 'call:5f1c7a0e-3b2d-4c8e-9a61-2d4e6f8a0b1c';
+
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'voice', room: call, on: true, muted: false, opus: true })))
+            .toEqual({ t: 'voice', room: call, on: true, muted: false, opus: true });
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'sound', room: call, to: ['j2'], codec: 'opus', at: 1, data: 'AQID' })))
+            .toEqual({ t: 'sound', room: call, to: ['j2'], codec: 'opus', at: 1, data: 'AQID' });
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', room: call, to: 'a', join: 'j2', kind: 'ice', data: 'x' })))
+            .toEqual({ t: 'signal', room: call, to: 'a', join: 'j2', kind: 'ice', data: 'x' });
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'voice', table: 't-1', on: true, muted: false, opus: true })), 'the word it used to').toBeNull();
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'voice', room: 'x'.repeat(65), on: true, muted: false, opus: true })), 'longer than any room').toBeNull();
     });
 
     it('refuses an unknown key on a voice frame', () =>
     {
-        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', table: 't-1', to: 'a', join: 'j2', kind: 'ice', data: 'x', extra: 1 }))).toBeNull();
+        expect(parseClientFrame(JSON.stringify({ v: 1, t: 'signal', room: 't-1', to: 'a', join: 'j2', kind: 'ice', data: 'x', extra: 1 }))).toBeNull();
     });
 });

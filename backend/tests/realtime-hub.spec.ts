@@ -1469,7 +1469,7 @@ describe('voice at a table', () =>
         world.hub.sound(outside.connection, TABLE, [joinOf(alex.wire, 'sara.k')], 'opus', 8, 'BAUG');
         await rest();
 
-        expect(sara.wire.framesOf('sound')).toEqual([expect.objectContaining({ table: TABLE, join: joinOf(sara.wire, 'alex'), codec: 'opus', at: 7, data: 'AQID' })]);
+        expect(sara.wire.framesOf('sound')).toEqual([expect.objectContaining({ room: TABLE, join: joinOf(sara.wire, 'alex'), codec: 'opus', at: 7, data: 'AQID' })]);
         expect(mina.wire.framesOf('sound'), 'sound crossed to somebody the sender may not talk with').toEqual([]);
         expect(alex.wire.framesOf('sound'), 'sound came back to the one who sent it').toEqual([]);
         expect(outside.wire.framesOf('sound')).toEqual([]);
@@ -1619,7 +1619,7 @@ describe('voice at a table', () =>
             expect(rosterOf(mina.wire)).toEqual(['alex', 'mina']);
             expect(rosterOf(sara.wire)).toEqual(['sara.k', 'omid.k']);
             expect(rosterOf(omid.wire)).toEqual(['sara.k', 'omid.k']);
-            expect(people.every((one) => one.wire.framesOf('voice').every((frame) => (frame as { table: string }).table === TABLE)), 'a frame named the call, not the table').toBe(true);
+            expect(people.every((one) => one.wire.framesOf('voice').every((frame) => (frame as { room: string }).room === TABLE)), 'a frame named the call, not the table').toBe(true);
             expect(world.hub.voiceOf(TABLE).sort()).toEqual(['alex', 'mina', 'omid.k', 'sara.k']);
 
             world.hub.signal(alex.connection, TABLE, 'sara.k', joinOf(sara.wire, 'sara.k'), 'offer', '{"sdp":"across"}');
@@ -1734,8 +1734,8 @@ describe('voice at a table', () =>
         await rest();
 
         expect(lastVoice(alex.wire)?.peers.map((peer) => peer.who)).toEqual(['alex', 'sara.k']);
-        expect(lastVoice(alex.wire)?.table).toBe(TABLE.toUpperCase());
-        expect(lastVoice(sara.wire)?.table).toBe(TABLE);
+        expect(lastVoice(alex.wire)?.room).toBe(TABLE.toUpperCase());
+        expect(lastVoice(sara.wire)?.room).toBe(TABLE);
 
         const named = joinOf(sara.wire, 'alex');
 

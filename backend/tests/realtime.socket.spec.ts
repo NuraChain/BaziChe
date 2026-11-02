@@ -114,6 +114,16 @@ beforeAll(async () =>
             noted.push(`sound ${ given[1] } ${ given[2].join('+') } ${ given[3] } ${ given[4] } ${ given[5] }`);
             base.sound(...given);
         },
+        voice(...given: Parameters<typeof base.voice>)
+        {
+            noted.push(`voice ${ given[1] } ${ given[2] } ${ given[3] } ${ given[4] }`);
+            base.voice(...given);
+        },
+        signal(...given: Parameters<typeof base.signal>)
+        {
+            noted.push(`signal ${ given[1] } ${ given[2] } ${ given[3] } ${ given[4] }`);
+            base.signal(...given);
+        },
         see(...given: Parameters<typeof base.see>)
         {
             noted.push(`see ${ given[1].join('+') }`);
@@ -474,25 +484,39 @@ describe('a bound socket', () =>
         expect(noted.filter((line) => line.startsWith('see '))).toHaveLength(1);
     });
 
+    it('hands a join and a signal to the hub with the room each names, a call as much as a table', async () =>
+    {
+        const talker = talk('/ws', { Origin: 'http://localhost:3100', Cookie: COOKIE });
+        await settle();
+
+        talker.send({ v: 1, t: 'voice', room: 'call:5f1c7a0e-3b2d-4c8e-9a61-2d4e6f8a0b1c', on: true, muted: false, opus: true });
+        talker.send({ v: 1, t: 'signal', room: 't-1', to: 'sara.k', join: 'j2', kind: 'ice', data: 'x' });
+        await settle(100);
+
+        expect(noted).toContain('voice call:5f1c7a0e-3b2d-4c8e-9a61-2d4e6f8a0b1c true false true');
+        expect(noted).toContain('signal t-1 sara.k j2 ice');
+        talker.end();
+    });
+
     it('hands sound to the hub as it came, and hangs up on a socket that sends more than any call makes', async () =>
     {
         const talker = talk('/ws', { Origin: 'http://localhost:3100', Cookie: COOKIE });
         await settle();
 
-        talker.send({ v: 1, t: 'sound', table: 't-1', to: ['j2', 'j3'], codec: 'opus', at: 0, data: 'AQID' });
+        talker.send({ v: 1, t: 'sound', room: 't-1', to: ['j2', 'j3'], codec: 'opus', at: 0, data: 'AQID' });
         await settle(100);
 
         expect(noted).toContain('sound t-1 j2+j3 opus 0 AQID');
 
         for (let at = 1; at < 250; at += 1)
         {
-            talker.send({ v: 1, t: 'sound', table: 't-1', to: ['j2'], codec: 'law', at, data: 'AQID' });
+            talker.send({ v: 1, t: 'sound', room: 't-1', to: ['j2'], codec: 'law', at, data: 'AQID' });
         }
 
         await settle(200);
         expect(noted.filter((line) => line.startsWith('sound t-1'))).toHaveLength(250);
 
-        talker.send({ v: 1, t: 'sound', table: 't-1', to: ['j2'], codec: 'law', at: 250, data: 'AQID' });
+        talker.send({ v: 1, t: 'sound', room: 't-1', to: ['j2'], codec: 'law', at: 250, data: 'AQID' });
 
         expect((await talker.closed).code).toBe(4429);
     });

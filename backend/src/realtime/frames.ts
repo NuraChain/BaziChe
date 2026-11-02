@@ -48,9 +48,9 @@ export type ServerFrame =
     | { v: 1; t: 'presence'; n: number; full: boolean; people: PresenceEntry[]; gone?: string[] }
     | { v: 1; t: 'nudge'; n: number; scope: NudgeScope; id?: string; at: number }
     | { v: 1; t: 'typing'; n: number; who: string; id: string }
-    | { v: 1; t: 'voice'; n: number; table: string; joined: boolean; mine: string; peers: VoicePeer[] }
-    | { v: 1; t: 'signal'; n: number; table: string; from: string; join: string; kind: SignalKind; data: string }
-    | { v: 1; t: 'sound'; n: number; table: string; join: string; codec: Codec; at: number; data: string }
+    | { v: 1; t: 'voice'; n: number; room: string; joined: boolean; mine: string; peers: VoicePeer[] }
+    | { v: 1; t: 'signal'; n: number; room: string; from: string; join: string; kind: SignalKind; data: string }
+    | { v: 1; t: 'sound'; n: number; room: string; join: string; codec: Codec; at: number; data: string }
     | { v: 1; t: 'game'; n: number; at: number; match: MatchView; events: MatchEvent[] }
     | { v: 1; t: 'watch'; n: number; at: number; match: MatchView; events: MatchEvent[] }
     | { v: 1; t: 'ack'; n: number; key: string; match: MatchView; applied: Applied; events: MatchEvent[] }
@@ -64,9 +64,9 @@ export type ClientFrame =
     | { t: 'sync' }
     | { t: 'presence'; state: PresenceState }
     | { t: 'typing'; id: string }
-    | { t: 'voice'; table: string; on: boolean; muted: boolean; opus: boolean }
-    | { t: 'signal'; table: string; to: string; join: string; kind: SignalKind; data: string }
-    | { t: 'sound'; table: string; to: string[]; codec: Codec; at: number; data: string }
+    | { t: 'voice'; room: string; on: boolean; muted: boolean; opus: boolean }
+    | { t: 'signal'; room: string; to: string; join: string; kind: SignalKind; data: string }
+    | { t: 'sound'; room: string; to: string[]; codec: Codec; at: number; data: string }
     | { t: 'play'; match: string; key: string; rev?: number; play: unknown }
     | { t: 'see'; who: string[] }
     | { t: 'ping' };
@@ -111,14 +111,14 @@ export const nudge = (n: number, scope: NudgeScope, at: number, id?: string): Se
 export const typing = (n: number, who: string, id: string): ServerFrame =>
     ({ v: 1, t: 'typing', n, who, id });
 
-export const voice = (n: number, table: string, joined: boolean, mine: string, peers: VoicePeer[]): ServerFrame =>
-    ({ v: 1, t: 'voice', n, table, joined, mine, peers });
+export const voice = (n: number, room: string, joined: boolean, mine: string, peers: VoicePeer[]): ServerFrame =>
+    ({ v: 1, t: 'voice', n, room, joined, mine, peers });
 
-export const signal = (n: number, table: string, from: string, join: string, kind: SignalKind, data: string): ServerFrame =>
-    ({ v: 1, t: 'signal', n, table, from, join, kind, data });
+export const signal = (n: number, room: string, from: string, join: string, kind: SignalKind, data: string): ServerFrame =>
+    ({ v: 1, t: 'signal', n, room, from, join, kind, data });
 
-export const sound = (n: number, table: string, join: string, codec: Codec, at: number, data: string): ServerFrame =>
-    ({ v: 1, t: 'sound', n, table, join, codec, at, data });
+export const sound = (n: number, room: string, join: string, codec: Codec, at: number, data: string): ServerFrame =>
+    ({ v: 1, t: 'sound', n, room, join, codec, at, data });
 
 export const game = (n: number, at: number, match: MatchView, events: MatchEvent[]): ServerFrame =>
     ({ v: 1, t: 'game', n, at, match, events });
@@ -165,9 +165,9 @@ const SHAPES: Record<string, ReadonlySet<string>> = Object.assign(Object.create(
     sync: new Set(['v', 't']),
     presence: new Set(['v', 't', 'state']),
     typing: new Set(['v', 't', 'id']),
-    voice: new Set(['v', 't', 'table', 'on', 'muted', 'opus']),
-    signal: new Set(['v', 't', 'table', 'to', 'join', 'kind', 'data']),
-    sound: new Set(['v', 't', 'table', 'to', 'codec', 'at', 'data']),
+    voice: new Set(['v', 't', 'room', 'on', 'muted', 'opus']),
+    signal: new Set(['v', 't', 'room', 'to', 'join', 'kind', 'data']),
+    sound: new Set(['v', 't', 'room', 'to', 'codec', 'at', 'data']),
     play: new Set(['v', 't', 'match', 'key', 'rev', 'play']),
     see: new Set(['v', 't', 'who']),
     ping: new Set(['v', 't'])
@@ -262,25 +262,25 @@ export function parseClientFrame(text: string): ClientFrame | null
 
     if (frame.t === 'voice')
     {
-        return idOf(frame.table) && typeof frame.on === 'boolean' && typeof frame.muted === 'boolean' && typeof frame.opus === 'boolean'
-            ? { t: 'voice', table: frame.table, on: frame.on, muted: frame.muted, opus: frame.opus }
+        return idOf(frame.room) && typeof frame.on === 'boolean' && typeof frame.muted === 'boolean' && typeof frame.opus === 'boolean'
+            ? { t: 'voice', room: frame.room, on: frame.on, muted: frame.muted, opus: frame.opus }
             : null;
     }
 
     if (frame.t === 'sound')
     {
-        return idOf(frame.table) && Array.isArray(frame.to) && frame.to.length > 0 && frame.to.length <= SOUND_TO_MOST && frame.to.every(idOf)
+        return idOf(frame.room) && Array.isArray(frame.to) && frame.to.length > 0 && frame.to.length <= SOUND_TO_MOST && frame.to.every(idOf)
             && typeof frame.codec === 'string' && CODECS.has(frame.codec) && revOf(frame.at)
             && typeof frame.data === 'string' && frame.data.length <= SOUND_DATA_MAX && BASE64.test(frame.data)
-            ? { t: 'sound', table: frame.table, to: frame.to as string[], codec: frame.codec as Codec, at: frame.at as number, data: frame.data }
+            ? { t: 'sound', room: frame.room, to: frame.to as string[], codec: frame.codec as Codec, at: frame.at as number, data: frame.data }
             : null;
     }
 
     if (frame.t === 'signal')
     {
-        return idOf(frame.table) && idOf(frame.to) && idOf(frame.join) && typeof frame.kind === 'string' && KINDS.has(frame.kind)
+        return idOf(frame.room) && idOf(frame.to) && idOf(frame.join) && typeof frame.kind === 'string' && KINDS.has(frame.kind)
             && typeof frame.data === 'string' && frame.data.length > 0 && frame.data.length <= SIGNAL_DATA_MAX
-            ? { t: 'signal', table: frame.table, to: frame.to, join: frame.join, kind: frame.kind as SignalKind, data: frame.data }
+            ? { t: 'signal', room: frame.room, to: frame.to, join: frame.join, kind: frame.kind as SignalKind, data: frame.data }
             : null;
     }
 

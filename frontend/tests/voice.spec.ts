@@ -145,7 +145,7 @@ describe('voice at a table', () =>
         expect(useVoice().table()).toBe(TABLE);
         expect(useVoice().mic()).toBe('live');
         expect(useVoice().muted(), 'the owner asked for the microphone to start open').toBe(false);
-        expect(voiceFrames().at(-1)).toMatchObject({ t: 'voice', table: TABLE, on: true, muted: false });
+        expect(voiceFrames().at(-1)).toMatchObject({ t: 'voice', room: TABLE, on: true, muted: false });
     });
 
     it('joins muted when the reader asked to start that way', async () =>
@@ -175,7 +175,7 @@ describe('voice at a table', () =>
     {
         await useVoice().join(TABLE);
 
-        socket.deliver({ v: 1, t: 'voice', n: 3, table: TABLE, joined: true, mine: 'j1', peers: [
+        socket.deliver({ v: 1, t: 'voice', n: 3, room: TABLE, joined: true, mine: 'j1', peers: [
             { who: 'alex', muted: true, talk: true, join: 'j1', opus: false },
             { who: 'sara.k', muted: false, talk: true, join: 'j2', opus: false },
             { who: 'mina', muted: false, talk: false, join: 'j3', opus: false }
@@ -194,7 +194,7 @@ describe('voice at a table', () =>
     {
         await useVoice().join(TABLE);
 
-        socket.deliver({ v: 1, t: 'voice', n: 3, table: TABLE, joined: true, mine: 'j1', peers: [
+        socket.deliver({ v: 1, t: 'voice', n: 3, room: TABLE, joined: true, mine: 'j1', peers: [
             { who: 'alex.renamed', muted: true, talk: true, join: 'j1', opus: false },
             { who: 'sara.k', muted: false, talk: true, join: 'j2', opus: false }
         ] });
@@ -211,8 +211,8 @@ describe('voice at a table', () =>
     {
         await useVoice().join(TABLE);
 
-        socket.deliver({ v: 1, t: 'signal', n: 4, table: TABLE, from: 'sara.k', join: 'j2', kind: 'offer', data: '{"sdp":"x"}' });
-        socket.deliver({ v: 1, t: 'signal', n: 5, table: 'other', from: 'sara.k', join: 'j2', kind: 'offer', data: '{"sdp":"y"}' });
+        socket.deliver({ v: 1, t: 'signal', n: 4, room: TABLE, from: 'sara.k', join: 'j2', kind: 'offer', data: '{"sdp":"x"}' });
+        socket.deliver({ v: 1, t: 'signal', n: 5, room: 'other', from: 'sara.k', join: 'j2', kind: 'offer', data: '{"sdp":"y"}' });
         await settle();
 
         expect(calls[0].received).toEqual([{ join: 'j2', signal: { kind: 'offer', data: '{"sdp":"x"}' } }]);
@@ -224,7 +224,7 @@ describe('voice at a table', () =>
 
         calls[0].deps.send('sara.k', 'j2', { kind: 'offer', data: '{"sdp":"z"}' });
 
-        expect(socket.sent.filter((frame) => frame.t === 'signal')).toEqual([{ t: 'signal', table: TABLE, to: 'sara.k', join: 'j2', kind: 'offer', data: '{"sdp":"z"}' }]);
+        expect(socket.sent.filter((frame) => frame.t === 'signal')).toEqual([{ t: 'signal', room: TABLE, to: 'sara.k', join: 'j2', kind: 'offer', data: '{"sdp":"z"}' }]);
     });
 
     it('unmutes and tells the room', async () =>
@@ -275,7 +275,7 @@ describe('voice at a table', () =>
         expect(useVoice().table()).toBeNull();
 
         await useVoice().join(TABLE);
-        socket.deliver({ v: 1, t: 'voice', n: 9, table: TABLE, joined: false, mine: '', peers: [] });
+        socket.deliver({ v: 1, t: 'voice', n: 9, room: TABLE, joined: false, mine: '', peers: [] });
         await settle();
 
         expect(calls[1].closed).toBe(true);
@@ -286,7 +286,7 @@ describe('voice at a table', () =>
     {
         await useVoice().join(TABLE);
 
-        socket.deliver({ v: 1, t: 'voice', n: 3, table: TABLE, joined: true, mine: 'j1', peers: [
+        socket.deliver({ v: 1, t: 'voice', n: 3, room: TABLE, joined: true, mine: 'j1', peers: [
             { who: 'alex', muted: false, talk: true, join: 'j1', opus: false },
             { who: 'sara.k', muted: false, talk: true, join: 'j2', opus: false }
         ] });
@@ -301,7 +301,7 @@ describe('voice at a table', () =>
         await settle();
 
         expect(voiceFrames().length).toBeGreaterThan(before);
-        expect(voiceFrames().at(-1)).toMatchObject({ table: TABLE, on: true });
+        expect(voiceFrames().at(-1)).toMatchObject({ room: TABLE, on: true });
         expect(calls[0].synced.slice(synced)).toEqual([{ mine: '', peers: [] }]);
         expect(calls[0].closed).toBe(false);
     });
@@ -322,12 +322,12 @@ describe('voice at a table', () =>
         socket.accept();
         await settle();
 
-        expect(voiceFrames()).toEqual([{ t: 'voice', table: TABLE, on: true, muted: false, opus: false }]);
+        expect(voiceFrames()).toEqual([{ t: 'voice', room: TABLE, on: true, muted: false, opus: false }]);
     });
 
     const room = async () =>
     {
-        socket.deliver({ v: 1, t: 'voice', n: 3, table: TABLE, joined: true, mine: 'j1', peers: [
+        socket.deliver({ v: 1, t: 'voice', n: 3, room: TABLE, joined: true, mine: 'j1', peers: [
             { who: 'alex', muted: false, talk: true, join: 'j1', opus: false },
             { who: 'sara.k', muted: false, talk: true, join: 'j2', opus: false }
         ] });
@@ -557,7 +557,7 @@ describe('voice at a table', () =>
             v: 1,
             t: 'voice',
             n: 31,
-            table: TABLE,
+            room: TABLE,
             joined: true,
             mine: 'join-alex',
             peers: [
@@ -669,7 +669,7 @@ describe('voice at a table', () =>
             v: 1,
             t: 'voice',
             n: 51,
-            table: TABLE,
+            room: TABLE,
             joined: true,
             mine: 'join-alex',
             peers: [
@@ -765,7 +765,7 @@ describe('what the reader is told about each line', () =>
 
     const room = async () =>
     {
-        socket.deliver({ v: 1, t: 'voice', n: 3, table: TABLE, joined: true, mine: 'j1', peers: [
+        socket.deliver({ v: 1, t: 'voice', n: 3, room: TABLE, joined: true, mine: 'j1', peers: [
             { who: 'alex', muted: false, talk: true, join: 'j1', opus: false },
             { who: 'sara.k', muted: false, talk: true, join: 'j2', opus: false }
         ] });
@@ -924,7 +924,7 @@ describe('a call the server carries', () =>
     {
         await useVoice().join(TABLE);
 
-        socket.deliver({ v: 1, t: 'voice', n: 3, table: TABLE, joined: true, mine: 'j1', peers: [
+        socket.deliver({ v: 1, t: 'voice', n: 3, room: TABLE, joined: true, mine: 'j1', peers: [
             { who: 'alex', muted: true, talk: true, join: 'j1', opus: false },
             { who: 'sara.k', muted: false, talk: true, join: 'j2', opus: true },
             { who: 'mina', muted: false, talk: true, join: 'j3', opus: false }
@@ -938,8 +938,8 @@ describe('a call the server carries', () =>
     {
         await useVoice().join(TABLE);
 
-        socket.deliver({ v: 1, t: 'sound', n: 4, table: TABLE, join: 'j2', codec: 'law', at: 3, data: 'AQID' });
-        socket.deliver({ v: 1, t: 'sound', n: 5, table: 'other', join: 'j2', codec: 'opus', at: 4, data: 'BAUG' });
+        socket.deliver({ v: 1, t: 'sound', n: 4, room: TABLE, join: 'j2', codec: 'law', at: 3, data: 'AQID' });
+        socket.deliver({ v: 1, t: 'sound', n: 5, room: 'other', join: 'j2', codec: 'opus', at: 4, data: 'BAUG' });
         await settle();
 
         expect(calls[0].sounds).toEqual([{ join: 'j2', codec: 'law', at: 3, data: 'AQID' }]);
@@ -951,7 +951,7 @@ describe('a call the server carries', () =>
 
         calls[0].deps.relay!(['j2', 'j3'], 'opus', 7, 'AQID');
 
-        expect(soundFrames()).toEqual([{ t: 'sound', table: TABLE, to: ['j2', 'j3'], codec: 'opus', at: 7, data: 'AQID' }]);
+        expect(soundFrames()).toEqual([{ t: 'sound', room: TABLE, to: ['j2', 'j3'], codec: 'opus', at: 7, data: 'AQID' }]);
 
         socket.backlog = SOUND_BACKLOG + 1;
         calls[0].deps.relay!(['j2'], 'opus', 8, 'BAUG');

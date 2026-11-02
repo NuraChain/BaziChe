@@ -171,7 +171,7 @@ export default component Composer(props: {
                 files,
                 caption: props.value,
                 onSent: () => props.onInput('')
-            }, { label: locale.t('chat.attach'), kind: 'sheet', id: 'file-sheet' }))
+            }, { label: locale.t('chat.attach'), id: 'file-sheet' }))
             .catch(() => toasts.show({ kind: 'warning', text: locale.t('chat.attach.unreadable'), dedupe: 'file-sheet' }));
     };
 

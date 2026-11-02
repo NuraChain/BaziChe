@@ -369,6 +369,7 @@ describe('the composer, given several at once', () =>
 
         await vi.waitFor(() => expect(useOverlay().items().map((one) => one.id)).toEqual(['file-sheet']), { timeout: 4000 });
         expect(useOverlay().items()[0].props).toMatchObject({ room: 'c-reza', files, caption: 'With these' });
+        expect(useOverlay().items()[0].kind, 'a sheet on a phone and a dialog on a wide screen').toBe('auto');
     });
 
     it('takes every file dropped together', async () =>

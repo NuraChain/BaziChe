@@ -273,7 +273,7 @@ export default component FileSheet(props: OverlayProps & {
             when={ single }
             fallback={
                 <div class="flex flex-col gap-2">
-                    <ul class="grid grid-cols-3 gap-1.5" aria-label={ title } data-chosen>
+                    <ul class="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-1.5" aria-label={ title } data-chosen>
                         <For each={ chosen } key={ (one) => one.key } let={ one }>
                             <li
                                 class={ () => [

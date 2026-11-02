@@ -44,7 +44,11 @@ export const LINE_KEYS = [
 
     // Written by the donations' half of `services.ts` once `ArcadeTips` holds a gift: the room
     // that watches the game learns who gave whom how much.
-    'chat.line.donation'
+    'chat.line.donation',
+
+    // Written by the calls' half of `services.ts` when a call ends: who rang and how it ended, which
+    // each of the two reads from their own side (`components/chat/line-said.ts`).
+    'chat.line.call'
 ] as const;
 
 export type LineKey = typeof LINE_KEYS[number];

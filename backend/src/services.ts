@@ -27,7 +27,7 @@ import { endingOf } from './domains/match/declare.ts';
 import { ENGINES, createMatchService, voidedOf, type MatchLoad } from './domains/match/service.ts';
 import { WATCH_TAIL } from './domains/match/turns.ts';
 import { callRefusal, createCallService, type CallChange, type CallRow } from './domains/call/service.ts';
-import { RING_SECONDS } from './domains/call/rules.ts';
+import { RING_SECONDS, type CallEnding } from './domains/call/rules.ts';
 import { createParties, type PartyWhy } from './domains/party/parties.ts';
 import { partyRefused } from './domains/party/refusal.ts';
 import { createRegistry } from './domains/party/registry.ts';
@@ -1189,8 +1189,53 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         return asCall(me, row);
     };
 
-    /** Everybody in a call is told it changed, and its room lets go of whoever may no longer be in it. */
-    const ringCall = (row: CallRow) => live?.callChanged(row.id, row.people.map((one) => one.id));
+    /** The endings in which the callee never answered: the bell says they missed it. */
+    const UNANSWERED: ReadonlySet<CallEnding | null> = new Set(['missed', 'cancelled', 'busy']);
+
+    /**
+     * What a change of a call says once it is made. Everybody in it is rung, and its room lets go of
+     * whoever may no longer be in it. The callee's bell says a call is ringing, says it was missed
+     * under the same key when nobody answered it, and lets go of it once it was answered or declined
+     * (MS-D35); a push wakes them as every notice does. And a call that ended says so in its room
+     * (MS-D34), unless it failed. The bell and the line are courtesies to a change already made.
+     */
+    const afterCall = async (row: CallRow) =>
+    {
+        live?.callChanged(row.id, row.people.map((one) => one.id));
+
+        const caller = row.people.find((one) => one.id === row.startedBy);
+        const callee = row.people.find((one) => one.id !== row.startedBy);
+
+        if (caller === undefined || callee === undefined)
+        {
+            return;
+        }
+
+        const about = { actorId: caller.id, ref: { conversationId: row.room }, dedupeKey: `call:${ row.id }` };
+
+        if (row.state === 'ringing')
+        {
+            await courtesy('call notice', () => tell({ userId: callee.id, kind: 'call', ...about }));
+            return;
+        }
+
+        await courtesy('call notice', () => (row.state === 'ended' && UNANSWERED.has(row.ending)
+            ? tell({ userId: callee.id, kind: 'call-missed', ...about })
+            : retract(callee.id, 'call', about.dedupeKey)));
+
+        if (row.state === 'ended' && row.ending !== null && row.ending !== 'failed')
+        {
+            const seconds = row.answeredAt === null || row.endedAt === null
+                ? undefined
+                : String(Math.max(0, Math.round((row.endedAt.getTime() - row.answeredAt.getTime()) / 1000)));
+
+            await courtesy('call line', async () =>
+            {
+                await chat.post(row.room, 'system', { key: 'chat.line.call', params: { who: caller.handle, ending: row.ending, ...(seconds === undefined ? {} : { seconds }) } }, null);
+                live?.chatChanged(row.room);
+            });
+        }
+    };
 
     const callAnswer = async (me: string, change: CallChange) =>
     {
@@ -1203,7 +1248,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
         if (change.changed)
         {
-            ringCall(row);
+            await afterCall(row);
         }
 
         return asCall(me, row);
@@ -1214,7 +1259,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     {
         for (const row of await calls.revalidate(userId))
         {
-            ringCall(row);
+            await afterCall(row);
         }
     });
 
@@ -2082,7 +2127,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
                 for (const row of [...missed, ...ended])
                 {
-                    ringCall(row);
+                    await afterCall(row);
                 }
 
                 for (const [callId, at] of rung)

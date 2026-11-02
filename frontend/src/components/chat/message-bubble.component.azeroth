@@ -2,7 +2,6 @@ import { useNavigate } from 'azerothjs';
 
 import type { Message, MessageLock } from '../../data/chat.ts';
 import Icon from '../../icons/icon.component.azeroth';
-import { isLineKey, namedParams } from '../../lib/lines.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -21,6 +20,7 @@ import Avatar from '../ui/avatar.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
 import { gistOf } from './gist.ts';
+import { lineSaid } from './line-said.ts';
 import AlbumGrid from './album-grid.component.azeroth';
 import FileNote from './file-note.component.azeroth';
 import LazyVoiceNote from './lazy-voice-note.component.azeroth';
@@ -273,9 +273,7 @@ export default component MessageBubble(props: {
         {
             return locale.text(props.message.text);
         }
-        return isLineKey(line.key)
-            ? locale.t(line.key, namedParams(line.params, nameOf, locale))
-            : '';
+        return lineSaid(line, props.me, nameOf, locale);
     })();
 
     derived winners = props.message.ref?.winners ?? [];

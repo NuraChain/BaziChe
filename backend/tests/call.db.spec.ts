@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 
 import { errorResponse } from '@azerothjs/http';
 
-import { Call, CallParticipant, Conversation, User, entities } from '../src/entities/index.ts';
+import { Call, CallParticipant, Conversation, Notification, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { callMoved, callRoom, roomOf } from '../src/domains/call/rooms.ts';
 import { ALONE_SECONDS, RING_SECONDS } from '../src/domains/call/rules.ts';
@@ -31,9 +31,13 @@ let seq = 0;
 
 let rung: { callId: string; people: string[] }[] = [];
 let told: { userId: string; what: string }[] = [];
+let chats: string[] = [];
 
 const listener: WriteListener = {
-    chatChanged: () => undefined,
+    chatChanged: (conversationId) =>
+    {
+        chats.push(conversationId);
+    },
     chatSeen: () => undefined,
     socialChanged: () => undefined,
     edgesChanged: () => undefined,
@@ -132,6 +136,16 @@ const ago = async (callId: string, seconds: number) =>
 
 const heardBy = (callId: string) => rung.filter((one) => one.callId === callId).map((one) => one.people);
 
+/** What a person's bell holds about calls: each row's kind, whoever it is about, where it leads and whether it was read. */
+const bell = async (person: Person) => (await db.getRepository(Notification).find({ where: { userId: person.id }, order: { createdAt: 'ASC' } }))
+    .filter((row) => row.kind === 'call' || row.kind === 'call-missed')
+    .map((row) => ({ kind: row.kind, actor: row.actorId, ref: row.ref, key: row.dedupeKey, read: row.readAt !== null }));
+
+/** The lines a room was told about its calls, oldest first. */
+const lines = async (room: string) => rowsOf<{ payload: { key: string; params: Record<string, string> } }>(
+    await db.query(`select payload from messages where conversation_id = $1 and kind = 'system' order by created_at, id`, [room])
+).map((row) => row.payload).filter((payload) => payload.key === 'chat.line.call');
+
 describe.skipIf(!active)('calls between two people, against Postgres', () =>
 {
     beforeAll(async () =>
@@ -159,6 +173,7 @@ describe.skipIf(!active)('calls between two people, against Postgres', () =>
         ports = door();
         rung = [];
         told = [];
+        chats = [];
     });
 
     describe('a ring', () =>
@@ -548,6 +563,101 @@ describe.skipIf(!active)('calls between two people, against Postgres', () =>
             expect(await ports.jobs.emptyCallRooms()).toBe(2);
             expect((await participants(call.id)).every((row) => row.leftAt !== null)).toBe(true);
             expect((await callOf(call.id)).state, 'the call itself goes on').toBe('live');
+        });
+    });
+
+    describe('the bell and the room', () =>
+    {
+        it('rings the callee\'s bell while it rings, and lets go of it once it is answered, saying how long it lasted once it ends', async () =>
+        {
+            const { a, b, room } = await pair();
+            const call = await ports.calls.ring(a.id, room);
+
+            await ago(call.id, 20);
+            expect(await bell(b)).toEqual([{ kind: 'call', actor: a.id, ref: { conversationId: room }, key: `call:${ call.id }`, read: false }]);
+            expect(await bell(a), 'nothing for whoever rang').toEqual([]);
+            expect(told).toContainEqual({ userId: b.id, what: 'notifications' });
+
+            await ports.calls.accept(b.id, call.id);
+            expect(await bell(b), 'answered').toEqual([]);
+            expect(await lines(room), 'nothing said while it goes on').toEqual([]);
+
+            await db.query(`update calls set answered_at = answered_at - interval '312 seconds', created_at = created_at - interval '312 seconds' where id = $1`, [call.id]);
+            await db.query(`update call_participants set joined_at = joined_at - interval '312 seconds', left_at = left_at - interval '312 seconds' where call_id = $1`, [call.id]);
+            chats = [];
+            await ports.calls.hangUp(a.id, call.id);
+
+            const [said] = await lines(room);
+
+            expect(chats, 'the room is rung for its line').toEqual([room]);
+
+            expect(said.params).toMatchObject({ who: a.handle, ending: 'answered' });
+            expect(Number(said.params.seconds)).toBeGreaterThanOrEqual(312);
+            expect(Number(said.params.seconds)).toBeLessThan(330);
+        });
+
+        it('says a call nobody answered was missed, under the key it rang with, unread, and tells the room', async () =>
+        {
+            const { a, b, room } = await pair();
+            const call = await ports.calls.ring(a.id, room);
+
+            await db.query(`update notifications set read_at = now() where user_id = $1`, [b.id]);
+            await ago(call.id, RING_SECONDS + 1);
+            await ports.jobs.sweepCalls();
+
+            expect(await bell(b)).toEqual([{ kind: 'call-missed', actor: a.id, ref: { conversationId: room }, key: `call:${ call.id }`, read: false }]);
+            expect(await lines(room)).toEqual([{ key: 'chat.line.call', params: { who: a.handle, ending: 'missed' } }]);
+        });
+
+        it('says a ring called off was missed too, and a declined one leaves nothing in the bell', async () =>
+        {
+            const { a, b, room } = await pair();
+            const cancelled = await ports.calls.ring(a.id, room);
+
+            await ports.calls.hangUp(a.id, cancelled.id);
+            expect((await bell(b)).map((row) => row.kind)).toEqual(['call-missed']);
+
+            const declined = await ports.calls.ring(a.id, room);
+
+            await ports.calls.decline(b.id, declined.id);
+            expect((await bell(b)).map((row) => [row.kind, row.key])).toEqual([['call-missed', `call:${ cancelled.id }`]]);
+            expect((await lines(room)).map((line) => line.params.ending)).toEqual(['cancelled', 'declined']);
+        });
+
+        it('tells a busy callee they missed a call they were never rung for, and the caller\'s room it was busy', async () =>
+        {
+            const { a, b, room } = await pair();
+            const c = await makeUser();
+
+            await befriend(c, b);
+
+            const toB = await ports.chat.openDirect(c.id, b.handle);
+
+            await ports.calls.ring(a.id, room);
+
+            const busy = await ports.calls.ring(c.id, toB);
+
+            expect((await bell(b)).map((row) => [row.kind, row.actor])).toEqual([['call', a.id], ['call-missed', c.id]]);
+            expect(await lines(toB)).toEqual([{ key: 'chat.line.call', params: { who: c.handle, ending: 'busy' } }]);
+            expect(busy.state).toBe('ended');
+        });
+
+        it('keeps a call ringing for somebody who switched calls off, with nothing in their bell, and says nothing in a room a block ended a call in', async () =>
+        {
+            const { a, b, room } = await pair();
+
+            await ports.social.setMute(b.id, 'notice', 'calls', true);
+
+            const call = await ports.calls.ring(a.id, room);
+
+            expect(await bell(b)).toEqual([]);
+            expect((await ports.calls.state(b.id)).calls.map((one) => one.state), 'the card is the call').toEqual(['ringing']);
+
+            await ports.calls.accept(b.id, call.id);
+            await ports.social.block(a.id, b.handle);
+
+            expect((await callOf(call.id)).ending).toBe('failed');
+            expect(await lines(room)).toEqual([]);
         });
     });
 

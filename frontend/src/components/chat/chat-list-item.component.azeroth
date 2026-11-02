@@ -1,7 +1,6 @@
 import type { GameId } from '../../data/games.ts';
 import { Link } from 'azerothjs';
 
-import { isLineKey, namedParams } from '../../lib/lines.ts';
 import type { Conversation } from '../../data/chat.ts';
 import { attachHold } from '../../lib/hold.ts';
 import Icon from '../../icons/icon.component.azeroth';
@@ -20,6 +19,7 @@ import { gameNameOf, groupNameOf, titleOf } from './chat-title.ts';
 import { stampOf } from './chat-time.ts';
 import { plainOf } from '../../lib/markdown.ts';
 import { gistOf } from './gist.ts';
+import { lineSaid } from './line-said.ts';
 import { STATUS_ICON, STATUS_WORDS } from './status.ts';
 
 export default component ChatListItem(props: {
@@ -123,10 +123,10 @@ export default component ChatListItem(props: {
         }
         if (last.kind !== 'text' && last.kind !== 'voice' && last.kind !== 'file')
         {
-            const line = last.line;
-            if (line !== undefined && isLineKey(line.key))
+            const line = last.line === undefined ? '' : lineSaid(last.line, props.me, nameOf, locale);
+            if (line !== '')
             {
-                return locale.t(line.key, namedParams(line.params, nameOf, locale));
+                return line;
             }
             return locale.t(last.kind === 'invite'
                 ? 'chats.invitePreview'

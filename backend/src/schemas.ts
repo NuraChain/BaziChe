@@ -3511,7 +3511,13 @@ export const lineParams = object({
     to: string().optional(),
 
     /** Wei: what a donation gave. */
-    amount: string({ pattern: /^[0-9]{1,40}$/ }).optional()
+    amount: string({ pattern: /^[0-9]{1,40}$/ }).optional(),
+
+    /** How a call ended, for the line its room is told; `who` is whoever rang. */
+    ending: enumOf(CALL_ENDINGS).optional(),
+
+    /** How long a call that was answered lasted, in whole seconds. */
+    seconds: string({ pattern: /^[0-9]{1,9}$/ }).optional()
 });
 
 export const line = object({ key: string(), params: lineParams });

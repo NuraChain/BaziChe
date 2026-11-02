@@ -22,7 +22,7 @@ import {
 } from '../lib/sealing.ts';
 import type { MemberSeal } from '../lib/seal-state.ts';
 import type { AlbumMark, FileAs } from '../../../backend/src/domains/chat/files.ts';
-import { THREAD_MOST, THREAD_PAGE } from '../../../backend/src/domains/chat/pages.ts';
+import { THREAD_MOST, THREAD_PAGE, type MediaKind } from '../../../backend/src/domains/chat/pages.ts';
 
 export interface ChatScope
 {
@@ -105,6 +105,9 @@ export interface ChatSource
 {
     conversations(scope: ChatScope, signal: AbortSignal, pages?: number): Promise<ConversationPage>;
     thread(id: string, scope: ChatScope, signal: AbortSignal, wanted?: number): Promise<ThreadPage>;
+
+    /** A page of a conversation's gallery, newest first (MS-D25), opened here as the thread's lines are, and where the next page starts. */
+    media(id: string, scope: ChatScope, kind: MediaKind, cursor?: string): Promise<{ messages: Message[]; cursor?: string }>;
     /**
      * Seals and sends. `expiresAt` is epoch milliseconds, or 0 for a message that lasts.
      *
@@ -806,6 +809,43 @@ export function createApiSource()
                 ]);
 
                 return { messages, earlier: page.earlier, pins };
+            }
+            finally
+            {
+                await zero([...keys.values()]);
+            }
+        },
+
+        async media(id, scope, kind, cursor)
+        {
+            openedFor = scope.me;
+
+            const born = age;
+            const [page, secrets, mine] = await Promise.all([
+                client.chat.media({ params: { id }, query: cursor === undefined ? { kind } : { kind, cursor } }),
+                keyStore().secrets(),
+                keyStore().load()
+            ]);
+            const keys = new Map<number, Promise<Uint8Array | null>>();
+
+            const keyFor = (epoch: number) =>
+            {
+                let held = keys.get(epoch);
+
+                if (held === undefined)
+                {
+                    held = secrets === null || mine === null ? Promise.resolve(null) : historicalKey(id, epoch, mine.id, secrets);
+                    keys.set(epoch, held);
+                }
+
+                return held;
+            };
+
+            try
+            {
+                const messages = await Promise.all(page.messages.map((wire) => openOne(born, wire, keyFor)));
+
+                return { messages, ...(page.cursor === undefined ? {} : { cursor: page.cursor }) };
             }
             finally
             {

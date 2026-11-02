@@ -1,7 +1,7 @@
 import { ApiError, applyFieldErrors } from '@azerothjs/http/api/shared';
 
 import { FILE_ALBUM_LEAST, FILE_ALBUM_MOST } from '../../backend/src/domains/chat/files.ts';
-import { threadSize } from '../../backend/src/domains/chat/pages.ts';
+import { MEDIA_PAGE, threadSize, type MediaKind } from '../../backend/src/domains/chat/pages.ts';
 import { WATCH_TAIL } from '../../backend/src/domains/match/turns.ts';
 import { codeFrom } from '../../backend/src/domains/invite/policy.ts';
 import { NOTICE_OF } from '../../backend/src/domains/notify/notices.ts';
@@ -3758,6 +3758,22 @@ export const client =
                 ...(start > 0 ? { cursor: page[0].id } : {}),
                 ...(query?.cursor === undefined ? { pins } : {})
             };
+        },
+
+        /** A page of a room's gallery, newest first, as the real server pages it (MS-D25). */
+        async media({ params, query }: { params: { id: string }; query: { kind: MediaKind; cursor?: string } })
+        {
+            server.calls.push('chat.media');
+            if (!server.conversations.some((row) => row.id === params.id))
+            {
+                throw new ApiError(404, 'not-found', 'No conversation with that id.', undefined);
+            }
+            const listed = server.messages
+                .filter((one) => one.conversationId === params.id && (query.kind === 'voice' ? one.kind === 'voice' : one.kind === 'file' && (one.fileAs === 'file') === (query.kind === 'files')))
+                .reverse();
+            const start = query.cursor === undefined ? 0 : listed.findIndex((one) => one.id === query.cursor) + 1;
+            const page = listed.slice(start, start + MEDIA_PAGE);
+            return { messages: page, ...(start + MEDIA_PAGE < listed.length ? { cursor: page[page.length - 1].id } : {}) };
         },
 
         async send({ params, input }: { params: { id: string }; input: FakeSend })

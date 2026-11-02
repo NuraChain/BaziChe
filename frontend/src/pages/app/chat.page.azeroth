@@ -8,6 +8,7 @@ import { searchedWords, searchLines } from '../../components/chat/search-lines.t
 import ThreadSearch from '../../components/chat/thread-search.component.azeroth';
 import PinBar from '../../components/chat/pin-bar.component.azeroth';
 import { mayIn, mayOn } from '../../../../backend/src/domains/group/roles.ts';
+import { openGallery } from '../../lib/gallery.ts';
 import { mutedWordsOf } from '../../lib/group-mute.ts';
 import { sendBlockOf } from '../../lib/seal-state.ts';
 import { attachStick, centreOn, isNearBottom } from '../../lib/stick.ts';
@@ -1051,6 +1052,9 @@ export default component ChatPage()
                                         pressed={ searching }
                                         onClick={ () => (searching ? closeSearch() : openSearch()) }
                                     />
+                                </span>
+                                <span class="contents" data-head-gallery>
+                                    <IconButton icon="image" label={ locale.t('chat.gallery.title') } variant="ghost" onClick={ () => openGallery(id) } />
                                 </span>
                                 <IconButton icon="dice" label={ locale.t('chat.gameMenu') } variant="ghost" onClick={ startGame } />
                                 <span class="hidden @md:contents" data-head-mute>

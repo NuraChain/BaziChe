@@ -213,6 +213,25 @@ describe('a photo, a video or a file on its way', () =>
         expect(chat.messages().find((one) => one.id === sent.id)?.locked).toBe('tampered');
     });
 
+    it('is read back from the gallery, opened as the thread opens it, photos and files each in a list of their own', async () =>
+    {
+        const chat = useChat();
+
+        chat.openThread('c-reza');
+        await chat.sendFile('c-reza', photo(), 'At the beach');
+        await chat.sendFile('c-reza', { plain: new TextEncoder().encode('%PDF-1.7 numbers'), as: 'file', mime: 'application/pdf', name: 'report.pdf' }, '');
+        await chat.refresh();
+
+        const media = await chat.media('c-reza', 'media');
+        const filed = await chat.media('c-reza', 'files');
+        const voices = await chat.media('c-reza', 'voice');
+
+        expect(media.messages.map((one) => [ one.file?.name, one.text, one.locked ])).toEqual([ [ 'beach.jpg', 'At the beach', undefined ] ]);
+        expect(filed.messages.map((one) => one.file?.name)).toEqual([ 'report.pdf' ]);
+        expect(voices.messages).toEqual([]);
+        expect(media.cursor, 'one page holds them').toBeUndefined();
+    });
+
     it('opens as tampered when the server moves the message onto another file', async () =>
     {
         const chat = useChat();

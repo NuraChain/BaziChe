@@ -2728,3 +2728,26 @@ describe('lines pinned at the head of a room', () =>
         expect(item('pin'), 'a table’s chat is never pinned in').toBeNull();
     });
 });
+
+describe('the door to a conversation’s gallery', () =>
+{
+    it('stands in the head of a thread at every width, and opens that conversation’s gallery', async () =>
+    {
+        const thread = server.conversations.find((row) => row.kind === 'direct')!;
+
+        for (const posture of [ 'phone', 'sidebar' ] as const)
+        {
+            useOverlay().reset();
+
+            const container = opened(thread.id, posture);
+            const door = () => container.querySelector<HTMLButtonElement>('[data-head-gallery] button');
+
+            await vi.waitFor(() => expect(door()?.getAttribute('aria-label'), posture).toBe('Media, files and voice'), { timeout: 4000 });
+            fire(door()!, 'click');
+
+            await vi.waitFor(() => expect(useOverlay().items().map((one) => one.id)).toContain('chat-gallery'), { timeout: 4000 });
+            expect(useOverlay().items().find((one) => one.id === 'chat-gallery')?.props).toMatchObject({ conversationId: thread.id });
+            cleanup();
+        }
+    });
+});

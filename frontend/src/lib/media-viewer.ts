@@ -7,10 +7,10 @@ import { whyFailed } from './failure.ts';
 
 /**
  * Opens a photo or a video over the conversation, the viewer fetched at the press, walking the
- * thread it was pressed in; a video carried on from its bubble begins where it was. Settles once
- * the viewer is closed.
+ * thread it was pressed in, or the list it was pressed in (the gallery's); a video carried on from
+ * its bubble begins where it was. Settles once the viewer is closed.
  */
-export async function openViewer(start: Message, carried?: { from: number; playing: boolean })
+export async function openViewer(start: Message, carried?: { from: number; playing: boolean }, list?: () => readonly Message[])
 {
     try
     {
@@ -19,7 +19,7 @@ export async function openViewer(start: Message, carried?: { from: number; playi
 
         await useOverlay().open(
             module.default,
-            { start, list: () => chat.messages(), ...carried },
+            { start, list: list ?? (() => chat.messages()), ...carried },
             { label: useLocale().t('chat.viewer.label'), kind: 'full', id: 'media-viewer' }
         ).closed;
     }

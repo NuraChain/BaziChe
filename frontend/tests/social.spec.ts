@@ -630,6 +630,7 @@ describe('chat store', () =>
         const broken: ChatSource = {
             conversations: () => Promise.reject(new Error('offline')),
             thread: () => Promise.reject(new Error('offline')),
+            media: () => Promise.reject(new Error('offline')),
             post: () => Promise.resolve(),
             postVoice: () => Promise.resolve(),
             postFile: () => Promise.resolve(),
@@ -662,6 +663,7 @@ describe('chat store', () =>
         const flaky: ChatSource = {
             conversations: (scope, signal) => answering ? live.conversations(scope, signal) : Promise.reject(new Error('offline')),
             thread: (id, scope, signal) => answering ? live.thread(id, scope, signal) : Promise.reject(new Error('offline')),
+            media: (...args) => live.media(...args),
             post: (message) => live.post(message),
             postVoice: (...args) => live.postVoice(...args),
             postFile: (...args) => live.postFile(...args),
@@ -722,6 +724,7 @@ describe('chat store', () =>
 
         setChatSource({
             conversations: (scope, signal, pages) => live.conversations(scope, signal, pages),
+            media: (...args) => live.media(...args),
             thread: async (id, scope, signal, wanted) =>
             {
                 const held = seen.gate;

@@ -12,7 +12,7 @@ import { sealAudio } from '../lib/voice-note.ts';
 import { createApiSource, type ChatScope, type ChatSource, type ConversationRow } from '../services/chat.source.ts';
 import { EDIT_HOURS } from '../../../backend/src/domains/chat/edits.ts';
 import { FILE_ALBUM_LEAST, FILE_ALBUM_MOST } from '../../../backend/src/domains/chat/files.ts';
-import { THREAD_PAGE } from '../../../backend/src/domains/chat/pages.ts';
+import { THREAD_PAGE, type MediaKind } from '../../../backend/src/domains/chat/pages.ts';
 import { useAccount } from './account.store.ts';
 import { useGroups } from './groups.store.ts';
 import { usePeople } from './people.store.ts';
@@ -115,6 +115,9 @@ export interface ChatApi
     unread(id: string): number;
     totalUnread: Getter<number>;
     archive(): Message[];
+
+    /** A page of a conversation's gallery, newest first, read and opened as the thread is (MS-D25). */
+    media(conversationId: string, kind: MediaKind, cursor?: string): Promise<{ messages: Message[]; cursor?: string }>;
 
     typing(id: string): string[];
     draft(id: string): string;
@@ -836,6 +839,7 @@ export const useChat = createStore((): ChatApi =>
         unread,
         totalUnread: () => rows().reduce((sum, row) => sum + unread(row.conversation.id), 0),
         archive: () => active.archive(scope()),
+        media: (conversationId, kind, cursor) => active.media(conversationId, scope(), kind, cursor),
 
         typing(id)
         {

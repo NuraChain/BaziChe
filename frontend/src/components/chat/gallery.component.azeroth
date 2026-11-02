@@ -1,0 +1,226 @@
+import { untrack } from 'azerothjs';
+
+import type { Message } from '../../data/chat.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import type { MediaKind } from '../../../../backend/src/domains/chat/pages.ts';
+import { openViewer } from '../../lib/media-viewer.ts';
+import { fold } from '../../services/search.service.ts';
+import { useChat } from '../../stores/chat.store.ts';
+import { useFileLoads } from '../../stores/file-loads.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import ErrorState from '../ui/error-state.component.azeroth';
+import LoadMore from '../ui/load-more.component.azeroth';
+import SearchInput from '../ui/search-input.component.azeroth';
+import SheetHeader from '../ui/sheet-header.component.azeroth';
+import Spinner from '../ui/spinner.component.azeroth';
+import Tabs from '../ui/tabs.component.azeroth';
+import FileNote from './file-note.component.azeroth';
+import { thumbOf } from './file-parts.ts';
+import { voiceClock } from './gist.ts';
+import LazyVoiceNote from './lazy-voice-note.component.azeroth';
+
+/** One of the gallery's lists as read so far: what came, where the next page starts, and how the last read went. */
+interface Listed
+{
+    items: Message[];
+    cursor?: string;
+    read: boolean;
+    busy: boolean;
+    failure: unknown;
+}
+
+const blank = (): Listed => ({ items: [], read: false, busy: false, failure: null });
+
+/**
+ * A conversation's photos and videos, its files and its voice messages (MS-D25), each newest first,
+ * fifty a page from the same sealed rows the thread reads, so each is opened here and nothing about
+ * it is told to the server. A photo or a video opens the viewer, which walks the gallery; a file is
+ * fetched and saved where it stands, and found by its name among the files read so far; a voice
+ * message plays where it stands.
+ */
+export default component Gallery(props: OverlayProps & { conversationId: string })
+{
+    const locale = useLocale();
+    const chat = useChat();
+    const loads = useFileLoads();
+    const people = usePeople();
+
+    state kind = 'media' as MediaKind;
+
+    state lists = { media: blank(), files: blank(), voice: blank() } as Record<MediaKind, Listed>;
+
+    state words = '';
+
+    const read = async (which: MediaKind, more: boolean) =>
+    {
+        const now = untrack(() => lists[which]);
+
+        if (now.busy)
+        {
+            return;
+        }
+
+        lists = { ...lists, [which]: { ...now, busy: true, failure: null } };
+
+        try
+        {
+            const page = await chat.media(props.conversationId, which, more ? now.cursor : undefined);
+            const before = untrack(() => lists[which]);
+
+            lists = { ...lists, [which]: { items: more ? [ ...before.items, ...page.messages ] : page.messages, cursor: page.cursor, read: true, busy: false, failure: null } };
+        }
+        catch (error)
+        {
+            lists = { ...lists, [which]: { ...untrack(() => lists[which]), busy: false, failure: error } };
+        }
+    };
+
+    effect
+    {
+        const which = kind;
+
+        if (!untrack(() => lists[which].read || lists[which].busy))
+        {
+            void read(which, false);
+        }
+    }
+
+    derived shown = lists[kind];
+
+    derived media = lists.media.items.filter((one) => one.file !== undefined && one.file.as !== 'file');
+
+    derived files = lists.files.items.filter((one) => one.file?.as === 'file');
+
+    derived found = words.trim() === '' ? files : files.filter((one) => fold(one.file?.name ?? '').includes(fold(words.trim())));
+
+    derived voices = lists.voice.items.filter((one) => one.voice !== undefined);
+
+    derived reading = !shown.read && shown.failure === null;
+
+    derived failed = shown.failure !== null && shown.items.length === 0;
+
+    derived older = shown.cursor !== undefined && shown.failure === null;
+
+    derived empty = shown.read && (kind === 'media' ? media.length === 0 : (kind === 'files' ? files.length === 0 : voices.length === 0));
+
+    derived emptySaid = locale.t(kind === 'media' ? 'chat.gallery.emptyMedia' : (kind === 'files' ? 'chat.gallery.emptyFiles' : 'chat.gallery.emptyVoice'));
+
+    derived missed = kind === 'files' && words.trim() !== '' && files.length > 0 && found.length === 0;
+
+    derived searchable = kind === 'files' && files.length > 0;
+
+    derived showsMedia = kind === 'media' && media.length > 0;
+
+    derived showsFiles = kind === 'files' && found.length > 0;
+
+    derived showsVoices = kind === 'voice' && voices.length > 0;
+
+    derived tabs = [
+        { id: 'media', label: locale.t('chat.gallery.media') },
+        { id: 'files', label: locale.t('chat.gallery.files') },
+        { id: 'voice', label: locale.t('chat.gallery.voice') }
+    ];
+
+    const who = (one: Message) => people.byHandle(one.from)?.displayName ?? one.from;
+
+    const when = (one: Message) => locale.date(one.at, { dateStyle: 'medium' });
+
+    <div class="flex max-h-[85dvh] flex-col gap-3 p-5" data-gallery>
+        <SheetHeader title={ locale.t('chat.gallery.title') } onClose={ () => props.close() } />
+        <Tabs items={ tabs } value={ kind } label={ locale.t('chat.gallery.title') } onChange={ (id: string) => kind = id as MediaKind } />
+
+        <Show when={ searchable }>
+            { () =>
+                <div class="flex flex-col gap-1">
+                    <SearchInput value={ words } onInput={ (value: string) => words = value } placeholder={ locale.t('chat.gallery.search') } label={ locale.t('chat.gallery.search') } />
+                    <span class="text-ui-2xs text-faint">{ locale.t('chat.gallery.searchHint') }</span>
+                </div>
+            }
+        </Show>
+
+        <div class="min-h-24 overflow-y-auto overscroll-contain" data-shelf={ kind }>
+            <Show when={ reading }>
+                { () => <span class="flex items-center justify-center gap-2 p-6 text-ui-sm text-muted" role="status"><Spinner size={ 18 } />{ locale.t('common.loading') }</span> }
+            </Show>
+            <Show when={ failed }>
+                { () => <ErrorState compact error={ shown.failure } onRetry={ () => void read(kind, false) } /> }
+            </Show>
+            <Show when={ empty }>
+                { () => <p class="p-6 text-center text-ui-sm text-muted" data-shelf-empty>{ emptySaid }</p> }
+            </Show>
+
+            <Show when={ showsMedia }>
+                { () =>
+                    <ul class="grid grid-cols-3 gap-1 @sm:grid-cols-4" aria-label={ locale.t('chat.gallery.media') }>
+                        <For each={ media } key={ (one) => one.id } let={ one }>
+                            <li class="relative aspect-square overflow-hidden rounded-tile bg-black/20">
+                                <button
+                                    type="button"
+                                    class="absolute inset-0 cursor-pointer"
+                                    aria-label={ () => locale.t(one.file?.as === 'video' ? 'chat.gallery.video' : 'chat.gallery.photo', { who: who(one), when: when(one) }) }
+                                    onClick={ () => void openViewer(one, undefined, () => media) }
+                                    data-shelf-item={ () => one.id }
+                                >
+                                    <img
+                                        src={ () =>
+                                        {
+                                            const state = loads.stateOf(one);
+
+                                            return state !== null && state.at === 'ready' && one.file?.as === 'photo' ? state.url : (thumbOf(one.file?.thumb) ?? '');
+                                        } }
+                                        alt=""
+                                        class={ () => [ 'h-full w-full object-cover', loads.stateOf(one)?.at === 'ready' && one.file?.as === 'photo' ? '' : 'scale-110 blur-sm' ].join(' ') }
+                                        draggable="false"
+                                    />
+                                    <Show when={ one.file?.as === 'video' }>
+                                        { () =>
+                                            <span class="pointer-events-none absolute end-1 top-1 flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-ui-2xs font-medium tabular-nums text-white">
+                                                <Icon name="film" size={ 11 } />
+                                                { one.file?.ms === undefined ? '' : voiceClock(Math.round(one.file.ms / 1000), locale.n) }
+                                            </span>
+                                        }
+                                    </Show>
+                                </button>
+                            </li>
+                        </For>
+                    </ul>
+                }
+            </Show>
+
+            <Show when={ showsFiles }>
+                { () =>
+                    <ul class="flex flex-col divide-y divide-line" aria-label={ locale.t('chat.gallery.files') }>
+                        <For each={ found } key={ (one) => one.id } let={ one }>
+                            <li class="flex flex-col gap-0.5 py-2" data-shelf-item={ () => one.id }>
+                                <FileNote message={ one } mine={ false } reserve="" trail={ false } />
+                                <span class="text-ui-2xs text-faint" dir="auto">{ who(one) } · { when(one) }</span>
+                            </li>
+                        </For>
+                    </ul>
+                }
+            </Show>
+            <Show when={ missed }>
+                { () => <p class="p-4 text-center text-ui-sm text-muted" data-shelf-missed>{ locale.t('chat.gallery.none') }</p> }
+            </Show>
+
+            <Show when={ showsVoices }>
+                { () =>
+                    <ul class="flex flex-col divide-y divide-line" aria-label={ locale.t('chat.gallery.voice') }>
+                        <For each={ voices } key={ (one) => one.id } let={ one }>
+                            <li class="flex flex-col gap-0.5 py-2" data-shelf-item={ () => one.id }>
+                                <LazyVoiceNote message={ one } mine={ false } reserve="" trail={ false } />
+                                <span class="text-ui-2xs text-faint" dir="auto">{ who(one) } · { when(one) }</span>
+                            </li>
+                        </For>
+                    </ul>
+                }
+            </Show>
+
+            <Show when={ older }>
+                { () => <LoadMore label={ locale.t('chat.gallery.older') } loading={ shown.busy } onMore={ () => void read(kind, true) } /> }
+            </Show>
+        </div>
+    </div>
+}

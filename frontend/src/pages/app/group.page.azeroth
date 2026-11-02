@@ -4,25 +4,24 @@ import type { GroupSummary } from '../../api.ts';
 import ConfirmSheet from '../../components/app/confirm-sheet.component.azeroth';
 import Page from '../../components/app/page.component.azeroth';
 import OpenHereSheet from '../../components/games/open-here-sheet.component.azeroth';
-import FriendRow from '../../components/social/friend-row.component.azeroth';
 import GroupAdd from '../../components/social/group-add.component.azeroth';
 import GroupCrest from '../../components/social/group-crest.component.azeroth';
 import GroupForm from '../../components/social/group-form.component.azeroth';
+import GroupMemberRow from '../../components/social/group-member-row.component.azeroth';
+import GroupMemberSheet from '../../components/social/group-member-sheet.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
 import EmptyState from '../../components/ui/empty-state.component.azeroth';
 import ErrorState from '../../components/ui/error-state.component.azeroth';
 import IconButton from '../../components/ui/icon-button.component.azeroth';
-import Pagination from '../../components/ui/pagination.component.azeroth';
+import LoadMore from '../../components/ui/load-more.component.azeroth';
 import SearchInput from '../../components/ui/search-input.component.azeroth';
 import SectionHeading from '../../components/ui/section-heading.component.azeroth';
 import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import type { GameId } from '../../data/games.ts';
-import type { Person } from '../../data/person.ts';
 import { formatsWithin } from '../../data/tables.ts';
 import Icon from '../../icons/icon.component.azeroth';
-import { usePeople } from '../../stores/people.store.ts';
-import { useAccount } from '../../stores/account.store.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
+import { useGroupAdmin, type GroupMember } from '../../stores/group-admin.store.ts';
 import { useGroups } from '../../stores/groups.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useOverlay } from '../../stores/overlay.store.ts';
@@ -30,13 +29,9 @@ import { usePresence } from '../../stores/presence.store.ts';
 import { useShell } from '../../stores/shell.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
 import { attempt } from '../../lib/attempt.ts';
-import { pagingFor, visible } from '../../lib/pagination.ts';
-import { usePageParams } from '../../lib/page-param.ts';
+import { runtime } from '../../lib/runtime.ts';
 import { SEARCH_FIELD, keyboardTo } from '../../lib/way-back.ts';
-import { namesOf, narrowed, SEARCH_FROM } from '../../services/search.service.ts';
-import { useDevice } from '../../stores/device.store.ts';
-
-const MEMBER_PAGE = 12;
+import { SEARCH_FROM, SEARCH_PAUSE_MS } from '../../services/search.service.ts';
 
 export default component GroupPage()
 {
@@ -44,28 +39,37 @@ export default component GroupPage()
     const presence = usePresence();
     const catalogue = useCatalogue();
     const groups = useGroups();
-    const account = useAccount();
+    const admin = useGroupAdmin();
     const overlay = useOverlay();
     const shell = useShell();
     const toasts = useToasts();
     const params = useParams();
-    const people = usePeople();
     const { navigate } = useNavigate();
+
+    let pause: (() => void) | null = null;
 
     mount
     {
         const mine = untrack(() => params().id ?? '');
 
         groups.open(mine);
+        admin.open(mine);
+        const listen = admin.start();
         const release = shell.claimTitle(() => name);
 
         return () =>
         {
             release();
+            listen();
+            pause?.();
 
             if (untrack(groups.openId) === mine)
             {
                 groups.close();
+            }
+            if (untrack(admin.slug) === mine)
+            {
+                admin.close();
             }
         };
     }
@@ -88,24 +92,17 @@ export default component GroupPage()
 
     derived joined = group?.role !== undefined;
 
-    derived members = (group?.members ?? [])
-        .map((handle) => people.byHandle(handle))
-        .filter((person): person is Person => person !== null);
-
     derived online = (group?.members ?? []).filter((handle) => presence.isOnline(handle));
 
-    const device = useDevice();
+    derived members = admin.members();
+
+    derived listReading = admin.reading() === 'reading' && members.length === 0;
+
+    derived listFailed = admin.reading() === 'failed' && members.length === 0;
+
+    derived moreMembers = admin.hasMore();
 
     state query = '';
-    const pages = usePageParams(['page']);
-
-    derived memberPage = pages.page('page');
-
-    derived paging = pagingFor(device.posture() === 'phone');
-
-    derived found = narrowed(members, query, namesOf);
-
-    derived shown = visible(found, MEMBER_PAGE, memberPage, paging);
 
     derived game = (group?.game ?? null) as GameId | null;
 
@@ -119,25 +116,30 @@ export default component GroupPage()
 
     derived playable = game !== null && catalogue.playable(game);
 
-    derived searchable = members.length > SEARCH_FROM;
+    derived searched = admin.query().trim() !== '';
 
-    derived nobodyFound = found.length === 0 && members.length > 0;
+    derived searchable = admin.count() > SEARCH_FROM || searched;
 
+    derived nobodyFound = searched && admin.reading() === 'read' && members.length === 0;
+
+    /** Asks the server once the typing pauses, as every search here does. */
     const search = (value: string) =>
     {
         query = value;
-        pages.turn('page', 1);
+        pause?.();
+        pause = runtime().clock.after(SEARCH_PAUSE_MS, () => admin.search(value));
     };
 
     let searchBox: HTMLElement | null = null;
 
+    /** The way back asks at once: nothing is being typed, so there is nothing to wait for. */
     const clearSearch = () =>
     {
         keyboardTo(searchBox, SEARCH_FIELD);
-        search('');
+        pause?.();
+        query = '';
+        admin.search('');
     };
-
-    derived me = account.user()?.id;
 
     const playTogether = () =>
     {
@@ -208,44 +210,9 @@ export default component GroupPage()
         }
     };
 
-    const removeMember = async (one: GroupSummary, person: Person) =>
+    const manage = (crew: GroupSummary, member: GroupMember) =>
     {
-        const who = person.displayName;
-        const yes = await overlay.open(
-            ConfirmSheet,
-            {
-                title: locale.t('groups.removeTitle', { name: who }),
-                lead: locale.t('groups.removeLead'),
-                confirm: locale.t('groups.remove'),
-                destructive: true
-            },
-            { label: locale.t('groups.removeTitle', { name: who }) }
-        ).closed;
-
-        if (yes === true)
-        {
-            await attempt(groups.remove(one.id, person.id), { kind: 'warning', text: locale.t('groups.removed', { name: who }) });
-        }
-    };
-
-    const handOver = async (one: GroupSummary, person: Person) =>
-    {
-        const who = person.displayName;
-        const yes = await overlay.open(
-            ConfirmSheet,
-            {
-                title: locale.t('groups.transferTitle', { name: who }),
-                lead: locale.t('groups.transferLead'),
-                confirm: locale.t('groups.transfer'),
-                destructive: true
-            },
-            { label: locale.t('groups.transferTitle', { name: who }) }
-        ).closed;
-
-        if (yes === true)
-        {
-            await attempt(groups.transfer(one.id, person.id), locale.t('groups.transferred', { name: who }));
-        }
+        overlay.open(GroupMemberSheet, { member, group: crew }, { label: locale.t('groups.manage', { name: member.person.displayName }) });
     };
 
     <Page label={ name }>
@@ -358,43 +325,30 @@ export default component GroupPage()
                         }
                     </Show>
 
+                    <Show when={ listReading }>
+                        { () =>
+                            <div class="flex flex-col gap-2" data-reading>
+                                <span class="sr-only">{ locale.t('common.loading') }</span>
+                                <Skeleton class="h-16 w-full rounded-tile" />
+                                <Skeleton class="h-16 w-full rounded-tile" />
+                            </div>
+                        }
+                    </Show>
+
+                    <Show when={ listFailed }>
+                        { () => <ErrorState compact error={ admin.failure() } title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => void admin.refresh() } /> }
+                    </Show>
+
                     <ul class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field px-2 empty:hidden" aria-label={ locale.t('groups.members') }>
-                        <For each={ shown } key={ (person) => person.id } let={ person }>
+                        <For each={ members } key={ (member) => member.person.handle } let={ member }>
                             <li>
-                                <FriendRow
-                                    person={ person }
-                                    subtitle={ person.id === crew.owner ? locale.t('groups.owner') : undefined }
-                                    actions={ owns && person.id !== me
-                                        ? <span class="flex items-center gap-1">
-                                            <IconButton
-                                                icon="crest-crown"
-                                                label={ locale.t('groups.transfer') }
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={ () => void handOver(crew, person) }
-                                            />
-                                            <IconButton
-                                                icon="close"
-                                                label={ locale.t('groups.remove') }
-                                                variant="ghost"
-                                                size="sm"
-                                                tone="danger"
-                                                onClick={ () => void removeMember(crew, person) }
-                                            />
-                                        </span>
-                                        : undefined }
-                                />
+                                <GroupMemberRow member={ member } group={ crew } onManage={ (one) => manage(crew, one) } />
                             </li>
                         </For>
                     </ul>
-                    <Pagination
-                        total={ found.length }
-                        size={ MEMBER_PAGE }
-                        page={ memberPage }
-                        mode={ paging }
-                        label={ locale.t('groups.members') }
-                        onPage={ (page) => pages.turn('page', page) }
-                    />
+                    <Show when={ moreMembers }>
+                        { () => <LoadMore label={ locale.t('groups.moreMembers') } onMore={ () => void admin.more() } /> }
+                    </Show>
                 </section>
 
                 <div class="flex flex-col items-center gap-4">

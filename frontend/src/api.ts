@@ -39,6 +39,7 @@ export type {
     MarketsState,
     MarketView,
     PlayerRecord,
+    GroupMembers,
     GroupPrivacy,
     GroupRole,
     GroupSummary,

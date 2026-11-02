@@ -1,0 +1,167 @@
+import type { GroupSummary } from '../../api.ts';
+import { GROUP_RIGHTS, MUTE_HOURS, mayOn, type GroupRight } from '../../../../backend/src/domains/group/roles.ts';
+import { attempt } from '../../lib/attempt.ts';
+import { whyGroup } from '../../lib/group-words.ts';
+import { useGroupAdmin, type GroupMember } from '../../stores/group-admin.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay, type OverlayProps } from '../../stores/overlay.store.ts';
+import ConfirmSheet from '../app/confirm-sheet.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import SheetHeader from '../ui/sheet-header.component.azeroth';
+import Toggle from '../ui/switch.component.azeroth';
+
+/**
+ * What can be done about one member of a group, by whoever opened it, and nothing they may not do:
+ * every row is asked of the one function the server asks.
+ *
+ * An admin's rights are chosen here, a switch each, and saved together; a mute is chosen by how long;
+ * removing, banning and handing the group on each ask first. Whatever is chosen is shown at once in
+ * the members behind the sheet, and taken back with the refusal's words if the server says no.
+ */
+export default component GroupMemberSheet(props: OverlayProps & { member: GroupMember; group: GroupSummary })
+{
+    const locale = useLocale();
+    const admin = useGroupAdmin();
+    const overlay = useOverlay();
+
+    derived name = props.member.person.displayName;
+
+    derived handle = props.member.person.handle;
+
+    derived role = props.member.role;
+
+    derived standing = { role: props.group.role ?? null, rights: props.group.rights ?? [], muted: props.group.muted !== undefined };
+
+    derived switches = props.group.switches;
+
+    derived toAdmin = role !== 'admin' && mayOn(standing, switches, 'admins', role);
+
+    derived toModerator = role === 'member' && mayOn(standing, switches, 'moderators', role);
+
+    derived unmakeAdmin = role === 'admin' && mayOn(standing, switches, 'admins', role);
+
+    derived unmakeModerator = role === 'moderator' && mayOn(standing, switches, 'moderators', role);
+
+    derived choosesRights = toAdmin || unmakeAdmin;
+
+    derived muting = mayOn(standing, switches, 'mute', role);
+
+    derived muted = props.member.muted !== undefined;
+
+    derived removing = mayOn(standing, switches, 'remove', role);
+
+    derived banning = mayOn(standing, switches, 'ban', role);
+
+    derived handing = mayOn(standing, switches, 'transfer', role);
+
+    state rights: GroupRight[] = [...(props.member.rights ?? [])];
+
+    derived rightsMoved = [...rights].sort().join(',') !== [...(props.member.rights ?? [])].sort().join(',');
+
+    /** Closes the sheet first, so the change is seen on the list behind it at the press. */
+    const done = (work: Promise<unknown>, said: string) =>
+    {
+        props.close(true);
+        void attempt(work, said, whyGroup);
+    };
+
+    const flip = (right: GroupRight, on: boolean) =>
+    {
+        rights = on ? [...rights.filter((one) => one !== right), right] : rights.filter((one) => one !== right);
+    };
+
+    const asked = async (title: string, lead: string, confirm: string) =>
+        (await overlay.open(ConfirmSheet, { title, lead, confirm, destructive: true }, { label: title }).closed) === true;
+
+    const remove = async () =>
+    {
+        if (await asked(locale.t('groups.removeTitle', { name }), locale.t('groups.removeLead'), locale.t('groups.remove')))
+        {
+            done(admin.remove(handle), locale.t('groups.removed', { name }));
+        }
+    };
+
+    const ban = async () =>
+    {
+        if (await asked(locale.t('groups.banTitle', { name }), locale.t('groups.banLead', { name }), locale.t('groups.ban')))
+        {
+            done(admin.ban(handle), locale.t('groups.bannedToast', { name }));
+        }
+    };
+
+    const handOn = async () =>
+    {
+        if (await asked(locale.t('groups.makeOwnerTitle', { name }), locale.t('groups.makeOwnerLead', { name, group: props.group.name }), locale.t('groups.makeOwner')))
+        {
+            done(admin.handOn(handle), locale.t('groups.ownerToast', { name }));
+        }
+    };
+
+    <div class="flex flex-col gap-5 p-5">
+        <SheetHeader title={ locale.t('groups.manage', { name }) } onClose={ () => props.close(false) } />
+
+        <div class="flex flex-col gap-2">
+            <Show when={ toModerator }>
+                { () => <Button variant="secondary" block leading="shield" onClick={ () => done(admin.setRole(handle, 'moderator'), locale.t('groups.madeModerator', { name })) }>{ locale.t('groups.makeModerator') }</Button> }
+            </Show>
+            <Show when={ unmakeModerator }>
+                { () => <Button variant="outline" block onClick={ () => done(admin.setRole(handle, 'member'), locale.t('groups.madeMember', { name })) }>{ locale.t('groups.unmakeModerator') }</Button> }
+            </Show>
+            <Show when={ unmakeAdmin }>
+                { () => <Button variant="outline" block onClick={ () => done(admin.setRole(handle, 'member'), locale.t('groups.madeMember', { name })) }>{ locale.t('groups.unmakeAdmin') }</Button> }
+            </Show>
+        </div>
+
+        <Show when={ choosesRights }>
+            { () =>
+                <section class="flex flex-col gap-2" aria-labelledby="group-rights">
+                    <h3 id="group-rights" class="text-ui-md font-semibold text-text">{ locale.t('groups.rightsTitle', { name }) }</h3>
+                    <div class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field px-3">
+                        <For each={ [...GROUP_RIGHTS] } key={ (right) => right } let={ right }>
+                            <div>
+                                <Toggle label={ locale.t(`groups.right.${ right }`) } checked={ rights.includes(right) } onChange={ (on) => flip(right, on) } />
+                            </div>
+                        </For>
+                    </div>
+                    <Show
+                        when={ toAdmin }
+                        fallback={ <Button variant="primary" block disabled={ !rightsMoved } onClick={ () => done(admin.setRole(handle, 'admin', rights), locale.t('groups.rightsSaved', { name })) }>{ locale.t('groups.saveRights') }</Button> }
+                    >
+                        { () => <Button variant="primary" block leading="crest-crown" onClick={ () => done(admin.setRole(handle, 'admin', rights), locale.t('groups.madeAdmin', { name })) }>{ locale.t('groups.makeAdmin') }</Button> }
+                    </Show>
+                </section>
+            }
+        </Show>
+
+        <Show when={ muting }>
+            { () =>
+                <section class="flex flex-col gap-2" aria-labelledby="group-mute">
+                    <h3 id="group-mute" class="text-ui-md font-semibold text-text">{ locale.t('groups.muteFor') }</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <For each={ [...MUTE_HOURS] } key={ (hours) => String(hours) } let={ hours }>
+                            <div class="contents">
+                                <Button variant="outline" onClick={ () => done(admin.mute(handle, hours), locale.t('groups.mutedToast', { name })) }>{ locale.t(`groups.mute.${ hours }`) }</Button>
+                            </div>
+                        </For>
+                        <Button variant="outline" onClick={ () => done(admin.mute(handle), locale.t('groups.mutedToast', { name })) }>{ locale.t('groups.mute.ever') }</Button>
+                    </div>
+                    <Show when={ muted }>
+                        { () => <Button variant="ghost" block onClick={ () => done(admin.unmute(handle), locale.t('groups.unmutedToast', { name })) }>{ locale.t('groups.unmute') }</Button> }
+                    </Show>
+                </section>
+            }
+        </Show>
+
+        <div class="flex flex-col gap-2 border-t border-line pt-4 empty:hidden">
+            <Show when={ removing }>
+                { () => <Button variant="destructive-ghost" block leading="sign-out" onClick={ () => void remove() }>{ locale.t('groups.remove') }</Button> }
+            </Show>
+            <Show when={ banning }>
+                { () => <Button variant="destructive-ghost" block leading="block" onClick={ () => void ban() }>{ locale.t('groups.ban') }</Button> }
+            </Show>
+            <Show when={ handing }>
+                { () => <Button variant="destructive-ghost" block leading="crest-crown" onClick={ () => void handOn() }>{ locale.t('groups.makeOwner') }</Button> }
+            </Show>
+        </div>
+    </div>
+}

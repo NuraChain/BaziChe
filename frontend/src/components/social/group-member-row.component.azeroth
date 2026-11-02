@@ -1,0 +1,53 @@
+import type { GroupSummary } from '../../api.ts';
+import { mayOn, type GroupAct } from '../../../../backend/src/domains/group/roles.ts';
+import type { GroupMember } from '../../stores/group-admin.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+import FriendRow from './friend-row.component.azeroth';
+
+const GOVERNED: readonly GroupAct[] = ['remove', 'ban', 'mute', 'moderators', 'admins', 'transfer'];
+
+/**
+ * One member of a group: the person, pressed for the sheet about them, their place as a badge and,
+ * to the staff, a mute; and a way to manage them for a reader who may act on them at all, asked of
+ * the one function the server asks.
+ */
+export default component GroupMemberRow(props: {
+    member: GroupMember;
+    group: GroupSummary;
+    onManage: (member: GroupMember) => void;
+})
+{
+    const locale = useLocale();
+
+    derived role = props.member.role;
+
+    derived staffed = role !== 'member';
+
+    derived muted = props.member.muted !== undefined;
+
+    derived standing = { role: props.group.role ?? null, rights: props.group.rights ?? [], muted: props.group.muted !== undefined };
+
+    derived manageable = GOVERNED.some((act) => mayOn(standing, props.group.switches, act, role));
+
+    derived since = locale.relative(Date.parse(props.member.joinedAt), { style: 'short' });
+
+    <FriendRow
+        person={ props.member.person }
+        subtitle={ locale.t('groups.joinedWhen', { when: since }) }
+        actions={
+            <span class="flex items-center gap-1.5">
+                <Show when={ muted }>
+                    { () => <Badge dot text={ locale.t('groups.mutedBadge') } tone="gold" size="sm" /> }
+                </Show>
+                <Show when={ staffed }>
+                    { () => <Badge text={ locale.t(`groups.role.${ role }`) } tone={ role === 'owner' ? 'gold' : 'accent' } variant="soft" size="sm" /> }
+                </Show>
+                <Show when={ manageable }>
+                    { () => <IconButton icon="more" label={ locale.t('groups.manage', { name: props.member.person.displayName }) } variant="ghost" size="sm" onClick={ () => props.onManage(props.member) } /> }
+                </Show>
+            </span>
+        }
+    />
+}

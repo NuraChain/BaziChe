@@ -4,7 +4,7 @@ import { threadSize } from '../../backend/src/domains/chat/pages.ts';
 import { WATCH_TAIL } from '../../backend/src/domains/match/turns.ts';
 import { codeFrom } from '../../backend/src/domains/invite/policy.ts';
 import { NOTICE_OF } from '../../backend/src/domains/notify/notices.ts';
-import { SWITCH_DEFAULTS, type GroupRight, type GroupRole, type GroupSwitches } from '../../backend/src/domains/group/roles.ts';
+import { GROUP_RIGHTS, MEMBERS_PAGE, RANK, SWITCH_DEFAULTS, type GroupRight, type GroupRole, type GroupSwitches } from '../../backend/src/domains/group/roles.ts';
 import { PEOPLE_FOUND_MAX, SEARCH_FROM, searchNeedle } from '../../backend/src/domains/social/names.ts';
 import { handleFromAddress } from '../../backend/src/domains/identity/handle.ts';
 import { createParties, type Parties, type PartyWhy } from '../../backend/src/domains/party/parties.ts';
@@ -108,6 +108,13 @@ interface GroupWire
     memberCount: number;
     conversationId?: string;
     createdAt: string;
+}
+
+interface GroupPlace
+{
+    role: Exclude<GroupRole, 'owner'>;
+    rights?: GroupRight[];
+    muted?: { until?: string };
 }
 
 interface NotificationWire
@@ -325,6 +332,21 @@ function newTable(input: OpeningWire)
 
     return made;
 }
+
+/** Where somebody stands in a group: its owner by `owner`, everybody else by their place or as a member. */
+const placeOf = (group: GroupWire, handle: string): { role: GroupRole; rights?: GroupRight[]; muted?: { until?: string } } =>
+    handle === group.owner ? { role: 'owner' } : server.groupPlaces[group.slug]?.[handle] ?? { role: 'member' };
+
+/** A change the staff make: refused when a spec says so, and answered with the group as it now stands. */
+const staffAct = (slug: string) =>
+{
+    if (server.refuseGroupAct !== null)
+    {
+        const { status, code } = server.refuseGroupAct;
+        throw new ApiError(status, code, 'Refused.', undefined);
+    }
+    return mustGroup(slug);
+};
 
 function mustGroup(slug: string)
 {
@@ -1182,6 +1204,15 @@ export const server =
      */
     groups: [] as GroupWire[],
     refuseGroup: null as string | null,
+
+    /**
+     * Each member's place in each group, by slug and handle: somebody absent is a plain member, and a
+     * group's owner is its `owner`. A refusal set here answers the next change the staff make.
+     */
+    groupPlaces: {} as Record<string, Record<string, GroupPlace>>,
+    groupBans: {} as Record<string, string[]>,
+    groupMembersPage: MEMBERS_PAGE,
+    refuseGroupAct: null as { status: number; code: string } | null,
     tableSeq: 0,
 
     /**
@@ -1409,6 +1440,10 @@ export const server =
             createdAt: new Date(0).toISOString()
         }));
         server.refuseGroup = null;
+        server.groupPlaces = {};
+        server.groupBans = {};
+        server.groupMembersPage = MEMBERS_PAGE;
+        server.refuseGroupAct = null;
         server.tables = [];
         server.outOfGame = {};
         server.keptOut = {};
@@ -3766,19 +3801,110 @@ export const client =
         async remove({ params, input }: { params: { slug: string }; input: { id: string } })
         {
             server.calls.push('groups.remove');
-            const group = mustGroup(params.slug);
+            const group = staffAct(params.slug);
             group.members = group.members.filter((handle) => handle !== input.id);
             group.memberCount = group.members.length;
+            delete server.groupPlaces[group.slug]?.[input.id];
             return group;
         },
 
         async transfer({ params, input }: { params: { slug: string }; input: { id: string } })
         {
             server.calls.push('groups.transfer');
-            const group = mustGroup(params.slug);
+            const group = staffAct(params.slug);
+            const places = server.groupPlaces[group.slug] ??= {};
+
+            // The old owner stays as an admin holding every right, as the real hand-over leaves them.
+            places[group.owner] = { role: 'admin', rights: [...GROUP_RIGHTS] };
+            delete places[input.id];
             group.owner = input.id;
-            group.role = 'member';
-            return group;
+            if (group.members.includes(server.me))
+            {
+                group.role = server.me === input.id ? 'owner' : placeOf(group, server.me).role;
+                group.rights = group.role === 'admin' ? [...GROUP_RIGHTS] : undefined;
+            }
+            return structuredClone(group);
+        },
+
+        async members({ params, query }: { params: { slug: string }; query: { q?: string; cursor?: string } })
+        {
+            server.calls.push('groups.members');
+            const group = mustGroup(params.slug);
+            if (group.privacy === 'private' && !group.members.includes(server.me))
+            {
+                throw new ApiError(404, 'not-found', 'No group there.', undefined);
+            }
+
+            const words = (query.q ?? '').trim().toLowerCase();
+            const found = group.members
+                .filter((handle) => words === '' || handle.toLowerCase().includes(words) || personWire(handle).displayName.toLowerCase().includes(words))
+                .map((handle) => ({ handle, place: placeOf(group, handle) }))
+                .sort((a, b) => RANK[b.place.role] - RANK[a.place.role] || a.handle.localeCompare(b.handle));
+
+            const start = query.cursor === undefined ? 0 : Number(query.cursor);
+            const page = found.slice(start, start + server.groupMembersPage);
+            const staff = group.role !== undefined && group.role !== 'member';
+
+            return {
+                members: page.map(({ handle, place }) => ({
+                    person: personWire(handle),
+                    role: place.role,
+                    ...(place.role === 'admin' ? { rights: [...(place.rights ?? [])] } : {}),
+                    joinedAt: new Date(0).toISOString(),
+                    ...(staff && place.muted !== undefined ? { muted: { ...place.muted } } : {})
+                })),
+                ...(start + page.length < found.length ? { cursor: String(start + page.length) } : {}),
+                count: group.members.length
+            };
+        },
+
+        async role({ params, input }: { params: { slug: string }; input: { id: string; role: Exclude<GroupRole, 'owner'>; rights?: GroupRight[] } })
+        {
+            server.calls.push('groups.role');
+            const group = staffAct(params.slug);
+            const places = server.groupPlaces[group.slug] ??= {};
+            const { rights: _, ...held } = places[input.id] ?? { role: 'member' as const };
+
+            places[input.id] = input.role === 'admin'
+                ? { ...held, role: 'admin', rights: GROUP_RIGHTS.filter((right) => (input.rights ?? []).includes(right)) }
+                : { ...held, role: input.role };
+            return structuredClone(group);
+        },
+
+        async mute({ params, input }: { params: { slug: string }; input: { id: string; hours?: number } })
+        {
+            server.calls.push('groups.mute');
+            const group = staffAct(params.slug);
+            const places = server.groupPlaces[group.slug] ??= {};
+
+            places[input.id] = {
+                ...(places[input.id] ?? { role: 'member' }),
+                muted: input.hours === undefined ? {} : { until: new Date(input.hours * 3_600_000).toISOString() }
+            };
+            return structuredClone(group);
+        },
+
+        async unmute({ params, input }: { params: { slug: string }; input: { id: string } })
+        {
+            server.calls.push('groups.unmute');
+            const group = staffAct(params.slug);
+            const place = server.groupPlaces[group.slug]?.[input.id];
+            if (place !== undefined)
+            {
+                delete place.muted;
+            }
+            return structuredClone(group);
+        },
+
+        async ban({ params, input }: { params: { slug: string }; input: { id: string } })
+        {
+            server.calls.push('groups.ban');
+            const group = staffAct(params.slug);
+            group.members = group.members.filter((handle) => handle !== input.id);
+            group.memberCount = group.members.length;
+            delete server.groupPlaces[group.slug]?.[input.id];
+            (server.groupBans[group.slug] ??= []).push(input.id);
+            return structuredClone(group);
         }
     },
 

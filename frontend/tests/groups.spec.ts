@@ -9,6 +9,7 @@ import { manualClock } from '../src/lib/clock.ts';
 import { isLineKey, LINE_KEYS } from '../src/lib/lines.ts';
 import GroupPage from '../src/pages/app/group.page.azeroth';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
+import { SEARCH_PAUSE_MS } from '../src/services/search.service.ts';
 import { useGroups } from '../src/stores/groups.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
@@ -125,29 +126,6 @@ describe('the group page', () =>
         }
     });
 
-    it('asks before handing the group over as it asks before anything the reader cannot take back', async () =>
-    {
-        const held = server.groups.find((one) => one.slug === 'friday-night-crew')!;
-
-        held.owner = 'alex';
-        held.role = 'owner';
-        useOverlay().reset();
-
-        const container = opened('friday-night-crew');
-        const handOver = () => [...container.querySelectorAll(`ul[aria-label="${ useLocale().t('groups.members') }"] li`)]
-            .find((row) => row.textContent?.includes('Sara Kamali'))
-            ?.querySelector<HTMLButtonElement>(`button[aria-label="${ useLocale().t('groups.transfer') }"]`);
-
-        await vi.waitFor(() => expect(handOver()).toBeDefined(), { timeout: 4000 });
-
-        fire(handOver()!, 'click');
-
-        await vi.waitFor(() => expect(useOverlay().items()).toHaveLength(1), { timeout: 4000 });
-
-        expect(useOverlay().items()[0].props, 'the group can be handed over by one stray Enter').toMatchObject({ confirm: useLocale().t('groups.transfer'), destructive: true });
-        useOverlay().reset();
-    });
-
     it('asks who the members are, so somebody the browser has not met is drawn among them', async () =>
     {
         usePeople().reset();
@@ -175,6 +153,7 @@ describe('the group page', () =>
 
         typed.value = 'zzzz';
         typed.dispatchEvent(new Event('input', { bubbles: true }));
+        clock.advance(SEARCH_PAUSE_MS);
 
         await vi.waitFor(() => expect(container.textContent).toContain(useLocale().t('search.empty', { query: 'zzzz' })), { timeout: 4000 });
         expect(members()).toHaveLength(0);
@@ -188,8 +167,8 @@ describe('the group page', () =>
 
         expect(typed.value).toBe('');
         expect(document.activeElement).toBe(typed);
+        await vi.waitFor(() => expect(members().length).toBeGreaterThan(8), { timeout: 4000 });
         expect(container.querySelector('[data-way-back]')).toBeNull();
-        expect(members().length).toBeGreaterThan(8);
     });
 
     it('opens what can be done with a member at a press on them, and draws no More beside the row', async () =>
@@ -400,7 +379,7 @@ describe('the groups store', () =>
 
         await groups.transfer(made.id, 'sara.k');
         expect(groups.byId(made.id)?.owner).toBe('sara.k');
-        expect(groups.byId(made.id)?.role).toBe('member');
+        expect(groups.byId(made.id)?.role, 'the old owner stays on, as an admin').toBe('admin');
 
         await groups.remove(made.id, 'sara.k');
         expect(groups.byId(made.id)?.members).not.toContain('sara.k');

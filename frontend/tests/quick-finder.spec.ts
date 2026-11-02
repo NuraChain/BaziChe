@@ -216,7 +216,7 @@ describe('the sheet that asks what to look for', () =>
 
         await settle();
 
-        expect(offered(poker, 'Seats')).toEqual([any(), '2 players', '6 players', '9 players']);
+        expect(offered(poker, 'Seats')).toEqual([any(), ...[2, 3, 4, 5, 6, 7, 8, 9].map((count) => `${ count } players`)]);
         expect(offered(poker, 'Blinds')).toEqual([any(), 'Low', 'Mid', 'High']);
         expect(group(poker, 'Pace'), 'a pace was offered where the game has one').toBeNull();
         expect(group(poker, 'Play to')).toBeNull();

@@ -84,7 +84,11 @@ export function aroundStadium(seats: number, ratio: number, inset = RAIL / 2): S
     return Array.from({ length: seats }, (_, place) =>
     {
         const { x, y, nx, ny } = pointAt((place / seats) * round);
-        const flat = Math.abs(ny) > Math.abs(nx);
+
+        // A seat exactly on a bend's diagonal (eight round a round table) faces both ways equally,
+        // and floating point alone would pick one on the left and the other on the right: a tie
+        // lies flat on both sides, so the table stays its own mirror.
+        const flat = Math.abs(ny) - Math.abs(nx) > -1e-9;
 
         return {
             x: 50 + (x / width) * 100,

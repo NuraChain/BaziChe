@@ -267,7 +267,7 @@ function falsehoods(state: PokerState, seat: number, draws: { die: (sides: numbe
 
 describe('every word against the server\'s own table', () =>
 {
-    it.each([2, 6, 9])('tells no seat at a %i-seat Sit & Go anything the engine disagrees with', (seats) =>
+    it.each([2, 3, 4, 5, 6, 7, 8, 9])('tells no seat at a %i-seat Sit & Go anything the engine disagrees with', (seats) =>
     {
         const { die, next } = seeded(seats * 31);
         const draws = { die };

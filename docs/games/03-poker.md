@@ -19,7 +19,7 @@ other game.
 
 | | |
 |---|---|
-| seats | 2, 6 or 9 (`game_rules.seats`; `Engine.formats`, each of them `standard`) |
+| seats | any number from 2 to 9 (`game_rules.seats`; `Engine.formats`, each of them `standard`); a Sit & Go starts once every chair is taken |
 | stack | 1,500 each, no antes, no rebuys |
 | blinds | rise every 10 hands: 10/20, 15/30, 25/50, 50/100, 75/150, 100/200, 150/300, 200/400, 300/600, 400/800, 600/1200, 800/1600, 1000/2000, then doubling (capped at 1,000,000 so every number stays inside the wire's bounds) |
 | opening level | `tables.blinds`: `low` 10/20, `mid` 25/50, `high` 50/100 |
@@ -152,7 +152,8 @@ nothing.
 - `tests/poker-seam.spec.ts` uses hokm's FORGERY technique on both: replace another seat's hole
   cards with different cards of the same length, in the state for `view` and in the events for
   `log`, and require the output to be byte-identical — for every reader and for `null`, after
-  every few actions of whole matches at 2, 6 and 9 seats. It also proves the forgery catches a
+  every few actions of whole matches at every count from 2 to 9 seats, each the first seeded match
+  long enough to reach a showdown. It also proves the forgery catches a
   deliberate leak, so it cannot pass by comparing nothing.
 
 ## The wire
@@ -195,7 +196,7 @@ and the browser says it through `match.refused.<word>` in English and Persian.
   hand dealt inside `apply`, the all-in runout, the `unplayable` refusal and whole games played by
   `autoplay` alone with a parsing board and somebody on turn at every step, walkouts, the facts `finish` reports and the places a forfeit takes, the turn key, tally and points.
 - `poker-seam.spec.ts` — the forgery on `view` and `log`, spectators, folded hands never shown.
-- `engine-contract.spec.ts` plays random matches at 2, 6 and 9 inside its 20,000-action bound.
+- `engine-contract.spec.ts` plays random matches at every count from 2 to 9 inside its 20,000-action bound.
 
 ## The table
 

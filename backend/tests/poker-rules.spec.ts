@@ -240,7 +240,7 @@ describe('side pots at the table', () =>
 
     it('conserves every chip through random games at every table size', () =>
     {
-        for (const seats of [2, 6, 9])
+        for (const seats of [2, 3, 4, 5, 6, 7, 8, 9])
         {
             for (let game = 0; game < 8; game += 1)
             {

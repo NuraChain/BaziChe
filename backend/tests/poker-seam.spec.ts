@@ -54,13 +54,31 @@ function playOut(seats: number, seed: number, check: (state: PokerState, events:
     return { faults, actions, showdowns: events.filter((event) => event.e === 'show').length };
 }
 
+/**
+ * The first of a run of seeded games at `seats` that is long enough to check: random play goes all
+ * in often enough that one seed can end a match in a hand, and a hand checks almost nothing. Each
+ * seed is the same game on every run, so the one chosen is too.
+ */
+function aLongGame(seats: number, check: (state: PokerState, events: readonly PokerEvent[], at: number) => string[])
+{
+    for (let tried = 0; ; tried += 1)
+    {
+        const played = playOut(seats, seats * 17 + tried, check);
+
+        if ((played.actions > 30 && played.showdowns > 0) || tried >= 20)
+        {
+            return played;
+        }
+    }
+}
+
 describe('what one seat may see of another', () =>
 {
-    it.each([2, 6, 9])('composes a %i-seat view and log that cannot depend on another seat hole cards', (seats) =>
+    it.each([2, 3, 4, 5, 6, 7, 8, 9])('composes a %i-seat view and log that cannot depend on another seat hole cards', (seats) =>
     {
         const readers = [...Array.from({ length: seats }, (_, seat) => seat), null];
 
-        const played = playOut(seats, seats * 17, (state, events, at) =>
+        const played = aLongGame(seats, (state, events, at) =>
         {
             const faults: string[] = [];
 
@@ -159,7 +177,7 @@ describe('what one seat may see of another', () =>
 
     it('never logs a hole card outside a showdown, not even to its owner, and never shows a folded hand', () =>
     {
-        for (const seats of [2, 6, 9])
+        for (const seats of [2, 3, 4, 5, 6, 7, 8, 9])
         {
             const played = playOut(seats, seats * 5 + 1, (state, events, at) =>
             {

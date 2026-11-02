@@ -482,7 +482,7 @@ export default component MediaViewer(props: OverlayProps & {
         };
     }
 
-    <div class="flex h-full w-full flex-col text-white" onKeyDown={ keys } data-viewer style={ () => `background-color: rgb(0 0 0 / ${ dimmed })` }>
+    <div class="flex h-full w-full flex-col text-white outline-none" tabindex="-1" onKeyDown={ keys } data-viewer style={ () => `background-color: rgb(0 0 0 / ${ dimmed })` }>
         <header class="flex shrink-0 items-center gap-2 px-2 pb-1 pt-2" data-top>
             <button type="button" class={ BUTTON } aria-label={ locale.t('chat.file.close') } onClick={ () => props.close() } data-close>
                 <Icon name="close" size={ 20 } />

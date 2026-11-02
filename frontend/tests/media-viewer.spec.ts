@@ -209,6 +209,21 @@ describe('the viewer', () =>
         expect(counted(container)).toBe('1 of 3');
     });
 
+    it('keeps the keyboard in itself when the photo or the space beside it is pressed, so its keys go on working', async () =>
+    {
+        const all = [await media(0), await media(1)];
+        const { container } = await open(all, all[0]);
+        const viewer = container.querySelector<HTMLElement>('[data-viewer]')!;
+
+        // A press moves the keyboard to the nearest thing that can hold it. With nothing in the viewer
+        // able to, that was the dialog round it, where its keys were never heard.
+        expect(viewer.getAttribute('tabindex')).toBe('-1');
+
+        viewer.focus();
+        key(document.activeElement!, 'ArrowRight');
+        expect(counted(container)).toBe('2 of 2');
+    });
+
     it('goes on to the next by the left arrow for a reader of Persian, its buttons on their sides', async () =>
     {
         useLocale().setLocale('fa');

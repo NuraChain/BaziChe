@@ -182,7 +182,7 @@ export default component ChannelPostView(props: {
                                                 <Show when={ poll?.mine.includes(answer.at) === true }>
                                                     { () => <Icon name="selected" size={ 14 } class="text-accent" /> }
                                                 </Show>
-                                                <span class="min-w-0 flex-1" dir="auto">{ answer.text }</span>
+                                                <span class="line-clamp-2 min-w-0 flex-1" dir="auto">{ answer.text }</span>
                                                 <span class="font-semibold tabular-nums">{ locale.n(share(answer.votes)) }%</span>
                                             </span>
                                             <Show when={ answer.voters !== undefined && answer.voters.length > 0 }>

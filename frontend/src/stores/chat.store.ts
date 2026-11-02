@@ -426,6 +426,20 @@ export const useChat = createStore((): ChatApi =>
 
     let posting: Promise<unknown> = Promise.resolve();
 
+    /**
+     * Whatever is sealed before it is shown is sealed in the order it was asked for, so photos, videos,
+     * files and voice messages sent together are in the thread, and go, in the order they were sent.
+     */
+    let sealing: Promise<unknown> = Promise.resolve();
+
+    const inOrder = <T>(work: () => Promise<T>) =>
+    {
+        const turn = sealing.catch(() => undefined).then(work);
+
+        sealing = turn;
+        return turn;
+    };
+
     const restate = (id: string | readonly string[], state: Outgoing['state']) =>
     {
         const ids = typeof id === 'string' ? [id] : id;
@@ -891,7 +905,7 @@ export const useChat = createStore((): ChatApi =>
         async sendVoice(id, recording)
         {
             const fileId = crypto.randomUUID();
-            const sealed = await sealAudio(recording.plain, fileId);
+            const sealed = await inOrder(() => sealAudio(recording.plain, fileId));
             const quoted = untrack(replies)[id];
 
             setReplies((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
@@ -912,7 +926,7 @@ export const useChat = createStore((): ChatApi =>
         async sendFile(id, draft, caption)
         {
             const fileId = crypto.randomUUID();
-            const sealed = await sealFile(draft.plain, fileId);
+            const sealed = await inOrder(() => sealFile(draft.plain, fileId));
             const quoted = untrack(replies)[id];
 
             setReplies((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
@@ -942,29 +956,35 @@ export const useChat = createStore((): ChatApi =>
             const album = crypto.randomUUID();
             const holds = holdsOf(kinds);
             const quoted = untrack(replies)[id];
-            const at = runtime().clock.now();
-            const expiresAt = lifetimeOf(id, at);
-            const ones: Outgoing[] = [];
 
             setReplies((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
 
-            // Each a millisecond after the one before it, so the order chosen is the order signed.
-            for (const [place, draft] of drafts.entries())
+            const ones = await inOrder(async () =>
             {
-                const fileId = crypto.randomUUID();
-                const sealed = await sealFile(draft.plain, fileId);
-                const message: Message = {
-                    ...asked(id, place === 0 ? caption.trim() : ''),
-                    at: at + place,
-                    kind: 'file',
-                    file: attachmentOf(fileId, sealed, draft),
-                    album: { id: album, at: place, of: drafts.length, holds },
-                    ...(place === 0 && quoted !== undefined ? { reply: quoted.id } : {})
-                };
+                const at = runtime().clock.now();
+                const expiresAt = lifetimeOf(id, at);
+                const made: Outgoing[] = [];
 
-                holdFile(fileId, draft.plain, shownAs(draft));
-                ones.push({ message, expiresAt, state: 'sending', file: { body: sealed.body, uploaded: false } });
-            }
+                // Each a millisecond after the one before it, so the order chosen is the order signed.
+                for (const [place, draft] of drafts.entries())
+                {
+                    const fileId = crypto.randomUUID();
+                    const sealed = await sealFile(draft.plain, fileId);
+                    const message: Message = {
+                        ...asked(id, place === 0 ? caption.trim() : ''),
+                        at: at + place,
+                        kind: 'file',
+                        file: attachmentOf(fileId, sealed, draft),
+                        album: { id: album, at: place, of: drafts.length, holds },
+                        ...(place === 0 && quoted !== undefined ? { reply: quoted.id } : {})
+                    };
+
+                    holdFile(fileId, draft.plain, shownAs(draft));
+                    made.push({ message, expiresAt, state: 'sending', file: { body: sealed.body, uploaded: false } });
+                }
+
+                return made;
+            });
 
             setOutbox((current) => [...current, ...ones]);
             await deliverAlbum(album);
@@ -1304,6 +1324,7 @@ export const useChat = createStore((): ChatApi =>
             era += 1;
             inFlight = Promise.resolve();
             posting = Promise.resolve();
+            sealing = Promise.resolve();
             void list.refetch();
         }
     };

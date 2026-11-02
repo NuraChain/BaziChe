@@ -1,31 +1,65 @@
 import type { FileDraft } from '../../data/chat.ts';
 import Icon from '../../icons/icon.component.azeroth';
-import { FILE_CAPTION_MOST, FILE_MOST } from '../../../../backend/src/domains/chat/files.ts';
+import { FILE_ALBUM_LEAST, FILE_ALBUM_MOST, FILE_CAPTION_MOST, FILE_MOST } from '../../../../backend/src/domains/chat/files.ts';
 import { mostOf, overUnread, prepare, showable, tooLarge } from '../../lib/file-prepare.ts';
 import { useChat } from '../../stores/chat.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
 import Button from '../ui/button.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
 import SheetHeader from '../ui/sheet-header.component.azeroth';
 import Spinner from '../ui/spinner.component.azeroth';
 import Toggle from '../ui/switch.component.azeroth';
 import TextArea from '../ui/text-area.component.azeroth';
+import { thumbOf } from './file-parts.ts';
 import { sizeSaid } from './gist.ts';
 
+/** One thing chosen to go, as it is got ready. */
+interface Chosen
+{
+    key: number;
+    file: File;
+    draft: FileDraft | null;
+    preparing: boolean;
+    unreadable: boolean;
+    preview: string;
+}
+
+/** Why something chosen cannot go: too large (said without reading it where it can be), or not read at all. */
+const faultOf = (one: Chosen, asFile: boolean) =>
+{
+    if (one.preparing)
+    {
+        return null;
+    }
+
+    if (one.unreadable)
+    {
+        return 'unreadable';
+    }
+
+    return overUnread(one.file, asFile) || one.draft === null || tooLarge(one.draft) ? 'large' : null;
+};
+
+/** What a chosen thing will likely go as before it is ready, from what the picker says it is. */
+const guessOf = (file: File, asFile: boolean) => (asFile || !showable(file) ? 'file' : (file.type.startsWith('video/') ? 'video' : 'photo'));
+
 /**
- * What is about to be sent: the photo, the video's first frame or the file's name, how large it is,
- * "Send as a file" for a photo or a video, and the caption, which starts as whatever the composer
- * held. A file over its limit is said at once and Send is off; nothing is read that need not be.
+ * What is about to be sent: one thing large, or up to ten as tiles, each removable; how large each is,
+ * "Send as a file" for photos and videos, and the caption, which starts as whatever the composer held.
+ * Photos and videos chosen together go as one album and files one message each after it, the caption
+ * on what goes last (MS-D46, MS-D48). Anything that cannot go is said at once and Send is off until it
+ * is removed; nothing is read that need not be.
  */
 export default component FileSheet(props: OverlayProps & {
     room: string;
-    file: File;
+    files: readonly File[];
     caption: string;
 
-    /** The composer's words became the caption: it empties once the file has gone. */
+    /** The composer's words became the caption: it empties once what was chosen has gone. */
     onSent: () => void;
 
-    /** Where it goes instead of the room's thread: a channel posts it. */
+    /** Where each goes instead of the room's thread: a channel posts them one at a time. */
     onSend?: (draft: FileDraft, caption: string) => Promise<void>;
 })
 {
@@ -34,84 +68,123 @@ export default component FileSheet(props: OverlayProps & {
 
     state asFile = false;
 
-    state draft = null as FileDraft | null;
-
-    state preparing = true;
-
-    state unreadable = false;
+    state chosen = props.files.slice(0, FILE_ALBUM_MOST).map((file, at): Chosen => ({ key: at, file, draft: null, preparing: true, unreadable: false, preview: '' }));
 
     state caption = props.caption.slice(0, FILE_CAPTION_MOST);
-
-    state preview = '';
 
     state sending = false;
 
     let asked = 0;
 
-    derived choosable = showable(props.file);
+    derived single = chosen.length === 1;
 
-    derived unread = overUnread(props.file, asFile);
+    derived first = chosen.length === 0 ? null : chosen[0];
 
-    derived over = unread || (draft !== null && tooLarge(draft));
+    derived firstDraft = first?.draft ?? null;
 
-    derived size = sizeSaid(unread ? props.file.size : (draft?.plain.byteLength ?? props.file.size), locale);
+    derived left = props.files.length > FILE_ALBUM_MOST;
 
-    derived most = sizeSaid(draft === null ? FILE_MOST : mostOf(draft), locale);
+    derived choosable = chosen.some((one) => showable(one.file));
 
-    derived title = locale.t(draft?.as === 'photo' ? 'chat.attach.title.photo' : (draft?.as === 'video' ? 'chat.attach.title.video' : 'chat.attach.title.file'));
+    derived preparing = chosen.some((one) => one.preparing);
 
-    derived hint = draft?.as === 'video' ? locale.t('chat.attach.videoHint') : locale.t('chat.attach.photoHint');
+    derived stuck = chosen.some((one) => faultOf(one, asFile) !== null);
 
-    derived ready = draft !== null && !preparing && !over && !sending;
+    derived ready = chosen.length > 0 && !preparing && !stuck && !sending;
 
+    derived kinds = new Set(chosen.map((one) => one.draft?.as ?? guessOf(one.file, asFile)));
+
+    derived title = (() =>
+    {
+        if (single)
+        {
+            const as = firstDraft?.as ?? (first === null ? 'file' : guessOf(first.file, asFile));
+
+            return locale.t(as === 'photo' ? 'chat.attach.title.photo' : (as === 'video' ? 'chat.attach.title.video' : 'chat.attach.title.file'));
+        }
+
+        if (kinds.has('file'))
+        {
+            return locale.t(kinds.size === 1 ? 'chat.attach.title.files' : 'chat.attach.title.items', { count: chosen.length });
+        }
+
+        return locale.t(kinds.size > 1 ? 'chat.albumGist.both' : (kinds.has('video') ? 'chat.albumGist.video' : 'chat.albumGist.photo'), { count: chosen.length });
+    })();
+
+    derived hint = single && firstDraft?.as === 'video' ? locale.t('chat.attach.videoHint') : locale.t('chat.attach.photoHint');
+
+    derived size = sizeSaid(firstDraft?.plain.byteLength ?? first?.file.size ?? 0, locale);
+
+    derived most = sizeSaid(firstDraft === null ? FILE_MOST : mostOf(firstDraft), locale);
+
+    derived over = first !== null && faultOf(first, asFile) === 'large';
+
+    derived unreadable = first !== null && faultOf(first, asFile) === 'unreadable';
+
+    derived preview = first?.preview ?? '';
+
+    const release = (preview: string) =>
+    {
+        if (preview !== '')
+        {
+            URL.revokeObjectURL(preview);
+        }
+    };
+
+    /** Each chosen thing got ready in turn, as a photo, a video or a file, or as a file whatever it is. */
     const make = async (file: boolean) =>
     {
         asked += 1;
 
         const mine = asked;
 
-        preparing = true;
-        unreadable = false;
-
-        if (preview !== '')
+        for (const one of chosen)
         {
-            URL.revokeObjectURL(preview);
-            preview = '';
+            release(one.preview);
         }
 
-        if (overUnread(props.file, file))
-        {
-            draft = null;
-            preparing = false;
-            return;
-        }
+        chosen = chosen.map((one) => ({ ...one, draft: null, preparing: true, unreadable: false, preview: '' }));
 
-        try
+        for (const { key, file: picked } of chosen)
         {
-            const made = await prepare(props.file, file);
+            if (!chosen.some((one) => one.key === key))
+            {
+                continue;
+            }
+
+            let next: Partial<Chosen> = { preparing: false };
+
+            if (!overUnread(picked, file))
+            {
+                try
+                {
+                    const draft = await prepare(picked, file);
+
+                    next = {
+                        draft,
+                        preparing: false,
+                        preview: draft.as === 'photo' ? URL.createObjectURL(new Blob([draft.plain as BlobPart], { type: draft.mime })) : ''
+                    };
+                }
+                catch
+                {
+                    next = { preparing: false, unreadable: true };
+                }
+            }
 
             if (mine !== asked)
             {
+                release(next.preview ?? '');
                 return;
             }
 
-            draft = made;
-            preview = made.as === 'photo' ? URL.createObjectURL(new Blob([made.plain as BlobPart], { type: made.mime })) : '';
-        }
-        catch
-        {
-            if (mine === asked)
+            if (!chosen.some((one) => one.key === key))
             {
-                draft = null;
-                unreadable = true;
+                release(next.preview ?? '');
+                continue;
             }
-        }
-        finally
-        {
-            if (mine === asked)
-            {
-                preparing = false;
-            }
+
+            chosen = chosen.map((one) => (one.key === key ? { ...one, ...next } : one));
         }
     };
 
@@ -123,9 +196,9 @@ export default component FileSheet(props: OverlayProps & {
         {
             asked += 1;
 
-            if (preview !== '')
+            for (const one of chosen)
             {
-                URL.revokeObjectURL(preview);
+                release(one.preview);
             }
         };
     }
@@ -136,11 +209,53 @@ export default component FileSheet(props: OverlayProps & {
         void make(checked);
     };
 
+    const remove = (key: number) =>
+    {
+        release(chosen.find((one) => one.key === key)?.preview ?? '');
+        chosen = chosen.filter((one) => one.key !== key);
+    };
+
+    /**
+     * What was chosen, sent: photos and videos together as an album (one alone as itself), then each
+     * file as a message of its own, the caption on what goes last. A channel posts each on its own.
+     */
+    const post = async (drafts: readonly FileDraft[], words: string) =>
+    {
+        if (props.onSend !== undefined)
+        {
+            for (const [at, draft] of drafts.entries())
+            {
+                await props.onSend(draft, at === drafts.length - 1 ? words : '');
+            }
+            return;
+        }
+
+        const shown = drafts.filter((one) => one.as !== 'file');
+        const filed = drafts.filter((one) => one.as === 'file');
+        const sends: Promise<void>[] = [];
+
+        if (shown.length >= FILE_ALBUM_LEAST)
+        {
+            sends.push(chat.sendAlbum(props.room, shown, filed.length === 0 ? words : ''));
+        }
+        else if (shown.length === 1)
+        {
+            sends.push(chat.sendFile(props.room, shown[0], filed.length === 0 ? words : ''));
+        }
+
+        for (const [at, one] of filed.entries())
+        {
+            sends.push(chat.sendFile(props.room, one, at === filed.length - 1 ? words : ''));
+        }
+
+        await Promise.all(sends);
+    };
+
     const send = () =>
     {
-        const made = draft;
+        const drafts = chosen.flatMap((one) => (one.draft === null ? [] : [one.draft]));
 
-        if (made === null || !ready)
+        if (!ready || drafts.length !== chosen.length)
         {
             return;
         }
@@ -148,58 +263,131 @@ export default component FileSheet(props: OverlayProps & {
         sending = true;
         props.onSent();
         props.close(true);
-        void (props.onSend === undefined ? chat.sendFile(props.room, made, caption) : props.onSend(made, caption)).catch(() => undefined);
+        void post(drafts, caption).catch(() => undefined);
     };
 
     <div class="flex flex-col gap-4 p-5" data-file-sheet>
         <SheetHeader title={ title } onClose={ () => props.close() } />
 
-        <div class="flex min-h-24 items-center justify-center overflow-hidden rounded-tile border border-line bg-field">
-            <Show
-                when={ !preparing }
-                fallback={
-                    <span class="flex items-center gap-2 p-6 text-ui-sm text-muted" role="status">
-                        <Spinner size={ 18 } />
-                        { locale.t('chat.attach.preparing') }
-                    </span>
-                }
-            >
-                { () =>
-                    <Show
-                        when={ preview !== '' }
-                        fallback={
-                            <span class="flex w-full min-w-0 items-center gap-3 p-4">
-                                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent-fill text-accent-ink">
-                                    <Icon name={ draft?.as === 'video' ? 'film' : 'file' } size={ 20 } />
-                                </span>
-                                <span class="flex min-w-0 flex-col">
-                                    <span class="truncate text-ui-sm font-semibold text-text" dir="auto">{ draft?.name ?? props.file.name }</span>
-                                    <span class="text-ui-xs tabular-nums text-muted" data-size>{ size }</span>
-                                </span>
-                            </span>
-                        }
-                    >
-                        { () =>
-                            <span class="relative flex w-full justify-center bg-black/30">
-                                <img src={ preview } alt={ draft?.name ?? '' } class="max-h-72 max-w-full object-contain" />
-                                <span class="absolute start-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-ui-2xs font-medium tabular-nums text-white" data-size>{ size }</span>
-                            </span>
-                        }
+        <Show
+            when={ single }
+            fallback={
+                <div class="flex flex-col gap-2">
+                    <ul class="grid grid-cols-3 gap-1.5" aria-label={ title } data-chosen>
+                        <For each={ chosen } key={ (one) => one.key } let={ one }>
+                            <li
+                                class={ () => [
+                                    'relative aspect-square overflow-hidden rounded-tile border bg-field',
+                                    faultOf(one, asFile) === null ? 'border-line' : 'border-danger ring-2 ring-danger/40'
+                                ].join(' ') }
+                                data-item={ () => one.key }
+                                data-fault={ () => faultOf(one, asFile) ?? undefined }
+                            >
+                                <Show
+                                    when={ !one.preparing }
+                                    fallback={
+                                        <span class="absolute inset-0 flex items-center justify-center" role="status">
+                                            <Spinner size={ 18 } />
+                                            <span class="sr-only">{ locale.t('chat.attach.preparing') }</span>
+                                        </span>
+                                    }
+                                >
+                                    { () =>
+                                        <Show
+                                            when={ one.preview !== '' || thumbOf(one.draft?.thumb) !== null }
+                                            fallback={
+                                                <span class="absolute inset-0 flex flex-col items-center justify-center gap-1 p-1.5 text-center">
+                                                    <Icon name={ one.draft?.as === 'video' ? 'film' : 'file' } size={ 20 } class="text-muted" />
+                                                    <span class="line-clamp-2 max-w-full break-all text-ui-2xs text-muted" dir="auto">{ one.file.name }</span>
+                                                </span>
+                                            }
+                                        >
+                                            { () => <img src={ one.preview !== '' ? one.preview : (thumbOf(one.draft?.thumb) ?? '') } alt={ one.file.name } class="absolute inset-0 h-full w-full object-cover" draggable={ false } /> }
+                                        </Show>
+                                    }
+                                </Show>
+                                <Show when={ one.draft?.as === 'video' }>
+                                    { () => <span class="pointer-events-none absolute start-1 top-1 flex rounded-full bg-black/55 p-1 text-white" aria-hidden="true"><Icon name="film" size={ 12 } /></span> }
+                                </Show>
+                                <Show when={ faultOf(one, asFile) !== null }>
+                                    { () =>
+                                        <span class="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1 bg-danger/85 px-1.5 py-0.5 text-ui-2xs font-semibold text-white">
+                                            <Icon name="alert" size={ 12 } />
+                                            <span class="truncate">{ faultOf(one, asFile) === 'unreadable' ? locale.t('chat.attach.unreadable') : sizeSaid(one.draft?.plain.byteLength ?? one.file.size, locale) }</span>
+                                        </span>
+                                    }
+                                </Show>
+                                <IconButton
+                                    icon="close"
+                                    label={ locale.t('chat.attach.remove', { name: one.file.name }) }
+                                    variant="ghost"
+                                    size="sm"
+                                    class="absolute end-0.5 top-0.5 rounded-full! bg-black/55! text-white! hover:bg-black/70!"
+                                    onClick={ () => remove(one.key) }
+                                />
+                            </li>
+                        </For>
+                    </ul>
+                    <Show when={ stuck }>
+                        { () => <p class="text-ui-sm text-danger" role="alert" data-over>{ locale.t('chat.attach.cannotGo') }</p> }
                     </Show>
-                }
-            </Show>
-        </div>
+                    <Show when={ left }>
+                        { () => <p class="text-ui-sm text-muted" role="status" data-left>{ locale.t('chat.attach.first', { count: FILE_ALBUM_MOST }) }</p> }
+                    </Show>
+                </div>
+            }
+        >
+            { () =>
+                <>
+                    <div class="flex min-h-24 items-center justify-center overflow-hidden rounded-tile border border-line bg-field">
+                        <Show
+                            when={ !preparing }
+                            fallback={
+                                <span class="flex items-center gap-2 p-6 text-ui-sm text-muted" role="status">
+                                    <Spinner size={ 18 } />
+                                    { locale.t('chat.attach.preparing') }
+                                </span>
+                            }
+                        >
+                            { () =>
+                                <Show
+                                    when={ preview !== '' }
+                                    fallback={
+                                        <span class="flex w-full min-w-0 items-center gap-3 p-4">
+                                            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent-fill text-accent-ink">
+                                                <Icon name={ firstDraft?.as === 'video' ? 'film' : 'file' } size={ 20 } />
+                                            </span>
+                                            <span class="flex min-w-0 flex-col">
+                                                <span class="truncate text-ui-sm font-semibold text-text" dir="auto">{ firstDraft?.name ?? first?.file.name ?? '' }</span>
+                                                <span class="text-ui-xs tabular-nums text-muted" data-size>{ size }</span>
+                                            </span>
+                                        </span>
+                                    }
+                                >
+                                    { () =>
+                                        <span class="relative flex w-full justify-center bg-black/30">
+                                            <img src={ preview } alt={ firstDraft?.name ?? '' } class="max-h-72 max-w-full object-contain" />
+                                            <span class="absolute start-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-ui-2xs font-medium tabular-nums text-white" data-size>{ size }</span>
+                                        </span>
+                                    }
+                                </Show>
+                            }
+                        </Show>
+                    </div>
 
-        <Show when={ over && !preparing }>
-            { () => <p class="text-ui-sm text-danger" role="alert" data-over>{ locale.t('chat.attach.tooLarge', { size, most }) }</p> }
-        </Show>
+                    <Show when={ over && !preparing }>
+                        { () => <p class="text-ui-sm text-danger" role="alert" data-over>{ locale.t('chat.attach.tooLarge', { size, most }) }</p> }
+                    </Show>
 
-        <Show when={ unreadable }>
-            { () => <p class="text-ui-sm text-danger" role="alert">{ locale.t('chat.attach.unreadable') }</p> }
+                    <Show when={ unreadable }>
+                        { () => <p class="text-ui-sm text-danger" role="alert">{ locale.t('chat.attach.unreadable') }</p> }
+                    </Show>
+                </>
+            }
         </Show>
 
         <Show when={ choosable }>
-            { () => <Toggle checked={ asFile } label={ locale.t('chat.attach.asFile') } description={ hint } disabled={ preparing } onChange={ toggle } /> }
+            { () => <Toggle checked={ asFile } label={ locale.t(single ? 'chat.attach.asFile' : 'chat.attach.asFiles') } description={ hint } disabled={ preparing } onChange={ toggle } /> }
         </Show>
 
         <TextArea

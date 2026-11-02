@@ -124,7 +124,7 @@ describe('the composer’s paperclip', () =>
         fire(input, 'change');
 
         await vi.waitFor(() => expect(useOverlay().items().map((one) => one.id)).toEqual(['file-sheet']), { timeout: 4000 });
-        expect(useOverlay().items()[0].props).toMatchObject({ room: 'c-reza', file, caption: 'Here it is' });
+        expect(useOverlay().items()[0].props).toMatchObject({ room: 'c-reza', files: [file], caption: 'Here it is' });
     });
 });
 
@@ -136,7 +136,7 @@ const sheet = (file: File, caption = '') =>
         overlayId: 'file-sheet',
         close: (result) => closed.push(result),
         room: 'c-reza',
-        file,
+        files: [file],
         caption,
         onSent: () => sent.push(1)
     }) as HTMLElement).container;

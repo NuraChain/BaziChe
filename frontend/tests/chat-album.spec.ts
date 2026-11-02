@@ -7,6 +7,7 @@ import { heldFile } from '../src/lib/file-held.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import { createApiSource } from '../src/services/chat.source.ts';
 import { ChatFileError, setChatFiles, type ChatFileFailure } from '../src/services/chat-files.ts';
+import { setVoiceFiles } from '../src/services/voice-files.ts';
 import { setChatSource, useChat } from '../src/stores/chat.store.ts';
 import { useGroups } from '../src/stores/groups.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
@@ -521,5 +522,60 @@ describe('an album forwarded', () =>
         const sent = server.messages.at(-1)!;
 
         expect([sent.conversationId, sent.album, sent.file]).toEqual([to, undefined, one.file?.id]);
+    });
+});
+
+describe('several sent together', () =>
+{
+    it('are in the thread in the order they were sent, however long each takes to seal', async () =>
+    {
+        const chat = useChat();
+        chat.openThread('c-reza');
+        await chat.refresh();
+        const release = holding();
+        const large = (): FileDraft => ({ ...photo(), plain: new Uint8Array(4 * 1024 * 1024).fill(7) });
+
+        const album = chat.sendAlbum('c-reza', [large(), large(), large()], '');
+        const alone = chat.sendFile('c-reza', photo('after.jpg'), '');
+        const waiting = () => chat.messages().filter((one) => one.outgoing !== undefined);
+
+        await vi.waitFor(() => expect(waiting()).toHaveLength(4));
+
+        expect(waiting().map((one) => (one.album === undefined ? one.file?.name : 'album'))).toEqual(['album', 'album', 'album', 'after.jpg']);
+
+        release();
+        await Promise.all([album, alone]);
+        await chat.refresh();
+
+        expect(server.messages.slice(-4).map((one) => (one.album === undefined ? 'alone' : 'album')), 'and go in that order').toEqual(['album', 'album', 'album', 'alone']);
+    });
+
+    it('keep a voice message sent after an album behind it', async () =>
+    {
+        setVoiceFiles({ upload: () => Promise.resolve(), download: () => Promise.resolve(new Uint8Array()), reported: () => Promise.resolve(new Uint8Array()) });
+
+        try
+        {
+            const chat = useChat();
+            chat.openThread('c-reza');
+            await chat.refresh();
+            const release = holding();
+            const large = (): FileDraft => ({ ...photo(), plain: new Uint8Array(4 * 1024 * 1024).fill(7) });
+            const waiting = () => chat.messages().filter((one) => one.outgoing !== undefined);
+
+            const album = chat.sendAlbum('c-reza', [large(), large()], '');
+            const spoken = chat.sendVoice('c-reza', { plain: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3]), mime: 'audio/webm;codecs=opus', ms: 1200, wave: [3, 9] });
+
+            await vi.waitFor(() => expect(waiting()).toHaveLength(3));
+
+            expect(waiting().map((one) => (one.kind === 'voice' ? 'voice' : 'album'))).toEqual(['album', 'album', 'voice']);
+
+            release();
+            await Promise.all([album, spoken]);
+        }
+        finally
+        {
+            setVoiceFiles(null);
+        }
     });
 });

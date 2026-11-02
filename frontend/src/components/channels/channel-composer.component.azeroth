@@ -63,7 +63,7 @@ export default component ChannelComposer(props: { slug: string })
 
         overlay.open(FileSheet, {
             room: props.slug,
-            file,
+            files: [file],
             caption: text,
             onSent: () => text = '',
             onSend: (draft: FileDraft, caption: string) => channels.postFile(props.slug, draft, caption).catch((error: unknown) =>

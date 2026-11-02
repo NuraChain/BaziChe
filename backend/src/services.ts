@@ -2686,6 +2686,20 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 return await shopAdmin.read();
             },
 
+            async shopReprice(me, input)
+            {
+                const actor = await ableTo(me, 'shop');
+
+                if (actor === null)
+                {
+                    return null;
+                }
+
+                await shopAdmin.reprice(actor, input.percent, input.reason);
+
+                return await shopAdmin.read();
+            },
+
             async shopOrders(me, query)
             {
                 return await ableTo(me, 'shop') === null ? null : { ...await shopAdmin.orders(query), ...(looksShop.configured ? { chainId: looksShop.chainId } : {}) };

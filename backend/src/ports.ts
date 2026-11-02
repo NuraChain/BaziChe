@@ -103,7 +103,7 @@ import type {
     StaffLog
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
-import type { adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
+import type { adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
 import type { ShopSlot } from './domains/shop/catalogue.ts';
 import type { QuickAsk } from './domains/table/quick.ts';
@@ -946,6 +946,9 @@ export interface AdminPort
     shopItem(me: string, id: string, input: Infer<typeof adminShopItemInput>): Promise<AdminShop | null>;
 
     shopFeature(me: string, input: Infer<typeof adminShopFeatureInput>): Promise<AdminShop | null>;
+
+    /** Every price in the shop moved by one percentage; null to anybody who may not run the shop. */
+    shopReprice(me: string, input: Infer<typeof adminShopRepriceInput>): Promise<AdminShop | null>;
 
     shopOrders(me: string, query: Infer<typeof adminShopOrdersQuery>): Promise<AdminShopOrders | null>;
 

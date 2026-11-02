@@ -5,6 +5,7 @@ import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/k
 import type { AdminShop, AdminShopOrders } from '../../schemas.ts';
 import { FEATURED_FIRST, LOOKS, SHOP_COLLECTIONS, bundleOf, lookOf, type ShopCollection as Collection } from '../shop/catalogue.ts';
 import { refundAsked } from '../shop/orders.ts';
+import { isRepricePercent, repriced, type Priced } from '../shop/reprice.ts';
 import type { OrderState, OwnedVia, ShopItemStatus } from '../shop/policy.ts';
 import { SHOP_ORDERS_PAGE, type SaleHours } from './roles.ts';
 import { record, staffRefusal, type Actor } from './staff.ts';
@@ -241,6 +242,48 @@ export function createShopAdmin(db: DataSource)
                 await log({ field: 'status', from: held.status, to: change.status });
 
                 return true;
+            });
+        },
+
+        /**
+         * Every price in the shop moved by one percentage, under every row's lock, written to the log
+         * once with the reason (`repriced` says how: looks to whole NURA, bundles from their looks,
+         * running sales with them). Answers how many items it changed.
+         */
+        async reprice(actor: Actor, percent: number, reason: string)
+        {
+            if (!isRepricePercent(percent))
+            {
+                throw staffRefusal('staff-shop-percent', 'Move every price by a whole percentage from -90 to +500, and not by nothing.');
+            }
+
+            return await db.transaction(async (tx) =>
+            {
+                const rows = await tx.query(
+                    `select id, price::text as price, case when sale_until > now() then sale_price::text end as sale
+                       from shop_items order by id for update`
+                ) as { id: string; price: string; sale: string | null }[];
+                const held = new Map<string, Priced>(rows.map((row) => [row.id, { price: BigInt(row.price), sale: row.sale === null ? null : BigInt(row.sale) }]));
+                const next = repriced(held, percent);
+                const moved = [...next].filter(([id, item]) => item.price !== held.get(id)?.price || item.sale !== held.get(id)?.sale);
+
+                if (moved.length > 0)
+                {
+                    await tx.query(
+                        `update shop_items i
+                            set price = n.price,
+                                sale_price = case when i.sale_until > now() then n.sale end,
+                                sale_until = case when i.sale_until > now() and n.sale is not null then i.sale_until end,
+                                updated_at = now()
+                           from unnest($1::text[], $2::numeric[], $3::numeric[]) as n(id, price, sale)
+                          where i.id = n.id`,
+                        [moved.map(([id]) => id), moved.map(([, item]) => item.price.toString()), moved.map(([, item]) => item.sale?.toString() ?? null)]
+                    );
+                }
+
+                await record(tx, actor, { kind: 'shop-item', reason, details: { item: '*', field: 'every', percent: String(percent), items: String(moved.length) } });
+
+                return moved.length;
             });
         },
 

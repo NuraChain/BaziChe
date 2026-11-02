@@ -146,20 +146,28 @@ try
         }
     }
 
-    const made = await reza.api('POST', '/tables', tableBody({
-        game: 'ludo', seats: 2, mode: 'turns', privacy: 'public', blinds: 'mid'
-    }));
-    record('opens a turn-based ludo table for two', made.ok, `${ made.status }`);
-    const table = made.body.id;
-    const took = await leila.api('POST', `/tables/${ table }/seat`);
-    record('the second player sits down', took.ok, `${ took.status }`);
-    await leila.api('POST', `/tables/${ table }/ready`, { ready: true });
-    await reza.api('POST', `/tables/${ table }/ready`, { ready: true });
-    const started = await reza.api('POST', `/tables/${ table }/start`);
-    record('the match starts', started.ok, `${ started.status }`);
+    // A game of its own for each line: a Ludo game for two can be won in under three hundred presses,
+    // so a hundred presses on each of three lines can outlast one game.
+    const openGame = async (line) =>
+    {
+        const made = await reza.api('POST', '/tables', tableBody({
+            game: 'ludo', seats: 2, mode: 'turns', privacy: 'public', blinds: 'mid'
+        }));
+        record(`${ line }: opens a turn-based ludo table for two`, made.ok, `${ made.status }`);
+        const table = made.body.id;
+        const took = await leila.api('POST', `/tables/${ table }/seat`);
+        record(`${ line }: the second player sits down`, took.ok, `${ took.status }`);
+        await leila.api('POST', `/tables/${ table }/ready`, { ready: true });
+        await reza.api('POST', `/tables/${ table }/ready`, { ready: true });
+        const started = await reza.api('POST', `/tables/${ table }/start`);
+        record(`${ line }: the match starts`, started.ok, `${ started.status }`);
+
+        return table;
+    };
 
     for (const profile of PROFILES)
     {
+        const table = await openGame(profile.name);
         const base = profile.port === null ? BASE : `http://localhost:${ profile.port }`;
         if (profile.port !== null)
         {
@@ -296,11 +304,11 @@ try
         record(`${ profile.name }: every press was measured on both sides and by the spectator`, misses.length === 0, misses.join('; '));
         record(`${ profile.name }: the spectator is pushed each move about as soon as the opponent sees it`, row.spectatorFrame.p95 !== null && row.spectatorFrame.p95 <= (row.other.p95 ?? 0) + 250,
             `spectator frame p95 ${ row.spectatorFrame.p95 } ms against the opponent's board at ${ row.other.p95 } ms`);
-    }
 
-    for (const player of players)
-    {
-        await player.api('POST', `/tables/${ table }/leave`, { forfeit: true });
+        for (const player of players)
+        {
+            await player.api('POST', `/tables/${ table }/leave`, { forfeit: true });
+        }
     }
 
     mkdirSync(OUT, { recursive: true });

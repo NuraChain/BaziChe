@@ -166,3 +166,45 @@ their keys from the catalogue and the ladders when the server starts.
 - **N4** `feat(nft)`: the worker, its configuration, and the backfill it amounts to.
 - **N5** `feat(nft)`: the metadata routes and the medal.
 - **N6** `feat(nft)`: the wire and the page.
+
+## As built
+
+N0 `e189fec4`; N1 in the SmartContract project, `edf4d76` (the contract and its suite) and `74d93ae`
+(its deploy group, preflight, module test and reference); N2 `b068ac39`; N3 `a8a5191a`; N4
+`6dc22c86`; N5 `c91bad3a`; N6 `79c7bb9e` (the wire) and `75464ec7` (the page).
+
+What changed on the way, against the design:
+
+- **The worker is two halves.** `domains/nft/steps.ts` decides what one token needs from what the
+  chain answers, and is held by a spec against a chain that answers as told; `domains/nft/service.ts`
+  is the SQL around it. No Postgres was at hand, so the second half's spec (`nft.db.spec.ts`) was
+  typechecked and never run, and the snapshot was written by hand again.
+- **A mint waiting on its receipt is never turned into a burn.** A look refunded while its mint is
+  in flight waits for the receipt, becomes `minted`, and is owed its burn on the next pass, so a
+  receipt can never mark a burn as a mint.
+- **A look owned again before its burn was sent** goes back to `minted` rather than being burned and
+  minted again.
+- **No admin view of tokens put aside.** A `failed` token keeps its reason in `nft_tokens.failure`
+  and is not tried again; the staff read it from the database for now.
+- **The medal** is drawn by the server from the tier's colours, the step and the name, under a CSP
+  that runs nothing.
+- **No worker in the monitor.** The minute pass logs what it moved and what failed; it is not one of
+  the monitor's named workers, whose list is fixed.
+
+ArcadeLooks' suite: 17 tests, 100% of its lines and statements; a batch naming one look twice was
+put in as a fault and caught.
+
+## The owner's steps
+
+Nothing is minted until these are done, and nothing on a page changes before then:
+
+1. **Deploy ArcadeLooks** from the SmartContract project:
+   `npm run deploy:nurachain:bazichelooks` with `{ "bazichelooks": { "admin": "<owner>", "uri":
+   "https://baziche.com/api/nft/looks/{id}.json" } }`.
+2. **Point the achievements at their metadata**: from the owner of `ArcadeAchievements`
+   (`0x722C…a382`, deployed with an empty template), `setURI("https://baziche.com/api/nft/achievements/{id}.json")`.
+3. **Make a minter wallet of its own**, never the referee's, and fund it with a little NURA for gas.
+4. **Grant it `MINTER_ROLE`** on both contracts: `grantRole(MINTER_ROLE, minter)` from each owner.
+5. **Set the server's `.env`**: `NURA_LOOKS_ADDRESS` (step 1), `NURA_ACHIEVEMENTS_ADDRESS`
+   (already written in `.env.example`) and `NURA_MINTER_KEY` (step 3), and restart. The backfill
+   starts on the next minute, a few sends a pass.

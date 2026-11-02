@@ -22,6 +22,8 @@
         "prestart": "node tools/setup.ts --before start",
         "start": "npm start --workspace backend",
         "schema:sync": "npm run schema:sync --workspace backend",
+        "migrate": "npm run migrate --workspace backend",
+        "migration:new": "npm run migration:new --workspace backend --",
         "assets": "node tools/blender/build.mjs",
         "poster": "node tools/art/poster.mjs",
         "art": "node tools/art/chess.mjs && node tools/art/games.mjs && node tools/art/boards.mjs && node tools/art/poker.mjs && node tools/art/deck.mjs && node tools/art/raster.mjs",

@@ -588,7 +588,7 @@ export const social = {
     'groups.log.linkRevoked': '{actor} revoked an invite link',
     'groups.log.approved': '{actor} let {person} in',
     'groups.log.declined': '{actor} turned {person} away',
-    'groups.log.deleted': '{actor} took away a message of {person}',
+    'groups.log.deleted': '{actor} deleted a message from {person}',
     'groups.log.pinned': '{actor} pinned a message',
     'groups.log.unpinned': '{actor} unpinned a message',
     'groups.log.reportDismissed': '{actor} looked at a report about {person}: nothing to do',

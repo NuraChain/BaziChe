@@ -356,6 +356,21 @@ describe('the sheet several things go from', () =>
         expect(await said([video('a.mp4'), doc('b.pdf')]), 'one video among files').toContain('A video is sent as it is, with its own details.');
     });
 
+    it('stands each tile’s way out in its far corner, clear of a video’s mark in the near one', async () =>
+    {
+        const { container } = sheet([photo('a.jpg'), video('b.mp4')]);
+
+        await ready(container);
+
+        const tiles = [...container.querySelectorAll('[data-chosen] li')];
+        const corner = (tile: Element) => [...tile.children].find((child) => child.querySelector('button') !== null);
+
+        // The button draws `relative` itself, which beat an `absolute` handed to it: it stood in the
+        // flow at the near corner, on the video's mark.
+        expect(tiles.map((tile) => corner(tile)?.className), 'placed by a corner of its own').toEqual(['absolute end-0.5 top-0.5', 'absolute end-0.5 top-0.5']);
+        expect(tiles[1].querySelector('[aria-hidden="true"] svg')?.parentElement?.className, 'the video’s mark at the near one').toContain('start-1');
+    });
+
     it('goes on saying a video is a video once it is switched to go as a file', async () =>
     {
         const { container } = sheet([video('a.mp4')]);

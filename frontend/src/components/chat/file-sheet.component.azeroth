@@ -330,14 +330,16 @@ export default component FileSheet(props: OverlayProps & {
                                         </span>
                                     }
                                 </Show>
-                                <IconButton
-                                    icon="close"
-                                    label={ locale.t('chat.attach.remove', { name: one.file.name }) }
-                                    variant="ghost"
-                                    size="sm"
-                                    class="absolute end-0.5 top-0.5 rounded-full! bg-black/55! text-white! hover:bg-black/70!"
-                                    onClick={ () => remove(one.key) }
-                                />
+                                <span class="absolute end-0.5 top-0.5" data-remove>
+                                    <IconButton
+                                        icon="close"
+                                        label={ locale.t('chat.attach.remove', { name: one.file.name }) }
+                                        variant="ghost"
+                                        size="sm"
+                                        class="rounded-full! bg-black/55! text-white! hover:bg-black/70!"
+                                        onClick={ () => remove(one.key) }
+                                    />
+                                </span>
                             </li>
                         </For>
                     </ul>

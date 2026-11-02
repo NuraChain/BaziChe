@@ -703,7 +703,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.friendAccepted': '{who} a accepté ta demande',
     'notify.groupAdded': '{who} t’a ajouté à un groupe',
     'notify.groupRequest': '{who} demande à rejoindre ton groupe',
-    'notify.groupReport': 'Un message a été signalé dans un groupe que tu aides à gérer',
+    'notify.groupReport': { one: 'Un message a été signalé dans un groupe que tu aides à gérer', many: '{count} messages ont été signalés dans un groupe que tu aides à gérer', other: '{count} messages ont été signalés dans un groupe que tu aides à gérer' },
     'notify.groupApproved': '{who} t’a fait entrer dans un groupe',
     'notify.groupOwner': '{who} t’a confié un groupe : il est à toi maintenant',
     'notify.channelInvite': '{who} t’a ajouté à une chaîne',

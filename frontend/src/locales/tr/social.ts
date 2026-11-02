@@ -703,7 +703,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.friendAccepted': '{who} isteğini kabul etti',
     'notify.groupAdded': '{who} seni bir gruba ekledi',
     'notify.groupRequest': '{who} grubuna katılmak istiyor',
-    'notify.groupReport': 'Yönetimine yardım ettiğin bir grupta bir mesaj şikâyet edildi',
+    'notify.groupReport': { one: 'Yönetimine yardım ettiğin bir grupta bir mesaj şikâyet edildi', other: 'Yönetimine yardım ettiğin bir grupta {count} mesaj şikâyet edildi' },
     'notify.groupApproved': '{who} seni bir gruba aldı',
     'notify.groupOwner': '{who} bir grubu sana devretti: artık senin',
     'notify.channelInvite': '{who} seni bir kanala ekledi',

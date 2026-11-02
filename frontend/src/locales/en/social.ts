@@ -700,7 +700,7 @@ export const social = {
     'notify.friendAccepted': '{who} accepted your request',
     'notify.groupAdded': '{who} added you to a group',
     'notify.groupRequest': '{who} asked to join your group',
-    'notify.groupReport': 'A message was reported in a group you help run',
+    'notify.groupReport': { one: 'A message was reported in a group you help run', other: '{count} messages were reported in a group you help run' },
     'notify.groupApproved': '{who} let you into a group',
     'notify.groupOwner': '{who} handed a group to you: it is yours now',
     'notify.channelInvite': '{who} added you to a channel',

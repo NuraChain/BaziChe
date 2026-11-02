@@ -703,7 +703,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.friendAccepted': '{who} 接受了你的请求',
     'notify.groupAdded': '{who} 把你加入了一个群组',
     'notify.groupRequest': '{who} 申请加入你的群组',
-    'notify.groupReport': '你协助管理的群组里有一条消息被举报了',
+    'notify.groupReport': { other: '你协助管理的群组里有 {count} 条消息被举报了' },
     'notify.groupApproved': '{who} 让你加入了一个群组',
     'notify.groupOwner': '{who} 把一个群组交给了你：现在它归你了',
     'notify.channelInvite': '{who} 把你加入了一个频道',

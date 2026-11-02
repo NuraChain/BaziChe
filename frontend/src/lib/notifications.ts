@@ -54,6 +54,11 @@ export function sayOf(item: Notification, who: string, locale: Pick<LocaleApi, '
         return locale.plural('notify.message', item.count, { who });
     }
 
+    if (item.kind === 'group-report')
+    {
+        return locale.plural('notify.groupReport', item.count, {});
+    }
+
     if (item.kind === 'turn' && game === undefined)
     {
         return locale.t('notify.turnAnywhere');

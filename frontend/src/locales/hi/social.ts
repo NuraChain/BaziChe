@@ -703,7 +703,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.friendAccepted': '{who} ने तुम्हारी रिक्वेस्ट मान ली',
     'notify.groupAdded': '{who} ने तुम्हें एक ग्रुप में जोड़ा',
     'notify.groupRequest': '{who} ने तुम्हारे ग्रुप में शामिल होने की रिक्वेस्ट भेजी',
-    'notify.groupReport': 'जिस ग्रुप को चलाने में तुम हाथ बँटाते हो, उसमें एक मैसेज की रिपोर्ट हुई है',
+    'notify.groupReport': { one: 'जिस ग्रुप को चलाने में तुम हाथ बँटाते हो, उसमें एक मैसेज की रिपोर्ट हुई है', other: 'जिस ग्रुप को चलाने में तुम हाथ बँटाते हो, उसमें {count} मैसेज की रिपोर्ट हुई है' },
     'notify.groupApproved': '{who} ने तुम्हें एक ग्रुप में आने दिया',
     'notify.groupOwner': '{who} ने एक ग्रुप तुम्हें सौंप दिया: अब वह तुम्हारा है',
     'notify.channelInvite': '{who} ने तुम्हें एक चैनल में जोड़ा',

@@ -143,9 +143,9 @@ describe('where a notice leads', () =>
     });
 
     it.each([
-        ['en', 'A message was reported in a group you help run'],
-        ['fa', 'یه پیام توی گروهی که تو اداره‌ش دست داری گزارش شده']
-    ] as const)('sends a line reported in a group to the group’s reports and names nobody, in %s', (language, said) =>
+        ['en', 'A message was reported in a group you help run', '3 messages were reported in a group you help run'],
+        ['fa', 'یه پیام توی گروهی که تو اداره‌ش دست داری گزارش شده', '۳ تا پیام توی گروهی که تو اداره‌ش دست داری گزارش شده']
+    ] as const)('sends a line reported in a group to the group’s reports and names nobody, in %s', (language, said, many) =>
     {
         useLocale().setLocale(language);
 
@@ -153,6 +153,7 @@ describe('where a notice leads', () =>
 
         expect(targetOf(reported)).toBe('/app/groups/g-1?tab=reports');
         expect(sayOf(reported, '', useLocale())).toBe(said);
+        expect(sayOf({ ...reported, count: 3 }, '', useLocale()), 'counted as messages are').toBe(many);
         expect(wordsOf(language).says, 'the worker says what the page says').toMatchObject({ 'group-report': messageOf(language, 'notify.groupReport') });
         useLocale().setLocale('en');
     });

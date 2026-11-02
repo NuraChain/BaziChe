@@ -14,6 +14,7 @@ import { REASONS } from './domains/match/chess/state.ts';
 import { CLOCKS } from './domains/table/clocks.ts';
 import { PARTNERS } from './domains/table/teams.ts';
 import { VOICE_SCOPES } from './domains/table/voices.ts';
+import { GROUP_ROLES } from './domains/group/roles.ts';
 import { ALERT_KINDS, ALERT_LEVELS, FAMILIES, QUEUES, WORKERS } from './ops/measures.ts';
 
 const NUL = String.fromCharCode(0);
@@ -2001,7 +2002,7 @@ export const privacyInput = object({
 
 /* ------------------------------------------------------------------------ groups */
 
-export const groupRole = enumOf(['owner', 'member']);
+export const groupRole = enumOf(GROUP_ROLES);
 
 export type GroupRole = Infer<typeof groupRole>;
 

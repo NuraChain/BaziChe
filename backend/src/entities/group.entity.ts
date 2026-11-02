@@ -50,6 +50,44 @@ export class Group
     @Column({ type: 'varchar', length: 24, nullable: true })
     game!: string | null;
 
+    /** The group's picture, as a person's is held: its address in the pictures store. The crest stands in for none. */
+    @Column({ type: 'text', nullable: true })
+    photo!: string | null;
+
+    /*
+     * What the members may do, as the owner sets it. No column has a default: Postgres would write
+     * one into every row a database already holds, which is the backfill this schema never does, and
+     * `create` writes all of them.
+     */
+
+    @Column({ name: 'members_send', type: 'boolean' })
+    membersSend!: boolean;
+
+    @Column({ name: 'members_media', type: 'boolean' })
+    membersMedia!: boolean;
+
+    @Column({ name: 'members_add', type: 'boolean' })
+    membersAdd!: boolean;
+
+    @Column({ name: 'members_pin', type: 'boolean' })
+    membersPin!: boolean;
+
+    @Column({ name: 'members_info', type: 'boolean' })
+    membersInfo!: boolean;
+
+    @Column({ name: 'members_call', type: 'boolean' })
+    membersCall!: boolean;
+
+    @Column({ name: 'members_join_call', type: 'boolean' })
+    membersJoinCall!: boolean;
+
+    @Column({ name: 'members_speak', type: 'boolean' })
+    membersSpeak!: boolean;
+
+    /** Whether joining a public group is a request somebody answers. A link says so for itself. */
+    @Column({ type: 'boolean' })
+    approval!: boolean;
+
     /**
      * Who made it. NOT who owns it — ownership is a role on the membership row and moves; this is
      * a fact about the past and stays even after they leave.

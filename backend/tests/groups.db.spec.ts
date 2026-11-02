@@ -8,6 +8,7 @@ import { createGroupService } from '../src/domains/group/service.ts';
 import { createSocialService } from '../src/domains/social/service.ts';
 import { rowsOf } from '../src/lib/rows.ts';
 import { syncSchema } from '../src/db/schema.ts';
+import { SWITCH_COLUMNS, SWITCHES } from '../src/domains/group/roles.ts';
 
 /**
  * The group claims only Postgres can settle: the slug race, the single-owner index, and what
@@ -15,6 +16,11 @@ import { syncSchema } from '../src/db/schema.ts';
  *
  * Opt-in, exactly like the other database suites: `npm run test:db` with `TEST_DATABASE_URL`.
  */
+
+/** Every switch a group has, so a row written by hand is refused only for what the test is about. */
+const SWITCHED = `approval, ${ SWITCHES.map((name) => SWITCH_COLUMNS[name]).join(', ') }`;
+
+const SWITCHED_AS = `false, ${ SWITCHES.map(() => 'true').join(', ') }`;
 
 const url = process.env.TEST_DATABASE_URL;
 
@@ -120,7 +126,7 @@ describe.skipIf(!active)('groups, against a real database', () =>
             await groups.add(owner, id, other);
 
             await expect(db.query(
-                `update group_members set role = 'owner' where group_id = $1 and user_id = $2`,
+                `update group_members set role = 'owner', role_since = now() where group_id = $1 and user_id = $2`,
                 [id, other]
             )).rejects.toThrow(/group_members_single_owner/);
         });
@@ -424,8 +430,8 @@ describe.skipIf(!active)('groups, against a real database', () =>
         it('refuses a level the column has never heard of', async () =>
         {
             await expect(db.query(
-                `insert into groups (slug, name, blurb, crest, hue, privacy)
-                 values ('friends-only', 'Friends Only', '', 'crest-crown', 10, 'friends')`
+                `insert into groups (slug, name, blurb, crest, hue, privacy, ${ SWITCHED })
+                 values ('friends-only', 'Friends Only', '', 'crest-crown', 10, 'friends', ${ SWITCHED_AS })`
             )).rejects.toThrow();
         });
 
@@ -437,8 +443,8 @@ describe.skipIf(!active)('groups, against a real database', () =>
         it('refuses a group that does not say which kind it is', async () =>
         {
             await expect(db.query(
-                `insert into groups (slug, name, blurb, crest, hue)
-                 values ('unsaid', 'Unsaid', '', 'crest-crown', 10)`
+                `insert into groups (slug, name, blurb, crest, hue, ${ SWITCHED })
+                 values ('unsaid', 'Unsaid', '', 'crest-crown', 10, ${ SWITCHED_AS })`
             )).rejects.toThrow();
         });
     });

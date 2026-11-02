@@ -6,6 +6,7 @@ import { GroupMember, type GroupRole } from '../../entities/group-member.entity.
 import { Group, type GroupPrivacy } from '../../entities/group.entity.ts';
 import { firstRow, rowsOf } from '../../lib/rows.ts';
 import type { SocialService } from '../social/service.ts';
+import { SWITCH_COLUMNS, SWITCH_DEFAULTS, SWITCHES } from './roles.ts';
 import { candidatesFor, checkSlug, slugFromName } from './slug.ts';
 
 export interface GroupRow
@@ -34,6 +35,9 @@ export interface GroupRow
 
     conversation_id: string | null;
 }
+
+/** The switch columns in their order, and the values a new group starts with in the same order. */
+const SWITCH_LIST = SWITCHES.map((name) => SWITCH_COLUMNS[name]).join(', ');
 
 /** How many times a slug claim will try before giving up. */
 const CLAIM_ATTEMPTS = 6;
@@ -278,14 +282,14 @@ export function createGroupService(db: DataSource, social: SocialService)
                     const groupId = await db.transaction(async (tx) =>
                     {
                         const inserted = await tx.query(
-                            `insert into groups (slug, name, blurb, crest, hue, game, privacy, created_by)
-                             values ($1, $2, $3, $4, $5, $6, $7, $8)
+                            `insert into groups (slug, name, blurb, crest, hue, game, privacy, created_by, approval, ${ SWITCH_LIST })
+                             values ($1, $2, $3, $4, $5, $6, $7, $8, false, ${ SWITCHES.map((_, index) => `$${ index + 9 }`).join(', ') })
                              returning id`,
-                            [slug, name, input.blurb.trim().slice(0, BLURB_MAX), input.crest, input.hue, input.game, input.privacy, me]
+                            [slug, name, input.blurb.trim().slice(0, BLURB_MAX), input.crest, input.hue, input.game, input.privacy, me, ...SWITCHES.map((name) => SWITCH_DEFAULTS[name])]
                         );
                         const id = rowsOf<{ id: string }>(inserted)[0].id;
 
-                        await tx.getRepository(GroupMember).insert({ groupId: id, userId: me, role: 'owner' });
+                        await tx.getRepository(GroupMember).insert({ groupId: id, userId: me, role: 'owner', roleSince: () => 'now()' });
 
                         const conversation = await tx.query(
                             `insert into conversations (kind, group_id, game) values ('group', $1, $2) returning id`,
@@ -395,7 +399,7 @@ export function createGroupService(db: DataSource, social: SocialService)
                 // Demote before promote, or the partial unique index refuses the second write -
                 // which is exactly what it is for.
                 await tx.getRepository(GroupMember).delete({ groupId, userId: me });
-                await tx.getRepository(GroupMember).update({ groupId, userId: heir.user_id }, { role: 'owner' });
+                await tx.getRepository(GroupMember).update({ groupId, userId: heir.user_id }, { role: 'owner', rights: null, roleSince: () => 'now()' });
                 await tx.query(
                     `delete from conversation_members
                       where user_id = $2
@@ -446,8 +450,8 @@ export function createGroupService(db: DataSource, social: SocialService)
 
             await db.transaction(async (tx) =>
             {
-                await tx.getRepository(GroupMember).update({ groupId, userId: me }, { role: 'member' });
-                await tx.getRepository(GroupMember).update({ groupId, userId: otherId }, { role: 'owner' });
+                await tx.getRepository(GroupMember).update({ groupId, userId: me }, { role: 'member', rights: null, roleSince: null });
+                await tx.getRepository(GroupMember).update({ groupId, userId: otherId }, { role: 'owner', rights: null, roleSince: () => 'now()' });
             });
         },
 

@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 
 import { entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
+import { SWITCH_COLUMNS, SWITCHES } from '../src/domains/group/roles.ts';
 import { checkHandle } from '../src/domains/identity/handle.ts';
 import { slugFromName } from '../src/domains/group/slug.ts';
 
@@ -27,6 +28,11 @@ import { slugFromName } from '../src/domains/group/slug.ts';
  * This is the test that holds the two halves together: whatever the application accepts, the
  * database must store.
  */
+
+/** Every switch a group has, so a row written by hand is refused only for what the test is about. */
+const SWITCHED = `approval, ${ SWITCHES.map((name) => SWITCH_COLUMNS[name]).join(', ') }`;
+
+const SWITCHED_AS = `false, ${ SWITCHES.map(() => 'true').join(', ') }`;
 
 const url = process.env.TEST_DATABASE_URL;
 const active = url !== undefined && url !== '';
@@ -92,7 +98,7 @@ describe.skipIf(!active)('what the database will store', () =>
             try
             {
                 await db.query(
-                    `insert into groups (slug, name, crest, hue, privacy) values ($1, $2, 'crown', 1, 'public')`,
+                    `insert into groups (slug, name, crest, hue, privacy, ${ SWITCHED }) values ($1, $2, 'crown', 1, 'public', ${ SWITCHED_AS })`,
                     [slug, name]
                 );
             }

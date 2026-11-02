@@ -5,6 +5,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { pairKeyOf } from '../domains/chat/service.ts';
 import { deviceText } from '../domains/identity/signature.ts';
 import { deviceIdFrom } from '../domains/device/id.ts';
+import { SWITCH_COLUMNS, SWITCH_DEFAULTS, SWITCHES } from '../domains/group/roles.ts';
 import { firstRow, rowsOf } from '../lib/rows.ts';
 import { WALLET_FIXTURES, WALLET_FRIENDSHIPS, WALLET_GROUP } from './wallet-fixtures.ts';
 
@@ -210,11 +211,11 @@ async function seedWalletGroup(db: DataSource)
     }
 
     const inserted = await db.query(
-        `insert into groups (slug, name, blurb, crest, hue, game, privacy, created_at)
-         values ($1, $2, $3, $4, $5, $6, $7, now())
+        `insert into groups (slug, name, blurb, crest, hue, game, privacy, created_at, approval, ${ SWITCHES.map((name) => SWITCH_COLUMNS[name]).join(', ') })
+         values ($1, $2, $3, $4, $5, $6, $7, now(), false, ${ SWITCHES.map((_, index) => `$${ index + 8 }`).join(', ') })
          on conflict (slug) do nothing
          returning id`,
-        [WALLET_GROUP.slug, WALLET_GROUP.name, WALLET_GROUP.blurb, WALLET_GROUP.crest, WALLET_GROUP.hue, WALLET_GROUP.game, WALLET_GROUP.privacy]
+        [WALLET_GROUP.slug, WALLET_GROUP.name, WALLET_GROUP.blurb, WALLET_GROUP.crest, WALLET_GROUP.hue, WALLET_GROUP.game, WALLET_GROUP.privacy, ...SWITCHES.map((name) => SWITCH_DEFAULTS[name])]
     );
 
     const groupId = firstRow<{ id: string }>(inserted)?.id
@@ -228,10 +229,10 @@ async function seedWalletGroup(db: DataSource)
     for (const [index, member] of members.entries())
     {
         await db.query(
-            `insert into group_members (group_id, user_id, role, joined_at)
-             values ($1, $2, $3, now())
+            `insert into group_members (group_id, user_id, role, role_since, joined_at)
+             values ($1, $2, $3, case when $4::boolean then now() end, now())
              on conflict do nothing`,
-            [groupId, member, index === 0 ? 'owner' : 'member']
+            [groupId, member, index === 0 ? 'owner' : 'member', index === 0]
         );
     }
 

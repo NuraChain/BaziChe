@@ -220,4 +220,21 @@ describe('a file as a sentence quotes it', () =>
         expect(gistOf(await sent({ as: 'file', name: 'report.pdf', w: undefined, h: undefined, thumb: undefined }), locale)).toBe('File: report.pdf');
         expect(gistOf({ ...await sent(), file: undefined }, locale), 'not opened').toBe('File');
     });
+
+    it('is, in an album, what the album holds, unless it carries the album’s caption', async () =>
+    {
+        const locale = useLocale();
+        const album = { id: '5a1d0c9e-2b4f-4e8a-9c3d-7f6e5d4c3b2a', at: 3, of: 4 };
+
+        expect(gistOf(await sent({}, { album: { ...album, holds: 'photo' } }), locale)).toBe('4 photos');
+        expect(gistOf(await sent({ as: 'video', ms: 1000 }, { album: { ...album, holds: 'video' } }), locale)).toBe('4 videos');
+        expect(gistOf(await sent({}, { album: { ...album, holds: 'both' } }), locale)).toBe('4 photos and videos');
+        expect(gistOf(await sent({}, { text: 'Our trip', album: { ...album, at: 0, holds: 'both' } }), locale), 'the caption first').toBe('Our trip');
+
+        locale.setLocale('fa');
+
+        expect(gistOf(await sent({}, { album: { ...album, holds: 'both' } }), locale)).toBe('۴ عکس و ویدیو');
+
+        locale.setLocale('en');
+    });
 });

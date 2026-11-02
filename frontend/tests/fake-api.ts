@@ -1,5 +1,6 @@
 import { ApiError, applyFieldErrors } from '@azerothjs/http/api/shared';
 
+import { FILE_ALBUM_LEAST, FILE_ALBUM_MOST } from '../../backend/src/domains/chat/files.ts';
 import { threadSize } from '../../backend/src/domains/chat/pages.ts';
 import { WATCH_TAIL } from '../../backend/src/domains/match/turns.ts';
 import { codeFrom } from '../../backend/src/domains/invite/policy.ts';
@@ -1787,6 +1788,37 @@ export function fixtureDevice(handle: string)
 }
 
 let counter = 0;
+
+/**
+ * A sealed message as this server stores it. The id is the CLIENT's, because it is bound into the
+ * AAD - a server-assigned id could not be. The timestamp is still this server's: `at` is when the
+ * row landed, `clientAt` is what the sender signed, and the two are deliberately different fields.
+ */
+function storedRow(conversationId: string, input: FakeSend, album?: string): ChatMessage
+{
+    counter += 1;
+
+    return {
+        id: input.id,
+        conversationId,
+        kind: input.kind,
+        from: server.me,
+        body: input.body,
+        at: new Date(1_700_000_000_000 + counter * 1000).toISOString(),
+        epoch: input.epoch,
+        seq: input.seq,
+        iv: input.iv,
+        senderDeviceId: input.senderDeviceId,
+        senderAccountId: accountIdOf(server.me),
+        signature: input.signature,
+        clientAt: input.clientAt,
+        commitment: input.commitment,
+        ...(input.voice === undefined ? {} : { voice: input.voice }),
+        ...(input.file === undefined ? {} : { file: input.file }),
+        ...(input.fileAs === undefined ? {} : { fileAs: input.fileAs }),
+        ...(album === undefined ? {} : { album })
+    };
+}
 
 /**
  * Rebuilds the in-memory chat from the shared fixtures.
@@ -3715,30 +3747,8 @@ export const client =
             {
                 throw new ApiError(400, 'bad-request', 'A file message says whether it is a photo, a video or a file.', undefined);
             }
-            counter += 1;
 
-            // The id is the CLIENT's, because it is bound into the AAD - a server-assigned id could
-            // not be. The timestamp is still this server's: `at` is when the row landed, `clientAt`
-            // is what the sender signed, and the two are deliberately different fields.
-            const message: ChatMessage = {
-                id: input.id,
-                conversationId: params.id,
-                kind: input.kind,
-                from: server.me,
-                body: input.body,
-                at: new Date(1_700_000_000_000 + counter * 1000).toISOString(),
-                epoch: input.epoch,
-                seq: input.seq,
-                iv: input.iv,
-                senderDeviceId: input.senderDeviceId,
-                senderAccountId: accountIdOf(server.me),
-                signature: input.signature,
-                clientAt: input.clientAt,
-                commitment: input.commitment,
-                ...(input.voice === undefined ? {} : { voice: input.voice }),
-                ...(input.file === undefined ? {} : { file: input.file }),
-                ...(input.fileAs === undefined ? {} : { fileAs: input.fileAs })
-            };
+            const message = storedRow(params.id, input);
 
             // The real server also stamps its own MAC here. This one does not, because franking is
             // a claim by the SERVER and `franking.db.spec.ts` owns it against a real Postgres -
@@ -3782,6 +3792,44 @@ export const client =
                 row.unread = 0;
             }
             return message;
+        },
+
+        /** Two to ten photos and videos stored together under their album, as the real server stores them. */
+        async album({ params, input }: { params: { id: string }; input: { album: string; messages: FakeSend[] } })
+        {
+            server.calls.push('chat.album');
+            if (server.holdChat !== null)
+            {
+                await server.holdChat;
+            }
+            if (typeof server.refuseSend === 'string')
+            {
+                throw new ApiError(403, 'forbidden', server.refuseSend, undefined);
+            }
+            if (server.refuseSend !== null)
+            {
+                throw new ApiError(server.refuseSend.status, server.refuseSend.code, 'Refused.', undefined);
+            }
+            if (input.messages.length < FILE_ALBUM_LEAST || input.messages.length > FILE_ALBUM_MOST || input.messages.some((one) => one.kind !== 'file' || (one.fileAs !== 'photo' && one.fileAs !== 'video')))
+            {
+                throw new ApiError(400, 'bad-request', 'An album is two to ten photos and videos.', undefined);
+            }
+            if (server.messages.some((one) => one.album === input.album))
+            {
+                throw new ApiError(409, 'conflict', 'That album has been sent already.', undefined);
+            }
+
+            const written = input.messages.map((one) => storedRow(params.id, one, input.album));
+
+            server.messages.push(...written);
+
+            const row = server.conversations.find((one) => one.id === params.id);
+            if (row !== undefined)
+            {
+                row.last = written.at(-1);
+                row.unread = 0;
+            }
+            return { messages: written };
         },
 
         async played({ params }: { params: { id: string; messageId: string } })
@@ -3829,6 +3877,32 @@ export const client =
 
             const { id, conversationId, from, at } = server.messages[found];
             server.messages[found] = { id, conversationId, kind: 'deleted', at, ...(from === undefined ? {} : { from }) };
+            return { ok: true };
+        },
+
+        /** Every item of an album taken away at once, by whoever may take one of them. */
+        async removeAlbum({ params }: { params: { id: string; album: string } })
+        {
+            server.calls.push('chat.removeAlbum');
+            if (server.holdChat !== null)
+            {
+                await server.holdChat;
+            }
+            if (server.refuseRemove !== null)
+            {
+                throw new ApiError(403, 'forbidden', server.refuseRemove, undefined);
+            }
+
+            const items = server.messages.filter((one) => one.conversationId === params.id && one.album === params.album && one.kind === 'file');
+
+            if (items.length === 0 || items.some((one) => one.from !== server.me && !takenBy(params.id, one)))
+            {
+                throw new ApiError(404, 'not-found', 'No such album here.', undefined);
+            }
+
+            server.messages = server.messages.map((one) => (items.includes(one)
+                ? { id: one.id, conversationId: one.conversationId, kind: 'deleted', at: one.at, ...(one.from === undefined ? {} : { from: one.from }) }
+                : one));
             return { ok: true };
         },
 

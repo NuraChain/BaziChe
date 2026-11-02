@@ -297,9 +297,12 @@ may fetch it, when it goes, a report that keeps it, a forward that names it) hol
 unchanged, which is why it is this shape and not one message naming ten files.
 
 - **The id is the sender's** (a uuid, `messages.album_id`, in the clear, as a reaction's target is), and
-  each item's sealed document says it again with the item's place and how many there are
-  (`"album": { "id", "at", "of" }`), so a server that moved an item into another album, or out of its
-  own, makes a document that disagrees with its row, and the reader draws that item alone.
+  each item's sealed document says it again with the item's place, how many there are and what they
+  are (`"album": { "id", "at", "of", "holds" }`, `holds` being `photo`, `video` or `both`, so the one
+  item the list's last line is can say "4 photos"), so a server that moved an item into another album,
+  or out of its own, makes a document that disagrees with its row, and the reader draws that item alone.
+  Each item is sealed with the next number after the one before it, under one read of the epoch, and
+  signed a millisecond after it, so the order chosen is the order signed.
 - **Sent in one request** (`POST /api/chat/:id/album`, two to ten sealed messages, every upload done
   first): written in one transaction, so nothing comes between its items in the thread and a reader is
   rung once. Each item is the sender's, of kind `file`, a photo or a video, under the room's rules, with
@@ -545,7 +548,7 @@ goes nowhere. The page says calls are "encrypted on the way, not end to end".
 | MS-D43 | Working one | the line deleted, a mute or a ban from the usual places, then closed as dismissed or actioned, logged as `report` |
 | MS-D44 | Telling the staff | `group-report` in `groups`, one row a group, taken back once nothing is left open for them |
 | MS-D45 | Voice and files in a copy | said as what they are, never opened for the group |
-| MS-D46 | Albums | Telegram's shape: two to ten photo and video messages sent in one request, grouped by the sender's album id (in the clear, and in each document with its place and count); the caption the first item's; one bubble |
+| MS-D46 | Albums | Telegram's shape: two to ten photo and video messages sent in one request, grouped by the sender's album id (in the clear, and in each document with its place, its count and what it holds); the caption the first item's; one bubble |
 | MS-D47 | Player | ours: poster, play and pause, a timeline, the time, volume and mute, speed, full screen, its states; never plays by itself |
 | MS-D48 | Attachments | the paperclip's menu: photo or video (several, and the camera on a phone) and file; a sheet that orders, removes and captions |
 

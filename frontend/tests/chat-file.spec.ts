@@ -89,6 +89,33 @@ describe('a file message’s document', () =>
         expect(decodeFile(withFile('name', 'گزارش ۱۴۰۵.pdf'))?.file.name, 'a Persian name is a name').toBe('گزارش ۱۴۰۵.pdf');
     });
 
+    it('reads back the album a photo or a video was sent in, its place, how many and what they are', () =>
+    {
+        const album = { id: '5a1d0c9e-2b4f-4e8a-9c3d-7f6e5d4c3b2a', at: 1, of: 4, holds: 'both' as const };
+
+        expect(decodeFile(encodeFile(body({}, { album })))?.album).toEqual(album);
+        expect(decodeFile(encodeFile(body({ as: 'video', mime: 'video/mp4', ms: 4000 }, { album: { ...album, at: 3 } })))?.album?.at, 'its last place').toBe(3);
+        expect(decodeFile(encodeFile(body())), 'a photo sent alone').not.toHaveProperty('album');
+    });
+
+    it('refuses an album that is not one', () =>
+    {
+        const album = { id: '5a1d0c9e-2b4f-4e8a-9c3d-7f6e5d4c3b2a', at: 0, of: 2, holds: 'photo' };
+        const withAlbum = (over: Record<string, unknown>) => JSON.stringify({ ...JSON.parse(encodeFile(body())), album: { ...album, ...over } });
+
+        expect(decodeFile(withAlbum({})), 'the one we write').not.toBeNull();
+        expect(decodeFile(withAlbum({ id: 'not-an-album' })), 'an id that is no uuid').toBeNull();
+        expect(decodeFile(withAlbum({ of: 1 })), 'one is no album').toBeNull();
+        expect(decodeFile(withAlbum({ of: 11, at: 3 })), 'eleven is too many').toBeNull();
+        expect(decodeFile(withAlbum({ at: 2 })), 'a place past its end').toBeNull();
+        expect(decodeFile(withAlbum({ at: -1 })), 'a place before its start').toBeNull();
+        expect(decodeFile(withAlbum({ at: 0.5 })), 'a place that is not whole').toBeNull();
+        expect(decodeFile(withAlbum({ holds: 'files' })), 'holding what no album holds').toBeNull();
+        expect(decodeFile(withAlbum({ extra: 1 })), 'a field no sender writes').toBeNull();
+        expect(decodeFile(JSON.stringify({ ...JSON.parse(encodeFile(body())), album: 'x' })), 'no mark at all').toBeNull();
+        expect(decodeFile(encodeFile(body({ as: 'file', mime: 'application/pdf', name: 'a.pdf', w: undefined, h: undefined, thumb: undefined }, { album: { ...album, holds: 'photo' } }))), 'a file in an album').toBeNull();
+    });
+
     it('is disclosed to a report as its caption, or its name when it has none', () =>
     {
         expect(decodeDisclosed(encodeFile(body({}, { caption: 'Look' })))).toEqual({ text: 'Look' });

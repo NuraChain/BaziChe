@@ -1,3 +1,4 @@
+import type { AlbumMark } from '../../../backend/src/domains/chat/files.ts';
 import type { GameId } from './games.ts';
 
 /**
@@ -199,6 +200,9 @@ export interface Message
 
     /** A photo, a video or a file, and what its sender sealed about it. Its caption is `text`. */
     file?: Attachment;
+
+    /** Where a photo or a video stands in the album it was sent in, when its row and its document agree on which album. */
+    album?: AlbumMark;
 
     /** A voice message the reader has played. */
     played?: boolean;

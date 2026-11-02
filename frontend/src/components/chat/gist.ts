@@ -36,7 +36,8 @@ export const voiceLength = (message: Message, n: LocaleApi['n']) => voiceClock(M
 
 /**
  * A line as a sentence quotes it: its words, a spoiler hidden, that it is a voice message and, once
- * opened, how long, or a photo, a video or a file by its caption, or by what it is when it has none.
+ * opened, how long, or a photo, a video or a file by its caption, or by what it is when it has none:
+ * an album's item by what the album holds ("4 photos").
  */
 export function gistOf(message: Message, locale: Pick<LocaleApi, 't' | 'n' | 'text'>)
 {
@@ -57,6 +58,11 @@ export function gistOf(message: Message, locale: Pick<LocaleApi, 't' | 'n' | 'te
         if (message.text.trim() !== '')
         {
             return plainOf(locale.text(message.text), locale.t('chat.spoilerPreview'));
+        }
+
+        if (message.album !== undefined)
+        {
+            return locale.t(`chat.albumGist.${ message.album.holds }`, { count: message.album.of });
         }
 
         return file.as === 'file' ? locale.t('chat.fileGist.file', { name: file.name }) : locale.t(file.as === 'photo' ? 'chat.fileGist.photo' : 'chat.fileGist.video');

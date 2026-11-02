@@ -21,7 +21,7 @@ import {
     type OpenedMessage
 } from '../lib/sealing.ts';
 import type { MemberSeal } from '../lib/seal-state.ts';
-import type { FileAs } from '../../../backend/src/domains/chat/files.ts';
+import type { AlbumMark, FileAs } from '../../../backend/src/domains/chat/files.ts';
 import { THREAD_MOST, THREAD_PAGE } from '../../../backend/src/domains/chat/pages.ts';
 
 export interface ChatScope
@@ -120,6 +120,12 @@ export interface ChatSource
     /** Puts a photo, a video or a file up unless it is up already, then seals and sends the message naming it. */
     postFile(message: Message, expiresAt: number, file: FileUpload): Promise<void>;
 
+    /**
+     * Puts up every photo and video of an album that is not up yet, then seals each, in its place, and
+     * sends them together in one request (MS-D46). `files` is each message's file, in the same order.
+     */
+    postAlbum(messages: readonly Message[], expiresAt: number, files: readonly FileUpload[]): Promise<void>;
+
     /** The reader has started a voice message. */
     played(conversationId: string, messageId: string): Promise<void>;
     react(conversationId: string, from: string, target: string, emoji: string, at: number, expiresAt: number): Promise<void>;
@@ -127,6 +133,9 @@ export interface ChatSource
     /** Seals new words for a line of the reader's, to last exactly as long as the line does. */
     edit(conversationId: string, from: string, target: string, text: string, at: number, expiresAt: number): Promise<void>;
     remove(conversationId: string, messageId: string): Promise<void>;
+
+    /** Takes every photo and video of an album away at once. */
+    removeAlbum(conversationId: string, album: string): Promise<void>;
 
     /** Pins a line at the head of its room, or lets it go from there. */
     pinLine(conversationId: string, messageId: string): Promise<void>;
@@ -275,7 +284,7 @@ export function createApiSource()
         wire: ChatMessage,
         text: string,
         locked: MessageFailure | null,
-        signed?: { from: string; frankingKey: string; plain: string; reply?: string; fwd?: true; reactions: Reaction[]; edited?: Message['edited']; voice?: VoiceNote; file?: Attachment }
+        signed?: { from: string; frankingKey: string; plain: string; reply?: string; fwd?: true; reactions: Reaction[]; edited?: Message['edited']; voice?: VoiceNote; file?: Attachment; album?: AlbumMark }
     ) =>
     {
         const said = wire.payload?.params ?? {};
@@ -300,6 +309,7 @@ export function createApiSource()
             ...(wire.read === true ? { read: true } : {}),
             ...(signed?.voice === undefined ? {} : { voice: signed.voice }),
             ...(signed?.file === undefined ? {} : { file: signed.file }),
+            ...(signed?.album === undefined ? {} : { album: signed.album }),
             ...(wire.played === true ? { played: true } : {}),
             ...(wire.heard === true ? { heard: true } : {}),
             ...(wire.rank === undefined ? {} : { rank: wire.rank }),
@@ -476,7 +486,9 @@ export function createApiSource()
     /**
      * A photo, a video or a file, once its envelope has opened: its document has to be one, exactly,
      * and name the file the row names in the clear. Its caption is the message's words, so it is
-     * searched, quoted and summed up as a line's are.
+     * searched, quoted and summed up as a line's are. It is an album's only where its document and its
+     * row name the same album: a server that moved it into another, or out of its own, gets it drawn
+     * alone.
      */
     const openSent = async (
         born: number,
@@ -499,7 +511,8 @@ export function createApiSource()
             ...(body.reply === undefined ? {} : { reply: body.reply }),
             ...(body.fwd === true ? { fwd: true as const } : {}),
             reactions: await openReactions(born, wire, keyFor),
-            file: body.file
+            file: body.file,
+            ...(body.album === undefined || body.album.id !== wire.album ? {} : { album: body.album })
         });
     };
 
@@ -602,6 +615,66 @@ export function createApiSource()
                     params: { id: conversationId },
                     input: { ...sealed, ...(target === undefined ? {} : { target }), ...(voice === undefined ? {} : { voice }), ...(file === undefined ? {} : { file: file.id, fileAs: file.as }) }
                 });
+                return;
+            }
+            catch (error)
+            {
+                if (attempt === 1 || !(error instanceof ApiError) || error.status !== 409)
+                {
+                    throw error;
+                }
+            }
+        }
+    };
+
+    /**
+     * Seals every item of an album under one read of the epoch, each with the next number this device
+     * may use after the one before it, and sends them in one request. A number taken meanwhile (a
+     * line from another tab) is the one case tried again, against a fresh read, as a line's is.
+     */
+    const deliverAlbum = async (
+        conversationId: string,
+        from: string,
+        album: string,
+        items: readonly { plain: string; at: number; id: string; file: { id: string; as: FileAs } }[],
+        expiresAt: number
+    ) =>
+    {
+        const secrets = await keyStore().secrets();
+
+        if (secrets === null)
+        {
+            throw new SealFailure('no-keys', null);
+        }
+
+        for (const attempt of [0, 1])
+        {
+            const epoch = await currentEpoch(conversationId, from);
+
+            if (!epoch.ok)
+            {
+                throw new SealFailure(epoch.failure, epoch.blocked);
+            }
+
+            const messages = [];
+
+            try
+            {
+                for (const [place, item] of items.entries())
+                {
+                    const sealed = await sealForSend({ ...epoch, nextSeq: epoch.nextSeq + place }, secrets, conversationId, item.plain, item.at, expiresAt, 'file', item.id);
+
+                    messages.push({ ...sealed, file: item.file.id, fileAs: item.file.as });
+                }
+            }
+            finally
+            {
+                forget(epoch.key);
+            }
+
+            try
+            {
+                await client.chat.album({ params: { id: conversationId }, input: { album, messages } });
                 return;
             }
             catch (error)
@@ -808,6 +881,42 @@ export function createApiSource()
             await deliver(message.conversationId, message.from, plain, message.at, expiresAt, 'file', undefined, message.id, undefined, { id: file.id, as: file.as });
         },
 
+        async postAlbum(messages, expiresAt, uploads)
+        {
+            const album = messages.length === 0 ? undefined : messages[0].album?.id;
+            const items = messages.filter((one): one is Message & { file: Attachment; album: AlbumMark } =>
+                one.file !== undefined && one.album !== undefined && one.album.id === album);
+
+            if (album === undefined || items.length !== messages.length || uploads.length !== messages.length)
+            {
+                throw new TypeError('An album names every one of its files.');
+            }
+
+            for (const [place, message] of items.entries())
+            {
+                const upload = uploads[place];
+
+                if (upload.body !== null)
+                {
+                    await chatFiles().upload(message.file.id, upload.body, upload.progress);
+                    upload.uploaded();
+                }
+            }
+
+            await deliverAlbum(items[0].conversationId, items[0].from, album, items.map((message) => ({
+                id: message.id,
+                at: message.at,
+                file: { id: message.file.id, as: message.file.as },
+                plain: encodeFile({
+                    file: message.file,
+                    album: message.album,
+                    ...(message.text === '' ? {} : { caption: message.text }),
+                    ...(message.reply === undefined ? {} : { reply: message.reply }),
+                    ...(message.forwarded === true ? { fwd: true as const } : {})
+                })
+            })), expiresAt);
+        },
+
         async played(conversationId, messageId)
         {
             await client.chat.played({ params: { id: conversationId, messageId } });
@@ -827,6 +936,19 @@ export function createApiSource()
         {
             await client.chat.remove({ params: { id: conversationId, messageId } });
             archive.delete(messageId);
+        },
+
+        async removeAlbum(conversationId, album)
+        {
+            await client.chat.removeAlbum({ params: { id: conversationId, album } });
+
+            for (const [id, message] of archive)
+            {
+                if (message.conversationId === conversationId && message.album?.id === album)
+                {
+                    archive.delete(id);
+                }
+            }
         },
 
         async pinLine(conversationId, messageId)

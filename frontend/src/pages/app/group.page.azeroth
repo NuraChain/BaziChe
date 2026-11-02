@@ -109,6 +109,10 @@ export default component GroupPage()
 
     derived logged = group !== null && mayIn(standing, group.switches, 'log');
 
+    derived editable = group !== null && mayIn(standing, group.switches, 'info');
+
+    derived adds = group !== null && mayIn(standing, group.switches, 'add');
+
     derived waiting = group?.requests ?? 0;
 
     /** The staff's panels, each only for a reader whose place opens it; the members are everybody's. */
@@ -288,7 +292,7 @@ export default component GroupPage()
                 <section class="hero-surface relative overflow-hidden rounded-hero p-5 @xl:p-7" aria-labelledby="group-name">
                     <div class="relative grid gap-6 @2xl:grid-cols-[minmax(0,1fr)_auto] @2xl:items-center">
                         <div class="flex min-w-0 items-center gap-4">
-                            <GroupCrest crest={ crew.crest } hue={ crew.hue } size="lg" />
+                            <GroupCrest crest={ crew.crest } hue={ crew.hue } photo={ crew.photo } size="lg" />
                             <div class="flex min-w-0 flex-col gap-1.5">
                                 <h1 id="group-name" class="title truncate text-ui-2xl @xl:text-ui-3xl" dir="auto">{ crew.name }</h1>
                                 <Show when={ blurbed }>
@@ -356,14 +360,14 @@ export default component GroupPage()
                     <SectionHeading
                         title={ locale.t('groups.members') }
                         actions={
-                            <Show when={ owns }>
-                                { () =>
-                                    <>
-                                        <IconButton icon="edit" label={ locale.t('groups.edit') } variant="ghost" size="sm" onClick={ edit } />
-                                        <IconButton icon="friend-add" label={ locale.t('groups.add') } variant="ghost" size="sm" onClick={ addSomebody } />
-                                    </>
-                                }
-                            </Show>
+                            <>
+                                <Show when={ editable }>
+                                    { () => <IconButton icon="edit" label={ locale.t('groups.edit') } variant="ghost" size="sm" onClick={ edit } /> }
+                                </Show>
+                                <Show when={ adds }>
+                                    { () => <IconButton icon="friend-add" label={ locale.t('groups.add') } variant="ghost" size="sm" onClick={ addSomebody } /> }
+                                </Show>
+                            </>
                         }
                     />
 

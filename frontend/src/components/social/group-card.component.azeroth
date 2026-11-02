@@ -31,7 +31,7 @@ export default component GroupCard(props: { group: GroupSummary; class?: string 
         class={ [ `flex min-w-0 items-center gap-2.5 rounded-panel p-2.5 transition duration-200 ${ PANEL_TONE.field } ${ PANEL_HOVER.field }`, props.class ?? '' ].filter(Boolean).join(' ') }
         prefetch="hover"
     >
-        <GroupCrest crest={ props.group.crest } hue={ props.group.hue } size="md" />
+        <GroupCrest crest={ props.group.crest } hue={ props.group.hue } photo={ props.group.photo } size="md" />
         <span class="flex min-w-0 flex-1 flex-col gap-0.5">
             <span class="truncate text-ui-md font-semibold text-text" dir="auto">{ props.group.name }</span>
             <span data-facts class="flex min-w-0 items-center gap-1.5 text-ui-xs text-muted">

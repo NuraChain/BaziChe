@@ -3758,7 +3758,7 @@ export const client =
             return structuredClone(group);
         },
 
-        async create({ input }: { input: { name: string; blurb: string; crest: string; hue: number; game: string; privacy: 'private' | 'public' } })
+        async create({ input }: { input: { name: string; blurb: string; crest: string; hue: number; game: string; privacy: 'private' | 'public'; photo?: string } })
         {
             server.calls.push('groups.create');
             if (server.refuseGroup !== null)
@@ -3782,6 +3782,7 @@ export const client =
                 privacy: input.privacy,
                 hue: input.hue,
                 ...(input.game === '' ? {} : { game: input.game }),
+                ...(input.photo === undefined || input.photo === '' ? {} : { photo: input.photo }),
                 switches: { ...SWITCH_DEFAULTS },
                 approval: false,
                 owner: server.me,
@@ -3796,10 +3797,18 @@ export const client =
             return made;
         },
 
-        async edit({ params, input }: { params: { slug: string }; input: { name: string; blurb: string; crest: string; game: string; privacy: 'private' | 'public' } })
+        async edit({ params, input }: { params: { slug: string }; input: { name: string; blurb: string; crest: string; game: string; privacy: 'private' | 'public'; photo?: string } })
         {
             server.calls.push('groups.edit');
             const group = mustGroup(params.slug);
+            if (input.photo === '')
+            {
+                delete group.photo;
+            }
+            else if (input.photo !== undefined)
+            {
+                group.photo = input.photo;
+            }
             group.name = input.name.trim();
             group.blurb = input.blurb.trim();
             group.crest = input.crest;

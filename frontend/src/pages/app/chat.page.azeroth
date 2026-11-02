@@ -893,7 +893,7 @@ export default component ChatPage()
                                     }
                                 >
                                     <Link to={ `/app/groups/${ crew.id }` } class="flex h-11 w-10 shrink-0 items-center justify-center" aria-label={ locale.t('chat.openGroup') }>
-                                        <GroupCrest crest={ crew.crest } hue={ crew.hue } size="sm" />
+                                        <GroupCrest crest={ crew.crest } hue={ crew.hue } photo={ crew.photo } size="sm" />
                                     </Link>
                                 </Show>
                                 <span class="flex min-w-0 flex-1 flex-col">
@@ -1031,7 +1031,7 @@ export default component ChatPage()
                                                             </Show>
                                                         }
                                                     >
-                                                        <GroupCrest crest={ crew.crest } hue={ crew.hue } size="lg" />
+                                                        <GroupCrest crest={ crew.crest } hue={ crew.hue } photo={ crew.photo } size="lg" />
                                                     </Show>
                                                     <p class="text-ui-lg font-semibold text-text" dir="auto">{ title }</p>
                                                     <p class="max-w-xs text-ui-sm text-muted">{ locale.t(quiet ? 'chat.emptyQuiet' : (stop === null ? 'chat.empty' : 'chat.emptyShut')) }</p>

@@ -39,6 +39,6 @@ export default component ChatFace(props: { conversation: Conversation; me: strin
             </Show>
         }
     >
-        <GroupCrest crest={ crew.crest } hue={ crew.hue } size="sm" />
+        <GroupCrest crest={ crew.crest } hue={ crew.hue } photo={ crew.photo } size="sm" />
     </Show>
 }

@@ -2,10 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { cleanup, fire, renderTest } from '@azerothjs/testing';
 import { RouterProvider, Routes, createMemoryHistory, createRouter, type Route } from 'azerothjs';
 
+import ChatFace from '../src/components/chat/chat-face.component.azeroth';
 import GroupCard from '../src/components/social/group-card.component.azeroth';
 import GroupForm from '../src/components/social/group-form.component.azeroth';
 import { CRESTS, crestOf } from '../src/data/crests.ts';
 import { manualClock } from '../src/lib/clock.ts';
+import { shrinkPicture } from '../src/lib/picture.ts';
 import { isLineKey, LINE_KEYS } from '../src/lib/lines.ts';
 import GroupPage from '../src/pages/app/group.page.azeroth';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
@@ -22,6 +24,20 @@ import { ApiError, client, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
 import { PEOPLE_FIXTURES } from './fixtures.ts';
 import '../src/locales/app-catalogue.ts';
+
+vi.mock('../src/lib/picture.ts', () => ({
+    shrinkPicture: vi.fn(async () => ({ data: 'AAAA', preview: 'data:image/webp;base64,AAAA' }))
+}));
+
+const UPLOADED = `${ window.location.origin }/avatars/${ 'ab'.repeat(32) }.webp`;
+
+/** Hands the form's hidden chooser a file, as a person choosing one would. */
+const choosePhoto = (container: HTMLElement) =>
+{
+    const chooser = container.querySelector<HTMLInputElement>('#group-photo')!;
+    Object.defineProperty(chooser, 'files', { configurable: true, value: [new File(['x'], 'crew.png', { type: 'image/png' })] });
+    fire(chooser, 'change');
+};
 
 let clock: ReturnType<typeof manualClock>;
 
@@ -585,6 +601,219 @@ describe('the group form', () =>
     });
 });
 
+describe('a group\'s photo, in the form that makes or edits one', () =>
+{
+    const opened = (group?: (typeof server.groups)[number]) =>
+    {
+        const close = vi.fn();
+        const { container } = renderTest(() => GroupForm({ overlayId: 'test', close, ...(group === undefined ? {} : { group: structuredClone(group) }) }) as HTMLElement);
+        return { close, container };
+    };
+
+    const named = (container: HTMLElement, name: string) =>
+    {
+        const input = container.querySelector<HTMLInputElement>('#group-name')!;
+        input.value = name;
+        fire(input, 'input');
+    };
+
+    /** The reader, alex, owns the first group. */
+    const owned = () =>
+    {
+        const crew = server.groups[0];
+        crew.owner = 'alex';
+        crew.role = 'owner';
+        return crew;
+    };
+
+    it('is shown the moment it is chosen, sent up only when the form is, and the group made with its address', async () =>
+    {
+        const { close, container } = opened();
+        named(container, 'Tuesday Table');
+
+        choosePhoto(container);
+        await settle();
+
+        expect(container.querySelector('[data-photo] img')?.getAttribute('src'), 'shown before anything is sent').toBe('data:image/webp;base64,AAAA');
+        expect(server.calls, 'nothing sent at the choice').not.toContain('auth.avatar');
+
+        fire(container.querySelector('form')!, 'submit');
+        await settle();
+
+        expect(server.uploaded).toBe('AAAA');
+        expect(server.calls.indexOf('auth.avatar'), 'the photo first').toBeLessThan(server.calls.indexOf('groups.create'));
+        expect(server.groups.find((group) => group.name === 'Tuesday Table')?.photo).toBe(UPLOADED);
+        await vi.waitFor(() => expect(close).toHaveBeenCalled(), { timeout: 4000 });
+    });
+
+    it('is not sent again by a second try after the group was refused', async () =>
+    {
+        vi.spyOn(client.groups, 'create').mockRejectedValueOnce(new ApiError(503, 'unavailable', 'Service unavailable', undefined));
+        const { close, container } = opened();
+        named(container, 'Tuesday Table');
+        choosePhoto(container);
+        await settle();
+
+        fire(container.querySelector('form')!, 'submit');
+        await settle();
+        expect(close).not.toHaveBeenCalled();
+        expect(container.querySelector('[data-photo] img')?.getAttribute('src'), 'still shown').toBe(UPLOADED);
+
+        fire(container.querySelector('form')!, 'submit');
+        await settle();
+
+        expect(server.calls.filter((call) => call === 'auth.avatar'), 'sent up once').toHaveLength(1);
+        expect(server.groups.find((group) => group.name === 'Tuesday Table')?.photo).toBe(UPLOADED);
+    });
+
+    it('is left alone by an edit that does not touch it, and taken off when asked', async () =>
+    {
+        const crew = owned();
+        crew.photo = `${ window.location.origin }/avatars/${ 'cd'.repeat(32) }.webp`;
+        const edits = vi.spyOn(client.groups, 'edit');
+
+        const kept = opened(crew);
+        expect(kept.container.querySelector('[data-photo] img')?.getAttribute('src')).toBe(crew.photo);
+        fire(kept.container.querySelector('form')!, 'submit');
+        await settle();
+
+        expect(edits.mock.calls[0]?.[0].input, 'no photo said').not.toHaveProperty('photo');
+        expect(server.calls).not.toContain('auth.avatar');
+
+        cleanup();
+        const removing = opened(crew);
+        fire([...removing.container.querySelectorAll<HTMLButtonElement>('button')].find((one) => one.textContent?.trim() === useLocale().t('groups.photoRemove'))!, 'click');
+        await settle();
+        expect(removing.container.querySelector('[data-photo]'), 'the crest again at the press').toBeNull();
+
+        fire(removing.container.querySelector('form')!, 'submit');
+        await settle();
+
+        expect(edits.mock.calls[1]?.[0].input.photo, 'taken off').toBe('');
+        expect(server.groups[0].photo).toBeUndefined();
+    });
+
+    it('that cannot be read is said under its field, and nothing is sent for it', async () =>
+    {
+        vi.mocked(shrinkPicture).mockRejectedValueOnce(new Error('not a picture'));
+        const { container } = opened();
+        named(container, 'Tuesday Table');
+
+        choosePhoto(container);
+        await settle();
+
+        expect(container.querySelector('#group-photo-error')?.textContent).toBe(useLocale().t('profile.pictureFailed'));
+        expect(container.querySelector('[data-photo]')).toBeNull();
+
+        fire(container.querySelector('form')!, 'submit');
+        await settle();
+
+        expect(server.calls).not.toContain('auth.avatar');
+        expect(server.groups.find((group) => group.name === 'Tuesday Table')?.photo).toBeUndefined();
+    });
+
+    it('is drawn beside the doors only for whoever may open and close them', async () =>
+    {
+        const doors = (container: HTMLElement) => [...container.querySelectorAll('legend')].some((one) => one.textContent === useLocale().t('groups.privacy'));
+
+        expect(doors(opened().container), 'whoever makes a group owns it').toBe(true);
+        cleanup();
+
+        const crew = owned();
+        expect(doors(opened(crew).container), 'the owner').toBe(true);
+        cleanup();
+
+        crew.owner = 'babak.r';
+        crew.role = 'admin';
+        crew.rights = ['info'];
+        const edits = vi.spyOn(client.groups, 'edit');
+        const admin = opened(crew);
+        expect(doors(admin.container), 'an admin changes how it looks, not who comes in').toBe(false);
+
+        fire(admin.container.querySelector('form')!, 'submit');
+        await settle();
+        expect(edits.mock.calls[0]?.[0].input.privacy, 'the doors kept as they are').toBe(crew.privacy);
+    });
+});
+
+describe('who may change a group, from its page', () =>
+{
+    const SLUG = 'friday-night-crew';
+
+    const crew = () => server.groups.find((one) => one.slug === SLUG)!;
+
+    const opened = async () =>
+    {
+        const routes: Route[] = [{ path: '/app/groups/:id', component: (): HTMLElement => GroupPage() as HTMLElement }];
+        const router = createRouter({ routes, history: createMemoryHistory(`/app/groups/${ SLUG }`), scroll: false });
+        const container = renderTest(() => RouterProvider({ router, children: () => Routes({}) }) as HTMLElement).container;
+
+        await vi.waitFor(() => expect(container.querySelector('h1#group-name')).not.toBeNull(), { timeout: 4000 });
+        await settle();
+        return container;
+    };
+
+    const offered = (container: HTMLElement) =>
+        [...container.querySelectorAll('button[aria-label]')].map((one) => one.getAttribute('aria-label'));
+
+    it('offers a member neither Edit nor Add while the owner keeps both to the staff', async () =>
+    {
+        crew().switches = { ...crew().switches, info: false, add: false };
+
+        const container = await opened();
+
+        expect(offered(container)).not.toContain(useLocale().t('groups.edit'));
+        expect(offered(container)).not.toContain(useLocale().t('groups.add'));
+    });
+
+    it('offers a member both once the owner lets members change how it looks and add people', async () =>
+    {
+        crew().switches = { ...crew().switches, info: true, add: true };
+
+        const container = await opened();
+
+        expect(offered(container)).toContain(useLocale().t('groups.edit'));
+        expect(offered(container)).toContain(useLocale().t('groups.add'));
+    });
+
+    it('draws its photo in its head, and its crest when it has none', async () =>
+    {
+        crew().photo = UPLOADED;
+        const pictured = await opened();
+        expect(pictured.querySelector('section[aria-labelledby="group-name"] [data-photo] img')?.getAttribute('src')).toBe(UPLOADED);
+
+        cleanup();
+        useGroups().reset();
+        delete crew().photo;
+        const plain = await opened();
+        expect(plain.querySelector('section[aria-labelledby="group-name"] [data-photo]')).toBeNull();
+    });
+
+    it('is drawn by its photo beside its thread in the chat list', async () =>
+    {
+        crew().photo = UPLOADED;
+        await useGroups().refresh();
+
+        const room = { id: 'conv-friday-night-crew', expireAfter: null, kind: 'group' as const, participants: crew().members, groupId: SLUG, tableId: null, game: null, title: null, pinned: false, lastReadAt: 0, quiet: false };
+        const face = renderTest(() => ChatFace({ conversation: room, me: 'alex' }) as HTMLElement).container;
+        await settle();
+
+        expect(face.querySelector('[data-photo] img')?.getAttribute('src')).toBe(UPLOADED);
+    });
+
+    it('offers an admin Edit by the info right and Add by the invite right, whatever members may do', async () =>
+    {
+        crew().switches = { ...crew().switches, info: false, add: false };
+        crew().role = 'admin';
+        crew().rights = ['info'];
+
+        const container = await opened();
+
+        expect(offered(container)).toContain(useLocale().t('groups.edit'));
+        expect(offered(container), 'no invite right').not.toContain(useLocale().t('groups.add'));
+    });
+});
+
 describe('a group\'s card', () =>
 {
     const drawn = (changes: Partial<(typeof server.groups)[number]> = {}) =>
@@ -623,5 +852,18 @@ describe('a group\'s card', () =>
 
         expect(facts.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0);
         expect(facts.textContent).not.toContain('·');
+    });
+
+    it('draws the group\'s photo when it has one, and its crest otherwise', async () =>
+    {
+        const plain = drawn();
+        await settle();
+        expect(plain.querySelector('[data-photo]')).toBeNull();
+        expect(plain.querySelector('[aria-hidden="true"] svg'), 'the crest').not.toBeNull();
+
+        cleanup();
+        const pictured = drawn({ photo: UPLOADED });
+        await settle();
+        expect(pictured.querySelector('[data-photo] img')?.getAttribute('src')).toBe(UPLOADED);
     });
 });

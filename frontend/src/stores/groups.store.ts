@@ -14,6 +14,9 @@ export interface GroupDraft
     hue: number;
     game: string;
     privacy: GroupPrivacy;
+
+    /** A picture uploaded here, by its address; on an edit empty takes it away and absent leaves it. */
+    photo?: string;
 }
 
 export interface GroupsApi

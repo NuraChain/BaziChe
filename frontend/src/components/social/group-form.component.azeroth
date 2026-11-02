@@ -1,10 +1,13 @@
+import { mayIn } from '../../../../backend/src/domains/group/roles.ts';
 import type { GroupPrivacy, GroupSummary } from '../../api.ts';
 import { CRESTS, crestOf } from '../../data/crests.ts';
 import { GAMES, type GameId } from '../../data/games.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { whyFailed } from '../../lib/failure.ts';
 import { describedBy, focusFirstInvalid, refusedFields } from '../../lib/form.ts';
+import { shrinkPicture } from '../../lib/picture.ts';
 import type { MessageKey } from '../../locales/en.ts';
+import { useAccount } from '../../stores/account.store.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useGroups } from '../../stores/groups.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -14,6 +17,7 @@ import Button from '../ui/button.component.azeroth';
 import Field from '../ui/field.component.azeroth';
 import Input from '../ui/input.component.azeroth';
 import Segmented from '../ui/segmented.component.azeroth';
+import GroupCrest from './group-crest.component.azeroth';
 
 const NAME_MAX = 60;
 const BLURB_MAX = 240;
@@ -36,6 +40,7 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
     const groups = useGroups();
     const catalogue = useCatalogue();
     const toasts = useToasts();
+    const account = useAccount();
 
     derived editing = props.group !== undefined;
 
@@ -50,7 +55,14 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
     state blurbSaid = null as { value: string; key: MessageKey } | null;
     state failure = null as MessageKey | null;
 
+    /** The photo kept now (an address), one chosen here and not yet sent (its data and how it looks), and why one could not be read. */
+    state picture = props.group?.photo ?? '';
+    state picked = '';
+    state preview = '';
+    state pictureRefusal = '';
+
     let form: HTMLElement | null = null;
+    let chooser: HTMLInputElement | null = null;
 
     // A hue per crest rather than a colour picker: five crests and five hues is a palette, and a
     // free hue is how a group ends up the same grey as every other group.
@@ -74,6 +86,44 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
     // non-member gets "No such group.", and that sentence is the whole feature.
     derived privacyHint = locale.t(privacy === 'private' ? 'groups.privacy.privateHint' : 'groups.privacy.publicHint');
 
+    derived shownPhoto = preview !== '' ? preview : picture;
+
+    derived photographed = shownPhoto !== '';
+
+    derived pictureError = pictureRefusal === '' ? null : pictureRefusal;
+
+    /** The doors are the owner's to open and close: whoever else may change how the group looks keeps them as they are. */
+    derived opensDoors = props.group === undefined
+        || mayIn({ role: props.group.role ?? null, rights: props.group.rights ?? [], muted: props.group.muted !== undefined }, props.group.switches, 'permissions');
+
+    const choose = async (file: File | undefined) =>
+    {
+        if (file === undefined)
+        {
+            return;
+        }
+
+        pictureRefusal = '';
+        try
+        {
+            const shrunk = await shrinkPicture(file);
+            picked = shrunk.data;
+            preview = shrunk.preview;
+        }
+        catch
+        {
+            pictureRefusal = locale.t('profile.pictureFailed');
+        }
+    };
+
+    const removePhoto = () =>
+    {
+        picture = '';
+        picked = '';
+        preview = '';
+        pictureRefusal = '';
+    };
+
     const submit = async () =>
     {
         touched = true;
@@ -93,9 +143,19 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
         pending = true;
         try
         {
+            // A new photo goes up first and is kept by its address, so a second try after a refusal does not send it again.
+            if (picked !== '')
+            {
+                picture = await account.uploadAvatar(picked);
+                picked = '';
+                preview = '';
+            }
+
+            const photo = picture === (props.group?.photo ?? '') ? undefined : picture;
+            const draft = { name: name.trim(), blurb: blurb.trim(), crest, game, privacy, ...(photo === undefined ? {} : { photo }) };
             const saved = props.group === undefined
-                ? await groups.create({ name: name.trim(), blurb: blurb.trim(), crest, hue, game, privacy })
-                : await groups.edit(props.group.id, { name: name.trim(), blurb: blurb.trim(), crest, game, privacy });
+                ? await groups.create({ ...draft, hue })
+                : await groups.edit(props.group.id, draft);
 
             toasts.show({
                 kind: 'success',
@@ -147,6 +207,34 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
             </Show>
         </div>
 
+        <Field id="group-photo" label={ locale.t('groups.photo') } hint={ locale.t('groups.photoHint') } error={ pictureError }>
+            <div class="flex items-center gap-4">
+                <GroupCrest crest={ crest } hue={ hue } photo={ shownPhoto } size="lg" />
+                <div class="flex flex-wrap gap-2">
+                    <input
+                        id="group-photo"
+                        ref={ (element) => chooser = element as HTMLInputElement }
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        class="sr-only"
+                        tabindex="-1"
+                        onChange={ (event) =>
+                        {
+                            const input = event.currentTarget as HTMLInputElement;
+                            void choose(input.files?.[0]);
+                            input.value = '';
+                        } }
+                    />
+                    <Button variant="outline" size="sm" leading="edit" disabled={ pending } onClick={ () => chooser?.click() }>
+                        { locale.t('groups.photoChoose') }
+                    </Button>
+                    <Show when={ photographed }>
+                        { () => <Button variant="ghost" size="sm" leading="trash" disabled={ pending } onClick={ removePhoto }>{ locale.t('groups.photoRemove') }</Button> }
+                    </Show>
+                </div>
+            </div>
+        </Field>
+
         <Field
             id="group-name"
             label={ locale.t('groups.name') }
@@ -194,20 +282,22 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
             </div>
         </fieldset>
 
-        <fieldset class="flex flex-col gap-2">
-            <legend class="label text-ui-sm text-muted">{ locale.t('groups.privacy') }</legend>
-            <Segmented
-                block
-                label={ locale.t('groups.privacy') }
-                value={ privacy }
-                items={ [
-                    { id: 'public', label: locale.t('groups.privacy.public'), icon: 'discover' },
-                    { id: 'private', label: locale.t('groups.privacy.private'), icon: 'lock' }
-                ] }
-                onChange={ (id) => privacy = id as GroupPrivacy }
-            />
-            <p class="text-ui-xs text-faint">{ privacyHint }</p>
-        </fieldset>
+        <Show when={ opensDoors }>
+            <fieldset class="flex flex-col gap-2">
+                <legend class="label text-ui-sm text-muted">{ locale.t('groups.privacy') }</legend>
+                <Segmented
+                    block
+                    label={ locale.t('groups.privacy') }
+                    value={ privacy }
+                    items={ [
+                        { id: 'public', label: locale.t('groups.privacy.public'), icon: 'discover' },
+                        { id: 'private', label: locale.t('groups.privacy.private'), icon: 'lock' }
+                    ] }
+                    onChange={ (id) => privacy = id as GroupPrivacy }
+                />
+                <p class="text-ui-xs text-faint">{ privacyHint }</p>
+            </fieldset>
+        </Show>
 
         <fieldset class="flex flex-col gap-2">
             <legend class="label text-ui-sm text-muted">{ locale.t('groups.game') }</legend>

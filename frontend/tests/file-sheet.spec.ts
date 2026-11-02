@@ -6,6 +6,8 @@ import FileSheet from '../src/components/chat/file-sheet.component.azeroth';
 import '../src/icons/all.ts';
 import type { FileDraft } from '../src/data/chat.ts';
 import { FILE_PHOTO_MOST } from '../../backend/src/domains/chat/files.ts';
+import { manualClock } from '../src/lib/clock.ts';
+import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import { useChat } from '../src/stores/chat.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
@@ -97,6 +99,29 @@ const button = (container: HTMLElement, name: string) => [...container.querySele
 const ready = async (container: HTMLElement) => vi.waitFor(() => expect(button(container, 'Send')?.disabled).toBe(false));
 
 const heading = (container: HTMLElement) => container.querySelector('h2')?.textContent?.trim();
+
+const tile = (container: HTMLElement, name: string) => [...container.querySelectorAll<HTMLElement>('[data-chosen] li')].find((one) => one.getAttribute('aria-label') === name)!;
+
+const order = (container: HTMLElement) => [...container.querySelectorAll('[data-chosen] li')].map((one) => one.getAttribute('aria-label'));
+
+const press = (target: HTMLElement, key: string, ctrl = false) => target.dispatchEvent(new KeyboardEvent('keydown', { key, ctrlKey: ctrl, bubbles: true, cancelable: true }));
+
+/** Three tiles in a row, 96 pixels square and 4 apart, as a browser lays them out. */
+const laidOut = (container: HTMLElement) =>
+{
+    for (const [at, one] of [...container.querySelectorAll<HTMLElement>('[data-chosen] li')].entries())
+    {
+        one.getBoundingClientRect = () =>
+        {
+            const [, x = '0', y = '0'] = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(one.getAttribute('style') ?? '') ?? [];
+
+            return new DOMRect(at * 100 + Number(x), Number(y), 96, 96);
+        };
+    }
+};
+
+const pointer = (type: string, target: Element, x: number, y: number, kind = 'mouse') =>
+    target.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, pointerId: 7, pointerType: kind, isPrimary: true, button: 0, bubbles: true, cancelable: true }));
 
 beforeEach(() =>
 {
@@ -267,6 +292,117 @@ describe('the sheet several things go from', () =>
         const persian = sheet([new File([new TextEncoder().encode('echo hi')], 'run.bat', { type: '' })]).container;
 
         await vi.waitFor(() => expect(persian.querySelector('[data-refused]')?.textContent).toBe('برنامه، اسکریپت و فایل نصبی رو نمی‌شه اینجا فرستاد.'));
+    });
+
+    it('moves a tile a place at a time by Ctrl and an arrow, the way the page reads, and says where it went', async () =>
+    {
+        const sendAlbum = vi.spyOn(useChat(), 'sendAlbum').mockResolvedValue(undefined);
+        const { container } = sheet([photo('a.jpg'), photo('b.jpg'), photo('c.jpg')]);
+
+        await ready(container);
+
+        const first = tile(container, 'a.jpg');
+
+        first.focus();
+        press(first, 'ArrowRight');
+        expect(order(container), 'nothing without Ctrl').toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
+
+        expect(press(first, 'ArrowRight', true), 'the browser does not also act on it').toBe(false);
+        expect(order(container)).toEqual(['b.jpg', 'a.jpg', 'c.jpg']);
+        expect(container.querySelector('[data-moved]')?.textContent).toBe('Moved to 2 of 3.');
+        expect(document.activeElement, 'the keyboard stays on what it moved').toBe(first);
+
+        press(first, 'ArrowDown', true);
+        press(first, 'ArrowDown', true);
+        expect(order(container), 'no further than the end').toEqual(['b.jpg', 'c.jpg', 'a.jpg']);
+
+        fire(button(container, 'Send')!, 'click');
+
+        expect(sendAlbum.mock.calls[0][1].map((one) => one.name), 'the album goes in the order it was put in').toEqual(['b.jpg', 'c.jpg', 'a.jpg']);
+    });
+
+    it('moves later by the left arrow for a reader of Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+
+        const { container } = sheet([photo('a.jpg'), photo('b.jpg')]);
+
+        await vi.waitFor(() => expect(container.querySelectorAll('[data-chosen] img')).toHaveLength(2));
+        press(tile(container, 'a.jpg'), 'ArrowLeft', true);
+        expect(order(container)).toEqual(['b.jpg', 'a.jpg']);
+        expect(container.querySelector('[data-moved]')?.textContent).toBe('رفت جای ۲ از ۲.');
+    });
+
+    it('carries a tile under a mouse to the place it is let go, and moves nothing for a press that stays', async () =>
+    {
+        const { container } = sheet([photo('a.jpg'), photo('b.jpg'), photo('c.jpg')]);
+
+        await ready(container);
+        laidOut(container);
+
+        pointer('pointerdown', tile(container, 'a.jpg'), 50, 50);
+        pointer('pointermove', tile(container, 'a.jpg'), 52, 50);
+        expect(container.querySelector('[data-lifted]'), 'a hand that wobbles').toBeNull();
+        pointer('pointerup', tile(container, 'a.jpg'), 52, 50);
+        expect(order(container)).toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
+
+        pointer('pointerdown', tile(container, 'a.jpg'), 50, 50);
+        pointer('pointermove', tile(container, 'a.jpg'), 250, 50);
+        pointer('pointercancel', tile(container, 'a.jpg'), 250, 50);
+        expect(order(container), 'a pointer the browser took back moves nothing').toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
+        expect(container.querySelector('[data-lifted]')).toBeNull();
+
+        pointer('pointerdown', tile(container, 'a.jpg'), 50, 50);
+        pointer('pointermove', tile(container, 'a.jpg'), 60, 50);
+        pointer('pointermove', tile(container, 'a.jpg'), 250, 50);
+        pointer('pointermove', tile(container, 'a.jpg'), 248, 50);
+        expect(tile(container, 'a.jpg').hasAttribute('data-lifted')).toBe(true);
+        expect(tile(container, 'c.jpg').hasAttribute('data-aimed')).toBe(true);
+        expect(tile(container, 'c.jpg').hasAttribute('data-aimed'), 'never the tile carried, still under the hand').toBe(true);
+        expect(tile(container, 'a.jpg').getAttribute('style')).toContain('translate(198px, 0px)');
+
+        pointer('pointerup', tile(container, 'a.jpg'), 248, 50);
+        expect(order(container)).toEqual(['b.jpg', 'c.jpg', 'a.jpg']);
+        expect(container.querySelector('[data-lifted], [data-aimed]')).toBeNull();
+
+        const way = container.querySelector('[data-remove] button')!;
+
+        pointer('pointerdown', way, 90, 10);
+        pointer('pointermove', way, 250, 50);
+        expect(container.querySelector('[data-lifted]'), 'never from its way out').toBeNull();
+        pointer('pointerup', way, 250, 50);
+    });
+
+    it('lifts a tile under a finger only once it is held still, so a finger that moves at once scrolls', async () =>
+    {
+        const clock = manualClock(0);
+
+        setRuntime({ clock });
+
+        const { container } = sheet([photo('a.jpg'), photo('b.jpg'), photo('c.jpg')]);
+
+        await ready(container);
+        laidOut(container);
+
+        pointer('pointerdown', tile(container, 'a.jpg'), 50, 50, 'touch');
+        pointer('pointermove', tile(container, 'a.jpg'), 50, 80, 'touch');
+        clock.advance(400);
+        expect(container.querySelector('[data-lifted]'), 'it scrolled').toBeNull();
+        pointer('pointerup', tile(container, 'a.jpg'), 50, 80, 'touch');
+
+        pointer('pointerdown', tile(container, 'a.jpg'), 50, 50, 'touch');
+        clock.advance(300);
+        expect(tile(container, 'a.jpg').hasAttribute('data-lifted')).toBe(true);
+
+        const scroll = new Event('touchmove', { cancelable: true });
+
+        container.querySelector('[data-chosen]')!.dispatchEvent(scroll);
+        expect(scroll.defaultPrevented, 'the sheet does not scroll under a tile carried').toBe(true);
+
+        pointer('pointermove', tile(container, 'a.jpg'), 150, 50, 'touch');
+        pointer('pointerup', tile(container, 'a.jpg'), 150, 50, 'touch');
+        expect(order(container)).toEqual(['b.jpg', 'a.jpg', 'c.jpg']);
+        resetRuntime();
     });
 
     it('says a photo too large once it is drawn cannot go, and Enter sends nothing while it is there', async () =>

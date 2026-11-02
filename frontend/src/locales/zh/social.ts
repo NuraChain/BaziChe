@@ -307,6 +307,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.attach.media': '照片或视频',
     'chat.attach.camera': '相机',
     'chat.attach.file': '文件',
+    'chat.attach.order': '拖动它以换个位置，或按 Ctrl 加方向键。',
+    'chat.attach.moved': '已移到第 {place} 个，共 {count} 个。',
     'channels.new': '新建频道',
     'channels.newLead': '频道是一种广播：你和你指定的管理员发布，关注它的人阅读。',
     'channels.edit': '编辑频道',

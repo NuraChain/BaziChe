@@ -307,6 +307,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.attach.media': 'Foto ou vídeo',
     'chat.attach.camera': 'Câmera',
     'chat.attach.file': 'Arquivo',
+    'chat.attach.order': 'Arraste para colocar em outro lugar, ou pressione Ctrl e uma seta.',
+    'chat.attach.moved': 'Movido para {place} de {count}.',
     'channels.new': 'Novo canal',
     'channels.newLead': 'Um canal é uma transmissão: você e os administradores que escolher publicam, e quem o segue lê.',
     'channels.edit': 'Editar canal',

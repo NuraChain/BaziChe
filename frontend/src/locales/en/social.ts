@@ -304,6 +304,8 @@ export const social = {
     'chat.attach.media': 'Photo or video',
     'chat.attach.camera': 'Camera',
     'chat.attach.file': 'File',
+    'chat.attach.order': 'Drag it to put it in another place, or press Ctrl and an arrow.',
+    'chat.attach.moved': 'Moved to {place} of {count}.',
     'channels.new': 'New channel',
     'channels.newLead': 'A channel is a broadcast: you and the admins you name post, and anybody who follows it reads.',
     'channels.edit': 'Edit channel',

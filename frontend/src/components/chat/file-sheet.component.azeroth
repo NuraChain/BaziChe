@@ -3,6 +3,8 @@ import Icon from '../../icons/icon.component.azeroth';
 import { FILE_ALBUM_LEAST, FILE_ALBUM_MOST, FILE_CAPTION_MOST, FILE_MOST } from '../../../../backend/src/domains/chat/files.ts';
 import { judgeFile, type FileRefusal } from '../../lib/file-kind.ts';
 import { mostOf, overUnread, prepare, showable, tooLarge } from '../../lib/file-prepare.ts';
+import { createLongPress } from '../../lib/press.ts';
+import { boxAt, moved } from '../../lib/reorder.ts';
 import { useChat } from '../../stores/chat.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
@@ -251,6 +253,131 @@ export default component FileSheet(props: OverlayProps & {
         chosen = chosen.filter((one) => one.key !== key);
     };
 
+    /** The tile being carried to another place, the one it is over, and how far it has gone from where it was taken. */
+    state lifted = null as number | null;
+
+    state aimed = null as number | null;
+
+    state carried = { x: 0, y: 0 };
+
+    /** The last move, said to a screen reader. */
+    state movedSaid = '';
+
+    let grid: HTMLElement | null = null;
+
+    const gesture = { key: -1, pointer: -1, x: 0, y: 0, touch: false };
+
+    const keyOf = (target: EventTarget | null) => Number((target instanceof Element ? target.closest<HTMLElement>('[data-item]') : null)?.dataset.item ?? -1);
+
+    const place = (key: number, to: number) =>
+    {
+        const from = chosen.findIndex((one) => one.key === key);
+
+        if (from < 0 || to < 0 || to >= chosen.length)
+        {
+            return;
+        }
+
+        chosen = moved(chosen, from, to);
+        movedSaid = locale.t('chat.attach.moved', { place: to + 1, count: chosen.length });
+    };
+
+    const lift = () =>
+    {
+        lifted = gesture.key;
+        aimed = null;
+        carried = { x: 0, y: 0 };
+        grid?.setPointerCapture?.(gesture.pointer);
+    };
+
+    /** A finger lifts a tile once it is held still, so a finger that moves at once scrolls the sheet. */
+    const press = createLongPress({ delay: 300, slop: 8, onPress: lift });
+
+    const drop = (event: PointerEvent, placing: boolean) =>
+    {
+        if (event.pointerId !== gesture.pointer)
+        {
+            return;
+        }
+
+        press.cancel();
+
+        if (placing && lifted !== null && aimed !== null)
+        {
+            const target = aimed;
+
+            place(lifted, chosen.findIndex((one) => one.key === target));
+        }
+
+        lifted = null;
+        aimed = null;
+        gesture.pointer = -1;
+    };
+
+    const down = (event: PointerEvent) =>
+    {
+        const key = keyOf(event.target);
+
+        if (key < 0 || !event.isPrimary || event.button !== 0 || sending || (event.target as Element).closest('[data-remove]') !== null)
+        {
+            return;
+        }
+
+        Object.assign(gesture, { key, pointer: event.pointerId, x: event.clientX, y: event.clientY, touch: event.pointerType !== 'mouse' });
+
+        if (gesture.touch)
+        {
+            press.start(event.clientX, event.clientY);
+        }
+    };
+
+    const move = (event: PointerEvent) =>
+    {
+        if (event.pointerId !== gesture.pointer)
+        {
+            return;
+        }
+
+        if (lifted === null)
+        {
+            if (gesture.touch)
+            {
+                press.move(event.clientX, event.clientY);
+                return;
+            }
+
+            if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < 6)
+            {
+                return;
+            }
+
+            lift();
+        }
+
+        const others = grid === null ? [] : [...grid.querySelectorAll<HTMLElement>('[data-item]')].filter((tile) => Number(tile.dataset.item) !== lifted);
+        const over = boxAt(others.map((tile) => tile.getBoundingClientRect()), event.clientX, event.clientY);
+
+        carried = { x: event.clientX - gesture.x, y: event.clientY - gesture.y };
+        aimed = over < 0 ? null : Number(others[over].dataset.item);
+    };
+
+    /** Ctrl or Cmd with an arrow moves the tile that holds the keyboard one place, the way the page reads. */
+    const shift = (event: KeyboardEvent) =>
+    {
+        const key = keyOf(event.target);
+        const later = locale.dir() === 'rtl' ? 'ArrowLeft' : 'ArrowRight';
+        const earlier = locale.dir() === 'rtl' ? 'ArrowRight' : 'ArrowLeft';
+        const step = event.key === later || event.key === 'ArrowDown' ? 1 : (event.key === earlier || event.key === 'ArrowUp' ? -1 : 0);
+
+        if (key < 0 || step === 0 || !(event.ctrlKey || event.metaKey))
+        {
+            return;
+        }
+
+        event.preventDefault();
+        place(key, chosen.findIndex((one) => one.key === key) + step);
+    };
+
     /**
      * What was chosen, sent: photos and videos together as an album (one alone as itself), then each
      * file as a message of its own, the caption on what goes last. A channel posts each on its own.
@@ -309,14 +436,42 @@ export default component FileSheet(props: OverlayProps & {
             when={ single }
             fallback={
                 <div class="flex flex-col gap-2">
-                    <ul class="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-1.5" aria-label={ title } data-chosen>
+                    <ul
+                        ref={ (element) =>
+                        {
+                            grid = element;
+                            element.addEventListener('touchmove', (event) =>
+                            {
+                                if (lifted !== null)
+                                {
+                                    event.preventDefault();
+                                }
+                            }, { passive: false });
+                        } }
+                        class="grid select-none grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-1.5"
+                        aria-label={ title }
+                        data-chosen
+                        onPointerDown={ down }
+                        onPointerMove={ move }
+                        onPointerUp={ (event: PointerEvent) => drop(event, true) }
+                        onPointerCancel={ (event: PointerEvent) => drop(event, false) }
+                        onKeyDown={ shift }
+                    >
                         <For each={ chosen } key={ (one) => one.key } let={ one }>
                             <li
                                 class={ () => [
-                                    'relative aspect-square overflow-hidden rounded-tile border bg-field',
-                                    faultOf(one, asFile) === null ? 'border-line' : 'border-danger ring-2 ring-danger/40'
-                                ].join(' ') }
+                                    'relative aspect-square overflow-hidden rounded-tile border bg-field outline-offset-2',
+                                    faultOf(one, asFile) === null ? 'border-line' : 'border-danger ring-2 ring-danger/40',
+                                    one.key === lifted ? 'z-10 cursor-grabbing opacity-90 shadow-xl shadow-black/40' : 'cursor-grab',
+                                    one.key === aimed ? 'ring-2 ring-accent' : ''
+                                ].filter(Boolean).join(' ') }
+                                style={ () => (one.key === lifted ? `transform: translate(${ carried.x }px, ${ carried.y }px) scale(1.05)` : '') }
+                                tabindex="0"
+                                aria-label={ () => one.file.name }
+                                aria-describedby="file-sheet-order"
                                 data-item={ () => one.key }
+                                data-lifted={ () => (one.key === lifted ? '' : undefined) }
+                                data-aimed={ () => (one.key === aimed ? '' : undefined) }
                                 data-fault={ () => faultOf(one, asFile) ?? undefined }
                             >
                                 <Show
@@ -366,6 +521,8 @@ export default component FileSheet(props: OverlayProps & {
                             </li>
                         </For>
                     </ul>
+                    <span class="sr-only" id="file-sheet-order">{ locale.t('chat.attach.order') }</span>
+                    <span class="sr-only" aria-live="polite" data-moved>{ movedSaid }</span>
                     <Show when={ stuck }>
                         { () => <p class="text-ui-sm text-danger" role="alert" data-over>{ stuckSaid }</p> }
                     </Show>

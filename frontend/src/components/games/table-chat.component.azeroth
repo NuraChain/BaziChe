@@ -11,7 +11,7 @@ import QuietNote from '../chat/quiet-note.component.azeroth';
 import DayDivider from '../chat/day-divider.component.azeroth';
 import MessageBubble from '../chat/message-bubble.component.azeroth';
 import MessageMenu from '../chat/message-menu.component.azeroth';
-import type { LineHandlers, MenuPoint } from '../chat/actions.ts';
+import { deleteAsked, type LineHandlers, type MenuPoint } from '../chat/actions.ts';
 import Composer from '../chat/composer.component.azeroth';
 import ConfirmSheet from '../app/confirm-sheet.component.azeroth';
 import ChessMoves from './chess-moves.component.azeroth';
@@ -311,11 +311,8 @@ export default component TableChat(props: {
 
     const remove = async (message: Message) =>
     {
-        const yes = await overlay.open(
-            ConfirmSheet,
-            { title: locale.t('chat.deleteConfirm'), lead: locale.t('chat.deleteLead'), confirm: locale.t('chat.delete'), destructive: true },
-            { label: locale.t('chat.deleteConfirm') }
-        ).closed;
+        const asked = deleteAsked(message, locale.t);
+        const yes = await overlay.open(ConfirmSheet, { ...asked, destructive: true }, { label: asked.title }).closed;
 
         if (yes === true)
         {

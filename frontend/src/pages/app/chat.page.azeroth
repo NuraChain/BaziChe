@@ -26,7 +26,7 @@ import PersonActions from '../../components/social/person-actions.component.azer
 import ConfirmSheet from '../../components/app/confirm-sheet.component.azeroth';
 import ForwardSheet from '../../components/chat/forward-sheet.component.azeroth';
 import MessageMenu from '../../components/chat/message-menu.component.azeroth';
-import type { LineHandlers, MenuPoint } from '../../components/chat/actions.ts';
+import { deleteAsked, type LineHandlers, type MenuPoint } from '../../components/chat/actions.ts';
 import type { Message } from '../../data/chat.ts';
 import { gistOf } from '../../components/chat/gist.ts';
 import { attempt } from '../../lib/attempt.ts';
@@ -871,11 +871,8 @@ export default component ChatPage()
 
     const remove = async (message: Message) =>
     {
-        const yes = await overlay.open(
-            ConfirmSheet,
-            { title: locale.t('chat.deleteConfirm'), lead: locale.t('chat.deleteLead'), confirm: locale.t('chat.delete'), destructive: true },
-            { label: locale.t('chat.deleteConfirm') }
-        ).closed;
+        const asked = deleteAsked(message, locale.t);
+        const yes = await overlay.open(ConfirmSheet, { ...asked, destructive: true }, { label: asked.title }).closed;
 
         if (yes === true)
         {
@@ -914,12 +911,8 @@ export default component ChatPage()
 
     const take = async (message: Message) =>
     {
-        const name = people.byHandle(message.from)?.displayName ?? message.from;
-        const yes = await overlay.open(
-            ConfirmSheet,
-            { title: locale.t('chat.takeConfirm', { name }), lead: locale.t('chat.takeLead', { name }), confirm: locale.t('chat.delete'), destructive: true },
-            { label: locale.t('chat.takeConfirm', { name }) }
-        ).closed;
+        const asked = deleteAsked(message, locale.t, people.byHandle(message.from)?.displayName ?? message.from);
+        const yes = await overlay.open(ConfirmSheet, { ...asked, destructive: true }, { label: asked.title }).closed;
 
         if (yes === true)
         {

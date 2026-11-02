@@ -2,6 +2,8 @@ import type { Message } from '../../data/chat.ts';
 import type { IconName } from '../../icons/registry.ts';
 import { copyText } from '../../lib/clipboard.ts';
 import type { MessageKey } from '../../locales/en.ts';
+import type { LocaleApi } from '../../stores/locale.store.ts';
+import { albumSaid } from './gist.ts';
 
 /** One thing a menu or a sheet offers to do with a line or a conversation. */
 export interface ChatAction
@@ -73,17 +75,39 @@ export function messageActions(say: (key: MessageKey) => string, message: Messag
         list.push({ id: 'person', icon: 'me', label: say('chat.aboutSender'), run: handlers.onPerson });
     }
 
+    const deleting = message.album === undefined ? 'chat.delete' : 'chat.deleteAlbum';
+
     if (mine && handlers.onDelete !== undefined)
     {
-        list.push({ id: 'delete', icon: 'trash', label: say('chat.delete'), danger: true, run: handlers.onDelete });
+        list.push({ id: 'delete', icon: 'trash', label: say(deleting), danger: true, run: handlers.onDelete });
     }
 
     if (!mine && handlers.onTake !== undefined)
     {
-        list.push({ id: 'take', icon: 'trash', label: say('chat.delete'), danger: true, run: handlers.onTake });
+        list.push({ id: 'take', icon: 'trash', label: say(deleting), danger: true, run: handlers.onTake });
     }
 
     return list;
+}
+
+/**
+ * What deleting a line asks first: of the reader's own, or of somebody's whose name is given when the
+ * group's staff take it away. An album goes whole, so it says what goes ("Delete these 4 photos?").
+ */
+export function deleteAsked(message: Message, t: LocaleApi['t'], name?: string)
+{
+    const what = message.album === undefined ? null : albumSaid(message.album, t);
+
+    if (name !== undefined)
+    {
+        return what === null
+            ? { title: t('chat.takeConfirm', { name }), lead: t('chat.takeLead', { name }), confirm: t('chat.delete') }
+            : { title: t('chat.takeAlbumConfirm', { name, what }), lead: t('chat.takeAlbumLead', { name }), confirm: t('chat.deleteAlbum') };
+    }
+
+    return what === null
+        ? { title: t('chat.deleteConfirm'), lead: t('chat.deleteLead'), confirm: t('chat.delete') }
+        : { title: t('chat.deleteAlbumConfirm', { what }), lead: t('chat.deleteAlbumLead'), confirm: t('chat.deleteAlbum') };
 }
 
 /** Where a menu was asked for, in the window's own pixels. */

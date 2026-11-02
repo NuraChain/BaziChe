@@ -1,3 +1,4 @@
+import type { AlbumMark } from '../../../../backend/src/domains/chat/files.ts';
 import type { Message } from '../../data/chat.ts';
 import { plainOf } from '../../lib/markdown.ts';
 import type { LocaleApi } from '../../stores/locale.store.ts';
@@ -31,6 +32,9 @@ export function sizeSaid(bytes: number, locale: Pick<LocaleApi, 't' | 'n'>)
     return locale.t('chat.file.size.mb', { n: locale.n(bytes / (1024 * 1024), { maximumFractionDigits: 1 }) });
 }
 
+/** What an album holds, counted: "4 photos", "3 videos", "5 photos and videos". */
+export const albumSaid = (album: AlbumMark, t: LocaleApi['t']) => t(`chat.albumGist.${ album.holds }`, { count: album.of });
+
 /** How long a voice message is, as its clock says it whole. */
 export const voiceLength = (message: Message, n: LocaleApi['n']) => voiceClock(Math.round((message.voice?.ms ?? 0) / 1000), n);
 
@@ -62,7 +66,7 @@ export function gistOf(message: Message, locale: Pick<LocaleApi, 't' | 'n' | 'te
 
         if (message.album !== undefined)
         {
-            return locale.t(`chat.albumGist.${ message.album.holds }`, { count: message.album.of });
+            return albumSaid(message.album, locale.t);
         }
 
         return file.as === 'file' ? locale.t('chat.fileGist.file', { name: file.name }) : locale.t(file.as === 'photo' ? 'chat.fileGist.photo' : 'chat.fileGist.video');

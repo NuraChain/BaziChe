@@ -559,6 +559,30 @@ describe('an album sent from the page', () =>
         expect(container.contains(bubble), 'the bubble it was').toBe(true);
         expect(container.querySelectorAll('[data-album]'), 'and still one').toHaveLength(1);
     });
+
+    it('asks about the album it is about to delete whole', async () =>
+    {
+        setChatFiles({ upload: () => Promise.resolve(), download: () => Promise.reject(new Error('not here')) });
+
+        const thread = server.conversations.find((row) => row.kind === 'direct')!;
+        const container = opened(thread.id, 'sidebar');
+        const item = (id: string) => document.querySelector<HTMLButtonElement>(`[role="menu"] [data-item="${ id }"]`);
+
+        await vi.waitFor(() => expect(container.querySelector('#chat-thread textarea')).not.toBeNull(), { timeout: 4000 });
+        await useChat().sendAlbum(thread.id, [photo(), photo(), photo()], '');
+
+        const album = () => useChat().messages().filter((one) => one.album !== undefined);
+
+        await vi.waitFor(() => expect(album().map((one) => one.outgoing), 'the server’s own lines, nothing on its way').toEqual([undefined, undefined, undefined]), { timeout: 4000 });
+
+        container.querySelector('[data-album]')!.closest('.bubble')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 200 }));
+        await vi.waitFor(() => expect(item('delete')?.textContent?.trim()).toBe('Delete album'), { timeout: 4000 });
+        fire(item('delete')!, 'click');
+
+        await vi.waitFor(() => expect(useOverlay().items()).toHaveLength(1), { timeout: 4000 });
+        expect(useOverlay().items()[0].props).toMatchObject({ title: 'Delete these 3 photos?', confirm: 'Delete album', destructive: true });
+        useOverlay().reset();
+    });
 });
 
 describe('the toasts beside a thread', () =>

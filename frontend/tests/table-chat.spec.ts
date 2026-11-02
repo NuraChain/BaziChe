@@ -912,9 +912,19 @@ describe('the moves beside a chess table\'s chat', () =>
 
 describe('an album at a table', () =>
 {
+    const photo = (): FileDraft => ({
+        plain: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...Array.from({ length: 300 }, (_, at) => at % 251)]),
+        as: 'photo',
+        mime: 'image/jpeg',
+        name: 'table.jpg',
+        w: 1200,
+        h: 1200
+    });
+
     afterEach(() =>
     {
         setChatFiles(null);
+        useOverlay().reset();
     });
 
     it('is one bubble, as it is in a thread', async () =>
@@ -923,19 +933,31 @@ describe('an album at a table', () =>
 
         const room = server.conversations.find((row) => row.kind === 'direct')!;
         const container = shown(room.id);
-        const photo = (): FileDraft => ({
-            plain: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...Array.from({ length: 300 }, (_, at) => at % 251)]),
-            as: 'photo',
-            mime: 'image/jpeg',
-            name: 'table.jpg',
-            w: 1200,
-            h: 1200
-        });
 
         await vi.waitFor(() => expect(container.querySelector('ul[aria-live]')).not.toBeNull(), { timeout: 4000 });
         await useChat().sendAlbum(room.id, [photo(), photo()], '');
 
         await vi.waitFor(() => expect(container.querySelectorAll('[data-album] [data-tile]')).toHaveLength(2), { timeout: 4000 });
         expect(container.querySelectorAll('[data-album]'), 'one album').toHaveLength(1);
+    });
+
+    it('asks about the album it is about to delete whole', async () =>
+    {
+        setChatFiles({ upload: () => Promise.resolve(), download: () => Promise.reject(new Error('not here')) });
+
+        const room = server.conversations.find((row) => row.kind === 'direct')!;
+        const container = shown(room.id);
+        const item = (id: string) => document.querySelector<HTMLButtonElement>(`[role="menu"] [data-item="${ id }"]`);
+
+        await vi.waitFor(() => expect(container.querySelector('ul[aria-live]')).not.toBeNull(), { timeout: 4000 });
+        await useChat().sendAlbum(room.id, [photo(), photo()], '');
+        await vi.waitFor(() => expect(useChat().messages().filter((one) => one.album !== undefined).map((one) => one.outgoing), 'the server’s own lines').toEqual([undefined, undefined]), { timeout: 4000 });
+
+        container.querySelector('[data-album]')!.closest('.bubble')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 200 }));
+        await vi.waitFor(() => expect(item('delete')?.textContent?.trim()).toBe('Delete album'), { timeout: 4000 });
+        fire(item('delete')!, 'click');
+
+        await vi.waitFor(() => expect(useOverlay().items()).toHaveLength(1), { timeout: 4000 });
+        expect(useOverlay().items()[0].props).toMatchObject({ title: 'Delete these 2 photos?', confirm: 'Delete album', destructive: true });
     });
 });

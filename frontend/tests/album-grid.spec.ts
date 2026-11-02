@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fire, renderTest } from '@azerothjs/testing';
 import { RouterProvider, createMemoryHistory, createRouter, createSignal } from 'azerothjs';
 
+import { deleteAsked, messageActions } from '../src/components/chat/actions.ts';
 import MessageBubble from '../src/components/chat/message-bubble.component.azeroth';
 import '../src/icons/all.ts';
 import type { Message } from '../src/data/chat.ts';
@@ -330,6 +331,41 @@ describe('an album in its bubble', () =>
 
         expect(after).toHaveLength(3);
         expect(after.every((tile, place) => tile === before[place]), 'the same nodes').toBe(true);
+    });
+
+    it('asks, before it is deleted, about the album that goes whole, and is offered as an album', async () =>
+    {
+        const [first] = await items(4);
+        const line: Message = { ...first, album: undefined, kind: 'text', text: 'hi', file: undefined };
+        const t = useLocale().t;
+        const labelOf = (message: Message, me: string) => messageActions(t, message, me, { onDelete: () => undefined, onTake: () => undefined }).find((one) => one.id === 'delete' || one.id === 'take')?.label;
+
+        expect(deleteAsked(first, t)).toEqual({
+            title: 'Delete these 4 photos?',
+            lead: 'They go together, for everybody in the conversation, along with their reactions. Anybody who already saw them may still remember them.',
+            confirm: 'Delete album'
+        });
+        expect(deleteAsked(first, t, 'Sara Kamali'), 'when the staff take it').toEqual({
+            title: 'Delete Sara Kamali’s 4 photos?',
+            lead: 'They go together, for everybody in the group, along with their reactions. Sara Kamali isn’t told.',
+            confirm: 'Delete album'
+        });
+        expect(deleteAsked(line, t), 'a line alone as it was').toEqual({
+            title: 'Delete this message?',
+            lead: 'It goes for everybody in the conversation, along with its reactions. Anybody who already read it may still remember it.',
+            confirm: 'Delete message'
+        });
+        expect(deleteAsked(line, t, 'Sara Kamali')).toEqual({
+            title: 'Delete Sara Kamali’s message?',
+            lead: 'It goes for everybody in the group, along with its reactions. Sara Kamali isn’t told.',
+            confirm: 'Delete message'
+        });
+        expect([labelOf(first, 'sara.k'), labelOf(first, 'alex'), labelOf(line, 'sara.k')]).toEqual(['Delete album', 'Delete album', 'Delete message']);
+
+        useLocale().setLocale('fa');
+
+        expect(deleteAsked(first, useLocale().t).title).toBe('این ۴ عکس رو حذف کنی؟');
+        expect(deleteAsked(first, useLocale().t, 'سارا').title).toBe('این ۴ عکس رو که سارا فرستاده حذف کنی؟');
     });
 
     it('is named in the reader’s language', async () =>

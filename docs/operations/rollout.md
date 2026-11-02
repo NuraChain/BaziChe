@@ -31,14 +31,41 @@ git pull
 npm ci
 npm run build
 npm run setup                                  # adds any name the update put in .env.example
-npm run schema:sync
-# restart the service with whatever supervises it
+# restart the service with whatever supervises it: it migrates the database before it serves
 curl -s http://127.0.0.1:4900/api/healthz      # {"status":"ok","database":true}
 ```
 
-`npm run schema:sync` makes the database match the entities exactly: a column an entity no longer
-has is dropped with what was in it. That is why the dump comes first, every time, even when the
-diff of the entities is empty. `DATABASE_URL` is the one in the server's `.env`.
+Every start brings the database to its version by itself (`backend/src/db/migrate.ts`): each
+migration the update brought (`backend/src/db/migrations/`) runs once, in order, in a transaction of
+its own, and the first that fails is rolled back and stops the start, with the reason in the log and
+nothing half done. The server then refuses to start rather than serve a database it does not match.
+Two servers on one database migrate once. The dump still comes first, every time: a migration is
+code, and code can be wrong. `DATABASE_URL` is the one in the server's `.env`.
+
+### The first start of a database from before versions
+
+A database built before migrations existed is adopted at its first start: when it already matches
+the entities, or only lacks what can be added without losing anything, it is brought to them and
+versioned from then on. When matching them would drop a column or a table with what is in it, the
+start stops and says which: take a dump, run `npm run schema:sync` once (it drops them), and start
+again. That happens once, and never after.
+
+### Changing an entity
+
+Change the entity, then write its migration against the development database and read it:
+
+```sh
+npm run migration:new -- AddChannelTopic     # writes backend/src/db/migrations/<time>-AddChannelTopic.ts
+```
+
+It refuses while a migration is still pending there, and refuses one that would lose data unless
+`--allow-loss` says that was meant. Start the server to apply it, and commit it with the entity. A
+start that finds the entities and the database still apart says so in a warning naming the
+statements: an entity changed with no migration for it. A CHECK whose rule changed needs no
+migration: every start compares the rules and rewrites them when they moved.
+
+`npm run migrate` does what a start does, without starting; `npm run schema:sync` is still there for
+a development database to be reset to the entities, and for the one-time adoption above.
 
 After the restart: Admin › Overview should say nothing needs you, and the server's log should hold
 no `error` line from the start.
@@ -54,8 +81,7 @@ no `error` line from the start.
   # restart
   ```
 
-- **It did change them**: the old code expects the old shape, which `schema:sync` has already
-  changed. Restore the dump taken before the update into a new database (below), point
+- **It did change them**: the old code expects the old shape, which the start has already migrated. Restore the dump taken before the update into a new database (below), point
   `DATABASE_URL` at it, and start the old build there. Everything written since the dump is lost,
   so when the update has run for a while, mending forward with a fix is usually the better way.
 

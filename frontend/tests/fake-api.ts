@@ -398,6 +398,33 @@ const panelOf = (slug: string, act: GroupAct) =>
 
 const linksOf = (slug: string) => ({ links: structuredClone(server.groupLinks[slug] ?? []) });
 
+/** The group and its live link a token names, as the server finds them: nothing for a link that no longer works. */
+const linkOf = (token: string) =>
+{
+    for (const group of server.groups)
+    {
+        const link = (server.groupLinks[group.slug] ?? []).find((one) => one.live && one.link.endsWith(`/${ token }`));
+        if (link !== undefined)
+        {
+            return { group, link };
+        }
+    }
+    return null;
+};
+
+/** Where the reader stands with the group a link opens, asked in the order the server asks it. */
+const standingByLink = (group: GroupWire, link: GroupLinkWire) =>
+    group.members.includes(server.me)
+        ? 'member' as const
+        : (server.groupBans[group.slug] ?? []).includes(server.me)
+            ? 'banned' as const
+            : (server.groupRequests[group.slug] ?? []).some((one) => one.handle === server.me)
+                ? 'requested' as const
+                : link.approval ? 'request' as const : 'join' as const;
+
+/** A link that no longer works, in the one way the server says it whatever ended it. */
+const deadLink = () => new ApiError(404, 'group-link', 'That invite link no longer works.', undefined);
+
 function mustGroup(slug: string)
 {
     const group = server.groups.find((one) => one.slug === slug);
@@ -4121,6 +4148,70 @@ export const client =
                 rows: structuredClone(page),
                 ...(start + page.length < rows.length ? { cursor: String(start + page.length) } : {})
             };
+        }
+    },
+
+    /** A group's invitation link, opened by the reader, answered as the real routes answer. */
+    groupLinks:
+    {
+        async face({ params }: { params: { token: string } })
+        {
+            server.calls.push('groupLinks.face');
+            const found = linkOf(params.token);
+            if (found === null)
+            {
+                throw deadLink();
+            }
+            return { group: structuredClone(found.group), can: standingByLink(found.group, found.link) };
+        },
+
+        async join({ params }: { params: { token: string } })
+        {
+            server.calls.push('groupLinks.join');
+            const found = linkOf(params.token);
+            if (found === null)
+            {
+                throw deadLink();
+            }
+
+            const { group, link } = found;
+            if (group.members.includes(server.me))
+            {
+                return { group: structuredClone(group), can: 'member' as const };
+            }
+            if ((server.groupBans[group.slug] ?? []).includes(server.me))
+            {
+                throw new ApiError(403, 'group-banned', 'You cannot join this group.', undefined);
+            }
+            if (link.approval)
+            {
+                const waiting = server.groupRequests[group.slug] ??= [];
+                if (!waiting.some((one) => one.handle === server.me))
+                {
+                    waiting.push({ handle: server.me, at: new Date(runtime().clock.now()).toISOString(), byLink: true });
+                }
+                return { group: structuredClone(group), can: 'requested' as const };
+            }
+
+            link.uses += 1;
+            link.live = link.most === undefined || link.uses < link.most;
+            group.members.push(server.me);
+            group.memberCount = group.members.length;
+            group.role = 'member';
+            group.conversationId = `conv-${ group.slug }`;
+            return { group: structuredClone(group), can: 'member' as const };
+        },
+
+        async withdraw({ params }: { params: { token: string } })
+        {
+            server.calls.push('groupLinks.withdraw');
+            const found = linkOf(params.token);
+            if (found === null)
+            {
+                throw deadLink();
+            }
+            server.groupRequests[found.group.slug] = (server.groupRequests[found.group.slug] ?? []).filter((one) => one.handle !== server.me);
+            return { group: structuredClone(found.group), can: standingByLink(found.group, found.link) };
         }
     },
 

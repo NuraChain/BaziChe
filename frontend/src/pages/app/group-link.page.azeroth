@@ -1,0 +1,215 @@
+import { createResource, untrack, useHead, useNavigate, useParams } from 'azerothjs';
+
+import type { GroupLinkFace } from '../../api.ts';
+import Page from '../../components/app/page.component.azeroth';
+import GroupCrest from '../../components/social/group-crest.component.azeroth';
+import Button from '../../components/ui/button.component.azeroth';
+import EmptyState from '../../components/ui/empty-state.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
+import type { GameId } from '../../data/games.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { whyGroup } from '../../lib/group-words.ts';
+import { useCatalogue } from '../../stores/catalogue.store.ts';
+import { useGroups } from '../../stores/groups.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+
+/**
+ * The page a group's invitation link opens: the group as the link shows it, and the way in it offers.
+ *
+ * For a private group the link is the only way a stranger sees its name, so everything here is the
+ * link's own read and nothing is the group's. A link that no longer works says so whatever ended it;
+ * a read that failed says why and is asked again. Asking to join and taking it back show at the
+ * press; joining waits for the server, because what it opens is the group's own page.
+ */
+export default component GroupLinkPage()
+{
+    const locale = useLocale();
+    const groups = useGroups();
+    const toasts = useToasts();
+    const catalogue = useCatalogue();
+    const params = useParams();
+    const { navigate } = useNavigate();
+
+    const token = untrack(() => params().token ?? '');
+
+    const read = createResource(() => token, (asked) => groups.byLink(asked), { name: 'groups.byLink' });
+
+    /** The answer to the last press, or what it is expected to be while it is out: newer than the read. */
+    state said = null as GroupLinkFace | null;
+    state pending = false;
+
+    derived face = said ?? read.data() ?? null;
+
+    derived gone = said === null && read.data() === null;
+
+    derived failed = face === null && !gone && read.error() !== null;
+
+    derived loading = face === null && !gone && !failed;
+
+    derived name = face?.group.name ?? '';
+
+    derived blurb = face?.group.blurb ?? '';
+
+    derived blurbed = blurb !== '';
+
+    derived count = face?.group.memberCount ?? 0;
+
+    derived closedDoors = face?.group.privacy === 'private';
+
+    derived game = (face?.group.game ?? null) as GameId | null;
+
+    derived member = face?.can === 'member';
+
+    derived joinable = face?.can === 'join';
+
+    derived askable = face?.can === 'request';
+
+    derived asked = face?.can === 'requested';
+
+    derived banned = face?.can === 'banned';
+
+    derived askedWords = locale.t('groups.asked', { name });
+
+    derived groupPath = `/app/groups/${ face?.group.slug ?? '' }`;
+
+    useHead({ title: () => (face === null ? locale.t('groups.linkPageHead') : locale.t('groups.linkPageTitle', { name })) });
+
+    /** A press the server refused: said in the group's words, and the link read again for where the reader stands now. */
+    const refused = (error: unknown) =>
+    {
+        said = null;
+        toasts.show({ kind: 'warning', text: locale.t(whyGroup(error)), dedupe: 'group-link' });
+        void read.refetch();
+    };
+
+    /** In: the group's own page once the server has seated the reader, or the request it made instead. */
+    const landed = (answer: GroupLinkFace) =>
+    {
+        said = answer;
+        if (answer.can === 'member')
+        {
+            toasts.show({ kind: 'success', text: locale.t('groups.joined', { name: answer.group.name }), dedupe: 'group-link' });
+            navigate(`/app/groups/${ answer.group.slug }`);
+            return;
+        }
+        if (answer.can === 'requested')
+        {
+            toasts.show({ kind: 'success', text: locale.t('groups.requestSent'), dedupe: 'group-link' });
+        }
+    };
+
+    const join = (guess: GroupLinkFace['can'] | null) =>
+    {
+        const before = face;
+        if (before === null || pending)
+        {
+            return;
+        }
+
+        pending = true;
+        if (guess !== null)
+        {
+            said = { ...before, can: guess };
+        }
+        void groups.joinByLink(token).then(landed, refused).finally(() => pending = false);
+    };
+
+    const withdraw = () =>
+    {
+        const before = face;
+        if (before === null || pending)
+        {
+            return;
+        }
+
+        pending = true;
+        said = { ...before, can: 'request' };
+        void groups.withdrawByLink(token).then(
+            (answer) =>
+            {
+                said = answer;
+                toasts.show({ kind: 'success', text: locale.t('groups.withdrawn', { name: answer.group.name }), dedupe: 'group-link' });
+            },
+            refused
+        ).finally(() => pending = false);
+    };
+
+    <Page width="narrow">
+        <div class="flex flex-col gap-6 py-2">
+            <Show when={ loading }>
+                <div class="flex flex-col items-center gap-4 rounded-hero border border-line bg-field p-6" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                    <Skeleton class="h-20 w-20 rounded-tile" />
+                    <Skeleton lines={ 3 } class="w-full max-w-xs" />
+                </div>
+            </Show>
+
+            <Show when={ failed }>
+                <ErrorState error={ read.error() } onRetry={ () => void read.refetch() } class="py-12" />
+            </Show>
+
+            <Show when={ gone }>
+                <EmptyState
+                    icon="invite"
+                    heading
+                    title={ locale.t('groups.linkPageDead') }
+                    lead={ locale.t('groups.linkPageDeadLead') }
+                    action={ locale.t('app.nav.friends') }
+                    to="/app/friends?tab=groups"
+                    class="py-12"
+                />
+            </Show>
+
+            <Show when={ face } let={ shown }>
+                <section class="hero-surface relative overflow-hidden rounded-hero p-6 @xl:p-8" aria-labelledby="link-group-name" data-link-face>
+                    <div class="relative flex flex-col items-center gap-5 text-center">
+                        <GroupCrest crest={ shown.group.crest } hue={ shown.group.hue } photo={ shown.group.photo } size="lg" />
+
+                        <div class="flex flex-col items-center gap-1.5">
+                            <p class="text-ui-sm font-semibold text-accent">{ locale.t('groups.linkPageEyebrow') }</p>
+                            <h1 id="link-group-name" class="title text-balance text-ui-2xl @xl:text-ui-3xl" dir="auto">{ name }</h1>
+                            <Show when={ blurbed }>
+                                <p class="max-w-[46ch] text-balance text-ui-md text-muted" dir="auto">{ blurb }</p>
+                            </Show>
+                            <p class="facts justify-center text-ui-sm text-muted">
+                                <span><span class="tally">{ locale.n(count) }</span> { locale.plural('groups.membersLabel', count) }</span>
+                                <Show when={ closedDoors }>
+                                    <span class="flex items-center gap-1"><Icon name="lock" size={ 13 } />{ locale.t('groups.private') }</span>
+                                </Show>
+                                <Show when={ game } let={ played }>
+                                    <span>{ locale.t(catalogue.byId(played).nameKey) }</span>
+                                </Show>
+                            </p>
+                        </div>
+
+                        <div class="flex w-full max-w-xs flex-col gap-2">
+                            <Show when={ member }>
+                                <div class="flex flex-col gap-2" data-member>
+                                    <p class="text-ui-sm text-muted">{ locale.t('groups.linkPageMember') }</p>
+                                    <Button variant="primary" leading="people" block to={ groupPath }>{ locale.t('groups.linkPageOpen') }</Button>
+                                </div>
+                            </Show>
+                            <Show when={ joinable }>
+                                <Button variant="primary" leading="friend-add" block loading={ pending } onClick={ () => join(null) }>{ locale.t('groups.join') }</Button>
+                            </Show>
+                            <Show when={ askable }>
+                                <Button variant="primary" leading="friend-add" block onClick={ () => join('requested') }>{ locale.t('groups.requestJoin') }</Button>
+                            </Show>
+                            <Show when={ asked }>
+                                <div class="flex flex-col gap-2" data-asked>
+                                    <p class="text-ui-sm text-muted" dir="auto">{ askedWords }</p>
+                                    <Button variant="outline" block onClick={ withdraw }>{ locale.t('groups.withdraw') }</Button>
+                                </div>
+                            </Show>
+                            <Show when={ banned }>
+                                <p class="text-ui-sm text-danger" data-banned>{ locale.t('group.refused.group-banned') }</p>
+                            </Show>
+                        </div>
+                    </div>
+                </section>
+            </Show>
+        </div>
+    </Page>
+}

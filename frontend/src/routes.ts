@@ -74,6 +74,7 @@ export const routes: PageRoute[] = [
             { path: 'chats', lazy: chunk(() => import('./pages/app/chats.page.azeroth')), meta: defineMeta({ title: 'app.nav.chats', tab: 'chats', messenger: true }) },
             { path: 'chats/:id', lazy: chunk(() => import('./pages/app/chat.page.azeroth')), meta: defineMeta({ tab: 'chats', parent: '/app/chats', immersive: true, messenger: true }) },
             { path: 'groups/:id', lazy: chunk(() => import('./pages/app/group.page.azeroth')), meta: defineMeta({ tab: 'friends', parent: '/app/friends' }) },
+            { path: 'g/:token', lazy: chunk(() => import('./pages/app/group-link.page.azeroth')), meta: defineMeta({ title: 'groups.linkPageHead', tab: 'friends', parent: '/app/friends' }) },
             { path: 'leaderboard', lazy: chunk(() => import('./pages/app/leaderboard.page.azeroth')), meta: defineMeta({ title: 'app.nav.leaderboard', tab: 'leaderboard' }) },
             { path: 'discover', lazy: chunk(() => import('./pages/app/discover.page.azeroth')), meta: defineMeta({ title: 'app.nav.discover', tab: 'discover' }) },
             { path: 'shop', lazy: chunk(() => import('./pages/app/shop.page.azeroth')), meta: defineMeta({ title: 'shop.title', tab: 'shop' }) },

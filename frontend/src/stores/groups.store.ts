@@ -1,7 +1,7 @@
 import { createStore, createResource, createSignal, untrack, type Getter } from 'azerothjs';
 
 import type { GroupSwitches } from '../../../backend/src/domains/group/roles.ts';
-import { ApiError, client, type GroupPrivacy, type GroupSummary } from '../api.ts';
+import { ApiError, client, type GroupLinkFace, type GroupPrivacy, type GroupSummary } from '../api.ts';
 import { readingOf, type Reading } from '../lib/reading.ts';
 import { useAccount } from './account.store.ts';
 import { usePeople } from './people.store.ts';
@@ -63,6 +63,14 @@ export interface GroupsApi
 
     /** Takes back a request to join that nobody has answered yet. */
     withdraw(slug: string): Promise<void>;
+
+    /** What an invitation link opens and where the reader stands with it, or null for a link that no longer works. */
+    byLink(token: string): Promise<GroupLinkFace | null>;
+
+    /** Comes in through a link: seated, or asked where the link asks first. */
+    joinByLink(token: string): Promise<GroupLinkFace>;
+
+    withdrawByLink(token: string): Promise<GroupLinkFace>;
 
     /** What members may do and whether joining asks first, as a whole: the owner's to set. */
     permissions(slug: string, wanted: { switches: GroupSwitches; approval: boolean }): Promise<GroupSummary>;
@@ -215,6 +223,34 @@ export const useGroups = createStore((): GroupsApi =>
         {
             await client.groups.withdraw({ params: { slug } });
             await revalidate();
+        },
+
+        async byLink(token)
+        {
+            try
+            {
+                return await client.groupLinks.face({ params: { token } });
+            }
+            catch (error)
+            {
+                if (error instanceof ApiError && error.status === 404)
+                {
+                    return null;
+                }
+                throw error;
+            }
+        },
+
+        async joinByLink(token)
+        {
+            const face = await client.groupLinks.join({ params: { token } });
+            await revalidate();
+            return face;
+        },
+
+        async withdrawByLink(token)
+        {
+            return client.groupLinks.withdraw({ params: { token } });
         },
 
         async permissions(slug, wanted)

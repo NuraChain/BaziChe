@@ -123,6 +123,16 @@ export function loadServerConfig()
             /** `ArcadeMarkets`, where positions on games are held; its operator is the key above. */
             marketsAddress: optional('NURA_MARKETS_ADDRESS'),
 
+            /**
+             * `ArcadeLooks` and `ArcadeAchievements`, where owned looks and legendary achievements
+             * are minted as soulbound tokens, and the key that mints them: its own, never the
+             * referee's, so a backfill of thousands of mints never stands in front of a payout.
+             * Nothing is minted until all three are set beside the RPC and the chain.
+             */
+            looksAddress: optional('NURA_LOOKS_ADDRESS'),
+            achievementsAddress: optional('NURA_ACHIEVEMENTS_ADDRESS'),
+            minterKey: optional('NURA_MINTER_KEY', { secret: true }),
+
             /** The explorer's Etherscan-compatible api, where a wallet's NFT transfers are read. */
             explorerApi: optional('NURA_EXPLORER_API'),
 

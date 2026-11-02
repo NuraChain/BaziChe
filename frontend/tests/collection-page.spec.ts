@@ -95,6 +95,36 @@ afterEach(() =>
 
 describe('the reader\'s collection', () =>
 {
+    it('lists the looks held on NuraChain, linking a minted one to its transaction and saying one is on its way', async () =>
+    {
+        const hash = `0x${ 'ab'.repeat(32) }`;
+        server.shop.owned = [
+            { item: 'dice.neon', via: 'purchase', at: '2026-10-27T11:00:00.000Z', nft: { state: 'minted', hash } },
+            { item: 'back.gold', via: 'gift', at: '2026-10-27T11:00:00.000Z', from: 'sara.k', nft: { state: 'minting' } },
+            { item: 'felt.shiraz', via: 'purchase', at: '2026-10-27T11:00:00.000Z' }
+        ];
+
+        const root = await page();
+        const rows = [...root.querySelectorAll('[data-chained]')];
+
+        expect(root.textContent).toContain('On NuraChain');
+        expect(rows.map((row) => [row.getAttribute('data-chained'), row.querySelector('[data-nft]')?.getAttribute('data-nft')])).toEqual([
+            ['dice.neon', 'minted'],
+            ['back.gold', 'minting']
+        ]);
+        expect(rows[0].querySelector('a[data-nft]')?.getAttribute('href')).toBe(`https://explorer.nurachain.net/tx/${ hash }`);
+        expect(rows[1].textContent).toContain('Minting');
+    });
+
+    it('says nothing of the chain while nothing is minted', async () =>
+    {
+        server.shop.owned = [{ item: 'dice.neon', via: 'purchase', at: '2026-10-27T11:00:00.000Z' }];
+
+        const root = await page();
+
+        expect(root.querySelector('#collection-chain')).toBeNull();
+    });
+
     it('has a row for every place a look goes, Classic chosen until one is', async () =>
     {
         const root = await page();

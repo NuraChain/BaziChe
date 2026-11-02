@@ -557,9 +557,17 @@ export async function historicalKey(conversationId: string, epoch: number, devic
         return null;
     }
 
-    const known = new Set((await signersFor(conversationId)).map((signer) => signer.id));
+    // A device the held list does not know may only have enrolled since it was read: somebody's new
+    // phone, named by the epoch minted for it. Asked once more before it is called a device that
+    // never was, as `verifiedSigner` does for a signer, or every line of that epoch would read
+    // "Locked" until the page was reloaded.
+    const unknown = (signers: PeerSigner[]) =>
+    {
+        const known = new Set(signers.map((signer) => signer.id));
+        return listed.some((id) => !known.has(id));
+    };
 
-    if (listed.some((id) => !known.has(id)))
+    if (unknown(await signersFor(conversationId)) && unknown(await signersFor(conversationId, true)))
     {
         return null;
     }

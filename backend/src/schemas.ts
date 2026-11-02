@@ -107,6 +107,15 @@ export const achievementRarity = enumOf(RARITY_IDS);
 
 export type AchievementRarity = Infer<typeof achievementRarity>;
 
+/**
+ * What a page says of something its owner holds on NuraChain as a soulbound token: on its way, or
+ * there, with the transaction that minted it for the explorer's link (docs/design/2026-11-02-nft-design.md).
+ */
+export const nftMark = object({
+    state: enumOf(['minting', 'minted']),
+    hash: string().optional()
+});
+
 export const earnedAchievement = object({
     id: string(),
     name: localizedText,
@@ -116,7 +125,10 @@ export const earnedAchievement = object({
     rarity: achievementRarity,
     holders: number(),
     game: string().optional(),
-    earnedAt: string()
+    earnedAt: string(),
+
+    /** A legendary achievement minted, or being minted, into its earner's wallet. */
+    nft: nftMark.optional()
 });
 
 export type EarnedAchievement = Infer<typeof earnedAchievement>;
@@ -327,7 +339,15 @@ export type Account = Infer<typeof account>;
 
 /** The current session, or nothing. A signed-out browser is not an error. */
 export const sessionState = object({
-    account: account.optional()
+    account: account.optional(),
+
+    /**
+     * Said only when the cookie the browser sent named a session that was ENDED, rather than one
+     * that ran out: signed out everywhere, its device revoked, or the staff signing the person out.
+     * The browser throws its chat keys away on this alone. A session that ran out says nothing, and
+     * the same person signing back in reads what they read before.
+     */
+    ended: enumOf(['revoked']).optional()
 });
 
 export type SessionState = Infer<typeof sessionState>;
@@ -698,7 +718,10 @@ export const ownedLook = object({
     item: string(),
     via: enumOf(OWNED_VIA),
     at: string(),
-    from: string().optional()
+    from: string().optional(),
+
+    /** The look minted, or being minted, into the reader's wallet. */
+    nft: nftMark.optional()
 });
 
 /** Everything the reader owns and what they chose for each slot; a slot with nothing chosen is Classic. */

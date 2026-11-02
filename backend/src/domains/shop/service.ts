@@ -4,6 +4,7 @@ import { In, type DataSource, type EntityManager } from 'typeorm';
 import { EquippedItem } from '../../entities/equipped-item.entity.ts';
 import { OwnedItem } from '../../entities/owned-item.entity.ts';
 import type { ShopCollectionView } from '../../schemas.ts';
+import { markOf, nftsOf } from '../nft/read.ts';
 import { SHOP_SLOTS, fitsSlot, isSlot, tableSlotsOf } from './catalogue.ts';
 import type { OwnedVia } from './policy.ts';
 import { SHOP_REFUSALS, type ShopRefusal } from './refusals.ts';
@@ -21,7 +22,7 @@ export function createShopService(db: DataSource)
 {
     const collection = async (me: string): Promise<ShopCollectionView> =>
     {
-        const [owned, chosen] = await Promise.all([
+        const [owned, chosen, minted] = await Promise.all([
             db.getRepository(OwnedItem)
                 .createQueryBuilder('o')
                 .leftJoin('users', 'g', 'g.id = o.giver_id')
@@ -33,7 +34,8 @@ export function createShopService(db: DataSource)
                 .orderBy('o.acquired_at', 'DESC')
                 .addOrderBy('o.item_id', 'ASC')
                 .getRawMany<{ item: string; via: OwnedVia; at: Date; giver: string | null }>(),
-            db.getRepository(EquippedItem).find({ where: { userId: me }, order: { slot: 'ASC' } })
+            db.getRepository(EquippedItem).find({ where: { userId: me }, order: { slot: 'ASC' } }),
+            nftsOf(db, me, 'look')
         ]);
 
         return {
@@ -41,7 +43,8 @@ export function createShopService(db: DataSource)
                 item: row.item,
                 via: row.via,
                 at: new Date(row.at).toISOString(),
-                ...(row.giver === null ? {} : { from: row.giver })
+                ...(row.giver === null ? {} : { from: row.giver }),
+                ...markOf(minted, row.item)
             })),
             chosen: chosen.flatMap((row) => isSlot(row.slot) ? [{ slot: row.slot, item: row.itemId }] : [])
         };

@@ -1,7 +1,7 @@
 import { NotFoundError } from '@azerothjs/http';
 import { feature, reply } from '@azerothjs/http/api';
 
-import { clearSessionCookie, requireSession, sessionCookie } from './http/auth.ts';
+import { clearSessionCookie, readSessionToken, requireSession, sessionCookie } from './http/auth.ts';
 import type { Ports } from './ports.ts';
 import {
     achievementLadder,
@@ -345,10 +345,21 @@ export function buildApi(ports: Ports)
                 const principal = await ports.identity.principal(context.request);
                 if (principal === null)
                 {
-                    return {};
+                    const ended = await ports.identity.ended(context.request);
+                    return ended === null ? {} : { ended };
                 }
                 const account = await ports.identity.me(principal.userId);
-                return account === null ? {} : { account };
+                if (account === null)
+                {
+                    return {};
+                }
+
+                // The cookie is sent again, a whole lifetime from now, as the session row slides:
+                // a cookie that ran out on day thirty would sign a daily player out all the same.
+                const token = readSessionToken(context.request, ports.identity.secureCookies);
+                return token === null
+                    ? { account }
+                    : reply(200, { account }, { 'set-cookie': sessionCookie(token, ports.identity.secureCookies) });
             }),
 
             /**

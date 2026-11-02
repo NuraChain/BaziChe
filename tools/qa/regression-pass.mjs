@@ -388,16 +388,18 @@ console.log('\n[7] Persian — the new copy exists in both languages');
 }
 
 // ------------------------------------------------------------------ 8. the wallet chooser
-console.log('\n[8] sign-in offers more than one wallet');
+console.log('\n[8] the landing offers more than one wallet');
 {
     const { context, page, errors } = await open();
     try
     {
-        await page.goto(`${ BASE }/sign-in`, { waitUntil: 'networkidle' });
+        // `/sign-in` has one button, which connects the wallet announced first; the chooser that
+        // names every wallet is the landing's, opened from its header.
+        await page.goto(`${ BASE }/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(2000);
 
-        const other = page.getByRole('button', { name: /Use a different wallet/i }).first();
-        record('sign-in offers a way to pick another wallet', await other.count() > 0, '');
+        const other = page.locator('header').first().getByRole('button', { name: 'Connect wallet', exact: true }).first();
+        record('the landing offers a way to pick a wallet', await other.count() > 0, '');
 
         await other.click();
         await page.waitForTimeout(2500);

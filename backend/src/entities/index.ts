@@ -29,6 +29,7 @@ import { GroupEvent } from './group-event.entity.ts';
 import { GroupInvite } from './group-invite.entity.ts';
 import { GroupMember } from './group-member.entity.ts';
 import { GroupMute } from './group-mute.entity.ts';
+import { GroupReport } from './group-report.entity.ts';
 import { GroupRequest } from './group-request.entity.ts';
 import { Group } from './group.entity.ts';
 import { Game } from './game.entity.ts';
@@ -77,7 +78,7 @@ import { Wallet } from './wallet.entity.ts';
 export {
     Achievement, Avatar, Block, Channel, ChannelMember, ChannelPost, ChannelVote, ChatFile, Conversation, ConversationEpoch, ConversationMember, ConversationPin, Device, Discrepancy, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat, EstablishedPlayer,
     EpochArchive, FriendRequest, Friendship,
-    Game, GameRule, Group, GroupBan, GroupEvent, GroupInvite, GroupMember, GroupMute, GroupRequest, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, Mute,
+    Game, GameRule, Group, GroupBan, GroupEvent, GroupInvite, GroupMember, GroupMute, GroupReport, GroupRequest, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, Mute,
     Notice, Notification, OwnedItem, PaidAccount, PlayerStats, PushSubscription,
     QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, Session, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
     UserAchievement, VoiceNote, VoicePlay, Wallet
@@ -99,7 +100,7 @@ export const entities: Function[] = [
     Friendship, FriendRequest, Block, Mute, Report,
     Conversation, ConversationMember, VoiceNote, ChatFile, Message, VoicePlay, ConversationPin, ConversationEpoch, EpochKey, EpochArchive,
     RecoveryVault, RecoveryNonce, InviteCode, InviteVisit, InviteCampaign, InviteReward, InviteBoardOff, Referral, EstablishedPlayer,
-    Group, GroupMember, GroupBan, GroupMute, GroupInvite, GroupRequest, GroupEvent,
+    Group, GroupMember, GroupBan, GroupMute, GroupInvite, GroupRequest, GroupEvent, GroupReport,
     Channel, ChannelMember, ChannelPost, ChannelVote,
     Table, TableSeat, TableRemoval, QuickTable,
     Match, MatchPlayer, MatchAction, PlayerStats, UserAchievement,

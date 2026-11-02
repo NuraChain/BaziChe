@@ -21,7 +21,8 @@ export const NOTIFICATION_ICON: Record<NotificationKind, IconName> = {
     'group-request': 'friend-add',
     'group-approved': 'friend-check',
     'group-owner': 'crest-crown',
-    'channel-invite': 'megaphone'
+    'channel-invite': 'megaphone',
+    'group-report': 'report'
 };
 
 const SAYS: Record<NotificationKind, MessageKey> = {
@@ -40,7 +41,8 @@ const SAYS: Record<NotificationKind, MessageKey> = {
     'group-request': 'notify.groupRequest',
     'group-approved': 'notify.groupApproved',
     'group-owner': 'notify.groupOwner',
-    'channel-invite': 'notify.channelInvite'
+    'channel-invite': 'notify.channelInvite',
+    'group-report': 'notify.groupReport'
 };
 
 export function sayOf(item: Notification, who: string, locale: Pick<LocaleApi, 't' | 'plural' | 'n'>)
@@ -93,6 +95,10 @@ export function targetOf(item: Notification): string | null
     if (item.kind === 'group-request' && item.ref.groupId !== undefined)
     {
         return `/app/groups/${ item.ref.groupId }?tab=requests`;
+    }
+    if (item.kind === 'group-report' && item.ref.groupId !== undefined)
+    {
+        return `/app/groups/${ item.ref.groupId }?tab=reports`;
     }
     if (item.ref.groupId !== undefined)
     {

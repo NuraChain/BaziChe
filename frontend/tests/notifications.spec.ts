@@ -142,6 +142,21 @@ describe('where a notice leads', () =>
         useLocale().setLocale('en');
     });
 
+    it.each([
+        ['en', 'A message was reported in a group you help run'],
+        ['fa', 'یه پیام توی گروهی که تو اداره‌ش دست داری گزارش شده']
+    ] as const)('sends a line reported in a group to the group’s reports and names nobody, in %s', (language, said) =>
+    {
+        useLocale().setLocale(language);
+
+        const reported = notice('group-report', { ref: { groupId: 'g-1' } });
+
+        expect(targetOf(reported)).toBe('/app/groups/g-1?tab=reports');
+        expect(sayOf(reported, '', useLocale())).toBe(said);
+        expect(wordsOf(language).says, 'the worker says what the page says').toMatchObject({ 'group-report': messageOf(language, 'notify.groupReport') });
+        useLocale().setLocale('en');
+    });
+
     it('sends somebody a host took out of a table to the games, not back to a table with no chair for them', () =>
     {
         expect(targetOf(notice('table-removed', { actor: 'maya.c', ref: { tableId: 't-1', game: 'ludo' } }))).toBe('/app/games');

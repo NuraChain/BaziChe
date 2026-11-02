@@ -3294,7 +3294,10 @@ export const notificationKind = enumOf([
     'group-owner',
 
     /** Somebody put the reader in a channel; `channelId` is its slug, as a group's `groupId` is. */
-    'channel-invite'
+    'channel-invite',
+
+    /** A line in a group the reader helps run was reported, and the copy is theirs to work. Nobody is named. */
+    'group-report'
 ]);
 
 export type NotificationKind = Infer<typeof notificationKind>;

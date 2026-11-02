@@ -781,6 +781,23 @@ describe('the recent actions', () =>
         ]);
     });
 
+    it('say how a report about somebody was closed, and never who filed it', async () =>
+    {
+        owned();
+        server.groupLogs[SLUG] = [
+            { id: 'r-2', at: ago(1), kind: 'report', actor: 'alex', actorRole: 'owner', person: 'reza.t', details: { report: 'gr-2', to: 'actioned' } },
+            { id: 'r-1', at: ago(2), kind: 'report', actor: 'alex', actorRole: 'owner', person: 'reza.t', details: { report: 'gr-1', to: 'dismissed' } }
+        ];
+
+        const container = opened('?tab=log');
+        await vi.waitFor(() => expect(rowsIn(logOf(container)).length).toBe(2), { timeout: 4000 });
+
+        expect(rowsIn(logOf(container)).map((row) => row.querySelector('p')?.textContent)).toEqual([
+            t('groups.log.reportActioned', { actor: 'alex', person: 'reza.t' }),
+            t('groups.log.reportDismissed', { actor: 'alex', person: 'reza.t' })
+        ]);
+    });
+
     it('leave out a kind it has no words for rather than drawing an empty row', async () =>
     {
         logged();

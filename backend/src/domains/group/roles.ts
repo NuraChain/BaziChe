@@ -111,10 +111,15 @@ export function mayOn(standing: GroupStanding, switches: GroupSwitches, act: Gro
 
 export const GROUP_EVENTS = [
     'created', 'joined', 'left', 'removed', 'banned', 'unbanned', 'muted', 'unmuted', 'role', 'rights', 'permissions',
-    'info', 'owner', 'invite', 'request', 'deleted', 'pinned', 'unpinned', 'call'
+    'info', 'owner', 'invite', 'request', 'deleted', 'pinned', 'unpinned', 'call', 'report'
 ] as const;
 
 export type GroupEventKind = (typeof GROUP_EVENTS)[number];
+
+/** Where the group's staff have got to with a report about a line in its room. */
+export const GROUP_REPORT_STATES = ['open', 'dismissed', 'actioned'] as const;
+
+export type GroupReportState = (typeof GROUP_REPORT_STATES)[number];
 
 /** How long a mute lasts, in hours; none is until somebody lifts it. */
 export const MUTE_HOURS = [1, 24, 168] as const;
@@ -133,6 +138,8 @@ export const PINS_MOST = 20;
 export const MEMBERS_PAGE = 50;
 
 export const GROUP_LOG_PAGE = 50;
+
+export const GROUP_REPORTS_PAGE = 50;
 
 /** The most people a new group starts with besides its owner. */
 export const FIRST_MEMBERS_MOST = 50;

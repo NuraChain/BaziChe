@@ -134,6 +134,11 @@ const leadOf = (row) =>
         return `/app/groups/${ row.ref.groupId }?tab=requests`;
     }
 
+    if (row.kind === 'group-report' && row.ref.groupId !== undefined)
+    {
+        return `/app/groups/${ row.ref.groupId }?tab=reports`;
+    }
+
     if (row.ref.groupId !== undefined)
     {
         return `/app/groups/${ row.ref.groupId }`;

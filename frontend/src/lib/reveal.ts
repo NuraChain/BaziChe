@@ -15,3 +15,52 @@ export function revealIn(row: HTMLElement, item: HTMLElement, fade: number, beha
         row.scrollTo({ left: row.scrollLeft + by, behavior });
     }
 }
+
+/**
+ * Calls `then` whenever the row or anything in it changes size, and whenever what it holds changes.
+ * The row's own box alone misses an item that grows inside it: a count that comes after the row is
+ * drawn widens its item and leaves the row's box as it was, which pushed a chosen tab at the end of
+ * a strip out of sight with nothing to say the strip now scrolls.
+ */
+export function whenResized(row: HTMLElement, then: () => void)
+{
+    if (typeof ResizeObserver === 'undefined')
+    {
+        return () => undefined;
+    }
+    const sized = new ResizeObserver(then);
+    const held = typeof MutationObserver === 'undefined' ? null : new MutationObserver((changes) =>
+    {
+        for (const change of changes)
+        {
+            for (const node of Array.from(change.addedNodes))
+            {
+                if (node instanceof Element)
+                {
+                    sized.observe(node);
+                }
+            }
+            for (const node of Array.from(change.removedNodes))
+            {
+                if (node instanceof Element)
+                {
+                    sized.unobserve(node);
+                }
+            }
+        }
+        then();
+    });
+
+    sized.observe(row);
+    for (const item of Array.from(row.children))
+    {
+        sized.observe(item);
+    }
+    held?.observe(row, { childList: true });
+
+    return () =>
+    {
+        sized.disconnect();
+        held?.disconnect();
+    };
+}

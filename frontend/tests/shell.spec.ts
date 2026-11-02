@@ -32,6 +32,7 @@ import { useShell } from '../src/stores/shell.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
 import { TOAST_DURATION, useToasts } from '../src/stores/toasts.store.ts';
 import { ApiError, client, establishAccount, server } from './fake-api.ts';
+import { watchedBoxes } from './fake-boxes.ts';
 import { lostDuring } from './rejections.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
@@ -321,6 +322,75 @@ describe('Tabs', () =>
         {
             Element.prototype.scrollIntoView = page;
             measured.mockRestore();
+        }
+    });
+
+    it('brings the chosen tab back into view when the tabs change size or a tab is drawn before it, and lets go of the strip with the tabs', async () =>
+    {
+        const boxes = watchedBoxes();
+        const box = (left: number, width: number) => ({ x: left, y: 0, left, top: 0, right: left + width, bottom: 44, width, height: 44, toJSON: () => ({}) }) as DOMRect;
+        const widths: Record<string, number> = { t0: 60, t1: 60, t2: 60, t3: 60, t4: 60, fresh: 60 };
+        const [items, setItems] = createSignal(['t0', 't1', 't2', 't3', 't4'].map((id) => ({ id, label: id })));
+        const leftOf = (id: string) =>
+        {
+            const order = items().map((item) => item.id);
+            return order.slice(0, order.indexOf(id)).reduce((sum, one) => sum + widths[one], 0);
+        };
+        const measured = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element)
+        {
+            const id = this.getAttribute('data-tab') ?? 't0';
+            return this.getAttribute('role') === 'tablist' ? box(0, 320) : box(leftOf(id), widths[id]);
+        });
+
+        try
+        {
+            const moves: number[] = [];
+            const { container } = renderTest(() => Tabs({
+                get items()
+                {
+                    return items();
+                },
+                value: 't4',
+                label: 'Friends',
+                onChange: () => undefined
+            }) as Rendered);
+            const list = container.querySelector<HTMLElement>('[role="tablist"]')!;
+            const tab = (id: string) => list.querySelector<HTMLElement>(`[data-tab='${ id }']`)!;
+
+            Object.defineProperty(list, 'scrollTo', { value: (options: ScrollToOptions) => moves.push(options.left ?? 0) });
+            await settle();
+
+            expect(moves, 'the fifth, 240 to 300 in a strip 320 wide, is in view as the tabs are drawn').toEqual([]);
+
+            widths.t0 = 90;
+            widths.t4 = 90;
+            boxes.size(tab('t0'), 90, 44);
+
+            expect(moves, 'two counts came, and the fifth, 270 to 360 now, is brought back').toEqual([40]);
+
+            widths.t0 = 60;
+            widths.t4 = 60;
+            setItems([{ id: 'fresh', label: 'Fresh' }, ...items()]);
+            await settle();
+
+            const fresh = tab('fresh');
+
+            expect(boxes.watching(fresh), 'a tab drawn later is watched too').toBe(1);
+            expect(moves, 'a tab drawn before it pushes the fifth to 300 to 360, and it is brought back').toEqual([40, 40]);
+
+            setItems(items().slice(1));
+            await settle();
+
+            expect(boxes.watching(fresh), 'a tab no longer drawn is let go').toBe(0);
+
+            cleanup();
+
+            expect(boxes.watching(list), 'the strip is let go with the tabs').toBe(0);
+        }
+        finally
+        {
+            measured.mockRestore();
+            vi.unstubAllGlobals();
         }
     });
 });

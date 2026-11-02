@@ -20,6 +20,7 @@ import { TONE_DOT, TONE_FILL, TONE_PILL, type Tone } from '../src/components/ui/
 import '../src/locales/app-catalogue.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { TOAST_VISIBLE, useToasts } from '../src/stores/toasts.store.ts';
+import { watchedBoxes } from './fake-boxes.ts';
 
 type Rendered = HTMLElement;
 
@@ -663,6 +664,59 @@ describe('Rail', () =>
         expect(moves).toEqual([276]);
 
         measured.mockRestore();
+    });
+
+    it('brings the chosen chip back into view, and says the row now scrolls, when a chip grows after the row is drawn', async () =>
+    {
+        const boxes = watchedBoxes();
+        const widths = [50, 50, 50, 50, 50, 50];
+        let room = 320;
+        const leftOf = (at: number) => widths.slice(0, at).reduce((sum, one) => sum + one, 0);
+        const measured = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element)
+        {
+            const at = Number((this as HTMLElement).dataset.at ?? 0);
+            return this.classList.contains('rail-x') ? box(0, room) : box(leftOf(at), widths[at]);
+        });
+
+        try
+        {
+            const moves: number[] = [];
+            const row = chips(4);
+            const { container } = renderTest(() => Rail({ label: 'Games', children: row }) as Rendered);
+            const scroller = container.querySelector<HTMLElement>('.rail-x')!;
+            const rail = scroller.parentElement!;
+
+            Object.defineProperty(scroller, 'scrollTo', { value: (options: ScrollToOptions) => moves.push(options.left ?? 0) });
+            Object.defineProperty(scroller, 'scrollWidth', { get: () => leftOf(widths.length) });
+            Object.defineProperty(scroller, 'clientWidth', { get: () => room });
+            await settle();
+
+            expect(moves, 'the fifth, 200 to 250 in a row 320 wide with 56 of fade, shows as it arrives').toEqual([]);
+            expect(rail.dataset.end, 'and the row has nothing past its end').toBe('true');
+
+            widths[0] = 80;
+            widths[4] = 90;
+            boxes.size(row[0], 80, 40);
+            await settle();
+
+            expect(moves, 'two counts came, and the fifth, 230 to 320 now, is brought back clear of the fade').toEqual([56]);
+            expect(rail.dataset.end, 'and the row says it scrolls').toBe('false');
+
+            room = 280;
+            boxes.size(scroller, 280, 40);
+            await settle();
+
+            expect(moves, 'the row itself narrows, a phone turned upright, and the fifth is brought back again').toEqual([56, 96]);
+
+            cleanup();
+
+            expect(boxes.watching(scroller), 'the row is let go with the rail').toBe(0);
+        }
+        finally
+        {
+            measured.mockRestore();
+            vi.unstubAllGlobals();
+        }
     });
 });
 

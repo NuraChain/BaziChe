@@ -436,6 +436,26 @@ describe('OverlayHost', () =>
         unmount();
     });
 
+    it('gives what covers the whole window all of it, to its height, where a sheet’s or a dialog’s content scrolls', async () =>
+    {
+        const overlay = useOverlay();
+        const { unmount } = renderTest(() => OverlayHost({}) as Rendered);
+        const full = overlay.open(Probe, {}, { label: 'Probe', kind: 'full' });
+        const sheet = overlay.open(Probe, {}, { label: 'Probe', kind: 'sheet' });
+        await settle();
+
+        const body = (id: string) => document.body.querySelector(`[data-overlay-layer='${ id }'] [data-body]`)?.className.split(' ') ?? [];
+
+        // The wrapper took its content's height, so a viewer's `h-full` and its stage's `flex-1` came to nothing.
+        expect(body(full.id)).toEqual(expect.arrayContaining(['flex', 'flex-1', 'flex-col', 'overflow-hidden']));
+        expect(body(sheet.id)).toEqual(expect.arrayContaining(['overflow-y-auto']));
+        expect(body(sheet.id)).not.toContain('flex-1');
+
+        overlay.reset();
+        await settle();
+        unmount();
+    });
+
     it('renders a dialog into the body, moves focus in, and lets Escape close it', async () =>
     {
         const overlay = useOverlay();

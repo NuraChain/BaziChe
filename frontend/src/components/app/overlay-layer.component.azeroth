@@ -179,7 +179,7 @@ export default component OverlayLayer(props: { entry: OverlayEntry })
                     </button>
                 }
             </Show>
-            <div ref={ (element) => body = element } class="overflow-y-auto overscroll-contain [touch-action:pan-y] min-block-0">
+            <div ref={ (element) => body = element } class={ kind === 'full' ? 'flex min-block-0 flex-1 flex-col overflow-hidden' : 'overflow-y-auto overscroll-contain [touch-action:pan-y] min-block-0' } data-body>
                 <Dynamic component={ props.entry.component } props={ props.entry.props } />
             </div>
         </div>

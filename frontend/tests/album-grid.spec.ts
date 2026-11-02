@@ -413,4 +413,23 @@ describe('an album in its bubble', () =>
 
         expect(container.querySelector('[data-album]')?.getAttribute('aria-label')).toBe('۵ عکس');
     });
+
+    it('lies in the order the page reads, and leaves the bubble’s direction to its caption', async () =>
+    {
+        useLocale().setLocale('fa');
+
+        const captioned = show(await items(3, 'From the coast')).container;
+
+        expect(captioned.querySelector('[data-album]')?.getAttribute('dir')).toBe('rtl');
+        expect(captioned.querySelector('.bubble')?.getAttribute('dir')).toBe('auto');
+
+        const bare = show(await items(3)).container;
+
+        expect(bare.querySelector('.bubble')?.getAttribute('dir')).toBe('rtl');
+
+        useLocale().setLocale('en');
+
+        expect(bare.querySelector('[data-album]')?.getAttribute('dir')).toBe('ltr');
+        expect(bare.querySelector('.bubble')?.getAttribute('dir')).toBe('ltr');
+    });
 });

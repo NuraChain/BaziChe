@@ -65,7 +65,7 @@ export default component AlbumGrid(props: {
 
     derived room = props.trail ? 'invisible ps-2 pe-4' : 'invisible ps-2';
 
-    <div class="flex max-w-full flex-col gap-1 py-0.5" role="group" aria-label={ name } data-album={ album?.id ?? '' }>
+    <div class="flex max-w-full flex-col gap-1 py-0.5" dir={ locale.dir() } role="group" aria-label={ name } data-album={ album?.id ?? '' }>
         <div class="-mx-1.5 flex w-72 max-w-full flex-col gap-0.5 overflow-hidden rounded-[0.8rem]">
             <For each={ rows } key={ (row) => row.key } let={ row }>
                 <div class="flex gap-0.5" style={ () => `aspect-ratio: ${ row.shape }` } data-row>

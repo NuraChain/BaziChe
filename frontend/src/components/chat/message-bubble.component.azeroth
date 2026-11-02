@@ -98,6 +98,13 @@ export default component MessageBubble(props: {
     /** The words under a photo, a video or a file, when its sender wrote any. */
     derived captioned = filed && props.message.text.trim() !== '';
 
+    /**
+     * `auto` reads the words, and passes over a file, which is drawn in the page's direction: its
+     * size, its kind and an album's Download all are the page's, and read first they turned an album
+     * round once it was fetched. A file with no words has nothing for `auto` to read.
+     */
+    derived direction = voiced ? 'ltr' : (filed && !captioned ? locale.dir() : 'auto');
+
     derived typed = worded || props.message.kind === 'voice' || props.message.kind === 'file';
 
     derived noted = props.message.kind === 'system';
@@ -463,7 +470,7 @@ export default component MessageBubble(props: {
                         { () =>
                             <span
                                 ref={ holds }
-                                dir={ voiced ? 'ltr' : 'auto' }
+                                dir={ direction }
                                 data-found={ props.found === true ? '' : undefined }
                                 class={ () => [
                                     'bubble relative flex max-w-full flex-col rounded-[1.125rem] px-3 pb-1.5 pt-1.5 text-ui-base leading-snug transition-shadow duration-150',

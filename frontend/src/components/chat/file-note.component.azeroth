@@ -85,7 +85,7 @@ export default component FileNote(props: {
 
     derived room = props.trail ? 'invisible ps-2 pe-4' : 'invisible ps-2';
 
-    <div class="flex max-w-full flex-col gap-1 py-0.5" data-file={ file.id } data-as={ file.as }>
+    <div class="flex max-w-full flex-col gap-1 py-0.5" dir={ locale.dir() } data-file={ file.id } data-as={ file.as }>
         <Show
             when={ shown }
             fallback={

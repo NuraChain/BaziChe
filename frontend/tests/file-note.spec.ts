@@ -265,6 +265,32 @@ describe('a file in its bubble', () =>
         expect(container.textContent).toContain('At the beach');
         expect(container.querySelector('strong')?.textContent).toBe('beach');
     });
+
+    it('leaves the bubble’s direction to its caption, never to the words it is drawn with', async () =>
+    {
+        useLocale().setLocale('fa');
+
+        const container = show(await sent({ as: 'file', mime: 'application/pdf', name: 'notes.pdf', w: undefined, h: undefined, thumb: undefined }, { text: 'اینم یادداشت‌ها' }));
+
+        expect(container.querySelector('.bubble')?.getAttribute('dir')).toBe('auto');
+        expect(container.querySelector('[data-file]')?.getAttribute('dir'), 'the size and the kind are the page’s').toBe('rtl');
+        expect(container.querySelector('[title="notes.pdf"]')?.getAttribute('dir'), 'the name is its own').toBe('auto');
+    });
+
+    it('takes the page’s direction where nothing was written with it', async () =>
+    {
+        useLocale().setLocale('fa');
+
+        const container = show(await sent({ as: 'video', mime: 'video/mp4', name: 'clip.mp4', ms: 3000 }));
+
+        expect(container.querySelector('.bubble')?.getAttribute('dir')).toBe('rtl');
+        expect(container.querySelector('[data-file]')?.getAttribute('dir')).toBe('rtl');
+
+        useLocale().setLocale('en');
+
+        expect(container.querySelector('.bubble')?.getAttribute('dir')).toBe('ltr');
+        expect(container.querySelector('[data-file]')?.getAttribute('dir')).toBe('ltr');
+    });
 });
 
 describe('a file as a sentence quotes it', () =>

@@ -7,6 +7,7 @@ import GameGrid from '../src/components/games/game-grid.component.azeroth';
 import GameHero from '../src/components/games/game-hero.component.azeroth';
 import TableRow from '../src/components/games/table-row.component.azeroth';
 import GamePage from '../src/pages/app/game.page.azeroth';
+import CreateGamePage from '../src/pages/app/create-game.page.azeroth';
 import { defaultTable, formatsOf, isValidTable, TABLE_RULES } from '../src/data/tables.ts';
 import { GAMES } from '../src/data/games.ts';
 import { manualClock } from '../src/lib/clock.ts';
@@ -1928,5 +1929,150 @@ describe('what the reader did at a table, shown before the server has said so', 
             await said.catch(() => undefined);
             await after;
         });
+    });
+});
+
+describe('a game\'s page and its create page, while the games are told of', () =>
+{
+    const pulse = (n: number, status: 'available' | 'disabled' = 'available') =>
+        socket.deliver({ v: 1, t: 'pulse', n, games: [{ game: 'ludo', status, playing: n, tables: n }], watching: `seen-${ n }` });
+
+    const listening = async () =>
+    {
+        const stop = useCatalogue().start();
+
+        useRealtime().start();
+        socket.accept();
+        clock.advance(NUDGE_WINDOW_MS);
+        await settle();
+
+        return stop;
+    };
+
+    const opened = (path: string, at: string, component: () => HTMLElement) =>
+    {
+        const router = createRouter({ routes: [{ path, component }], history: createMemoryHistory(at), scroll: false });
+
+        return renderTest(() => RouterProvider({ router, children: () => Routes({}) }) as HTMLElement).container;
+    };
+
+    it('keeps the create form, and what was chosen in it, through the pulses that change nothing about the game', async () =>
+    {
+        const stop = await listening();
+        const container = opened('/app/games/:slug/create', '/app/games/ludo/create', () => CreateGamePage() as HTMLElement);
+
+        await vi.waitFor(() => expect(container.querySelector('form')).not.toBeNull(), { timeout: 4000 });
+
+        const form = container.querySelector('form')!;
+        const two = [...form.querySelectorAll<HTMLButtonElement>('button')].find((one) => one.textContent?.trim() === '2 players')!;
+
+        two.click();
+        await settle();
+        pulse(2);
+        await settle();
+        pulse(3);
+        await settle();
+
+        expect(container.querySelector('form'), 'the form being filled in').toBe(form);
+        expect(two.isConnected).toBe(true);
+        expect(two.getAttribute('aria-pressed'), 'what was chosen').toBe('true');
+
+        stop();
+    });
+
+    it('gives the create form way to the paused game when a pulse pauses it', async () =>
+    {
+        const stop = await listening();
+        const container = opened('/app/games/:slug/create', '/app/games/ludo/create', () => CreateGamePage() as HTMLElement);
+
+        await vi.waitFor(() => expect(container.querySelector('form')).not.toBeNull(), { timeout: 4000 });
+
+        pulse(2, 'disabled');
+        await settle();
+
+        expect(container.querySelector('form')).toBeNull();
+        expect(container.textContent).toContain(useLocale().t('games.paused'));
+
+        stop();
+    });
+
+    it('keeps Quick play and the ways to create a table and to the shop through the pulses', async () =>
+    {
+        const stop = await listening();
+        const container = opened('/app/games/:slug', '/app/games/ludo', () => GamePage() as HTMLElement);
+        const quick = () => [...container.querySelectorAll<HTMLButtonElement>('button')].filter((one) => one.textContent?.includes('Quick play'));
+        const links = () => [...container.querySelectorAll('a[href="/app/games/ludo/create"], a[href^="/app/shop?for=ludo"]')];
+
+        await vi.waitFor(() => expect(quick().length).toBe(2), { timeout: 4000 });
+
+        const before = [...quick(), ...links()];
+
+        pulse(2);
+        await settle();
+        pulse(3);
+        await settle();
+
+        expect(before.length).toBeGreaterThan(2);
+        expect(before.filter((node) => !node.isConnected).map((node) => node.outerHTML.slice(0, 80))).toEqual([]);
+
+        stop();
+    });
+
+    it('keeps the note that a game is played for chips with no value through a read of the catalogue', async () =>
+    {
+        const poker = GAMES.find((game) => game.id === 'poker')!;
+
+        server.games = [{
+            id: 'poker',
+            slug: 'poker',
+            nameKey: poker.nameKey,
+            blurbKey: poker.blurbKey,
+            categoryKey: poker.categoryKey,
+            category: 'cards',
+            minPlayers: 2,
+            maxPlayers: 9,
+            status: 'available',
+            rules: { seats: [2, 6, 9], modes: ['live'], targets: [], stakes: 'play-money', partners: 'none', hasCube: false, hasBlinds: true, clocks: [] }
+        }];
+        useCatalogue().reset();
+        await settle();
+
+        const container = opened('/app/games/:slug', '/app/games/poker', () => GamePage() as HTMLElement);
+        const note = () => [...container.querySelectorAll('p')].find((one) => one.textContent?.includes(useLocale().t('games.stakes.playMoneyHint')));
+
+        await vi.waitFor(() => expect(note()).toBeDefined(), { timeout: 4000 });
+
+        const before = note()!;
+
+        useCatalogue().reset();
+        await settle();
+
+        expect(note(), 'the same note, still there').toBe(before);
+    });
+
+    it('says nothing of chips with no value on the page of a game not played for chips', async () =>
+    {
+        const container = opened('/app/games/:slug', '/app/games/ludo', () => GamePage() as HTMLElement);
+
+        await vi.waitFor(() => expect(container.querySelector('[aria-labelledby="game-about"]')).not.toBeNull(), { timeout: 4000 });
+
+        expect(container.textContent).not.toContain(useLocale().t('games.stakes.playMoneyHint'));
+    });
+
+    it('takes Quick play and the ways to create a table off a game\'s page when a pulse pauses the game', async () =>
+    {
+        const stop = await listening();
+        const container = opened('/app/games/:slug', '/app/games/ludo', () => GamePage() as HTMLElement);
+        const quick = () => [...container.querySelectorAll<HTMLButtonElement>('button')].filter((one) => one.textContent?.includes('Quick play'));
+
+        await vi.waitFor(() => expect(quick().length).toBe(2), { timeout: 4000 });
+
+        pulse(2, 'disabled');
+        await settle();
+
+        expect(quick()).toEqual([]);
+        expect(container.querySelector('a[href="/app/games/ludo/create"]')).toBeNull();
+
+        stop();
     });
 });

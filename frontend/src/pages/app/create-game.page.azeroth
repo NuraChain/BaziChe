@@ -22,6 +22,10 @@ export default component CreateGamePage()
 
     derived paused = game !== null && catalogue.status(game.id) === 'disabled';
 
+    derived offered = catalogue.loading() || (game !== null && catalogue.playable(game.id));
+
+    derived read = !catalogue.loading();
+
     derived shut = locale.t(paused ? 'games.paused' : 'games.soon');
 
     derived shutLead = locale.t(paused ? 'games.pausedLead' : 'games.soonLead');
@@ -37,12 +41,12 @@ export default component CreateGamePage()
                 <div class="flex flex-col gap-6">
                     <PageHeader eyebrow={ locale.t(game!.nameKey) } title={ locale.t('create.title') } lead={ locale.t('create.lead') } flush />
                     <Show
-                        when={ catalogue.loading() || (game !== null && catalogue.playable(game.id)) }
+                        when={ offered }
                         fallback={ <EmptyState icon="games" title={ shut } lead={ shutLead } action={ locale.t('app.nav.games') } to="/app/games" /> }
                     >
                         { () =>
                             <Show
-                                when={ !catalogue.loading() }
+                                when={ read }
                                 fallback={
                                     <div class="flex flex-col gap-6" data-reading>
                                         <span class="sr-only">{ locale.t('common.loading') }</span>

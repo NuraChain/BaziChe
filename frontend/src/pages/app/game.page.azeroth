@@ -59,6 +59,10 @@ export default component GamePage()
 
     derived finding = game !== null && lobby.finding().includes(game.id);
 
+    derived playable = game !== null && catalogue.playable(game.id);
+
+    derived playMoney = rules !== null && rules.stakes === 'play-money';
+
     const quickPlay = () =>
     {
         if (game !== null)
@@ -101,7 +105,7 @@ export default component GamePage()
                             <Show when={ me !== '' }>
                                 { () => <PersonRecord handle={ me } mine show={ ['record', 'achievements'] } game={ game!.id } /> }
                             </Show>
-                            <Show when={ rules !== null && rules.stakes === 'play-money' }>
+                            <Show when={ playMoney }>
                                 <p class="flex items-start gap-2 rounded-tile border border-line bg-field p-3 text-ui-sm text-muted">
                                     <Icon name="coins" size={ 16 } class="mt-0.5 shrink-0 text-accent" />
                                     <span>{ locale.t('games.stakes.playMoneyHint') }</span>
@@ -110,7 +114,7 @@ export default component GamePage()
                         </aside>
                     </div>
 
-                    <Show when={ game !== null && catalogue.playable(game.id) }>
+                    <Show when={ playable }>
                         { () =>
                             <div class="bleed-pad fixed inset-x-0 bottom-(--nav-room) z-nav flex gap-2 border-t border-line bg-void/92 py-3 backdrop-blur-md sm:hidden">
                                 <Button variant="primary" size="lg" leading="play" class="flex-1" loading={ finding } onClick={ quickPlay }>{ locale.t('app.nav.quickPlay') }</Button>

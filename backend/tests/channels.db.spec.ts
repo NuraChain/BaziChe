@@ -234,9 +234,10 @@ describe.skipIf(!active)('channels, against a real database', () =>
         await chat.sweepFiles();
         expect(await chat.file(reader, shown), 'not swept while a post names it').not.toBeNull();
 
-        const waiting = await db.query(`select count(*)::int as n from chat_files v where v.uploader_id = $1 and not exists (select 1 from channel_posts p where p.file_id = v.id)`, [owner]) as { n: number }[];
+        // Its files posted, the owner has none waiting: one more upload is let through a limit of one.
+        const held = createChatService(db, createSocialService(db), createFranking(CONFIG.secret), undefined, { dayBytes: 1024 * 1024, pending: 1 });
 
-        expect(waiting[0].n, 'and not counted as waiting to be sent').toBe(1);
+        expect(await refusalOf(held.storeFile(owner, crypto.randomUUID(), new Uint8Array(4096).fill(3))), 'and not counted as waiting to be sent').toBeNull();
 
         await channels.removePost(owner, open.slug, posted.post.id);
         expect(await chat.file(owner, shown), 'gone with its post').toBeNull();

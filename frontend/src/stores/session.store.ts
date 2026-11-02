@@ -4,6 +4,7 @@ import { rememberBeenHere } from '../lib/been-here.ts';
 import { ApiError, client, onUnauthorized, type Account } from '../api.ts';
 import { keyStore } from '../lib/device-keys.ts';
 import { forgetEpochKeys } from '../lib/epoch-keys.ts';
+import { disownKeys, keysOwner, ownKeys } from '../lib/key-owner.ts';
 import { setHeldUp } from '../lib/held-up.ts';
 import { runtime } from '../lib/runtime.ts';
 import { forgetSigners } from '../lib/sealing.ts';
@@ -41,35 +42,65 @@ export interface SessionApi
 }
 
 /**
- * Everything this browser could read with, thrown away.
+ * What this tab showed and held for the person, dropped when their session ends. The keys stay.
  *
- * A session ends but IndexedDB does not. Leaving the keyring behind means the next person to use
- * this browser - a shared machine, a borrowed laptop, a device being sold - inherits the ability to
- * read every conversation the last person had open, and to sign as their device. Signing out is
- * exactly the moment somebody believes they have handed it back.
- *
- * The epoch keys and the archive key go first, then the device's own keypairs. Each is best-effort
- * and independent: a browser that refuses IndexedDB must still be able to sign out, and one failure
- * must not strand the rest.
+ * The plaintext is the thing a person can actually read without any key at all: sign-out is a
+ * client-side navigation - no reload, same module, same Map - so leaving the messages this browser
+ * had opened in memory would let the next person to sign in on this tab search them.
  */
-const surrenderKeys = async () =>
+const dropWhatWasShown = () =>
 {
-    // The plaintext FIRST, because it is the thing a person can actually read without any key at
-    // all. Surrendering only the keys left every message this browser had already opened sitting in
-    // memory, and sign-out is a client-side navigation - no reload, same module, same Map - so the
-    // next person to sign in on this tab could search the last person's conversations.
     forgetArchive();
     forgetSearchTerms();
     useSettings().update({ voiceLevels: {} });
-
-    await forgetEpochKeys().catch(() => undefined);
-    await keyStore().forget().catch(() => undefined);
     forgetSigners();
 
     // The providers themselves, which are live objects belonging to the person who was signed in.
     // Small and bounded - one per installed extension - but there is no reason for the next person
     // at this keyboard to inherit a handle to the last one's wallet.
     forgetWallets();
+};
+
+/**
+ * The keyring, thrown away: the epoch keys and the archive key, and with `device` the browser's
+ * own keypairs too. Each is best-effort and independent: a browser that refuses IndexedDB must
+ * still be able to sign out, and one failure must not strand the rest.
+ *
+ * This used to happen on every sign-out, and it is why signing back in read nothing: the same
+ * person came back as a new device, and every line sent before was locked to them. Now it happens
+ * when it protects somebody:
+ *
+ * - **The session was ended from elsewhere** (`ended: 'revoked'`): signed out everywhere after a
+ *   laptop went missing, this device revoked, or the staff signing the person out. This browser may
+ *   be the one being cut off, so it keeps nothing, device and all.
+ * - **Another account signs in here** (`claimKeys`): the last person's epoch keys go before the new
+ *   one reads anything. Not the device keypair, which the sign-in that got here made for the new
+ *   account when the old one's was not theirs (`wallet.store.ts`, the challenge that names it).
+ *
+ * A session that only ran out keeps them: nobody ended it, and the same person signs back in.
+ */
+const wipeKeys = async (device: boolean) =>
+{
+    disownKeys();
+    await forgetEpochKeys().catch(() => undefined);
+
+    if (device)
+    {
+        await keyStore().forget().catch(() => undefined);
+    }
+};
+
+/** Writes down whose keys these are, wiping the last account's first when it was somebody else. */
+const claimKeys = (accountId: string) =>
+{
+    const owner = keysOwner();
+
+    ownKeys(accountId);
+
+    if (owner !== null && owner !== accountId)
+    {
+        void wipeKeys(false).then(() => ownKeys(accountId));
+    }
 };
 
 export const useSession = createStore((): SessionApi =>
@@ -87,6 +118,15 @@ export const useSession = createStore((): SessionApi =>
             try
             {
                 const state = await client.auth.me();
+
+                if (state.account != null)
+                {
+                    claimKeys(state.account.id);
+                }
+                else if (state.ended === 'revoked')
+                {
+                    await wipeKeys(true);
+                }
 
                 setAccount(state.account ?? null);
                 rememberBeenHere(state.account != null);
@@ -133,10 +173,15 @@ export const useSession = createStore((): SessionApi =>
     const endings = new Set<() => void>();
     let asking = false;
 
-    const end = () =>
+    const end = (ended: 'revoked' | undefined) =>
     {
         forget();
-        void surrenderKeys();
+        dropWhatWasShown();
+
+        if (ended === 'revoked')
+        {
+            void wipeKeys(true);
+        }
 
         for (const listener of [...endings])
         {
@@ -160,7 +205,7 @@ export const useSession = createStore((): SessionApi =>
             {
                 if (untrack(account)?.id === held.id && state.account?.id !== held.id)
                 {
-                    end();
+                    end(state.ended);
                 }
             })
             .catch(() => undefined)
@@ -177,6 +222,7 @@ export const useSession = createStore((): SessionApi =>
 
         establish(next)
         {
+            claimKeys(next.id);
             setAccount(next);
             rememberBeenHere(true);
             settled = Promise.resolve();
@@ -186,14 +232,14 @@ export const useSession = createStore((): SessionApi =>
         {
             forget();
             await client.auth.signOut().catch(() => undefined);
-            await surrenderKeys();
+            dropWhatWasShown();
         },
 
         async signOutEverywhere()
         {
             forget();
             const result = await client.auth.signOutEverywhere().catch(() => ({ ended: 0 }));
-            await surrenderKeys();
+            dropWhatWasShown();
             return result.ended;
         },
 
@@ -238,7 +284,7 @@ export const useSession = createStore((): SessionApi =>
 
                                 if (next == null || next.id !== asked)
                                 {
-                                    end();
+                                    end(state.ended);
                                     return;
                                 }
 

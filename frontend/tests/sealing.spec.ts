@@ -296,6 +296,26 @@ describe('what the client refuses from the server', () =>
         const thread = (await createApiSource().thread(THREAD, scope, new AbortController().signal)).messages;
         expect(thread[0].locked).toBe('no-epoch-key');
     });
+
+    it('opens an epoch that names a device enrolled since this thread was last read, asking who signs here once more', async () =>
+    {
+        const source = createApiSource();
+        await source.post(said('before'));
+        expect((await source.thread(THREAD, scope, new AbortController().signal)).messages[0].locked, 'read once, so who signs here is held').toBeUndefined();
+
+        // Sara signs in on a new phone; the next line is sealed to it as well, under a new epoch.
+        // This browser's list of who signs here was read before the phone existed.
+        server.conversationDevices[THREAD].members[1].devices = [theirs.peer, theirSecond.peer];
+        await source.post(said('after the new phone'));
+        expect(server.epochs[THREAD].map((one) => one.epoch)).toEqual([1, 2]);
+
+        const thread = (await source.thread(THREAD, scope, new AbortController().signal)).messages;
+
+        expect(thread.map((line) => [line.text, line.locked]), 'a device the held list did not know is not a device that never was').toEqual([
+            ['before', undefined],
+            ['after the new phone', undefined]
+        ]);
+    });
 });
 
 describe('what leaves the browser when somebody signs out', () =>

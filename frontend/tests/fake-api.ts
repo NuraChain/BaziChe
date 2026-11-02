@@ -1314,6 +1314,9 @@ export function settleDonation(id: string, state: 'confirmed' | 'reverted' | 'ex
 export const server =
 {
     account: null as Account | null,
+
+    /** Why the cookie this browser sent no longer signs anybody in, when the session was ended rather than run out. */
+    ended: undefined as 'revoked' | undefined,
     issued: null as { nonce: string; message: string; address: string; device?: string } | null,
     received: null as { address: string; nonce: string; signature: string; providerRdns?: string; invite?: string; device?: { id: string; exchangeKey: string; signingKey: string; label: string } } | null,
     refuse: null as Refusal | null,
@@ -1695,6 +1698,7 @@ export const server =
         server.pushKey = null;
         server.pushSubscriptions = [];
         server.account = null;
+        server.ended = undefined;
         server.issued = null;
         server.received = null;
         server.refuse = null;
@@ -5457,7 +5461,7 @@ export const client =
         async me()
         {
             server.calls.push('auth.me');
-            return server.account === null ? {} : { account: server.account };
+            return server.account === null ? (server.ended === undefined ? {} : { ended: server.ended }) : { account: server.account };
         },
 
         async challenge({ input }: { input: { address: string; device?: string } })

@@ -1993,6 +1993,13 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 return who;
             },
 
+            async ended(request)
+            {
+                const token = readSessionToken(request, secureCookies);
+
+                return token === null ? null : await identity.endedFor(token);
+            },
+
             async me(userId)
             {
                 const row = await identity.profileFor(userId);

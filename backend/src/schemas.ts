@@ -326,7 +326,15 @@ export type Account = Infer<typeof account>;
 
 /** The current session, or nothing. A signed-out browser is not an error. */
 export const sessionState = object({
-    account: account.optional()
+    account: account.optional(),
+
+    /**
+     * Said only when the cookie the browser sent named a session that was ENDED, rather than one
+     * that ran out: signed out everywhere, its device revoked, or the staff signing the person out.
+     * The browser throws its chat keys away on this alone. A session that ran out says nothing, and
+     * the same person signing back in reads what they read before.
+     */
+    ended: enumOf(['revoked']).optional()
 });
 
 export type SessionState = Infer<typeof sessionState>;

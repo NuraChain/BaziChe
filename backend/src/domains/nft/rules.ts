@@ -27,6 +27,13 @@ export const NFT_LIVE: readonly NftState[] = ['minting', 'minted', 'burning', 'f
 /** How many times a send the chain refused for a passing reason is tried before the token is `failed`. */
 export const NFT_ATTEMPTS_MOST = 5;
 
+/**
+ * How long a sent transaction may go without a receipt before it is taken for lost: dropped from the
+ * pool, replaced, or forgotten by a node that restarted. The token is then read again, and sent again
+ * only if the chain says it still needs it, so one that mines late is never sent twice to any effect.
+ */
+export const NFT_LOST_AFTER_MS = 30 * 60_000;
+
 /** How many transactions one pass of the worker sends at most, so a backfill never empties the gas wallet at once. */
 export const NFT_SENDS_PER_PASS = 6;
 

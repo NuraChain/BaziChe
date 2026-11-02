@@ -1,7 +1,7 @@
 import type { Address, Hex } from 'viem';
 
 import type { NftChain, Sent } from '../../chain/minting.ts';
-import { NFT_ATTEMPTS_MOST, type NftCollection, type NftState } from './rules.ts';
+import { NFT_ATTEMPTS_MOST, NFT_LOST_AFTER_MS, type NftCollection, type NftState } from './rules.ts';
 
 /**
  * What the NFT worker does with each token, given what the chain says, and nothing about where the
@@ -19,6 +19,9 @@ export interface TokenRow
     state: NftState;
     hash: Hex | null;
     attempts: number;
+
+    /** When the row last changed, in epoch milliseconds: for a row with a hash, when it was sent. */
+    sentAt: number;
 }
 
 /** What one step changes on a token's row; nothing for a step that is still waiting. */
@@ -62,10 +65,11 @@ const refused = (row: TokenRow, refusal: string): Change =>
 const sentAs = (sent: Extract<Sent, { ok: true }>): Change => ({ hash: sent.hash, failure: null });
 
 /**
- * A token whose transaction was sent: done once its receipt says so, sent again if it reverted.
- * A burn's receipt makes it `burned`, a mint's `minted`; the hash stays, for the explorer link.
+ * A token whose transaction was sent: done once its receipt says so, sent again if it reverted or
+ * waited too long with none (`NFT_LOST_AFTER_MS`). A burn's receipt makes it `burned`, a mint's
+ * `minted`; the hash stays, for the explorer link.
  */
-export async function settleSent(row: TokenRow, chain: NftChain): Promise<Change | null>
+export async function settleSent(row: TokenRow, chain: NftChain, now = Date.now()): Promise<Change | null>
 {
     if (row.hash === null)
     {
@@ -76,7 +80,7 @@ export async function settleSent(row: TokenRow, chain: NftChain): Promise<Change
 
     if (mined === 'pending')
     {
-        return null;
+        return now - row.sentAt > NFT_LOST_AFTER_MS ? { ...refused(row, 'dropped'), hash: null } : null;
     }
 
     if (mined === 'success')

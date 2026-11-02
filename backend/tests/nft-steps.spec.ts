@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { tokenIdOf, type NftChain, type Sent } from '../src/chain/minting.ts';
 import type { Mined } from '../src/chain/vault.ts';
-import { NFT_ATTEMPTS_MOST } from '../src/domains/nft/rules.ts';
+import { NFT_ATTEMPTS_MOST, NFT_LOST_AFTER_MS } from '../src/domains/nft/rules.ts';
 import { awardAchievement, burnLook, MinterNotGranted, mintLooks, settleSent, type TokenRow } from '../src/domains/nft/steps.ts';
 
 /**
@@ -65,6 +65,7 @@ const look = (key: string, over: Partial<TokenRow> = {}): TokenRow => ({
     state: 'minting',
     hash: null,
     attempts: 0,
+    sentAt: Date.now(),
     ...over
 });
 
@@ -167,5 +168,14 @@ describe('a sent transaction', () =>
         expect(await settleSent(sent, chainOf(world({ mined: 'success' })))).toEqual({ state: 'minted', failure: null });
         expect(await settleSent({ ...sent, state: 'burning' }, chainOf(world({ mined: 'success' })))).toEqual({ state: 'burned', failure: null });
         expect(await settleSent(sent, chainOf(world({ mined: 'reverted' })))).toEqual({ attempts: 1, failure: 'reverted', hash: null });
+    });
+
+    it('is taken for lost once it has waited too long with no receipt, so the token is read again rather than minting for ever', async () =>
+    {
+        const now = Date.parse('2026-11-02T12:00:00.000Z');
+        const waited = (minutes: number) => look('dice.shiraz', { hash: HASH, sentAt: now - minutes * 60_000 });
+
+        expect(await settleSent(waited(NFT_LOST_AFTER_MS / 60_000 - 1), chainOf(world({ mined: 'pending' })), now), 'still in time').toBeNull();
+        expect(await settleSent(waited(NFT_LOST_AFTER_MS / 60_000 + 1), chainOf(world({ mined: 'pending' })), now)).toEqual({ attempts: 1, failure: 'dropped', hash: null });
     });
 });

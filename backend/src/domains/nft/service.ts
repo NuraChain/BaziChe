@@ -33,6 +33,7 @@ interface Row
     state: NftState;
     hash: Hex | null;
     attempts: number;
+    updated_at: Date;
 }
 
 const asToken = (row: Row): TokenRow => ({
@@ -43,7 +44,8 @@ const asToken = (row: Row): TokenRow => ({
     address: row.address,
     state: row.state,
     hash: row.hash,
-    attempts: row.attempts
+    attempts: row.attempts,
+    sentAt: new Date(row.updated_at).getTime()
 });
 
 /** The wallet a token goes to: the one its owner last signed in with. */
@@ -184,7 +186,7 @@ export function createNftService(db: DataSource, chain: NftChain)
             sweep.owed = await reconcile();
 
             const waiting = rowsOf<Row>(await db.query(
-                `select id, collection, key, token_id, address, state, hash, attempts from nft_tokens
+                `select id, collection, key, token_id, address, state, hash, attempts, updated_at from nft_tokens
                   where state in ('minting', 'burning') and hash is not null
                   order by updated_at limit 50`
             )).map(asToken);
@@ -201,7 +203,7 @@ export function createNftService(db: DataSource, chain: NftChain)
             }
 
             const owed = rowsOf<Row>(await db.query(
-                `select id, collection, key, token_id, address, state, hash, attempts from nft_tokens
+                `select id, collection, key, token_id, address, state, hash, attempts, updated_at from nft_tokens
                   where state in ('minting', 'burning') and hash is null
                   order by updated_at limit 100`
             )).map(asToken);

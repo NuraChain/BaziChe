@@ -63,7 +63,7 @@ export default component InviteCampaign(props: { campaign: RunningCampaign })
                         data-gives={ one.id }
                         onClick={ () => void openLook(one.item) }
                     >
-                        <img src={ `/looks/${ one.item }.svg` } alt="" width="160" height="120" loading="lazy" decoding="async" draggable={ false } class="block aspect-[4/3] w-full object-cover" />
+                        <img src={ `/looks/${ one.item }.svg` } alt="" width="160" height="120" loading="lazy" decoding="async" draggable="false" class="block aspect-[4/3] w-full object-cover" />
                         <span class="flex flex-1 flex-col gap-0.5 p-2.5">
                             <span class="line-clamp-2 text-ui-xs font-semibold leading-tight text-text">{ itemName(one.item, locale) }</span>
                             <span class="text-ui-2xs leading-tight text-muted">{ one.said }</span>

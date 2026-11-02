@@ -63,7 +63,7 @@ export default component ViewerMedia(props: {
         data-media={ file.id }
     >
         <Show when={ ready && photo }>
-            { () => <img src={ url } alt={ named } draggable={ false } class="h-full w-full select-none object-contain" data-original /> }
+            { () => <img src={ url } alt={ named } draggable="false" class="h-full w-full select-none object-contain" data-original /> }
         </Show>
         <Show when={ ready && !photo }>
             { () => <LazyMediaPlayer url={ url } label={ named } ms={ file.ms } large from={ props.from } playing={ props.playing } /> }

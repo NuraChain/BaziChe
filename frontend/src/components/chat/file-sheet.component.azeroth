@@ -315,7 +315,7 @@ export default component FileSheet(props: OverlayProps & {
                                                 </span>
                                             }
                                         >
-                                            { () => <img src={ one.preview !== '' ? one.preview : (thumbOf(one.draft?.thumb) ?? '') } alt={ one.file.name } class="absolute inset-0 h-full w-full object-cover" draggable={ false } /> }
+                                            { () => <img src={ one.preview !== '' ? one.preview : (thumbOf(one.draft?.thumb) ?? '') } alt={ one.file.name } class="absolute inset-0 h-full w-full object-cover" draggable="false" /> }
                                         </Show>
                                     }
                                 </Show>

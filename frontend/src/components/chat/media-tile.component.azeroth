@@ -77,7 +77,7 @@ export default component MediaTile(props: { message: Message; inAlbum?: boolean 
         <Show when={ ready && photo }>
             { () =>
                 <button type="button" class="absolute inset-0 cursor-zoom-in" aria-label={ locale.t('chat.file.open') } onClick={ () => void openViewer(props.message) }>
-                    <img src={ url } alt={ props.message.text === '' ? file.name : props.message.text } class="h-full w-full object-cover" draggable={ false } />
+                    <img src={ url } alt={ props.message.text === '' ? file.name : props.message.text } class="h-full w-full object-cover" draggable="false" />
                 </button>
             }
         </Show>

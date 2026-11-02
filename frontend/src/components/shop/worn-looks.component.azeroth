@@ -32,7 +32,7 @@ export default component WornLooks(props: { look: SeatLook; name: string; onOpen
                                 void openLook(id);
                             } }
                         >
-                            <img src={ `/looks/${ id }.svg` } alt="" class="size-14" decoding="async" draggable={ false } />
+                            <img src={ `/looks/${ id }.svg` } alt="" class="size-14" decoding="async" draggable="false" />
                             <span class="line-clamp-2 text-ui-2xs leading-tight text-muted">{ itemName(id, locale) }</span>
                         </button>
                     </li>

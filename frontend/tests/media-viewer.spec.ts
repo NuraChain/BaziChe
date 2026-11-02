@@ -183,6 +183,7 @@ describe('the viewer', () =>
 
         await vi.waitFor(() => expect(container.querySelector('[data-original]')?.getAttribute('src')).toMatch(/^blob:/));
         expect(container.querySelector('[data-original]')?.getAttribute('alt')).toBe('At the coast');
+        expect(container.querySelector('[data-original]')?.getAttribute('draggable'), 'never the browser’s own drag, which would cancel a pan').toBe('false');
     });
 
     it('walks the room’s photos and videos by its buttons and the arrows, the way the page reads', async () =>

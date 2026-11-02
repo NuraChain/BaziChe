@@ -35,6 +35,7 @@ import { usePresence } from '../../stores/presence.store.ts';
 import { useShell } from '../../stores/shell.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
 import { attempt } from '../../lib/attempt.ts';
+import { whyGroup } from '../../lib/group-words.ts';
 import { useAddress } from '../../lib/page-param.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { SEARCH_FIELD, keyboardTo } from '../../lib/way-back.ts';
@@ -112,6 +113,25 @@ export default component GroupPage()
     derived editable = group !== null && mayIn(standing, group.switches, 'info');
 
     derived adds = group !== null && mayIn(standing, group.switches, 'add');
+
+    derived waits = group?.requested === true;
+
+    derived joinWords = locale.t(group?.approval === true ? 'groups.requestJoin' : 'groups.join');
+
+    derived askedWords = locale.t('groups.asked', { name: group?.name ?? '' });
+
+    derived silenced = group?.muted !== undefined;
+
+    /** By its time alone when it ends today, and with its date on any other day: "until 14:45" for tomorrow reads as today. */
+    const untilOf = (at: number) =>
+        locale.date(at, new Date(at).toDateString() === new Date(runtime().clock.now()).toDateString() ? { timeStyle: 'short' } : { dateStyle: 'medium', timeStyle: 'short' });
+
+    /** Until a time today, or a date and a time further off; for good where the mute has no end. */
+    derived mutedWords = group?.muted?.until === undefined
+        ? locale.t('groups.youMutedForGood')
+        : locale.t('groups.youMuted', { time: untilOf(Date.parse(group.muted.until)) });
+
+    state joining = false;
 
     derived waiting = group?.requests ?? 0;
 
@@ -232,8 +252,29 @@ export default component GroupPage()
 
     const join = async (one: GroupSummary) =>
     {
-        await attempt(groups.join(one.id), locale.t('groups.joined', { name: one.name }));
+        if (joining)
+        {
+            return;
+        }
+        joining = true;
+
+        let asked = false;
+        const went = groups.join(one.id).then((after) =>
+        {
+            asked = after.requested === true;
+        });
+
+        if (await attempt(went, undefined, whyGroup))
+        {
+            toasts.show(asked
+                ? { kind: 'info', text: locale.t('groups.requestSent') }
+                : { kind: 'success', text: locale.t('groups.joined', { name: one.name }) });
+        }
+        joining = false;
     };
+
+    const withdraw = (one: GroupSummary) =>
+        void attempt(groups.withdraw(one.id), { kind: 'info', text: locale.t('groups.withdrawn', { name: one.name }) }, whyGroup);
 
     const leave = async (one: GroupSummary) =>
     {
@@ -310,13 +351,33 @@ export default component GroupPage()
                                         <span>{ locale.t(catalogue.byId(played).nameKey) }</span>
                                     </Show>
                                 </p>
+                                <Show when={ silenced }>
+                                    { () =>
+                                        <p class="flex items-center gap-1.5 text-ui-sm text-gold" data-muted>
+                                            <Icon name="clock" size={ 14 } class="shrink-0" />
+                                            <span>{ mutedWords }</span>
+                                        </p>
+                                    }
+                                </Show>
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-2 @2xl:flex @2xl:w-56 @2xl:flex-col">
                             <Show
                                 when={ joined }
-                                fallback={ <Button variant="primary" leading="friend-add" block class="col-span-2" onClick={ () => void join(crew) }>{ locale.t('groups.join') }</Button> }
+                                fallback={
+                                    <Show
+                                        when={ waits }
+                                        fallback={ <Button variant="primary" leading="friend-add" block class="col-span-2" loading={ joining } onClick={ () => void join(crew) }>{ joinWords }</Button> }
+                                    >
+                                        { () =>
+                                            <div class="col-span-2 flex flex-col gap-2" data-asked>
+                                                <p class="text-ui-sm text-muted" dir="auto">{ askedWords }</p>
+                                                <Button variant="outline" block onClick={ () => withdraw(crew) }>{ locale.t('groups.withdraw') }</Button>
+                                            </div>
+                                        }
+                                    </Show>
+                                }
                             >
                                 { () =>
                                     <>

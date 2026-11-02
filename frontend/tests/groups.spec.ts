@@ -20,6 +20,7 @@ import { NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useShell } from '../src/stores/shell.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
+import { useToasts } from '../src/stores/toasts.store.ts';
 import { ApiError, client, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
 import { PEOPLE_FIXTURES } from './fixtures.ts';
@@ -811,6 +812,107 @@ describe('who may change a group, from its page', () =>
 
         expect(offered(container)).toContain(useLocale().t('groups.edit'));
         expect(offered(container), 'no invite right').not.toContain(useLocale().t('groups.add'));
+    });
+});
+
+describe('where the reader stands, as a group\'s head says it', () =>
+{
+    const opened = async (slug: string) =>
+    {
+        const routes: Route[] = [{ path: '/app/groups/:id', component: (): HTMLElement => GroupPage() as HTMLElement }];
+        const router = createRouter({ routes, history: createMemoryHistory(`/app/groups/${ slug }`), scroll: false });
+        const container = renderTest(() => RouterProvider({ router, children: () => Routes({}) }) as HTMLElement).container;
+
+        await vi.waitFor(() => expect(container.querySelector('h1#group-name')).not.toBeNull(), { timeout: 4000 });
+        await settle();
+        return container;
+    };
+
+    const t = (key: Parameters<ReturnType<typeof useLocale>['t']>[0], params?: Record<string, string>) => useLocale().t(key, params);
+
+    const pressed = (container: HTMLElement, words: string) =>
+        [...container.querySelectorAll<HTMLButtonElement>('button')].find((one) => one.textContent?.trim() === words) ?? null;
+
+    const toasted = () => useToasts().items().map((toast) => toast.text);
+
+    const lunch = () => server.groups.find((one) => one.slug === 'lunch-ludo')!;
+
+    beforeEach(() =>
+    {
+        useToasts().reset();
+    });
+
+    it('offers Join where nobody is asked, and seats the reader at the press', async () =>
+    {
+        const container = await opened('lunch-ludo');
+
+        fire(pressed(container, t('groups.join'))!, 'click');
+        await vi.waitFor(() => expect(toasted()).toContain(t('groups.joined', { name: lunch().name })), { timeout: 4000 });
+        expect(lunch().members).toContain('alex');
+    });
+
+    it('offers Request to join where the group asks first, says the request once sent, and lets it be taken back', async () =>
+    {
+        lunch().approval = true;
+        const container = await opened('lunch-ludo');
+
+        expect(pressed(container, t('groups.join')), 'not a plain join').toBeNull();
+        fire(pressed(container, t('groups.requestJoin'))!, 'click');
+
+        await vi.waitFor(() => expect(toasted()).toContain(t('groups.requestSent')), { timeout: 4000 });
+        expect(lunch().members, 'not seated').not.toContain('alex');
+        expect(server.groupRequests['lunch-ludo']?.map((one) => one.handle)).toEqual(['alex']);
+        await vi.waitFor(() => expect(container.querySelector('[data-asked]')?.textContent).toContain(t('groups.asked', { name: lunch().name })), { timeout: 4000 });
+        expect(pressed(container, t('groups.requestJoin')), 'not asked twice').toBeNull();
+
+        fire(pressed(container, t('groups.withdraw'))!, 'click');
+
+        await vi.waitFor(() => expect(toasted()).toContain(t('groups.withdrawn', { name: lunch().name })), { timeout: 4000 });
+        expect(server.groupRequests['lunch-ludo']).toEqual([]);
+        await vi.waitFor(() => expect(pressed(container, t('groups.requestJoin')), 'asking again offered').not.toBeNull(), { timeout: 4000 });
+        expect(container.querySelector('[data-asked]')).toBeNull();
+    });
+
+    it('says a ban in the group\'s own words when the reader tries to join', async () =>
+    {
+        server.groupBans['lunch-ludo'] = ['alex'];
+        const container = await opened('lunch-ludo');
+
+        fire(pressed(container, t('groups.join'))!, 'click');
+
+        await vi.waitFor(() => expect(toasted()).toContain(t('group.refused.group-banned')), { timeout: 4000 });
+        expect(lunch().members).not.toContain('alex');
+    });
+
+    it('tells a muted reader until when, by the time alone today and with the date on any other day', async () =>
+    {
+        const crew = server.groups.find((one) => one.slug === 'friday-night-crew')!;
+        const now = new Date(clock.now());
+        const tonight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 0).getTime();
+        crew.muted = { until: new Date(tonight).toISOString() };
+
+        const today = await opened('friday-night-crew');
+        expect(today.querySelector('[data-muted]')?.textContent).toBe(t('groups.youMuted', { time: useLocale().date(tonight, { timeStyle: 'short' }) }));
+
+        cleanup();
+        useGroups().reset();
+        const early = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 30).getTime();
+        expect(early - clock.now(), 'within a day, on the next one').toBeLessThan(86_400_000);
+        crew.muted = { until: new Date(early).toISOString() };
+        const tomorrow = await opened('friday-night-crew');
+        expect(tomorrow.querySelector('[data-muted]')?.textContent, 'never a bare time for tomorrow').toBe(t('groups.youMuted', { time: useLocale().date(early, { dateStyle: 'medium', timeStyle: 'short' }) }));
+
+        cleanup();
+        useGroups().reset();
+        crew.muted = {};
+        const ever = await opened('friday-night-crew');
+        expect(ever.querySelector('[data-muted]')?.textContent).toBe(t('groups.youMutedForGood'));
+
+        cleanup();
+        useGroups().reset();
+        delete crew.muted;
+        const free = await opened('friday-night-crew');
+        expect(free.querySelector('[data-muted]')).toBeNull();
     });
 });
 

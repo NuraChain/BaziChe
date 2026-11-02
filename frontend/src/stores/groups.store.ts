@@ -48,7 +48,11 @@ export interface GroupsApi
 
     create(draft: GroupDraft): Promise<GroupSummary>;
     edit(slug: string, draft: Omit<GroupDraft, 'hue'>): Promise<GroupSummary>;
-    join(slug: string): Promise<void>;
+    /** Joins, or asks to where the group asks first: the group answered says which. */
+    join(slug: string): Promise<GroupSummary>;
+
+    /** Takes back a request to join that nobody has answered yet. */
+    withdraw(slug: string): Promise<void>;
     leave(slug: string): Promise<void>;
     add(slug: string, handle: string): Promise<void>;
     remove(slug: string, handle: string): Promise<void>;
@@ -189,7 +193,14 @@ export const useGroups = createStore((): GroupsApi =>
 
         async join(slug)
         {
-            await client.groups.join({ params: { slug } });
+            const joined = await client.groups.join({ params: { slug } });
+            await revalidate();
+            return joined;
+        },
+
+        async withdraw(slug)
+        {
+            await client.groups.withdraw({ params: { slug } });
             await revalidate();
         },
 

@@ -3832,6 +3832,20 @@ export const client =
             {
                 throw new ApiError(404, 'not-found', 'No group there.', undefined);
             }
+            if ((server.groupBans[group.slug] ?? []).includes(server.me))
+            {
+                throw new ApiError(403, 'group-banned', 'Banned.', undefined);
+            }
+            if (group.approval && !group.members.includes(server.me))
+            {
+                const waiting = server.groupRequests[group.slug] ??= [];
+                if (!waiting.some((one) => one.handle === server.me))
+                {
+                    waiting.push({ handle: server.me, at: new Date(runtime().clock.now()).toISOString(), byLink: false });
+                }
+                group.requested = true;
+                return structuredClone(group);
+            }
             if (!group.members.includes(server.me))
             {
                 group.members.push(server.me);
@@ -3840,6 +3854,15 @@ export const client =
                 group.conversationId = `conv-${ group.slug }`;
             }
             return group;
+        },
+
+        async withdraw({ params }: { params: { slug: string } })
+        {
+            server.calls.push('groups.withdraw');
+            const group = mustGroup(params.slug);
+            server.groupRequests[group.slug] = (server.groupRequests[group.slug] ?? []).filter((one) => one.handle !== server.me);
+            delete group.requested;
+            return structuredClone(group);
         },
 
         async leave({ params }: { params: { slug: string } })

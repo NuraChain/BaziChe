@@ -6,16 +6,11 @@ import ConfirmSheet from '../../components/app/confirm-sheet.component.azeroth';
 import Page from '../../components/app/page.component.azeroth';
 import OpenHereSheet from '../../components/games/open-here-sheet.component.azeroth';
 import GroupAdd from '../../components/social/group-add.component.azeroth';
-import GroupBanned from '../../components/social/group-banned.component.azeroth';
 import GroupCrest from '../../components/social/group-crest.component.azeroth';
 import GroupForm from '../../components/social/group-form.component.azeroth';
-import GroupLinks from '../../components/social/group-links.component.azeroth';
-import GroupLog from '../../components/social/group-log.component.azeroth';
 import GroupMemberRow from '../../components/social/group-member-row.component.azeroth';
 import GroupMemberSheet from '../../components/social/group-member-sheet.component.azeroth';
-import GroupPermissions from '../../components/social/group-permissions.component.azeroth';
-import GroupReports from '../../components/social/group-reports.component.azeroth';
-import GroupRequests from '../../components/social/group-requests.component.azeroth';
+import LazyGroupPanel from '../../components/social/lazy-group-panel.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
 import EmptyState from '../../components/ui/empty-state.component.azeroth';
 import ErrorState from '../../components/ui/error-state.component.azeroth';
@@ -414,27 +409,27 @@ export default component GroupPage()
                 </Show>
 
                 <Show when={ onRequests }>
-                    { () => <GroupRequests /> }
+                    { () => <LazyGroupPanel panel="requests" group={ crew } /> }
                 </Show>
 
                 <Show when={ onReports }>
-                    { () => <GroupReports group={ crew } /> }
+                    { () => <LazyGroupPanel panel="reports" group={ crew } /> }
                 </Show>
 
                 <Show when={ onLinks }>
-                    { () => <GroupLinks /> }
+                    { () => <LazyGroupPanel panel="links" group={ crew } /> }
                 </Show>
 
                 <Show when={ onBanned }>
-                    { () => <GroupBanned /> }
+                    { () => <LazyGroupPanel panel="banned" group={ crew } /> }
                 </Show>
 
                 <Show when={ onLog }>
-                    { () => <GroupLog /> }
+                    { () => <LazyGroupPanel panel="log" group={ crew } /> }
                 </Show>
 
                 <Show when={ onPermissions }>
-                    { () => <GroupPermissions group={ crew } /> }
+                    { () => <LazyGroupPanel panel="permissions" group={ crew } /> }
                 </Show>
 
                 <section hidden={ !onMembers }>

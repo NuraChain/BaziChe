@@ -1056,9 +1056,10 @@ describe('what people reported in the group’s chat', () =>
 
         const door = held('reports');
         const container = opened('?tab=reports');
+        await vi.waitFor(() => expect(panelOf(container, t('groups.tab.reports'))).not.toBeNull(), { timeout: 4000 });
         await settle();
 
-        expect(panelOf(container, t('groups.tab.reports'))?.textContent).not.toContain(t('groups.reports.emptyOpen'));
+        expect(panelOf(container, t('groups.tab.reports'))!.textContent).not.toContain(t('groups.reports.emptyOpen'));
 
         door.release();
         await vi.waitFor(() => expect(panelOf(container, t('groups.tab.reports'))?.textContent).toContain(t('groups.reports.emptyOpen')), { timeout: 4000 });

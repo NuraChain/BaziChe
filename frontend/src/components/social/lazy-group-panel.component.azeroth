@@ -1,0 +1,76 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+import type { GroupSummary } from '../../api.ts';
+import { chunk } from '../../lib/chunks.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+
+/** The panels of a group's page only some of its staff open, each a chunk of its own. */
+export type GroupPanelName = 'requests' | 'reports' | 'links' | 'banned' | 'log' | 'permissions';
+
+type Panel = (props: { group: GroupSummary }) => MountNode;
+
+const LOADERS: Record<GroupPanelName, () => Promise<{ default: unknown }>> = {
+    requests: chunk(() => import('./group-requests.component.azeroth')),
+    reports: chunk(() => import('./group-reports.component.azeroth')),
+    links: chunk(() => import('./group-links.component.azeroth')),
+    banned: chunk(() => import('./group-banned.component.azeroth')),
+    log: chunk(() => import('./group-log.component.azeroth')),
+    permissions: chunk(() => import('./group-permissions.component.azeroth'))
+};
+
+/**
+ * One staff panel of a group's page, fetched the first time its tab is opened, so the page itself
+ * carries none of them: a placeholder while it comes, and a failure with Try again if it cannot.
+ */
+export default component LazyGroupPanel(props: { panel: GroupPanelName; group: GroupSummary })
+{
+    const locale = useLocale();
+    const name = props.panel;
+
+    let Shown: Panel | null = null;
+
+    state loaded = false;
+
+    state failure = null as unknown;
+
+    const load = () =>
+    {
+        failure = null;
+        void LOADERS[name]().then((module) =>
+        {
+            Shown = module.default as Panel;
+            loaded = true;
+        }, (error: unknown) =>
+        {
+            failure = error;
+        });
+    };
+
+    mount
+    {
+        load();
+    }
+
+    derived failed = failure !== null;
+
+    <Show
+        when={ loaded }
+        fallback={
+            <Show
+                when={ failed }
+                fallback={
+                    <div class="flex flex-col gap-2" data-reading>
+                        <span class="sr-only">{ locale.t('common.loading') }</span>
+                        <Skeleton class="h-24 w-full rounded-tile" />
+                    </div>
+                }
+            >
+                { () => <ErrorState compact error={ failure } title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ load } /> }
+            </Show>
+        }
+    >
+        { () => <Dynamic component={ Shown! } props={ () => ({ group: props.group }) } /> }
+    </Show>
+}

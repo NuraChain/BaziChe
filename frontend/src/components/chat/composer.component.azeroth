@@ -7,6 +7,8 @@ import { useToasts } from '../../stores/toasts.store.ts';
 import { useVoiceRooms } from '../../stores/voice-rooms.store.ts';
 import IconButton from '../ui/icon-button.component.azeroth';
 import TextArea from '../ui/text-area.component.azeroth';
+import type { ChatAction, MenuPoint } from './actions.ts';
+import ContextMenu from './context-menu.component.azeroth';
 import LazyEmojiPicker from './lazy-emoji-picker.component.azeroth';
 import LazyVoiceRecorder from './lazy-voice-recorder.component.azeroth';
 
@@ -55,6 +57,15 @@ export default component Composer(props: {
 
     let picker: HTMLInputElement | null = null;
 
+    let media: HTMLInputElement | null = null;
+
+    let camera: HTMLInputElement | null = null;
+
+    let clip: HTMLElement | null = null;
+
+    /** Where the paperclip's menu stands while it is open: beside the paperclip, above it when the room below is short. */
+    state offered = null as MenuPoint | null;
+
     state dropping = false;
 
     state docked = false;
@@ -64,6 +75,13 @@ export default component Composer(props: {
     derived editing = props.editing !== undefined && props.editing !== null && props.disabled !== true;
 
     derived attaching = props.record !== undefined && props.disabled !== true && !editing;
+
+    /** What the paperclip offers (MS-D48): photos and videos from the gallery, the camera where a finger holds the device, and any file. */
+    derived choices = [
+        { id: 'media', icon: 'image', label: locale.t('chat.attach.media'), run: () => media?.click() } satisfies ChatAction,
+        ...(device.coarse() ? [ { id: 'camera', icon: 'camera', label: locale.t('chat.attach.camera'), run: () => camera?.click() } satisfies ChatAction ] : []),
+        { id: 'file', icon: 'file', label: locale.t('chat.attach.file'), run: () => picker?.click() } satisfies ChatAction
+    ];
 
     derived replying = !editing && props.reply !== undefined && props.reply !== null && props.disabled !== true;
 
@@ -173,6 +191,27 @@ export default component Composer(props: {
                 onSent: () => props.onInput('')
             }, { label: locale.t('chat.attach'), id: 'file-sheet' }))
             .catch(() => toasts.show({ kind: 'warning', text: locale.t('chat.attach.unreadable'), dedupe: 'file-sheet' }));
+    };
+
+    /** The paperclip's menu, beside the paperclip: what it offers is chosen there, and a choice opens its picker in the same press. */
+    const offer = () =>
+    {
+        if (refused() || clip === null)
+        {
+            return;
+        }
+
+        const box = clip.getBoundingClientRect();
+
+        offered = { x: box.left, y: box.top, width: box.width, height: box.height };
+    };
+
+    const picked = (event: Event) =>
+    {
+        const input = event.currentTarget as HTMLInputElement;
+
+        attach(Array.from(input.files ?? []));
+        input.value = '';
     };
 
     const pasted = (event: ClipboardEvent) =>
@@ -335,35 +374,22 @@ export default component Composer(props: {
                             <Show when={ attaching }>
                                 { () =>
                                     <>
-                                        <IconButton
-                                            icon="attach"
-                                            label={ locale.t('chat.attach') }
-                                            variant="ghost"
-                                            class="rounded-full! text-muted hover:text-text"
-                                            onClick={ () =>
-                                            {
-                                                if (!refused())
-                                                {
-                                                    picker?.click();
-                                                }
-                                            } }
-                                        />
-                                        <input
-                                            ref={ (element) => picker = element }
-                                            type="file"
-                                            multiple
-                                            class="hidden"
-                                            tabindex="-1"
-                                            aria-hidden="true"
-                                            data-attach
-                                            onChange={ (event) =>
-                                            {
-                                                const input = event.currentTarget as HTMLInputElement;
-
-                                                attach(Array.from(input.files ?? []));
-                                                input.value = '';
-                                            } }
-                                        />
+                                        <span ref={ (element) => clip = element } class="flex shrink-0">
+                                            <IconButton
+                                                icon="attach"
+                                                label={ locale.t('chat.attach') }
+                                                variant="ghost"
+                                                class="rounded-full! text-muted hover:text-text"
+                                                expanded={ offered !== null }
+                                                onClick={ offer }
+                                            />
+                                        </span>
+                                        <input ref={ (element) => media = element } type="file" accept="image/*,video/*" multiple class="hidden" tabindex="-1" aria-hidden="true" data-attach="media" onChange={ picked } />
+                                        <input ref={ (element) => camera = element } type="file" accept="image/*,video/*" capture="environment" class="hidden" tabindex="-1" aria-hidden="true" data-attach="camera" onChange={ picked } />
+                                        <input ref={ (element) => picker = element } type="file" multiple class="hidden" tabindex="-1" aria-hidden="true" data-attach="file" onChange={ picked } />
+                                        <Show when={ offered } let={ at }>
+                                            <ContextMenu at={ at } label={ locale.t('chat.attach') } items={ choices } onClose={ () => offered = null } />
+                                        </Show>
                                     </>
                                 }
                             </Show>

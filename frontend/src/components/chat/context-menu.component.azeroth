@@ -97,7 +97,7 @@ export default component ContextMenu(props: {
             const rtl = locale.dir() === 'rtl';
 
             at = place(
-                { x: props.at.x, y: props.at.y, width: 0, height: 0 },
+                { x: props.at.x, y: props.at.y, width: props.at.width ?? 0, height: props.at.height ?? 0 },
                 { width: panel.offsetWidth, height: panel.offsetHeight },
                 viewportOf(),
                 { side: 'bottom', align: rtl ? 'end' : 'start', gap: 2, padding: 8, rtl }
@@ -181,7 +181,7 @@ export default component ContextMenu(props: {
                         role="menuitem"
                         data-item={ item.id }
                         class={ () => [
-                            'flex h-9 w-full cursor-pointer items-center gap-3 rounded-control px-3 text-start text-ui-sm transition-colors hover:bg-raised focus-visible:bg-raised',
+                            'flex h-9 w-full cursor-pointer coarse:h-11 items-center gap-3 rounded-control px-3 text-start text-ui-sm transition-colors hover:bg-raised focus-visible:bg-raised',
                             item.danger === true ? 'text-danger' : 'text-text'
                         ].join(' ') }
                         onClick={ () => choose(item.run) }

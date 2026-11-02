@@ -115,6 +115,10 @@ export interface MenuPoint
 {
     x: number;
     y: number;
+
+    /** The size of what the menu was asked from, when it stands beside a control rather than at a pointer. */
+    width?: number;
+    height?: number;
 }
 
 /** The reactions a line's menu opens with, and the way to the rest of them. */

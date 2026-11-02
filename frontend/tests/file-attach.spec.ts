@@ -7,8 +7,10 @@ import { FILE_MOST, FILE_NAME_MOST, FILE_PHOTO_MOST } from '../../backend/src/do
 import '../src/icons/all.ts';
 import { nameOf, overUnread, tooLarge, typeOf } from '../src/lib/file-prepare.ts';
 import { useChat } from '../src/stores/chat.store.ts';
+import { useDevice } from '../src/stores/device.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
+import { useToasts } from '../src/stores/toasts.store.ts';
 import '../src/locales/app-catalogue.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
@@ -38,6 +40,7 @@ afterEach(() =>
 {
     cleanup();
     useOverlay().reset();
+    useDevice().overrideCoarse(null);
     vi.restoreAllMocks();
 });
 
@@ -87,16 +90,19 @@ describe('a file as it is kept', () =>
     });
 });
 
-const composer = (props: { record?: string; disabled?: boolean; editing?: string | null; value?: string } = {}) => renderTest(() => Composer({
+const composer = (props: { record?: string; disabled?: boolean; editing?: string | null; value?: string; media?: string } = {}) => renderTest(() => Composer({
     value: props.value ?? '',
     disabled: props.disabled ?? false,
     editing: props.editing ?? null,
     ...(props.record === undefined ? {} : { record: props.record }),
+    ...(props.media === undefined ? {} : { media: props.media }),
     onInput: () => undefined,
     onSend: () => undefined
 }) as HTMLElement).container;
 
-const attachButton = (container: HTMLElement) => container.querySelector<HTMLButtonElement>('button[aria-label="Attach a photo, a video or a file"]');
+const attachButton = (container: HTMLElement) => container.querySelector<HTMLButtonElement>(`button[aria-label="${ useLocale().t('chat.attach') }"]`);
+
+const menuItems = () => [...document.querySelectorAll('[role="menu"] [role="menuitem"]')].map((one) => one.textContent?.trim());
 
 describe('the composer’s paperclip', () =>
 {
@@ -114,10 +120,76 @@ describe('the composer’s paperclip', () =>
         expect(attachButton(composer({ record: 'c-reza', editing: 'old words' }))).toBeNull();
     });
 
+    it('opens a menu of what to attach, with a camera only under a finger, said in the reader’s language', async () =>
+    {
+        fire(attachButton(composer({ record: 'c-reza' }))!, 'click');
+
+        await vi.waitFor(() => expect(menuItems()).toEqual(['Photo or video', 'File']));
+        expect(document.querySelector('[role="menu"]')?.getAttribute('aria-label')).toBe('Attach a photo, a video or a file');
+        expect(attachButton(document.body)?.getAttribute('aria-expanded'), 'said open while it is').toBe('true');
+
+        cleanup();
+        useDevice().overrideCoarse(true);
+        useLocale().setLocale('fa');
+        fire(attachButton(composer({ record: 'c-reza' }))!, 'click');
+
+        await vi.waitFor(() => expect(menuItems()).toEqual(['عکس یا ویدیو', 'دوربین', 'فایل']));
+    });
+
+    it('opens the picker each choice is for, as the press that chose it', async () =>
+    {
+        const opened: string[] = [];
+
+        vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (this: HTMLInputElement)
+        {
+            opened.push([this.dataset.attach, this.accept, this.multiple, this.getAttribute('capture') ?? ''].join(' | '));
+        });
+        useDevice().overrideCoarse(true);
+
+        for (const choice of ['Photo or video', 'Camera', 'File'])
+        {
+            const container = composer({ record: 'c-reza' });
+
+            fire(attachButton(container)!, 'click');
+            await vi.waitFor(() => expect(menuItems()).toContain(choice));
+            fire([...document.querySelectorAll<HTMLElement>('[role="menu"] [role="menuitem"]')].find((one) => one.textContent?.trim() === choice)!, 'click');
+            expect(document.querySelector('[role="menu"]'), 'a choice closes it').toBeNull();
+            cleanup();
+        }
+
+        expect(opened).toEqual([
+            'media | image/*,video/* | true | ',
+            'camera | image/*,video/* | false | environment',
+            'file |  | true | '
+        ]);
+    });
+
+    it('closes at Escape and hands the keyboard back to the paperclip, which opens nothing while the room refuses files', async () =>
+    {
+        const container = composer({ record: 'c-reza' });
+        const clip = attachButton(container)!;
+
+        clip.focus();
+        fire(clip, 'click');
+        await vi.waitFor(() => expect(document.activeElement?.getAttribute('role')).toBe('menuitem'));
+
+        document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+
+        expect(document.querySelector('[role="menu"]')).toBeNull();
+        expect(document.activeElement).toBe(clip);
+        expect(clip.getAttribute('aria-expanded')).toBe('false');
+
+        cleanup();
+        fire(attachButton(composer({ record: 'c-reza', media: 'Only words go to this channel.' }))!, 'click');
+
+        expect(document.querySelector('[role="menu"]')).toBeNull();
+        expect(useToasts().items().map((one) => one.text)).toContain('Only words go to this channel.');
+    });
+
     it('opens the sheet for a file picked, with the words in the field as its caption', async () =>
     {
         const container = composer({ record: 'c-reza', value: 'Here it is' });
-        const input = container.querySelector<HTMLInputElement>('input[data-attach]')!;
+        const input = container.querySelector<HTMLInputElement>('input[data-attach="file"]')!;
         const file = new File([new Uint8Array([37, 80, 68, 70])], 'report.pdf', { type: 'application/pdf' });
 
         Object.defineProperty(input, 'files', { value: [file], configurable: true });

@@ -8,6 +8,7 @@ import { buildApi } from './api.ts';
 import { FILE_REFUSALS, FILE_SEALED_MOST } from './domains/chat/files.ts';
 import { VOICE_FILE_MOST, VOICE_REFUSALS } from './domains/chat/voice.ts';
 import { avatarFile } from './domains/identity/avatar.ts';
+import { achievementMedal, achievementMetadata, lookMetadata } from './domains/nft/metadata.ts';
 import { sameSiteWrites } from './http/origin.ts';
 import { wellFormed } from './http/well-formed.ts';
 import type { Ports } from './ports.ts';
@@ -227,6 +228,47 @@ export function buildApp(deps: AppDeps)
 
     // A photo, a video or a file, as the ciphertext its sender's browser made: a voice file's route
     // with a file's bound. The server cannot tell which of the three it is.
+    // What a wallet or an explorer shows of a look or a legendary achievement minted on NuraChain,
+    // under the contracts' `{id}` templates: public, the same for everybody, and naming nothing about
+    // who holds a token. A path that is no token's answers 404 as any missing page does.
+    const NFT_HEADERS = { 'cache-control': 'public, max-age=3600', 'x-content-type-options': 'nosniff', 'access-control-allow-origin': '*' };
+    const NFT_FILE = /^([0-9a-f]{64})\.(json|svg)$/;
+
+    app.get('/api/nft/looks/:file', (context) =>
+    {
+        const [, path, as] = NFT_FILE.exec(context.params.file) ?? [];
+        const found = path === undefined || as !== 'json' ? null : lookMetadata(deps.config.origin, path);
+
+        if (found === null)
+        {
+            throw new NotFoundError('No such look.');
+        }
+        return json(found, { headers: NFT_HEADERS });
+    });
+
+    app.get('/api/nft/achievements/:file', (context) =>
+    {
+        const [, path, as] = NFT_FILE.exec(context.params.file) ?? [];
+
+        if (path !== undefined && as === 'svg')
+        {
+            const medal = achievementMedal(path);
+
+            if (medal !== null)
+            {
+                return new Response(medal, { headers: { ...NFT_HEADERS, 'content-type': 'image/svg+xml', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'" } });
+            }
+        }
+
+        const found = path === undefined || as !== 'json' ? null : achievementMetadata(deps.config.origin, path);
+
+        if (found === null)
+        {
+            throw new NotFoundError('No such achievement.');
+        }
+        return json(found, { headers: NFT_HEADERS });
+    });
+
     app.put('/api/chat/files/:id', async (context) =>
     {
         const principal = await ports.identity.principal(context.request);

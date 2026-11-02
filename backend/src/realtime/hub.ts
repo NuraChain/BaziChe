@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
 import { maySeeOnline, type Party, type Relation } from '../domains/social/policy.ts';
+import { CALL_ROOM } from '../domains/call/rules.ts';
 import type { Principal } from '../http/auth.ts';
 import { keyedQueue } from '../lib/keyed-queue.ts';
 import type { MatchEvent, MatchView, Pulse } from '../schemas.ts';
@@ -51,7 +52,11 @@ export interface HubDeps
 
     report(error: unknown, where: string): void;
 
-    voiceCall(userId: string, tableId: string): Promise<string | null>;
+    /** The call somebody may be in for a room they asked for: a table's, or a call's (`call:<id>`), or nothing. */
+    voiceCall(userId: string, room: string): Promise<string | null>;
+
+    /** Somebody's joining came into a call or went out of it, named as `voiceCall` names it. */
+    voiceMoved?(userId: string, call: string, here: boolean): void;
 
     mayTalk(a: string, b: string): Promise<boolean>;
 
@@ -131,7 +136,7 @@ export const SEEN_MS = 20_000;
 
 export const VIEWED_MAX = 4;
 
-export type SelfTopic = 'notifications' | 'devices' | 'profile' | 'party' | 'vault' | 'shop' | 'donations' | 'markets' | 'channels';
+export type SelfTopic = 'notifications' | 'devices' | 'profile' | 'party' | 'calls' | 'vault' | 'shop' | 'donations' | 'markets' | 'channels';
 
 export interface Hub
 {
@@ -148,6 +153,9 @@ export interface Hub
     reply(connection: Connection, build: (n: number) => ServerFrame): void;
     tableChanged(tableId: string, people: readonly string[]): void;
     tableViewed(userId: string, tableId: string): void;
+
+    /** A call changed: everybody in it reads their calls again, and its room lets go of whoever may no longer be in it. */
+    callChanged(callId: string, people: readonly string[]): void;
     catalogueChanged(): void;
     sessionsRevoked(sessionIds: readonly string[]): void;
     seen(userId: string): void;
@@ -213,6 +221,7 @@ export function createHub(deps: HubDeps): Hub
     const pendingEdges = new Set<string>();
     const pendingSelf = new Map<string, Set<SelfTopic>>();
     const pendingTable = new Map<string, { at: number; people: Set<string> }>();
+    const pendingCalls = new Set<string>();
     const viewed = new Map<string, string[]>();
     const watchers = new Map<string, Set<string>>();
     const sighted = new Map<string, number>();
@@ -300,6 +309,7 @@ export function createHub(deps: HubDeps): Hub
             }
 
             room.delete(userId);
+            deps.voiceMoved?.(userId, call, false);
 
             if (tell)
             {
@@ -811,11 +821,13 @@ export function createHub(deps: HubDeps): Hub
         const moved = [...pendingEdges];
         const self = [...pendingSelf.entries()];
         const tables = [...pendingTable.entries()];
+        const calls = [...pendingCalls];
         pendingChat.clear();
         pendingSocial.clear();
         pendingEdges.clear();
         pendingSelf.clear();
         pendingTable.clear();
+        pendingCalls.clear();
 
         for (const [tableId, { at, people }] of tables)
         {
@@ -837,7 +849,8 @@ export function createHub(deps: HubDeps): Hub
             ...chat.map(([conversationId, { at, also }]) => deps.recipientsOf(conversationId)
                 .then((recipients) => publish(new Set([...recipients, ...also]), (n) => nudge(n, 'chat', at, conversationId)))
                 .catch((error) => deps.report(error, 'realtime.recipients'))),
-            ...tables.map(([tableId]) => recheck(tableId).catch((error) => deps.report(error, 'realtime.voice')))
+            ...tables.map(([tableId]) => recheck(tableId).catch((error) => deps.report(error, 'realtime.voice'))),
+            ...calls.map((callId) => recheck(`${ CALL_ROOM }${ callId }`).catch((error) => deps.report(error, 'realtime.voice')))
         ]);
     }
 
@@ -1038,6 +1051,17 @@ export function createHub(deps: HubDeps): Hub
             schedule();
         },
 
+        callChanged(callId, people)
+        {
+            for (const userId of people)
+            {
+                pendingSelf.set(userId, (pendingSelf.get(userId) ?? new Set<SelfTopic>()).add('calls'));
+            }
+
+            pendingCalls.add(callId);
+            schedule();
+        },
+
         gamePushed(pushes)
         {
             const at = deps.now();
@@ -1190,6 +1214,7 @@ export function createHub(deps: HubDeps): Hub
                     room.set(socket.userId, { socket, muted, opus, join: randomBytes(9).toString('base64url'), room: tableId });
                     rooms.set(call, room);
                     roster(call);
+                    deps.voiceMoved?.(socket.userId, call, true);
                 })
                 .catch((error) => deps.report(error, 'realtime.voice'));
         },

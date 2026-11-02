@@ -16,3 +16,12 @@ export type CallState = typeof CALL_STATES[number];
 export const CALL_ENDINGS = ['answered', 'missed', 'declined', 'busy', 'cancelled', 'failed'] as const;
 
 export type CallEnding = typeof CALL_ENDINGS[number];
+
+/** How long a call rings before it is missed (MS-D31). */
+export const RING_SECONDS = 45;
+
+/** How long a live direct call waits for somebody out of its room to come back, or to come at all (MS-D32). */
+export const ALONE_SECONDS = 30;
+
+/** What a call's room is called on the voice frames, beside a table's id. */
+export const CALL_ROOM = 'call:';

@@ -249,6 +249,9 @@ import {
     historyQuery,
     sinceQuery,
     partyInput,
+    callInput,
+    callView,
+    callsState,
     partyState
 } from './schemas.ts';
 import { NAMES_MAX, PEOPLE_FOUND_MAX } from './domains/social/names.ts';
@@ -1422,6 +1425,28 @@ export function buildApi(ports: Ports)
                 await ports.party.leave(context.principal.userId, context.params.id);
                 return { ok: true };
             })
+        })),
+
+        /**
+         * Calls. A ring names the conversation it is in; every other verb names the call, and each
+         * answers the call as the reader now stands in it, so a verb asked twice answers the same.
+         */
+        calls: feature('/calls', [session], (routes) => ({
+            state: routes.get('/', { output: callsState }, (context) => ports.calls.state(context.principal.userId)),
+
+            view: routes.get('/:id', { output: callView }, (context) => ports.calls.view(context.principal.userId, context.params.id)),
+
+            ring: routes.post('/', { input: callInput, output: callView },
+                (context) => ports.calls.ring(context.principal.userId, context.input.room)),
+
+            accept: routes.post('/:id/accept', { output: callView },
+                (context) => ports.calls.accept(context.principal.userId, context.params.id)),
+
+            decline: routes.post('/:id/decline', { output: callView },
+                (context) => ports.calls.decline(context.principal.userId, context.params.id)),
+
+            hangUp: routes.post('/:id/hang-up', { output: callView },
+                (context) => ports.calls.hangUp(context.principal.userId, context.params.id))
         })),
 
         /**

@@ -87,6 +87,7 @@ interface World
     sessionsAsked: string[] | null;
     sessionsHeld: Promise<void> | null;
     delivered: number[];
+    moved: string[];
 }
 
 let world: World;
@@ -112,7 +113,8 @@ function build()
         failing: false,
         sessionsAsked: null,
         sessionsHeld: null,
-        delivered: []
+        delivered: [],
+        moved: []
     };
 
     state.hub = createHub({
@@ -155,6 +157,7 @@ function build()
             return side === undefined ? tableId.toLowerCase() : `${ tableId.toLowerCase() }#${ side }`;
         },
         mayTalk: async (a, b) => !state.apart.has([a, b].sort().join('|')),
+        voiceMoved: (userId, call, here) => state.moved.push(`${ userId } ${ here ? 'in' : 'out' } ${ call }`),
         pulse: async () =>
         {
             state.asked += 1;
@@ -2005,6 +2008,114 @@ describe('voice at a table', () =>
 
         expect(lastVoice(first.wire)).toMatchObject({ joined: false });
         expect(lastVoice(second.wire)).toMatchObject({ joined: true });
+    });
+});
+
+describe('a call\'s room', () =>
+{
+    const ROOM = 'call:c1';
+
+    const seat = (...handles: string[]) =>
+    {
+        for (const handle of handles)
+        {
+            world.seated.add(`${ handle }@${ ROOM }`);
+        }
+    };
+
+    const rest = async () =>
+    {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await world.hub.flush();
+    };
+
+    const lastVoice = (wire: FakeWire) =>
+        wire.framesOf('voice').at(-1) as Extract<ServerFrame, { t: 'voice' }> | undefined;
+
+    it('tells the server who came into a call and who went out of it, by the call, once a joining is really gone', async () =>
+    {
+        seat('alex', 'sara.k');
+        const alex = await connect('alex');
+        const again = await connect('alex');
+        const sara = await connect('sara.k');
+
+        world.hub.voice(alex.connection, ROOM, true, false, true);
+        await rest();
+        world.hub.voice(sara.connection, ROOM, true, false, true);
+        await rest();
+        world.hub.voice(again.connection, ROOM, true, false, true);
+        await rest();
+
+        expect(world.moved).toEqual(['alex in call:c1', 'sara.k in call:c1', 'alex in call:c1']);
+
+        world.hub.release(alex.connection);
+        expect(world.moved, 'a tab whose joining another tab took over').toHaveLength(3);
+
+        world.hub.voice(again.connection, ROOM, false, false, true);
+        world.hub.release(sara.connection);
+        await rest();
+
+        expect(world.moved.slice(3).sort()).toEqual(['alex out call:c1', 'sara.k out call:c1']);
+    });
+
+    it('turns away a joining the call does not admit, and tells the server nothing of it', async () =>
+    {
+        seat('alex');
+        const stranger = await connect('omid.k');
+
+        world.hub.voice(stranger.connection, ROOM, true, false, true);
+        await rest();
+
+        expect(lastVoice(stranger.wire)).toMatchObject({ room: ROOM, joined: false });
+        expect(world.moved).toEqual([]);
+    });
+
+    it('rings everybody in a call that changed, and its room lets go of whoever may no longer be in it', async () =>
+    {
+        seat('alex', 'sara.k');
+        const alex = await connect('alex');
+        const sara = await connect('sara.k');
+        const other = await connect('omid.k');
+
+        world.hub.voice(alex.connection, ROOM, true, false, true);
+        await rest();
+        world.hub.voice(sara.connection, ROOM, true, false, true);
+        await rest();
+
+        world.seated.delete(`sara.k@${ ROOM }`);
+        world.hub.callChanged('C1', ['alex', 'sara.k']);
+        await rest();
+
+        expect(scopesOf(alex.wire)).toEqual(['me:calls']);
+        expect(scopesOf(sara.wire)).toEqual(['me:calls']);
+        expect(scopesOf(other.wire)).toEqual([]);
+        expect(lastVoice(sara.wire)).toMatchObject({ room: ROOM, joined: false });
+        expect(lastVoice(alex.wire)?.peers.map((peer) => peer.who)).toEqual(['alex']);
+        expect(world.moved.at(-1)).toBe('sara.k out call:c1');
+
+        world.seated.delete(`alex@${ ROOM }`);
+        world.hub.callChanged('c1', ['alex', 'sara.k']);
+        await rest();
+
+        expect(lastVoice(alex.wire)).toMatchObject({ joined: false });
+        expect(world.hub.calls(), 'the call ended and its room with it').toEqual([]);
+    });
+
+    it('keeps a call\'s room apart from every table\'s', async () =>
+    {
+        seat('alex', 'sara.k');
+        world.seated.add('alex@c1');
+        const alex = await connect('alex');
+        const sara = await connect('sara.k');
+
+        world.hub.voice(alex.connection, 'c1', true, false, true);
+        await rest();
+        world.hub.voice(sara.connection, ROOM, true, false, true);
+        await rest();
+
+        expect(lastVoice(sara.wire)?.peers.map((peer) => peer.who), 'a table with the call\'s id').toEqual(['sara.k']);
+        expect(world.hub.voiceOf('c1')).toEqual(['alex']);
+        expect(world.hub.voiceOf(ROOM)).toEqual(['sara.k']);
     });
 });
 

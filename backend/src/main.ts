@@ -33,6 +33,9 @@ import { createIdentityService } from './domains/identity/service.ts';
 import { createSocialService } from './domains/social/service.ts';
 import { attachRealtime } from './realtime/gateway.ts';
 import { voiceCall } from './domains/table/voice.ts';
+import { callMoved, callRoom } from './domains/call/rooms.ts';
+import { CALL_ROOM } from './domains/call/rules.ts';
+import { keyedQueue } from './lib/keyed-queue.ts';
 import { createHub } from './realtime/hub.ts';
 import { HANDSHAKES_A_MINUTE, SOCKETS_MOST, SOCKETS_PER_ACCOUNT } from './realtime/limits.ts';
 import { SESSION_TTL_SECONDS } from './http/auth.ts';
@@ -128,6 +131,9 @@ const identity = createIdentityService(dataSource, {
     vault: config.vaultAddress
 });
 
+/** One person's comings and goings in a call's room are written in the order they happened. */
+const moves = keyedQueue();
+
 const hub = createHub({
     now: () => Date.now(),
     accountMax: SOCKETS_PER_ACCOUNT,
@@ -157,7 +163,13 @@ const hub = createHub({
 
     report: (error, where) => log.error('realtime failure', { where, error }),
 
-    voiceCall: (userId, tableId) => voiceCall(dataSource, userId, tableId),
+    voiceCall: (userId, room) => (room.startsWith(CALL_ROOM) ? callRoom(dataSource, userId, room) : voiceCall(dataSource, userId, room)),
+
+    voiceMoved: (userId, call, here) =>
+    {
+        void moves.run(userId, () => callMoved(dataSource, userId, call, here))
+            .catch((error: unknown) => log.error('realtime failure', { where: 'realtime.call', error }));
+    },
 
     async mayTalk(a, b)
     {
@@ -199,6 +211,13 @@ const ports = buildPorts(dataSource, config, hub, {
     sockets: () => hub.size(),
     looking: (tableId) => hub.looking(tableId)
 }, (event, fields, level = 'info') => log[level](event, fields), undefined, { health: () => ops.health(), watch: monitor });
+
+const emptied = await ports.jobs.emptyCallRooms();
+
+if (emptied > 0)
+{
+    log.info('everybody out of the call rooms this server starts without', { emptied });
+}
 
 const serving = config.servePages;
 
@@ -421,6 +440,34 @@ const sweepTables = () =>
 
 tables = setTimeout(sweepTables, TABLE_SWEEP_MS);
 tables.unref();
+
+const CALL_SWEEP_MS = 5_000;
+
+let calling: NodeJS.Timeout | null = null;
+
+const sweepCalls = () =>
+{
+    void ports.jobs.sweepCalls()
+        .then(({ missed, ended }) =>
+        {
+            if (missed + ended > 0)
+            {
+                log.info('calls ended by time', { missed, ended });
+            }
+        })
+        .catch((error: unknown) => log.error('call sweep failed', { error }))
+        .finally(() =>
+        {
+            if (calling !== null)
+            {
+                calling = setTimeout(sweepCalls, CALL_SWEEP_MS);
+                calling.unref();
+            }
+        });
+};
+
+calling = setTimeout(sweepCalls, CALL_SWEEP_MS);
+calling.unref();
 
 const STAKE_SWEEP_MS = 2_000;
 
@@ -750,6 +797,11 @@ handleShutdownSignals(served, {
         {
             clearTimeout(tables);
             tables = null;
+        }
+        if (calling !== null)
+        {
+            clearTimeout(calling);
+            calling = null;
         }
         if (stakes !== null)
         {

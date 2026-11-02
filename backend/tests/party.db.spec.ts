@@ -46,6 +46,7 @@ const listener: WriteListener = {
     gameWatched: () => undefined,
     tableChanged: () => undefined,
     tableViewed: () => undefined,
+    callChanged: () => undefined,
     catalogueChanged: () => undefined,
     sessionsRevoked: () => undefined,
     seen: () => undefined
@@ -533,7 +534,7 @@ describe.skipIf(!active)('teaming up, against Postgres', () =>
 
             const named = rowsOf<{ name: string }>(await db.query(
                 `select table_name as name from information_schema.columns
-                  where table_schema = 'public' and (table_name like '%part%' or column_name like '%party%')`
+                  where table_schema = 'public' and (table_name ~ 'part(y|ies)' or column_name ~ 'part(y|ies)')`
             ));
 
             expect(named).toEqual([]);

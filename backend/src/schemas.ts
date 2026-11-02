@@ -2,6 +2,7 @@ import { array, boolean, enumOf, literal, number, object, record, string as text
 import { ACTION_KINDS, CLEAR_PARTS, GRANTED_ROLES, MATCH_LISTS, NOTICE_HOURS, NOTICE_MAX, PEOPLE_LISTS, REPORT_LISTS, REPORT_OUTCOMES, REPORT_STATUSES, SALE_HOURS, STAFF_ROLES, STUCK_KINDS, SUSPEND_CATEGORIES, SUSPEND_DAYS, CAMPAIGN_MOST, CAMPAIGN_MOVES, MILESTONE_MOST, MILESTONES_MOST, REWARD_LISTS, REWARD_MOVES } from './domains/admin/roles.ts';
 import { RARITY_IDS } from './domains/achieve/rarity.ts';
 import { PARTY_ENDS, PARTY_STAGES } from './domains/party/rules.ts';
+import { CALL_ENDINGS, CALL_KINDS, CALL_STATES } from './domains/call/rules.ts';
 import { SHOP_COLLECTIONS, SLOT_IDS } from './domains/shop/catalogue.ts';
 import { DONATE_MAY, DONATION_STATES } from './domains/donate/policy.ts';
 import { CAMPAIGN_STATES, INVITE_FLAGS, REWARD_KINDS, REWARD_STATES, VISITOR_SHAPE } from './domains/invite/policy.ts';
@@ -2674,6 +2675,38 @@ export const partyInput = object({
     id: string({ max: 32 }),
     game: string({ max: 32 })
 });
+
+/* ------------------------------------------------------------------- calls */
+
+/**
+ * A call as one of the people in it reads it (MS-D30). `person` is the other one of a direct call,
+ * absent once their account is gone; `rung` says a page of the callee's has it, which is when the
+ * caller's card says Ringing rather than Calling; `remainingMs` is what is left of a ring by the
+ * server's clock, counted from when the answer arrives.
+ */
+export const callView = object({
+    id: string(),
+    room: string(),
+    kind: enumOf(CALL_KINDS),
+    state: enumOf(CALL_STATES),
+    ending: enumOf(CALL_ENDINGS).optional(),
+    out: boolean(),
+    person: string().optional(),
+    rung: boolean(),
+    remainingMs: number({ int: true, min: 0 }).optional(),
+    at: string(),
+    answeredAt: string().optional(),
+    endedAt: string().optional()
+});
+
+export type CallView = Infer<typeof callView>;
+
+/** The reader's open calls, and those that ended a moment ago, newest first. */
+export const callsState = object({ calls: array(callView) });
+
+export type CallsState = Infer<typeof callsState>;
+
+export const callInput = object({ room: string({ max: 64 }) });
 
 /* ----------------------------------------------------------------- matches */
 

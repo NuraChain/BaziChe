@@ -94,6 +94,8 @@ import type {
     MatchView,
     NftPage,
     PartyState,
+    CallView,
+    CallsState,
     ShopCollectionView,
     ShopOrderView,
     ShopPaying,
@@ -424,6 +426,17 @@ export interface PartyPort
     accept(me: string, partyId: string): Promise<PartyState>;
     decline(me: string, partyId: string): Promise<void>;
     leave(me: string, partyId: string): Promise<void>;
+}
+
+/** Calls between people (MS-D28 to MS-D39): each answers the call as the reader now stands in it. */
+export interface CallPort
+{
+    state(me: string): Promise<CallsState>;
+    view(me: string, callId: string): Promise<CallView>;
+    ring(me: string, room: string): Promise<CallView>;
+    accept(me: string, callId: string): Promise<CallView>;
+    decline(me: string, callId: string): Promise<CallView>;
+    hangUp(me: string, callId: string): Promise<CallView>;
 }
 
 /**
@@ -1007,6 +1020,7 @@ export interface Ports
     channels: ChannelPort;
     table: TablePort;
     party: PartyPort;
+    calls: CallPort;
     match: MatchPort;
     notify: NotifyPort;
     device: DevicePort;

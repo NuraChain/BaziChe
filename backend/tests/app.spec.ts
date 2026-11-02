@@ -11,6 +11,8 @@ import { tokenIdOf, tokenPathOf } from '../src/chain/minting.ts';
 import { Unanswered, reached } from '../src/chain/rpc.ts';
 import { RUNGS } from '../src/domains/achieve/families.ts';
 import { VOICE_FILE_MOST } from '../src/domains/chat/voice.ts';
+import { CALL_REFUSALS, type CallRefusal } from '../src/domains/call/refusals.ts';
+import { callRefusal } from '../src/domains/call/service.ts';
 import { ludoEngine } from '../src/domains/match/engines/ludo.ts';
 import { partyRefusal, partyRefused } from '../src/domains/party/refusal.ts';
 import { PARTY_REFUSALS, type PartyRefusal } from '../src/domains/party/rules.ts';
@@ -1020,6 +1022,162 @@ describe('teaming up', () =>
         expect(bodies).toMatch(/'\/parties': \(bad\) => \[/);
 
         for (const path of ['/parties/:id/accept', '/parties/:id/decline', '/parties/:id/leave'])
+        {
+            expect(spared, path).toContain(`'${ path }'`);
+        }
+    });
+});
+
+describe('calls', () =>
+{
+    const CALL = '3f0e3c2a-1111-4222-8333-444455556666';
+    const ROOM = '0b5e1d3c-2222-4333-8444-555566667777';
+
+    const view = {
+        id: CALL,
+        room: ROOM,
+        kind: 'direct',
+        state: 'ringing',
+        out: true,
+        person: 'mina',
+        rung: false,
+        remainingMs: 44_000,
+        at: '2026-11-03T01:00:00.000Z'
+    };
+
+    const calledAs = (told: unknown[][], answer: (verb: string) => Promise<unknown> = (verb) => Promise.resolve(verb === 'state' ? { calls: [view] } : view), who: unknown = { userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' }) => buildApp({
+        db: fakeDb({ initialized: true }),
+        config,
+        log: silent,
+        ports: {
+            identity: { principal: () => Promise.resolve(who) },
+            calls: Object.fromEntries(['state', 'view', 'ring', 'accept', 'decline', 'hangUp'].map((verb) => [verb, (...said: unknown[]) =>
+            {
+                told.push([verb, ...said]);
+
+                return answer(verb);
+            }]))
+        } as unknown as Ports
+    });
+
+    const post = (app: ReturnType<typeof buildApp>, path: string, body?: string) =>
+        app.handle(new Request(`http://local/api${ path }`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            ...(body === undefined ? {} : { body })
+        }));
+
+    it('reads the reader their calls, and one by its id', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = calledAs(told);
+        const all = await call(app, '/api/calls');
+        const one = await call(app, `/api/calls/${ CALL }`);
+
+        expect(all.status).toBe(200);
+        expect(await all.json()).toEqual({ calls: [view] });
+        expect(await one.json()).toEqual(view);
+        expect(told).toEqual([['state', 'somebody'], ['view', 'somebody', CALL]]);
+    });
+
+    it('rings the room it is given, and is not passed on until it names one', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = calledAs(told);
+        const rang = await post(app, '/calls', JSON.stringify({ room: ROOM }));
+
+        expect(rang.status).toBe(200);
+        expect(await rang.json()).toEqual(view);
+
+        for (const body of ['{}', '{"room":7}', '{"room":null}', '{"conversation":"x"}', JSON.stringify({ room: 'x'.repeat(65) })])
+        {
+            const response = await post(app, '/calls', body);
+
+            expect(response.status, body).toBe(422);
+        }
+
+        expect(told).toEqual([['ring', 'somebody', ROOM]]);
+    });
+
+    it('hands an answer, a decline and a hang up the id out of the address, as it came', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = calledAs(told);
+
+        for (const path of [`/calls/${ CALL }/accept`, '/calls/not-a-uuid/decline', `/calls/${ CALL }/hang-up`])
+        {
+            const response = await post(app, path);
+
+            expect(response.status, path).toBe(200);
+            expect(await response.json(), path).toEqual(view);
+        }
+
+        expect(told).toEqual([['accept', 'somebody', CALL], ['decline', 'somebody', 'not-a-uuid'], ['hangUp', 'somebody', CALL]]);
+    });
+
+    it('sends nothing about a call that the wire does not declare', async () =>
+    {
+        const loose = { ...view, startedBy: 'a-uuid', people: [{ id: 'a-uuid', handle: 'mina' }], conversationId: ROOM, rungAt: 5 };
+        const answers = [await call(calledAs([], () => Promise.resolve(loose)), `/api/calls/${ CALL }`), await post(calledAs([], () => Promise.resolve(loose)), '/calls', JSON.stringify({ room: ROOM }))];
+
+        for (const response of answers)
+        {
+            expect(await response.json()).toEqual(view);
+        }
+    });
+
+    it('sends each refusal as its word, at its status, in the sentence it was refused with', async () =>
+    {
+        for (const word of Object.keys(CALL_REFUSALS) as CallRefusal[])
+        {
+            const refusal = callRefusal(word);
+            const response = await post(calledAs([], () => Promise.reject(refusal)), '/calls', JSON.stringify({ room: ROOM }));
+
+            expect(response.status, word).toBe(CALL_REFUSALS[word]);
+            expect(await response.json(), word).toEqual({ error: { code: word, message: refusal.message } });
+        }
+    });
+
+    it('is nobody’s to ask without a session', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = calledAs(told, () => Promise.resolve(view), null);
+
+        expect((await call(app, '/api/calls')).status).toBe(401);
+        expect((await call(app, `/api/calls/${ CALL }`)).status).toBe(401);
+        expect((await post(app, '/calls', JSON.stringify({ room: ROOM }))).status).toBe(401);
+
+        for (const verb of ['accept', 'decline', 'hang-up'])
+        {
+            expect((await post(app, `/calls/${ CALL }/${ verb }`)).status, verb).toBe(401);
+        }
+
+        expect(told).toEqual([]);
+    });
+
+    it('is six routes', async () =>
+    {
+        const manifest = await (await call(calledAs([]), '/api/_manifest')).json() as Record<string, Record<string, { method: string; path: string }>>;
+
+        expect(Object.entries(manifest.calls).map(([name, route]) => `${ name } ${ route.method } ${ route.path }`).sort()).toEqual([
+            'accept POST /calls/:id/accept',
+            'decline POST /calls/:id/decline',
+            'hangUp POST /calls/:id/hang-up',
+            'ring POST /calls',
+            'state GET /calls',
+            'view GET /calls/:id'
+        ]);
+    });
+
+    it('is sent garbage by the pass that sends every route garbage, or named there as spared', () =>
+    {
+        const pass = readFileSync(fileURLToPath(new URL('../../tools/qa/garbage-pass.mjs', import.meta.url)), 'utf8');
+        const bodies = pass.slice(pass.indexOf('const BODIES ='), pass.indexOf('const WOULD_ACT ='));
+        const spared = pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='));
+
+        expect(bodies).toMatch(/'\/calls': \(bad\) => \[/);
+
+        for (const path of ['/calls/:id/accept', '/calls/:id/decline', '/calls/:id/hang-up'])
         {
             expect(spared, path).toContain(`'${ path }'`);
         }

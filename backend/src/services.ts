@@ -26,6 +26,8 @@ import { createAchieveService } from './domains/achieve/service.ts';
 import { endingOf } from './domains/match/declare.ts';
 import { ENGINES, createMatchService, voidedOf, type MatchLoad } from './domains/match/service.ts';
 import { WATCH_TAIL } from './domains/match/turns.ts';
+import { callRefusal, createCallService, type CallChange, type CallRow } from './domains/call/service.ts';
+import { RING_SECONDS } from './domains/call/rules.ts';
 import { createParties, type PartyWhy } from './domains/party/parties.ts';
 import { partyRefused } from './domains/party/refusal.ts';
 import { createRegistry } from './domains/party/registry.ts';
@@ -79,6 +81,7 @@ import { createSampler, poolOf } from './ops/sample.ts';
 import type { MatchEventLog, Ports } from './ports.ts';
 import type {
     Account,
+    CallView,
     ChatMessage,
     ChatRelation,
     ConversationDevices,
@@ -113,7 +116,8 @@ export interface WriteListener
     chatSeen(conversationId: string, userId: string): void;
     socialChanged(...userIds: string[]): void;
     edgesChanged(...userIds: string[]): void;
-    selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'vault' | 'shop' | 'donations' | 'markets' | 'channels'): void;
+    selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'calls' | 'vault' | 'shop' | 'donations' | 'markets' | 'channels'): void;
+    callChanged(callId: string, people: readonly string[]): void;
     gamePushed(pushes: readonly { userId: string; match: MatchView; events: MatchEventLog[] }[]): void;
     gameWatched(viewers: readonly string[], match: MatchView, events: MatchEventLog[]): void;
     tableChanged(tableId: string, people: readonly string[]): void;
@@ -175,6 +179,12 @@ export interface Services extends Ports
         otherServers(): Promise<number>;
         tidy(): Promise<Record<string, number>>;
         liftSuspensions(): Promise<number>;
+
+        /** Rings nobody answered, and live calls one side left, ended. */
+        sweepCalls(): Promise<{ missed: number; ended: number }>;
+
+        /** Everybody out of every call's room, as a server that has just started holds nobody in one. */
+        emptyCallRooms(): Promise<number>;
     };
 
     pulse(): Promise<Pulse>;
@@ -1139,6 +1149,75 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             row.id === game && row.status === 'available' && row.rules.seats.includes(4) && teamsOf(row.rules.partners, 4, true))
     });
 
+    const calls = createCallService(db, social);
+
+    /**
+     * When a page of the callee's first read a call that rings for them. Memory, as presence is: a
+     * restart forgets it, and the callee's page reads its calls again as its socket comes back.
+     */
+    const rung = new Map<string, number>();
+
+    const asCall = (me: string, row: CallRow): CallView =>
+    {
+        const person = row.people.find((one) => one.id !== me);
+
+        return {
+            id: row.id,
+            room: row.room,
+            kind: row.kind,
+            state: row.state,
+            ...(row.ending === null ? {} : { ending: row.ending }),
+            out: row.startedBy === me,
+            ...(person === undefined ? {} : { person: person.handle }),
+            rung: row.state === 'ringing' && rung.has(row.id),
+            ...(row.state === 'ringing' ? { remainingMs: row.remainingMs } : {}),
+            at: row.at.toISOString(),
+            ...(row.answeredAt === null ? {} : { answeredAt: row.answeredAt.toISOString() }),
+            ...(row.endedAt === null ? {} : { endedAt: row.endedAt.toISOString() })
+        };
+    };
+
+    /** A call read by somebody in it: read by its callee as it rings, the caller is told it rings for them. */
+    const callRead = (me: string, row: CallRow) =>
+    {
+        if (row.state === 'ringing' && row.startedBy !== null && row.startedBy !== me && !rung.has(row.id))
+        {
+            rung.set(row.id, Date.now());
+            live?.selfChanged(row.startedBy, 'calls');
+        }
+
+        return asCall(me, row);
+    };
+
+    /** Everybody in a call is told it changed, and its room lets go of whoever may no longer be in it. */
+    const ringCall = (row: CallRow) => live?.callChanged(row.id, row.people.map((one) => one.id));
+
+    const callAnswer = async (me: string, change: CallChange) =>
+    {
+        const [row] = await calls.loaded([change.id]);
+
+        if (row === undefined)
+        {
+            throw callRefusal('call-missing');
+        }
+
+        if (change.changed)
+        {
+            ringCall(row);
+        }
+
+        return asCall(me, row);
+    };
+
+    /** Ends somebody's calls with anybody they may no longer call: after an unfriend, a block or a suspension. */
+    const recall = (userId: string) => courtesy('call revalidate', async () =>
+    {
+        for (const row of await calls.revalidate(userId))
+        {
+            ringCall(row);
+        }
+    });
+
     const teamed = (answer: { ok: true } | { ok: false; why: PartyWhy }) =>
     {
         if (!answer.ok)
@@ -1995,7 +2074,29 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             waiting: () => table.waitingByGame(),
             otherServers,
             tidy,
-            liftSuspensions: () => accounts.expireDue()
+            liftSuspensions: () => accounts.expireDue(),
+
+            async sweepCalls()
+            {
+                const { missed, ended } = await calls.sweep();
+
+                for (const row of [...missed, ...ended])
+                {
+                    ringCall(row);
+                }
+
+                for (const [callId, at] of rung)
+                {
+                    if (Date.now() - at > 2 * RING_SECONDS * 1000)
+                    {
+                        rung.delete(callId);
+                    }
+                }
+
+                return { missed: missed.length, ended: ended.length };
+            },
+
+            emptyCallRooms: () => calls.emptyRooms()
         },
 
         async pulse()
@@ -2352,6 +2453,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 const { id, sessions } = await accounts.suspend(actor, handle, { days: input.days ?? null, category: input.category, reason: input.reason });
 
                 live?.sessionsRevoked(sessions);
+                await recall(id);
                 await courtesy('letting go of push subscriptions', () => notify.forgetReach(id));
 
                 return await personOf(handle);
@@ -3194,6 +3296,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 const other = await mustResolve(handle);
                 await social.removeFriend(me, other);
                 await courtesy('party revalidate', () => party.revalidate(me));
+                await recall(me);
                 live?.edgesChanged(me, other);
             },
 
@@ -3202,6 +3305,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 const other = await mustResolve(handle);
                 await social.block(me, other);
                 await courtesy('party revalidate', () => party.revalidate(me));
+                await recall(me);
                 await retract(other, 'friend-request', `friend:${ me }`);
                 await retract(me, 'friend-request', `friend:${ other }`);
                 live?.edgesChanged(me, other);
@@ -4341,6 +4445,27 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 await ringTable(after);
                 return asTable(after);
             }
+        },
+
+        calls: {
+            state: async (me) => ({ calls: (await calls.mine(me)).map((row) => callRead(me, row)) }),
+
+            async view(me, callId)
+            {
+                const row = await calls.one(me, callId);
+
+                if (row === null)
+                {
+                    throw callRefusal('call-missing');
+                }
+
+                return callRead(me, row);
+            },
+
+            ring: async (me, room) => await callAnswer(me, await calls.ring(me, room)),
+            accept: async (me, callId) => await callAnswer(me, await calls.accept(me, callId)),
+            decline: async (me, callId) => await callAnswer(me, await calls.decline(me, callId)),
+            hangUp: async (me, callId) => await callAnswer(me, await calls.hangUp(me, callId))
         },
 
         party: {

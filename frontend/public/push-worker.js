@@ -109,9 +109,14 @@ const leadOf = (row) =>
         return '/app/games';
     }
 
-    if (row.kind === 'gift')
+    if (row.kind === 'gift' || row.kind === 'invite-reward')
     {
         return '/app/shop/collection';
+    }
+
+    if (row.kind === 'invite-joined' || row.kind === 'invite-played')
+    {
+        return '/app/invite';
     }
 
     if (row.kind === 'donation')

@@ -17,7 +17,7 @@ import { useSession } from '../src/stores/session.store.ts';
 import { useSettings } from '../src/stores/settings.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
-import { ApiError, client, type MatchView, type Notification } from '../src/api.ts';
+import { ApiError, client, type MatchView, type Notification, type NotificationKind } from '../src/api.ts';
 import { server } from './fake-api.ts';
 import { fakeNotices, type FakeNotices } from './fake-notices.ts';
 import { fakeWorker, tabAt } from './fake-worker.ts';
@@ -2263,15 +2263,22 @@ describe('the worker and the page, of the same thing', () =>
         return (await worker.push()).map(face);
     };
 
-    const ROWS: Omit<Notification, 'id' | 'count' | 'at' | 'read'>[] = [
-        { kind: 'table-invite', actor: 'sara.k', ref: { tableId: 't-1' } },
-        { kind: 'table-removed', actor: 'sara.k', ref: { tableId: 't-1', game: 'backgammon' } },
-        { kind: 'group-added', actor: 'sara.k', ref: { groupId: 'g-1' } },
-        { kind: 'friend-accepted', actor: 'sara.k', ref: {} },
-        { kind: 'turn', ref: { tableId: 't-2', game: 'hokm' } },
-        { kind: 'gift', actor: 'sara.k', ref: { item: 'dice.glow' } },
-        { kind: 'donation', actor: 'sara.k', ref: { amount: '1234567000000000000' } }
-    ];
+    /** Every kind but the two the page hears from its own lists, so a kind added later cannot be left out of the contract. */
+    const ROWS: { [K in Exclude<NotificationKind, 'message' | 'friend-request'>]: Omit<Notification, 'id' | 'count' | 'at' | 'read' | 'kind'> } = {
+        'table-invite': { actor: 'sara.k', ref: { tableId: 't-1' } },
+        'table-removed': { actor: 'sara.k', ref: { tableId: 't-1', game: 'backgammon' } },
+        'group-added': { actor: 'sara.k', ref: { groupId: 'g-1' } },
+        'friend-accepted': { actor: 'sara.k', ref: {} },
+        'turn': { ref: { tableId: 't-2', game: 'hokm' } },
+        'invite-joined': { actor: 'sara.k', ref: {} },
+        'invite-played': { actor: 'sara.k', ref: {} },
+        'invite-reward': { actor: 'sara.k', ref: { item: 'dice.glow' } },
+        'gift': { actor: 'sara.k', ref: { item: 'dice.glow' } },
+        'donation': { actor: 'sara.k', ref: { amount: '1234567000000000000' } },
+        'group-request': { actor: 'sara.k', ref: { groupId: 'g-1' } },
+        'group-approved': { actor: 'sara.k', ref: { groupId: 'g-1' } },
+        'group-owner': { actor: 'sara.k', ref: { groupId: 'g-1' } }
+    };
 
     for (const lang of ['en', 'fa'] as const)
     {
@@ -2279,8 +2286,10 @@ describe('the worker and the page, of the same thing', () =>
         {
             await armed(lang);
 
-            for (const row of ROWS)
+            for (const [kind, rest] of Object.entries(ROWS) as [keyof typeof ROWS, (typeof ROWS)[keyof typeof ROWS]][])
             {
+                const row = { kind, ...rest };
+
                 browser.shown.length = 0;
                 server.notify({ kind: row.kind, ...(row.actor === undefined ? {} : { actor: row.actor }), ref: row.ref, dedupeKey: `${ row.kind }:one` });
                 await useNotifications().refresh();

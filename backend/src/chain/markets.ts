@@ -11,9 +11,11 @@ import {
     hashTypedData,
     isAddress,
     isAddressEqual,
+    keccak256,
     nonceManager,
     parseAbi,
     parseEventLogs,
+    stringToHex,
     zeroAddress,
     type Address,
     type Hex
@@ -42,6 +44,9 @@ export const MARKETS_ABI = parseAbi([
     'function owed() view returns (uint256)',
     'function fees() view returns (uint256)',
     'function solvent() view returns (bool)',
+    'function operator() view returns (address)',
+    'function setOperator(address newOperator)',
+    'function hasRole(bytes32 role, address account) view returns (bool)',
     'event Claimed(bytes32 indexed ticket, address indexed bettor, uint256 amount)',
     'error ZeroAddress()',
     'error ZeroAmount()',
@@ -163,6 +168,20 @@ export interface MarketsCall
 /** A call the contract would take, composed for a wallet, or the word it would refuse it with. */
 export type MarketsAsked = { ok: true; call: MarketsCall } | { ok: false; error: string };
 
+/** `keccak256("OPERATOR_ROLE")`, as the contract names it. */
+export const MARKETS_OPERATOR_ROLE = keccak256(stringToHex('OPERATOR_ROLE'));
+
+/** The owner's role: AccessControl's `DEFAULT_ADMIN_ROLE`, all zeroes. */
+const OWNER_ROLE: Hex = `0x${ '0'.repeat(64) }`;
+
+/** Who the contract names as its operator, whether this server's key holds the role, and whether the reader's wallet owns the contract. */
+export interface MarketsRoles
+{
+    named: Address;
+    operatorAllowed: boolean;
+    owner: boolean;
+}
+
 /** A transaction this server sent with the operator's key, or the word the contract refused it with first. */
 export type MarketsSent = { ok: true; hash: Hex } | { ok: false; error: string };
 
@@ -213,6 +232,12 @@ export interface MarketsChain
 
     /** What the contract holds against every stake, share and refund it owes, and its fees. */
     books(): Promise<Books>;
+
+    /** Who operates the markets as NuraChain holds it, asked for the reader's wallet. */
+    roles(reader: Address): Promise<MarketsRoles>;
+
+    /** The owner's `setOperator`, which moves the role to `next` in one call, asked of the contract from the owner first. */
+    operatorCall(owner: Address, next: Address): Promise<MarketsAsked>;
 }
 
 /** A market's or a position's id on the chain: its uuid as 32 bytes, as an order's is. */
@@ -421,6 +446,20 @@ export function createMarketsChain(settings: MarketsSettings): MarketsChain
         settle: (market, outcome) => send(encodeFunctionData({ abi: MARKETS_ABI, functionName: 'settle', args: [market, outcome] })),
 
         cancel: (market) => send(encodeFunctionData({ abi: MARKETS_ABI, functionName: 'cancel', args: [market] })),
+
+        async roles(reader)
+        {
+            const server = account?.address ?? zeroAddress;
+            const [named, operatorAllowed, owner] = await reached(Promise.all([
+                read<Address>('operator'),
+                read<boolean>('hasRole', [MARKETS_OPERATOR_ROLE, server]),
+                read<boolean>('hasRole', [OWNER_ROLE, reader])
+            ]));
+
+            return { named: getAddress(named), operatorAllowed, owner };
+        },
+
+        operatorCall: (owner, next) => asked(owner, encodeFunctionData({ abi: MARKETS_ABI, functionName: 'setOperator', args: [next] })),
 
         async marketOf(market)
         {

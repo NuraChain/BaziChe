@@ -22,6 +22,7 @@ import Avatar from '../ui/avatar.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
 import { gistOf } from './gist.ts';
+import FileNote from './file-note.component.azeroth';
 import LazyVoiceNote from './lazy-voice-note.component.azeroth';
 import ReactionRow from './reaction-row.component.azeroth';
 import RichText from './rich-text.component.azeroth';
@@ -95,7 +96,12 @@ export default component MessageBubble(props: {
 
     derived voiced = props.message.kind === 'voice' && props.message.voice !== undefined;
 
-    derived typed = worded || props.message.kind === 'voice';
+    derived filed = props.message.kind === 'file' && props.message.file !== undefined;
+
+    /** The words under a photo, a video or a file, when its sender wrote any. */
+    derived captioned = filed && props.message.text.trim() !== '';
+
+    derived typed = worded || props.message.kind === 'voice' || props.message.kind === 'file';
 
     derived noted = props.message.kind === 'system';
 
@@ -488,7 +494,21 @@ export default component MessageBubble(props: {
                                         </button>
                                     }
                                 </Show>
-                                <Show when={ voiced } fallback={ <RichText text={ said } mine={ mine } reserve={ stamp } trail={ ticked } /> }>
+                                <Show
+                                    when={ voiced }
+                                    fallback={
+                                        <Show when={ filed } fallback={ <RichText text={ said } mine={ mine } reserve={ stamp } trail={ ticked } /> }>
+                                            { () =>
+                                                <>
+                                                    <FileNote message={ props.message } mine={ mine } reserve={ captioned ? '' : stamp } trail={ ticked } />
+                                                    <Show when={ captioned }>
+                                                        { () => <RichText text={ said } mine={ mine } reserve={ stamp } trail={ ticked } class="mt-1" /> }
+                                                    </Show>
+                                                </>
+                                            }
+                                        </Show>
+                                    }
+                                >
                                     { () => <LazyVoiceNote message={ props.message } mine={ mine } reserve={ stamp } trail={ ticked } /> }
                                 </Show>
                                 <time

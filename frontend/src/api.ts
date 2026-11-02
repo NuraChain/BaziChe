@@ -47,6 +47,8 @@ export type {
     GroupRequests,
     GroupRole,
     GroupSummary,
+    ChannelPost,
+    ChannelSummary,
     InviteBoard,
     InvitedPeople,
     InviteListed,

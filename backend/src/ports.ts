@@ -77,6 +77,8 @@ import type {
     GroupPrivacy,
     GroupSummary,
     GroupSwitchesWire,
+    ChannelPost,
+    ChannelSummary,
     MessagePage,
     NotificationPage,
     ServerInfo,
@@ -312,6 +314,33 @@ export interface GroupPort
 }
 
 /**
+ * Channels: broadcasts beside the sealed chats, readable by this server. People are named by handle
+ * and a channel by its slug; a private channel a reader is not in answers as one that is not there.
+ */
+export interface ChannelPort
+{
+    mine(me: string): Promise<ChannelSummary[]>;
+    discover(me: string, limit: number): Promise<ChannelSummary[]>;
+    view(me: string, slug: string): Promise<ChannelSummary>;
+    create(me: string, input: { name: string; bio: string; photo: string; privacy: 'public' | 'private' }): Promise<ChannelSummary>;
+    edit(me: string, slug: string, input: { name: string; bio: string; photo: string; privacy: 'public' | 'private' }): Promise<ChannelSummary>;
+    join(me: string, slug: string): Promise<ChannelSummary>;
+    leave(me: string, slug: string): Promise<void>;
+    invite(me: string, slug: string, handle: string): Promise<ChannelSummary>;
+    remove(me: string, slug: string, handle: string): Promise<ChannelSummary>;
+    setRole(me: string, slug: string, handle: string, role: 'admin' | 'member'): Promise<ChannelSummary>;
+    transfer(me: string, slug: string, handle: string): Promise<ChannelSummary>;
+    destroy(me: string, slug: string): Promise<void>;
+    members(me: string, slug: string): Promise<{ handle: string; role: 'owner' | 'admin' | 'member' }[]>;
+    posts(me: string, slug: string, cursor: string | undefined): Promise<{ posts: ChannelPost[]; hasMore: boolean; cursor?: string }>;
+    markRead(me: string, slug: string): Promise<void>;
+    post(me: string, slug: string, input: { kind: 'text' | 'file' | 'poll'; text: string; file?: unknown; poll?: unknown }): Promise<ChannelPost>;
+    removePost(me: string, slug: string, postId: string): Promise<void>;
+    vote(me: string, slug: string, postId: string, choices: number[]): Promise<ChannelPost>;
+    closePoll(me: string, slug: string, postId: string): Promise<ChannelPost>;
+}
+
+/**
  * Tables: seat containers, and nothing about playing.
  *
  * Every route names people by handle and the table by its uuid - except `byCode`, which is how a
@@ -527,9 +556,10 @@ export interface ChatPort
      */
     send(me: string, sessionId: string, conversationId: string, input: {
         id: string;
-        kind: 'text' | 'voice' | 'reaction' | 'edit';
+        kind: 'text' | 'voice' | 'file' | 'reaction' | 'edit';
         target?: string;
         voice?: string;
+        file?: string;
         epoch: number;
         seq: number;
         iv: string;
@@ -552,6 +582,12 @@ export interface ChatPort
 
     /** A voice file's ciphertext, or null for anybody who may not hear it and for a file that is not there. */
     voiceFile(me: string, id: string): Promise<Uint8Array | null>;
+
+    /** Keeps a photo, a video or a file as its sender's browser sealed it. `fresh` is false for a retry. */
+    storeFile(me: string, id: string, bytes: Uint8Array): Promise<{ id: string; size: number; fresh: boolean }>;
+
+    /** A file's ciphertext, or null for anybody who may not fetch it and for a file that is not there. */
+    file(me: string, id: string): Promise<Uint8Array | null>;
 
     /** The reader has started a voice message: its dot goes, and its sender's when nobody had played it. */
     played(me: string, conversationId: string, messageId: string): Promise<void>;
@@ -928,6 +964,7 @@ export interface Ports
     identity: IdentityPort;
     social: SocialPort;
     group: GroupPort;
+    channels: ChannelPort;
     table: TablePort;
     party: PartyPort;
     match: MatchPort;

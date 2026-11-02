@@ -143,7 +143,7 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.notifications.invites': 'دعوت به میز',
     'settings.notifications.requests': 'درخواست دوستی',
     'settings.notifications.messages': 'پیام‌ها',
-    'settings.notifications.groups': 'اضافه شدن به گروه',
+    'settings.notifications.groups': 'اضافه شدن به گروه یا کانال',
     'settings.notifications.turns': 'بازی‌ها: نوبتت و شروع بازی',
     'settings.notifications.gifts': 'هدیه یا NURA گرفتن',
     'settings.notifications.inviting': 'دوستایی که دعوت کردی',

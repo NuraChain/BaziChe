@@ -303,7 +303,10 @@ const expiries = setInterval(() =>
         .catch((error: unknown) => log.error('expiry sweep failed', { error }))
         .then(() => chat.sweepVoice())
         .then((gone) => { if (gone > 0) { log.info('voice files let go', { gone }); } })
-        .catch((error: unknown) => log.error('voice sweep failed', { error }));
+        .catch((error: unknown) => log.error('voice sweep failed', { error }))
+        .then(() => chat.sweepFiles())
+        .then((gone) => { if (gone > 0) { log.info('chat files let go', { gone }); } })
+        .catch((error: unknown) => log.error('file sweep failed', { error }));
 }, 60_000);
 
 expiries.unref();

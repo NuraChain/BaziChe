@@ -513,7 +513,7 @@ export default component PlayPage()
             return '';
         }
 
-        const last = [...said].reverse().find((message) => (message.kind === 'text' || message.kind === 'voice') && message.from !== lobby.me());
+        const last = [...said].reverse().find((message) => (message.kind === 'text' || message.kind === 'voice' || message.kind === 'file') && message.from !== lobby.me());
 
         if (last === undefined)
         {
@@ -529,7 +529,7 @@ export default component PlayPage()
     {
         const lines = said;
         const settled = chat.openId() === room && room !== '' && !chat.threadLoading();
-        const fresh = lines.filter((message) => (message.kind === 'text' || message.kind === 'voice') && !heard.has(message.id));
+        const fresh = lines.filter((message) => (message.kind === 'text' || message.kind === 'voice' || message.kind === 'file') && !heard.has(message.id));
 
         if (!primed)
         {

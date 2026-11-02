@@ -72,7 +72,7 @@ another one using its database says so in its log.
 
    server {
        server_name play.example.com;
-       client_max_body_size 8m;
+       client_max_body_size 64m;
 
        location / {
            proxy_pass http://127.0.0.1:4900;
@@ -86,9 +86,9 @@ another one using its database says so in its log.
    }
    ```
 
-   `client_max_body_size` is there for voice messages, whose files are up to 6 MiB: nginx refuses
-   a body over 1 MB unless told otherwise, and a voice message of more than a few minutes would
-   never arrive.
+   `client_max_body_size` is there for files sent in the chat: a video or a file is up to 50 MiB
+   sealed (a voice message up to 6 MiB), and nginx refuses a body over 1 MB unless told otherwise,
+   so without it nothing larger than a short voice message would ever arrive.
 
 6. Check it: `curl -s http://127.0.0.1:4900/api/healthz` answers
    `{"status":"ok","database":true}`.

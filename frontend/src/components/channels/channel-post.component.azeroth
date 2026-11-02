@@ -1,0 +1,213 @@
+import type { ChannelPost } from '../../api.ts';
+import type { Message } from '../../data/chat.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { whyFailed } from '../../lib/failure.ts';
+import { useChannels } from '../../stores/channels.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+import FileNote from '../chat/file-note.component.azeroth';
+import RichText from '../chat/rich-text.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+
+/**
+ * One post in a channel: who posted it and when, its words, its photo, video or file (drawn by the
+ * chat's own file view, so its size is said before anything is fetched), or a poll the reader can
+ * answer while it is open. The owner and the admins may delete it.
+ */
+export default component ChannelPostView(props: {
+    post: ChannelPost;
+    slug: string;
+
+    /** The reader is in the channel, and may vote. */
+    member: boolean;
+
+    /** The reader may delete posts. */
+    speaks: boolean;
+    me: string;
+})
+{
+    const locale = useLocale();
+    const channels = useChannels();
+    const people = usePeople();
+    const toasts = useToasts();
+
+    state choosing = [] as number[];
+    state busy = false;
+
+    derived post = props.post;
+
+    derived poll = post.poll ?? null;
+
+    derived author = (() =>
+    {
+        const person = post.from === undefined ? null : people.byHandle(post.from);
+
+        return person === null ? (post.from ?? '') : locale.text(person.displayName);
+    })();
+
+    derived time = locale.date(Date.parse(post.at), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+    /** A file post as the chat's file view takes one: what it needs of a message, and nothing sealed. */
+    derived message = ({
+        id: post.id,
+        conversationId: post.channelId,
+        from: post.from ?? '',
+        kind: 'file',
+        text: post.text,
+        at: Date.parse(post.at),
+        ref: null,
+        ...(post.file === undefined ? {} : { file: post.file })
+    }) satisfies Message;
+
+    /** Each answer with its place, which is what a vote names. */
+    derived answers = (poll?.answers ?? []).map((answer, at) => ({ ...answer, at }));
+
+    derived voted = poll !== null && poll.mine.length > 0;
+
+    /** Results show once the reader has voted, the poll is closed, or they are only looking. */
+    derived results = poll !== null && (voted || poll.closed || !props.member);
+
+    derived mine = props.post.from === props.me;
+
+    const run = async (work: Promise<unknown>) =>
+    {
+        if (busy)
+        {
+            return;
+        }
+
+        busy = true;
+
+        try
+        {
+            await work;
+        }
+        catch (error)
+        {
+            toasts.show({ kind: 'warning', text: locale.t(whyFailed(error)) });
+        }
+        finally
+        {
+            busy = false;
+        }
+    };
+
+    const pick = (choice: number) =>
+    {
+        if (poll === null)
+        {
+            return;
+        }
+
+        if (!poll.multiple)
+        {
+            void run(channels.vote(props.slug, post.id, [choice]));
+            return;
+        }
+
+        choosing = choosing.includes(choice) ? choosing.filter((one) => one !== choice) : [...choosing, choice].sort((a, b) => a - b);
+    };
+
+    const share = (votes: number) => (poll === null || poll.voters === 0 ? 0 : Math.round((votes / poll.voters) * 100));
+
+    <article class="flex flex-col gap-2 rounded-panel border border-line bg-field p-3" data-post={ post.id } data-kind={ post.kind }>
+        <header class="flex items-center gap-2 text-ui-xs text-muted">
+            <span class="truncate font-semibold text-text" dir="auto">{ author }</span>
+            <time datetime={ post.at }>{ time }</time>
+            <Show when={ props.speaks }>
+                { () =>
+                    <IconButton
+                        icon="trash"
+                        label={ locale.t('channels.deletePost') }
+                        variant="ghost"
+                        size="sm"
+                        class="ms-auto rounded-full!"
+                        onClick={ () => void run(channels.removePost(props.slug, post.id)) }
+                    />
+                }
+            </Show>
+        </header>
+
+        <Show when={ post.kind === 'file' && post.file !== undefined }>
+            { () => <FileNote message={ message } mine={ false } reserve="" trail={ false } /> }
+        </Show>
+
+        <Show when={ post.text.trim() !== '' }>
+            { () => <RichText text={ locale.text(post.text) } /> }
+        </Show>
+
+        <Show when={ poll !== null }>
+            { () =>
+                <div class="flex flex-col gap-2" role="group" aria-label={ poll?.question ?? '' } data-poll>
+                    <p class="text-ui-base font-semibold text-text" dir="auto">{ poll?.question }</p>
+                    <p class="flex items-center gap-1.5 text-ui-2xs text-muted">
+                        <Icon name="poll" size={ 12 } />
+                        { [
+                            locale.t(poll?.anonymous === true ? 'channels.poll.anonymous' : 'channels.poll.public'),
+                            poll?.multiple === true ? locale.t('channels.poll.multiple') : '',
+                            poll?.closed === true ? locale.t('channels.poll.closed') : ''
+                        ].filter(Boolean).join(' · ') }
+                    </p>
+                    <ul class="flex flex-col gap-1.5">
+                        <For each={ answers } key={ (answer) => `${ answer.at }` } let={ answer }>
+                            <li>
+                                <Show
+                                    when={ results }
+                                    fallback={
+                                        <button
+                                            type="button"
+                                            class={ () => [
+                                                'flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-tile border px-3 py-2 text-start text-ui-sm transition-colors',
+                                                choosing.includes(answer.at) ? 'border-accent bg-accent/10 text-text' : 'border-line hover:bg-raised/60'
+                                            ].join(' ') }
+                                            aria-pressed={ poll?.multiple === true ? choosing.includes(answer.at) : undefined }
+                                            disabled={ busy }
+                                            data-answer={ answer.at }
+                                            onClick={ () => pick(answer.at) }
+                                        >
+                                            <span class={ () => [ 'flex h-4 w-4 shrink-0 items-center justify-center border', poll?.multiple === true ? 'rounded' : 'rounded-full', choosing.includes(answer.at) ? 'border-accent bg-accent text-accent-ink' : 'border-line-strong' ].join(' ') } aria-hidden="true">
+                                                <Show when={ choosing.includes(answer.at) }>
+                                                    { () => <Icon name="selected" size={ 12 } /> }
+                                                </Show>
+                                            </span>
+                                            <span dir="auto">{ answer.text }</span>
+                                        </button>
+                                    }
+                                >
+                                    { () =>
+                                        <div class="relative overflow-hidden rounded-tile border border-line px-3 py-2 text-ui-sm" data-result={ answer.at }>
+                                            <span class="absolute inset-y-0 start-0 bg-accent/15" style={ `width: ${ share(answer.votes) }%` } aria-hidden="true"></span>
+                                            <span class="relative flex items-center gap-2">
+                                                <Show when={ poll?.mine.includes(answer.at) === true }>
+                                                    { () => <Icon name="selected" size={ 14 } class="text-accent" /> }
+                                                </Show>
+                                                <span class="line-clamp-2 min-w-0 flex-1" dir="auto">{ answer.text }</span>
+                                                <span class="font-semibold tabular-nums">{ locale.n(share(answer.votes)) }%</span>
+                                            </span>
+                                            <Show when={ answer.voters !== undefined && answer.voters.length > 0 }>
+                                                { () => <span class="relative mt-1 block truncate text-ui-2xs text-muted" dir="auto">{ locale.list((answer.voters ?? []).map((handle) => people.byHandle(handle)?.displayName ?? handle)) }</span> }
+                                            </Show>
+                                        </div>
+                                    }
+                                </Show>
+                            </li>
+                        </For>
+                    </ul>
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-xs text-muted">
+                        <span data-voters>{ locale.plural('channels.poll.voters', poll?.voters ?? 0, { count: locale.n(poll?.voters ?? 0) }) }</span>
+                        <Show when={ !results && poll?.multiple === true && choosing.length > 0 }>
+                            { () => <button type="button" class="cursor-pointer font-semibold text-accent hover:underline" disabled={ busy } onClick={ () => void run(channels.vote(props.slug, post.id, choosing)) }>{ locale.t('channels.poll.vote') }</button> }
+                        </Show>
+                        <Show when={ voted && props.member && poll?.closed !== true }>
+                            { () => <button type="button" class="cursor-pointer font-semibold text-accent hover:underline" disabled={ busy } onClick={ () => void run(channels.vote(props.slug, post.id, [])) }>{ locale.t('channels.poll.retract') }</button> }
+                        </Show>
+                        <Show when={ (mine || props.speaks) && poll?.closed !== true }>
+                            { () => <button type="button" class="cursor-pointer font-semibold hover:underline" disabled={ busy } onClick={ () => void run(channels.closePoll(props.slug, post.id)) }>{ locale.t('channels.poll.close') }</button> }
+                        </Show>
+                    </div>
+                </div>
+            }
+        </Show>
+    </article>
+}

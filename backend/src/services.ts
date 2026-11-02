@@ -14,6 +14,7 @@ import { createPeerDevices, type PeerDeviceRow } from './domains/device/peers.ts
 import { namesDevice } from './domains/device/resource.ts';
 import { createRecoveryService } from './domains/device/recovery-service.ts';
 import { createDeviceService, type DeviceRow } from './domains/device/service.ts';
+import { createChannelService } from './domains/channel/service.ts';
 import { createGroupService, refused as refusedInGroup, switchesOf, type GroupRow, type LinkRow } from './domains/group/service.ts';
 import { LINK_HOURS, LINK_USES, MUTE_HOURS, mayIn } from './domains/group/roles.ts';
 import { createNotifyService, type NotificationRow } from './domains/notify/service.ts';
@@ -108,7 +109,7 @@ export interface WriteListener
     chatSeen(conversationId: string, userId: string): void;
     socialChanged(...userIds: string[]): void;
     edgesChanged(...userIds: string[]): void;
-    selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'vault' | 'shop' | 'donations' | 'markets'): void;
+    selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'vault' | 'shop' | 'donations' | 'markets' | 'channels'): void;
     gamePushed(pushes: readonly { userId: string; match: MatchView; events: MatchEventLog[] }[]): void;
     gameWatched(viewers: readonly string[], match: MatchView, events: MatchEventLog[]): void;
     tableChanged(tableId: string, people: readonly string[]): void;
@@ -193,6 +194,31 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const franking = createFranking(config.secret);
     const chat = createChatService(db, social, franking);
     const group = createGroupService(db, social);
+    const channels = createChannelService(db, social, config.origin);
+
+    /**
+     * Tells everybody in a channel, and anybody else named, that it changed: each reads it again, as
+     * a room's change is said and never carried.
+     */
+    const ringChannel = async (channelId: string, ...also: string[]) =>
+    {
+        for (const userId of new Set([...await channels.membersOf(channelId), ...also]))
+        {
+            live?.selfChanged(userId, 'channels');
+        }
+    };
+
+    /** A person named by handle, or the answer a missing one gets. */
+    const personNamed = async (handle: string) =>
+    {
+        const other = await social.personByHandle(handle);
+
+        if (other === null)
+        {
+            throw new NotFoundError('No account with that name.');
+        }
+        return other;
+    };
     const achieve = createAchieveService(db);
 
     const invites = createInviteService(db, () => ownersOf(config.adminWallet));
@@ -349,6 +375,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             message.voice = row.voice_id;
         }
 
+        if (row.file_id !== null)
+        {
+            message.file = row.file_id;
+        }
+
         if (row.played === true)
         {
             message.played = true;
@@ -502,6 +533,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 expires_at: row.last_expires_at,
                 target_id: null,
                 voice_id: row.last_voice_id,
+                file_id: row.last_file_id,
                 seen: row.last_seen
             });
 
@@ -524,7 +556,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 frank: null,
                 expires_at: row.edit_expires_at,
                 target_id: row.last_id,
-                voice_id: null
+                voice_id: null,
+                file_id: null
             }]).get(row.last_id);
 
             if (edited !== undefined)
@@ -3152,7 +3185,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     messageId: row.id,
                     text: disclosure.text,
                     frankingKey: disclosure.frankingKey,
-                    ...(row.kind === 'voice' && row.voice_id !== null ? { voiceId: row.voice_id } : {})
+                    ...(row.kind === 'voice' && row.voice_id !== null ? { voiceId: row.voice_id } : {}),
+                    ...(row.kind === 'file' && row.file_id !== null ? { fileId: row.file_id } : {})
                 });
             },
 
@@ -3193,6 +3227,135 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     showOnline: row.show_online,
                     isMinor: row.is_minor
                 };
+            }
+        },
+
+        channels: {
+            mine: (me) => channels.mine(me),
+
+            discover: (me, limit) => channels.discover(me, limit),
+
+            view: (me, slug) => channels.view(me, slug),
+
+            async create(me, input)
+            {
+                const made = await channels.create(me, input);
+
+                live?.selfChanged(me, 'channels');
+                return made;
+            },
+
+            async edit(me, slug, input)
+            {
+                const after = await channels.edit(me, slug, input);
+
+                await ringChannel(after.id);
+                return after;
+            },
+
+            async join(me, slug)
+            {
+                const joined = await channels.join(me, slug);
+
+                await ringChannel(joined.id);
+                return joined.channel;
+            },
+
+            async leave(me, slug)
+            {
+                const id = await channels.leave(me, slug);
+
+                await ringChannel(id, me);
+            },
+
+            async invite(me, slug, handle)
+            {
+                const other = await personNamed(handle);
+                const invited = await channels.invite(me, slug, other.id);
+
+                if (invited.arrived)
+                {
+                    await courtesy('channel invite notice', () => tell({
+                        userId: other.id,
+                        kind: 'channel-invite',
+                        actorId: me,
+                        ref: { channelId: invited.channel.slug },
+                        dedupeKey: `channel:${ invited.id }`
+                    }));
+                }
+                await ringChannel(invited.id);
+                return invited.channel;
+            },
+
+            async remove(me, slug, handle)
+            {
+                const other = await personNamed(handle);
+                const after = await channels.remove(me, slug, other.id);
+
+                await courtesy('channel invite retraction', () => retract(other.id, 'channel-invite', `channel:${ after.id }`));
+                await ringChannel(after.id, other.id);
+                return after.channel;
+            },
+
+            async setRole(me, slug, handle, role)
+            {
+                const other = await personNamed(handle);
+                const after = await channels.setRole(me, slug, other.id, role);
+
+                await ringChannel(after.id);
+                return after.channel;
+            },
+
+            async transfer(me, slug, handle)
+            {
+                const other = await personNamed(handle);
+                const after = await channels.transfer(me, slug, other.id);
+
+                await ringChannel(after.id);
+                return after.channel;
+            },
+
+            async destroy(me, slug)
+            {
+                for (const userId of await channels.destroy(me, slug))
+                {
+                    live?.selfChanged(userId, 'channels');
+                }
+            },
+
+            members: (me, slug) => channels.members(me, slug),
+
+            posts: (me, slug, cursor) => channels.posts(me, slug, cursor),
+
+            markRead: (me, slug) => channels.markRead(me, slug),
+
+            async post(me, slug, input)
+            {
+                const made = await channels.post(me, slug, input);
+
+                await ringChannel(made.id);
+                return made.post;
+            },
+
+            async removePost(me, slug, postId)
+            {
+                await ringChannel(await channels.removePost(me, slug, postId));
+            },
+
+            async vote(me, slug, postId, choices)
+            {
+                const after = await channels.vote(me, slug, postId, choices);
+
+                await ringChannel(after.id);
+                return after.post;
+            },
+
+            async closePoll(me, slug, postId)
+            {
+                const after = await channels.closePoll(me, slug, postId);
+
+                await ringChannel(after.id);
+                return after.post;
             }
         },
 
@@ -4542,6 +4705,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             storeVoice: (me, id, bytes) => chat.storeVoice(me, id, bytes),
 
             voiceFile: (me, id) => chat.voiceFile(me, id),
+
+            storeFile: (me, id, bytes) => chat.storeFile(me, id, bytes),
+
+            file: (me, id) => chat.file(me, id),
 
             async played(me, conversationId, messageId)
             {

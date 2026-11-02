@@ -140,7 +140,7 @@ export const me = {
     'settings.notifications.invites': 'Table invitations',
     'settings.notifications.requests': 'Friend requests',
     'settings.notifications.messages': 'Messages',
-    'settings.notifications.groups': 'Being added to a group',
+    'settings.notifications.groups': 'Being added to a group or a channel',
     'settings.notifications.turns': 'Games: your turn, and a game starting',
     'settings.notifications.gifts': 'Gifts and NURA sent to you',
     'settings.notifications.inviting': 'Friends you invited',

@@ -15,6 +15,8 @@ import { CLOCKS } from './domains/table/clocks.ts';
 import { PARTNERS } from './domains/table/teams.ts';
 import { VOICE_SCOPES } from './domains/table/voices.ts';
 import { GROUP_EVENTS, GROUP_RIGHTS, GROUP_ROLES } from './domains/group/roles.ts';
+import { CHANNEL_BIO_MOST, CHANNEL_NAME_MOST, CHANNEL_POST_KINDS, CHANNEL_PRIVACY, CHANNEL_ROLES, CHANNEL_TEXT_MOST, POLL_ANSWER_MOST, POLL_ANSWERS_MOST, POLL_QUESTION_MOST } from './domains/channel/rules.ts';
+import { FILE_AS } from './domains/chat/files.ts';
 import { ALERT_KINDS, ALERT_LEVELS, FAMILIES, QUEUES, WORKERS } from './ops/measures.ts';
 
 const NUL = String.fromCharCode(0);
@@ -2236,6 +2238,126 @@ export type GroupRequests = Infer<typeof groupRequests>;
 
 export const groupAnswerInput = object({ id: string({ min: 1, max: 32 }), approve: boolean() });
 
+/* ---------------------------------------------------------------------- channels */
+
+export const channelPrivacy = enumOf(CHANNEL_PRIVACY);
+
+export const channelRole = enumOf(CHANNEL_ROLES);
+
+/**
+ * What a reader is told of a file before fetching it, in the clear in a channel's post: the same
+ * fields a sealed message's document carries, held by the server to the same check (`sentFileOf`).
+ */
+export const sentFile = object({
+    id: string(),
+    key: string(),
+    iv: string(),
+    as: enumOf(FILE_AS),
+    mime: string(),
+    name: string(),
+    bytes: number(),
+    w: number().optional(),
+    h: number().optional(),
+    ms: number().optional(),
+    thumb: string().optional()
+});
+
+/**
+ * A poll as its reader sees it. `voters` beside an answer is absent from an anonymous poll for
+ * everybody, its poster included: the poll says nobody sees who chose what, and the wire is where
+ * that is kept or broken.
+ */
+export const pollView = object({
+    question: string(),
+    answers: array(object({ text: string(), votes: number(), voters: array(string()).optional() })),
+    anonymous: boolean(),
+    multiple: boolean(),
+
+    /** How many people have voted, whatever they chose. */
+    voters: number(),
+
+    /** The answers this reader chose. */
+    mine: array(number()),
+    closed: boolean()
+});
+
+export const channelPost = object({
+    id: string(),
+    channelId: string(),
+    kind: enumOf(CHANNEL_POST_KINDS),
+
+    /** Who posted it, by handle; absent once their account is gone. */
+    from: string().optional(),
+    text: string(),
+    file: sentFile.optional(),
+    poll: pollView.optional(),
+    at: string()
+});
+
+export type ChannelPost = Infer<typeof channelPost>;
+
+/**
+ * A channel as this reader sees it. `role` and `unread` are absent for somebody only looking, which
+ * anybody may do at a public channel; a private one they are not in is not there to them at all.
+ */
+export const channelSummary = object({
+    id: string(),
+    slug: string(),
+    name: string(),
+    bio: string(),
+    photo: string().optional(),
+    privacy: channelPrivacy,
+
+    /** The owner's handle. */
+    owner: string(),
+    role: channelRole.optional(),
+    memberCount: number(),
+    unread: number().optional(),
+    last: channelPost.optional(),
+    createdAt: string()
+});
+
+export type ChannelSummary = Infer<typeof channelSummary>;
+
+export const channelList = object({ channels: array(channelSummary) });
+
+/** The whole face, every time: a name, a bio, a photo as the address an avatar upload answered ('' for none), and who may find it. */
+export const channelFaceInput = object({
+    name: string({ trim: true, nonempty: true, max: CHANNEL_NAME_MOST }),
+    bio: string({ trim: true, max: CHANNEL_BIO_MOST }),
+    photo: string({ max: 512 }),
+    privacy: channelPrivacy
+});
+
+export const channelPage = object({
+    posts: array(channelPost),
+    hasMore: boolean(),
+    cursor: string().optional()
+});
+
+export const channelPageQuery = object({ cursor: string({ max: 64 }).optional() });
+
+export const channelPostInput = object({
+    kind: enumOf(CHANNEL_POST_KINDS),
+
+    /** The words, or a file's caption; empty for a poll. */
+    text: string({ max: CHANNEL_TEXT_MOST }),
+    file: sentFile.optional(),
+    poll: object({
+        question: string({ max: POLL_QUESTION_MOST }),
+        answers: array(string({ max: POLL_ANSWER_MOST }), { max: POLL_ANSWERS_MOST }),
+        anonymous: boolean(),
+        multiple: boolean()
+    }).optional()
+});
+
+/** The answers a member chooses, replacing what they chose before; none takes their vote back. */
+export const voteInput = object({ choices: array(number({ int: true, min: 0, max: POLL_ANSWERS_MOST - 1 }), { max: POLL_ANSWERS_MOST }) });
+
+export const channelRoleInput = object({ id: string(), role: enumOf(['admin', 'member']) });
+
+export const channelMembers = object({ members: array(object({ handle: string(), role: channelRole })) });
+
 /* ------------------------------------------------------------------------ tables */
 
 export const tableMode = enumOf(['live', 'turns']);
@@ -3167,7 +3289,10 @@ export const notificationKind = enumOf([
     'group-approved',
 
     /** A group is the reader's now: its owner handed it on, or left it to them. */
-    'group-owner'
+    'group-owner',
+
+    /** Somebody put the reader in a channel; `channelId` is its slug, as a group's `groupId` is. */
+    'channel-invite'
 ]);
 
 export type NotificationKind = Infer<typeof notificationKind>;
@@ -3183,6 +3308,7 @@ export const notificationRef = object({
     conversationId: string().optional(),
     tableId: string().optional(),
     groupId: string().optional(),
+    channelId: string().optional(),
     requestId: string().optional(),
     personId: string().optional(),
     game: string().optional(),
@@ -3236,7 +3362,7 @@ export const pushEndpoint = object({ endpoint: string() });
 
 /* -------------------------------------------------------------------------- chat */
 
-export const messageKind = enumOf(['text', 'voice', 'reaction', 'edit', 'deleted', 'system', 'invite', 'result']);
+export const messageKind = enumOf(['text', 'voice', 'file', 'reaction', 'edit', 'deleted', 'system', 'invite', 'result']);
 
 /**
  * What a server-authored line may say ABOUT, as a closed set.
@@ -3344,6 +3470,12 @@ export const chatMessage = object({
      */
     voice: string().optional(),
 
+    /**
+     * The file a photo, a video or a file message names, in the clear as a voice message's is. Its
+     * sealed document names it again, with its key, its name and its size.
+     */
+    file: string().optional(),
+
     /** A voice message the reader has played. */
     played: literal(true).optional(),
 
@@ -3424,11 +3556,14 @@ export const pinLineInput = object({ messageId: string({ min: 1, max: 64 }) });
  */
 export const sendInput = object({
     id: string(),
-    kind: enumOf(['text', 'voice', 'reaction', 'edit']),
+    kind: enumOf(['text', 'voice', 'file', 'reaction', 'edit']),
     target: string().optional(),
 
     /** The file a voice message names: an upload of the sender's own, or a file a forward reuses. */
     voice: string().optional(),
+
+    /** The file a photo, a video or a file message names, under the same rule. */
+    file: string().optional(),
     epoch: number(),
     seq: number(),
     iv: string(),

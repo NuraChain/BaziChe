@@ -2277,7 +2277,8 @@ describe('the worker and the page, of the same thing', () =>
         'donation': { actor: 'sara.k', ref: { amount: '1234567000000000000' } },
         'group-request': { actor: 'sara.k', ref: { groupId: 'g-1' } },
         'group-approved': { actor: 'sara.k', ref: { groupId: 'g-1' } },
-        'group-owner': { actor: 'sara.k', ref: { groupId: 'g-1' } }
+        'group-owner': { actor: 'sara.k', ref: { groupId: 'g-1' } },
+        'channel-invite': { actor: 'sara.k', ref: { channelId: 'friday-chess' } }
     };
 
     for (const lang of ['en', 'fa'] as const)

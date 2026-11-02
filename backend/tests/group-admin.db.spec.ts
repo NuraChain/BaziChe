@@ -200,6 +200,14 @@ const voiced = async (person: Person, conversationId: string) =>
     return chat.send(person.id, conversationId, null, { ...await sealed(person.id, conversationId, 'voice'), voice: file });
 };
 
+/** One sealed photo, video or file of the sender's own, sent into the room: held to the media switch as a voice message is. */
+const filed = async (person: Person, conversationId: string) =>
+{
+    const file = crypto.randomUUID();
+    await chat.storeFile(person.id, file, new Uint8Array(4096).fill(9));
+    return chat.send(person.id, conversationId, null, { ...await sealed(person.id, conversationId, 'file'), file });
+};
+
 /** A picture this server keeps, by the address it answers it under. */
 const picture = async (fill: number) =>
 {
@@ -512,6 +520,8 @@ describe.skipIf(!active)('running a group, against a real database', () =>
 
             await ports.group.permissions(owner.id, made.slug, { switches: { ...SWITCH_DEFAULTS, media: false }, approval: false });
             expect(await word(voiced(member, room)), 'a member\'s voice message').toBe('403 group-no-media');
+            expect(await word(filed(member, room)), 'a member\'s photo, video or file').toBe('403 group-no-media');
+            expect(await word(filed(moderator, room)), 'a moderator\'s photo, video or file').toBeNull();
             expect(await word(say(member, room)), 'a member\'s line').toBeNull();
             expect(await word(voiced(moderator, room)), 'a moderator\'s voice message').toBeNull();
 

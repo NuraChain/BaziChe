@@ -3934,6 +3934,9 @@ export const adminShopItemInput = object({
 
 export const adminShopFeatureInput = object({ collection: enumOf(SHOP_COLLECTIONS), reason: said() });
 
+/** Every price moved by one whole percentage, up or down, with the reason (`domains/shop/reprice.ts`). */
+export const adminShopRepriceInput = object({ percent: number({ int: true }), reason: said() });
+
 export const adminShopOrdersQuery = object({
     state: enumOf(ORDER_STATES).optional(),
 

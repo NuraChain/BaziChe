@@ -8,6 +8,7 @@ import { errorResponse } from '@azerothjs/http';
 
 import { EquippedItem, OwnedItem, ShopItem, StaffAction, User, entities } from '../src/entities/index.ts';
 import { BUNDLES, FEATURED_FIRST, LOOKS, NURA, SHOP_COLLECTIONS, SHOP_KINDS } from '../src/domains/shop/catalogue.ts';
+import { movedBy } from '../src/domains/shop/reprice.ts';
 import { SHOP_ORDERS_PAGE } from '../src/domains/admin/roles.ts';
 import type { OrderState } from '../src/domains/shop/policy.ts';
 import { syncSchema } from '../src/db/schema.ts';
@@ -283,6 +284,32 @@ describe.skipIf(!active)('Admin › Shop, against a real database', () =>
         expect(await shopActions()).toEqual([
             [admin.handle, 'admin', 'shop-item', null, REASON, { item: 'dice.glow', field: 'price', from: listed('dice.glow'), to }]
         ]);
+    });
+
+    it('moves every price by a percentage at once, bundles from their looks and a running sale with its look, written to the log once', async () =>
+    {
+        const { admin } = await staff();
+        const sale = nura(3n);
+
+        await ports.admin.shopItem(admin.id, 'pawns.glow', { sale: { price: sale, hours: 24 }, reason: REASON });
+
+        const shop = await ports.admin.shopReprice(admin.id, { percent: 20, reason: 'Prices up a fifth' });
+        const price = (id: string) => BigInt(shop!.items.find((one) => one.id === id)!.price);
+
+        expect(price('dice.glow')).toBe(movedBy(BigInt(listed('dice.glow')), 20));
+        expect(shop!.items.find((one) => one.id === 'pawns.glow')?.sale?.price).toBe(movedBy(BigInt(sale), 20).toString());
+        expect(price('bundle.glow')).toBe(BUNDLES.find((bundle) => bundle.id === 'bundle.glow')!.looks.reduce((sum, look) => sum + price(look), 0n) * 7_000n / 10_000n / 10n ** 18n * 10n ** 18n);
+        expect((await ports.shop.state(admin.id)).items.find((one) => one.id === 'dice.glow')?.price, 'the shop charges it').toBe(price('dice.glow').toString());
+
+        const down = await ports.admin.shopReprice(admin.id, { percent: -10, reason: 'A little back down' });
+        expect(BigInt(down!.items.find((one) => one.id === 'dice.glow')!.price)).toBe(movedBy(movedBy(BigInt(listed('dice.glow')), 20), -10));
+
+        expect((await shopActions()).slice(-2).map((row) => row[5])).toEqual([
+            { item: '*', field: 'every', percent: '20', items: String(LOOKS.length + BUNDLES.length) },
+            { item: '*', field: 'every', percent: '-10', items: expect.any(String) }
+        ]);
+        expect(await word(ports.admin.shopReprice(admin.id, { percent: 0, reason: REASON }))).toBe('422 staff-shop-percent');
+        expect(await word(ports.admin.shopReprice(admin.id, { percent: -95, reason: REASON }))).toBe('422 staff-shop-percent');
     });
 
     it('keeps a price above a sale that runs, and lets a sale that ran out go with a price under it', async () =>

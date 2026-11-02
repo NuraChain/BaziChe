@@ -25,6 +25,7 @@ export const STAFF_REFUSALS = {
     'staff-shop-revenue': 409,
     'staff-shop-refunded': 409,
     'staff-shop-refused': 409,
+    'staff-shop-percent': 422,
     'staff-markets-off': 409,
     'staff-markets-address': 422,
     'staff-markets-role': 409,

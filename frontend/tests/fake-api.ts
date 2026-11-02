@@ -70,6 +70,7 @@ import type {
     WalletCall
 } from '../../backend/src/schemas.ts';
 import { BUNDLES, FEATURED_FIRST, LOOKS, SHOP_COLLECTIONS, bundleOf, lookOf } from '../../backend/src/domains/shop/catalogue.ts';
+import { repriced } from '../../backend/src/domains/shop/reprice.ts';
 import { ESCROW_STATES, STAKE_LADDER } from '../../backend/src/domains/stake/policy.ts';
 import { STAFF_REFUSALS, type StaffRefusal } from '../../backend/src/domains/admin/refusals.ts';
 import { CHECKS_PAGE, type CheckFamily, type CheckList } from '../../backend/src/domains/reconcile/kinds.ts';
@@ -2710,6 +2711,24 @@ export const client =
                 log({ field: 'status', from: held.status, to: input.status });
                 held.status = input.status;
             }
+
+            return structuredClone(server.shopAdmin.shop);
+        },
+
+        async shopReprice({ input }: { input: { percent: number; reason: string } })
+        {
+            server.calls.push(`admin.shopReprice ${ input.percent } ${ input.reason }`);
+            staffGate('shop');
+
+            const prices = new Map(server.shopAdmin.shop.items.map((one) => [one.id, { price: BigInt(one.price), sale: one.sale === undefined ? null : BigInt(one.sale.price) }]));
+            const next = repriced(prices, input.percent);
+
+            server.shopAdmin.shop.items = server.shopAdmin.shop.items.map((one) =>
+            {
+                const moved = next.get(one.id);
+
+                return moved === undefined ? one : { ...one, price: moved.price.toString() };
+            });
 
             return structuredClone(server.shopAdmin.shop);
         },

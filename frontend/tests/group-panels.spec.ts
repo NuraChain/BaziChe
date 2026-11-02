@@ -1,15 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { cleanup, fire, renderTest } from '@azerothjs/testing';
+import { ApiError } from '@azerothjs/http/api/shared';
 import { RouterProvider, Routes, createMemoryHistory, createRouter, type Route } from 'azerothjs';
 
 import GroupLinkSheet from '../src/components/social/group-link-sheet.component.azeroth';
 import { manualClock } from '../src/lib/clock.ts';
+import { whyFailed } from '../src/lib/failure.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
 import GroupPage from '../src/pages/app/group.page.azeroth';
 import { useGroupAdmin } from '../src/stores/group-admin.store.ts';
 import { useGroups } from '../src/stores/groups.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
+import { usePeople } from '../src/stores/people.store.ts';
 import { useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
@@ -83,7 +86,7 @@ const buttonIn = (within: Element | null, label: string) =>
 const toasted = () => useToasts().items().map((toast) => toast.text);
 
 /** A request held at the server's door, so a test can look in between the press and the answer. */
-const held = <K extends 'answer' | 'unban' | 'revokeLink' | 'requests' | 'links' | 'banned' | 'log' | 'permissions'>(verb: K) =>
+const held = <K extends 'answer' | 'unban' | 'revokeLink' | 'requests' | 'links' | 'banned' | 'log' | 'permissions' | 'reports' | 'closeReport'>(verb: K) =>
 {
     let release: () => void = () => undefined;
     const original = client.groups[verb].bind(client.groups) as (...args: unknown[]) => Promise<unknown>;
@@ -147,7 +150,7 @@ describe('the tabs of a group\'s page', () =>
 
         expect(container.querySelector('[role="tablist"]'), 'no tabs for one panel').toBeNull();
         expect(membersOf(container)?.hidden).toBe(false);
-        expect(server.calls.filter((call) => ['groups.requests', 'groups.links', 'groups.banned', 'groups.log'].includes(call)), 'no panel read').toEqual([]);
+        expect(server.calls.filter((call) => ['groups.requests', 'groups.reports', 'groups.links', 'groups.banned', 'groups.log'].includes(call)), 'no panel read').toEqual([]);
     });
 
     it('are a tab for each panel the owner opens, the requests counting who waits', async () =>
@@ -156,10 +159,10 @@ describe('the tabs of a group\'s page', () =>
         crew().requests = 2;
 
         const container = opened();
-        await vi.waitFor(() => expect(tabsOf(container).length).toBe(6), { timeout: 4000 });
+        await vi.waitFor(() => expect(tabsOf(container).length).toBe(7), { timeout: 4000 });
 
         expect(tabsOf(container).map((label) => label.replace(/\d+$/, '').trim())).toEqual([
-            t('groups.tab.members'), t('groups.tab.requests'), t('groups.tab.links'), t('groups.tab.banned'), t('groups.tab.log'), t('groups.tab.permissions')
+            t('groups.tab.members'), t('groups.tab.requests'), t('groups.tab.reports'), t('groups.tab.links'), t('groups.tab.banned'), t('groups.tab.log'), t('groups.tab.permissions')
         ]);
         expect(tabOf(container, t('groups.tab.requests'))?.textContent, 'how many wait').toContain('2');
     });
@@ -180,8 +183,8 @@ describe('the tabs of a group\'s page', () =>
         delete crew().rights;
 
         const again = opened();
-        await vi.waitFor(() => expect(tabsOf(again).length).toBe(2), { timeout: 4000 });
-        expect(tabsOf(again)).toEqual([t('groups.tab.members'), t('groups.tab.log')]);
+        await vi.waitFor(() => expect(tabsOf(again).length).toBe(3), { timeout: 4000 });
+        expect(tabsOf(again), 'a moderator works what is reported').toEqual([t('groups.tab.members'), t('groups.tab.reports'), t('groups.tab.log')]);
     });
 
     it('keep the panel in the address, never the members, and read a word they do not know as the members', async () =>
@@ -232,13 +235,16 @@ describe('the tabs of a group\'s page', () =>
         owned();
 
         const container = opened();
-        await vi.waitFor(() => expect(tabsOf(container).length).toBe(6), { timeout: 4000 });
+        await vi.waitFor(() => expect(tabsOf(container).length).toBe(7), { timeout: 4000 });
         await settle();
-        expect(server.calls.filter((call) => ['groups.requests', 'groups.links', 'groups.banned', 'groups.log'].includes(call))).toEqual([]);
+        expect(server.calls.filter((call) => ['groups.requests', 'groups.reports', 'groups.links', 'groups.banned', 'groups.log'].includes(call))).toEqual([]);
 
         fire(tabOf(container, t('groups.tab.requests'))!, 'click');
         await vi.waitFor(() => expect(server.calls).toContain('groups.requests'), { timeout: 4000 });
-        expect(server.calls.filter((call) => ['groups.links', 'groups.banned', 'groups.log'].includes(call)), 'the others not yet').toEqual([]);
+        expect(server.calls.filter((call) => ['groups.reports', 'groups.links', 'groups.banned', 'groups.log'].includes(call)), 'the others not yet').toEqual([]);
+
+        fire(tabOf(container, t('groups.tab.reports'))!, 'click');
+        await vi.waitFor(() => expect(server.calls).toContain('groups.reports'), { timeout: 4000 });
     });
 
     it('ask nothing of the next group for a panel the last one had open', async () =>
@@ -830,5 +836,336 @@ describe('the recent actions', () =>
 
         expect(rowsIn(logOf(container))[0].querySelector('p')?.textContent).toBe(t('groups.log.banned', { actor: 'alex', person: 'reza.t' }));
         expect([...rowsIn(logOf(container))[0].querySelectorAll('span[dir="ltr"]')].map((one) => one.textContent)).toEqual(['alex', 'reza.t']);
+    });
+});
+
+describe('what people reported in the group’s chat', () =>
+{
+    const reportsOf = (container: HTMLElement) => panelOf(container, t('groups.tab.reports'))?.querySelector('ul') ?? null;
+
+    /** Two reports waiting: reza.t's line still in the chat, and a voice message of mina's that is gone. */
+    const reported = (reports = 2) =>
+    {
+        owned();
+        crew().reports = reports;
+        server.groupReports[SLUG] = [
+            { id: 'gr-2', handle: 'reza.t', category: 'spam', at: ago(5), state: 'open', said: { text: 'buy cheap coins here' }, line: 'line-reza' },
+            { id: 'gr-1', handle: 'mina', category: 'harassment', at: ago(90), state: 'open', said: { voice: 12_000 } }
+        ];
+    };
+
+    const drawn = async (search = '?tab=reports') =>
+    {
+        const container = opened(search);
+        await vi.waitFor(() => expect(rowsIn(reportsOf(container)).length).toBeGreaterThan(0), { timeout: 4000 });
+        return container;
+    };
+
+    it('are a tab for whoever may work them, counting what waits, and for nobody else', async () =>
+    {
+        reported();
+
+        const container = opened();
+        await vi.waitFor(() => expect(tabOf(container, t('groups.tab.reports'))).not.toBeNull(), { timeout: 4000 });
+        expect(tabOf(container, t('groups.tab.reports'))?.textContent).toContain('2');
+
+        cleanup();
+        useGroups().reset();
+        crew().role = 'admin';
+        crew().rights = ['ban'];
+        await useGroups().refresh();
+
+        const bare = opened();
+        await vi.waitFor(() => expect(tabOf(bare, t('groups.tab.banned'))).not.toBeNull(), { timeout: 4000 });
+        expect(tabOf(bare, t('groups.tab.reports')), 'an admin who may not delete').toBeNull();
+
+        cleanup();
+        useGroups().reset();
+        crew().role = 'moderator';
+        crew().rights = undefined;
+        await useGroups().refresh();
+
+        const moderator = opened();
+        await vi.waitFor(() => expect(tabOf(moderator, t('groups.tab.reports'))).not.toBeNull(), { timeout: 4000 });
+    });
+
+    it('say who each is about, what for, when and what was said, and never who reported it', async () =>
+    {
+        reported();
+        server.groupReports[SLUG].push(
+            { id: 'gr-0', handle: 'omid.k', category: 'inappropriate', at: ago(200), state: 'open', said: { file: { name: 'IMG_0042.jpg', as: 'photo' }, text: 'look at this' }, line: 'line-omid' },
+            { id: 'gr-00', handle: 'babak', category: 'other', at: ago(300), state: 'open', said: { file: { name: 'notes.pdf', as: 'file' } } },
+            { id: 'gr-000', handle: 'leila', category: 'spam', at: ago(400), state: 'open', said: {} }
+        );
+
+        const container = await drawn();
+        const [spam, voice, photo, file, unread] = rowsIn(reportsOf(container));
+
+        expect(photo.querySelector('[data-said]')?.textContent, 'a photo and its caption').toBe(`${ t('chat.fileGist.photo') } · look at this`);
+        expect(buttonIn(photo, t('groups.reports.take')), 'a photo still in the chat').not.toBeNull();
+        expect(file.querySelector('[data-said]')?.textContent, 'a file by its name').toBe(t('chat.fileGist.file', { name: 'notes.pdf' }));
+        expect(unread.querySelector('[data-said]')?.textContent, 'what could not be read').toBe(t('groups.reports.unreadable'));
+        expect(rowsIn(reportsOf(container)).map((row) => row.querySelector('[data-report]')?.getAttribute('data-report'))).toEqual(['gr-2', 'gr-1', 'gr-0', 'gr-00', 'gr-000']);
+
+        expect(spam.textContent).toContain('buy cheap coins here');
+        expect(spam.textContent).toContain(t('report.category.spam'));
+        expect(spam.textContent, 'still in the chat').not.toContain(t('groups.reports.gone'));
+        expect(voice.textContent).toContain(t('chat.voiceGist', { time: '0:12' }));
+        expect(voice.textContent).toContain(t('groups.reports.gone'));
+        expect(buttonIn(voice, t('groups.reports.take')), 'nothing to take out of the chat').toBeNull();
+        expect(buttonIn(spam, t('groups.reports.take'))).not.toBeNull();
+    });
+
+    it('close one as nothing to do at the press, and say so once the server has', async () =>
+    {
+        reported();
+
+        const container = await drawn();
+        const door = held('closeReport');
+
+        fire(buttonIn(rowOf(reportsOf(container), 'buy cheap coins'), t('groups.reports.dismiss'))!, 'click');
+        await settle();
+
+        expect(rowOf(reportsOf(container), 'buy cheap coins'), 'gone from what waits at the press').toBeNull();
+        expect(server.groupReports[SLUG][0].state, 'nothing kept yet').toBe('open');
+
+        door.release();
+        await vi.waitFor(() => expect(server.groupReports[SLUG][0].state).toBe('dismissed'), { timeout: 4000 });
+        await vi.waitFor(() => expect(toasted()).toContain(t('groups.reports.dismissedToast')), { timeout: 4000 });
+        expect(rowOf(reportsOf(container), 'buy cheap coins')).toBeNull();
+    });
+
+    it('bring one back with the group’s words when the server will not close it', async () =>
+    {
+        reported();
+
+        const container = await drawn();
+        server.refuseGroupAct = { status: 403, code: 'group-right' };
+
+        fire(buttonIn(rowOf(reportsOf(container), 'buy cheap coins'), t('groups.reports.action'))!, 'click');
+
+        await vi.waitFor(() => expect(toasted()).toContain(t('group.refused.group-right')), { timeout: 4000 });
+        await vi.waitFor(() => expect(rowOf(reportsOf(container), 'buy cheap coins'), 'back where it was').not.toBeNull(), { timeout: 4000 });
+        expect(server.groupReports[SLUG][0].state).toBe('open');
+
+        server.refuseGroupAct = null;
+        fire(buttonIn(rowOf(reportsOf(container), 'buy cheap coins'), t('groups.reports.action'))!, 'click');
+
+        await vi.waitFor(() => expect(server.groupReports[SLUG][0].state, 'dealt with').toBe('actioned'), { timeout: 4000 });
+        await vi.waitFor(() => expect(toasted()).toContain(t('groups.reports.actionedToast')), { timeout: 4000 });
+    });
+
+    it('keep one closed in the list of every report, closed by the reader at the press, its line marked gone once taken', async () =>
+    {
+        reported();
+
+        const container = await drawn('?tab=reports&list=all');
+        const door = held('closeReport');
+        const removed = vi.spyOn(client.chat, 'remove').mockResolvedValue({ ok: true });
+
+        fire(buttonIn(rowOf(reportsOf(container), 'buy cheap coins'), t('groups.reports.take'))!, 'click');
+        await answer(true);
+        await vi.waitFor(() => expect(removed).toHaveBeenCalled(), { timeout: 4000 });
+        await settle();
+
+        const taken = rowOf(reportsOf(container), 'buy cheap coins')!;
+
+        expect(taken.querySelector('[data-report]')?.getAttribute('data-state'), 'dealt with at the press').toBe('actioned');
+        expect(taken.textContent, 'its line out of the chat').toContain(t('groups.reports.gone'));
+        expect(taken.querySelector('[data-closed]')?.textContent).toContain(t('groups.reports.wasActioned'));
+        expect(taken.querySelector('[data-closed] [dir="ltr"]')?.textContent, 'by the reader').toBe('@alex');
+        expect(buttonIn(taken, t('groups.reports.take')), 'nothing left to take').toBeNull();
+        expect(server.groupReports[SLUG][0].state, 'nothing kept yet').toBe('open');
+
+        door.release();
+        await vi.waitFor(() => expect(server.groupReports[SLUG][0].state).toBe('actioned'), { timeout: 4000 });
+
+        fire(buttonIn(rowOf(reportsOf(container), t('chat.voiceGist', { time: '0:12' })), t('groups.reports.dismiss'))!, 'click');
+        await settle();
+
+        const dismissed = rowOf(reportsOf(container), t('chat.voiceGist', { time: '0:12' }))!;
+
+        expect(dismissed.querySelector('[data-report]')?.getAttribute('data-state'), 'still listed, closed').toBe('dismissed');
+        expect(dismissed.querySelector('[data-closed]')?.textContent).toContain(t('groups.reports.wasDismissed'));
+        await vi.waitFor(() => expect(server.groupReports[SLUG][1].state).toBe('dismissed'), { timeout: 4000 });
+        expect(rowsIn(reportsOf(container))).toHaveLength(2);
+    });
+
+    it('take the line out of the chat, asked first, and close the report as dealt with', async () =>
+    {
+        reported();
+
+        const container = await drawn();
+        const removed = vi.spyOn(client.chat, 'remove').mockResolvedValue({ ok: true });
+
+        fire(buttonIn(rowOf(reportsOf(container), 'buy cheap coins'), t('groups.reports.take'))!, 'click');
+        await answer(false);
+
+        expect(removed, 'a no takes nothing').not.toHaveBeenCalled();
+
+        fire(buttonIn(rowOf(reportsOf(container), 'buy cheap coins'), t('groups.reports.take'))!, 'click');
+        await answer(true);
+
+        await vi.waitFor(() => expect(server.groupReports[SLUG][0].state).toBe('actioned'), { timeout: 4000 });
+        expect(removed).toHaveBeenCalledWith({ params: { id: `conv-${ SLUG }`, messageId: 'line-reza' } });
+        await vi.waitFor(() => expect(toasted()).toContain(t('groups.reports.takenToast')), { timeout: 4000 });
+    });
+
+    it('list the closed ones apart, by a choice kept in the address, saying how and who closed each', async () =>
+    {
+        reported();
+        server.groupReports[SLUG][1] = { ...server.groupReports[SLUG][1], state: 'dismissed', closedBy: 'sara.k', closedAt: ago(30) };
+
+        const container = await drawn();
+        const chip = [...panelOf(container, t('groups.tab.reports'))!.querySelectorAll<HTMLButtonElement>('button')].find((one) => one.textContent?.includes(t('groups.reports.list.closed')))!;
+
+        fire(chip, 'click');
+
+        await vi.waitFor(() => expect(router.location().search).toContain('list=closed'), { timeout: 4000 });
+        await vi.waitFor(() => expect(rowsIn(reportsOf(container)).map((row) => row.querySelector('[data-state]')?.getAttribute('data-state'))).toEqual(['dismissed']), { timeout: 4000 });
+
+        const closed = rowsIn(reportsOf(container))[0];
+
+        expect(closed.querySelector('[data-closed]')?.textContent).toContain(t('groups.reports.wasDismissed'));
+        expect(closed.querySelector('[data-closed] [dir="ltr"]')?.textContent).toBe('@sara.k');
+        expect(buttonIn(closed, t('groups.reports.dismiss')), 'nothing to press on one closed').toBeNull();
+    });
+
+    it('let go of the list chosen once another tab is', async () =>
+    {
+        reported();
+        server.groupReports[SLUG][1] = { ...server.groupReports[SLUG][1], state: 'dismissed', closedBy: 'sara.k', closedAt: ago(30) };
+
+        const container = await drawn('?tab=reports&list=closed');
+
+        await vi.waitFor(() => expect(rowsIn(reportsOf(container))).toHaveLength(1), { timeout: 4000 });
+
+        fire(tabOf(container, t('groups.tab.log'))!, 'click');
+        await vi.waitFor(() => expect(router.location().query.tab).toBe('log'), { timeout: 4000 });
+        expect(router.location().query.list, 'the reports’ word left with them').toBeUndefined();
+
+        fire(tabOf(container, t('groups.tab.reports'))!, 'click');
+        await vi.waitFor(() => expect(rowOf(reportsOf(container), 'buy cheap coins'), 'what waits, again').not.toBeNull(), { timeout: 4000 });
+    });
+
+    it('say there is nothing waiting only once the server has said so', async () =>
+    {
+        owned();
+        crew().reports = 0;
+        server.groupReports[SLUG] = [];
+
+        const door = held('reports');
+        const container = opened('?tab=reports');
+        await settle();
+
+        expect(panelOf(container, t('groups.tab.reports'))?.textContent).not.toContain(t('groups.reports.emptyOpen'));
+
+        door.release();
+        await vi.waitFor(() => expect(panelOf(container, t('groups.tab.reports'))?.textContent).toContain(t('groups.reports.emptyOpen')), { timeout: 4000 });
+    });
+
+    it('bring older ones a page at a time, of the list chosen', async () =>
+    {
+        reported();
+        server.groupReports[SLUG][1] = { ...server.groupReports[SLUG][1], state: 'dismissed', closedBy: 'sara.k', closedAt: ago(30) };
+        server.groupReports[SLUG].push(
+            { id: 'gr-0', handle: 'omid.k', category: 'other', at: ago(200), state: 'open', said: { text: 'third' } },
+            { id: 'gr-00', handle: 'babak', category: 'other', at: ago(300), state: 'open', said: { text: 'fourth' } }
+        );
+        server.groupReportsPage = 1;
+
+        const container = await drawn();
+        const panel = () => panelOf(container, t('groups.tab.reports'))!;
+        const ids = () => rowsIn(reportsOf(container)).map((row) => row.querySelector('[data-report]')?.getAttribute('data-report'));
+        const more = async (count: number) =>
+        {
+            for (let at = 0; at < count; at += 1)
+            {
+                const before = ids().length;
+
+                fire(buttonIn(panel(), t('groups.reports.more'))!, 'click');
+                await vi.waitFor(() => expect(ids().length).toBe(before + 1), { timeout: 4000 });
+            }
+        };
+
+        expect(ids()).toEqual(['gr-2']);
+
+        await more(2);
+
+        expect(ids(), 'what waits, oldest last').toEqual(['gr-2', 'gr-0', 'gr-00']);
+        expect(buttonIn(panel(), t('groups.reports.more')), 'no more to bring').toBeNull();
+
+        fire([...panel().querySelectorAll<HTMLButtonElement>('button')].find((one) => one.textContent?.includes(t('groups.reports.list.all')))!, 'click');
+        await vi.waitFor(() => expect(ids()).toEqual(['gr-2']), { timeout: 4000 });
+
+        await more(3);
+
+        expect(ids(), 'every report, in its own order').toEqual(['gr-2', 'gr-1', 'gr-0', 'gr-00']);
+    });
+
+    it('lead to the group’s own sheet about whoever one is about, read afresh, and say when they have left', async () =>
+    {
+        reported();
+        crew().members = [...crew().members.filter((one) => one !== 'reza.t'), 'reza.t'];
+        server.groupReports[SLUG].push({ id: 'gr-0', handle: 'sara', category: 'other', at: ago(200), state: 'open', said: { text: 'gone already' } });
+
+        const container = await drawn();
+        const reza = usePeople().byHandle('reza.t')!.displayName;
+        const ghost = usePeople().byHandle('sara')!.displayName;
+        const lost = new ApiError(503, 'unavailable', 'Down.', undefined);
+        const read = vi.spyOn(client.groups, 'members').mockRejectedValueOnce(lost);
+
+        fire(buttonIn(rowOf(reportsOf(container), 'buy cheap coins'), t('groups.manage', { name: reza }))!, 'click');
+
+        await vi.waitFor(() => expect(toasted()).toContain(t(whyFailed(lost))), { timeout: 4000 });
+        expect(useOverlay().items(), 'no sheet without the member').toEqual([]);
+        read.mockRestore();
+
+        fire(buttonIn(rowOf(reportsOf(container), 'buy cheap coins'), t('groups.manage', { name: reza }))!, 'click');
+
+        await vi.waitFor(() => expect(useOverlay().items()).toHaveLength(1), { timeout: 4000 });
+        expect(useOverlay().items()[0].props, 'the member as the group holds them').toMatchObject({ member: { person: { handle: 'reza.t' }, role: 'member' }, group: { slug: SLUG } });
+        expect(server.calls, 'asked of the server').toContain('groups.members');
+
+        useOverlay().closeAll();
+        fire(buttonIn(rowOf(reportsOf(container), 'gone already'), t('groups.manage', { name: ghost }))!, 'click');
+
+        await vi.waitFor(() => expect(toasted(), 'sara.k is somebody else').toContain(t('groups.reports.notMember', { name: ghost })), { timeout: 4000 });
+        expect(useOverlay().items().filter((one) => one.phase !== 'closing'), 'no sheet for somebody gone').toEqual([]);
+    });
+
+    it('offer the group’s sheet only to a reader who may mute, ban or remove somebody', async () =>
+    {
+        reported();
+        crew().role = 'admin';
+        crew().rights = ['delete'];
+
+        const container = await drawn();
+        const reza = usePeople().byHandle('reza.t')!.displayName;
+
+        expect(rowOf(reportsOf(container), 'buy cheap coins'), 'an admin who may delete works the report').not.toBeNull();
+        expect(buttonIn(rowOf(reportsOf(container), 'buy cheap coins'), t('groups.manage', { name: reza })), 'and has nothing to do to the person').toBeNull();
+
+        cleanup();
+        useGroups().reset();
+        useGroupAdmin().reset();
+        crew().rights = ['delete', 'ban'];
+
+        const banning = await drawn();
+
+        expect(buttonIn(rowOf(reportsOf(banning), 'buy cheap coins'), t('groups.manage', { name: reza })), 'an admin who may ban').not.toBeNull();
+    });
+
+    it('read right to left in Persian, a handle still left to right', async () =>
+    {
+        reported();
+        server.groupReports[SLUG][0] = { ...server.groupReports[SLUG][0], state: 'actioned', closedBy: 'sara.k', closedAt: ago(1) };
+        useLocale().setLocale('fa');
+
+        const container = await drawn('?tab=reports&list=all');
+
+        expect(tabOf(container, t('groups.tab.reports'))).not.toBeNull();
+        expect(rowsIn(reportsOf(container))[0].querySelector('[data-closed]')?.textContent).toContain(t('groups.reports.wasActioned'));
+        expect(rowsIn(reportsOf(container))[0].querySelector('[data-closed] [dir="ltr"]')?.textContent).toBe('@sara.k');
     });
 });

@@ -60,6 +60,9 @@ export interface SocialApi
         messageId: string;
         text: string;
         frankingKey: string;
+
+        /** Also to the staff of the group whose room the line is in. */
+        group?: true;
     }): Promise<string>;
 
     /**
@@ -479,7 +482,8 @@ export const useSocial = createStore((): SocialApi =>
                         conversationId: disclose.conversationId,
                         messageId: disclose.messageId,
                         text: disclose.text,
-                        frankingKey: disclose.frankingKey
+                        frankingKey: disclose.frankingKey,
+                        ...(disclose.group === true ? { group: true as const } : {})
                     })
                 }
             });

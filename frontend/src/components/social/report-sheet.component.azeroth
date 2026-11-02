@@ -2,6 +2,8 @@ import type { ReportCategory } from '../../data/chat.ts';
 import { decodeDisclosed, decodeVoice } from '../../lib/body.ts';
 import { plainOf } from '../../lib/markdown.ts';
 import { voiceClock } from '../chat/gist.ts';
+import { useChat } from '../../stores/chat.store.ts';
+import { useGroups } from '../../stores/groups.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
@@ -30,10 +32,24 @@ export default component ReportSheet(props: OverlayProps & {
     const social = useSocial();
     const toasts = useToasts();
     const people = usePeople();
+    const chat = useChat();
+    const groups = useGroups();
 
     state category = 'harassment' as ReportCategory;
     state alsoBlock = false;
+    state toGroup = true;
     state sending = false;
+
+    /** The group whose room the line shown is in, whose staff the report can go to as well (MS-D40). */
+    derived crew = (() =>
+    {
+        const room = props.disclose === undefined ? undefined : chat.conversation(props.disclose.conversationId);
+        return room?.groupId === undefined || room.groupId === null ? undefined : groups.byId(room.groupId);
+    })();
+
+    derived grouped = crew !== undefined;
+
+    derived groupWords = locale.t('report.toGroup', { group: crew?.name ?? '' });
 
     derived person = people.byHandle(props.personId);
 
@@ -73,7 +89,7 @@ export default component ReportSheet(props: OverlayProps & {
 
         try
         {
-            await social.report(props.personId, category, props.disclose);
+            await social.report(props.personId, category, props.disclose === undefined || !grouped || !toGroup ? props.disclose : { ...props.disclose, group: true });
         }
         catch
         {
@@ -132,6 +148,15 @@ export default component ReportSheet(props: OverlayProps & {
                 </For>
             </ul>
         </fieldset>
+
+        <Show when={ grouped }>
+            { () =>
+                <div class="flex flex-col gap-1" data-to-group>
+                    <Toggle checked={ toGroup } label={ groupWords } onChange={ (checked) => toGroup = checked } />
+                    <p class="ps-1 text-ui-xs text-muted">{ locale.t('report.toGroupHint') }</p>
+                </div>
+            }
+        </Show>
 
         <Toggle checked={ alsoBlock } label={ locale.t('report.alsoBlock') } onChange={ (checked) => alsoBlock = checked } />
 

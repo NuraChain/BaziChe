@@ -45,6 +45,8 @@ export type {
     GroupMembers,
     GroupPrivacy,
     GroupRequests,
+    GroupReport,
+    GroupReports,
     GroupRole,
     GroupSummary,
     ChannelPost,

@@ -1,0 +1,166 @@
+import { mayIn, type GroupAct } from '../../../../backend/src/domains/group/roles.ts';
+import type { GroupReport, GroupSummary } from '../../api.ts';
+import { attempt } from '../../lib/attempt.ts';
+import { whyFailed } from '../../lib/failure.ts';
+import { whyGroup } from '../../lib/group-refusal.ts';
+import { useAddress } from '../../lib/page-param.ts';
+import { useGroupAdmin, type GroupReportList } from '../../stores/group-admin.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+import ConfirmSheet from '../app/confirm-sheet.component.azeroth';
+import EmptyState from '../ui/empty-state.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import FilterBar from '../ui/filter-bar.component.azeroth';
+import LoadMore from '../ui/load-more.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import GroupMemberSheet from './group-member-sheet.component.azeroth';
+import GroupReportRow from './group-report-row.component.azeroth';
+
+const LISTS: readonly GroupReportList[] = ['open', 'closed', 'all'];
+
+const isList = (value: string): value is GroupReportList => LISTS.some((one) => one === value);
+
+/** What the group's sheet about a member lets the staff do to somebody reported. */
+const GOVERNED: readonly GroupAct[] = ['mute', 'ban', 'remove'];
+
+/**
+ * What people reported in a group's chat, for whoever may work it (MS-D43), newest first and only about
+ * somebody the reader outranks, never naming who reported it: those still waiting by default, the
+ * closed ones or both by a choice kept in the address, older ones a page at a time. Each is closed at
+ * the press, or its line taken out of the chat and the report closed with it, and a refusal brings it
+ * back in the group's words; whoever it is about is muted, banned or removed from the group's own sheet.
+ */
+export default component GroupReports(props: { group: GroupSummary })
+{
+    const locale = useLocale();
+    const admin = useGroupAdmin();
+    const overlay = useOverlay();
+    const toasts = useToasts();
+    const address = useAddress();
+
+    derived asked = address.text('list');
+
+    derived list = isList(asked) ? asked : 'open';
+
+    mount
+    {
+        admin.showReports(list);
+        admin.want('reports');
+    }
+
+    const choose = (id: string) =>
+    {
+        const next = isList(id) ? id : 'open';
+
+        address.write({ list: next === 'open' ? '' : next });
+        admin.showReports(next);
+    };
+
+    derived items = LISTS.map((id) => ({ id, label: locale.t(`groups.reports.list.${ id }`) }));
+
+    derived copies = admin.reports();
+
+    derived reading = admin.reportsReading() === 'reading' && copies.length === 0;
+
+    derived failed = admin.reportsReading() === 'failed' && copies.length === 0;
+
+    derived none = admin.reportsReading() === 'read' && copies.length === 0;
+
+    derived emptyWords = locale.t(list === 'open' ? 'groups.reports.emptyOpen' : (list === 'closed' ? 'groups.reports.emptyClosed' : 'groups.reports.emptyAll'));
+
+    derived older = admin.reportsHasMore();
+
+    derived room = props.group.conversationId ?? '';
+
+    derived standing = { role: props.group.role ?? null, rights: props.group.rights ?? [], muted: props.group.muted !== undefined };
+
+    derived manageable = GOVERNED.some((act) => mayIn(standing, props.group.switches, act));
+
+    const close = (one: GroupReport, outcome: 'dismissed' | 'actioned') =>
+    {
+        void attempt(admin.closeReport(one.id, outcome), locale.t(outcome === 'actioned' ? 'groups.reports.actionedToast' : 'groups.reports.dismissedToast'), whyGroup);
+    };
+
+    const take = async (one: GroupReport) =>
+    {
+        const name = one.person.displayName;
+        const yes = await overlay.open(
+            ConfirmSheet,
+            { title: locale.t('chat.takeConfirm', { name }), lead: locale.t('chat.takeLead', { name }), confirm: locale.t('chat.delete'), destructive: true },
+            { label: locale.t('chat.takeConfirm', { name }) }
+        ).closed;
+
+        if (yes === true)
+        {
+            void attempt(admin.takeReported(one, room), locale.t('groups.reports.takenToast'), whyGroup);
+        }
+    };
+
+    /** The group's sheet about whoever a report is about, read afresh: their place, their mute, what may be done to them. */
+    const manage = async (one: GroupReport) =>
+    {
+        const name = one.person.displayName;
+        let member: Awaited<ReturnType<typeof admin.memberNamed>>;
+
+        try
+        {
+            member = await admin.memberNamed(one.person.handle);
+        }
+        catch (error)
+        {
+            toasts.show({ kind: 'warning', text: locale.t(whyFailed(error)), dedupe: 'group-report-member' });
+            return;
+        }
+
+        if (member === null)
+        {
+            toasts.show({ kind: 'info', text: locale.t('groups.reports.notMember', { name }), dedupe: 'group-report-member' });
+            return;
+        }
+
+        overlay.open(GroupMemberSheet, { member, group: props.group }, { label: locale.t('groups.manage', { name }) });
+    };
+
+    <section class="@container flex flex-col gap-3" aria-label={ locale.t('groups.tab.reports') }>
+        <p class="text-ui-sm text-muted">{ locale.t('groups.reports.lead') }</p>
+
+        <FilterBar items={ items } value={ list } label={ locale.t('groups.tab.reports') } onChange={ choose } />
+
+        <Show when={ reading }>
+            { () =>
+                <div class="flex flex-col gap-2" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                    <Skeleton class="h-24 w-full rounded-tile" />
+                </div>
+            }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState compact error={ admin.reportsFailure() } title={ locale.t('state.errorTitle') } lead={ locale.t('state.errorLead') } onRetry={ () => void admin.refresh() } /> }
+        </Show>
+
+        <Show when={ none }>
+            { () => <EmptyState icon="report" title={ emptyWords } class="py-8" /> }
+        </Show>
+
+        <ul class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field px-2 empty:hidden" aria-label={ locale.t('groups.tab.reports') }>
+            <For each={ copies } key={ (one) => one.id } let={ one }>
+                <li>
+                    <GroupReportRow
+                        report={ one }
+                        takable={ room !== '' && one.line !== undefined }
+                        manageable={ manageable }
+                        onClose={ (outcome: 'dismissed' | 'actioned') => close(one, outcome) }
+                        onTake={ () => void take(one) }
+                        onManage={ () => void manage(one) }
+                    />
+                </li>
+            </For>
+        </ul>
+
+        <Show when={ older }>
+            { () => <LoadMore label={ locale.t('groups.reports.more') } icon="history" onMore={ () => void admin.reportsMore() } /> }
+        </Show>
+    </section>
+}

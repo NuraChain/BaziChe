@@ -4,7 +4,7 @@ import { threadSize } from '../../backend/src/domains/chat/pages.ts';
 import { WATCH_TAIL } from '../../backend/src/domains/match/turns.ts';
 import { codeFrom } from '../../backend/src/domains/invite/policy.ts';
 import { NOTICE_OF } from '../../backend/src/domains/notify/notices.ts';
-import { FACES, FIRST_MEMBERS_MOST, GROUP_LOG_PAGE, GROUP_RIGHTS, MEMBERS_PAGE, PINS_MOST, RANK, SWITCH_DEFAULTS, mayIn, type GroupAct, type GroupEventKind, type GroupRight, type GroupRole, type GroupSwitches } from '../../backend/src/domains/group/roles.ts';
+import { FACES, FIRST_MEMBERS_MOST, GROUP_LOG_PAGE, GROUP_REPORTS_PAGE, GROUP_RIGHTS, MEMBERS_PAGE, PINS_MOST, RANK, SWITCH_DEFAULTS, mayIn, type GroupAct, type GroupEventKind, type GroupRight, type GroupRole, type GroupSwitches } from '../../backend/src/domains/group/roles.ts';
 import { PEOPLE_FOUND_MAX, SEARCH_FROM, searchNeedle } from '../../backend/src/domains/social/names.ts';
 import { handleFromAddress } from '../../backend/src/domains/identity/handle.ts';
 import { createParties, type Parties, type PartyWhy } from '../../backend/src/domains/party/parties.ts';
@@ -105,6 +105,7 @@ interface GroupWire
     muted?: { until?: string };
     requested?: true;
     requests?: number;
+    reports?: number;
     faces: string[];
     members: string[];
     memberCount: number;
@@ -125,6 +126,20 @@ interface GroupWaitingWire
     handle: string;
     at: string;
     byLink: boolean;
+}
+
+/** A report about a line in a group's room as a spec arranges it: the person by handle, never who filed it. */
+interface GroupReportWire
+{
+    id: string;
+    handle: string;
+    category: 'harassment' | 'spam' | 'cheating' | 'inappropriate' | 'other';
+    at: string;
+    state: 'open' | 'dismissed' | 'actioned';
+    said: { text?: string; voice?: number; file?: { name: string; as: 'photo' | 'video' | 'file' } };
+    line?: string;
+    closedBy?: string;
+    closedAt?: string;
 }
 
 interface GroupLinkWire
@@ -458,6 +473,13 @@ const panelOf = (slug: string, act: GroupAct) =>
 };
 
 const linksOf = (slug: string) => ({ links: structuredClone(server.groupLinks[slug] ?? []) });
+
+/** A report as the server hands it to the staff: the person as lists draw them. */
+const reportWire = (one: GroupReportWire) =>
+{
+    const { handle, ...rest } = structuredClone(one);
+    return { ...rest, person: personWire(handle) };
+};
 
 /**
  * A group as the server hands it to a reader: never every member's handle, which only the members list
@@ -1374,6 +1396,13 @@ export const server =
 
     /** Who waits to join each group, longest waiting first; its links, newest first; and its log, newest first. */
     groupRequests: {} as Record<string, GroupWaitingWire[]>,
+
+    /** The reports about lines in each group's room its staff read, newest first, and how many a page answers. */
+    groupReports: {} as Record<string, GroupReportWire[]>,
+    groupReportsPage: GROUP_REPORTS_PAGE,
+
+    /** The reports filed with a group's staff told as well. */
+    reportsToGroup: [] as string[],
     groupLinks: {} as Record<string, GroupLinkWire[]>,
     groupLogs: {} as Record<string, GroupLogWire[]>,
     groupLogPage: GROUP_LOG_PAGE,
@@ -1610,6 +1639,9 @@ export const server =
         server.groupPlaces = {};
         server.groupBans = {};
         server.groupRequests = {};
+        server.groupReports = {};
+        server.groupReportsPage = GROUP_REPORTS_PAGE;
+        server.reportsToGroup = [];
         server.groupLinks = {};
         server.groupLogs = {};
         server.groupLogPage = GROUP_LOG_PAGE;
@@ -4220,6 +4252,46 @@ export const client =
             return { requests: (server.groupRequests[group.slug] ?? []).map((one) => ({ person: personWire(one.handle), at: one.at, byLink: one.byLink })) };
         },
 
+        async reports({ params, query }: { params: { slug: string }; query?: { list?: 'open' | 'closed' | 'all'; cursor?: string } })
+        {
+            server.calls.push('groups.reports');
+            const group = panelOf(params.slug, 'reports');
+            const list = query?.list ?? 'open';
+            const all = (server.groupReports[group.slug] ?? []).filter((one) => list === 'all' || (list === 'open') === (one.state === 'open'));
+            const start = query?.cursor === undefined ? 0 : all.findIndex((one) => one.id === query.cursor) + 1;
+            const page = all.slice(start, start + server.groupReportsPage);
+            const last = page.at(-1);
+
+            return {
+                reports: page.map(reportWire),
+                ...(start + server.groupReportsPage < all.length && last !== undefined ? { cursor: last.id } : {})
+            };
+        },
+
+        async closeReport({ params, input }: { params: { slug: string; id: string }; input: { outcome: 'dismissed' | 'actioned' } })
+        {
+            server.calls.push('groups.closeReport');
+            const group = staffAct(params.slug);
+            const held = (server.groupReports[group.slug] ?? []).find((one) => one.id === params.id);
+
+            if (held === undefined)
+            {
+                throw new ApiError(404, 'not-found', 'No report there.', undefined);
+            }
+            if (held.state === 'open')
+            {
+                held.state = input.outcome;
+                held.closedBy = server.me;
+                held.closedAt = new Date(1_700_000_000_000).toISOString();
+
+                if (group.reports !== undefined)
+                {
+                    group.reports = (server.groupReports[group.slug] ?? []).filter((one) => one.state === 'open').length;
+                }
+            }
+            return reportWire(held);
+        },
+
         async answer({ params, input }: { params: { slug: string }; input: { id: string; approve: boolean } })
         {
             server.calls.push('groups.answer');
@@ -5315,11 +5387,15 @@ export const client =
             return { ok: true };
         },
 
-        async report({ input }: { input: { id: string; category: string } })
+        async report({ input }: { input: { id: string; category: string; group?: true } })
         {
             server.calls.push('social.report');
             counter += 1;
             const id = `report-${ counter }`;
+            if (input.group === true)
+            {
+                server.reportsToGroup.push(id);
+            }
             server.reports.push({
                 id,
                 against: input.id,

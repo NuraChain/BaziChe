@@ -1,0 +1,102 @@
+import type { GroupReport } from '../../api.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { voiceClock } from '../chat/gist.ts';
+import Button from '../ui/button.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+import FriendRow from './friend-row.component.azeroth';
+
+/**
+ * One report about a line in a group's room, as its staff are shown it: who it is about, what for and
+ * when, what was said, never who reported it. Open, it is closed as nothing to do or dealt with, or its
+ * line taken out of the chat where that still can be; closed, it says how and who closed it.
+ */
+export default component GroupReportRow(props: {
+    report: GroupReport;
+
+    /** The line can be taken out of the chat from here: it is still there, and the room is known. */
+    takable: boolean;
+
+    /** The reader may mute, ban or remove somebody here, so the group's own sheet about the person is offered. */
+    manageable: boolean;
+    onClose: (outcome: 'dismissed' | 'actioned') => void;
+    onTake: () => void;
+    onManage: () => void;
+})
+{
+    const locale = useLocale();
+
+    derived open = props.report.state === 'open';
+
+    derived gone = props.report.line === undefined;
+
+    derived facts = [
+        locale.t(`report.category.${ props.report.category }`),
+        locale.relative(Date.parse(props.report.at), { style: 'short' }),
+        ...(gone ? [locale.t('groups.reports.gone')] : [])
+    ].join(' · ');
+
+    /** The line as disclosed: its words, or what a voice message or a file is (MS-D45). */
+    derived said = (() =>
+    {
+        const { text, voice, file } = props.report.said;
+
+        if (voice !== undefined)
+        {
+            return locale.t('chat.voiceGist', { time: voiceClock(Math.round(voice / 1000), locale.n) });
+        }
+
+        if (file !== undefined)
+        {
+            const what = file.as === 'file' ? locale.t('chat.fileGist.file', { name: file.name }) : locale.t(file.as === 'photo' ? 'chat.fileGist.photo' : 'chat.fileGist.video');
+            return text === undefined ? what : `${ what } · ${ text }`;
+        }
+
+        return text ?? locale.t('groups.reports.unreadable');
+    })();
+
+    derived closed = locale.t(props.report.state === 'actioned' ? 'groups.reports.wasActioned' : 'groups.reports.wasDismissed');
+
+    derived closer = props.report.closedBy ?? '';
+
+    derived when = props.report.closedAt === undefined ? '' : locale.relative(Date.parse(props.report.closedAt), { style: 'short' });
+
+    derived takable = props.takable;
+
+    derived manageable = props.manageable;
+
+    <div class="flex flex-col gap-2 pb-3" data-report={ props.report.id } data-state={ props.report.state }>
+        <FriendRow
+            person={ props.report.person }
+            subtitle={ facts }
+            actionsApart
+            actions={
+                <span class="flex items-center">
+                    <Show when={ manageable }>
+                        { () => <IconButton icon="more" label={ locale.t('groups.manage', { name: props.report.person.displayName }) } variant="ghost" size="sm" onClick={ () => props.onManage() } /> }
+                    </Show>
+                </span>
+            }
+        />
+        <p class="ms-15 me-2 whitespace-pre-wrap break-words rounded-tile border-s-2 border-line-strong bg-sunk px-3 py-2 text-ui-sm text-text" dir="auto" data-said>{ said }</p>
+        <Show
+            when={ open }
+            fallback={
+                <p class="ms-15 me-2 flex flex-wrap items-center gap-x-1.5 text-ui-xs text-muted" data-closed>
+                    <span>{ closed }</span>
+                    <span aria-hidden="true">·</span>
+                    <span dir="ltr">@{ closer }</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{ when }</span>
+                </p>
+            }
+        >
+            <span class="flex flex-wrap items-center gap-1.5 ps-15 pe-2">
+                <Show when={ takable }>
+                    <Button variant="destructive-ghost" size="sm" leading="trash" onClick={ () => props.onTake() }>{ locale.t('groups.reports.take') }</Button>
+                </Show>
+                <Button variant="primary" size="sm" onClick={ () => props.onClose('actioned') }>{ locale.t('groups.reports.action') }</Button>
+                <Button variant="ghost" size="sm" onClick={ () => props.onClose('dismissed') }>{ locale.t('groups.reports.dismiss') }</Button>
+            </span>
+        </Show>
+    </div>
+}

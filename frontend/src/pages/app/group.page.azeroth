@@ -14,6 +14,7 @@ import GroupLog from '../../components/social/group-log.component.azeroth';
 import GroupMemberRow from '../../components/social/group-member-row.component.azeroth';
 import GroupMemberSheet from '../../components/social/group-member-sheet.component.azeroth';
 import GroupPermissions from '../../components/social/group-permissions.component.azeroth';
+import GroupReports from '../../components/social/group-reports.component.azeroth';
 import GroupRequests from '../../components/social/group-requests.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
 import EmptyState from '../../components/ui/empty-state.component.azeroth';
@@ -108,6 +109,8 @@ export default component GroupPage()
 
     derived links = group !== null && mayIn(standing, group.switches, 'links');
 
+    derived works = group !== null && mayIn(standing, group.switches, 'reports');
+
     derived bans = group !== null && mayIn(standing, group.switches, 'ban');
 
     derived logged = group !== null && mayIn(standing, group.switches, 'log');
@@ -132,10 +135,13 @@ export default component GroupPage()
 
     derived waiting = group?.requests ?? 0;
 
+    derived reported = group?.reports ?? 0;
+
     /** The staff's panels, each only for a reader whose place opens it; the members are everybody's. */
     derived tabs = [
         { id: 'members', label: locale.t('groups.tab.members') },
         ...(answers ? [{ id: 'requests', label: locale.t('groups.tab.requests'), ...(waiting > 0 ? { count: waiting } : {}) }] : []),
+        ...(works ? [{ id: 'reports', label: locale.t('groups.tab.reports'), ...(reported > 0 ? { count: reported } : {}) }] : []),
         ...(links ? [{ id: 'links', label: locale.t('groups.tab.links') }] : []),
         ...(bans ? [{ id: 'banned', label: locale.t('groups.tab.banned') }] : []),
         ...(logged ? [{ id: 'log', label: locale.t('groups.tab.log') }] : []),
@@ -154,6 +160,8 @@ export default component GroupPage()
 
     derived onRequests = tab === 'requests';
 
+    derived onReports = tab === 'reports';
+
     derived onLinks = tab === 'links';
 
     derived onBanned = tab === 'banned';
@@ -162,7 +170,8 @@ export default component GroupPage()
 
     derived onPermissions = tab === 'permissions';
 
-    const show = (id: string) => address.write({ tab: id === 'members' ? '' : id });
+    /** A tab chosen lets go of the words of the panel it leaves: the reports' list is the only one. */
+    const show = (id: string) => address.write({ tab: id === 'members' ? '' : id, list: '' });
 
     derived members = admin.members();
 
@@ -406,6 +415,10 @@ export default component GroupPage()
 
                 <Show when={ onRequests }>
                     { () => <GroupRequests /> }
+                </Show>
+
+                <Show when={ onReports }>
+                    { () => <GroupReports group={ crew } /> }
                 </Show>
 
                 <Show when={ onLinks }>

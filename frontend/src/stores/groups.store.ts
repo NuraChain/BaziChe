@@ -20,6 +20,15 @@ export interface GroupDraft
     photo?: string;
 }
 
+/** A group as it is made: what an edit changes, and who is in it beside its owner and what they may do, which start as the server starts them. */
+export interface NewGroup extends GroupDraft
+{
+    /** Friends, by handle. */
+    members?: string[];
+    switches?: GroupSwitches;
+    approval?: boolean;
+}
+
 export interface GroupsApi
 {
     /** Every group this account is in. Read on boot, because the shell counts them. */
@@ -47,7 +56,7 @@ export interface GroupsApi
     viewLoading: Getter<boolean>;
     viewFailed: Getter<unknown>;
 
-    create(draft: GroupDraft): Promise<GroupSummary>;
+    create(draft: NewGroup): Promise<GroupSummary>;
     edit(slug: string, draft: Omit<GroupDraft, 'hue'>): Promise<GroupSummary>;
     /** Joins, or asks to where the group asks first: the group answered says which. */
     join(slug: string): Promise<GroupSummary>;

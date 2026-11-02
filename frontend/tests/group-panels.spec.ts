@@ -718,11 +718,16 @@ describe('what members may do', () =>
         const asking = () => panel(container)?.querySelector('[data-approval] [role="switch"]') ?? null;
         await vi.waitFor(() => expect(asking()).not.toBeNull(), { timeout: 4000 });
 
+        const door = held('permissions');
         fire(asking() as HTMLElement, 'click');
         await settle();
-        expect(asking()?.getAttribute('aria-checked')).toBe('true');
 
+        expect(asking()?.getAttribute('aria-checked'), 'on at the press').toBe('true');
+        expect(crew().approval, 'nothing kept yet').toBe(false);
+
+        door.release();
         await vi.waitFor(() => expect(crew().approval).toBe(true), { timeout: 4000 });
+        expect(asking()?.getAttribute('aria-checked')).toBe('true');
     });
 });
 

@@ -1,23 +1,33 @@
-import { mayIn } from '../../../../backend/src/domains/group/roles.ts';
+import { FIRST_MEMBERS_MOST, SWITCH_DEFAULTS, mayIn, type GroupSwitches } from '../../../../backend/src/domains/group/roles.ts';
 import type { GroupPrivacy, GroupSummary } from '../../api.ts';
 import { CRESTS, crestOf } from '../../data/crests.ts';
 import { GAMES, type GameId } from '../../data/games.ts';
+import type { Person } from '../../data/person.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { whyFailed } from '../../lib/failure.ts';
 import { describedBy, focusFirstInvalid, refusedFields } from '../../lib/form.ts';
 import { shrinkPicture } from '../../lib/picture.ts';
 import type { MessageKey } from '../../locales/en.ts';
+import { namesOf, narrowed, SEARCH_FROM } from '../../services/search.service.ts';
 import { useAccount } from '../../stores/account.store.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useGroups } from '../../stores/groups.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import { usePresence } from '../../stores/presence.store.ts';
+import { useSocial } from '../../stores/social.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
+import Avatar from '../ui/avatar.component.azeroth';
 import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
 import Field from '../ui/field.component.azeroth';
 import Input from '../ui/input.component.azeroth';
+import SearchInput from '../ui/search-input.component.azeroth';
 import Segmented from '../ui/segmented.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
 import GroupCrest from './group-crest.component.azeroth';
+import GroupSwitchList from './group-switches.component.azeroth';
 
 const NAME_MAX = 60;
 const BLURB_MAX = 240;
@@ -33,6 +43,9 @@ const BLURB_MAX = 240;
  * A refusal is said in the form, which stays open with everything as it was typed: a field the
  * server named under that field, for as long as it still says what was refused, and anything else
  * once, above the buttons.
+ *
+ * Making a group also asks who is in it from the start, friends only for the reason the add sheet
+ * gives, and, folded away, what its members may do, which starts where the server would start it.
  */
 export default component GroupForm(props: OverlayProps & { group?: GroupSummary })
 {
@@ -41,6 +54,9 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
     const catalogue = useCatalogue();
     const toasts = useToasts();
     const account = useAccount();
+    const social = useSocial();
+    const people = usePeople();
+    const presence = usePresence();
 
     derived editing = props.group !== undefined;
 
@@ -60,6 +76,12 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
     state picked = '';
     state preview = '';
     state pictureRefusal = '';
+
+    /** Who is in a new group from the start, by handle, and what they may do there. */
+    state chosen = [] as string[];
+    state query = '';
+    state switches: GroupSwitches = SWITCH_DEFAULTS;
+    state approval = false;
 
     let form: HTMLElement | null = null;
     let chooser: HTMLInputElement | null = null;
@@ -95,6 +117,49 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
     /** The doors are the owner's to open and close: whoever else may change how the group looks keeps them as they are. */
     derived opensDoors = props.group === undefined
         || mayIn({ role: props.group.role ?? null, rights: props.group.rights ?? [], muted: props.group.muted !== undefined }, props.group.switches, 'permissions');
+
+    derived friends = social.friends()
+        .map((handle) => people.byHandle(handle))
+        .filter((person): person is Person => person !== null)
+        .sort((a, b) => (presence.isOnline(a.id) ? 0 : 1) - (presence.isOnline(b.id) ? 0 : 1));
+
+    derived matches = narrowed(friends, query, namesOf);
+
+    derived graph = social.reading('graph');
+
+    derived graphReading = graph === 'reading';
+
+    derived graphFailed = graph === 'failed';
+
+    derived searchable = graph === 'read' && friends.length > SEARCH_FROM;
+
+    derived listed = matches.length > 0;
+
+    derived friendless = graph === 'read' && friends.length === 0;
+
+    derived unmatched = graph === 'read' && friends.length > 0 && matches.length === 0;
+
+    derived full = chosen.length >= FIRST_MEMBERS_MOST;
+
+    derived counted = chosen.length > 0;
+
+    derived chosenWords = locale.plural('groups.firstChosen', chosen.length);
+
+    derived unmatchedWords = locale.t('search.empty', { query: query.trim() });
+
+    derived fullWords = locale.t('groups.firstFull', { most: locale.n(FIRST_MEMBERS_MOST) });
+
+    const pick = (handle: string) =>
+    {
+        if (chosen.includes(handle))
+        {
+            chosen = chosen.filter((one) => one !== handle);
+        }
+        else if (!full)
+        {
+            chosen = [...chosen, handle];
+        }
+    };
 
     const choose = async (file: File | undefined) =>
     {
@@ -154,7 +219,7 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
             const photo = picture === (props.group?.photo ?? '') ? undefined : picture;
             const draft = { name: name.trim(), blurb: blurb.trim(), crest, game, privacy, ...(photo === undefined ? {} : { photo }) };
             const saved = props.group === undefined
-                ? await groups.create({ ...draft, hue })
+                ? await groups.create({ ...draft, hue, members: chosen, switches, approval })
                 : await groups.edit(props.group.id, draft);
 
             toasts.show({
@@ -328,6 +393,89 @@ export default component GroupForm(props: OverlayProps & { group?: GroupSummary 
                 </For>
             </div>
         </fieldset>
+
+        <Show when={ !editing }>
+            <div class="contents" data-setup>
+                <fieldset class="flex flex-col gap-2" data-first>
+                    <legend class="label mb-1 flex w-full items-center justify-between gap-3 text-ui-sm text-muted">
+                        <span>{ locale.t('groups.firstMembers') }</span>
+                        <Show when={ counted }>
+                            <span class="text-ui-xs font-semibold text-accent" data-chosen>{ chosenWords }</span>
+                        </Show>
+                    </legend>
+                    <p class="text-ui-xs text-faint">{ locale.t('groups.firstMembersLead', { most: locale.n(FIRST_MEMBERS_MOST) }) }</p>
+                    <Show when={ searchable }>
+                        <SearchInput value={ query } onInput={ (value) => query = value } placeholder={ locale.t('create.search') } label={ locale.t('create.search') } />
+                    </Show>
+                    <Show when={ graphReading }>
+                        <div class="flex flex-col" data-reading>
+                            <span class="sr-only">{ locale.t('common.loading') }</span>
+                            <Skeleton avatar lines={ 2 } class="py-2" />
+                            <Skeleton avatar lines={ 2 } class="py-2" />
+                        </div>
+                    </Show>
+                    <Show when={ graphFailed }>
+                        <ErrorState compact error={ social.failure('graph') } onRetry={ () => void social.refresh() } />
+                    </Show>
+                    <Show when={ friendless }>
+                        <p class="text-ui-sm text-faint" data-none>{ locale.t('groups.firstNone') }</p>
+                    </Show>
+                    <Show when={ unmatched }>
+                        <p class="text-ui-sm text-faint" data-unmatched>{ unmatchedWords }</p>
+                    </Show>
+                    <ul
+                        hidden={ !listed }
+                        class="flex max-h-72 flex-col gap-0.5 overflow-y-auto rounded-panel border border-line bg-field p-1.5"
+                        aria-label={ locale.t('groups.firstMembers') }
+                    >
+                        <For each={ matches } key={ (person) => person.id } let={ person }>
+                            <li>
+                                <button
+                                    type="button"
+                                    class={ `flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-tile px-2 py-1.5 text-start transition-colors hover:bg-raised/70 disabled:cursor-not-allowed disabled:opacity-50 ${ chosen.includes(person.id) ? 'bg-accent/10' : '' }` }
+                                    aria-pressed={ chosen.includes(person.id) }
+                                    disabled={ full && !chosen.includes(person.id) }
+                                    onClick={ () => pick(person.id) }
+                                >
+                                    <Avatar person={ person } size="sm" presence={ presence.dot(person.id) } />
+                                    <span class="flex min-w-0 flex-1 flex-col">
+                                        <span class="truncate text-ui-base font-semibold text-text" dir="auto">{ person.displayName }</span>
+                                        <span class="truncate text-ui-xs text-muted" dir="ltr">@{ person.handle }</span>
+                                    </span>
+                                    <span
+                                        class={ `flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${ chosen.includes(person.id) ? 'border-accent-fill bg-accent-fill text-accent-ink' : 'border-line text-transparent' }` }
+                                        aria-hidden="true"
+                                    >
+                                        <Icon name="selected" size={ 14 } />
+                                    </span>
+                                </button>
+                            </li>
+                        </For>
+                    </ul>
+                    <Show when={ full }>
+                        <p role="status" class="text-ui-xs text-faint" data-full>{ fullWords }</p>
+                    </Show>
+                </fieldset>
+
+                <details class="group/perm" data-permissions>
+                    <summary class="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-tile border border-line bg-field px-3 py-2 [&::-webkit-details-marker]:hidden">
+                        <span class="flex min-w-0 flex-col">
+                            <span class="text-ui-sm font-semibold text-text">{ locale.t('groups.tab.permissions') }</span>
+                            <span class="text-ui-xs text-faint">{ locale.t('groups.permSummary') }</span>
+                        </span>
+                        <Icon name="chevron-down" size={ 16 } class="shrink-0 text-muted transition-transform duration-150 group-open/perm:rotate-180" />
+                    </summary>
+                    <div class="mt-3">
+                        <GroupSwitchList
+                            switches={ switches }
+                            approval={ approval }
+                            onSwitch={ (name, on) => switches = { ...switches, [name]: on } }
+                            onApproval={ (on) => approval = on }
+                        />
+                    </div>
+                </details>
+            </div>
+        </Show>
 
         <Show when={ failed }>
             <p role="alert" class="text-ui-sm text-danger" data-failed>{ failureWords }</p>

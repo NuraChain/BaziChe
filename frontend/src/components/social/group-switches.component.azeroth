@@ -1,0 +1,29 @@
+import { SWITCHES, type GroupSwitch, type GroupSwitches } from '../../../../backend/src/domains/group/roles.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Toggle from '../ui/switch.component.azeroth';
+
+/** What a group's members may do, a switch each, and whether joining asks first: the owner's tab and a group being made draw the same rows. */
+export default component GroupSwitchList(props: {
+    switches: GroupSwitches;
+    approval: boolean;
+    onSwitch: (name: GroupSwitch, on: boolean) => void;
+    onApproval: (on: boolean) => void;
+})
+{
+    const locale = useLocale();
+
+    <div class="flex flex-col gap-4">
+        <div class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field px-3" data-switches>
+            <For each={ Array.from(SWITCHES) } key={ (name) => name } let={ name }>
+                <div>
+                    <Toggle label={ locale.t(`groups.perm.${ name }`) } checked={ props.switches[name] } onChange={ (on) => props.onSwitch(name, on) } />
+                </div>
+            </For>
+        </div>
+
+        <div class="flex flex-col gap-1.5 rounded-panel border border-line bg-field px-3 pb-3" data-approval>
+            <Toggle label={ locale.t('groups.perm.approval') } checked={ props.approval } onChange={ (on) => props.onApproval(on) } />
+            <p class="text-ui-xs text-faint">{ locale.t('groups.perm.approvalLead') }</p>
+        </div>
+    </div>
+}

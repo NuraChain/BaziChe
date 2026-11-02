@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { cleanup, fire, renderTest } from '@azerothjs/testing';
 import { RouterProvider, Routes, createMemoryHistory, createRouter, type Route } from 'azerothjs';
 
+import { FIRST_MEMBERS_MOST, SWITCH_DEFAULTS, SWITCHES } from '../../backend/src/domains/group/roles.ts';
 import ChatFace from '../src/components/chat/chat-face.component.azeroth';
 import GroupCard from '../src/components/social/group-card.component.azeroth';
 import GroupForm from '../src/components/social/group-form.component.azeroth';
@@ -734,6 +735,234 @@ describe('a group\'s photo, in the form that makes or edits one', () =>
         fire(admin.container.querySelector('form')!, 'submit');
         await settle();
         expect(edits.mock.calls[0]?.[0].input.privacy, 'the doors kept as they are').toBe(crew.privacy);
+    });
+});
+
+describe('who a new group starts with, and what they may do there', () =>
+{
+    const t = (key: Parameters<ReturnType<typeof useLocale>['t']>[0], params?: Record<string, string>) => useLocale().t(key, params);
+
+    const opened = (group?: (typeof server.groups)[number]) =>
+    {
+        const close = vi.fn();
+        const { container } = renderTest(() => GroupForm({ overlayId: 'test', close, ...(group === undefined ? {} : { group: structuredClone(group) }) }) as HTMLElement);
+        return { close, container };
+    };
+
+    const named = (container: HTMLElement, name: string) =>
+    {
+        const input = container.querySelector<HTMLInputElement>('#group-name')!;
+        input.value = name;
+        fire(input, 'input');
+    };
+
+    const submitted = async (container: HTMLElement) =>
+    {
+        fire(container.querySelector('form')!, 'submit');
+        await settle();
+    };
+
+    const first = (container: HTMLElement) => container.querySelector<HTMLElement>('[data-first]');
+
+    const rows = (container: HTMLElement) => [...(first(container)?.querySelectorAll<HTMLButtonElement>('ul button') ?? [])];
+
+    const row = (container: HTMLElement, name: string) => rows(container).find((one) => one.textContent?.includes(name)) ?? null;
+
+    const counted = (container: HTMLElement) => first(container)?.querySelector('[data-chosen]')?.textContent ?? null;
+
+    const switchOf = (container: HTMLElement, label: string) =>
+        [...container.querySelectorAll<HTMLElement>('[data-permissions] [role="switch"]')].find((one) => one.textContent?.includes(label)) ?? null;
+
+    const made = (name: string) => server.groups.find((group) => group.name === name);
+
+    /** Alex's friends as the graph will answer them, read again so the form sees exactly these. */
+    const befriended = async (handles: string[]) =>
+    {
+        server.friends = handles;
+        await useSocial().refresh();
+        await settle();
+    };
+
+    it('offers the reader\'s friends, and makes the group with the ones chosen in it', async () =>
+    {
+        const sent = vi.spyOn(client.groups, 'create');
+        const { close, container } = opened();
+        await vi.waitFor(() => expect(rows(container).length).toBe(12), { timeout: 4000 });
+
+        expect(counted(container), 'nothing counted before anything is chosen').toBeNull();
+
+        fire(row(container, 'Sara Kamali')!, 'click');
+        fire(row(container, 'Reza Tehrani')!, 'click');
+        await settle();
+
+        expect(row(container, 'Sara Kamali')!.getAttribute('aria-pressed')).toBe('true');
+        expect(row(container, 'Parisa Hosseini')!.getAttribute('aria-pressed')).toBe('false');
+        expect(counted(container)).toBe('2 chosen');
+
+        named(container, 'Tuesday Table');
+        await submitted(container);
+
+        expect(sent.mock.calls[0][0].input).toMatchObject({ members: ['sara.k', 'reza.t'], switches: SWITCH_DEFAULTS, approval: false });
+        expect(made('Tuesday Table')?.members).toEqual(['alex', 'sara.k', 'reza.t']);
+        expect(close).toHaveBeenCalled();
+    });
+
+    it('lets a friend go again at a second press', async () =>
+    {
+        const { container } = opened();
+        await vi.waitFor(() => expect(row(container, 'Sara Kamali')).not.toBeNull(), { timeout: 4000 });
+
+        fire(row(container, 'Sara Kamali')!, 'click');
+        await settle();
+        fire(row(container, 'Sara Kamali')!, 'click');
+        await settle();
+
+        expect(row(container, 'Sara Kamali')!.getAttribute('aria-pressed')).toBe('false');
+        expect(counted(container)).toBeNull();
+
+        named(container, 'Tuesday Table');
+        await submitted(container);
+
+        expect(made('Tuesday Table')?.members).toEqual(['alex']);
+    });
+
+    it('narrows the friends to the words typed, and keeps who was chosen out of sight', async () =>
+    {
+        const { container } = opened();
+        await vi.waitFor(() => expect(rows(container).length).toBe(12), { timeout: 4000 });
+        fire(row(container, 'Sara Kamali')!, 'click');
+
+        const search = first(container)!.querySelector<HTMLInputElement>('input[type="search"]')!;
+        search.value = 'parisa';
+        fire(search, 'input');
+        await settle();
+
+        expect(rows(container).map((one) => one.textContent)).toEqual([expect.stringContaining('Parisa Hosseini')]);
+        expect(counted(container), 'Sara is still chosen').toBe('1 chosen');
+
+        search.value = 'nobody here';
+        fire(search, 'input');
+        await settle();
+
+        expect(first(container)?.querySelector('[data-unmatched]')?.textContent).toBe('Nothing for “nobody here”.');
+        expect(first(container)?.querySelector('ul')?.hidden).toBe(true);
+    });
+
+    it('draws no search over a few friends', async () =>
+    {
+        await befriended(['sara.k', 'reza.t', 'parisa']);
+        const { container } = opened();
+        await vi.waitFor(() => expect(rows(container).length).toBe(3), { timeout: 4000 });
+
+        expect(first(container)?.querySelector('input[type="search"]')).toBeNull();
+    });
+
+    it('says nobody can be brought in yet to somebody with no friends', async () =>
+    {
+        await befriended([]);
+        const { container } = opened();
+        await vi.waitFor(() => expect(first(container)?.querySelector('[data-none]')?.textContent).toBe('Nobody to add yet. Friends you add show up here.'), { timeout: 4000 });
+
+        expect(rows(container)).toEqual([]);
+        expect(first(container)?.querySelector('ul')?.hidden).toBe(true);
+    });
+
+    it('stops at fifty, says so, and takes another once one is let go', async () =>
+    {
+        await befriended([...server.friends, ...Array.from({ length: 45 }, (_, at) => `pal.${ at }`)]);
+        const { container } = opened();
+        await vi.waitFor(() => expect(rows(container).length).toBe(57), { timeout: 4000 });
+
+        for (const one of rows(container).slice(0, FIRST_MEMBERS_MOST))
+        {
+            fire(one, 'click');
+        }
+        await settle();
+
+        const left = rows(container).slice(FIRST_MEMBERS_MOST);
+
+        expect(counted(container)).toBe('50 chosen');
+        expect(first(container)?.querySelector('[data-full]')?.textContent).toBe('That’s 50. Add the rest once the group is made.');
+        expect(left.every((one) => one.disabled)).toBe(true);
+
+        fire(left[0], 'click');
+        await settle();
+
+        expect(counted(container), 'a fifty-first is not taken').toBe('50 chosen');
+
+        fire(rows(container)[0], 'click');
+        await settle();
+
+        expect(first(container)?.querySelector('[data-full]')).toBeNull();
+        expect(left[0].disabled).toBe(false);
+
+        fire(left[0], 'click');
+        named(container, 'Big Table');
+        await submitted(container);
+
+        const handles = server.friends;
+
+        expect(made('Big Table')?.members, 'the first let go, the fifty-first taken in its place')
+            .toEqual(['alex', ...handles.slice(1, FIRST_MEMBERS_MOST), handles[FIRST_MEMBERS_MOST]]);
+    });
+
+    it('starts what members may do where the server would, folded away, and sends what was changed', async () =>
+    {
+        const sent = vi.spyOn(client.groups, 'create');
+        const { container } = opened();
+        const details = container.querySelector<HTMLDetailsElement>('[data-permissions]')!;
+
+        expect(details.open, 'folded until somebody opens it').toBe(false);
+        expect(details.querySelector('summary')?.textContent).toContain(t('groups.tab.permissions'));
+        expect([...details.querySelectorAll('[role="switch"]')].map((one) => one.getAttribute('aria-checked')))
+            .toEqual([...SWITCHES.map((name) => String(SWITCH_DEFAULTS[name])), 'false']);
+
+        fire(switchOf(container, t('groups.perm.pin'))!, 'click');
+        fire(switchOf(container, t('groups.perm.approval'))!, 'click');
+        await settle();
+
+        expect(switchOf(container, t('groups.perm.pin'))!.getAttribute('aria-checked')).toBe('true');
+
+        named(container, 'Quiet Table');
+        await submitted(container);
+
+        expect(sent.mock.calls[0][0].input).toMatchObject({ switches: { ...SWITCH_DEFAULTS, pin: true }, approval: true });
+        expect(made('Quiet Table')?.switches).toEqual({ ...SWITCH_DEFAULTS, pin: true });
+        expect(made('Quiet Table')?.approval).toBe(true);
+    });
+
+    it('asks neither when a group is edited, and sends neither', async () =>
+    {
+        const crew = server.groups[0];
+        crew.owner = 'alex';
+        crew.role = 'owner';
+        const sent = vi.spyOn(client.groups, 'edit');
+        const { container } = opened(crew);
+
+        expect(container.querySelector('[data-setup]')).toBeNull();
+        expect(container.querySelector('[data-first]')).toBeNull();
+        expect(container.querySelector('[data-permissions]')).toBeNull();
+
+        await submitted(container);
+
+        expect(Object.keys(sent.mock.calls[0][0].input)).not.toContain('members');
+        expect(Object.keys(sent.mock.calls[0][0].input)).not.toContain('switches');
+    });
+
+    it('says in Persian how far it goes and how many are chosen', async () =>
+    {
+        useLocale().setLocale('fa');
+        const { container } = opened();
+        await vi.waitFor(() => expect(row(container, 'Sara Kamali')).not.toBeNull(), { timeout: 4000 });
+
+        fire(row(container, 'Sara Kamali')!, 'click');
+        fire(row(container, 'Reza Tehrani')!, 'click');
+        await settle();
+
+        expect(first(container)?.querySelector('legend')?.textContent).toContain('دوستات رو اضافه کن');
+        expect(first(container)?.textContent).toContain('الان تا ۵۰ نفر؛ بعداً هم می‌تونی اضافه کنی.');
+        expect(counted(container)).toBe('۲ نفر انتخاب شدن');
+        expect(container.querySelector('[data-permissions] summary')?.textContent).toContain('دسترسی‌ها');
     });
 });
 

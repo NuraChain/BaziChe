@@ -134,5 +134,8 @@ export const MEMBERS_PAGE = 50;
 
 export const GROUP_LOG_PAGE = 50;
 
+/** The most people a new group starts with besides its owner. */
+export const FIRST_MEMBERS_MOST = 50;
+
 /** The faces a group's card and head draw, the staff first. */
 export const FACES = 6;

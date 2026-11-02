@@ -14,7 +14,7 @@ import { REASONS } from './domains/match/chess/state.ts';
 import { CLOCKS } from './domains/table/clocks.ts';
 import { PARTNERS } from './domains/table/teams.ts';
 import { VOICE_SCOPES } from './domains/table/voices.ts';
-import { GROUP_EVENTS, GROUP_RIGHTS, GROUP_ROLES } from './domains/group/roles.ts';
+import { FIRST_MEMBERS_MOST, GROUP_EVENTS, GROUP_RIGHTS, GROUP_ROLES } from './domains/group/roles.ts';
 import { ALERT_KINDS, ALERT_LEVELS, FAMILIES, QUEUES, WORKERS } from './ops/measures.ts';
 
 const NUL = String.fromCharCode(0);
@@ -2112,7 +2112,7 @@ export const groupCreateInput = object({
     photo: string({ max: 300 }).optional(),
 
     /** The first members, by handle, besides whoever makes it. */
-    members: array(string({ max: 32 }), { max: 50 }).optional(),
+    members: array(string({ max: 32 }), { max: FIRST_MEMBERS_MOST }).optional(),
 
     switches: groupSwitches.optional(),
     approval: boolean().optional()

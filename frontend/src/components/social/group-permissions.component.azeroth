@@ -1,13 +1,13 @@
 import { untrack } from 'azerothjs';
 
-import { SWITCHES, type GroupSwitch, type GroupSwitches } from '../../../../backend/src/domains/group/roles.ts';
+import type { GroupSwitch, GroupSwitches } from '../../../../backend/src/domains/group/roles.ts';
 import type { GroupSummary } from '../../api.ts';
 import { whyGroup } from '../../lib/group-words.ts';
 import { createGuesses, type Guess } from '../../lib/guess.ts';
 import { useGroups } from '../../stores/groups.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
-import Toggle from '../ui/switch.component.azeroth';
+import GroupSwitchList from './group-switches.component.azeroth';
 
 interface Wanted
 {
@@ -78,17 +78,6 @@ export default component GroupPermissions(props: { group: GroupSummary })
             <p class="text-ui-sm text-muted">{ locale.t('groups.perm.lead') }</p>
         </div>
 
-        <div class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field px-3" data-switches>
-            <For each={ [...SWITCHES] } key={ (name) => name } let={ name }>
-                <div>
-                    <Toggle label={ locale.t(`groups.perm.${ name }`) } checked={ shown.switches[name] } onChange={ (on) => flip(name, on) } />
-                </div>
-            </For>
-        </div>
-
-        <div class="flex flex-col gap-1.5 rounded-panel border border-line bg-field px-3 pb-3" data-approval>
-            <Toggle label={ locale.t('groups.perm.approval') } checked={ shown.approval } onChange={ ask } />
-            <p class="text-ui-xs text-faint">{ locale.t('groups.perm.approvalLead') }</p>
-        </div>
+        <GroupSwitchList switches={ shown.switches } approval={ shown.approval } onSwitch={ flip } onApproval={ ask } />
     </section>
 }

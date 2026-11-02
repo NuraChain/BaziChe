@@ -4,7 +4,7 @@ import { threadSize } from '../../backend/src/domains/chat/pages.ts';
 import { WATCH_TAIL } from '../../backend/src/domains/match/turns.ts';
 import { codeFrom } from '../../backend/src/domains/invite/policy.ts';
 import { NOTICE_OF } from '../../backend/src/domains/notify/notices.ts';
-import { GROUP_LOG_PAGE, GROUP_RIGHTS, MEMBERS_PAGE, RANK, SWITCH_DEFAULTS, mayIn, type GroupAct, type GroupEventKind, type GroupRight, type GroupRole, type GroupSwitches } from '../../backend/src/domains/group/roles.ts';
+import { FACES, FIRST_MEMBERS_MOST, GROUP_LOG_PAGE, GROUP_RIGHTS, MEMBERS_PAGE, RANK, SWITCH_DEFAULTS, mayIn, type GroupAct, type GroupEventKind, type GroupRight, type GroupRole, type GroupSwitches } from '../../backend/src/domains/group/roles.ts';
 import { PEOPLE_FOUND_MAX, SEARCH_FROM, searchNeedle } from '../../backend/src/domains/social/names.ts';
 import { handleFromAddress } from '../../backend/src/domains/identity/handle.ts';
 import { createParties, type Parties, type PartyWhy } from '../../backend/src/domains/party/parties.ts';
@@ -3758,7 +3758,12 @@ export const client =
             return structuredClone(group);
         },
 
-        async create({ input }: { input: { name: string; blurb: string; crest: string; hue: number; game: string; privacy: 'private' | 'public'; photo?: string } })
+        async create({ input }: {
+            input: {
+                name: string; blurb: string; crest: string; hue: number; game: string; privacy: 'private' | 'public'; photo?: string;
+                members?: string[]; switches?: GroupSwitches; approval?: boolean;
+            };
+        })
         {
             server.calls.push('groups.create');
             if (server.refuseGroup !== null)
@@ -3773,6 +3778,9 @@ export const client =
                 slug = `${ wanted }-${ attempt }`;
             }
 
+            // As the server seats them: each once, never the maker, at most the first fifty.
+            const members = [server.me, ...new Set((input.members ?? []).filter((handle) => handle !== server.me))].slice(0, FIRST_MEMBERS_MOST + 1);
+
             const made: GroupWire = {
                 id: slug,
                 slug,
@@ -3783,12 +3791,12 @@ export const client =
                 hue: input.hue,
                 ...(input.game === '' ? {} : { game: input.game }),
                 ...(input.photo === undefined || input.photo === '' ? {} : { photo: input.photo }),
-                switches: { ...SWITCH_DEFAULTS },
-                approval: false,
+                switches: { ...SWITCH_DEFAULTS, ...input.switches },
+                approval: input.approval ?? false,
                 owner: server.me,
-                faces: [server.me],
-                members: [server.me],
-                memberCount: 1,
+                faces: members.slice(0, FACES),
+                members,
+                memberCount: members.length,
                 role: 'owner',
                 conversationId: `conv-${ slug }`,
                 createdAt: new Date(0).toISOString()

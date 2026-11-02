@@ -7,6 +7,7 @@ import SocialPanel from '../src/components/app/social-panel.component.azeroth';
 import InviteSheet from '../src/components/games/invite-sheet.component.azeroth';
 import LiveStats from '../src/components/games/live-stats.component.azeroth';
 import GroupAdd from '../src/components/social/group-add.component.azeroth';
+import GroupForm from '../src/components/social/group-form.component.azeroth';
 import { defaultTable } from '../src/data/tables.ts';
 import { manualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
@@ -300,6 +301,65 @@ describe('the sheet that adds a friend to a group, before the friends are read',
         finally
         {
             (client.groups as unknown as Record<string, unknown>).add = real;
+        }
+    });
+});
+
+describe('the friends a new group can start with, before they are read', () =>
+{
+    const form = () => renderTest(() => GroupForm({ overlayId: 'group-form', close: () => undefined }) as HTMLElement).container;
+
+    const first = (container: HTMLElement) => container.querySelector<HTMLElement>('[data-first]')!;
+
+    it('draws them as being read, and says nobody can be added only once the server has said so', async () =>
+    {
+        const { gate, answer } = held();
+        const restore = await anew('graph', answer);
+
+        try
+        {
+            const container = form();
+            await settle();
+
+            expect(first(container).querySelector('[data-reading]')).not.toBeNull();
+            expect(first(container).querySelector('[data-none]')).toBeNull();
+            expect(first(container).querySelector('ul')?.hidden).toBe(true);
+
+            gate.open();
+            await settle();
+
+            expect(first(container).querySelector('[data-reading]')).toBeNull();
+            expect(first(container).querySelectorAll('ul button').length).toBe(12);
+        }
+        finally
+        {
+            restore();
+        }
+    });
+
+    it('says what went wrong where they would be, and reads them again at Try again', async () =>
+    {
+        let answer: (real: () => Promise<unknown>) => Promise<unknown> = refused;
+        const restore = await anew('graph', (real) => answer(real));
+
+        try
+        {
+            const container = form();
+            await settle();
+
+            expect(alertOf(first(container))?.textContent).toContain(useLocale().t('failure.down'));
+            expect(first(container).querySelector('[data-none]'), 'a refused read is not a reader with no friends').toBeNull();
+
+            answer = (real) => real();
+            fire(retryOf(first(container))!, 'click');
+            await settle();
+
+            expect(alertOf(first(container))).toBeNull();
+            expect(first(container).querySelectorAll('ul button').length).toBe(12);
+        }
+        finally
+        {
+            restore();
         }
     });
 });

@@ -18,7 +18,7 @@ import { folded, likeLiteral, SEARCH_FROM, searchNeedle } from '../social/names.
 import type { SocialService } from '../social/service.ts';
 import { GROUP_REFUSALS, type GroupRefusal } from './refusals.ts';
 import {
-    GROUP_LOG_PAGE, GROUP_RIGHTS, LINK_TOKEN, MEMBERS_PAGE, SWITCH_COLUMNS, SWITCH_DEFAULTS, SWITCHES, mayIn, outranks,
+    FIRST_MEMBERS_MOST, GROUP_LOG_PAGE, GROUP_RIGHTS, LINK_TOKEN, MEMBERS_PAGE, SWITCH_COLUMNS, SWITCH_DEFAULTS, SWITCHES, mayIn, outranks,
     type GroupAct, type GroupEventKind, type GroupRight, type GroupRole, type GroupSwitches
 } from './roles.ts';
 import { candidatesFor, checkSlug, slugFromName } from './slug.ts';
@@ -128,9 +128,6 @@ const CLAIM_ATTEMPTS = 6;
 /** What a group name may be, before it is folded into a slug. */
 const NAME_MAX = 60;
 const BLURB_MAX = 240;
-
-/** The most people a new group starts with besides its owner. */
-export const FIRST_MEMBERS_MOST = 50;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

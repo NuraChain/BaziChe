@@ -59,6 +59,8 @@ const QUERIES = {
     '/donations/players': ['match'],
     '/markets/positions': ['cursor'],
     '/invites/people': ['cursor'],
+    '/groups/:slug/members': ['q', 'cursor'],
+    '/groups/:slug/log': ['cursor'],
     '/admin/log': ['cursor', 'staff', 'person', 'kind'],
     '/admin/people': ['q', 'list', 'cursor'],
     '/admin/people/:handle/history': ['cursor'],
@@ -96,8 +98,19 @@ const BODIES = {
     '/social/blocks/remove': (bad) => [{ id: bad }],
     '/social/mutes': (bad) => ['person', 'conversation', 'game', 'notice'].flatMap((kind) => [{ kind, id: bad, muted: true }, { kind, id: bad, muted: false }]),
     '/social/reports': (bad) => [{ id: bad, category: 'spam' }, { id: bad, category: 'spam', conversationId: bad, messageId: bad, text: bad, frankingKey: bad }],
-    '/groups': (bad) => [{ name: bad.slice(0, 60), blurb: bad.slice(0, 240), crest: bad.slice(0, 24), hue: 1, privacy: 'private', game: bad.slice(0, 24) }],
-    '/groups/:slug': (bad) => [{ name: bad.slice(0, 60), blurb: '', crest: bad.slice(0, 24), game: bad.slice(0, 24), privacy: 'private' }],
+    '/groups': (bad) => [
+        { name: bad.slice(0, 60), blurb: bad.slice(0, 240), crest: bad.slice(0, 24), hue: 1, privacy: 'private', game: bad.slice(0, 24) },
+        { name: 'Garbage group', blurb: '', crest: 'crest-moon', hue: 1, privacy: 'private', game: '', photo: bad.slice(0, 300), members: [bad.slice(0, 32)] }
+    ],
+    '/groups/:slug': (bad) => [
+        { name: bad.slice(0, 60), blurb: '', crest: bad.slice(0, 24), game: bad.slice(0, 24), privacy: 'private' },
+        { name: 'Garbage group', blurb: '', crest: 'crest-moon', game: '', privacy: 'private', photo: bad.slice(0, 300) }
+    ],
+    '/groups/:slug/role': (bad) => [{ id: bad.slice(0, 32), role: 'moderator' }, { id: bad.slice(0, 32), role: 'admin', rights: ['pin'] }],
+    '/groups/:slug/mute': (bad) => [{ id: bad.slice(0, 32), hours: 24 }, { id: bad.slice(0, 32), hours: bad.length }],
+    '/groups/:slug/ban': (bad) => [{ id: bad }],
+    '/groups/:slug/unban': (bad) => [{ id: bad }],
+    '/groups/:slug/unmute': (bad) => [{ id: bad }],
     '/groups/:slug/members': (bad) => [{ id: bad }],
     '/groups/:slug/members/remove': (bad) => [{ id: bad }],
     '/groups/:slug/owner': (bad) => [{ id: bad }],
@@ -174,7 +187,7 @@ const BODIES = {
 const WOULD_ACT = new Set(['/auth/handle']);
 
 const SPARED = new Set([
-    '/auth/sign-out', '/auth/sign-out-everywhere', '/chain/profile/publish', '/social/privacy', '/groups/:slug/join', '/groups/:slug/leave',
+    '/auth/sign-out', '/auth/sign-out-everywhere', '/chain/profile/publish', '/social/privacy', '/groups/:slug/join', '/groups/:slug/leave', '/groups/:slug/permissions',
     '/tables/:id/seat', '/tables/:id/leave', '/tables/:id/close', '/tables/:id/voice', '/tables/:id/start', '/tables/:id/stake',
     '/parties/:id/accept', '/parties/:id/decline', '/parties/:id/leave',
     '/notifications/:id/read', '/notifications/read-all', '/notifications/:id/dismiss', '/devices/:id/revoke', '/devices/recovery/off',

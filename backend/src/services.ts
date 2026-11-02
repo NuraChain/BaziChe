@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '@azerothjs/http';
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@azerothjs/http';
 import type { DataSource } from 'typeorm';
 import { getAddress } from 'viem';
 
@@ -14,7 +14,8 @@ import { createPeerDevices, type PeerDeviceRow } from './domains/device/peers.ts
 import { namesDevice } from './domains/device/resource.ts';
 import { createRecoveryService } from './domains/device/recovery-service.ts';
 import { createDeviceService, type DeviceRow } from './domains/device/service.ts';
-import { createGroupService, type GroupRow } from './domains/group/service.ts';
+import { createGroupService, refused as refusedInGroup, switchesOf, type GroupRow } from './domains/group/service.ts';
+import { MUTE_HOURS } from './domains/group/roles.ts';
 import { createNotifyService, type NotificationRow } from './domains/notify/service.ts';
 import { isNotice, NOTICE_OF, type Notice } from './domains/notify/notices.ts';
 import { sendPush, type VapidKeys } from './domains/notify/push.ts';
@@ -544,11 +545,18 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             crest: row.crest,
             hue: row.hue,
             privacy: row.privacy,
+            switches: switchesOf(row),
+            approval: row.approval,
             owner: row.owner ?? '',
+            faces: row.faces,
             members: row.members,
             memberCount: row.member_count,
             createdAt: row.created_at.toISOString()
         };
+        if (row.photo !== null)
+        {
+            summary.photo = row.photo;
+        }
         if (row.game !== null)
         {
             summary.game = row.game;
@@ -556,6 +564,15 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         if (row.role !== null)
         {
             summary.role = row.role;
+
+            if (row.role === 'admin' && row.rights !== null)
+            {
+                summary.rights = row.rights;
+            }
+            if (row.muted)
+            {
+                summary.muted = row.muted_until === null ? {} : { until: row.muted_until.toISOString() };
+            }
 
             // Only a member is given the thread. A non-member holding the id could not read it -
             // `mustBeMember` sees to that - but an id it has no use for is an id it should not
@@ -588,6 +605,27 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         return found;
     };
 
+    const someone = async (handle: string) =>
+    {
+        const other = await social.personByHandle(handle);
+        if (other === null)
+        {
+            throw new NotFoundError('No account with that name.');
+        }
+        return other;
+    };
+
+    /** A group's picture: one uploaded to this server, by the address it was given, or a refusal. */
+    const pictureOf = async (link: string) =>
+    {
+        const hash = avatarHashOf(config.origin, link);
+        if (hash === null || await identity.avatar(hash) === null)
+        {
+            throw refusedInGroup('group-picture', 'That picture was not uploaded here.');
+        }
+        return link;
+    };
+
     /**
      * Writes the line that says what just happened, into the group's own thread.
      *
@@ -597,14 +635,14 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
      * that the owner wrote it.
      *
      * A failed line does not undo the change it describes: the membership is the fact and the
-     * announcement is the courtesy, so this is deliberately outside the transaction.
+     * announcement is the courtesy, so it is written after the change and a failure is only said.
      */
-    const announce = async (
+    const announce = (
         row: GroupRow,
         actor: string | null,
-        what: 'created' | 'joined' | 'left' | 'removed' | 'renamed' | 'owner' | 'closed' | 'opened',
+        what: 'created' | 'joined' | 'left' | 'removed' | 'renamed' | 'owner' | 'closed' | 'opened' | 'photo',
         params: Record<string, string>
-    ) =>
+    ) => courtesy(`group line ${ what }`, async () =>
     {
         if (row.conversation_id === null)
         {
@@ -618,7 +656,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             { key: `chat.line.group.${ what }`, params: { ...params, ...(named === undefined ? {} : { who: named }) } },
             actor
         );
-    };
+    });
 
     /**
      * The doorbell for a group that changed.
@@ -635,6 +673,15 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         }
         live?.socialChanged(...await group.memberIds(row.id), ...also);
     };
+
+    /** Somebody added to a group is told, as an addition always was. */
+    const toldAdded = (row: GroupRow, actor: string, otherId: string) => courtesy('group added notice', () => tell({
+        userId: otherId,
+        kind: 'group-added',
+        actorId: actor,
+        ref: { groupId: row.slug },
+        dedupeKey: `group:${ row.id }`
+    }));
 
     const asTable = (row: TableRow) =>
     {
@@ -3110,29 +3157,51 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
             async create(me, input)
             {
+                const photo = input.photo === undefined || input.photo === '' ? null : await pictureOf(input.photo);
+                const first: string[] = [];
+
+                for (const handle of new Set(input.members ?? []))
+                {
+                    const other = await social.personByHandle(handle);
+                    if (other !== null)
+                    {
+                        first.push(other.id);
+                    }
+                }
+
                 const made = await group.create(me, {
                     name: input.name,
                     blurb: input.blurb,
                     crest: input.crest,
                     hue: input.hue,
                     game: input.game === '' ? null : input.game,
-                    privacy: input.privacy
+                    privacy: input.privacy,
+                    photo,
+                    ...(input.switches === undefined ? {} : { switches: input.switches }),
+                    ...(input.approval === undefined ? {} : { approval: input.approval }),
+                    members: first
                 });
 
-                await announce(made, me, 'created', {});
-                live?.socialChanged(me);
-                return asGroup(made);
+                await announce(made.row, me, 'created', {});
+                for (const other of made.seated)
+                {
+                    await toldAdded(made.row, me, other);
+                }
+                live?.socialChanged(me, ...made.seated);
+                return asGroup(made.row);
             },
 
             async edit(me, slug, input)
             {
                 const before = await mustSee(me, slug);
+                const photo = input.photo === undefined ? undefined : (input.photo === '' ? null : await pictureOf(input.photo));
                 const after = await group.update(me, before.id, {
                     name: input.name,
                     blurb: input.blurb,
                     crest: input.crest,
                     game: input.game === '' ? null : input.game,
-                    privacy: input.privacy
+                    privacy: input.privacy,
+                    ...(photo === undefined ? {} : { photo })
                 });
 
                 // A door closing is not something to change behind somebody's back. The same
@@ -3146,6 +3215,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 if (after.name !== before.name)
                 {
                     await announce(after, me, 'renamed', { name: after.name });
+                }
+
+                if (after.photo !== null && after.photo !== before.photo)
+                {
+                    await announce(after, me, 'photo', {});
                 }
                 await ring(after);
                 return asGroup(after);
@@ -3190,11 +3264,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             async add(me, slug, handle)
             {
                 const found = await mustSee(me, slug);
-                const other = await social.personByHandle(handle);
-                if (other === null)
-                {
-                    throw new NotFoundError('No account with that name.');
-                }
+                const other = await someone(handle);
 
                 const arrived = await group.add(me, found.id, other.id);
                 const after = await reread(me, found.id);
@@ -3202,13 +3272,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 if (arrived)
                 {
                     await announce(after, me, 'joined', { who: other.handle });
-                    await tell({
-                        userId: other.id,
-                        kind: 'group-added',
-                        actorId: me,
-                        ref: { groupId: after.slug },
-                        dedupeKey: `group:${ after.id }`
-                    });
+                    await toldAdded(after, me, other.id);
                     await ring(after, other.id);
                 }
                 return asGroup(after);
@@ -3217,11 +3281,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             async remove(me, slug, handle)
             {
                 const found = await mustSee(me, slug);
-                const other = await social.personByHandle(handle);
-                if (other === null)
-                {
-                    throw new NotFoundError('No account with that name.');
-                }
+                const other = await someone(handle);
 
                 const removed = await group.remove(me, found.id, other.id);
                 const after = await reread(me, found.id);
@@ -3237,18 +3297,192 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             async transfer(me, slug, handle)
             {
                 const found = await mustSee(me, slug);
-                const other = await social.personByHandle(handle);
-                if (other === null)
-                {
-                    throw new NotFoundError('No account with that name.');
-                }
+                const other = await someone(handle);
 
-                await group.transfer(me, found.id, other.id);
+                const handed = await group.transfer(me, found.id, other.id);
                 const after = await reread(me, found.id);
 
-                await announce(after, me, 'owner', { who: other.handle });
-                await ring(after);
+                if (handed.changed)
+                {
+                    await announce(after, me, 'owner', { who: other.handle });
+                    await ring(after);
+                }
                 return asGroup(after);
+            },
+
+            async permissions(me, slug, input)
+            {
+                const found = await mustSee(me, slug);
+                const set = await group.setSwitches(me, found.id, input.switches, input.approval);
+                const after = await reread(me, found.id);
+
+                if (set.changed)
+                {
+                    await ring(after);
+                }
+                return asGroup(after);
+            },
+
+            async role(me, slug, input)
+            {
+                const found = await mustSee(me, slug);
+                const other = await someone(input.id);
+
+                const set = await group.setRole(me, found.id, other.id, input.role, input.rights ?? []);
+                const after = await reread(me, found.id);
+
+                if (set.changed)
+                {
+                    await ring(after, other.id);
+                }
+                return asGroup(after);
+            },
+
+            async ban(me, slug, handle)
+            {
+                const found = await mustSee(me, slug);
+                const other = await someone(handle);
+
+                const kept = await group.ban(me, found.id, other.id);
+                const after = await reread(me, found.id);
+
+                if (kept.changed)
+                {
+                    if (kept.wasMember)
+                    {
+                        await announce(after, me, 'removed', { who: other.handle });
+                    }
+                    await ring(after, other.id);
+                }
+                return asGroup(after);
+            },
+
+            async unban(me, slug, handle)
+            {
+                const found = await mustSee(me, slug);
+                const other = await someone(handle);
+
+                const lifted = await group.unban(me, found.id, other.id);
+                const after = await reread(me, found.id);
+
+                if (lifted.changed)
+                {
+                    await ring(after, other.id);
+                }
+                return asGroup(after);
+            },
+
+            async mute(me, slug, input)
+            {
+                if (input.hours !== undefined && !(MUTE_HOURS as readonly number[]).includes(input.hours))
+                {
+                    throw new ValidationError({ hours: 'An hour, a day or a week.' }, 'That is not how long a mute lasts.');
+                }
+
+                const found = await mustSee(me, slug);
+                const other = await someone(input.id);
+
+                const set = await group.mute(me, found.id, other.id, input.hours ?? null);
+                const after = await reread(me, found.id);
+
+                if (set.changed)
+                {
+                    await ring(after, other.id);
+                }
+                return asGroup(after);
+            },
+
+            async unmute(me, slug, handle)
+            {
+                const found = await mustSee(me, slug);
+                const other = await someone(handle);
+
+                const lifted = await group.unmute(me, found.id, other.id);
+                const after = await reread(me, found.id);
+
+                if (lifted.changed)
+                {
+                    await ring(after, other.id);
+                }
+                return asGroup(after);
+            },
+
+            async members(me, slug, asked, cursor)
+            {
+                const found = await mustSee(me, slug);
+                const page = await group.members(me, found.id, asked, cursor);
+
+                const viewer = await social.person(me);
+                const people = new Map((await social.peopleOf(page.rows.map((row) => row.user_id))).map((row) => [row.id, row]));
+                const friends = new Set((await social.friends(me)).map((row) => row.id));
+                const staff = found.role !== null && found.role !== 'member';
+
+                return {
+                    members: page.rows.flatMap((row) =>
+                    {
+                        const person = people.get(row.user_id);
+                        if (person === undefined || viewer === null)
+                        {
+                            return [];
+                        }
+
+                        return [{
+                            person: seenBy(viewer, person, friends.has(person.id) ? 'friend' : 'none'),
+                            role: row.role,
+                            ...(row.role === 'admin' && row.rights !== null ? { rights: row.rights } : {}),
+                            joinedAt: row.joined_at.toISOString(),
+                            ...(staff && row.muted ? { muted: row.muted_until === null ? {} : { until: row.muted_until.toISOString() } } : {})
+                        }];
+                    }),
+                    ...(page.cursor === undefined ? {} : { cursor: page.cursor }),
+                    count: page.count
+                };
+            },
+
+            async log(me, slug, cursor)
+            {
+                const found = await mustSee(me, slug);
+                const page = await group.log(me, found.id, cursor);
+
+                if (page === null)
+                {
+                    return null;
+                }
+
+                return {
+                    rows: page.rows.map((row) => ({
+                        id: row.id,
+                        at: row.created_at.toISOString(),
+                        kind: row.kind,
+                        ...(row.actor_handle === null ? {} : { actor: row.actor_handle }),
+                        ...(row.actor_role === null ? {} : { actorRole: row.actor_role }),
+                        ...(row.person_handle === null ? {} : { person: row.person_handle }),
+                        details: row.details
+                    })),
+                    ...(page.cursor === undefined ? {} : { cursor: page.cursor })
+                };
+            },
+
+            async banned(me, slug)
+            {
+                const found = await mustSee(me, slug);
+                const rows = await group.banned(me, found.id);
+
+                if (rows === null)
+                {
+                    return null;
+                }
+
+                const viewer = await social.person(me);
+                const people = new Map((await social.peopleOf(rows.map((row) => row.user_id))).map((row) => [row.id, row]));
+
+                return {
+                    people: rows.flatMap((row) =>
+                    {
+                        const person = people.get(row.user_id);
+                        return person === undefined || viewer === null ? [] : [{ person: seenBy(viewer, person, 'none'), at: row.created_at.toISOString() }];
+                    })
+                };
             }
         },
 

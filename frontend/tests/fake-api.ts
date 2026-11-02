@@ -4,6 +4,7 @@ import { threadSize } from '../../backend/src/domains/chat/pages.ts';
 import { WATCH_TAIL } from '../../backend/src/domains/match/turns.ts';
 import { codeFrom } from '../../backend/src/domains/invite/policy.ts';
 import { NOTICE_OF } from '../../backend/src/domains/notify/notices.ts';
+import { SWITCH_DEFAULTS, type GroupRight, type GroupRole, type GroupSwitches } from '../../backend/src/domains/group/roles.ts';
 import { PEOPLE_FOUND_MAX, SEARCH_FROM, searchNeedle } from '../../backend/src/domains/social/names.ts';
 import { handleFromAddress } from '../../backend/src/domains/identity/handle.ts';
 import { createParties, type Parties, type PartyWhy } from '../../backend/src/domains/party/parties.ts';
@@ -95,8 +96,14 @@ interface GroupWire
     hue: number;
     privacy: 'private' | 'public';
     game?: string;
+    photo?: string;
+    switches: GroupSwitches;
+    approval: boolean;
     owner: string;
-    role?: 'owner' | 'member';
+    role?: GroupRole;
+    rights?: GroupRight[];
+    muted?: { until?: string };
+    faces: string[];
     members: string[];
     memberCount: number;
     conversationId?: string;
@@ -1391,7 +1398,10 @@ export const server =
             hue: group.hue,
             privacy: group.privacy,
             ...(group.game === null ? {} : { game: group.game }),
+            switches: { ...SWITCH_DEFAULTS },
+            approval: false,
             owner: group.owner,
+            faces: [group.owner, ...group.members.filter((handle) => handle !== group.owner)].slice(0, 6),
             members: [...group.members],
             memberCount: group.members.length,
             ...(group.members.includes('alex') ? { role: group.owner === 'alex' ? 'owner' as const : 'member' as const } : {}),
@@ -3675,7 +3685,10 @@ export const client =
                 privacy: input.privacy,
                 hue: input.hue,
                 ...(input.game === '' ? {} : { game: input.game }),
+                switches: { ...SWITCH_DEFAULTS },
+                approval: false,
                 owner: server.me,
+                faces: [server.me],
                 members: [server.me],
                 memberCount: 1,
                 role: 'owner',

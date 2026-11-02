@@ -69,8 +69,11 @@ import type {
     Device,
     RecoveryState,
     Challenge as DeviceChallenge,
+    GroupLog,
+    GroupMembers,
     GroupPrivacy,
     GroupSummary,
+    GroupSwitchesWire,
     MessagePage,
     NotificationPage,
     ServerInfo,
@@ -244,8 +247,39 @@ export interface GroupPort
     /** One group, as this viewer may see it. Null when there is no such slug. */
     view(me: string, slug: string): Promise<GroupSummary | null>;
 
-    create(me: string, input: { name: string; blurb: string; crest: string; hue: number; game: string; privacy: GroupPrivacy }): Promise<GroupSummary>;
-    edit(me: string, slug: string, input: { name: string; blurb: string; crest: string; game: string; privacy: GroupPrivacy }): Promise<GroupSummary>;
+    create(me: string, input: {
+        name: string;
+        blurb: string;
+        crest: string;
+        hue: number;
+        game: string;
+        privacy: GroupPrivacy;
+        photo?: string;
+        members?: string[];
+        switches?: GroupSwitchesWire;
+        approval?: boolean;
+    }): Promise<GroupSummary>;
+    edit(me: string, slug: string, input: { name: string; blurb: string; crest: string; game: string; privacy: GroupPrivacy; photo?: string }): Promise<GroupSummary>;
+
+    /** What the members may do, and whether joining is a request. The owner's alone. */
+    permissions(me: string, slug: string, input: { switches: GroupSwitchesWire; approval: boolean }): Promise<GroupSummary>;
+
+    /** A role below the owner's, and an admin's rights. */
+    role(me: string, slug: string, input: { id: string; role: 'admin' | 'moderator' | 'member'; rights?: string[] }): Promise<GroupSummary>;
+
+    ban(me: string, slug: string, handle: string): Promise<GroupSummary>;
+    unban(me: string, slug: string, handle: string): Promise<GroupSummary>;
+    mute(me: string, slug: string, input: { id: string; hours?: number }): Promise<GroupSummary>;
+    unmute(me: string, slug: string, handle: string): Promise<GroupSummary>;
+
+    /** The members a page at a time, the staff first, narrowed by a name or a handle. */
+    members(me: string, slug: string, asked: string | undefined, cursor: string | undefined): Promise<GroupMembers>;
+
+    /** The group's log, for its staff; null for anybody else, answered as a page that is not there. */
+    log(me: string, slug: string, cursor: string | undefined): Promise<GroupLog | null>;
+
+    /** Who is kept out, for whoever may lift a ban; null for anybody else. */
+    banned(me: string, slug: string): Promise<{ people: { person: PersonSummary; at: string }[] } | null>;
 
     join(me: string, slug: string): Promise<GroupSummary>;
 

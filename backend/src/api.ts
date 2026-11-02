@@ -153,10 +153,17 @@ import {
     deviceRef,
     enrolInput,
     gameList,
+    groupBanned,
     groupCreateInput,
     groupEditInput,
     groupList,
+    groupLog,
+    groupMembers,
+    groupMembersQuery,
+    groupMuteInput,
+    groupRoleInput,
     groupSummary,
+    groupSwitchesInput,
     account,
     avatarInput,
     avatarResult,
@@ -1037,7 +1044,49 @@ export function buildApi(ports: Ports)
                 (context) => ports.group.remove(context.principal.userId, context.params.slug, context.input.id)),
 
             transfer: routes.post('/:slug/owner', { input: personRef, output: groupSummary },
-                (context) => ports.group.transfer(context.principal.userId, context.params.slug, context.input.id))
+                (context) => ports.group.transfer(context.principal.userId, context.params.slug, context.input.id)),
+
+            permissions: routes.post('/:slug/permissions', { input: groupSwitchesInput, output: groupSummary },
+                (context) => ports.group.permissions(context.principal.userId, context.params.slug, context.input)),
+
+            role: routes.post('/:slug/role', { input: groupRoleInput, output: groupSummary },
+                (context) => ports.group.role(context.principal.userId, context.params.slug, context.input)),
+
+            ban: routes.post('/:slug/ban', { input: personRef, output: groupSummary },
+                (context) => ports.group.ban(context.principal.userId, context.params.slug, context.input.id)),
+
+            unban: routes.post('/:slug/unban', { input: personRef, output: groupSummary },
+                (context) => ports.group.unban(context.principal.userId, context.params.slug, context.input.id)),
+
+            mute: routes.post('/:slug/mute', { input: groupMuteInput, output: groupSummary },
+                (context) => ports.group.mute(context.principal.userId, context.params.slug, context.input)),
+
+            unmute: routes.post('/:slug/unmute', { input: personRef, output: groupSummary },
+                (context) => ports.group.unmute(context.principal.userId, context.params.slug, context.input.id)),
+
+            members: routes.get('/:slug/members', { output: groupMembers, query: groupMembersQuery },
+                (context) => ports.group.members(context.principal.userId, context.params.slug, context.query.q, context.query.cursor)),
+
+            /** The group's log, and a page that is not there to anybody it is not for. */
+            log: routes.get('/:slug/log', { output: groupLog, query: cursorQuery }, async (context) =>
+            {
+                const log = await ports.group.log(context.principal.userId, context.params.slug, context.query.cursor);
+                if (log === null)
+                {
+                    throw new NotFoundError('No group there.');
+                }
+                return log;
+            }),
+
+            banned: routes.get('/:slug/banned', { output: groupBanned }, async (context) =>
+            {
+                const kept = await ports.group.banned(context.principal.userId, context.params.slug);
+                if (kept === null)
+                {
+                    throw new NotFoundError('No group there.');
+                }
+                return kept;
+            })
         })),
 
         /**

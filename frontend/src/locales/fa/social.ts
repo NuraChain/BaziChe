@@ -286,6 +286,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.line.group.owner': 'حالا {who} مدیر گروهه',
     'chat.line.group.closed': '{who} این گروه رو خصوصی کرد',
     'chat.line.group.opened': '{who} این گروه رو عمومی کرد',
+    'chat.line.group.photo': '{who} عکس گروه رو عوض کرد',
     'chat.line.expiry.on': 'پیام‌های جدید این‌جا از این به بعد بعد از {name} پاک می‌شن',
     'chat.line.expiry.off': 'پیام‌های جدید این‌جا می‌مونن تا یکی پاکشون کنه',
     'chat.line.donation': '{who} واسه {to} {amount} NURA فرستاد',

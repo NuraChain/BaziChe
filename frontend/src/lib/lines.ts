@@ -25,7 +25,7 @@ export const LINE_KEYS = [
     'chat.line.result.void',
     'chat.line.result.draw',
 
-    // The group domain writes all six, and `groups.db.spec.ts` walks the producers.
+    // The group half of `services.ts` writes each of these.
     'chat.line.group.created',
     'chat.line.group.joined',
     'chat.line.group.left',
@@ -34,6 +34,7 @@ export const LINE_KEYS = [
     'chat.line.group.owner',
     'chat.line.group.closed',
     'chat.line.group.opened',
+    'chat.line.group.photo',
 
     // Written by `setExpiry` in the chat half of `services.ts`. A rule about how long words last is
     // not something to change behind somebody's back.

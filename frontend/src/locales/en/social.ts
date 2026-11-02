@@ -283,6 +283,7 @@ export const social = {
     'chat.line.group.owner': '{who} runs the group now',
     'chat.line.group.closed': '{who} made this group private',
     'chat.line.group.opened': '{who} made this group public',
+    'chat.line.group.photo': '{who} changed the group photo',
     'chat.line.expiry.on': 'New messages here now disappear after {name}',
     'chat.line.expiry.off': 'New messages here stay until somebody deletes them',
     'chat.line.donation': '{who} sent {to} {amount} NURA',

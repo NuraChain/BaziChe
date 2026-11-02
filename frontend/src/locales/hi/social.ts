@@ -286,6 +286,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.line.group.owner': 'अब {who} ग्रुप चलाते हैं',
     'chat.line.group.closed': '{who} ने यह ग्रुप प्राइवेट किया',
     'chat.line.group.opened': '{who} ने यह ग्रुप पब्लिक किया',
+    'chat.line.group.photo': '{who} ने ग्रुप की फ़ोटो बदली',
     'chat.line.expiry.on': 'अब यहाँ नए मैसेज {name} बाद गायब हो जाते हैं',
     'chat.line.expiry.off': 'अब यहाँ नए मैसेज तब तक रहते हैं जब तक कोई उन्हें डिलीट न करे',
     'chat.line.donation': '{who} ने {to} को {amount} NURA भेजे',

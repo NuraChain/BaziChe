@@ -25,6 +25,8 @@ import { User } from '../../entities/user.entity.ts';
 import { VoiceNote } from '../../entities/voice-note.entity.ts';
 import { VoicePlay } from '../../entities/voice-play.entity.ts';
 import type { SocialService } from '../social/service.ts';
+import { GROUP_REFUSALS } from '../group/refusals.ts';
+import { SWITCH_COLUMNS, SWITCHES, mayIn, type GroupRight, type GroupRole } from '../group/roles.ts';
 
 export interface ConversationRow
 {
@@ -317,6 +319,54 @@ export function createChatService(db: DataSource, social: SocialService, frankin
         return rowsOf<{ user_id: string }>(rows).map((row) => row.user_id);
     };
 
+    /**
+     * What a group lets this member put into its conversation: the one place the chat asks the
+     * group. A line needs the group's `send`, a voice message its `media` too, and an edit is a line;
+     * a reaction is let through, muted or not. Nothing to ask in a conversation that is no group's.
+     */
+    const mustSayInGroup = async (me: string, conversationId: string, kind: 'text' | 'voice' | 'reaction' | 'edit') =>
+    {
+        if (kind === 'reaction')
+        {
+            return;
+        }
+
+        const row = firstRow<Record<string, boolean> & { role: GroupRole | null; rights: GroupRight[] | null; muted: boolean; until: Date | null }>(await db.query(
+            `select ${ SWITCHES.map((key) => `g.${ SWITCH_COLUMNS[key] }`).join(', ') }, gm.role, gm.rights,
+                    exists (select 1 from group_mutes m where m.group_id = g.id and m.user_id = $2 and (m.until is null or m.until > now())) as muted,
+                    (select m.until from group_mutes m where m.group_id = g.id and m.user_id = $2 and (m.until is null or m.until > now())) as until
+               from conversations c
+               join groups g on g.id = c.group_id
+               left join group_members gm on gm.group_id = g.id and gm.user_id = $2
+              where c.id = $1 and c.kind = 'group'`,
+            [conversationId, me]
+        ));
+
+        if (row === null)
+        {
+            return;
+        }
+
+        const switches = Object.fromEntries(SWITCHES.map((key) => [key, row[SWITCH_COLUMNS[key]] === true])) as Record<typeof SWITCHES[number], boolean>;
+        const standing = { role: row.role, rights: row.rights, muted: row.muted };
+
+        if (row.muted)
+        {
+            throw new HttpError(GROUP_REFUSALS['group-muted'], 'You are muted in this group.', {
+                code: 'group-muted',
+                details: row.until === null ? {} : { until: row.until.toISOString() }
+            });
+        }
+        if (!mayIn(standing, switches, 'send'))
+        {
+            throw new HttpError(GROUP_REFUSALS['group-quiet'], 'Only the group\'s admins can write here.', { code: 'group-quiet' });
+        }
+        if (kind === 'voice' && !mayIn(standing, switches, 'media'))
+        {
+            throw new HttpError(GROUP_REFUSALS['group-no-media'], 'Only the group\'s admins can send that here.', { code: 'group-no-media' });
+        }
+    };
+
     const hears = (me: string, id: string) => UUID.test(id) && db.getRepository(VoiceNote)
         .createQueryBuilder('v')
         .where('v.id = :id', { id })
@@ -597,6 +647,8 @@ export function createChatService(db: DataSource, social: SocialService, frankin
             {
                 throw new ForbiddenError('Chat is off at this table.');
             }
+
+            await mustSayInGroup(me, conversationId, input.kind);
 
             // The device has to be THIS ACCOUNT's and unrevoked. It used to have to be
             // the one bound to this session, which sounds stricter and was in practice a lockout:

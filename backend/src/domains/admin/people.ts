@@ -408,6 +408,7 @@ export function createPeopleService(db: DataSource, owners: () => readonly strin
                             .delete()
                             .where('hash = :hash', { hash })
                             .andWhere('not exists (select 1 from users u where u.avatar = :link)', { link: user.avatar })
+                            .andWhere('not exists (select 1 from groups g where g.photo = :link)', { link: user.avatar })
                             .execute();
                     }
 

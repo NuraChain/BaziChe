@@ -14,7 +14,7 @@ import { REASONS } from './domains/match/chess/state.ts';
 import { CLOCKS } from './domains/table/clocks.ts';
 import { PARTNERS } from './domains/table/teams.ts';
 import { VOICE_SCOPES } from './domains/table/voices.ts';
-import { GROUP_ROLES } from './domains/group/roles.ts';
+import { GROUP_EVENTS, GROUP_RIGHTS, GROUP_ROLES } from './domains/group/roles.ts';
 import { ALERT_KINDS, ALERT_LEVELS, FAMILIES, QUEUES, WORKERS } from './ops/measures.ts';
 
 const NUL = String.fromCharCode(0);
@@ -2017,6 +2017,25 @@ export const groupPrivacy = enumOf(['private', 'public']);
 
 export type GroupPrivacy = Infer<typeof groupPrivacy>;
 
+export const groupRight = enumOf(GROUP_RIGHTS);
+
+/** What the members of a group may do, as its owner set it. */
+export const groupSwitches = object({
+    send: boolean(),
+    media: boolean(),
+    add: boolean(),
+    pin: boolean(),
+    info: boolean(),
+    call: boolean(),
+    joinCall: boolean(),
+    speak: boolean()
+});
+
+export type GroupSwitchesWire = Infer<typeof groupSwitches>;
+
+/** A mute in force, with its end when it ends by itself. */
+export const groupMuted = object({ until: string().optional() });
+
 /**
  * A group, as everything that renders one needs it.
  *
@@ -2037,11 +2056,28 @@ export const groupSummary = object({
     game: string().optional(),
     privacy: groupPrivacy,
 
+    /** The address of its picture; absent where the crest stands in. */
+    photo: string().optional(),
+
+    switches: groupSwitches,
+
+    /** Whether joining it is a request somebody answers. */
+    approval: boolean(),
+
     /** The owner's handle. */
     owner: string(),
 
     /** Absent when this viewer is only looking. */
     role: groupRole.optional(),
+
+    /** The rights this viewer holds, as an admin. */
+    rights: array(groupRight).optional(),
+
+    /** A mute in force on this viewer. */
+    muted: groupMuted.optional(),
+
+    /** Up to six members, the staff first: who the card and the head draw. */
+    faces: array(string()),
 
     members: array(string()),
     memberCount: number(),
@@ -2064,7 +2100,16 @@ export const groupCreateInput = object({
     privacy: groupPrivacy,
 
     /** Empty means the group is about the people rather than about one game. */
-    game: string({ max: 24 })
+    game: string({ max: 24 }),
+
+    /** A picture uploaded here, by its address. */
+    photo: string({ max: 300 }).optional(),
+
+    /** The first members, by handle, besides whoever makes it. */
+    members: array(string({ max: 32 }), { max: 50 }).optional(),
+
+    switches: groupSwitches.optional(),
+    approval: boolean().optional()
 });
 
 /**
@@ -2086,8 +2131,62 @@ export const groupEditInput = object({
      * has no edit route at all. The alternative is worse than the feature: a group that wants to
      * close its doors would have to be deleted and remade, taking its thread and its history with it.
      */
-    privacy: groupPrivacy
+    privacy: groupPrivacy,
+
+    /** A picture uploaded here, by its address; empty takes it away, absent leaves it. */
+    photo: string({ max: 300 }).optional()
 });
+
+/** What the members may do, and whether joining is a request: the owner's to set. */
+export const groupSwitchesInput = object({ switches: groupSwitches, approval: boolean() });
+
+/** A member given a role below the owner's, with an admin's rights. */
+export const groupRoleInput = object({
+    id: string({ min: 1, max: 32 }),
+    role: enumOf(['admin', 'moderator', 'member']),
+    rights: array(groupRight, { max: GROUP_RIGHTS.length }).optional()
+});
+
+/** A member muted for some hours, or until somebody lifts it. */
+export const groupMuteInput = object({
+    id: string({ min: 1, max: 32 }),
+    hours: number({ int: true }).optional()
+});
+
+export const groupMember = object({
+    person: personSummary,
+    role: groupRole,
+    rights: array(groupRight).optional(),
+    joinedAt: string(),
+
+    /** To the staff alone: a mute in force. */
+    muted: groupMuted.optional()
+});
+
+export const groupMembersQuery = object({
+    q: string({ max: 64 }).optional(),
+    cursor: string({ max: 80 }).optional()
+});
+
+export const groupMembers = object({ members: array(groupMember), cursor: string().optional(), count: number() });
+
+export type GroupMembers = Infer<typeof groupMembers>;
+
+export const groupLogRow = object({
+    id: string(),
+    at: string(),
+    kind: enumOf(GROUP_EVENTS),
+    actor: string().optional(),
+    actorRole: groupRole.optional(),
+    person: string().optional(),
+    details: record(string())
+});
+
+export const groupLog = object({ rows: array(groupLogRow), cursor: string().optional() });
+
+export type GroupLog = Infer<typeof groupLog>;
+
+export const groupBanned = object({ people: array(object({ person: personSummary, at: string() })) });
 
 /* ------------------------------------------------------------------------ tables */
 

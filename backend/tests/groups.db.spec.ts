@@ -45,7 +45,7 @@ async function makeUser(): Promise<string>
 }
 
 const make = async (owner: string, name: string, privacy: 'private' | 'public' = 'public') =>
-    groups.create(owner, { name, blurb: '', crest: 'crest-crown', hue: 40, game: null, privacy });
+    (await groups.create(owner, { name, blurb: '', crest: 'crest-crown', hue: 40, game: null, privacy })).row;
 
 describe.skipIf(!active)('groups, against a real database', () =>
 {
@@ -131,7 +131,7 @@ describe.skipIf(!active)('groups, against a real database', () =>
             )).rejects.toThrow(/group_members_single_owner/);
         });
 
-        it('transfers by demoting first, inside one transaction', async () =>
+        it('transfers by demoting first, inside one transaction, and the owner stays on as an admin', async () =>
         {
             const owner = await makeUser();
             const heir = await makeUser();
@@ -142,7 +142,7 @@ describe.skipIf(!active)('groups, against a real database', () =>
             await groups.transfer(owner, id, heir);
 
             expect(await groups.roleOf(heir, id)).toBe('owner');
-            expect(await groups.roleOf(owner, id)).toBe('member');
+            expect(await groups.roleOf(owner, id)).toBe('admin');
         });
 
         it('will not let a member transfer what they do not own', async () =>

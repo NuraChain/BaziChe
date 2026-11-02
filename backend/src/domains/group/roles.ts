@@ -36,6 +36,79 @@ export const SWITCH_COLUMNS: Readonly<Record<GroupSwitch, string>> = {
     speak: 'members_speak'
 };
 
+/**
+ * Everything somebody might do in a group, each answered by `mayIn` from their role, their rights,
+ * a mute and the switches. The server asks it before every act and the page asks it before drawing
+ * the control, so the two cannot disagree about who may.
+ */
+export const GROUP_ACTS = [
+    'info', 'add', 'links', 'approve', 'remove', 'ban', 'delete', 'pin', 'mute', 'moderators', 'admins',
+    'permissions', 'transfer', 'send', 'media', 'call', 'joinCall', 'speak', 'calls', 'log', 'reports'
+] as const;
+
+export type GroupAct = (typeof GROUP_ACTS)[number];
+
+export interface GroupStanding
+{
+    /** Null for somebody who is not in the group, who may do nothing in it. */
+    role: GroupRole | null;
+    rights?: readonly GroupRight[] | null;
+
+    /** A mute in force: they read and react, and send nothing. */
+    muted?: boolean;
+}
+
+export function mayIn(standing: GroupStanding, switches: GroupSwitches, act: GroupAct)
+{
+    const { role } = standing;
+
+    if (role === null)
+    {
+        return false;
+    }
+
+    const quiet = standing.muted === true;
+
+    if (role === 'owner')
+    {
+        return true;
+    }
+
+    const staff = role !== 'member';
+    const holds = (right: GroupRight) => role === 'admin' && (standing.rights ?? []).includes(right);
+
+    switch (act)
+    {
+        case 'info': return holds('info') || switches.info;
+        case 'add': return holds('invite') || switches.add;
+        case 'links': return holds('invite');
+        case 'approve': return holds('approve');
+        case 'remove': return holds('remove');
+        case 'ban': return holds('ban');
+        case 'delete': return holds('delete') || role === 'moderator';
+        case 'pin': return holds('pin') || switches.pin;
+        case 'mute': return holds('members') || role === 'moderator';
+        case 'moderators': return holds('members');
+        case 'admins': return false;
+        case 'permissions': return false;
+        case 'transfer': return false;
+        case 'send': return !quiet && (staff || switches.send);
+        case 'media': return !quiet && (staff || switches.media);
+        case 'call': return holds('calls') || switches.call;
+        case 'joinCall': return staff || switches.joinCall;
+        case 'speak': return !quiet && (staff || switches.speak);
+        case 'calls': return holds('calls');
+        case 'log': return staff;
+        case 'reports': return holds('delete') || role === 'moderator';
+    }
+}
+
+/** An act on somebody: allowed in the group, and only on somebody ranked lower. */
+export function mayOn(standing: GroupStanding, switches: GroupSwitches, act: GroupAct, other: GroupRole | null)
+{
+    return mayIn(standing, switches, act) && outranks(standing.role, other);
+}
+
 export const GROUP_EVENTS = [
     'created', 'joined', 'left', 'removed', 'banned', 'unbanned', 'muted', 'unmuted', 'role', 'rights', 'permissions',
     'info', 'owner', 'invite', 'request', 'deleted', 'pinned', 'unpinned', 'call'

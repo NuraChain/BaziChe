@@ -273,6 +273,56 @@ describe('Tabs', () =>
         expect(tabs[1].querySelector('span[aria-hidden]')!.className).toContain('bg-accent');
         expect(tabs[0].querySelector('span[aria-hidden]')!.className).not.toContain('bg-accent');
     });
+
+    it('brings the chosen tab into view as the tabs are drawn and when another is chosen, sideways only', async () =>
+    {
+        const box = (left: number, width: number) => ({ x: left, y: 0, left, top: 0, right: left + width, bottom: 44, width, height: 44, toJSON: () => ({}) }) as DOMRect;
+        const measured = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element)
+        {
+            return this.getAttribute('role') === 'tablist' ? box(0, 320) : box(Number((this.getAttribute('data-tab') ?? 't0').slice(1)) * 110, 100);
+        });
+        const page = Element.prototype.scrollIntoView;
+        const moved = vi.fn();
+        Element.prototype.scrollIntoView = moved;
+
+        try
+        {
+            const [current, setCurrent] = createSignal('t5');
+            const items = Array.from({ length: 6 }, (_, at) => ({ id: `t${ at }`, label: `Tab ${ at }` }));
+            const moves: number[] = [];
+            const { container } = renderTest(() => Tabs({
+                items,
+                get value()
+                {
+                    return current();
+                },
+                label: 'A group',
+                onChange: setCurrent
+            }) as Rendered);
+            const list = container.querySelector<HTMLElement>('[role="tablist"]')!;
+
+            Object.defineProperty(list, 'scrollTo', { value: (options: ScrollToOptions) => moves.push(options.left ?? 0) });
+            await settle();
+
+            expect(moves, 'the sixth, 550 to 650 in a strip 320 wide, shown as the tabs are drawn').toEqual([330]);
+
+            setCurrent('t3');
+            await settle();
+
+            expect(moves, 'another chosen is brought into view').toEqual([330, 110]);
+
+            setCurrent('t1');
+            await settle();
+
+            expect(moves, 'a tab already in view is left where it is').toEqual([330, 110]);
+            expect(moved, 'the page itself is never moved').not.toHaveBeenCalled();
+        }
+        finally
+        {
+            Element.prototype.scrollIntoView = page;
+            measured.mockRestore();
+        }
+    });
 });
 
 describe('OverlayHost', () =>

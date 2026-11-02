@@ -1,4 +1,8 @@
+import { untrack } from 'azerothjs';
+
 import { dragScroll } from '../../lib/drag-scroll.ts';
+import { revealIn } from '../../lib/reveal.ts';
+import { useDevice } from '../../stores/device.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import TabCount from './tab-count.component.azeroth';
 
@@ -18,6 +22,7 @@ export default component Tabs(props: {
 })
 {
     const locale = useLocale();
+    const device = useDevice();
 
     let list: HTMLElement | null = null;
 
@@ -29,13 +34,19 @@ export default component Tabs(props: {
      * scrollbar, no fade and no hint, so a page opened on its fifth tab showed a strip whose
      * selected item was somewhere to the right. Nothing overflows the PAGE, so the matrix passes.
      *
-     * `nearest` rather than `center`, so a tab already in view is left where it is: scrolling a
-     * strip that did not need scrolling is its own small confusion.
+     * A tab already in view is left where it is: scrolling a strip that did not need scrolling is its
+     * own small confusion. Sideways only, because `scrollIntoView` moves the page as well. And once the
+     * tabs are drawn as well as when another is chosen: the choice is known before the tabs are, so a
+     * page opened on a later tab revealed nothing (a group's Permissions, the sixth, at 390).
      */
-    const reveal = (id: string) =>
+    const reveal = (id: string, behavior: ScrollBehavior) =>
     {
-        list?.querySelector<HTMLElement>(`[data-tab='${ id }']`)
-            ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        const tab = list?.querySelector<HTMLElement>(`[data-tab='${ id }']`) ?? null;
+
+        if (list !== null && tab !== null)
+        {
+            revealIn(list, tab, 0, behavior);
+        }
     };
 
     effect
@@ -44,12 +55,16 @@ export default component Tabs(props: {
 
         if (selected !== '')
         {
-            reveal(selected);
+            untrack(() => reveal(selected, device.reducedMotion() ? 'auto' : 'smooth'));
         }
     }
 
     mount
     {
+        if (props.value !== '')
+        {
+            reveal(props.value, 'instant');
+        }
         return list === null ? undefined : dragScroll(list);
     }
 
@@ -59,7 +74,7 @@ export default component Tabs(props: {
         const next = props.items[(index + step + props.items.length) % props.items.length];
         props.onChange(next.id);
         list?.querySelector<HTMLElement>(`[data-tab='${ next.id }']`)?.focus();
-        reveal(next.id);
+        reveal(next.id, device.reducedMotion() ? 'auto' : 'smooth');
     };
 
     <div

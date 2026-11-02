@@ -2,6 +2,7 @@ import { type Child } from 'azerothjs';
 
 import Icon from '../../icons/icon.component.azeroth';
 import { dragScroll } from '../../lib/drag-scroll.ts';
+import { revealIn } from '../../lib/reveal.ts';
 import { stepAlong } from '../../lib/snap.ts';
 import { useDevice } from '../../stores/device.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -49,19 +50,9 @@ export default component Rail(props: { children?: Child; label?: string; bleed?:
     {
         const chosen = scroller?.querySelector<HTMLElement>(CHOSEN) ?? null;
 
-        if (scroller === null || chosen === null)
+        if (scroller !== null && chosen !== null)
         {
-            return;
-        }
-
-        const room = scroller.getBoundingClientRect();
-        const item = chosen.getBoundingClientRect();
-        const short = room.left + FADE - item.left;
-        const by = short > 0 ? -short : Math.max(0, item.right - (room.right - FADE));
-
-        if (by !== 0)
-        {
-            scroller.scrollTo({ left: scroller.scrollLeft + by, behavior });
+            revealIn(scroller, chosen, FADE, behavior);
         }
     };
 

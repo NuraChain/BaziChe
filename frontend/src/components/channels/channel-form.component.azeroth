@@ -1,0 +1,171 @@
+import { useNavigate } from 'azerothjs';
+
+import type { ChannelSummary } from '../../api.ts';
+import { CHANNEL_BIO_MOST, CHANNEL_NAME_LEAST, CHANNEL_NAME_MOST } from '../../../../backend/src/domains/channel/rules.ts';
+import { whyFailed } from '../../lib/failure.ts';
+import { shrinkPicture } from '../../lib/picture.ts';
+import { useAccount } from '../../stores/account.store.ts';
+import { useChannels } from '../../stores/channels.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import Segmented from '../ui/segmented.component.azeroth';
+import SheetHeader from '../ui/sheet-header.component.azeroth';
+import TextArea from '../ui/text-area.component.azeroth';
+import ChannelFace from './channel-face.component.azeroth';
+
+/**
+ * A channel's face, made or changed: its photo (shrunk as a profile picture is, then uploaded the
+ * same way), its name, its bio and who may find it. Made, the reader is taken to it.
+ */
+export default component ChannelForm(props: OverlayProps & { channel?: ChannelSummary })
+{
+    const locale = useLocale();
+    const channels = useChannels();
+    const account = useAccount();
+    const toasts = useToasts();
+    const { navigate } = useNavigate();
+
+    state name = props.channel?.name ?? '';
+    state bio = props.channel?.bio ?? '';
+    state privacy = (props.channel?.privacy ?? 'public') as 'public' | 'private';
+
+    /** The address the photo is kept at, '' for none; a photo picked and not yet uploaded is `picked`. */
+    state photo = props.channel?.photo ?? '';
+    state picked = '';
+    state preview = props.channel?.photo ?? '';
+    state refused = '';
+    state busy = false;
+
+    let picker: HTMLInputElement | null = null;
+
+    derived editing = props.channel !== undefined;
+
+    derived named = name.trim().length >= CHANNEL_NAME_LEAST && name.trim().length <= CHANNEL_NAME_MOST;
+
+    const choose = async (file: File | undefined) =>
+    {
+        if (file === undefined)
+        {
+            return;
+        }
+
+        refused = '';
+
+        try
+        {
+            const shrunk = await shrinkPicture(file);
+
+            picked = shrunk.data;
+            preview = shrunk.preview;
+        }
+        catch
+        {
+            refused = locale.t('profile.pictureFailed');
+        }
+    };
+
+    const clear = () =>
+    {
+        photo = '';
+        picked = '';
+        preview = '';
+    };
+
+    const save = async () =>
+    {
+        if (busy || !named)
+        {
+            return;
+        }
+
+        busy = true;
+
+        try
+        {
+            const kept = picked === '' ? photo : await account.uploadAvatar(picked);
+            const draft = { name: name.trim(), bio: bio.trim(), photo: kept, privacy };
+            const saved = props.channel === undefined ? await channels.create(draft) : await channels.edit(props.channel.slug, draft);
+
+            props.close(saved);
+
+            if (props.channel === undefined)
+            {
+                navigate(`/app/channels/${ encodeURIComponent(saved.slug) }`);
+            }
+        }
+        catch (error)
+        {
+            toasts.show({ kind: 'warning', text: locale.t(whyFailed(error)) });
+        }
+        finally
+        {
+            busy = false;
+        }
+    };
+
+    <form
+        class="flex flex-col gap-4 p-5"
+        data-channel-form
+        onSubmit={ (event) =>
+        {
+            event.preventDefault();
+            void save();
+        } }
+    >
+        <SheetHeader title={ locale.t(editing ? 'channels.edit' : 'channels.new') } lead={ editing ? undefined : locale.t('channels.newLead') } onClose={ () => props.close() } />
+
+        <div class="flex items-center gap-4">
+            <ChannelFace name={ name === '' ? '?' : name } photo={ preview === '' ? undefined : preview } seed={ props.channel?.slug ?? name } size="lg" />
+            <div class="flex flex-wrap gap-2">
+                <Button variant="secondary" size="sm" leading="image" onClick={ () => picker?.click() }>{ locale.t('channels.photo') }</Button>
+                <Show when={ preview !== '' }>
+                    { () => <Button variant="ghost" size="sm" onClick={ clear }>{ locale.t('channels.photoRemove') }</Button> }
+                </Show>
+                <input
+                    ref={ (element) => picker = element }
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    class="hidden"
+                    tabindex="-1"
+                    aria-hidden="true"
+                    onChange={ (event) =>
+                    {
+                        const input = event.currentTarget as HTMLInputElement;
+
+                        void choose(input.files?.[0]);
+                        input.value = '';
+                    } }
+                />
+            </div>
+        </div>
+
+        <Show when={ refused !== '' }>
+            { () => <p class="text-ui-sm text-danger" role="alert">{ refused }</p> }
+        </Show>
+
+        <Field id="channel-name" label={ locale.t('channels.name') }>
+            <Input id="channel-name" value={ name } onInput={ (value) => name = value } maxlength={ CHANNEL_NAME_MOST } placeholder={ locale.t('channels.namePlaceholder') } />
+        </Field>
+
+        <Field id="channel-bio" label={ locale.t('channels.bio') } optional>
+            <TextArea id="channel-bio" value={ bio } onInput={ (value) => bio = value } maxlength={ CHANNEL_BIO_MOST } placeholder={ locale.t('channels.bioPlaceholder') } label={ locale.t('channels.bio') } />
+        </Field>
+
+        <Segmented
+            value={ privacy }
+            label={ locale.t('channels.privacy') }
+            items={ [
+                { id: 'public', label: locale.t('channels.public') },
+                { id: 'private', label: locale.t('channels.private') }
+            ] }
+            onChange={ (value) => privacy = value as 'public' | 'private' }
+        />
+        <p class="-mt-2 text-ui-xs text-muted">{ locale.t(privacy === 'public' ? 'channels.publicLead' : 'channels.privateLead') }</p>
+
+        <Button variant="primary" block submit disabled={ !named || busy } loading={ busy }>{ locale.t(editing ? 'channels.save' : 'channels.create') }</Button>
+    </form>
+}

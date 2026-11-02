@@ -1,0 +1,35 @@
+/** A hue from a name, so a channel without a photo keeps one colour wherever it is drawn. */
+const hueOf = (seed: string) =>
+{
+    let hash = 0;
+
+    for (const char of seed)
+    {
+        hash = (hash * 31 + char.codePointAt(0)!) % 360;
+    }
+    return hash;
+};
+
+const initialsOf = (name: string) =>
+    name.trim().split(/\s+/).slice(0, 2).map((word) => [...word][0] ?? '').join('').toLocaleUpperCase();
+
+/** A channel's face: its photo, or the first letters of its name on a colour of its own. */
+export default component ChannelFace(props: { name: string; photo?: string; seed: string; size?: 'sm' | 'md' | 'lg' })
+{
+    derived box = props.size === 'lg' ? 'h-20 w-20 text-ui-2xl' : (props.size === 'sm' ? 'h-9 w-9 text-ui-xs' : 'h-11 w-11 text-ui-sm');
+
+    <Show
+        when={ props.photo !== undefined }
+        fallback={
+            <span
+                class={ () => `flex shrink-0 items-center justify-center rounded-full font-semibold text-white ${ box }` }
+                style={ `background: hsl(${ hueOf(props.seed) } 55% 42%)` }
+                aria-hidden="true"
+            >
+                { initialsOf(props.name) }
+            </span>
+        }
+    >
+        { () => <img src={ props.photo ?? '' } alt="" class={ () => `shrink-0 rounded-full object-cover ${ box }` } aria-hidden="true" /> }
+    </Show>
+}

@@ -143,7 +143,7 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.notifications.invites': '牌桌邀请',
     'settings.notifications.requests': '好友请求',
     'settings.notifications.messages': '消息',
-    'settings.notifications.groups': '被加入群组',
+    'settings.notifications.groups': '被加入群组或频道',
     'settings.notifications.turns': '游戏：轮到你，以及对局开始',
     'settings.notifications.gifts': '别人送你的礼物和 NURA',
     'settings.notifications.inviting': '你邀请的好友',

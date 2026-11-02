@@ -1,3 +1,4 @@
+import { FILE_CAPTION_MOST, sentFileOf, type SentFile } from '../../../backend/src/domains/chat/files.ts';
 import { VOICE_FILE_MOST, VOICE_MOST_MS, VOICE_WAVE_BARS } from '../../../backend/src/domains/chat/voice.ts';
 
 export interface TextBody
@@ -20,6 +21,20 @@ export interface ReactionBody
 export interface VoiceBody
 {
     voice: { id: string; key: string; iv: string; mime: string; ms: number; wave: string; bytes: number };
+    reply?: string;
+    fwd?: true;
+}
+
+/**
+ * A photo, a video or a file: the file it names and the key that opens it, what it is sent as, its
+ * name, type and size (what its bubble says before anything is fetched), a picture's size and a
+ * video's length, and a thumb a few hundred bytes long, all sealed with the message; and the words
+ * under it.
+ */
+export interface FileBody
+{
+    file: SentFile;
+    caption?: string;
     reply?: string;
     fwd?: true;
 }
@@ -72,6 +87,24 @@ export function encodeVoice(body: VoiceBody)
 
     return JSON.stringify({
         voice: { id, key, iv, mime, ms, wave, bytes },
+        ...(body.reply === undefined ? {} : { reply: body.reply }),
+        ...(body.fwd === true ? { fwd: true } : {})
+    });
+}
+
+export function encodeFile(body: FileBody)
+{
+    const { id, key, iv, as, mime, name, bytes, w, h, ms, thumb } = body.file;
+
+    return JSON.stringify({
+        file: {
+            id, key, iv, as, mime, name, bytes,
+            ...(w === undefined ? {} : { w }),
+            ...(h === undefined ? {} : { h }),
+            ...(ms === undefined ? {} : { ms }),
+            ...(thumb === undefined ? {} : { thumb })
+        },
+        ...(body.caption === undefined || body.caption === '' ? {} : { caption: body.caption }),
         ...(body.reply === undefined ? {} : { reply: body.reply }),
         ...(body.fwd === true ? { fwd: true } : {})
     });
@@ -157,6 +190,43 @@ export function decodeVoice(raw: string): VoiceBody | null
     };
 }
 
+/**
+ * A photo, a video or a file's document, exactly: anything else in its place opens as tampered,
+ * because a reader acts on every field of it (fetches the file it names, opens it with the key,
+ * says its size, saves it under its name).
+ */
+export function decodeFile(raw: string): FileBody | null
+{
+    const found = documentOf(raw);
+    const file = found?.file;
+
+    if (found === null || typeof file !== 'object' || file === null || Array.isArray(file))
+    {
+        return null;
+    }
+
+    const sent = sentFileOf(file);
+
+    if (sent === null)
+    {
+        return null;
+    }
+
+    if ((found.caption !== undefined && (typeof found.caption !== 'string' || found.caption === '' || found.caption.length > FILE_CAPTION_MOST))
+        || (found.reply !== undefined && typeof found.reply !== 'string')
+        || (found.fwd !== undefined && found.fwd !== true))
+    {
+        return null;
+    }
+
+    return {
+        file: sent,
+        ...(typeof found.caption === 'string' ? { caption: found.caption } : {}),
+        ...(typeof found.reply === 'string' ? { reply: found.reply } : {}),
+        ...(found.fwd === true ? { fwd: true as const } : {})
+    };
+}
+
 export function decodeReaction(raw: string, target: string): string | null
 {
     const found = documentOf(raw);
@@ -180,6 +250,13 @@ export function decodeDisclosed(raw: string): (TextBody & { edited?: true }) | n
     if (said !== null)
     {
         return said;
+    }
+
+    const sent = decodeFile(raw);
+
+    if (sent !== null)
+    {
+        return { text: sent.caption ?? sent.file.name };
     }
 
     const found = documentOf(raw);

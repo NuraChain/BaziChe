@@ -156,6 +156,16 @@ import {
     groupAnswerInput,
     groupBanned,
     groupCreateInput,
+    channelFaceInput,
+    channelList,
+    channelMembers,
+    channelPage,
+    channelPageQuery,
+    channelPost,
+    channelPostInput,
+    channelRoleInput,
+    channelSummary,
+    voteInput,
     groupEditInput,
     groupLinkFace,
     groupLinkInput,
@@ -1143,6 +1153,87 @@ export function buildApi(ports: Ports)
 
             withdraw: routes.post('/:token/withdraw', { output: groupLinkFace },
                 (context) => ports.group.withdrawByLink(context.principal.userId, context.params.token))
+        })),
+
+        /**
+         * Channels: broadcasts beside the sealed chats, readable by this server and said to be so.
+         *
+         * Names in and out are slugs and handles. A private channel this account is not in answers
+         * exactly as one that is not there; a public one may be read before it is joined.
+         */
+        channels: feature('/channels', [session], (routes) => ({
+            mine: routes.get('/', { output: channelList }, async (context) => ({
+                channels: await ports.channels.mine(context.principal.userId)
+            })),
+
+            discover: routes.get('/discover', { output: channelList }, async (context) => ({
+                channels: await ports.channels.discover(context.principal.userId, 24)
+            })),
+
+            create: routes.post('/', { input: channelFaceInput, output: channelSummary },
+                (context) => ports.channels.create(context.principal.userId, context.input)),
+
+            view: routes.get('/:slug', { output: channelSummary },
+                (context) => ports.channels.view(context.principal.userId, context.params.slug)),
+
+            edit: routes.post('/:slug', { input: channelFaceInput, output: channelSummary },
+                (context) => ports.channels.edit(context.principal.userId, context.params.slug, context.input)),
+
+            join: routes.post('/:slug/join', { output: channelSummary },
+                (context) => ports.channels.join(context.principal.userId, context.params.slug)),
+
+            /** Leaving answers 204, not the channel: the last one out takes it with them. */
+            leave: routes.post('/:slug/leave', { output: ack }, async (context) =>
+            {
+                await ports.channels.leave(context.principal.userId, context.params.slug);
+                return { ok: true };
+            }),
+
+            destroy: routes.post('/:slug/delete', { output: ack }, async (context) =>
+            {
+                await ports.channels.destroy(context.principal.userId, context.params.slug);
+                return { ok: true };
+            }),
+
+            members: routes.get('/:slug/members', { output: channelMembers }, async (context) => ({
+                members: await ports.channels.members(context.principal.userId, context.params.slug)
+            })),
+
+            invite: routes.post('/:slug/members', { input: personRef, output: channelSummary },
+                (context) => ports.channels.invite(context.principal.userId, context.params.slug, context.input.id)),
+
+            remove: routes.post('/:slug/members/remove', { input: personRef, output: channelSummary },
+                (context) => ports.channels.remove(context.principal.userId, context.params.slug, context.input.id)),
+
+            role: routes.post('/:slug/roles', { input: channelRoleInput, output: channelSummary },
+                (context) => ports.channels.setRole(context.principal.userId, context.params.slug, context.input.id, context.input.role)),
+
+            transfer: routes.post('/:slug/owner', { input: personRef, output: channelSummary },
+                (context) => ports.channels.transfer(context.principal.userId, context.params.slug, context.input.id)),
+
+            posts: routes.get('/:slug/posts', { output: channelPage, query: channelPageQuery },
+                (context) => ports.channels.posts(context.principal.userId, context.params.slug, context.query.cursor)),
+
+            read: routes.post('/:slug/read', { output: ack }, async (context) =>
+            {
+                await ports.channels.markRead(context.principal.userId, context.params.slug);
+                return { ok: true };
+            }),
+
+            post: routes.post('/:slug/posts', { input: channelPostInput, output: channelPost },
+                (context) => ports.channels.post(context.principal.userId, context.params.slug, context.input)),
+
+            removePost: routes.post('/:slug/posts/:postId/delete', { output: ack }, async (context) =>
+            {
+                await ports.channels.removePost(context.principal.userId, context.params.slug, context.params.postId);
+                return { ok: true };
+            }),
+
+            vote: routes.post('/:slug/posts/:postId/vote', { input: voteInput, output: channelPost },
+                (context) => ports.channels.vote(context.principal.userId, context.params.slug, context.params.postId, context.input.choices)),
+
+            close: routes.post('/:slug/posts/:postId/close', { output: channelPost },
+                (context) => ports.channels.closePoll(context.principal.userId, context.params.slug, context.params.postId))
         })),
 
         /**

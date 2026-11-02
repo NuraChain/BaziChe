@@ -41,7 +41,7 @@ export function messageActions(say: (key: MessageKey) => string, message: Messag
         list.push({ id: 'edit', icon: 'edit', label: say('chat.edit'), run: handlers.onEdit });
     }
 
-    if (message.kind !== 'voice')
+    if (message.kind !== 'voice' && (message.kind !== 'file' || message.text.trim() !== ''))
     {
         list.push({ id: 'copy', icon: 'copy', label: say('chat.copy'), run: () => void copyText(message.text, 'chat.copied', { dedupe: 'chat-copy' }) });
     }

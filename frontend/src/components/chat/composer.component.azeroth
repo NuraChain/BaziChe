@@ -2,6 +2,8 @@ import Icon from '../../icons/icon.component.azeroth';
 import { useDevice } from '../../stores/device.store.ts';
 import { useEmojiPop } from '../../stores/emoji-pop.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
 import { useVoiceRooms } from '../../stores/voice-rooms.store.ts';
 import IconButton from '../ui/icon-button.component.azeroth';
 import TextArea from '../ui/text-area.component.azeroth';
@@ -30,7 +32,10 @@ export default component Composer(props: {
     onSend: () => void;
     onGame?: () => void;
 
-    /** The room a voice message is recorded into, handed only where one can be sent. */
+    /**
+     * The room a voice message is recorded into and a photo, a video or a file is sent into, handed
+     * only where they can be sent.
+     */
     record?: string;
 })
 {
@@ -38,12 +43,20 @@ export default component Composer(props: {
     const device = useDevice();
     const pop = useEmojiPop();
     const rooms = useVoiceRooms();
+    const overlay = useOverlay();
+    const toasts = useToasts();
+
+    let picker: HTMLInputElement | null = null;
+
+    state dropping = false;
 
     state docked = false;
 
     let bar: HTMLElement | null = null;
 
     derived editing = props.editing !== undefined && props.editing !== null && props.disabled !== true;
+
+    derived attaching = props.record !== undefined && props.disabled !== true && !editing;
 
     derived replying = !editing && props.reply !== undefined && props.reply !== null && props.disabled !== true;
 
@@ -119,6 +132,64 @@ export default component Composer(props: {
             .catch(() => rooms.set(room, false));
     };
 
+    /**
+     * A file picked, pasted or dropped opens the sheet that shows what is about to go, with the words
+     * in the field as its caption. The sheet is a chunk of its own, fetched at the first file.
+     */
+    const attach = (file: File | undefined) =>
+    {
+        const room = props.record;
+
+        if (file === undefined || room === undefined || !attaching)
+        {
+            return;
+        }
+
+        docked = false;
+        pop.close();
+        void import('./file-sheet.component.azeroth')
+            .then((module) => overlay.open(module.default, {
+                room,
+                file,
+                caption: props.value,
+                onSent: () => props.onInput('')
+            }, { label: locale.t('chat.attach'), kind: 'sheet', id: 'file-sheet' }))
+            .catch(() => toasts.show({ kind: 'warning', text: locale.t('chat.attach.unreadable'), dedupe: 'file-sheet' }));
+    };
+
+    const pasted = (event: ClipboardEvent) =>
+    {
+        const file = event.clipboardData?.files[0];
+
+        if (file !== undefined && attaching)
+        {
+            event.preventDefault();
+            attach(file);
+        }
+    };
+
+    const carrying = (event: DragEvent) => attaching && [...(event.dataTransfer?.types ?? [])].includes('Files');
+
+    const over = (event: DragEvent) =>
+    {
+        if (carrying(event))
+        {
+            event.preventDefault();
+            dropping = true;
+        }
+    };
+
+    const dropped = (event: DragEvent) =>
+    {
+        dropping = false;
+
+        if (carrying(event))
+        {
+            event.preventDefault();
+            attach(event.dataTransfer?.files[0]);
+        }
+    };
+
     /** A recording sent or deleted gives the keyboard back to the field it took it from. */
     effect
     {
@@ -171,6 +242,10 @@ export default component Composer(props: {
     <div
         class={ () => props.compact === true ? '' : (props.floating === true ? 'safe-b' : 'safe-b border-t border-line bg-void/95 backdrop-blur-md') }
         onKeyDown={ keys }
+        onPaste={ pasted }
+        onDragOver={ over }
+        onDragLeave={ () => dropping = false }
+        onDrop={ dropped }
     >
         <div class={ () => props.compact === true ? 'flex flex-col gap-2' : 'flex w-full flex-col gap-2 px-3 py-2.5 sm:px-5' }>
             <Show when={ docked && props.disabled !== true }>
@@ -182,8 +257,10 @@ export default component Composer(props: {
                 class={ () => [
                     'flex flex-col overflow-hidden rounded-[1.375rem] border transition-[border-color,box-shadow] duration-150 motion-reduce:transition-none',
                     props.floating === true ? 'pointer-events-auto bg-void/35 shadow-[var(--shadow-2)] backdrop-blur-xl backdrop-saturate-150' : 'bg-field',
-                    props.disabled === true ? 'border-line opacity-60' : 'border-line-strong focus-within:border-accent/70 focus-within:ring-3 focus-within:ring-accent/15'
-                ].join(' ') }
+                    props.disabled === true ? 'border-line opacity-60' : 'border-line-strong focus-within:border-accent/70 focus-within:ring-3 focus-within:ring-accent/15',
+                    dropping ? 'border-accent! ring-3 ring-accent/30' : ''
+                ].filter(Boolean).join(' ') }
+                data-dropping={ dropping ? '' : undefined }
             >
                 <Show when={ editing }>
                     { () =>
@@ -237,6 +314,34 @@ export default component Composer(props: {
                                     />
                                 }
                             </Show>
+                            <Show when={ attaching }>
+                                { () =>
+                                    <>
+                                        <IconButton
+                                            icon="attach"
+                                            label={ locale.t('chat.attach') }
+                                            variant="ghost"
+                                            class="rounded-full! text-muted hover:text-text"
+                                            onClick={ () => picker?.click() }
+                                        />
+                                        <input
+                                            ref={ (element) => picker = element }
+                                            type="file"
+                                            class="hidden"
+                                            tabindex="-1"
+                                            aria-hidden="true"
+                                            data-attach
+                                            onChange={ (event) =>
+                                            {
+                                                const input = event.currentTarget as HTMLInputElement;
+
+                                                attach(input.files?.[0]);
+                                                input.value = '';
+                                            } }
+                                        />
+                                    </>
+                                }
+                            </Show>
                             <TextArea
                                 value={ props.value }
                                 onInput={ props.onInput }
@@ -245,7 +350,7 @@ export default component Composer(props: {
                                 disabled={ props.disabled === true }
                                 enterkeyhint={ editing ? 'done' : 'send' }
                                 maxlength={ props.maxlength ?? 500 }
-                                class={ [ 'min-w-0 flex-1 border-0! bg-transparent! py-0! opacity-100!', props.onGame === undefined ? 'ps-3!' : 'ps-1!', 'pe-1!' ].join(' ') }
+                                class={ [ 'min-w-0 flex-1 border-0! bg-transparent! py-0! opacity-100!', props.onGame === undefined && !attaching ? 'ps-3!' : 'ps-1!', 'pe-1!' ].join(' ') }
                                 onEnter={ send }
                             />
                             <IconButton

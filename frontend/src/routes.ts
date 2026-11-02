@@ -73,6 +73,7 @@ export const routes: PageRoute[] = [
             { path: 'invite', lazy: chunk(() => import('./pages/app/invite.page.azeroth')), meta: defineMeta({ title: 'invite.page.title', tab: 'friends', parent: '/app/friends' }) },
             { path: 'chats', lazy: chunk(() => import('./pages/app/chats.page.azeroth')), meta: defineMeta({ title: 'app.nav.chats', tab: 'chats', messenger: true }) },
             { path: 'chats/:id', lazy: chunk(() => import('./pages/app/chat.page.azeroth')), meta: defineMeta({ tab: 'chats', parent: '/app/chats', immersive: true, messenger: true }) },
+            { path: 'channels/:slug', lazy: chunk(() => import('./pages/app/channel.page.azeroth')), meta: defineMeta({ tab: 'chats', parent: '/app/chats' }) },
             { path: 'groups/:id', lazy: chunk(() => import('./pages/app/group.page.azeroth')), meta: defineMeta({ tab: 'friends', parent: '/app/friends' }) },
             { path: 'g/:token', lazy: chunk(() => import('./pages/app/group-link.page.azeroth')), meta: defineMeta({ title: 'groups.linkPageHead', tab: 'friends', parent: '/app/friends' }) },
             { path: 'leaderboard', lazy: chunk(() => import('./pages/app/leaderboard.page.azeroth')), meta: defineMeta({ title: 'app.nav.leaderboard', tab: 'leaderboard' }) },

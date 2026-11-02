@@ -205,9 +205,9 @@ describe('notices: the kinds a person can switch off hold together', () =>
         expect(Object.entries(NOTICE_OF).filter(([, notice]) => notice === 'inviting').map(([kind]) => kind).sort()).toEqual(['invite-joined', 'invite-played', 'invite-reward']);
     });
 
-    it('puts everything a group tells somebody under the groups notice, so one switch silences all of it', () =>
+    it('puts everything a group or a channel tells somebody under the groups notice, so one switch silences all of it', () =>
     {
-        expect(Object.entries(NOTICE_OF).filter(([, notice]) => notice === 'groups').map(([kind]) => kind).sort()).toEqual(['group-added', 'group-approved', 'group-owner', 'group-request']);
+        expect(Object.entries(NOTICE_OF).filter(([, notice]) => notice === 'groups').map(([kind]) => kind).sort()).toEqual(['channel-invite', 'group-added', 'group-approved', 'group-owner', 'group-request']);
     });
 
     it('lets onto the wire exactly the kinds the column holds', () =>

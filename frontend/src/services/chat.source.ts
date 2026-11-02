@@ -1,9 +1,11 @@
 import { ApiError, client } from '../api.ts';
 import type { ChatMessage } from '../api.ts';
-import type { Conversation, Message, MessageKind, Reaction, VoiceNote } from '../data/chat.ts';
-import { decodeEdit, decodeReaction, decodeText, decodeVoice, encodeEdit, encodeReaction, encodeText, encodeVoice } from '../lib/body.ts';
+import type { Attachment, Conversation, Message, MessageKind, Reaction, VoiceNote } from '../data/chat.ts';
+import { decodeEdit, decodeFile, decodeReaction, decodeText, decodeVoice, encodeEdit, encodeFile, encodeReaction, encodeText, encodeVoice } from '../lib/body.ts';
+import { forgetFile } from '../lib/file-held.ts';
 import { forgetAudio } from '../lib/voice-held.ts';
 import { decodeWave, encodeWave } from '../lib/voice-note.ts';
+import { chatFiles } from './chat-files.ts';
 import { voiceFiles } from './voice-files.ts';
 import { forget } from '../lib/crypto.ts';
 import { runtime } from '../lib/runtime.ts';
@@ -92,6 +94,9 @@ export interface VoiceUpload
     uploaded: () => void;
 }
 
+/** A photo, a video or a file on its way up, as a voice message's is. */
+export type FileUpload = VoiceUpload;
+
 export interface ChatSource
 {
     conversations(scope: ChatScope, signal: AbortSignal, pages?: number): Promise<ConversationPage>;
@@ -107,6 +112,9 @@ export interface ChatSource
 
     /** Puts a voice message's file up unless it is up already, then seals and sends the message naming it. */
     postVoice(message: Message, expiresAt: number, file: VoiceUpload): Promise<void>;
+
+    /** Puts a photo, a video or a file up unless it is up already, then seals and sends the message naming it. */
+    postFile(message: Message, expiresAt: number, file: FileUpload): Promise<void>;
 
     /** The reader has started a voice message. */
     played(conversationId: string, messageId: string): Promise<void>;
@@ -166,6 +174,7 @@ export function forgetArchive()
     }
 
     forgetAudio();
+    forgetFile();
 }
 
 /**
@@ -258,7 +267,7 @@ export function createApiSource()
         wire: ChatMessage,
         text: string,
         locked: MessageFailure | null,
-        signed?: { from: string; frankingKey: string; plain: string; reply?: string; fwd?: true; reactions: Reaction[]; edited?: Message['edited']; voice?: VoiceNote }
+        signed?: { from: string; frankingKey: string; plain: string; reply?: string; fwd?: true; reactions: Reaction[]; edited?: Message['edited']; voice?: VoiceNote; file?: Attachment }
     ) =>
     {
         const said = wire.payload?.params ?? {};
@@ -282,6 +291,7 @@ export function createApiSource()
             ...(wire.expiresAt === undefined ? {} : { expiresAt: Date.parse(wire.expiresAt) }),
             ...(wire.read === true ? { read: true } : {}),
             ...(signed?.voice === undefined ? {} : { voice: signed.voice }),
+            ...(signed?.file === undefined ? {} : { file: signed.file }),
             ...(wire.played === true ? { played: true } : {}),
             ...(wire.heard === true ? { heard: true } : {}),
             at: wire.clientAt === undefined ? Date.parse(wire.at) : Date.parse(wire.clientAt),
@@ -374,7 +384,7 @@ export function createApiSource()
         keyFor: (epoch: number) => Promise<Uint8Array | null>
     ): Promise<Message> =>
     {
-        if (wire.kind !== 'text' && wire.kind !== 'voice')
+        if (wire.kind !== 'text' && wire.kind !== 'voice' && wire.kind !== 'file')
         {
             return asMessage(born, wire, '', null);
         }
@@ -397,6 +407,11 @@ export function createApiSource()
         if (wire.kind === 'voice')
         {
             return openVoice(born, wire, read, keyFor);
+        }
+
+        if (wire.kind === 'file')
+        {
+            return openSent(born, wire, read, keyFor);
         }
 
         const body = decodeText(read.text);
@@ -446,6 +461,36 @@ export function createApiSource()
             ...(body.fwd === true ? { fwd: true as const } : {}),
             reactions: await openReactions(born, wire, keyFor),
             voice: { ...body.voice, wave }
+        });
+    };
+
+    /**
+     * A photo, a video or a file, once its envelope has opened: its document has to be one, exactly,
+     * and name the file the row names in the clear. Its caption is the message's words, so it is
+     * searched, quoted and summed up as a line's are.
+     */
+    const openSent = async (
+        born: number,
+        wire: ChatMessage,
+        read: { text: string; frankingKey: string; from: string },
+        keyFor: (epoch: number) => Promise<Uint8Array | null>
+    ) =>
+    {
+        const body = decodeFile(read.text);
+
+        if (body === null || body.file.id !== wire.file)
+        {
+            return asMessage(born, wire, '', 'tampered');
+        }
+
+        return asMessage(born, wire, body.caption ?? '', null, {
+            from: read.from,
+            frankingKey: read.frankingKey,
+            plain: read.text,
+            ...(body.reply === undefined ? {} : { reply: body.reply }),
+            ...(body.fwd === true ? { fwd: true as const } : {}),
+            reactions: await openReactions(born, wire, keyFor),
+            file: body.file
         });
     };
 
@@ -516,10 +561,11 @@ export function createApiSource()
         plain: string,
         at: number,
         expiresAt: number,
-        kind: 'text' | 'voice' | 'reaction' | 'edit',
+        kind: 'text' | 'voice' | 'file' | 'reaction' | 'edit',
         target?: string,
         id?: string,
-        voice?: string
+        voice?: string,
+        file?: string
     ) =>
     {
         const secrets = await keyStore().secrets();
@@ -545,7 +591,7 @@ export function createApiSource()
             {
                 await client.chat.send({
                     params: { id: conversationId },
-                    input: { ...sealed, ...(target === undefined ? {} : { target }), ...(voice === undefined ? {} : { voice }) }
+                    input: { ...sealed, ...(target === undefined ? {} : { target }), ...(voice === undefined ? {} : { voice }), ...(file === undefined ? {} : { file }) }
                 });
                 return;
             }
@@ -715,6 +761,31 @@ export function createApiSource()
             });
 
             await deliver(message.conversationId, message.from, plain, message.at, expiresAt, 'voice', undefined, message.id, voice.id);
+        },
+
+        async postFile(message, expiresAt, upload)
+        {
+            const file = message.file;
+
+            if (file === undefined)
+            {
+                throw new TypeError('A file message names its file.');
+            }
+
+            if (upload.body !== null)
+            {
+                await chatFiles().upload(file.id, upload.body, upload.progress);
+                upload.uploaded();
+            }
+
+            const plain = encodeFile({
+                file,
+                ...(message.text === '' ? {} : { caption: message.text }),
+                ...(message.reply === undefined ? {} : { reply: message.reply }),
+                ...(message.forwarded === true ? { fwd: true as const } : {})
+            });
+
+            await deliver(message.conversationId, message.from, plain, message.at, expiresAt, 'file', undefined, message.id, undefined, file.id);
         },
 
         async played(conversationId, messageId)

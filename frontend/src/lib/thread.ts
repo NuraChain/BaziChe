@@ -19,8 +19,8 @@ function dayKey(at: number)
     return `${ date.getFullYear() }-${ date.getMonth() }-${ date.getDate() }`;
 }
 
-/** A line somebody said, in words or in their voice; the server's own lines never join a run. */
-const said = (message: Message) => message.kind === 'text' || message.kind === 'voice';
+/** A line somebody said, in words, in their voice or as a file; the server's own lines never join a run. */
+const said = (message: Message) => message.kind === 'text' || message.kind === 'voice' || message.kind === 'file';
 
 function joins(earlier: Message | undefined, later: Message | undefined)
 {

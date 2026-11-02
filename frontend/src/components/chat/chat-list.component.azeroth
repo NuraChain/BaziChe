@@ -1,6 +1,7 @@
 import type { GameId } from '../../data/games.ts';
 
 import type { MenuPoint } from './actions.ts';
+import ChannelList from '../channels/channel-list.component.azeroth';
 import ChatActions from './chat-actions.component.azeroth';
 import ChatListItem from './chat-list-item.component.azeroth';
 import { gameNameOf, groupNameOf, titleOf } from './chat-title.ts';
@@ -21,6 +22,7 @@ import { useChat } from '../../stores/chat.store.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useOverlay } from '../../stores/overlay.store.ts';
+import { useChannels } from '../../stores/channels.store.ts';
 import { useGroups } from '../../stores/groups.store.ts';
 
 const kept = { tab: 'all', scroll: 0 };
@@ -34,6 +36,7 @@ export default component ChatList(props: { active?: string; pane?: boolean; fold
     const chat = useChat();
     const overlay = useOverlay();
     const groups = useGroups();
+    const channels = useChannels();
     const people = usePeople();
     const device = useDevice();
 
@@ -175,8 +178,14 @@ export default component ChatList(props: { active?: string; pane?: boolean; fold
         { id: 'all', label: locale.t('chats.tab.all'), count: chat.totalUnread() },
         { id: 'direct', label: locale.t('chats.tab.direct') },
         { id: 'groups', label: locale.t('chats.tab.groups') },
-        { id: 'games', label: locale.t('chats.tab.games') }
+        { id: 'games', label: locale.t('chats.tab.games') },
+        { id: 'channels', label: locale.t('chats.tab.channels'), count: channels.unread() }
     ];
+
+    /** The Channels tab draws the channels instead of the rooms; a folded list keeps the rooms. */
+    derived channelled = tab === 'channels' && !folded;
+
+    derived roomed = !channelled;
 
     <div class={ () => [ 'flex min-h-0 flex-col', props.class ?? '' ].filter(Boolean).join(' ') }>
         <Show when={ searching }>
@@ -195,7 +204,11 @@ export default component ChatList(props: { active?: string; pane?: boolean; fold
             }
         </Show>
 
-        <div ref={ (element) => scroller = pane ? element : null } class={ () => pane ? 'min-h-0 flex-1 overflow-y-auto px-2 pb-3' : '' }>
+        <Show when={ channelled }>
+            { () => <div class={ () => pane ? 'min-h-0 flex-1 overflow-y-auto' : '' }><ChannelList pane={ pane } /></div> }
+        </Show>
+
+        <div ref={ (element) => scroller = pane ? element : null } class={ () => [ pane ? 'min-h-0 flex-1 overflow-y-auto px-2 pb-3' : '', roomed ? '' : 'hidden' ].filter(Boolean).join(' ') }>
             <Switch
                 fallback={
                     <>

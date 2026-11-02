@@ -27,7 +27,14 @@ describe('what lets go of a voice file no message names', () =>
     {
         expect(sweep.indexOf(".catch((error: unknown) => log.error('expiry sweep failed', { error }))")).toBeLessThan(sweep.indexOf('.then(() => chat.sweepVoice())'));
         expect(sweep).toMatch(/\.then\(\(gone\) => \{ if \(gone > 0\) \{ log\.info\('voice files let go', \{ gone \}\); \} \}\)/);
-        expect(sweep).toMatch(/\.catch\(\(error: unknown\) => log\.error\('voice sweep failed', \{ error \}\)\);/);
+        expect(sweep).toMatch(/\.catch\(\(error: unknown\) => log\.error\('voice sweep failed', \{ error \}\)\)/);
+    });
+
+    it('lets go of photos, videos and files no message names right after, whether or not the voice sweep failed', () =>
+    {
+        expect(sweep.indexOf(".catch((error: unknown) => log.error('voice sweep failed', { error }))")).toBeLessThan(sweep.indexOf('.then(() => chat.sweepFiles())'));
+        expect(sweep).toMatch(/\.then\(\(gone\) => \{ if \(gone > 0\) \{ log\.info\('chat files let go', \{ gone \}\); \} \}\)/);
+        expect(sweep).toMatch(/\.catch\(\(error: unknown\) => log\.error\('file sweep failed', \{ error \}\)\);/);
     });
 
     it('is stopped on the way down with the other sweeps of the minute', () =>

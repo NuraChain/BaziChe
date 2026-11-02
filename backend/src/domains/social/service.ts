@@ -657,7 +657,7 @@ export function createSocialService(db: DataSource)
             me: string,
             againstId: string,
             category: ReportCategory,
-            disclosure: { messageId: string; text: string; frankingKey: string; voiceId?: string } | null = null
+            disclosure: { messageId: string; text: string; frankingKey: string; voiceId?: string; fileId?: string } | null = null
         ): Promise<string>
         {
             if (me === againstId)
@@ -673,7 +673,8 @@ export function createSocialService(db: DataSource)
                 disclosed: disclosure?.text ?? null,
                 disclosedKey: disclosure?.frankingKey ?? null,
                 disclosedAt: disclosure === null ? null : new Date(),
-                voiceId: disclosure?.voiceId ?? null
+                voiceId: disclosure?.voiceId ?? null,
+                fileId: disclosure?.fileId ?? null
             });
 
             return made.identifiers[0].id as string;

@@ -23,7 +23,8 @@ export const CUE_KEYS: Record<NotificationKind, MessageKey> = {
     'donation': 'notify.donation',
     'group-request': 'notify.groupRequest',
     'group-approved': 'notify.groupApproved',
-    'group-owner': 'notify.groupOwner'
+    'group-owner': 'notify.groupOwner',
+    'channel-invite': 'notify.channelInvite'
 };
 
 export interface NoticeWords
@@ -41,7 +42,7 @@ export const REQUEST_TAG = 'request';
 export const chatTag = (thread: string) => `chat:${ thread }`;
 
 export const rowTag = (item: Pick<Notification, 'kind' | 'ref' | 'actor'>) =>
-    `${ item.kind }:${ item.ref.tableId ?? item.ref.groupId ?? item.ref.conversationId ?? item.actor ?? '' }`;
+    `${ item.kind }:${ item.ref.tableId ?? item.ref.groupId ?? item.ref.channelId ?? item.ref.conversationId ?? item.actor ?? '' }`;
 
 export function wordsOf(lang: Locale): NoticeWords
 {
@@ -67,7 +68,8 @@ export function wordsOf(lang: Locale): NoticeWords
             'donation': said('donation'),
             'group-request': said('group-request'),
             'group-approved': said('group-approved'),
-            'group-owner': said('group-owner')
+            'group-owner': said('group-owner'),
+            'channel-invite': said('channel-invite')
         },
         games: Object.fromEntries(GAMES.map((game) => [game.id, messageText(messageOf(lang, game.nameKey))]))
     };

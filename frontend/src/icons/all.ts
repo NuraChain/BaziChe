@@ -38,6 +38,8 @@ import {
     Download,
     Ellipsis,
     Equal,
+    FileText,
+    Film,
     Expand,
     FaceSlightlySmiling,
     FaceSlightlySmilingPlus,
@@ -55,6 +57,7 @@ import {
     Leaf,
     Lightbulb,
     Link2,
+    ListChecks,
     Lock,
     Mail,
     Maximize2,
@@ -77,6 +80,7 @@ import {
     PanelRightClose,
     PanelRightOpen,
     Palette,
+    Paperclip,
     Pause,
     Pencil,
     PhoneOff,
@@ -238,7 +242,11 @@ export const ALL_ICONS = {
     'deafen': HeadphoneOff,
     'watch': Eye,
     'undo': Undo2,
-    'image': Image
+    'image': Image,
+    'file': FileText,
+    'film': Film,
+    'attach': Paperclip,
+    'poll': ListChecks
 } satisfies Record<string, IconNode>;
 
 export type IconName = keyof typeof ALL_ICONS;

@@ -2,6 +2,16 @@ import { BadRequestError, ConflictError, ForbiddenError, HttpError, NotFoundErro
 import { In, IsNull, type DataSource, type EntityManager } from 'typeorm';
 
 import { EDIT_HOURS } from './edits.ts';
+import { FILE_REACHED_BY_ME, fileNamed } from './file-rules.ts';
+import {
+    FILE_DAY_BYTES,
+    FILE_HOLD_MINUTES,
+    FILE_PENDING_MOST,
+    FILE_REFUSALS,
+    FILE_SEALED_LEAST,
+    FILE_SEALED_MOST,
+    type FileRefusal
+} from './files.ts';
 import type { Franking } from './franking.ts';
 import { THREAD_PAGE } from './pages.ts';
 import {
@@ -16,6 +26,7 @@ import {
 
 import { cursorFor, cursorOf, instantOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import { firstRow, rowsOf } from '../../lib/rows.ts';
+import { ChatFile } from '../../entities/chat-file.entity.ts';
 import { ConversationMember } from '../../entities/conversation-member.entity.ts';
 import { ConversationPin } from '../../entities/conversation-pin.entity.ts';
 import { Conversation } from '../../entities/conversation.entity.ts';
@@ -63,6 +74,7 @@ export interface ConversationRow
     last_frank: string | null;
     last_expires_at: Date | null;
     last_voice_id: string | null;
+    last_file_id: string | null;
 
     /** When the room last moved, in microseconds since 1970, and 0 for a room nothing was said in. */
     last_key: string;
@@ -115,6 +127,9 @@ export interface MessageRow
     /** The file a voice message plays. */
     voice_id: string | null;
 
+    /** The file a photo, a video or a file message names. */
+    file_id: string | null;
+
     /** Mine, and read by somebody else in the room. Only the history read asks. */
     seen?: boolean | null;
 
@@ -129,11 +144,14 @@ export interface MessageRow
 export interface SealedInput
 {
     id: string;
-    kind: 'text' | 'voice' | 'reaction' | 'edit';
+    kind: 'text' | 'voice' | 'file' | 'reaction' | 'edit';
     target?: string;
 
     /** The file a voice message names, which its sealed document names again. */
     voice?: string;
+
+    /** The file a photo, a video or a file message names, which its sealed document names again. */
+    file?: string;
     epoch: number;
     seq: number;
     iv: string;
@@ -192,17 +210,24 @@ const refused = (word: VoiceRefusal, message: string) => new HttpError(VOICE_REF
  * read of a room applies. The same question decides who fetches a file and which file a send may
  * name, so a forward references a file rather than copying it.
  */
-const HEARD_BY_ME = `(v.uploader_id = :me or exists (
+const reachedBy = (column: 'voice_id') => `(v.uploader_id = :me or exists (
     select 1
     from messages named
     join conversation_members seat on seat.conversation_id = named.conversation_id and seat.user_id = :me
-    where named.voice_id = v.id
+    where named.${ column } = v.id
       and (named.expires_at is null or named.expires_at > now())
       and not exists (select 1
                         from conversation_members other
                         join blocks b on (b.user_id = :me and b.blocked_id = other.user_id)
                                       or (b.user_id = other.user_id and b.blocked_id = :me)
                        where other.conversation_id = named.conversation_id and other.user_id <> :me)))`;
+
+const HEARD_BY_ME = reachedBy('voice_id');
+
+const fileRefused = (word: FileRefusal, message: string) => new HttpError(FILE_REFUSALS[word], message, { code: word });
+
+/** The longest sealed body a message keeps: a file's document carries a thumb and a caption beside its key. */
+const bodyMost = (kind: SealedInput['kind']) => (kind === 'file' ? 16_000 : 8000);
 
 /** What one account may upload. A spec passes smaller ones, to reach a limit without uploading 200 MiB. */
 export interface VoiceLimits
@@ -229,7 +254,13 @@ export interface GroupGate
 /** A line pinned at the head of its room, as the first page of its thread carries it. */
 export type PinRow = MessageRow & { pinned_by: string | null; pinned_at: Date };
 
-export function createChatService(db: DataSource, social: SocialService, franking: Franking, voice: VoiceLimits = { dayBytes: VOICE_DAY_BYTES, pending: VOICE_PENDING_MOST })
+export function createChatService(
+    db: DataSource,
+    social: SocialService,
+    franking: Franking,
+    voice: VoiceLimits = { dayBytes: VOICE_DAY_BYTES, pending: VOICE_PENDING_MOST },
+    files: VoiceLimits = { dayBytes: FILE_DAY_BYTES, pending: FILE_PENDING_MOST }
+)
 {
     const envelope = () => db.getRepository(Message)
         .createQueryBuilder('x')
@@ -252,7 +283,8 @@ export function createChatService(db: DataSource, social: SocialService, frankin
         .addSelect('x.frank', 'frank')
         .addSelect('x.expires_at', 'expires_at')
         .addSelect('x.target_id', 'target_id')
-        .addSelect('x.voice_id', 'voice_id');
+        .addSelect('x.voice_id', 'voice_id')
+        .addSelect('x.file_id', 'file_id');
 
     /**
      * The membership row, which IS the authorisation.
@@ -343,7 +375,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
      * group. A line needs the group's `send`, a voice message its `media` too, and an edit is a line;
      * a reaction is let through, muted or not. Nothing to ask in a conversation that is no group's.
      */
-    const mustSayInGroup = async (me: string, conversationId: string, kind: 'text' | 'voice' | 'reaction' | 'edit') =>
+    const mustSayInGroup = async (me: string, conversationId: string, kind: 'text' | 'voice' | 'file' | 'reaction' | 'edit') =>
     {
         if (kind === 'reaction')
         {
@@ -380,7 +412,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
         {
             throw new HttpError(GROUP_REFUSALS['group-quiet'], 'Only the group\'s admins can write here.', { code: 'group-quiet' });
         }
-        if (kind === 'voice' && !mayIn(standing, switches, 'media'))
+        if ((kind === 'voice' || kind === 'file') && !mayIn(standing, switches, 'media'))
         {
             throw new HttpError(GROUP_REFUSALS['group-no-media'], 'Only the group\'s admins can send that here.', { code: 'group-no-media' });
         }
@@ -392,11 +424,17 @@ export function createChatService(db: DataSource, social: SocialService, frankin
         .andWhere(HEARD_BY_ME, { me })
         .getExists();
 
+    const reaches = (me: string, id: string) => UUID.test(id) && db.getRepository(ChatFile)
+        .createQueryBuilder('v')
+        .where('v.id = :id', { id })
+        .andWhere(FILE_REACHED_BY_ME, { me })
+        .getExists();
+
     /**
      * Deletes the files no message names any more, among those given. Inside the caller's
      * transaction, after whatever stopped naming them, so a file a forward still names stays.
      */
-    const letGo = async (tx: EntityManager, ids: readonly string[]) =>
+    const letGo = async (tx: EntityManager, ids: readonly string[], fileIds: readonly string[] = []) =>
     {
         if (ids.length > 0)
         {
@@ -406,6 +444,16 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 .where('id in (:...ids)', { ids: [...ids] })
                 .andWhere('not exists (select 1 from messages m where m.voice_id = voice_notes.id)')
                 .andWhere('not exists (select 1 from reports r where r.voice_id = voice_notes.id)')
+                .execute();
+        }
+
+        if (fileIds.length > 0)
+        {
+            await tx.getRepository(ChatFile)
+                .createQueryBuilder()
+                .delete()
+                .where('id in (:...ids)', { ids: [...fileIds] })
+                .andWhere(`not ${ fileNamed('chat_files') }`)
                 .execute();
         }
     };
@@ -488,6 +536,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                         last.frank                                                       as last_frank,
                         last.expires_at                                                  as last_expires_at,
                         last.voice_id                                                    as last_voice_id,
+                        last.file_id                                                     as last_file_id,
                         (last.sender_account_id = $1
                          and last.created_at <= (select max(o.last_read_at) from conversation_members o
                                                   where o.conversation_id = c.id and o.user_id <> $1)) as last_seen,
@@ -512,7 +561,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                      select x.id, x.kind, x.body, x.payload, x.created_at, su.handle as sender,
                             x.sender_id as sender_account_id,
                             x.epoch, x.seq, x.iv, x.sender_device_id, x.signature, x.client_at,
-                            x.commitment, x.frank, x.expires_at, x.voice_id
+                            x.commitment, x.frank, x.expires_at, x.voice_id, x.file_id
                      from messages x
                      left join users su on su.id = x.sender_id
                      where x.conversation_id = c.id
@@ -616,7 +665,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 .addSelect('pu.handle', 'pinned_by')
                 .addSelect('p.created_at', 'pinned_at')
                 .where('x.conversation_id = :conversationId', { conversationId })
-                .andWhere(`x.kind in ('text', 'voice')`)
+                .andWhere(`x.kind in ('text', 'voice', 'file')`)
                 .andWhere('(x.expires_at is null or x.expires_at > now())')
                 .orderBy('p.created_at', 'DESC')
                 .addOrderBy('x.id', 'DESC')
@@ -624,7 +673,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 .getRawMany<PinRow>();
 
             const texts = [...new Set([...shown, ...(pins ?? [])].filter((row) => row.kind === 'text').map((row) => row.id))];
-            const said = shown.filter((row) => row.kind === 'text' || row.kind === 'voice').map((row) => row.id);
+            const said = shown.filter((row) => row.kind === 'text' || row.kind === 'voice' || row.kind === 'file').map((row) => row.id);
 
             const reactions = said.length === 0 ? [] : await envelope()
                 .where('x.target_id in (:...said)', { said })
@@ -713,7 +762,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 throw new BadRequestError('A message needs a body.');
             }
 
-            if ((input.kind === 'text' || input.kind === 'voice') && input.target !== undefined)
+            if ((input.kind === 'text' || input.kind === 'voice' || input.kind === 'file') && input.target !== undefined)
             {
                 throw new BadRequestError('A message is not about another message; a reaction or an edit is.');
             }
@@ -728,6 +777,24 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 throw refused('voice-missing', 'There is no voice recording of yours with that id.');
             }
 
+            if (input.kind !== 'file' && input.file !== undefined)
+            {
+                throw new BadRequestError('Only a photo, a video or a file message names a file.');
+            }
+
+            // A sender may name a file they may fetch: their own upload, or one a live message in a
+            // room of theirs names, which is what a forward is.
+            if (input.kind === 'file' && !await reaches(me, input.file ?? ''))
+            {
+                throw fileRefused('file-missing', 'There is no file of yours with that id.');
+            }
+
+            // Refused rather than cut: a file's document cut short opens as nothing for everybody.
+            if (input.kind === 'file' && clean.length > bodyMost(input.kind))
+            {
+                throw new BadRequestError('That message is too long to keep.');
+            }
+
             if (input.kind === 'reaction')
             {
                 const target = input.target ?? '';
@@ -736,7 +803,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                     .createQueryBuilder('t')
                     .where('t.id = :target', { target })
                     .andWhere('t.conversation_id = :conversationId', { conversationId })
-                    .andWhere('t.kind in (:...kinds)', { kinds: ['text', 'voice'] })
+                    .andWhere('t.kind in (:...kinds)', { kinds: ['text', 'voice', 'file'] })
                     .andWhere('(t.expires_at is null or t.expires_at > now())')
                     .getExists();
 
@@ -889,7 +956,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                         conversationId,
                         senderId: me,
                         kind: input.kind,
-                        body: clean.slice(0, 8000),
+                        body: clean.slice(0, bodyMost(input.kind)),
                         epoch: input.epoch,
                         seq: String(input.seq),
                         iv: input.iv,
@@ -900,7 +967,8 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                         frank,
                         expiresAt,
                         targetId: input.kind === 'reaction' || input.kind === 'edit' ? input.target ?? null : null,
-                        voiceId: input.kind === 'voice' ? input.voice ?? null : null
+                        voiceId: input.kind === 'voice' ? input.voice ?? null : null,
+                        fileId: input.kind === 'file' ? input.file ?? null : null
                     })
                     .returning('*')
                     .execute();
@@ -954,7 +1022,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
 
                 if (said !== null && author !== null && author !== me)
                 {
-                    const room = said.kind === 'text' || said.kind === 'voice'
+                    const room = said.kind === 'text' || said.kind === 'voice' || said.kind === 'file'
                         ? await tx.getRepository(Conversation).findOne({ select: { groupId: true }, where: { id: conversationId, kind: 'group' } })
                         : null;
 
@@ -966,12 +1034,12 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 }
 
                 const found = await messages.findOne({
-                    select: { id: true, kind: true, voiceId: true },
+                    select: { id: true, kind: true, voiceId: true, fileId: true },
                     where: { id: messageId, conversationId, senderId: author === null ? me : author },
                     lock: { mode: 'pessimistic_write' }
                 });
 
-                if (found === null || (found.kind !== 'text' && found.kind !== 'voice' && found.kind !== 'reaction'))
+                if (found === null || (found.kind !== 'text' && found.kind !== 'voice' && found.kind !== 'file' && found.kind !== 'reaction'))
                 {
                     throw new NotFoundError('No such message of yours here.');
                 }
@@ -992,18 +1060,20 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                     signature: null,
                     commitment: null,
                     frank: null,
-                    voiceId: null
+                    voiceId: null,
+                    fileId: null
                 });
-                await letGo(tx, found.voiceId === null ? [] : [found.voiceId]);
+                await letGo(tx, found.voiceId === null ? [] : [found.voiceId], found.fileId === null ? [] : [found.fileId]);
 
                 return 'deleted';
             });
         },
 
         /**
-         * Pins a line for everybody in the room, or takes its pin away: a line of words or a voice
-         * message still alive, never at a table, twenty at most. In a direct chat either person may;
-         * in a group the group says who may, and its log says who did. Answers whether anything moved.
+         * Pins a line for everybody in the room, or takes its pin away: a line of words, a voice
+         * message or a file still alive, never at a table, twenty at most. In a direct chat either
+         * person may; in a group the group says who may, and its log says who did. Answers whether
+         * anything moved.
          */
         async pin(me: string, conversationId: string, messageId: string, pinned: boolean, gate?: GroupGate)
         {
@@ -1038,7 +1108,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                             .select('x.id', 'id')
                             .where('x.id = :messageId', { messageId })
                             .andWhere('x.conversation_id = :conversationId', { conversationId })
-                            .andWhere(`x.kind in ('text', 'voice')`)
+                            .andWhere(`x.kind in ('text', 'voice', 'file')`)
                             .andWhere('(x.expires_at is null or x.expires_at > now())')
                             .getRawOne<{ id: string }>()
                         : undefined;
@@ -1091,7 +1161,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                  values ($1, $2, $3, $4)
                  returning id, conversation_id, kind, body, payload, created_at,
                            epoch, seq, iv, sender_device_id, signature, client_at, commitment,
-                           frank, expires_at, target_id, voice_id`,
+                           frank, expires_at, target_id, voice_id, file_id`,
                 [conversationId, senderId, kind, JSON.stringify(payload)]
             );
             const message = rowsOf<Omit<MessageRow, 'sender' | 'sender_account_id'>>(inserted)[0];
@@ -1121,10 +1191,10 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 `select x.id, x.conversation_id, x.kind, x.body, x.payload, x.created_at,
                         su.handle as sender, x.sender_id as sender_account_id,
                         x.epoch, x.seq, x.iv, x.sender_device_id, x.signature, x.client_at,
-                        x.commitment, x.frank, x.expires_at, x.target_id, x.voice_id
+                        x.commitment, x.frank, x.expires_at, x.target_id, x.voice_id, x.file_id
                  from messages x
                  left join users su on su.id = x.sender_id
-                 where x.conversation_id = $1 and x.id = $2 and x.kind in ('text', 'voice', 'edit')
+                 where x.conversation_id = $1 and x.id = $2 and x.kind in ('text', 'voice', 'file', 'edit')
                    and (x.expires_at is null or x.expires_at > now())`,
                 [conversationId, messageId]
             );
@@ -1164,9 +1234,13 @@ export function createChatService(db: DataSource, social: SocialService, frankin
         {
             return db.transaction(async (tx) =>
             {
-                const gone = rowsOf<{ voice_id: string | null }>(await tx.query('delete from messages where expires_at is not null and expires_at <= now() returning voice_id'));
+                const gone = rowsOf<{ voice_id: string | null; file_id: string | null }>(await tx.query('delete from messages where expires_at is not null and expires_at <= now() returning voice_id, file_id'));
 
-                await letGo(tx, [...new Set(gone.flatMap((row) => (row.voice_id === null ? [] : [row.voice_id])))]);
+                await letGo(
+                    tx,
+                    [...new Set(gone.flatMap((row) => (row.voice_id === null ? [] : [row.voice_id])))],
+                    [...new Set(gone.flatMap((row) => (row.file_id === null ? [] : [row.file_id])))]
+                );
                 return gone.length;
             });
         },
@@ -1186,6 +1260,113 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 .execute();
 
             return gone.affected ?? 0;
+        },
+
+        /** The same for photos, videos and files: whatever no message or report names an hour on. */
+        async sweepFiles()
+        {
+            const gone = await db.getRepository(ChatFile)
+                .createQueryBuilder()
+                .delete()
+                .where('created_at < now() - make_interval(mins => :hold)', { hold: FILE_HOLD_MINUTES })
+                .andWhere(`not ${ fileNamed('chat_files') }`)
+                .execute();
+
+            return gone.affected ?? 0;
+        },
+
+        /**
+         * Keeps a photo, a video or a file as its sender's browser sealed it, under the id that
+         * browser chose: a voice file's rules, with a file's bounds. The server cannot tell which of
+         * the three it is; the browser holds a photo's smaller bound.
+         */
+        async storeFile(me: string, id: string, bytes: Uint8Array): Promise<{ id: string; size: number; fresh: boolean }>
+        {
+            if (!UUID.test(id))
+            {
+                throw fileRefused('file-missing', 'That is not a file id.');
+            }
+
+            if (bytes.byteLength < FILE_SEALED_LEAST || bytes.byteLength > FILE_SEALED_MOST)
+            {
+                throw fileRefused('file-size', 'That file is too large to keep.');
+            }
+
+            try
+            {
+                return await db.transaction(async (tx) =>
+                {
+                    // One uploader's files are taken one at a time, so the budget cannot be raced past.
+                    await tx.query(`select pg_advisory_xact_lock(hashtext('file:uploader'), hashtext($1))`, [me]);
+
+                    const kept = tx.getRepository(ChatFile);
+                    const held = await kept.findOne({ select: { id: true, uploaderId: true, size: true }, where: { id } });
+
+                    if (held !== null)
+                    {
+                        if (held.uploaderId !== me)
+                        {
+                            throw fileRefused('file-taken', 'That file id is somebody else\'s.');
+                        }
+
+                        return { id, size: held.size, fresh: false };
+                    }
+
+                    const spent = await kept
+                        .createQueryBuilder('v')
+                        .select('coalesce(sum(v.size), 0)::bigint', 'bytes')
+                        .where('v.uploader_id = :me', { me })
+                        .andWhere(`v.created_at > now() - interval '1 day'`)
+                        .getRawOne<{ bytes: string }>();
+
+                    if (Number(spent?.bytes ?? 0) + bytes.byteLength > files.dayBytes)
+                    {
+                        throw fileRefused('file-budget', 'You have sent as much as one day allows.');
+                    }
+
+                    const waiting = await kept
+                        .createQueryBuilder('v')
+                        .where('v.uploader_id = :me', { me })
+                        .andWhere(`not ${ fileNamed('v') }`)
+                        .getCount();
+
+                    if (waiting >= files.pending)
+                    {
+                        throw fileRefused('file-pending', 'Send or let go of the files already waiting first.');
+                    }
+
+                    await kept.insert({ id, uploaderId: me, bytes: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), size: bytes.byteLength });
+
+                    return { id, size: bytes.byteLength, fresh: true };
+                });
+            }
+            catch (error)
+            {
+                // Two uploaders racing one id: the other's lock is another lock, and the key arbitrates.
+                if ((error as { code?: string; driverError?: { code?: string } }).driverError?.code === '23505' || (error as { code?: string }).code === '23505')
+                {
+                    throw fileRefused('file-taken', 'That file id is somebody else\'s.');
+                }
+                throw error;
+            }
+        },
+
+        /** A file's ciphertext, to whoever may fetch it, and nothing to anybody else. */
+        async file(me: string, id: string): Promise<Buffer | null>
+        {
+            if (!UUID.test(id))
+            {
+                return null;
+            }
+
+            const found = await db.getRepository(ChatFile)
+                .createQueryBuilder('v')
+                .select('v.bytes', 'bytes')
+                .where('v.id = :id', { id })
+                .andWhere(FILE_REACHED_BY_ME, { me })
+                .getRawOne<{ bytes: Buffer }>();
+
+            return found?.bytes ?? null;
         },
 
         /**
@@ -1347,7 +1528,7 @@ export function createChatService(db: DataSource, social: SocialService, frankin
                 .select('x.sender_id', 'sender')
                 .distinct(true)
                 .where('x.conversation_id = :conversationId', { conversationId })
-                .andWhere(`x.kind in ('text', 'voice')`)
+                .andWhere(`x.kind in ('text', 'voice', 'file')`)
                 .andWhere('x.sender_id is not null')
                 .andWhere('x.sender_id <> :me', { me })
                 .andWhere('x.created_at > :before', { before: held.last_read_at })

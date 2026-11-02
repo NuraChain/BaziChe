@@ -329,6 +329,23 @@ describe('a video’s own player', () =>
         expect(shown(container)).toBe('false');
     });
 
+    it('lets a press through its bar to the play button and the picture, and takes one only on its controls while they are shown', async () =>
+    {
+        const container = await show();
+        const bar = the(container, '[data-bar]')!;
+        const takes = () => [the(container, '[data-range]')!.className.includes('pointer-events-auto'), the(container, '[data-row]')!.className.includes('pointer-events-auto')];
+
+        // In a bubble 151 pixels tall the bar reached over the lower half of the play button and took its press.
+        expect(bar.className.split(' ')).toContain('pointer-events-none');
+        expect(the(container, '[data-big]')?.parentElement?.className.split(' '), 'the play button above the bar').toContain('z-10');
+        expect(takes()).toEqual([true, true]);
+
+        fire(the(container, '[data-big]')!, 'click');
+        clock.advance(CONTROLS_MS);
+
+        expect([shown(container), ...takes()], 'hidden, its controls take nothing').toEqual(['false', false, false]);
+    });
+
     it('steps its controls aside as a mouse leaves a playing video', async () =>
     {
         const container = await show();

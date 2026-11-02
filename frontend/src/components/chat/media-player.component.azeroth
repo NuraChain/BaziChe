@@ -518,7 +518,7 @@ export default component MediaPlayer(props: {
         <video ref={ (element) => video = element } src={ props.url } playsinline preload="metadata" class="absolute inset-0 h-full w-full object-contain"></video>
         <div class="absolute inset-0" aria-hidden="true" onClick={ press } data-picture></div>
 
-        <div ref={ (element) => middle = element } class="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div ref={ (element) => middle = element } class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
             <Show when={ offered }>
                 { () =>
                     <button
@@ -554,15 +554,15 @@ export default component MediaPlayer(props: {
         <div
             ref={ (element) => bar = element }
             class={ () => [
-                'absolute inset-x-0 bottom-0 flex flex-col bg-gradient-to-t from-black/75 to-transparent px-1.5 pb-1 pt-6 text-white transition-opacity duration-200 motion-reduce:transition-none',
-                shown ? 'opacity-100' : 'pointer-events-none opacity-0'
+                'pointer-events-none absolute inset-x-0 bottom-0 flex flex-col bg-gradient-to-t from-black/75 to-transparent px-1.5 pb-1 pt-6 text-white transition-opacity duration-200 motion-reduce:transition-none',
+                shown ? 'opacity-100' : 'opacity-0'
             ].join(' ') }
             dir="ltr"
             data-bar
             data-shown={ shown ? 'true' : 'false' }
         >
             <MediaRange
-                class="mx-1.5"
+                class={ shown ? 'pointer-events-auto mx-1.5' : 'mx-1.5' }
                 value={ fraction }
                 label={ locale.t('chat.video.place') }
                 valueText={ locale.t('chat.video.at', { at: said, total }) }
@@ -572,7 +572,7 @@ export default component MediaPlayer(props: {
                 onDrop={ drop }
                 onKey={ placeKeys }
             />
-            <div class="flex items-center gap-0.5">
+            <div class={ () => shown ? 'pointer-events-auto flex items-center gap-0.5' : 'flex items-center gap-0.5' } data-row>
                 <button type="button" class={ `${ BUTTON } h-8 w-8 coarse:h-11 coarse:w-11` } aria-label={ paused ? spoken : locale.t('chat.video.pause') } onClick={ toggle } data-toggle>
                     <Icon name={ paused ? 'play' : 'pause' } size={ 18 } />
                 </button>

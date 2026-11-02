@@ -1,5 +1,6 @@
 import { createStore, createResource, createSignal, untrack, type Getter } from 'azerothjs';
 
+import type { GroupSwitches } from '../../../backend/src/domains/group/roles.ts';
 import { ApiError, client, type GroupPrivacy, type GroupSummary } from '../api.ts';
 import { readingOf, type Reading } from '../lib/reading.ts';
 import { useAccount } from './account.store.ts';
@@ -53,6 +54,9 @@ export interface GroupsApi
 
     /** Takes back a request to join that nobody has answered yet. */
     withdraw(slug: string): Promise<void>;
+
+    /** What members may do and whether joining asks first, as a whole: the owner's to set. */
+    permissions(slug: string, wanted: { switches: GroupSwitches; approval: boolean }): Promise<GroupSummary>;
     leave(slug: string): Promise<void>;
     add(slug: string, handle: string): Promise<void>;
     remove(slug: string, handle: string): Promise<void>;
@@ -202,6 +206,13 @@ export const useGroups = createStore((): GroupsApi =>
         {
             await client.groups.withdraw({ params: { slug } });
             await revalidate();
+        },
+
+        async permissions(slug, wanted)
+        {
+            const saved = await client.groups.permissions({ params: { slug }, input: { switches: { ...wanted.switches }, approval: wanted.approval } });
+            await revalidate();
+            return saved;
         },
 
         async leave(slug)

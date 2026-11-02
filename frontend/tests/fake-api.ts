@@ -3856,6 +3856,15 @@ export const client =
             return group;
         },
 
+        async permissions({ params, input }: { params: { slug: string }; input: { switches: GroupSwitches; approval: boolean } })
+        {
+            server.calls.push('groups.permissions');
+            const group = staffAct(params.slug);
+            group.switches = { ...input.switches };
+            group.approval = input.approval;
+            return structuredClone(group);
+        },
+
         async withdraw({ params }: { params: { slug: string } })
         {
             server.calls.push('groups.withdraw');

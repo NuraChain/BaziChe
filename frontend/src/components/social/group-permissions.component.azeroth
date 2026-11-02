@@ -1,0 +1,94 @@
+import { untrack } from 'azerothjs';
+
+import { SWITCHES, type GroupSwitch, type GroupSwitches } from '../../../../backend/src/domains/group/roles.ts';
+import type { GroupSummary } from '../../api.ts';
+import { whyGroup } from '../../lib/group-words.ts';
+import { createGuesses, type Guess } from '../../lib/guess.ts';
+import { useGroups } from '../../stores/groups.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+import Toggle from '../ui/switch.component.azeroth';
+
+interface Wanted
+{
+    switches: GroupSwitches;
+    approval: boolean;
+}
+
+/**
+ * What a group's members may do, and whether joining asks first: the owner's to set.
+ *
+ * Each switch turns at the press, laid over whatever the group reads as until the read after its
+ * answer lands. Requests leave one after another, each carrying the whole set as it then stands, so
+ * the last request says the last press; a refusal takes its own press back and says why in the
+ * group's words.
+ */
+export default component GroupPermissions(props: { group: GroupSummary })
+{
+    const locale = useLocale();
+    const groups = useGroups();
+    const toasts = useToasts();
+    const guesses = createGuesses<Wanted>();
+
+    derived shown = guesses.over({ switches: props.group.switches, approval: props.group.approval });
+
+    let last: Promise<unknown> = Promise.resolve();
+
+    /** A read of the group has landed, so a press it was owed is shown by the group itself now. */
+    effect
+    {
+        void props.group;
+        untrack(() => guesses.landed());
+    }
+
+    const press = (guess: Guess<Wanted>) =>
+    {
+        const before = last;
+        const work = guesses.during(
+            guess,
+            async () =>
+            {
+                await before.catch(() => undefined);
+                return groups.permissions(props.group.id, { switches: { ...shown.switches }, approval: shown.approval });
+            },
+            async () =>
+            {
+                const failure = groups.viewFailed();
+                if (failure !== null)
+                {
+                    throw failure;
+                }
+            }
+        );
+
+        last = work;
+        void work.then(
+            () => toasts.show({ kind: 'success', text: locale.t('groups.perm.saved'), dedupe: `group-permissions:${ props.group.id }` }),
+            (error: unknown) => toasts.show({ kind: 'warning', text: locale.t(whyGroup(error)), dedupe: `group-permissions:${ props.group.id }` })
+        );
+    };
+
+    const flip = (name: GroupSwitch, on: boolean) => press((held) => ({ ...held, switches: { ...held.switches, [name]: on } }));
+
+    const ask = (on: boolean) => press((held) => ({ ...held, approval: on }));
+
+    <section class="flex flex-col gap-4" aria-label={ locale.t('groups.tab.permissions') }>
+        <div class="flex flex-col gap-1">
+            <h2 class="text-ui-lg font-semibold text-text">{ locale.t('groups.perm.title') }</h2>
+            <p class="text-ui-sm text-muted">{ locale.t('groups.perm.lead') }</p>
+        </div>
+
+        <div class="flex flex-col divide-y divide-line rounded-panel border border-line bg-field px-3" data-switches>
+            <For each={ [...SWITCHES] } key={ (name) => name } let={ name }>
+                <div>
+                    <Toggle label={ locale.t(`groups.perm.${ name }`) } checked={ shown.switches[name] } onChange={ (on) => flip(name, on) } />
+                </div>
+            </For>
+        </div>
+
+        <div class="flex flex-col gap-1.5 rounded-panel border border-line bg-field px-3 pb-3" data-approval>
+            <Toggle label={ locale.t('groups.perm.approval') } checked={ shown.approval } onChange={ ask } />
+            <p class="text-ui-xs text-faint">{ locale.t('groups.perm.approvalLead') }</p>
+        </div>
+    </section>
+}

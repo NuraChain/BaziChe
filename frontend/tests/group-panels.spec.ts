@@ -83,7 +83,7 @@ const buttonIn = (within: Element | null, label: string) =>
 const toasted = () => useToasts().items().map((toast) => toast.text);
 
 /** A request held at the server's door, so a test can look in between the press and the answer. */
-const held = <K extends 'answer' | 'unban' | 'revokeLink' | 'requests' | 'links' | 'banned' | 'log'>(verb: K) =>
+const held = <K extends 'answer' | 'unban' | 'revokeLink' | 'requests' | 'links' | 'banned' | 'log' | 'permissions'>(verb: K) =>
 {
     let release: () => void = () => undefined;
     const original = client.groups[verb].bind(client.groups) as (...args: unknown[]) => Promise<unknown>;
@@ -156,10 +156,10 @@ describe('the tabs of a group\'s page', () =>
         crew().requests = 2;
 
         const container = opened();
-        await vi.waitFor(() => expect(tabsOf(container).length).toBe(5), { timeout: 4000 });
+        await vi.waitFor(() => expect(tabsOf(container).length).toBe(6), { timeout: 4000 });
 
         expect(tabsOf(container).map((label) => label.replace(/\d+$/, '').trim())).toEqual([
-            t('groups.tab.members'), t('groups.tab.requests'), t('groups.tab.links'), t('groups.tab.banned'), t('groups.tab.log')
+            t('groups.tab.members'), t('groups.tab.requests'), t('groups.tab.links'), t('groups.tab.banned'), t('groups.tab.log'), t('groups.tab.permissions')
         ]);
         expect(tabOf(container, t('groups.tab.requests'))?.textContent, 'how many wait').toContain('2');
     });
@@ -232,7 +232,7 @@ describe('the tabs of a group\'s page', () =>
         owned();
 
         const container = opened();
-        await vi.waitFor(() => expect(tabsOf(container).length).toBe(5), { timeout: 4000 });
+        await vi.waitFor(() => expect(tabsOf(container).length).toBe(6), { timeout: 4000 });
         await settle();
         expect(server.calls.filter((call) => ['groups.requests', 'groups.links', 'groups.banned', 'groups.log'].includes(call))).toEqual([]);
 
@@ -626,6 +626,106 @@ describe('who is banned', () =>
     });
 });
 
+describe('what members may do', () =>
+{
+    const panel = (container: HTMLElement) => panelOf(container, t('groups.tab.permissions'));
+
+    const toggle = (container: HTMLElement, label: string) =>
+        [...(panel(container)?.querySelectorAll<HTMLElement>('[role="switch"]') ?? [])].find((one) => one.textContent?.includes(label)) ?? null;
+
+    const on = (container: HTMLElement, label: string) => toggle(container, label)?.getAttribute('aria-checked');
+
+    it('is a tab of the owner\'s alone: an admin holding every right has none', async () =>
+    {
+        owned();
+        const mine = opened();
+        await vi.waitFor(() => expect(tabsOf(mine)).toContain(t('groups.tab.permissions')), { timeout: 4000 });
+
+        cleanup();
+        useGroups().reset();
+        useGroupAdmin().reset();
+        crew().role = 'admin';
+        crew().rights = ['info', 'invite', 'approve', 'remove', 'ban', 'delete', 'pin', 'members', 'calls'];
+        const theirs = opened('?tab=permissions');
+        await vi.waitFor(() => expect(tabsOf(theirs).length).toBeGreaterThan(1), { timeout: 4000 });
+
+        expect(tabsOf(theirs)).not.toContain(t('groups.tab.permissions'));
+        expect(panel(theirs), 'the address cannot open it either').toBeNull();
+    });
+
+    it('turns a switch at the press, sends the whole set, and says so once kept', async () =>
+    {
+        owned();
+        const container = opened('?tab=permissions');
+        await vi.waitFor(() => expect(toggle(container, t('groups.perm.pin'))).not.toBeNull(), { timeout: 4000 });
+        expect(on(container, t('groups.perm.pin'))).toBe('false');
+
+        const door = held('permissions');
+        fire(toggle(container, t('groups.perm.pin'))!, 'click');
+        await settle();
+
+        expect(on(container, t('groups.perm.pin')), 'on at the press').toBe('true');
+        expect(crew().switches.pin, 'nothing kept yet').toBe(false);
+
+        door.release();
+        await vi.waitFor(() => expect(toasted()).toContain(t('groups.perm.saved')), { timeout: 4000 });
+        expect(door.spy).toHaveBeenCalledWith({ params: { slug: SLUG }, input: { switches: { ...crew().switches, pin: true }, approval: false } });
+        expect(crew().switches.pin).toBe(true);
+        expect(on(container, t('groups.perm.pin')), 'and stays on').toBe('true');
+    });
+
+    it('sends presses one after another, each carrying every press before it', async () =>
+    {
+        owned();
+        const container = opened('?tab=permissions');
+        await vi.waitFor(() => expect(toggle(container, t('groups.perm.pin'))).not.toBeNull(), { timeout: 4000 });
+
+        const door = held('permissions');
+        const sent = vi.spyOn(client.groups, 'permissions');
+        fire(toggle(container, t('groups.perm.pin'))!, 'click');
+        fire(toggle(container, t('groups.perm.info'))!, 'click');
+        await settle();
+
+        expect(on(container, t('groups.perm.pin'))).toBe('true');
+        expect(on(container, t('groups.perm.info'))).toBe('true');
+        expect(sent, 'the second waits for the first').toHaveBeenCalledTimes(1);
+
+        door.release();
+        await vi.waitFor(() => expect(sent).toHaveBeenCalledTimes(2), { timeout: 4000 });
+        expect(sent.mock.calls[1][0].input.switches, 'the last says both').toMatchObject({ pin: true, info: true });
+        await vi.waitFor(() => expect(crew().switches).toMatchObject({ pin: true, info: true }), { timeout: 4000 });
+    });
+
+    it('turns a refused switch back and says why in the group\'s words', async () =>
+    {
+        owned();
+        server.refuseGroupAct = { status: 403, code: 'group-right' };
+        const container = opened('?tab=permissions');
+        await vi.waitFor(() => expect(toggle(container, t('groups.perm.send'))).not.toBeNull(), { timeout: 4000 });
+        expect(on(container, t('groups.perm.send'))).toBe('true');
+
+        fire(toggle(container, t('groups.perm.send'))!, 'click');
+
+        await vi.waitFor(() => expect(toasted()).toContain(t('group.refused.group-right')), { timeout: 4000 });
+        await vi.waitFor(() => expect(on(container, t('groups.perm.send')), 'back as kept').toBe('true'), { timeout: 4000 });
+        expect(crew().switches.send).toBe(true);
+    });
+
+    it('makes joining ask first at the press', async () =>
+    {
+        owned();
+        const container = opened('?tab=permissions');
+        const asking = () => panel(container)?.querySelector('[data-approval] [role="switch"]') ?? null;
+        await vi.waitFor(() => expect(asking()).not.toBeNull(), { timeout: 4000 });
+
+        fire(asking() as HTMLElement, 'click');
+        await settle();
+        expect(asking()?.getAttribute('aria-checked')).toBe('true');
+
+        await vi.waitFor(() => expect(crew().approval).toBe(true), { timeout: 4000 });
+    });
+});
+
 describe('the recent actions', () =>
 {
     const logOf = (container: HTMLElement) => panelOf(container, t('groups.tab.log'))?.querySelector('ol') ?? null;
@@ -655,6 +755,25 @@ describe('the recent actions', () =>
             t('groups.log.renamed', { actor: 'alex', to: 'Night Owls' })
         ]);
         expect([...rowsIn(logOf(container))[0].querySelectorAll('span[dir="ltr"]')].map((one) => one.textContent), 'each handle its own part').toEqual(['alex', 'reza.t']);
+    });
+
+    it('say asking first plainly, and any switch of what members may do as one sentence', async () =>
+    {
+        owned();
+        server.groupLogs[SLUG] = [
+            { id: 'p-3', at: ago(1), kind: 'permissions', actor: 'alex', details: { approval: 'on' } },
+            { id: 'p-2', at: ago(2), kind: 'permissions', actor: 'alex', details: { approval: 'off' } },
+            { id: 'p-1', at: ago(3), kind: 'permissions', actor: 'alex', details: { on: 'pin', off: '', approval: 'on' } }
+        ];
+
+        const container = opened('?tab=log');
+        await vi.waitFor(() => expect(rowsIn(logOf(container)).length).toBe(3), { timeout: 4000 });
+
+        expect(rowsIn(logOf(container)).map((row) => row.querySelector('p')?.textContent)).toEqual([
+            t('groups.log.asksFirst', { actor: 'alex' }),
+            t('groups.log.asksNot', { actor: 'alex' }),
+            t('groups.log.permissions', { actor: 'alex' })
+        ]);
     });
 
     it('leave out a kind it has no words for rather than drawing an empty row', async () =>

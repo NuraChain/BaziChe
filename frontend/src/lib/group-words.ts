@@ -21,6 +21,20 @@ export function whyGroup(error: unknown)
 
 const SLOTS = { actor: '{actor}', person: '{person}' };
 
+/** The doors, or asking first alone, each said plainly; any switch of what members may do as one sentence. */
+const permissionsKey = (details: GroupLogRow['details']): MessageKey =>
+{
+    if (details.privacy !== undefined)
+    {
+        return details.privacy === 'private' ? 'groups.log.private' : 'groups.log.public';
+    }
+    if (details.approval !== undefined && details.on === undefined && details.off === undefined)
+    {
+        return details.approval === 'on' ? 'groups.log.asksFirst' : 'groups.log.asksNot';
+    }
+    return 'groups.log.permissions';
+};
+
 /** The sentence a row of a group's log is said in, or nothing for a kind no page words yet. */
 const keyOf = (row: GroupLogRow): MessageKey | null =>
 {
@@ -38,7 +52,7 @@ const keyOf = (row: GroupLogRow): MessageKey | null =>
         case 'unmuted': return 'groups.log.unmuted';
         case 'role': return details.to === 'admin' ? 'groups.log.toAdmin' : (details.to === 'moderator' ? 'groups.log.toModerator' : 'groups.log.toMember');
         case 'rights': return 'groups.log.rights';
-        case 'permissions': return details.privacy === 'private' ? 'groups.log.private' : (details.privacy === 'public' ? 'groups.log.public' : 'groups.log.permissions');
+        case 'permissions': return permissionsKey(details);
         case 'info': return details.to === undefined ? 'groups.log.info' : 'groups.log.renamed';
         case 'owner': return row.actor === undefined ? 'groups.log.heir' : 'groups.log.owner';
         case 'invite': return details.to === 'revoked' ? 'groups.log.linkRevoked' : 'groups.log.linkMade';

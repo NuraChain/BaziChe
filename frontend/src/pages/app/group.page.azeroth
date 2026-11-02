@@ -13,6 +13,7 @@ import GroupLinks from '../../components/social/group-links.component.azeroth';
 import GroupLog from '../../components/social/group-log.component.azeroth';
 import GroupMemberRow from '../../components/social/group-member-row.component.azeroth';
 import GroupMemberSheet from '../../components/social/group-member-sheet.component.azeroth';
+import GroupPermissions from '../../components/social/group-permissions.component.azeroth';
 import GroupRequests from '../../components/social/group-requests.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
 import EmptyState from '../../components/ui/empty-state.component.azeroth';
@@ -110,6 +111,8 @@ export default component GroupPage()
 
     derived logged = group !== null && mayIn(standing, group.switches, 'log');
 
+    derived permits = group !== null && mayIn(standing, group.switches, 'permissions');
+
     derived editable = group !== null && mayIn(standing, group.switches, 'info');
 
     derived adds = group !== null && mayIn(standing, group.switches, 'add');
@@ -141,7 +144,8 @@ export default component GroupPage()
         ...(answers ? [{ id: 'requests', label: locale.t('groups.tab.requests'), ...(waiting > 0 ? { count: waiting } : {}) }] : []),
         ...(links ? [{ id: 'links', label: locale.t('groups.tab.links') }] : []),
         ...(bans ? [{ id: 'banned', label: locale.t('groups.tab.banned') }] : []),
-        ...(logged ? [{ id: 'log', label: locale.t('groups.tab.log') }] : [])
+        ...(logged ? [{ id: 'log', label: locale.t('groups.tab.log') }] : []),
+        ...(permits ? [{ id: 'permissions', label: locale.t('groups.tab.permissions') }] : [])
     ];
 
     derived tabbed = tabs.length > 1;
@@ -161,6 +165,8 @@ export default component GroupPage()
     derived onBanned = tab === 'banned';
 
     derived onLog = tab === 'log';
+
+    derived onPermissions = tab === 'permissions';
 
     const show = (id: string) => address.write({ tab: id === 'members' ? '' : id });
 
@@ -415,6 +421,10 @@ export default component GroupPage()
 
                 <Show when={ onLog }>
                     { () => <GroupLog /> }
+                </Show>
+
+                <Show when={ onPermissions }>
+                    { () => <GroupPermissions group={ crew } /> }
                 </Show>
 
                 <section hidden={ !onMembers }>

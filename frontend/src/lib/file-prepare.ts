@@ -7,6 +7,7 @@ import {
 } from '../../../backend/src/domains/chat/files.ts';
 import type { FileDraft } from '../data/chat.ts';
 import { toBase64Url } from './device-id.ts';
+import { bareGif } from './gif.ts';
 import { redraw, type Drawing } from './redraw.ts';
 
 /** The longest side of a thumb, in pixels: a few hundred bytes of JPEG, drawn blurred. */
@@ -232,6 +233,38 @@ async function videoOf(file: File): Promise<FileDraft | null>
     }
 }
 
+/** A GIF as it moves, with nothing in it but its frames (`bareGif`), its first frame for a thumb. Null for one that is not a whole GIF or this browser cannot draw. */
+async function gifOf(file: File): Promise<FileDraft | null>
+{
+    const bare = bareGif(new Uint8Array(await file.arrayBuffer()));
+
+    if (bare === null)
+    {
+        return null;
+    }
+
+    const frame = await createImageBitmap(new Blob([bare as BlobPart], { type: 'image/gif' })).catch(() => null);
+
+    if (frame === null)
+    {
+        return null;
+    }
+
+    const { width, height } = frame;
+    const thumb = await thumbOf((await redraw(frame, [thumbSized(width, height, '#fff')]))[0]);
+    const stem = nameOf(file.name).replace(/\.[^.]{1,8}$/, '');
+
+    return {
+        plain: bare,
+        as: 'photo',
+        mime: 'image/gif',
+        name: nameOf(`${ stem }.gif`),
+        w: width,
+        h: height,
+        ...(thumb === undefined ? {} : { thumb })
+    };
+}
+
 /** Anything as a file: its bytes and its name as they are, never shown. */
 export const fileOf = async (file: File): Promise<FileDraft> => ({
     plain: new Uint8Array(await file.arrayBuffer()),
@@ -256,6 +289,16 @@ export async function prepare(file: File, asFile: boolean)
         }
     }
 
+    if (!asFile && file.type === 'image/gif')
+    {
+        const gif = await gifOf(file);
+
+        if (gif !== null)
+        {
+            return gif;
+        }
+    }
+
     if (!asFile && file.type.startsWith('video/'))
     {
         const video = await videoOf(file);
@@ -270,7 +313,7 @@ export async function prepare(file: File, asFile: boolean)
 }
 
 /** Whether a file is one that may be sent as something other than a file at all. */
-export const showable = (file: File) => drawable(file.type) || file.type.startsWith('video/');
+export const showable = (file: File) => drawable(file.type) || file.type === 'image/gif' || file.type.startsWith('video/');
 
 /**
  * A file too large to send that need not be read to know it: anything going as it is (a video, a

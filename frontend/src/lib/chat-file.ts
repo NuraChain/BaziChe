@@ -67,7 +67,7 @@ export async function openFile(body: Uint8Array, key: string, iv: string, fileId
  * named: the type a reader's page hands to `<img>` or `<video>` is one it found, never one it was told.
  * Anything else is a file, saved and never shown.
  */
-export type ShownType = 'image/jpeg' | 'image/png' | 'image/webp' | 'video/mp4' | 'video/webm' | 'video/quicktime';
+export type ShownType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' | 'video/mp4' | 'video/webm' | 'video/quicktime';
 
 export function sniffShown(bytes: Uint8Array): ShownType | null
 {
@@ -86,6 +86,11 @@ export function sniffShown(bytes: Uint8Array): ShownType | null
     if (at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50))
     {
         return 'image/webp';
+    }
+
+    if (at(0, 0x47, 0x49, 0x46, 0x38) && (bytes[4] === 0x37 || bytes[4] === 0x39) && bytes[5] === 0x61)
+    {
+        return 'image/gif';
     }
 
     if (at(0, 0x1a, 0x45, 0xdf, 0xa3))

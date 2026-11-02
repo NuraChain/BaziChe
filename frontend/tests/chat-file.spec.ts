@@ -158,6 +158,8 @@ describe('what a file may be shown as', () =>
         expect(sniffShown(bytes(0, 0, 0, 0x14, 0x66, 0x74, 0x79, 0x70, 0x71, 0x74, 0x20, 0x20))).toBe('video/quicktime');
         expect(sniffShown(new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"></svg>')), 'an SVG is never shown').toBeNull();
         expect(sniffShown(new TextEncoder().encode('<html><script>')), 'nor a page').toBeNull();
-        expect(sniffShown(bytes(0x47, 0x49, 0x46, 0x38)), 'nor a GIF').toBeNull();
+        expect(sniffShown(bytes(0x47, 0x49, 0x46, 0x38, 0x39, 0x61))).toBe('image/gif');
+        expect(sniffShown(bytes(0x47, 0x49, 0x46, 0x38, 0x37, 0x61))).toBe('image/gif');
+        expect(sniffShown(bytes(0x47, 0x49, 0x46, 0x38)), 'nor half a GIF').toBeNull();
     });
 });

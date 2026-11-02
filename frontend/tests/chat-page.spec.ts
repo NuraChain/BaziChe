@@ -9,7 +9,9 @@ import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetRuntime, runtime, setRuntime } from '../src/lib/runtime.ts';
 import '../src/locales/app-catalogue.ts';
 import { useCatalogue } from '../src/stores/catalogue.store.ts';
+import type { FileDraft } from '../src/data/chat.ts';
 import { createApiSource } from '../src/services/chat.source.ts';
+import { setChatFiles } from '../src/services/chat-files.ts';
 import { setChatSource, useChat } from '../src/stores/chat.store.ts';
 import { useDevice } from '../src/stores/device.store.ts';
 import { useGroups } from '../src/stores/groups.store.ts';
@@ -502,6 +504,60 @@ describe('a line sent from the page', () =>
         await vi.waitFor(() => expect(status()).toMatch(/^(sent|read)$/), { timeout: 4000 });
 
         expect(server.calls.filter((one) => one === 'chat.send'), 'refused once, then sent').toHaveLength(2);
+    });
+});
+
+describe('an album sent from the page', () =>
+{
+    const photo = (): FileDraft => ({
+        plain: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...Array.from({ length: 600 }, (_, at) => at % 251)]),
+        as: 'photo',
+        mime: 'image/jpeg',
+        name: 'beach.jpg',
+        w: 1600,
+        h: 1200,
+        thumb: 'AAAA'
+    });
+
+    afterEach(() =>
+    {
+        setChatFiles(null);
+        server.holdChat = null;
+    });
+
+    it('is one bubble in the thread at the press, and the same bubble once the server has it', async () =>
+    {
+        setChatFiles({ upload: () => Promise.resolve(), download: () => Promise.reject(new Error('not here')) });
+
+        const thread = server.conversations.find((row) => row.kind === 'direct')!;
+        const container = opened(thread.id, 'sidebar');
+        let open: () => void = () => undefined;
+
+        await vi.waitFor(() => expect(container.querySelector('#chat-thread textarea')).not.toBeNull(), { timeout: 4000 });
+
+        server.holdChat = new Promise<void>((done) =>
+        {
+            open = done;
+        });
+
+        const sending = useChat().sendAlbum(thread.id, [photo(), photo(), photo()], 'From the page');
+
+        await vi.waitFor(() => expect(container.querySelectorAll('[data-album]')).toHaveLength(1), { timeout: 4000 });
+
+        const bubble = container.querySelector('[data-album]')!.closest('[data-message]');
+        const status = () => bubble?.querySelector('time [data-status]')?.getAttribute('data-status');
+
+        expect(container.querySelectorAll('[data-album] [data-tile]'), 'every photo a tile of it').toHaveLength(3);
+        expect(status(), 'on its way').toBe('sending');
+        expect(bubble?.textContent?.split('From the page'), 'its caption once').toHaveLength(2);
+
+        server.holdChat = null;
+        open();
+        await sending;
+
+        await vi.waitFor(() => expect(status()).toMatch(/^(sent|read)$/), { timeout: 4000 });
+        expect(container.contains(bubble), 'the bubble it was').toBe(true);
+        expect(container.querySelectorAll('[data-album]'), 'and still one').toHaveLength(1);
     });
 });
 

@@ -4,10 +4,12 @@ import { RouterProvider, createMemoryHistory, createRouter } from 'azerothjs';
 
 import { MISSES_ALLOWED } from '../../backend/src/domains/match/turns.ts';
 import type { MatchView } from '../src/api.ts';
+import type { FileDraft } from '../src/data/chat.ts';
 import TableChat from '../src/components/games/table-chat.component.azeroth';
 import { defaultTable } from '../src/data/tables.ts';
 import { manualClock } from '../src/lib/clock.ts';
 import { resetRuntime, setRuntime } from '../src/lib/runtime.ts';
+import { setChatFiles } from '../src/services/chat-files.ts';
 import '../src/locales/app-catalogue.ts';
 import { useChat } from '../src/stores/chat.store.ts';
 import { useLobby } from '../src/stores/lobby.store.ts';
@@ -905,5 +907,35 @@ describe('the moves beside a chess table\'s chat', () =>
         const container = await seated('ludo');
 
         expect(pressable(container, useLocale().t('play.tab.moves'))).toBeUndefined();
+    });
+});
+
+describe('an album at a table', () =>
+{
+    afterEach(() =>
+    {
+        setChatFiles(null);
+    });
+
+    it('is one bubble, as it is in a thread', async () =>
+    {
+        setChatFiles({ upload: () => Promise.resolve(), download: () => Promise.reject(new Error('not here')) });
+
+        const room = server.conversations.find((row) => row.kind === 'direct')!;
+        const container = shown(room.id);
+        const photo = (): FileDraft => ({
+            plain: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...Array.from({ length: 300 }, (_, at) => at % 251)]),
+            as: 'photo',
+            mime: 'image/jpeg',
+            name: 'table.jpg',
+            w: 1200,
+            h: 1200
+        });
+
+        await vi.waitFor(() => expect(container.querySelector('ul[aria-live]')).not.toBeNull(), { timeout: 4000 });
+        await useChat().sendAlbum(room.id, [photo(), photo()], '');
+
+        await vi.waitFor(() => expect(container.querySelectorAll('[data-album] [data-tile]')).toHaveLength(2), { timeout: 4000 });
+        expect(container.querySelectorAll('[data-album]'), 'one album').toHaveLength(1);
     });
 });

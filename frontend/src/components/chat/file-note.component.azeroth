@@ -1,33 +1,11 @@
 import type { Message } from '../../data/chat.ts';
 import Icon from '../../icons/icon.component.azeroth';
-import type { MessageKey } from '../../locales/en.ts';
 import { useChat } from '../../stores/chat.store.ts';
-import { useFileLoads, type FileFault } from '../../stores/file-loads.store.ts';
+import { useFileLoads } from '../../stores/file-loads.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
-import { useOverlay } from '../../stores/overlay.store.ts';
-import { usePeople } from '../../stores/people.store.ts';
-import { sizeSaid, voiceClock } from './gist.ts';
-import FileViewer from './file-viewer.component.azeroth';
-
-const FAULTS: Record<FileFault, MessageKey> = {
-    gone: 'chat.file.gone',
-    failed: 'chat.file.failed',
-    tampered: 'chat.file.tampered',
-    unshowable: 'chat.file.unshowable'
-};
-
-/** A thumb as the picture its bytes are: base64url in the document, base64 in an address. */
-const thumbOf = (thumb: string | undefined) =>
-{
-    if (thumb === undefined)
-    {
-        return null;
-    }
-
-    const plain = thumb.replaceAll('-', '+').replaceAll('_', '/');
-
-    return `data:image/jpeg;base64,${ plain }${ '='.repeat((4 - (plain.length % 4)) % 4) }`;
-};
+import { FILE_FAULTS } from './file-parts.ts';
+import { sizeSaid } from './gist.ts';
+import MediaTile from './media-tile.component.azeroth';
 
 /** A name cut in its middle, so a long one still shows how it ends: `holiday-photos-…-final.pdf`. */
 const middleOf = (name: string, most = 32) =>
@@ -70,16 +48,12 @@ export default component FileNote(props: {
     const locale = useLocale();
     const chat = useChat();
     const loads = useFileLoads();
-    const overlay = useOverlay();
-    const people = usePeople();
 
     derived file = props.message.file!;
 
     derived mine = props.mine;
 
     derived shown = file.as !== 'file';
-
-    derived photo = file.as === 'photo';
 
     derived state = loads.stateOf(props.message);
 
@@ -97,15 +71,9 @@ export default component FileNote(props: {
 
     derived size = sizeSaid(file.bytes, locale);
 
-    derived length = file.ms === undefined ? '' : voiceClock(Math.round(file.ms / 1000), locale.n);
-
-    derived meta = file.as === 'video' && length !== '' ? `${ length } · ${ size }` : size;
-
     derived sending = chat.uploadOf(props.message.id);
 
     derived uploading = sending !== null;
-
-    derived thumb = thumbOf(file.thumb);
 
     derived ratio = file.w !== undefined && file.h !== undefined ? `${ file.w } / ${ file.h }` : '4 / 3';
 
@@ -116,21 +84,6 @@ export default component FileNote(props: {
     derived reserve = props.reserve;
 
     derived room = props.trail ? 'invisible ps-2 pe-4' : 'invisible ps-2';
-
-    derived from = (() =>
-    {
-        const person = people.byHandle(props.message.from);
-
-        return person === null ? props.message.from : locale.text(person.displayName);
-    })();
-
-    const view = () =>
-    {
-        if (url !== '')
-        {
-            overlay.open(FileViewer, { url, name: file.name, from }, { label: locale.t('chat.file.viewer', { name: from }), kind: 'modal' });
-        }
-    };
 
     <div class="flex max-w-full flex-col gap-1 py-0.5" data-file={ file.id } data-as={ file.as }>
         <Show
@@ -195,54 +148,7 @@ export default component FileNote(props: {
                     class={ () => [ 'relative -mx-1.5 overflow-hidden rounded-[0.8rem] bg-black/20', wide ? 'w-72 max-w-full' : 'w-52 max-w-full' ].join(' ') }
                     style={ `aspect-ratio: ${ ratio }; max-height: 22rem` }
                 >
-                    <Show when={ thumb !== null && !ready }>
-                        { () => <img src={ thumb ?? '' } alt="" class="absolute inset-0 h-full w-full scale-110 object-cover blur-md" aria-hidden="true" /> }
-                    </Show>
-                    <Show when={ ready && photo }>
-                        { () =>
-                            <button type="button" class="absolute inset-0 cursor-zoom-in" aria-label={ locale.t('chat.file.open') } onClick={ view }>
-                                <img src={ url } alt={ props.message.text === '' ? file.name : props.message.text } class="h-full w-full object-cover" draggable={ false } />
-                            </button>
-                        }
-                    </Show>
-                    <Show when={ ready && !photo }>
-                        { () => <video src={ url } controls playsinline preload="metadata" class="absolute inset-0 h-full w-full bg-black object-contain"></video> }
-                    </Show>
-                    <Show when={ !ready }>
-                        { () =>
-                            <span class="absolute inset-0 flex items-center justify-center">
-                                <button
-                                    type="button"
-                                    class="relative flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-transform duration-150 active:scale-95 motion-reduce:transition-none"
-                                    aria-label={ label }
-                                    aria-busy={ loading ? 'true' : undefined }
-                                    data-download={ loading ? 'loading' : 'idle' }
-                                    disabled={ fault !== null && fault !== 'failed' }
-                                    onClick={ () => loads.toggle(props.message) }
-                                >
-                                    <Icon name={ fault !== null && fault !== 'failed' ? 'alert' : (loading ? 'close' : 'download') } size={ 20 } />
-                                    <Show when={ loading || uploading }>
-                                        { () =>
-                                            <svg class="pointer-events-none absolute -inset-0.5 -rotate-90" viewBox="0 0 48 48" aria-hidden="true" data-ring>
-                                                <circle cx="24" cy="24" r="22.5" fill="none" stroke="white" stroke-opacity="0.3" stroke-width="2.5"></circle>
-                                                <circle cx="24" cy="24" r="22.5" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset={ 100 - Math.round((uploading ? sending ?? 0 : fraction) * 100) }></circle>
-                                            </svg>
-                                        }
-                                    </Show>
-                                </button>
-                            </span>
-                        }
-                    </Show>
-                    <Show when={ !ready || photo }>
-                        { () =>
-                            <span class="pointer-events-none absolute start-1.5 top-1.5 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-ui-2xs font-medium tabular-nums text-white backdrop-blur-sm" data-size>
-                                <Show when={ !photo }>
-                                    { () => <Icon name="film" size={ 12 } /> }
-                                </Show>
-                                { meta }
-                            </span>
-                        }
-                    </Show>
+                    <MediaTile message={ props.message } />
                 </div>
             }
         </Show>
@@ -251,7 +157,7 @@ export default component FileNote(props: {
             { () =>
                 <span class={ () => [ 'flex items-start gap-1 text-ui-2xs leading-snug', alarming ? 'text-danger' : (mine ? 'text-accent-ink/85' : 'text-muted') ].join(' ') } role={ alarming ? 'alert' : 'status' } data-fault={ fault ?? '' }>
                     <span class="min-w-0 flex-1">
-                        { fault === null ? '' : locale.t(FAULTS[fault]) }
+                        { fault === null ? '' : locale.t(FILE_FAULTS[fault]) }
                         <Show when={ fault === 'failed' }>
                             { () =>
                                 <button type="button" class="relative ms-1 cursor-pointer font-semibold underline-offset-2 hover:underline coarse:before:absolute coarse:before:-inset-x-1 coarse:before:-inset-y-3.5" onClick={ () => loads.toggle(props.message) }>

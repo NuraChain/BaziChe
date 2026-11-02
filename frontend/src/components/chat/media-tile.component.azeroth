@@ -1,0 +1,125 @@
+import type { Message } from '../../data/chat.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { useChat } from '../../stores/chat.store.ts';
+import { useFileLoads } from '../../stores/file-loads.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import { FILE_FAULTS, thumbOf } from './file-parts.ts';
+import { sizeSaid, voiceClock } from './gist.ts';
+import FileViewer from './file-viewer.component.azeroth';
+
+/**
+ * A photo or a video as it stands in its place, filling whatever box it is given: alone in its bubble
+ * at its own proportions, or one of an album's tiles. Its thumb, blurred, with how large it is (and a
+ * video how long) until it is pressed; a ring fills as it comes (a second press stops it); come, a
+ * photo is shown and opens full screen and a video plays where it is.
+ */
+export default component MediaTile(props: { message: Message })
+{
+    const locale = useLocale();
+    const chat = useChat();
+    const loads = useFileLoads();
+    const overlay = useOverlay();
+    const people = usePeople();
+
+    derived file = props.message.file!;
+
+    derived photo = file.as === 'photo';
+
+    derived state = loads.stateOf(props.message);
+
+    derived ready = state !== null && state.at === 'ready';
+
+    derived loading = state !== null && state.at === 'loading';
+
+    derived fraction = state !== null && state.at === 'loading' ? state.fraction : 0;
+
+    derived fault = state !== null && state.at === 'fault' ? state.fault : null;
+
+    derived stuck = fault !== null && fault !== 'failed';
+
+    derived url = state !== null && state.at === 'ready' ? state.url : '';
+
+    derived size = sizeSaid(file.bytes, locale);
+
+    derived length = file.ms === undefined ? '' : voiceClock(Math.round(file.ms / 1000), locale.n);
+
+    derived meta = file.as === 'video' && length !== '' ? `${ length } · ${ size }` : size;
+
+    derived sending = chat.uploadOf(props.message.id);
+
+    derived uploading = sending !== null;
+
+    derived thumb = thumbOf(file.thumb);
+
+    derived label = fault === null || fault === 'failed'
+        ? (loading ? locale.t('chat.file.cancel') : locale.t('chat.file.download', { name: file.name, size }))
+        : locale.t(FILE_FAULTS[fault]);
+
+    derived from = (() =>
+    {
+        const person = people.byHandle(props.message.from);
+
+        return person === null ? props.message.from : locale.text(person.displayName);
+    })();
+
+    const view = () =>
+    {
+        if (url !== '')
+        {
+            overlay.open(FileViewer, { url, name: file.name, from }, { label: locale.t('chat.file.viewer', { name: from }), kind: 'modal' });
+        }
+    };
+
+    <div class="absolute inset-0" data-tile={ file.id } data-as={ file.as } data-fault={ fault ?? undefined }>
+        <Show when={ thumb !== null && !ready }>
+            { () => <img src={ thumb ?? '' } alt="" class="absolute inset-0 h-full w-full scale-110 object-cover blur-md" aria-hidden="true" /> }
+        </Show>
+        <Show when={ ready && photo }>
+            { () =>
+                <button type="button" class="absolute inset-0 cursor-zoom-in" aria-label={ locale.t('chat.file.open') } onClick={ view }>
+                    <img src={ url } alt={ props.message.text === '' ? file.name : props.message.text } class="h-full w-full object-cover" draggable={ false } />
+                </button>
+            }
+        </Show>
+        <Show when={ ready && !photo }>
+            { () => <video src={ url } controls playsinline preload="metadata" class="absolute inset-0 h-full w-full bg-black object-contain"></video> }
+        </Show>
+        <Show when={ !ready }>
+            { () =>
+                <span class="absolute inset-0 flex items-center justify-center">
+                    <button
+                        type="button"
+                        class="relative flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-transform duration-150 active:scale-95 motion-reduce:transition-none"
+                        aria-label={ label }
+                        aria-busy={ loading ? 'true' : undefined }
+                        data-download={ loading ? 'loading' : 'idle' }
+                        disabled={ stuck }
+                        onClick={ () => loads.toggle(props.message) }
+                    >
+                        <Icon name={ stuck ? 'alert' : (loading ? 'close' : 'download') } size={ 20 } />
+                        <Show when={ loading || uploading }>
+                            { () =>
+                                <svg class="pointer-events-none absolute -inset-0.5 -rotate-90" viewBox="0 0 48 48" aria-hidden="true" data-ring>
+                                    <circle cx="24" cy="24" r="22.5" fill="none" stroke="white" stroke-opacity="0.3" stroke-width="2.5"></circle>
+                                    <circle cx="24" cy="24" r="22.5" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset={ 100 - Math.round((uploading ? sending ?? 0 : fraction) * 100) }></circle>
+                                </svg>
+                            }
+                        </Show>
+                    </button>
+                </span>
+            }
+        </Show>
+        <Show when={ !ready || photo }>
+            { () =>
+                <span class="pointer-events-none absolute start-1.5 top-1.5 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-ui-2xs font-medium tabular-nums text-white backdrop-blur-sm" data-size>
+                    <Show when={ !photo }>
+                        { () => <Icon name="film" size={ 12 } /> }
+                    </Show>
+                    { meta }
+                </span>
+            }
+        </Show>
+    </div>
+}

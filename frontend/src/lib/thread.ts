@@ -5,6 +5,9 @@ export const GROUP_GAP_MS = 5 * 60 * 1000;
 export interface ThreadRow
 {
     message: Message;
+
+    /** The photos and videos of an album drawn as this one row, in their places; none for a line alone. */
+    items: readonly Message[];
     first: boolean;
     last: boolean;
     day: boolean;
@@ -33,17 +36,65 @@ function joins(earlier: Message | undefined, later: Message | undefined)
         && dayKey(earlier.at) === dayKey(later.at);
 }
 
+interface Folded
+{
+    message: Message;
+    items: Message[];
+}
+
+/**
+ * One sender's items of one album, side by side in the thread, are one row, the row of the first of
+ * them (MS-D46): its caption, its reply and its reactions are the first item's. An item whose album
+ * has no other item here is a line alone.
+ */
+function fold(messages: readonly Message[])
+{
+    const rows: Folded[] = [];
+
+    for (const message of messages)
+    {
+        const held = rows.at(-1);
+        const album = message.album?.id;
+
+        if (album !== undefined && held !== undefined && held.message.album?.id === album && held.message.from === message.from)
+        {
+            held.items.push(message);
+        }
+        else
+        {
+            rows.push({ message, items: [message] });
+        }
+    }
+
+    return rows.map((row): Folded =>
+    {
+        if (row.items.length < 2)
+        {
+            return { message: row.message, items: [] };
+        }
+
+        const items = [...row.items].sort((a, b) => (a.album?.at ?? 0) - (b.album?.at ?? 0));
+
+        return { message: items[0], items };
+    });
+}
+
 export function threadRows(messages: readonly Message[]): ThreadRow[]
 {
-    return messages.map((message, index) =>
+    const rows = fold(messages);
+    const at = (index: number): Folded | undefined => rows[index];
+    const tail = (row: Folded) => row.items.at(-1) ?? row.message;
+
+    return rows.map((row, index) =>
     {
-        const before = messages[index - 1];
+        const before = at(index - 1);
 
         return {
-            message,
-            day: before === undefined || dayKey(before.at) !== dayKey(message.at),
-            first: !joins(before, message),
-            last: !joins(message, messages[index + 1])
+            message: row.message,
+            items: row.items,
+            day: before === undefined || dayKey(tail(before).at) !== dayKey(row.message.at),
+            first: !joins(before === undefined ? undefined : tail(before), row.message),
+            last: !joins(tail(row), at(index + 1)?.message)
         };
     });
 }

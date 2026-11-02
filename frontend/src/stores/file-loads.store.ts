@@ -22,6 +22,9 @@ export interface FileLoadsApi
     /** Fetches a message's file, opens it under its key and holds it; a second press while it comes stops it. */
     toggle(message: Message): void;
 
+    /** Fetches every one of several files that is neither here nor on its way, one after another, until the reader stops one. */
+    all(messages: readonly Message[]): Promise<void>;
+
     reset(): void;
 }
 
@@ -170,6 +173,27 @@ export const useFileLoads = createStore((): FileLoadsApi =>
             }
 
             void fetchOne(message);
+        },
+
+        async all(messages)
+        {
+            for (const message of messages)
+            {
+                const id = message.file?.id;
+
+                if (id === undefined || heldFile(id) !== null || stops.has(id))
+                {
+                    continue;
+                }
+
+                await fetchOne(message);
+
+                // Neither here nor refused: the reader stopped it, or signed out, and wants none of the rest.
+                if (heldFile(id) === null && untrack(loads)[id] === undefined)
+                {
+                    return;
+                }
+            }
         },
 
         reset()

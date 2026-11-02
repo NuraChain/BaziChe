@@ -1,0 +1,119 @@
+import type { Message } from '../../data/chat.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { useFileLoads, type FileFault } from '../../stores/file-loads.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { albumRows } from './album-rows.ts';
+import { FILE_FAULTS } from './file-parts.ts';
+import { sizeSaid } from './gist.ts';
+import MediaTile from './media-tile.component.azeroth';
+
+/** Which of several faults is said for the whole album: one that was tampered with before anything else. */
+const WORST: readonly FileFault[] = ['tampered', 'unshowable', 'gone', 'failed'];
+
+/**
+ * An album's photos and videos as one grid in one bubble (MS-D46): rows of up to three, each item at
+ * its own proportions within its row, nothing fetched until it is pressed or "Download all" is, which
+ * fetches them one after another. What kept any of them away is said once under the grid, the worst
+ * first, with Try again for those that could not be fetched.
+ */
+export default component AlbumGrid(props: {
+    items: readonly Message[];
+    mine: boolean;
+
+    /** The bubble's time, kept room for under the grid when no caption is under it. */
+    reserve: string;
+    trail: boolean;
+})
+{
+    const locale = useLocale();
+    const loads = useFileLoads();
+
+    derived rows = albumRows(props.items);
+
+    derived album = props.items.length === 0 ? undefined : props.items[0].album;
+
+    derived holds = album?.holds ?? 'photo';
+
+    derived name = locale.t(`chat.albumGist.${ holds }`, { count: props.items.length });
+
+    derived states = props.items.map((item) => loads.stateOf(item));
+
+    derived untouched = props.items.filter((_, place) => states[place] === null);
+
+    derived failed = props.items.filter((_, place) =>
+    {
+        const state = states[place];
+
+        return state !== null && state.at === 'fault' && state.fault === 'failed';
+    });
+
+    derived busy = states.some((state) => state !== null && state.at === 'loading');
+
+    derived offered = untouched.length > 0 && !busy;
+
+    derived left = sizeSaid(untouched.reduce((sum, item) => sum + (item.file?.bytes ?? 0), 0), locale);
+
+    derived worst = WORST.find((fault) => states.some((state) => state !== null && state.at === 'fault' && state.fault === fault)) ?? null;
+
+    derived alarming = worst === 'tampered';
+
+    derived retry = failed.length > 0;
+
+    derived mine = props.mine;
+
+    derived reserve = props.reserve;
+
+    derived room = props.trail ? 'invisible ps-2 pe-4' : 'invisible ps-2';
+
+    <div class="flex max-w-full flex-col gap-1 py-0.5" role="group" aria-label={ name } data-album={ album?.id ?? '' }>
+        <div class="-mx-1.5 flex w-72 max-w-full flex-col gap-0.5 overflow-hidden rounded-[0.8rem]">
+            <For each={ rows } key={ (row) => row.key } let={ row }>
+                <div class="flex gap-0.5" style={ () => `aspect-ratio: ${ row.shape }` } data-row>
+                    <For each={ row.tiles } key={ (tile) => tile.message.id } let={ tile }>
+                        <div class="relative min-w-0 overflow-hidden bg-black/20" style={ () => `flex: ${ tile.shape } 1 0%` }>
+                            <MediaTile message={ tile.message } />
+                        </div>
+                    </For>
+                </div>
+            </For>
+        </div>
+
+        <Show when={ offered }>
+            { () =>
+                <button
+                    type="button"
+                    class={ () => [
+                        'flex cursor-pointer items-center gap-1.5 self-start rounded-full px-1 py-0.5 text-ui-xs font-semibold underline-offset-2 hover:underline coarse:min-h-11',
+                        mine ? 'text-accent-ink' : 'text-accent'
+                    ].join(' ') }
+                    data-all
+                    onClick={ () => void loads.all(untouched) }
+                >
+                    <Icon name="download" size={ 14 } />
+                    { locale.t('chat.album.downloadAll', { size: left }) }
+                </button>
+            }
+        </Show>
+
+        <Show when={ worst !== null }>
+            { () =>
+                <span class={ () => [ 'flex items-start gap-1 text-ui-2xs leading-snug', alarming ? 'text-danger' : (mine ? 'text-accent-ink/85' : 'text-muted') ].join(' ') } role={ alarming ? 'alert' : 'status' } data-fault={ worst ?? '' }>
+                    <span class="min-w-0 flex-1">
+                        { worst === null ? '' : locale.t(FILE_FAULTS[worst]) }
+                        <Show when={ retry }>
+                            { () =>
+                                <button type="button" class="relative ms-1 cursor-pointer font-semibold underline-offset-2 hover:underline coarse:before:absolute coarse:before:-inset-x-1 coarse:before:-inset-y-3.5" onClick={ () => void loads.all(failed) }>
+                                    { locale.t('common.retry') }
+                                </button>
+                            }
+                        </Show>
+                    </span>
+                </span>
+            }
+        </Show>
+
+        <Show when={ reserve !== '' }>
+            { () => <span class="flex min-h-3 text-ui-2xs leading-none" aria-hidden="true"><span class={ () => `ms-auto ${ room }` }>{ reserve }</span></span> }
+        </Show>
+    </div>
+}

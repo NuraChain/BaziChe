@@ -234,6 +234,7 @@ export const social = {
     'chat.albumGist.photo': { one: '{count} photo', other: '{count} photos' },
     'chat.albumGist.video': { one: '{count} video', other: '{count} videos' },
     'chat.albumGist.both': { one: '{count} photo or video', other: '{count} photos and videos' },
+    'chat.album.downloadAll': 'Download all ({size})',
     'chat.file.size.b': '{n} B',
     'chat.file.size.kb': '{n} KB',
     'chat.file.size.mb': '{n} MB',

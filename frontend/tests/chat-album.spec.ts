@@ -474,3 +474,52 @@ describe('an album taken away', () =>
         expect(itemsOf(chat.messages()).map((one) => one.id)).toEqual(sent.map((one) => one.id));
     });
 });
+
+describe('an album forwarded', () =>
+{
+    it('goes whole, as an album of its own, each file named as it is, its caption kept and nothing put up', async () =>
+    {
+        const chat = useChat();
+        chat.openThread('c-reza');
+        await chat.sendAlbum('c-reza', [photo(), video(), photo('rocks.jpg')], 'Our trip');
+        await chat.refresh();
+
+        const sent = itemsOf(chat.messages());
+        const to = server.conversations.find((one) => one.id !== 'c-reza' && one.kind === 'direct')!.id;
+        const uploaded = files.uploads.length;
+
+        await chat.forward(sent[1], to);
+
+        const again = server.messages.filter((one) => one.conversationId === to && one.album !== undefined);
+
+        expect(again.map((one) => one.file), 'the same files, in their places').toEqual(sent.map((one) => one.file?.id));
+        expect(new Set(again.map((one) => one.album)).size, 'one album').toBe(1);
+        expect(again[0].album, 'of its own').not.toBe(sent[0].album?.id);
+        expect(files.uploads, 'nothing put up').toHaveLength(uploaded);
+
+        chat.openThread(to);
+        await chat.refresh();
+
+        const read = itemsOf(chat.messages());
+
+        expect(read.map((one) => [one.forwarded, one.album?.at, one.album?.of, one.album?.holds])).toEqual([[true, 0, 3, 'both'], [true, 1, 3, 'both'], [true, 2, 3, 'both']]);
+        expect(read[0].text, 'its caption with it').toBe('Our trip');
+    });
+
+    it('forwards an item alone when no other item of its album is here', async () =>
+    {
+        const chat = useChat();
+        chat.openThread('c-reza');
+        await chat.sendAlbum('c-reza', [photo(), photo()], '');
+        await chat.refresh();
+
+        const one = itemsOf(chat.messages())[0];
+        const to = server.conversations.find((row) => row.id !== 'c-reza' && row.kind === 'direct')!.id;
+
+        await chat.forward({ ...one, album: { ...one.album!, id: crypto.randomUUID() } }, to);
+
+        const sent = server.messages.at(-1)!;
+
+        expect([sent.conversationId, sent.album, sent.file]).toEqual([to, undefined, one.file?.id]);
+    });
+});

@@ -237,6 +237,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.albumGist.photo': { zero: '{count} صورة', one: 'صورة واحدة', two: 'صورتان', few: '{count} صور', many: '{count} صورة', other: '{count} صورة' },
     'chat.albumGist.video': { zero: '{count} مقطع فيديو', one: 'مقطع فيديو واحد', two: 'مقطعا فيديو', few: '{count} مقاطع فيديو', many: '{count} مقطع فيديو', other: '{count} مقطع فيديو' },
     'chat.albumGist.both': { zero: '{count} صور وفيديوهات', one: 'صورة أو فيديو', two: 'صورة وفيديو', few: '{count} صور وفيديوهات', many: '{count} صورة وفيديو', other: '{count} صورة وفيديو' },
+    'chat.album.downloadAll': 'تنزيل الكل ({size})',
     'chat.file.size.b': '{n} بايت',
     'chat.file.size.kb': '{n} ك.ب',
     'chat.file.size.mb': '{n} م.ب',

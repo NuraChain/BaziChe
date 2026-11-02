@@ -472,6 +472,7 @@ export default component TableChat(props: {
                                 </Show>
                                 <MessageBubble
                                     message={ row.message }
+                                    items={ row.items }
                                     me={ lobby.me() }
                                     first={ row.first }
                                     last={ row.last }

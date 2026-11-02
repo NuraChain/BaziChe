@@ -69,6 +69,12 @@ const attachmentOf = (id: string, sealed: { key: string; iv: string }, draft: Fi
 /** The sender sees what they sent at once, as the type its bytes say it is; a file sent as a file never is. */
 const shownAs = (draft: FileDraft) => (draft.as === 'file' ? 'application/octet-stream' : sniffShown(draft.plain) ?? 'application/octet-stream');
 
+/** An album's items in the order they were chosen. */
+const byPlace = (a: Message, b: Message) => (a.album?.at ?? 0) - (b.album?.at ?? 0);
+
+/** What an album holds, from what its items were sent as. */
+const holdsOf = (kinds: ReadonlySet<Attachment['as']>) => (kinds.size > 1 ? 'both' : kinds.has('video') ? 'video' : 'photo');
+
 let active: ChatSource = createApiSource();
 
 export function setChatSource(next: ChatSource | null)
@@ -552,7 +558,7 @@ export const useChat = createStore((): ChatApi =>
     /** An album's items on their way, in their places. */
     const albumOf = (album: string) => untrack(outbox)
         .filter((one) => one.message.album?.id === album)
-        .sort((a, b) => (a.message.album?.at ?? 0) - (b.message.album?.at ?? 0));
+        .sort((a, b) => byPlace(a.message, b.message));
 
     /**
      * Sends an album in its turn, as `deliverVoice` sends one file: every file not up yet goes up, then
@@ -934,7 +940,7 @@ export const useChat = createStore((): ChatApi =>
             }
 
             const album = crypto.randomUUID();
-            const holds = kinds.size > 1 ? 'both' : kinds.has('video') ? 'video' : 'photo';
+            const holds = holdsOf(kinds);
             const quoted = untrack(replies)[id];
             const at = runtime().clock.now();
             const expiresAt = lifetimeOf(id, at);
@@ -1117,6 +1123,37 @@ export const useChat = createStore((): ChatApi =>
 
         async forward(message, to)
         {
+            const album = message.album?.id;
+            const items = album === undefined
+                ? []
+                : untrack(messages).filter((one): one is Message & { file: Attachment } => one.album?.id === album && one.file !== undefined).sort(byPlace);
+
+            // An album forwards whole, as an album of its own, each file named as it is and nothing put up.
+            if (items.length >= FILE_ALBUM_LEAST)
+            {
+                const again = crypto.randomUUID();
+                const holds = holdsOf(new Set(items.map((one) => one.file.as)));
+                const at = runtime().clock.now();
+                const expiresAt = lifetimeOf(to, at);
+                const ones = items.map((one, place): Outgoing => ({
+                    message: {
+                        ...asked(to, place === 0 ? one.text : ''),
+                        at: at + place,
+                        kind: 'file',
+                        file: one.file,
+                        album: { id: again, at: place, of: items.length, holds },
+                        forwarded: true
+                    },
+                    expiresAt,
+                    state: 'sending',
+                    file: { body: null, uploaded: true }
+                }));
+
+                setOutbox((current) => [...current, ...ones]);
+                await deliverAlbum(again);
+                return;
+            }
+
             // A voice message forwards its file as it is: the reader may hear it, so the server lets the
             // new message name it, and nothing goes up again.
             // A photo, a video or a file forwards the same way, with its caption.

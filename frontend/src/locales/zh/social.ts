@@ -237,6 +237,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.albumGist.photo': { other: '{count} 张照片' },
     'chat.albumGist.video': { other: '{count} 个视频' },
     'chat.albumGist.both': { other: '{count} 个照片和视频' },
+    'chat.album.downloadAll': '全部下载（{size}）',
     'chat.file.size.b': '{n} B',
     'chat.file.size.kb': '{n} KB',
     'chat.file.size.mb': '{n} MB',

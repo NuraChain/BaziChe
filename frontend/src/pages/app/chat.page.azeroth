@@ -1140,6 +1140,7 @@ export default component ChatPage()
                                                         </Show>
                                                         <MessageBubble
                                                             message={ row.message }
+                                                            items={ row.items }
                                                             me={ me }
                                                             first={ row.first }
                                                             last={ row.last }

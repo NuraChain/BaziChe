@@ -21,6 +21,7 @@ import Avatar from '../ui/avatar.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
 import { gistOf } from './gist.ts';
+import AlbumGrid from './album-grid.component.azeroth';
 import FileNote from './file-note.component.azeroth';
 import LazyVoiceNote from './lazy-voice-note.component.azeroth';
 import ReactionRow from './reaction-row.component.azeroth';
@@ -39,6 +40,9 @@ const JOINED = {
 
 export default component MessageBubble(props: {
     message: Message;
+
+    /** An album's photos and videos, in their places, drawn here as one grid; `message` is the first of them. */
+    items?: readonly Message[];
     me: string;
     first?: boolean;
     last?: boolean;
@@ -88,6 +92,8 @@ export default component MessageBubble(props: {
     derived voiced = props.message.kind === 'voice' && props.message.voice !== undefined;
 
     derived filed = props.message.kind === 'file' && props.message.file !== undefined;
+
+    derived grouped = filed && (props.items?.length ?? 0) > 1;
 
     /** The words under a photo, a video or a file, when its sender wrote any. */
     derived captioned = filed && props.message.text.trim() !== '';
@@ -491,7 +497,9 @@ export default component MessageBubble(props: {
                                         <Show when={ filed } fallback={ <RichText text={ said } mine={ mine } reserve={ stamp } trail={ ticked } /> }>
                                             { () =>
                                                 <>
-                                                    <FileNote message={ props.message } mine={ mine } reserve={ captioned ? '' : stamp } trail={ ticked } />
+                                                    <Show when={ grouped } fallback={ <FileNote message={ props.message } mine={ mine } reserve={ captioned ? '' : stamp } trail={ ticked } /> }>
+                                                        { () => <AlbumGrid items={ props.items ?? [] } mine={ mine } reserve={ captioned ? '' : stamp } trail={ ticked } /> }
+                                                    </Show>
                                                     <Show when={ captioned }>
                                                         { () => <RichText text={ said } mine={ mine } reserve={ stamp } trail={ ticked } class="mt-1" /> }
                                                     </Show>

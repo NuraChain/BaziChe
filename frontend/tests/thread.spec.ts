@@ -65,6 +65,65 @@ describe('a thread in groups', () =>
     });
 });
 
+describe('an album in the thread', () =>
+{
+    const item = (id: string, from: string, at: number, album: string, place: number, of: number) =>
+        ({ ...line(id, from, at, 'file'), album: { id: album, at: place, of, holds: 'photo' } }) as Message;
+
+    it('is one row, the row of its first item, holding every item in its place, inside its sender’s run', () =>
+    {
+        const rows = threadRows([
+            line('a', 'omid', NOON),
+            item('p1', 'omid', NOON + 1, 'A', 0, 3),
+            item('p2', 'omid', NOON + 2, 'A', 1, 3),
+            item('p3', 'omid', NOON + 3, 'A', 2, 3),
+            line('b', 'omid', NOON + 4)
+        ]);
+
+        expect(rows.map((row) => row.message.id)).toEqual(['a', 'p1', 'b']);
+        expect(rows[1].items.map((one) => one.id)).toEqual(['p1', 'p2', 'p3']);
+        expect([rows[0].items, rows[2].items], 'a line alone holds none').toEqual([[], []]);
+        expect(rows.map((row) => [row.first, row.last])).toEqual([[true, false], [false, false], [false, true]]);
+    });
+
+    it('puts its items in their places whatever order they came in, and leads with the first of them', () =>
+    {
+        const rows = threadRows([item('p2', 'omid', NOON, 'A', 1, 2), item('p1', 'omid', NOON + 1, 'A', 0, 2)]);
+
+        expect(rows.map((row) => row.message.id)).toEqual(['p1']);
+        expect(rows[0].items.map((one) => one.id)).toEqual(['p1', 'p2']);
+    });
+
+    it('draws an item alone whose album has no other item here', () =>
+    {
+        const rows = threadRows([item('p1', 'omid', NOON, 'A', 0, 3), line('x', 'omid', NOON + 1)]);
+
+        expect(rows.map((row) => [row.message.id, row.items.length])).toEqual([['p1', 0], ['x', 0]]);
+    });
+
+    it('never folds two albums together, or one sender’s item into another’s album', () =>
+    {
+        const rows = threadRows([
+            item('p1', 'omid', NOON, 'A', 0, 2),
+            item('p2', 'omid', NOON + 1, 'A', 1, 2),
+            item('q1', 'omid', NOON + 2, 'B', 0, 2),
+            item('q2', 'omid', NOON + 3, 'B', 1, 2),
+            item('r1', 'dana', NOON + 4, 'B', 0, 2)
+        ]);
+
+        expect(rows.map((row) => [row.message.id, row.items.map((one) => one.id)])).toEqual([['p1', ['p1', 'p2']], ['q1', ['q1', 'q2']], ['r1', []]]);
+    });
+
+    it('measures the day and the run after it from its last item', () =>
+    {
+        const late = new Date(2026, 8, 23, 23, 59, 59, 0).getTime();
+        const rows = threadRows([item('p1', 'omid', late, 'A', 0, 2), item('p2', 'omid', late + 2000, 'A', 1, 2), line('n', 'omid', late + 2001)]);
+
+        expect(rows.map((row) => row.day), 'the line after it is on the day its last item was').toEqual([true, false]);
+        expect(rows.map((row) => [row.first, row.last]), 'and in the same run').toEqual([[true, false], [false, true]]);
+    });
+});
+
 describe('when the list says a room was last spoken in', () =>
 {
     const at = (month: number, day: number, hour: number, minute = 0, year = 2026) => new Date(year, month, day, hour, minute).getTime();

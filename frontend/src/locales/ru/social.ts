@@ -237,6 +237,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.albumGist.photo': { one: '{count} фото', few: '{count} фото', many: '{count} фото', other: '{count} фото' },
     'chat.albumGist.video': { one: '{count} видео', few: '{count} видео', many: '{count} видео', other: '{count} видео' },
     'chat.albumGist.both': { one: '{count} фото или видео', few: '{count} фото и видео', many: '{count} фото и видео', other: '{count} фото и видео' },
+    'chat.album.downloadAll': 'Скачать всё ({size})',
     'chat.file.size.b': '{n} Б',
     'chat.file.size.kb': '{n} КБ',
     'chat.file.size.mb': '{n} МБ',

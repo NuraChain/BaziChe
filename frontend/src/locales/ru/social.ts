@@ -202,6 +202,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.delete': 'Удалить сообщение',
     'chat.deleteConfirm': 'Удалить это сообщение?',
     'chat.deleteLead': 'Оно исчезнет у всех в переписке вместе с реакциями. Кто уже прочитал, может его запомнить.',
+    'chat.takeConfirm': 'Удалить сообщение {name}?',
+    'chat.takeLead': 'Оно исчезнет у всех в группе вместе с реакциями. {name} об этом не узнает.',
     'chat.mutedDone': 'Звук переписки отключён. Она остаётся в списке, но без уведомлений.',
     'chat.unmutedDone': 'Звук переписки включён.',
     'chat.aboutSender': 'Об отправителе',

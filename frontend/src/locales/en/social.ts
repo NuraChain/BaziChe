@@ -199,6 +199,8 @@ export const social = {
     'chat.delete': 'Delete message',
     'chat.deleteConfirm': 'Delete this message?',
     'chat.deleteLead': 'It goes for everybody in the conversation, along with its reactions. Anybody who already read it may still remember it.',
+    'chat.takeConfirm': 'Delete {name}’s message?',
+    'chat.takeLead': 'It goes for everybody in the group, along with its reactions. {name} isn’t told.',
     'chat.mutedDone': 'Conversation muted. It stays in your list without notifications.',
     'chat.unmutedDone': 'Conversation unmuted.',
     'chat.aboutSender': 'About the sender',

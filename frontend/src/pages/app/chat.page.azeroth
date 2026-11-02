@@ -6,7 +6,7 @@ import { gameNameOf, groupNameOf, othersOf, sealSentenceOf, titleOf } from '../.
 import { seenOf } from '../../components/chat/chat-time.ts';
 import { searchedWords, searchLines } from '../../components/chat/search-lines.ts';
 import ThreadSearch from '../../components/chat/thread-search.component.azeroth';
-import { mayIn } from '../../../../backend/src/domains/group/roles.ts';
+import { mayIn, mayOn } from '../../../../backend/src/domains/group/roles.ts';
 import { mutedWordsOf } from '../../lib/group-mute.ts';
 import { sendBlockOf } from '../../lib/seal-state.ts';
 import { attachStick, centreOn, isNearBottom } from '../../lib/stick.ts';
@@ -820,12 +820,34 @@ export default component ChatPage()
         }
     };
 
-    /** What can be done with a line here, for its sheet and its menu alike. */
+    /** Somebody else's line, of words or a file, by somebody ranked below the reader in a group whose staff may take it away. */
+    const takable = (message: Message) =>
+        group !== null && standing !== null && message.from !== me
+        && (message.kind === 'text' || message.kind === 'voice' || message.kind === 'file')
+        && mayOn(standing, group.switches, 'delete', message.rank ?? null);
+
+    const take = async (message: Message) =>
+    {
+        const name = people.byHandle(message.from)?.displayName ?? message.from;
+        const yes = await overlay.open(
+            ConfirmSheet,
+            { title: locale.t('chat.takeConfirm', { name }), lead: locale.t('chat.takeLead', { name }), confirm: locale.t('chat.delete'), destructive: true },
+            { label: locale.t('chat.takeConfirm', { name }) }
+        ).closed;
+
+        if (yes === true)
+        {
+            await chat.remove(message).catch(warn);
+        }
+    };
+
+    /** What can be done with a line here, for its sheet and its menu alike: nothing that writes, where the reader may not. */
     const handlersOf = (message: Message): LineHandlers => ({
-        ...(quiet ? {} : { onReply: () => reply(message) }),
-        ...(quiet || !chat.editable(message) ? {} : { onEdit: () => edit(message) }),
+        ...(quiet || closed ? {} : { onReply: () => reply(message) }),
+        ...(quiet || closed || !chat.editable(message) ? {} : { onEdit: () => edit(message) }),
         onForward: () => overlay.open(ForwardSheet, { message }, { label: locale.t('chat.forwardTitle') }),
         onDelete: () => void remove(message),
+        ...(takable(message) ? { onTake: () => void take(message) } : {}),
         onPerson: () => overlay.open(
             PersonActions,
             {

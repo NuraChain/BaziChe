@@ -3478,6 +3478,13 @@ export const chatMessage = object({
      */
     file: string().optional(),
 
+    /**
+     * Where the author stands in the room's group, where that is above a member: what the page asks
+     * before offering to take the line away. Absent from a member's line, from the line of somebody
+     * who left, and from every room that is not a group's.
+     */
+    rank: enumOf(['owner', 'admin', 'moderator']).optional(),
+
     /** A voice message the reader has played. */
     played: literal(true).optional(),
 

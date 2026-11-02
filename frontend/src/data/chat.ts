@@ -206,6 +206,9 @@ export interface Message
     /** A voice message of the reader's that somebody else has played. */
     heard?: boolean;
 
+    /** Where its author stands in the room's group, where that is above a member: the server's word, as it reads now. */
+    rank?: 'owner' | 'admin' | 'moderator';
+
     /**
      * A line of the reader's that this browser is still sending, has sent and not yet read back, or
      * could not send. Absent on every line the server handed over.

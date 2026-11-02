@@ -294,6 +294,7 @@ export function createApiSource()
             ...(signed?.file === undefined ? {} : { file: signed.file }),
             ...(wire.played === true ? { played: true } : {}),
             ...(wire.heard === true ? { heard: true } : {}),
+            ...(wire.rank === undefined ? {} : { rank: wire.rank }),
             at: wire.clientAt === undefined ? Date.parse(wire.at) : Date.parse(wire.clientAt),
             ref: wire.payload === undefined
                 ? null

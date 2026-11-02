@@ -4,6 +4,7 @@ import { ConflictError, ForbiddenError, HttpError, NotFoundError, ValidationErro
 import type { DataSource, EntityManager } from 'typeorm';
 
 import { ConversationMember } from '../../entities/conversation-member.entity.ts';
+import { Conversation } from '../../entities/conversation.entity.ts';
 import { Friendship } from '../../entities/friendship.entity.ts';
 import { GroupBan } from '../../entities/group-ban.entity.ts';
 import { GroupEvent } from '../../entities/group-event.entity.ts';
@@ -1103,6 +1104,25 @@ export function createGroupService(db: DataSource, social: SocialService)
             must(actor, switches, 'delete');
             mustReach(me, actor, authorId, await standingIn(tx, authorId, groupId));
             await record(tx, groupId, { id: me, role: actor.role }, 'deleted', authorId, { message: messageId });
+        },
+
+        /**
+         * The staff of the group a room belongs to, each by account with their place: what a page of
+         * its thread says beside their lines, so the page offers to take somebody's line away only
+         * where the group would let it go. Nobody for a room that is not a group's.
+         */
+        async staffIn(conversationId: string)
+        {
+            const rows = await db.getRepository(GroupMember).createQueryBuilder('gm')
+                .innerJoin(Conversation, 'c', 'c.groupId = gm.groupId')
+                .select('gm.userId', 'id')
+                .addSelect('gm.role', 'role')
+                .where('c.id = :conversationId', { conversationId })
+                .andWhere(`c.kind = 'group'`)
+                .andWhere(`gm.role <> 'member'`)
+                .getRawMany<{ id: string; role: Exclude<GroupRole, 'member'> }>();
+
+            return new Map(rows.map((row) => [row.id, row.role] as const));
         },
 
         /** A link that brings people in, made by whoever may make them: an end, a limit of uses, and whether it asks first. */

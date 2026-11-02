@@ -202,6 +202,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.delete': 'Mesajı sil',
     'chat.deleteConfirm': 'Bu mesaj silinsin mi?',
     'chat.deleteLead': 'Sohbetteki herkes için, tepkileriyle birlikte silinir. Önceden okuyan biri yine de hatırlayabilir.',
+    'chat.takeConfirm': '{name} adlı kişinin mesajı silinsin mi?',
+    'chat.takeLead': 'Gruptaki herkes için, tepkileriyle birlikte silinir. {name} bundan haberdar edilmez.',
     'chat.mutedDone': 'Sohbet sessize alındı. Listende bildirimsiz kalır.',
     'chat.unmutedDone': 'Sohbetin sesi açıldı.',
     'chat.aboutSender': 'Gönderen hakkında',

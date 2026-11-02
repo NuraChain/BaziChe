@@ -372,6 +372,45 @@ function newTable(input: OpeningWire)
 const placeOf = (group: GroupWire, handle: string): { role: GroupRole; rights?: GroupRight[]; muted?: { until?: string } } =>
     handle === group.owner ? { role: 'owner' } : server.groupPlaces[group.slug]?.[handle] ?? { role: 'member' };
 
+/** The group a room belongs to, as a spec made it one by naming the group on the room. */
+const groupOfRoom = (conversationId: string) =>
+{
+    const slug = server.conversations.find((row) => row.id === conversationId)?.groupId;
+
+    return slug === undefined ? undefined : server.groups.find((one) => one.slug === slug);
+};
+
+/** A group's line with its author's place on it, where that is above a member's, as the server hands it over. */
+const ranked = (group: GroupWire, line: ChatMessage) =>
+{
+    const role = line.from === undefined || !['text', 'voice', 'file'].includes(line.kind) ? 'member' : placeOf(group, line.from).role;
+
+    return role === 'member' ? line : { ...line, rank: role };
+};
+
+/**
+ * Whether the reader may take somebody else's line out of a group's thread, asked as the server asks it:
+ * a line of words or a file, the right to, and an author ranked below the reader, or the group's word why not.
+ */
+const takenBy = (conversationId: string, line: ChatMessage) =>
+{
+    const group = groupOfRoom(conversationId);
+
+    if (group?.role === undefined || line.from === undefined || !['text', 'voice', 'file'].includes(line.kind))
+    {
+        return false;
+    }
+    if (!mayIn({ role: group.role, rights: group.rights ?? [], muted: group.muted !== undefined }, group.switches, 'delete'))
+    {
+        throw new ApiError(403, 'group-right', 'Refused.', undefined);
+    }
+    if (RANK[group.role] <= RANK[placeOf(group, line.from).role])
+    {
+        throw new ApiError(409, 'group-rank', 'Refused.', undefined);
+    }
+    return true;
+};
+
 /** A change the staff make: refused when a spec says so, and answered with the group as it now stands. */
 const staffAct = (slug: string) =>
 {
@@ -3581,8 +3620,9 @@ export const client =
             const end = query?.cursor === undefined ? thread.length : thread.findIndex((one) => one.id === query.cursor);
             const start = Math.max(0, end - threadSize(query?.limit));
             const page = thread.slice(start, end);
+            const group = groupOfRoom(params.id);
             return {
-                messages: page,
+                messages: group === undefined ? page : page.map((one) => ranked(group, one)),
                 hasMore: start > 0,
                 ...(start > 0 ? { cursor: page[0].id } : {})
             };
@@ -3707,8 +3747,9 @@ export const client =
                 }
             }
 
-            const found = server.messages.findIndex((one) => one.id === params.messageId && one.conversationId === params.id && one.from === server.me);
-            if (found === -1)
+            const found = server.messages.findIndex((one) => one.id === params.messageId && one.conversationId === params.id);
+            const said = server.messages[found];
+            if (found === -1 || (said.from !== server.me && !takenBy(params.id, said)))
             {
                 throw new ApiError(404, 'not-found', 'No such message of yours here.', undefined);
             }

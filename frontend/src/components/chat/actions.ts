@@ -22,6 +22,9 @@ export interface LineHandlers
     onEdit?: () => void;
     onForward?: () => void;
     onDelete?: () => void;
+
+    /** Handed only for somebody else's line the reader may take out of a group's thread. */
+    onTake?: () => void;
     onPerson?: () => void;
 }
 
@@ -59,6 +62,11 @@ export function messageActions(say: (key: MessageKey) => string, message: Messag
     if (mine && handlers.onDelete !== undefined)
     {
         list.push({ id: 'delete', icon: 'trash', label: say('chat.delete'), danger: true, run: handlers.onDelete });
+    }
+
+    if (!mine && handlers.onTake !== undefined)
+    {
+        list.push({ id: 'take', icon: 'trash', label: say('chat.delete'), danger: true, run: handlers.onTake });
     }
 
     return list;

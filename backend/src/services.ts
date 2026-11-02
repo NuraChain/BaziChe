@@ -4638,10 +4638,18 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 const page = await chat.messages(me, conversationId, cursor, threadSize(limit));
                 const reactions = asRelations(page.reactions);
                 const edits = asRelations(page.edits);
+                const takable = (row: MessageRow) => row.kind === 'text' || row.kind === 'voice' || row.kind === 'file';
+                const staff = await group.staffIn(conversationId);
                 const edited = (row: Parameters<typeof asMessage>[0]) =>
                 {
                     const changed = edits.get(row.id);
-                    return { ...asMessage(row), ...(changed === undefined ? {} : { edits: changed }) };
+                    const rank = !takable(row) || row.sender_account_id === null ? undefined : staff.get(row.sender_account_id);
+
+                    return {
+                        ...asMessage(row),
+                        ...(changed === undefined ? {} : { edits: changed }),
+                        ...(rank === undefined ? {} : { rank })
+                    };
                 };
 
                 return {

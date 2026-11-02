@@ -440,4 +440,52 @@ describe.skipIf(!active)('a room\'s pins, and a line the staff take away, agains
             expect(await kindOf(theirs.id)).toBe('text');
         });
     });
+
+    describe('whose line it is', () =>
+    {
+        it('travels with a group\'s line where its author stands above a member, and with its pin', async () =>
+        {
+            const [owner, admin, moderator, member, leaver] = [await makeUser(), await makeUser(), await makeUser(), await makeUser(), await makeUser()];
+            const made = await group(owner);
+            await seat(made.slug, admin, moderator, member, leaver);
+            await ports.group.role(owner.id, made.slug, { id: admin.handle, role: 'admin', rights: [] });
+            await ports.group.role(owner.id, made.slug, { id: moderator.handle, role: 'moderator' });
+            const room = made.conversationId!;
+
+            const lines = [await say(owner, room), await say(admin, room), await say(moderator, room), await say(member, room), await say(leaver, room)];
+            await ports.group.leave(leaver.id, made.slug);
+            await ports.chat.pinLine(owner.id, room, lines[1].id);
+            await group(member);
+
+            const page = await ports.chat.messages(member.id, room, undefined);
+            const rankOf = (id: string) => page.messages.find((line) => line.id === id)?.rank ?? null;
+
+            expect(lines.map((line) => rankOf(line.id)), 'the owner, an admin, a moderator, a member who owns another group, and somebody who left').toEqual(['owner', 'admin', 'moderator', null, null]);
+            expect(page.pins?.map((pin) => pin.message.rank ?? null), 'a pin says it too').toEqual(['admin']);
+            expect(page.messages.filter((line) => line.kind === 'system').map((line) => line.rank ?? null).filter((rank) => rank !== null), 'a line the server wrote names nobody').toEqual([]);
+        });
+
+        it('follows a change of place, and is said in no room but a group\'s', async () =>
+        {
+            const [owner, admin] = [await makeUser(), await makeUser()];
+            const made = await group(owner);
+            await seat(made.slug, admin);
+            await ports.group.role(owner.id, made.slug, { id: admin.handle, role: 'admin', rights: [] });
+            const room = made.conversationId!;
+            const line = await say(admin, room);
+            const rankOf = async () => (await ports.chat.messages(owner.id, room, undefined)).messages.find((one) => one.id === line.id)?.rank ?? null;
+
+            expect(await rankOf()).toBe('admin');
+
+            await ports.group.role(owner.id, made.slug, { id: admin.handle, role: 'member' });
+
+            expect(await rankOf(), 'an admin made a member again').toBeNull();
+
+            const [a, b] = [await makeUser(), await makeUser()];
+            const direct = await chat.openDirect(a.id, b.id);
+            await say(a, direct);
+
+            expect((await ports.chat.messages(b.id, direct, undefined)).messages.map((one) => one.rank ?? null), 'a direct chat').toEqual([null]);
+        });
+    });
 });

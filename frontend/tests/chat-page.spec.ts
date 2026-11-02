@@ -2085,3 +2085,147 @@ describe('a group the reader may only read', () =>
         await vi.waitFor(() => expect(useToasts().items().at(-1)?.text).toBe(useLocale().t('group.refused.group-muted')), { timeout: 4000 });
     });
 });
+
+describe('a line the group’s staff take away', () =>
+{
+    const SLUG = 'friday-night-crew';
+
+    afterEach(() =>
+    {
+        server.holdChat = null;
+        useOverlay().reset();
+    });
+
+    /** The Friday room made its group's, with the reader its moderator and leila.a an admin, and both lists read again. */
+    const asModerator = async (muted = false) =>
+    {
+        const group = server.groups.find((one) => one.slug === SLUG)!;
+
+        server.conversations.find((row) => row.id === 'c-friday')!.groupId = SLUG;
+        group.role = 'moderator';
+        if (muted)
+        {
+            group.muted = {};
+        }
+        server.groupPlaces[SLUG] = { 'leila.a': { role: 'admin' } };
+        await useGroups().refresh();
+        await useChat().refresh();
+    };
+
+    const lineOf = (from: string) => server.messages.filter((one) => one.conversationId === 'c-friday' && one.kind === 'text' && one.from === from).at(-1)!;
+
+    const item = (id: string) => document.querySelector<HTMLButtonElement>(`[role="menu"] [data-item="${ id }"]`);
+
+    const right = (container: HTMLElement, id: string) =>
+        container.querySelector(`[data-message="${ id }"] .bubble`)!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 200 }));
+
+    const asked = () => useOverlay().items().find((one) => one.phase !== 'closing') ?? null;
+
+    const ready = async (container: HTMLElement, id: string) =>
+    {
+        await vi.waitFor(() => expect(useGroups().byId(SLUG)?.role).toBe('moderator'), { timeout: 4000 });
+        await vi.waitFor(() => expect(container.querySelector(`[data-message="${ id }"] .bubble`)).not.toBeNull(), { timeout: 4000 });
+        await settle();
+    };
+
+    it('offers Delete on the lines of a member, and on nobody at or above the reader', async () =>
+    {
+        await asModerator();
+        const container = opened('c-friday', 'sidebar');
+        const [member, admin, owner] = [lineOf('mina'), lineOf('leila.a'), lineOf('babak.r')];
+
+        await ready(container, member.id);
+
+        right(container, member.id);
+        await vi.waitFor(() => expect(item('reply')).not.toBeNull(), { timeout: 4000 });
+        expect(item('take'), 'a member’s line').not.toBeNull();
+
+        for (const [line, who] of [[admin, 'an admin'], [owner, 'the owner']] as const)
+        {
+            right(container, line.id);
+            await settle();
+            await vi.waitFor(() => expect(item('reply')).not.toBeNull(), { timeout: 4000 });
+            expect(item('take'), who).toBeNull();
+        }
+    });
+
+    it('asks whose line it is, and takes it out of the thread at the yes, before the server has answered', async () =>
+    {
+        await asModerator();
+        const container = opened('c-friday', 'sidebar');
+        const line = lineOf('mina');
+        let release = () => undefined as void;
+
+        await ready(container, line.id);
+
+        right(container, line.id);
+        await vi.waitFor(() => expect(item('take')).not.toBeNull(), { timeout: 4000 });
+        fire(item('take')!, 'click');
+        await settle();
+
+        const name = usePeople().byHandle('mina')?.displayName ?? 'mina';
+
+        expect(asked()?.props).toMatchObject({ title: useLocale().t('chat.takeConfirm', { name }), lead: useLocale().t('chat.takeLead', { name }), destructive: true });
+
+        useOverlay().close(asked()!.id, false);
+        await settle();
+
+        expect(container.querySelector(`[data-message="${ line.id }"]`), 'a no keeps it').not.toBeNull();
+        expect(server.calls).not.toContain('chat.remove');
+
+        right(container, line.id);
+        await vi.waitFor(() => expect(item('take')).not.toBeNull(), { timeout: 4000 });
+        fire(item('take')!, 'click');
+        await settle();
+
+        server.holdChat = new Promise<void>((done) =>
+        {
+            release = done;
+        });
+        useOverlay().close(asked()!.id, true);
+        await settle();
+
+        expect(container.querySelector(`[data-message="${ line.id }"]`), 'gone at the yes').toBeNull();
+        expect(server.calls).toContain('chat.remove');
+
+        release();
+        await settle();
+
+        expect(server.messages.find((one) => one.id === line.id)?.kind, 'and gone for good').toBe('deleted');
+    });
+
+    it('brings the line back with the group’s words when the server will not let it go', async () =>
+    {
+        await asModerator();
+        const container = opened('c-friday', 'sidebar');
+        const line = lineOf('mina');
+
+        await ready(container, line.id);
+
+        server.groupPlaces[SLUG] = { ...server.groupPlaces[SLUG], mina: { role: 'admin' } };
+
+        right(container, line.id);
+        await vi.waitFor(() => expect(item('take')).not.toBeNull(), { timeout: 4000 });
+        fire(item('take')!, 'click');
+        await settle();
+        useOverlay().close(asked()!.id, true);
+
+        await vi.waitFor(() => expect(useToasts().items().at(-1)?.text).toBe(useLocale().t('group.refused.group-rank')), { timeout: 4000 });
+        await vi.waitFor(() => expect(container.querySelector(`[data-message="${ line.id }"]`), 'back where it was').not.toBeNull(), { timeout: 4000 });
+    });
+
+    it('offers no Reply or Edit to a reader who may not write in the group', async () =>
+    {
+        await asModerator(true);
+        const container = opened('c-friday', 'sidebar');
+        const line = lineOf('mina');
+
+        await ready(container, line.id);
+
+        right(container, line.id);
+        await vi.waitFor(() => expect(item('forward')).not.toBeNull(), { timeout: 4000 });
+
+        expect(item('reply')).toBeNull();
+        expect(item('take'), 'a moderator who is muted still keeps the room').not.toBeNull();
+    });
+});

@@ -202,6 +202,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.delete': 'Eliminar mensaje',
     'chat.deleteConfirm': '¿Eliminar este mensaje?',
     'chat.deleteLead': 'Desaparece para todos en la conversación, junto con sus reacciones. Quien ya lo haya leído puede que aún lo recuerde.',
+    'chat.takeConfirm': '¿Eliminar el mensaje de {name}?',
+    'chat.takeLead': 'Desaparece para todos en el grupo, junto con sus reacciones. A {name} no se le avisa.',
     'chat.mutedDone': 'Conversación silenciada. Sigue en tu lista, pero sin notificaciones.',
     'chat.unmutedDone': 'La conversación ya no está silenciada.',
     'chat.aboutSender': 'Sobre quien lo envía',

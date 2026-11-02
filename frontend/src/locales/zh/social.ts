@@ -202,6 +202,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.delete': '删除消息',
     'chat.deleteConfirm': '删除这条消息？',
     'chat.deleteLead': '对话中的所有人都将看不到它，它的表情回应也会一起删除。已经读过的人可能还记得它。',
+    'chat.takeConfirm': '删除 {name} 的消息？',
+    'chat.takeLead': '群组里的所有人都将看不到它，它的表情回应也会一起删除。{name} 不会收到通知。',
     'chat.mutedDone': '对话已静音。它仍留在你的列表中，但不会再通知你。',
     'chat.unmutedDone': '对话已取消静音。',
     'chat.aboutSender': '关于发送者',

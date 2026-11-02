@@ -157,6 +157,9 @@ export interface IdentityPort
     /** Resolves the caller from a request's cookie. Null when signed out - not an error. */
     principal(request: Request): Promise<Principal | null>;
 
+    /** Whether the cookie a request carries names a session that was ended rather than one that ran out. */
+    ended(request: Request): Promise<'revoked' | null>;
+
     me(userId: string): Promise<Account | null>;
 
     challenge(address: string, deviceId?: string | undefined): Promise<Challenge>;

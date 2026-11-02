@@ -2574,3 +2574,46 @@ describe('a reported voice message’s file, for the staff', () =>
         expect((await asked(desk([], { signedIn: false }))).status).toBe(401);
     });
 });
+
+describe('who is signed in, asked by the browser', () =>
+{
+    const DANA = { id: 'dana.w', handle: 'dana.w', displayName: 'Dana', bio: '', hue: 40, isMinor: false, joinedAt: '2026-10-01T00:00:00.000Z' };
+    const appAs = (signedIn: boolean, ended: 'revoked' | null) => buildApp({
+        db: fakeDb({ initialized: true }),
+        config,
+        log: silent,
+        ports: {
+            identity: {
+                secureCookies: false,
+                principal: () => Promise.resolve(signedIn ? { userId: 'somebody', handle: 'dana.w', isMinor: false, sessionId: 'a-session' } : null),
+                ended: () => Promise.resolve(ended),
+                me: () => Promise.resolve(DANA)
+            }
+        } as unknown as Ports
+    });
+    const me = (app: ReturnType<typeof appAs>, cookie = 'nura.session=the-token') =>
+        app.handle(new Request('http://local/api/auth/me', { headers: { cookie } }));
+
+    it('sends the session cookie again with every answer that finds the person, so a session in use does not run out', async () =>
+    {
+        const response = await me(appAs(true, null));
+        const set = response.headers.get('set-cookie') ?? '';
+
+        expect(await response.json()).toEqual({ account: DANA });
+        expect(set).toContain('nura.session=the-token');
+        expect(set).toContain(`Max-Age=${ 30 * 24 * 60 * 60 }`);
+    });
+
+    it('says a session was ended, so the browser that held it throws its chat keys away', async () =>
+    {
+        const response = await me(appAs(false, 'revoked'));
+
+        expect(await response.json()).toEqual({ ended: 'revoked' });
+        expect(response.headers.get('set-cookie')).toBeNull();
+    });
+
+    it('says nothing of a session that only ran out, so the same person signing back in reads what they read before', async () =>
+    {
+        expect(await (await me(appAs(false, null))).json()).toEqual({});
+    });
+});

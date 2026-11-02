@@ -139,6 +139,11 @@ export function createIdentityService(db: DataSource, config: IdentityConfig)
          * One query, and every condition is in it: the session must exist, not be revoked, not
          * have expired, and its user must not be suspended. Checking those in JavaScript instead
          * means four ways to forget one.
+         *
+         * A session in use slides: at most once an hour, the same write that notes it was used
+         * moves its end to a whole lifetime from now. Thirty days is how long somebody may stay
+         * AWAY, not how long they may play; a fixed end signed a daily player out mid-game once a
+         * month, and the browser they came back on had forgotten their chat keys.
          */
         async principalFor(token: string): Promise<Principal | null>
         {
@@ -154,12 +159,14 @@ export function createIdentityService(db: DataSource, config: IdentityConfig)
                        and u.is_suspended = false
                  ),
                  touched as (
-                     update sessions set last_used_at = now()
+                     update sessions
+                        set last_used_at = now(),
+                            expires_at = greatest(expires_at, now() + ($2 || ' seconds')::interval)
                       where id = (select session_id from found)
                         and (last_used_at is null or last_used_at < now() - interval '1 hour')
                  )
                  select id, handle, display_name, bio, hue, is_minor, is_suspended, session_id from found`,
-                [hashToken(token)]
+                [hashToken(token), String(config.sessionTtlSeconds)]
             );
 
             const found = firstRow<UserRow & { session_id: string }>(rows);
@@ -326,6 +333,19 @@ export function createIdentityService(db: DataSource, config: IdentityConfig)
                 [[...sessionIds]]
             );
             return new Set(rowsOf<{ id: string }>(rows).map((row) => row.id));
+        },
+
+        /**
+         * Whether a token names a session that was ENDED - signed out everywhere, its device revoked,
+         * the staff signing the person out - rather than one that ran out or never was. The browser
+         * holding it throws its chat keys away on this answer alone, so a session that only expired
+         * says nothing, and the same person signing back in reads what they read before.
+         */
+        async endedFor(token: string): Promise<'revoked' | null>
+        {
+            const rows = await db.query('select 1 from sessions where token_hash = $1 and revoked_at is not null limit 1', [hashToken(token)]);
+
+            return rowsOf(rows).length > 0 ? 'revoked' : null;
         },
 
         /** Ends this session only. Other devices stay signed in. */

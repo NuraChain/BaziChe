@@ -56,6 +56,9 @@ export default component MediaViewer(props: OverlayProps & {
     /** The thread it was opened from, whose photos and videos it walks. */
     list: () => readonly Message[];
 
+    /** Reads photos and videos older than the list holds into it, answering whether there may be more (MS-D24: the room's, as the gallery lists them). */
+    older?: () => Promise<boolean>;
+
     /** A video carried on from its bubble: where it was, and whether it was playing. */
     from?: number;
     playing?: boolean;
@@ -124,7 +127,12 @@ export default component MediaViewer(props: OverlayProps & {
 
     derived rtl = locale.dir() === 'rtl';
 
-    derived first = index <= 0;
+    /** Whether there may be older ones than the first, and whether they are being read. */
+    state more = props.older !== undefined;
+
+    state reaching = false;
+
+    derived first = index <= 0 && !more;
 
     derived last = index < 0 || index >= items.length - 1;
 
@@ -208,6 +216,24 @@ export default component MediaViewer(props: OverlayProps & {
             frame = AT_REST;
             drift = { x: 0, y: 0 };
             handed = false;
+            return;
+        }
+
+        if (step < 0 && more && !reaching && props.older !== undefined)
+        {
+            reaching = true;
+            void props.older()
+                .then((still) =>
+                {
+                    more = still;
+
+                    if (items[index - 1] !== undefined)
+                    {
+                        go(-1);
+                    }
+                })
+                .catch(() => undefined)
+                .finally(() => reaching = false);
         }
     };
 

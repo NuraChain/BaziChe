@@ -123,6 +123,19 @@ export default component Gallery(props: OverlayProps & { conversationId: string 
         { id: 'voice', label: locale.t('chat.gallery.voice') }
     ];
 
+    /** The viewer walks the gallery's photos and videos, and reads its next page when the reader steps back past the oldest. */
+    const walk = () => ({
+        list: () => media,
+        ...(untrack(() => lists.media.cursor) === undefined ? {} : {
+            older: async () =>
+            {
+                await read('media', true);
+
+                return untrack(() => lists.media.cursor) !== undefined;
+            }
+        })
+    });
+
     const who = (one: Message) => people.byHandle(one.from)?.displayName ?? one.from;
 
     const when = (one: Message) => locale.date(one.at, { dateStyle: 'medium' });
@@ -160,7 +173,7 @@ export default component Gallery(props: OverlayProps & { conversationId: string 
                                     type="button"
                                     class="absolute inset-0 cursor-pointer"
                                     aria-label={ () => locale.t(one.file?.as === 'video' ? 'chat.gallery.video' : 'chat.gallery.photo', { who: who(one), when: when(one) }) }
-                                    onClick={ () => void openViewer(one, undefined, () => media) }
+                                    onClick={ () => void openViewer(one, undefined, walk()) }
                                     data-shelf-item={ () => one.id }
                                 >
                                     <img

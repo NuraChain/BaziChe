@@ -14,12 +14,13 @@ import '../src/locales/app-catalogue.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
 
-const viewed = vi.hoisted(() => ({ calls: [] as { start: string; list: string[] }[] }));
+const viewed = vi.hoisted(() => ({ calls: [] as { start: string; list: string[] }[], walks: [] as ({ older?: () => Promise<boolean> } | undefined)[] }));
 
 vi.mock('../src/lib/media-viewer.ts', () => ({
-    openViewer: (start: Message, _carried: unknown, list?: () => readonly Message[]) =>
+    openViewer: (start: Message, _carried: unknown, walk?: { list: () => readonly Message[]; older?: () => Promise<boolean> }) =>
     {
-        viewed.calls.push({ start: start.id, list: (list?.() ?? []).map((one) => one.id) });
+        viewed.walks.push(walk);
+        viewed.calls.push({ start: start.id, list: (walk?.list() ?? []).map((one) => one.id) });
         return Promise.resolve();
     }
 }));
@@ -63,6 +64,7 @@ beforeEach(() =>
     pages.clear();
     asked.length = 0;
     viewed.calls.length = 0;
+    viewed.walks.length = 0;
     vi.spyOn(useChat(), 'media').mockImplementation((conversationId, kind, cursor) =>
     {
         asked.push(`${ conversationId } ${ kind } ${ cursor ?? '' }`);
@@ -119,6 +121,23 @@ describe('the gallery', () =>
         await vi.waitFor(() => expect(items(container)).toEqual([ 'p3', 'p2', 'p1' ]));
         expect(asked).toEqual([ 'c-1 media ', 'c-1 media p3' ]);
         expect([...container.querySelectorAll('button')].some((one) => one.textContent?.trim() === 'Show older')).toBe(false);
+    });
+
+    it('hands the viewer the way to its next page while it has one', async () =>
+    {
+        pages.set('media ', { messages: [ sent('p3', {}) ], cursor: 'p3' });
+        pages.set('media p3', { messages: [ sent('p2', {}) ] });
+
+        const container = show();
+
+        await vi.waitFor(() => expect(items(container)).toEqual([ 'p3' ]));
+        fire(container.querySelector('[data-shelf-item="p3"]')!, 'click');
+
+        expect(await viewed.walks[0]?.older?.(), 'there is none past it').toBe(false);
+        await vi.waitFor(() => expect(items(container)).toEqual([ 'p3', 'p2' ]));
+
+        fire(container.querySelector('[data-shelf-item="p2"]')!, 'click');
+        expect(viewed.walks[1]?.older, 'none once the last page is read').toBeUndefined();
     });
 
     it('lists files with the way to fetch each, and finds them by name among those read, saying so', async () =>

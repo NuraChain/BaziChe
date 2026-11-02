@@ -78,7 +78,7 @@ const settle = async () =>
     }
 };
 
-const open = async (all: Message[], start: Message, extra: Partial<{ from: number; playing: boolean }> = {}) =>
+const open = async (all: Message[], start: Message, extra: Partial<{ from: number; playing: boolean; older: () => Promise<boolean> }> = {}) =>
 {
     const [list, setList] = createSignal<readonly Message[]>(all);
     const closed: unknown[] = [];
@@ -237,6 +237,43 @@ describe('the viewer', () =>
 
         key(container.querySelector('[data-viewer]')!, 'ArrowLeft');
         expect(counted(container)).toBe('۳ از ۳');
+    });
+
+    it('steps back past its first into older ones it reads, and stops where there are none', async () =>
+    {
+        const [ a, b, c ] = [ await media(0), await media(1), await media(2) ];
+        let reads = 0;
+        const { container, setList } = await open([ b, c ], b, {
+            older: async () =>
+            {
+                reads += 1;
+
+                if (reads === 1)
+                {
+                    setList([ a, b, c ]);
+                    return true;
+                }
+
+                return false;
+            }
+        });
+
+        expect(counted(container)).toBe('1 of 2');
+        expect(container.querySelector('[data-previous]'), 'offered while there may be older ones').not.toBeNull();
+
+        fire(container.querySelector('[data-previous]')!, 'click');
+        await vi.waitFor(() => expect(shownId(container)).toBe(a.id));
+        expect(counted(container)).toBe('1 of 3');
+
+        key(container.querySelector('[data-viewer]')!, 'ArrowLeft');
+        await vi.waitFor(() => expect(reads).toBe(2));
+        await settle();
+        expect(shownId(container), 'nothing older came').toBe(a.id);
+        expect(container.querySelector('[data-previous]'), 'none once there are no more').toBeNull();
+
+        key(container.querySelector('[data-viewer]')!, 'ArrowLeft');
+        await settle();
+        expect(reads, 'not asked again').toBe(2);
     });
 
     it('reads a caption in its own direction, whatever way the page reads', async () =>

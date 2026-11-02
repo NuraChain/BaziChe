@@ -27,6 +27,15 @@ export async function nftsOf(runner: DataSource | EntityManager, userId: string,
         : { state: 'minting' as const }]));
 }
 
+/**
+ * The marks as anybody else may see them: on NuraChain or on its way, without the transaction. A
+ * transaction's page names the wallet it went to, and a person's wallet is not something their
+ * profile shows a stranger, a minor's least of all; so a profile says "On NuraChain" and links
+ * nowhere, and only the owner's own collection links to the chain.
+ */
+export const unlinked = (marks: ReadonlyMap<string, NftMark>) =>
+    new Map([...marks].map(([key, mark]): [string, NftMark] => [key, { state: mark.state }]));
+
 /** A mark the wire carries only when there is one. */
 export const markOf = (marks: ReadonlyMap<string, NftMark>, key: string) =>
 {

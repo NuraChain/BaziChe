@@ -5,7 +5,7 @@ import type { AchievementFamily, AchievementLadder, AchievementSummary, EarnedAc
 import { GAME_FAMILIES, RUNGS, familiesOf } from './families.ts';
 import { measure, reached, rungId, scopeOf, type Family, type GlobalFacts, type LadderFacts, type Pace, type Rung } from './ladders.ts';
 import { levelOf } from '../match/levels.ts';
-import { markOf, nftsOf, type NftMark } from '../nft/read.ts';
+import { markOf, nftsOf, unlinked, type NftMark } from '../nft/read.ts';
 import { PROFILE_LOOKS, chosenIn, worn, type ProfileLooks } from '../shop/looks.ts';
 
 interface Facts
@@ -565,7 +565,7 @@ export function createAchieveService(db: DataSource)
                     tallies: row.tallies,
                     xp: row.xp
                 })),
-                achievements: summarise(await factsOf(db.manager, who.id), held, holders, await nftsOf(db, who.id, 'achievement'))
+                achievements: summarise(await factsOf(db.manager, who.id), held, holders, unlinked(await nftsOf(db, who.id, 'achievement')))
             };
         }
     };

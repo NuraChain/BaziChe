@@ -201,8 +201,9 @@ describe('an album in its bubble', () =>
 
         fire(container.querySelector(`[data-tile="${ id }"] [data-download]`)!, 'click');
 
-        await vi.waitFor(() => expect(container.querySelector(`[data-tile="${ id }"] video`)).not.toBeNull());
+        await vi.waitFor(() => expect(container.querySelector(`[data-tile="${ id }"] [data-download]`), 'come').toBeNull());
         expect(chips(), 'nothing on a video that has come').toEqual([null, null, null]);
+        await vi.waitFor(() => expect(container.querySelector(`[data-tile="${ id }"] [data-player]`)?.getAttribute('aria-label'), 'with no caption, a video').toBe('ویدیو'), { timeout: 4000 });
     });
 
     it('says its caption once, under the grid', async () =>

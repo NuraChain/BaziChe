@@ -1,5 +1,6 @@
 import type { Message } from '../../data/chat.ts';
 import Icon from '../../icons/icon.component.azeroth';
+import { plainOf } from '../../lib/markdown.ts';
 import { useChat } from '../../stores/chat.store.ts';
 import { useFileLoads } from '../../stores/file-loads.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -8,6 +9,7 @@ import { usePeople } from '../../stores/people.store.ts';
 import { FILE_FAULTS, thumbOf } from './file-parts.ts';
 import { sizeSaid, voiceClock } from './gist.ts';
 import FileViewer from './file-viewer.component.azeroth';
+import LazyMediaPlayer from './lazy-media-player.component.azeroth';
 
 /**
  * A photo or a video as it stands in its place, filling whatever box it is given: alone in its bubble
@@ -72,6 +74,9 @@ export default component MediaTile(props: { message: Message; inAlbum?: boolean 
         return person === null ? props.message.from : locale.text(person.displayName);
     })();
 
+    /** What the video is called to a screen reader: its caption as a quote says it, or that it is a video. */
+    derived named = props.message.text.trim() === '' ? locale.t('chat.video.label') : plainOf(locale.text(props.message.text), locale.t('chat.spoilerPreview'));
+
     const view = () =>
     {
         if (url !== '')
@@ -92,7 +97,7 @@ export default component MediaTile(props: { message: Message; inAlbum?: boolean 
             }
         </Show>
         <Show when={ ready && !photo }>
-            { () => <video src={ url } controls playsinline preload="metadata" class="absolute inset-0 h-full w-full bg-black object-contain"></video> }
+            { () => <LazyMediaPlayer url={ url } label={ named } ms={ file.ms } /> }
         </Show>
         <Show when={ !ready }>
             { () =>

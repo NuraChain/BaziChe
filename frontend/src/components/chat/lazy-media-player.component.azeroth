@@ -1,0 +1,69 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+import Icon from '../../icons/icon.component.azeroth';
+
+interface PlayerProps
+{
+    url: string;
+    label: string;
+    ms?: number;
+    large?: boolean;
+    from?: number;
+    playing?: boolean;
+    onOpen?: (at: number, playing: boolean) => void;
+}
+
+type Player = (props: PlayerProps) => MountNode;
+
+/** Kept once it has come, so every video after the first is drawn whole at once. */
+let arrived: Player | null = null;
+
+/**
+ * A video's player, a chunk of its own, fetched by the first video that has come: a thread of words
+ * and photos carries none of it. Until it comes the video's place is kept, black, with its mark.
+ */
+export default component LazyMediaPlayer(props: PlayerProps)
+{
+    state Player = arrived;
+
+    derived ready = Player !== null;
+
+    mount
+    {
+        if (Player === null)
+        {
+            void import('./media-player.component.azeroth').then(
+                (module) =>
+                {
+                    arrived = module.default as Player;
+                    Player = arrived;
+                },
+                () => undefined
+            );
+        }
+    }
+
+    <Show
+        when={ ready }
+        fallback={
+            <span class="absolute inset-0 flex items-center justify-center bg-black text-white/70" aria-hidden="true">
+                <Icon name="play" size={ 22 } />
+            </span>
+        }
+    >
+        { () =>
+            <Dynamic
+                component={ Player! }
+                props={ () => ({
+                    url: props.url,
+                    label: props.label,
+                    ms: props.ms,
+                    large: props.large,
+                    from: props.from,
+                    playing: props.playing,
+                    onOpen: props.onOpen
+                }) }
+            />
+        }
+    </Show>
+}

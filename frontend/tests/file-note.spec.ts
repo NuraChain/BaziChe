@@ -140,6 +140,22 @@ describe('a file in its bubble', () =>
         expect(container.querySelector('[data-size]'), 'nor a size over the photo').toBeNull();
     });
 
+    it('plays a video that has come with controls of its own, named by its caption', async () =>
+    {
+        const film = new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d, ...Array.from({ length: 300 }, (_, at) => at % 100)]);
+        const container = show(await sent({ as: 'video', mime: 'video/mp4', ms: 42_000, w: 1920, h: 1080 }, { text: 'Our ||trip||' }, film));
+
+        fire(container.querySelector('[data-download]')!, 'click');
+
+        await vi.waitFor(() => expect(container.querySelector('[data-player] video')).not.toBeNull(), { timeout: 4000 });
+
+        const player = container.querySelector('[data-player]')!;
+
+        expect(player.querySelector('video')?.hasAttribute('controls'), 'none of the browser’s').toBe(false);
+        expect(player.getAttribute('aria-label'), 'a spoiler kept hidden').toBe('Our (spoiler)');
+        expect(player.querySelector('[data-clock]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('0:00 / 0:42');
+    });
+
     it('says a video’s length beside its size', async () =>
     {
         const container = show(await sent({ as: 'video', mime: 'video/mp4', ms: 42_000, w: 1920, h: 1080 }));

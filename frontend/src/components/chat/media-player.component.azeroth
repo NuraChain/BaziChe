@@ -1,0 +1,626 @@
+import Icon from '../../icons/icon.component.azeroth';
+import { runtime } from '../../lib/runtime.ts';
+import { useDevice } from '../../stores/device.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Spinner from '../ui/spinner.component.azeroth';
+import { voiceClock } from './gist.ts';
+import MediaRange from './media-range.component.azeroth';
+
+/** What a press on the speed steps through, as a voice message's does. */
+export const VIDEO_SPEEDS = [1, 1.5, 2] as const;
+
+/** How long the controls stay over a playing video once nobody touches it. */
+export const CONTROLS_MS = 2_500;
+
+/** Seconds an arrow moves the place. */
+const STEP = 5;
+
+/** How far an arrow moves how loud it is. */
+const LOUDER = 0.1;
+
+/** The video playing now, so that another one started pauses it, one at a time as a thread's voice messages are. */
+let sounding: HTMLVideoElement | null = null;
+
+const BUTTON = 'flex shrink-0 cursor-pointer items-center justify-center rounded-full text-white hover:bg-white/15 focus-visible:outline-white';
+
+/**
+ * A video with controls of its own in place of the browser's: play and pause, where it is and how long
+ * it is, how loud, how fast and full screen, each at a size a finger hits, with buffering and a failure
+ * said where the picture is (the failure with Try again). It never plays by itself, and one started
+ * pauses any other. In a bubble it is small and its corner opens it in the viewer, which draws it
+ * large; the controls run left to right in every language and step aside while it plays untouched.
+ */
+export default component MediaPlayer(props: {
+    url: string;
+    label: string;
+
+    /** Its length as its document says it, until the video says its own. */
+    ms?: number;
+    large?: boolean;
+
+    /** Where to begin, in seconds, and whether to play at once: a video carried on into the viewer. */
+    from?: number;
+    playing?: boolean;
+
+    /** Opens it in the viewer, from where it is and whether it was playing. */
+    onOpen?: (at: number, playing: boolean) => void;
+})
+{
+    const locale = useLocale();
+    const device = useDevice();
+
+    let root: HTMLElement | null = null;
+
+    let video: HTMLVideoElement | null = null;
+
+    let bar: HTMLElement | null = null;
+
+    let middle: HTMLElement | null = null;
+
+    let sleep: (() => void) | null = null;
+
+    state paused = true;
+
+    state ended = false;
+
+    state at = props.from ?? 0;
+
+    state length = (props.ms ?? 0) / 1000;
+
+    state volume = 1;
+
+    state muted = false;
+
+    state rate = 1;
+
+    state waiting = false;
+
+    state failed = false;
+
+    state awake = true;
+
+    state focused = false;
+
+    state full = false;
+
+    state scrub = null as number | null;
+
+    derived large = props.large === true;
+
+    derived opens = props.onOpen !== undefined && !large;
+
+    derived place = scrub === null ? at : scrub * length;
+
+    derived fraction = length > 0 ? Math.min(1, place / length) : 0;
+
+    derived said = voiceClock(place, locale.n);
+
+    derived total = voiceClock(length, locale.n);
+
+    derived silent = muted || volume === 0;
+
+    derived loud = silent ? 0 : volume;
+
+    derived shown = paused || failed || awake || focused || scrub !== null;
+
+    derived condition = failed ? 'failed' : (waiting ? 'waiting' : (ended ? 'ended' : (paused ? 'paused' : 'playing')));
+
+    derived offered = paused && !failed && !waiting;
+
+    derived loading = waiting && !failed;
+
+    derived spoken = ended ? locale.t('chat.video.again') : locale.t('chat.video.play');
+
+    derived speed = `${ locale.n(rate) }×`;
+
+    derived failure = locale.t('chat.video.failed');
+
+    derived retrying = locale.t('common.retry');
+
+    derived wide = large && !device.coarse();
+
+    const rest = () =>
+    {
+        sleep?.();
+        sleep = null;
+    };
+
+    /** The controls are shown, and step aside again once nobody has touched the video for a while. */
+    const wake = () =>
+    {
+        awake = true;
+        rest();
+        sleep = runtime().clock.after(CONTROLS_MS, () =>
+        {
+            sleep = null;
+            awake = false;
+        });
+    };
+
+    const toggle = () =>
+    {
+        const element = video;
+
+        if (element === null || failed)
+        {
+            return;
+        }
+
+        if (element.paused)
+        {
+            if (ended)
+            {
+                element.currentTime = 0;
+            }
+
+            void Promise.resolve(element.play()).catch(() => undefined);
+        }
+        else
+        {
+            element.pause();
+        }
+
+        wake();
+    };
+
+    const seek = (seconds: number) =>
+    {
+        const element = video;
+
+        if (element === null)
+        {
+            return;
+        }
+
+        const to = Math.max(0, Math.min(length, seconds));
+
+        element.currentTime = to;
+        at = to;
+        ended = false;
+        wake();
+    };
+
+    const pick = (picked: number, done: boolean) =>
+    {
+        if (done)
+        {
+            scrub = null;
+            seek(picked * length);
+        }
+        else
+        {
+            scrub = picked;
+        }
+    };
+
+    const drop = () =>
+    {
+        scrub = null;
+    };
+
+    const loudness = (picked: number) =>
+    {
+        const element = video;
+
+        if (element !== null)
+        {
+            element.volume = picked;
+            element.muted = picked === 0;
+        }
+
+        volume = picked;
+        muted = picked === 0;
+        wake();
+    };
+
+    const hush = () =>
+    {
+        const element = video;
+        const quiet = !silent;
+
+        if (element !== null)
+        {
+            element.muted = quiet;
+
+            if (!quiet && element.volume === 0)
+            {
+                element.volume = 1;
+                volume = 1;
+            }
+        }
+
+        muted = quiet;
+        wake();
+    };
+
+    const faster = () =>
+    {
+        const next = VIDEO_SPEEDS[(VIDEO_SPEEDS.findIndex((one) => one === rate) + 1) % VIDEO_SPEEDS.length];
+
+        if (video !== null)
+        {
+            video.playbackRate = next;
+        }
+
+        rate = next;
+        wake();
+    };
+
+    const corner = () =>
+    {
+        if (opens)
+        {
+            const playing = !paused;
+            const where = at;
+
+            video?.pause();
+            props.onOpen?.(where, playing);
+            return;
+        }
+
+        if (document.fullscreenElement !== null && document.fullscreenElement !== undefined)
+        {
+            void Promise.resolve(document.exitFullscreen?.()).catch(() => undefined);
+            return;
+        }
+
+        const element = root;
+        const own = video as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+
+        if (element?.requestFullscreen !== undefined)
+        {
+            void Promise.resolve(element.requestFullscreen()).catch(() => undefined);
+        }
+        else
+        {
+            own?.webkitEnterFullscreen?.();
+        }
+    };
+
+    const retry = () =>
+    {
+        failed = false;
+        waiting = false;
+        video?.load();
+    };
+
+    /** A press on the picture plays or pauses it; a finger's first press on a playing video shows the controls instead. */
+    const press = () =>
+    {
+        if (!device.coarse() || paused)
+        {
+            toggle();
+            return;
+        }
+
+        if (awake)
+        {
+            rest();
+            awake = false;
+        }
+        else
+        {
+            wake();
+        }
+    };
+
+    const placeKeys = (event: KeyboardEvent) =>
+    {
+        const by: Record<string, number> = { ArrowLeft: -STEP, ArrowDown: -STEP, ArrowRight: STEP, ArrowUp: STEP, PageDown: -length / 10, PageUp: length / 10 };
+        const to = event.key === 'Home' ? 0 : (event.key === 'End' ? length : (event.key in by ? at + by[event.key] : null));
+
+        if (to !== null)
+        {
+            event.preventDefault();
+            seek(to);
+        }
+    };
+
+    const loudKeys = (event: KeyboardEvent) =>
+    {
+        const by: Record<string, number> = { ArrowLeft: -LOUDER, ArrowDown: -LOUDER, ArrowRight: LOUDER, ArrowUp: LOUDER };
+        const to = event.key === 'Home' ? 0 : (event.key === 'End' ? 1 : (event.key in by ? loud + by[event.key] : null));
+
+        if (to !== null)
+        {
+            event.preventDefault();
+            loudness(Math.round(Math.max(0, Math.min(1, to)) * 10) / 10);
+        }
+    };
+
+    /** The player's own keys, wherever in it the keyboard is: what a range or a button took for itself is left to it. */
+    const keys = (event: KeyboardEvent) =>
+    {
+        if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey)
+        {
+            return;
+        }
+
+        const pressable = event.target instanceof HTMLButtonElement;
+        const act = (run: () => void) =>
+        {
+            event.preventDefault();
+            run();
+        };
+
+        if (event.key === 'k' || (event.key === ' ' && !pressable))
+        {
+            act(toggle);
+        }
+        else if (event.key === 'm')
+        {
+            act(hush);
+        }
+        else if (event.key === 'f')
+        {
+            act(corner);
+        }
+        else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight')
+        {
+            act(() => seek(at + (event.key === 'ArrowRight' ? STEP : -STEP)));
+        }
+    };
+
+    const left = (event: FocusEvent) =>
+    {
+        if (!(event.relatedTarget instanceof Node) || root?.contains(event.relatedTarget) !== true)
+        {
+            focused = false;
+        }
+    };
+
+    mount
+    {
+        const element = video;
+        const host = root;
+
+        if (element === null || host === null)
+        {
+            return;
+        }
+
+        const measure = () =>
+        {
+            if (Number.isFinite(element.duration) && element.duration > 0)
+            {
+                length = element.duration;
+            }
+        };
+
+        const heard: [string, () => void][] = [
+            ['play', () =>
+            {
+                if (sounding !== null && sounding !== element)
+                {
+                    sounding.pause();
+                }
+
+                sounding = element;
+                paused = false;
+                ended = false;
+                wake();
+            }],
+            ['playing', () =>
+            {
+                waiting = false;
+            }],
+            ['pause', () =>
+            {
+                paused = true;
+            }],
+            ['ended', () =>
+            {
+                paused = true;
+                ended = true;
+            }],
+            ['waiting', () =>
+            {
+                waiting = true;
+            }],
+            ['canplay', () =>
+            {
+                waiting = false;
+            }],
+            ['timeupdate', () =>
+            {
+                at = element.currentTime;
+            }],
+            ['loadedmetadata', measure],
+            ['durationchange', measure],
+            ['volumechange', () =>
+            {
+                volume = element.volume;
+                muted = element.muted;
+            }],
+            ['ratechange', () =>
+            {
+                rate = element.playbackRate;
+            }],
+            ['error', () =>
+            {
+                failed = true;
+                waiting = false;
+                paused = true;
+            }]
+        ];
+
+        for (const [type, listener] of heard)
+        {
+            element.addEventListener(type, listener);
+        }
+
+        const changed = () =>
+        {
+            full = document.fullscreenElement === host;
+        };
+
+        const away = (event: PointerEvent) =>
+        {
+            if (event.pointerType === 'mouse' && !paused)
+            {
+                rest();
+                awake = false;
+            }
+        };
+
+        // A press on the controls is theirs: never the start of the line's held press or its swipe.
+        const stop = (event: PointerEvent) => event.stopPropagation();
+
+        document.addEventListener('fullscreenchange', changed);
+        host.addEventListener('pointerleave', away);
+        bar?.addEventListener('pointerdown', stop);
+        middle?.addEventListener('pointerdown', stop);
+
+        if ((props.from ?? 0) > 0)
+        {
+            element.currentTime = props.from ?? 0;
+        }
+
+        if (props.playing === true)
+        {
+            void Promise.resolve(element.play()).catch(() => undefined);
+        }
+
+        return () =>
+        {
+            for (const [type, listener] of heard)
+            {
+                element.removeEventListener(type, listener);
+            }
+
+            document.removeEventListener('fullscreenchange', changed);
+            host.removeEventListener('pointerleave', away);
+            bar?.removeEventListener('pointerdown', stop);
+            middle?.removeEventListener('pointerdown', stop);
+            rest();
+
+            if (sounding === element)
+            {
+                sounding = null;
+            }
+
+            element.pause();
+        };
+    }
+
+    <div
+        ref={ (element) => root = element }
+        class="@container absolute inset-0 overflow-hidden bg-black"
+        role="group"
+        aria-label={ props.label }
+        data-player
+        data-state={ condition }
+        onPointerMove={ wake }
+        onFocusIn={ () => focused = true }
+        onFocusOut={ left }
+        onKeyDown={ keys }
+    >
+        <video ref={ (element) => video = element } src={ props.url } playsinline preload="metadata" class="absolute inset-0 h-full w-full object-contain"></video>
+        <div class="absolute inset-0" aria-hidden="true" onClick={ press } data-picture></div>
+
+        <div ref={ (element) => middle = element } class="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <Show when={ offered }>
+                { () =>
+                    <button
+                        type="button"
+                        class={ () => [
+                            'pointer-events-auto flex cursor-pointer items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-transform duration-150 active:scale-95 motion-reduce:transition-none',
+                            large ? 'h-16 w-16' : 'h-12 w-12'
+                        ].join(' ') }
+                        aria-label={ spoken }
+                        onClick={ toggle }
+                        data-big
+                    >
+                        <Icon name="play" size={ large ? 28 : 22 } />
+                    </button>
+                }
+            </Show>
+            <Show when={ loading }>
+                { () => <span class="flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white" role="status" aria-label={ locale.t('common.loading') }><Spinner size={ 22 } /></span> }
+            </Show>
+            <Show when={ failed }>
+                { () =>
+                    <span class="pointer-events-auto flex max-w-[16rem] flex-col items-center gap-2 rounded-tile bg-black/70 px-3 py-2.5 text-center text-ui-xs text-white" role="alert" data-failed>
+                        <Icon name="alert" size={ 18 } />
+                        { failure }
+                        <button type="button" class="cursor-pointer rounded-full px-3 py-1 font-semibold underline-offset-2 hover:underline coarse:min-h-11" onClick={ retry } data-retry>
+                            { retrying }
+                        </button>
+                    </span>
+                }
+            </Show>
+        </div>
+
+        <div
+            ref={ (element) => bar = element }
+            class={ () => [
+                'absolute inset-x-0 bottom-0 flex flex-col bg-gradient-to-t from-black/75 to-transparent px-1.5 pb-1 pt-6 text-white transition-opacity duration-200 motion-reduce:transition-none',
+                shown ? 'opacity-100' : 'pointer-events-none opacity-0'
+            ].join(' ') }
+            dir="ltr"
+            data-bar
+            data-shown={ shown ? 'true' : 'false' }
+        >
+            <MediaRange
+                class="mx-1.5"
+                value={ fraction }
+                label={ locale.t('chat.video.place') }
+                valueText={ locale.t('chat.video.at', { at: said, total }) }
+                now={ Math.round(place) }
+                max={ Math.round(length) }
+                onPick={ pick }
+                onDrop={ drop }
+                onKey={ placeKeys }
+            />
+            <div class="flex items-center gap-0.5">
+                <button type="button" class={ `${ BUTTON } h-8 w-8 coarse:h-11 coarse:w-11` } aria-label={ paused ? spoken : locale.t('chat.video.pause') } onClick={ toggle } data-toggle>
+                    <Icon name={ paused ? 'play' : 'pause' } size={ 18 } />
+                </button>
+                <span class="whitespace-nowrap px-1 text-ui-2xs font-medium tabular-nums" data-clock>{ said } / { total }</span>
+                <span class="flex-1"></span>
+                <button
+                    type="button"
+                    class={ () => [ BUTTON, 'h-8 min-w-8 px-1.5 text-ui-2xs font-semibold tabular-nums coarse:h-11 coarse:min-w-11', large ? '' : 'hidden @[15rem]:flex' ].join(' ') }
+                    aria-label={ locale.t('chat.video.speed', { rate: speed }) }
+                    onClick={ faster }
+                    data-speed
+                >
+                    { speed }
+                </button>
+                <button
+                    type="button"
+                    class={ () => [ BUTTON, 'h-8 w-8 coarse:h-11 coarse:w-11', large ? '' : 'hidden @[12rem]:flex' ].join(' ') }
+                    aria-label={ silent ? locale.t('chat.video.unmute') : locale.t('chat.video.mute') }
+                    aria-pressed={ silent ? 'true' : 'false' }
+                    onClick={ hush }
+                    data-mute
+                >
+                    <Icon name={ silent ? 'sound-off' : 'sound' } size={ 18 } />
+                </button>
+                <Show when={ wide }>
+                    { () =>
+                        <MediaRange
+                            class="w-20"
+                            value={ loud }
+                            label={ locale.t('chat.video.volume') }
+                            valueText={ locale.n(loud, { style: 'percent' }) }
+                            now={ Math.round(loud * 100) }
+                            max={ 100 }
+                            onPick={ (picked) => loudness(picked) }
+                            onKey={ loudKeys }
+                        />
+                    }
+                </Show>
+                <button
+                    type="button"
+                    class={ `${ BUTTON } h-8 w-8 coarse:h-11 coarse:w-11` }
+                    aria-label={ opens ? locale.t('chat.video.open') : (full ? locale.t('chat.video.leaveFullScreen') : locale.t('chat.video.fullScreen')) }
+                    onClick={ corner }
+                    data-corner
+                >
+                    <Icon name={ opens ? 'expand' : (full ? 'fullscreen-exit' : 'fullscreen') } size={ 18 } />
+                </button>
+            </div>
+        </div>
+    </div>
+}

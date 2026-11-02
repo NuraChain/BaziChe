@@ -1,0 +1,112 @@
+/**
+ * A range on a video's controls, where it is or how loud: a press or a drag anywhere along it
+ * chooses, the keys are its player's, and it runs left to right whatever the page's language, as a
+ * timeline does.
+ */
+export default component MediaRange(props: {
+    /** How far along it stands, 0 to 1. */
+    value: number;
+    label: string;
+    valueText: string;
+    now: number;
+    max: number;
+    class?: string;
+
+    /** Where a press or a drag holds it, 0 to 1, and `done` once it lets go. */
+    onPick: (fraction: number, done: boolean) => void;
+
+    /** A drag the browser took away, which chooses nothing. */
+    onDrop?: () => void;
+    onKey: (event: KeyboardEvent) => void;
+})
+{
+    let track: HTMLElement | null = null;
+
+    let dragging = false;
+
+    derived percent = `${ (Math.max(0, Math.min(1, props.value)) * 100).toFixed(2) }%`;
+
+    const fractionAt = (x: number) =>
+    {
+        const box = track?.getBoundingClientRect();
+
+        return box === undefined || box.width === 0 ? 0 : Math.max(0, Math.min(1, (x - box.left) / box.width));
+    };
+
+    // Heard on the range itself: the player's controls keep a press from the line beneath them, so it
+    // never reaches the document, where a handler in the markup is heard.
+    const down = (event: PointerEvent) =>
+    {
+        if (event.pointerType === 'mouse' && event.button !== 0)
+        {
+            return;
+        }
+
+        dragging = true;
+        track?.setPointerCapture?.(event.pointerId);
+        props.onPick(fractionAt(event.clientX), false);
+    };
+
+    const move = (event: PointerEvent) =>
+    {
+        if (dragging)
+        {
+            props.onPick(fractionAt(event.clientX), false);
+        }
+    };
+
+    const up = (event: PointerEvent) =>
+    {
+        if (dragging)
+        {
+            dragging = false;
+            props.onPick(fractionAt(event.clientX), true);
+        }
+    };
+
+    const cancel = () =>
+    {
+        if (dragging)
+        {
+            dragging = false;
+            props.onDrop?.();
+        }
+    };
+
+    mount
+    {
+        const element = track;
+
+        if (element === null)
+        {
+            return;
+        }
+
+        element.addEventListener('pointerdown', down);
+
+        return () => element.removeEventListener('pointerdown', down);
+    }
+
+    <div
+        ref={ (element) => track = element }
+        class={ () => [ 'relative flex h-6 cursor-pointer touch-pan-y select-none items-center coarse:h-8', props.class ?? '' ].filter(Boolean).join(' ') }
+        dir="ltr"
+        role="slider"
+        tabindex="0"
+        aria-label={ props.label }
+        aria-valuemin="0"
+        aria-valuemax={ props.max }
+        aria-valuenow={ props.now }
+        aria-valuetext={ props.valueText }
+        onPointerMove={ move }
+        onPointerUp={ up }
+        onPointerCancel={ cancel }
+        onKeyDown={ props.onKey }
+        data-range
+    >
+        <span class="relative h-1 w-full overflow-hidden rounded-full bg-white/30">
+            <span class="absolute inset-y-0 left-0 rounded-full bg-white" style={ () => `width: ${ percent }` } data-filled={ percent }></span>
+        </span>
+        <span class="pointer-events-none absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-sm" style={ () => `left: ${ percent }` }></span>
+    </div>
+}

@@ -684,7 +684,14 @@ try
         PID = listener();
         await until(90_000, async () => (await statsOf()).open === connected.length);
 
-        const backs = (await Promise.all(children.map((child) => ask(child, { do: 'backs' })))).flatMap((reply) => reply.backs);
+        // Open is not yet greeted: the server greets a socket once it has read its session, and three
+        // thousand arriving at once wait their turn for the pool, so counting at the last open counted
+        // half of them as never back.
+        const greetings = async () => (await Promise.all(children.map((child) => ask(child, { do: 'backs' })))).flatMap((reply) => reply.backs);
+
+        await until(30_000, async () => (await greetings()).every((one) => one.back > 0));
+
+        const backs = await greetings();
         const back = backs.filter((one) => one.back > 0).map((one) => one.back - begun);
         const tries = backs.reduce((counts, one) =>
         {

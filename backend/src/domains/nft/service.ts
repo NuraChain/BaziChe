@@ -23,15 +23,6 @@ export interface NftSweep
     failed: number;
 }
 
-/** A token as its owner's page names it. */
-export interface NftView
-{
-    collection: NftCollection;
-    key: string;
-    state: 'minting' | 'minted';
-    hash?: string;
-}
-
 interface Row
 {
     id: string;
@@ -265,22 +256,6 @@ export function createNftService(db: DataSource, chain: NftChain)
 
             return sweep;
         },
-
-        /** The reader's own tokens that are minted or on their way, for their collection and their achievements. */
-        async of(userId: string): Promise<NftView[]>
-        {
-            const rows = rowsOf<{ collection: NftCollection; key: string; state: NftState; hash: string | null }>(await db.query(
-                `select collection, key, state, hash from nft_tokens where user_id = $1 and state in ('minting', 'minted')`,
-                [userId]
-            ));
-
-            return rows.map((row) => ({
-                collection: row.collection,
-                key: row.key,
-                state: row.state === 'minted' ? 'minted' as const : 'minting' as const,
-                ...(row.state === 'minted' && row.hash !== null ? { hash: row.hash } : {})
-            }));
-        }
     };
 }
 

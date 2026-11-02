@@ -5,6 +5,7 @@ import type { AchievementFamily, AchievementLadder, AchievementSummary, EarnedAc
 import { GAME_FAMILIES, RUNGS, familiesOf } from './families.ts';
 import { measure, reached, rungId, scopeOf, type Family, type GlobalFacts, type LadderFacts, type Pace, type Rung } from './ladders.ts';
 import { levelOf } from '../match/levels.ts';
+import { markOf, nftsOf, type NftMark } from '../nft/read.ts';
 import { PROFILE_LOOKS, chosenIn, worn, type ProfileLooks } from '../shop/looks.ts';
 
 interface Facts
@@ -195,7 +196,7 @@ function summaryOf(facts: Facts, game: string | null, family: Family, held: Read
     };
 }
 
-const asEarned = (rung: Rung, earnedAt: Date, holders: ReadonlyMap<string, number>): EarnedAchievement => ({
+const asEarned = (rung: Rung, earnedAt: Date, holders: ReadonlyMap<string, number>, minted: ReadonlyMap<string, NftMark> = new Map()): EarnedAchievement => ({
     id: rung.id,
     name: { en: rung.nameEn, fa: rung.nameFa },
     blurb: { en: rung.blurbEn, fa: rung.blurbFa },
@@ -204,7 +205,8 @@ const asEarned = (rung: Rung, earnedAt: Date, holders: ReadonlyMap<string, numbe
     rarity: rung.rarity,
     holders: holders.get(rung.id) ?? 0,
     ...(rung.game === null ? {} : { game: rung.game }),
-    earnedAt: new Date(earnedAt).toISOString()
+    earnedAt: new Date(earnedAt).toISOString(),
+    ...markOf(minted, rung.id)
 });
 
 const recentOf = (held: readonly HeldRow[]) => held
@@ -212,7 +214,7 @@ const recentOf = (held: readonly HeldRow[]) => held
     .sort((a, b) => new Date(b.earnedAt).getTime() - new Date(a.earnedAt).getTime() || b.achievementId.localeCompare(a.achievementId))
     .slice(0, RECENT);
 
-function summarise(facts: Facts, held: readonly HeldRow[], holders: ReadonlyMap<string, number>): AchievementSummary
+function summarise(facts: Facts, held: readonly HeldRow[], holders: ReadonlyMap<string, number>, minted: ReadonlyMap<string, NftMark>): AchievementSummary
 {
     const when = new Map(held.map((row) => [row.achievementId, row.earnedAt]));
     const known = held.filter((row) => RUNG_BY_ID.has(row.achievementId));
@@ -229,7 +231,7 @@ function summarise(facts: Facts, held: readonly HeldRow[], holders: ReadonlyMap<
             };
         }),
         families: SCOPES.flatMap((game) => familiesOf(game).map((family) => summaryOf(facts, game, family, when))),
-        recent: recentOf(known).map((row) => asEarned(RUNG_BY_ID.get(row.achievementId)!, row.earnedAt, holders))
+        recent: recentOf(known).map((row) => asEarned(RUNG_BY_ID.get(row.achievementId)!, row.earnedAt, holders, minted))
     };
 }
 
@@ -563,7 +565,7 @@ export function createAchieveService(db: DataSource)
                     tallies: row.tallies,
                     xp: row.xp
                 })),
-                achievements: summarise(await factsOf(db.manager, who.id), held, holders)
+                achievements: summarise(await factsOf(db.manager, who.id), held, holders, await nftsOf(db, who.id, 'achievement'))
             };
         }
     };

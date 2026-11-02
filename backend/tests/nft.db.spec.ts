@@ -7,6 +7,7 @@ import { DataSource } from 'typeorm';
 import { tokenIdOf, type NftChain, type Sent } from '../src/chain/minting.ts';
 import type { Mined } from '../src/chain/vault.ts';
 import { RUNGS } from '../src/domains/achieve/families.ts';
+import { nftsOf } from '../src/domains/nft/read.ts';
 import { createNftService, LEGENDARY } from '../src/domains/nft/service.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
@@ -150,7 +151,7 @@ describe.skipIf(!active)('the NFT mirror, against a real database', () =>
 
         w.mined = 'success';
         expect((await mirror.pass()).minted).toBe(1);
-        expect(await mirror.of(owner)).toEqual([{ collection: 'look', key: 'dice.shiraz', state: 'minted', hash: HASH }]);
+        expect(await nftsOf(db, owner, 'look')).toEqual(new Map([['dice.shiraz', { state: 'minted', hash: HASH }]]));
     });
 
     it('keeps a token the account is gone from, so a look still owed a burn is burned', async () =>

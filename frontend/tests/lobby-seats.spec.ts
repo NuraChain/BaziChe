@@ -47,7 +47,7 @@ describe('where a chair stands at the table of a waiting room', () =>
 
     it('goes the other way round a poker table, where the deal goes to the left, as the table itself does', () =>
     {
-        for (const seats of [2, 6, 9])
+        for (const seats of [2, 3, 4, 5, 6, 7, 8, 9])
         {
             const real = aroundStadium(seats, 1.6).map((spot) => Math.sign(Math.round(spot.x - 50)));
             const here = places('poker', seats, 0).map(([x]) => Math.sign(Math.round((x - 0.5) * 100)));

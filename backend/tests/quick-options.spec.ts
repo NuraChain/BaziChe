@@ -100,7 +100,7 @@ describe('the table the create form offers when nobody has said how many chairs'
     {
         expect(seatsByDefault(RULES.hokm)).toBe(4);
         expect(seatsByDefault(RULES.ludo)).toBe(4);
-        expect(seatsByDefault(RULES.poker)).toBe(6);
+        expect(seatsByDefault(RULES.poker), 'the smallest of four or more, now that poker seats every count').toBe(4);
         expect(seatsByDefault(RULES.backgammon)).toBe(2);
         expect(seatsByDefault({ seats: [2, 3] })).toBe(3);
         expect(seatsByDefault({ seats: [2, 6, 9] })).toBe(6);

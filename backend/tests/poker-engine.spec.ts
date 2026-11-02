@@ -27,12 +27,12 @@ function applied(state: PokerState, action: PokerAction, seed = 1): { state: Pok
 
 describe('the catalogue and the engine agree', () =>
 {
-    it('seats two, six and nine, live only, and is open to play', () =>
+    it('seats any count from two to nine, live only, and is open to play', () =>
     {
         const seed = GAME_SEEDS.find((game) => game.id === 'poker');
 
-        expect(pokerEngine.formats).toEqual([2, 6, 9].map((seats) => ({ seats, variant: 'standard' })));
-        expect(seed?.seats).toEqual([2, 6, 9]);
+        expect(pokerEngine.formats).toEqual([2, 3, 4, 5, 6, 7, 8, 9].map((seats) => ({ seats, variant: 'standard' })));
+        expect(seed?.seats).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
         expect(seed?.maxPlayers).toBe(9);
         expect(seed?.modes).toEqual(['live']);
         expect(seed?.targets).toEqual([]);
@@ -410,7 +410,7 @@ describe('a state the engine cannot advance', () =>
 
     it('never arises from the clock alone: autoplay plays whole games with somebody on turn and a board the wire takes', () =>
     {
-        for (const seats of [2, 6, 9])
+        for (const seats of [2, 3, 4, 5, 6, 7, 8, 9])
         {
             for (let game = 0; game < 12; game += 1)
             {

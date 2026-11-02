@@ -74,7 +74,7 @@ function aLongGame(seats: number, check: (state: PokerState, events: readonly Po
 
 describe('what one seat may see of another', () =>
 {
-    it.each([2, 6, 9])('composes a %i-seat view and log that cannot depend on another seat hole cards', (seats) =>
+    it.each([2, 3, 4, 5, 6, 7, 8, 9])('composes a %i-seat view and log that cannot depend on another seat hole cards', (seats) =>
     {
         const readers = [...Array.from({ length: seats }, (_, seat) => seat), null];
 
@@ -177,7 +177,7 @@ describe('what one seat may see of another', () =>
 
     it('never logs a hole card outside a showdown, not even to its owner, and never shows a folded hand', () =>
     {
-        for (const seats of [2, 6, 9])
+        for (const seats of [2, 3, 4, 5, 6, 7, 8, 9])
         {
             const played = playOut(seats, seats * 5 + 1, (state, events, at) =>
             {

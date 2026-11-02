@@ -65,7 +65,9 @@ export default component FileNote(props: {
 
     derived fault = state !== null && state.at === 'fault' ? state.fault : null;
 
-    derived alarming = fault === 'tampered';
+    derived refused = fault === 'refused';
+
+    derived alarming = fault === 'tampered' || refused;
 
     derived url = state !== null && state.at === 'ready' ? state.url : '';
 
@@ -93,27 +95,34 @@ export default component FileNote(props: {
                     <Show
                         when={ ready }
                         fallback={
-                            <button
-                                type="button"
-                                class={ () => [
-                                    'relative flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-transform duration-150 active:scale-95 motion-reduce:transition-none',
-                                    mine ? 'bg-accent-ink text-accent-fill focus-visible:outline-accent-ink' : 'bg-accent-fill text-accent-ink'
-                                ].join(' ') }
-                                aria-label={ label }
-                                aria-busy={ loading ? 'true' : undefined }
-                                data-download={ loading ? 'loading' : 'idle' }
-                                onClick={ () => loads.toggle(props.message) }
+                            <Show
+                                when={ refused }
+                                fallback={
+                                    <button
+                                        type="button"
+                                        class={ () => [
+                                            'relative flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-transform duration-150 active:scale-95 motion-reduce:transition-none',
+                                            mine ? 'bg-accent-ink text-accent-fill focus-visible:outline-accent-ink' : 'bg-accent-fill text-accent-ink'
+                                        ].join(' ') }
+                                        aria-label={ label }
+                                        aria-busy={ loading ? 'true' : undefined }
+                                        data-download={ loading ? 'loading' : 'idle' }
+                                        onClick={ () => loads.toggle(props.message) }
+                                    >
+                                        <Icon name={ loading ? 'close' : 'download' } size={ 18 } />
+                                        <Show when={ loading || uploading }>
+                                            { () =>
+                                                <svg class="pointer-events-none absolute -inset-1 -rotate-90" viewBox="0 0 48 48" aria-hidden="true" data-ring>
+                                                    <circle cx="24" cy="24" r="22.5" fill="none" stroke="currentColor" stroke-opacity="0.25" stroke-width="2.5"></circle>
+                                                    <circle cx="24" cy="24" r="22.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset={ 100 - Math.round((uploading ? sending ?? 0 : fraction) * 100) }></circle>
+                                                </svg>
+                                            }
+                                        </Show>
+                                    </button>
+                                }
                             >
-                                <Icon name={ loading ? 'close' : 'download' } size={ 18 } />
-                                <Show when={ loading || uploading }>
-                                    { () =>
-                                        <svg class="pointer-events-none absolute -inset-1 -rotate-90" viewBox="0 0 48 48" aria-hidden="true" data-ring>
-                                            <circle cx="24" cy="24" r="22.5" fill="none" stroke="currentColor" stroke-opacity="0.25" stroke-width="2.5"></circle>
-                                            <circle cx="24" cy="24" r="22.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset={ 100 - Math.round((uploading ? sending ?? 0 : fraction) * 100) }></circle>
-                                        </svg>
-                                    }
-                                </Show>
-                            </button>
+                                { () => <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-danger-fill text-accent-ink" aria-hidden="true" data-refused><Icon name="alert" size={ 18 } /></span> }
+                            </Show>
                         }
                     >
                         { () =>

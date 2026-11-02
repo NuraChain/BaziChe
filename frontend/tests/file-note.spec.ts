@@ -220,6 +220,30 @@ describe('a file in its bubble', () =>
         expect(container.querySelector('[data-file] img, [data-file] video'), 'never shown inline').toBeNull();
     });
 
+    it('raises the alarm for a file its bytes say could harm a device, and offers nothing to save or fetch again', async () =>
+    {
+        const container = show(await sent({ as: 'file', mime: 'application/pdf', name: 'invoice.pdf', w: undefined, h: undefined, thumb: undefined }, {}, new Uint8Array([0x4d, 0x5a, 0x90, 0x00, 3, 0, 0, 0])));
+
+        fire(container.querySelector('[data-download]')!, 'click');
+
+        await vi.waitFor(() => expect(container.querySelector('[data-fault="refused"]')?.textContent).toBe('This file could harm a device, so it cannot be saved here.'));
+        expect(container.querySelector('[data-fault="refused"]')?.getAttribute('role')).toBe('alert');
+        expect(container.querySelector('[data-refused]'), 'its mark in place of the button').not.toBeNull();
+        expect(container.querySelector('[data-download]')).toBeNull();
+        expect(container.querySelector('a[data-save]')).toBeNull();
+        expect(container.textContent, 'no way to try again').not.toContain('Try again');
+    });
+
+    it('raises the alarm for a file whose name a computer would run, whatever is in it', async () =>
+    {
+        const container = show(await sent({ as: 'file', mime: 'text/plain', name: 'readme.txt.lnk', w: undefined, h: undefined, thumb: undefined }, {}, new TextEncoder().encode('just words')));
+
+        fire(container.querySelector('[data-download]')!, 'click');
+
+        await vi.waitFor(() => expect(container.querySelector('[data-fault="refused"]')).not.toBeNull());
+        expect(container.querySelector('a[data-save]')).toBeNull();
+    });
+
     it('raises the alarm for a file that does not open under its key, and shows nothing of it', async () =>
     {
         const message = await sent();

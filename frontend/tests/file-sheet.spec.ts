@@ -236,6 +236,39 @@ describe('the sheet several things go from', () =>
         expect(sendAlbum.mock.calls[0][1].map((one) => one.name)).toEqual(['a.jpg', 'c.jpg']);
     });
 
+    it('says why a file that never goes cannot, read from its bytes whatever it is called, and sends the rest once it is out', async () =>
+    {
+        const program = new File([new Uint8Array([0x4d, 0x5a, 0x90, 0x00])], 'report.pdf', { type: 'application/pdf' });
+        const page = new File([new TextEncoder().encode('<html><script>x()</script>')], 'notes.txt', { type: 'text/plain' });
+        const { container } = sheet([photo('a.jpg'), program, page, doc('plan.pdf')]);
+
+        await vi.waitFor(() => expect(container.querySelector('[data-over]')?.textContent).toBe('Some of these cannot be sent. Remove them to send the rest. Programs, scripts and installers cannot be sent here. Web pages and SVG or XML files cannot be sent here.'));
+        expect([...container.querySelectorAll('[data-chosen] li')].map((one) => one.getAttribute('data-fault'))).toEqual([null, 'refused', 'refused', null]);
+        expect(container.querySelector('[data-chosen] li[data-fault="refused"]')?.textContent).toContain('Cannot be sent');
+        expect(button(container, 'Send')?.disabled).toBe(true);
+
+        fire(button(container, 'Remove report.pdf')!, 'click');
+        fire(button(container, 'Remove notes.txt')!, 'click');
+
+        await ready(container);
+        expect(container.querySelector('[data-over]')).toBeNull();
+    });
+
+    it('says why one file alone cannot go, in the reader’s language', async () =>
+    {
+        const box = new File([new Uint8Array([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0, 4])], 'holiday.dat', { type: '' });
+        const { container } = sheet([box]);
+
+        await vi.waitFor(() => expect(container.querySelector('[data-refused]')?.textContent).toBe('Archives cannot be sent here: nobody here can look inside them.'));
+        expect(button(container, 'Send')?.disabled).toBe(true);
+
+        useLocale().setLocale('fa');
+
+        const persian = sheet([new File([new TextEncoder().encode('echo hi')], 'run.bat', { type: '' })]).container;
+
+        await vi.waitFor(() => expect(persian.querySelector('[data-refused]')?.textContent).toBe('برنامه، اسکریپت و فایل نصبی رو نمی‌شه اینجا فرستاد.'));
+    });
+
     it('says a photo too large once it is drawn cannot go, and Enter sends nothing while it is there', async () =>
     {
         const sendAlbum = vi.spyOn(useChat(), 'sendAlbum').mockResolvedValue(undefined);

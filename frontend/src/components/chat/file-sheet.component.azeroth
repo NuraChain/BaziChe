@@ -1,6 +1,7 @@
 import type { FileDraft } from '../../data/chat.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { FILE_ALBUM_LEAST, FILE_ALBUM_MOST, FILE_CAPTION_MOST, FILE_MOST } from '../../../../backend/src/domains/chat/files.ts';
+import { judgeFile, type FileRefusal } from '../../lib/file-kind.ts';
 import { mostOf, overUnread, prepare, showable, tooLarge } from '../../lib/file-prepare.ts';
 import { useChat } from '../../stores/chat.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -22,10 +23,11 @@ interface Chosen
     draft: FileDraft | null;
     preparing: boolean;
     unreadable: boolean;
+    refused: FileRefusal | null;
     preview: string;
 }
 
-/** Why something chosen cannot go: too large (said without reading it where it can be), or not read at all. */
+/** Why something chosen cannot go: not read at all, a kind of file that never goes, or too large (said without reading it where it can be). */
 const faultOf = (one: Chosen, asFile: boolean) =>
 {
     if (one.preparing)
@@ -38,7 +40,20 @@ const faultOf = (one: Chosen, asFile: boolean) =>
         return 'unreadable';
     }
 
+    if (one.refused !== null)
+    {
+        return 'refused';
+    }
+
     return overUnread(one.file, asFile) || one.draft === null || tooLarge(one.draft) ? 'large' : null;
+};
+
+/** Why a file read from its bytes may not go: only what goes as a file is asked, since a photo is drawn again and a video plays. */
+const refusalOf = (draft: FileDraft) =>
+{
+    const verdict = draft.as === 'file' ? judgeFile(draft.plain, draft.name) : null;
+
+    return verdict === null || verdict.goes ? null : verdict.why;
 };
 
 /** What a chosen thing will likely go as before it is ready, from what the picker says it is. */
@@ -68,7 +83,7 @@ export default component FileSheet(props: OverlayProps & {
 
     state asFile = false;
 
-    state chosen = props.files.slice(0, FILE_ALBUM_MOST).map((file, at): Chosen => ({ key: at, file, draft: null, preparing: true, unreadable: false, preview: '' }));
+    state chosen = props.files.slice(0, FILE_ALBUM_MOST).map((file, at): Chosen => ({ key: at, file, draft: null, preparing: true, unreadable: false, refused: null, preview: '' }));
 
     state caption = props.caption.slice(0, FILE_CAPTION_MOST);
 
@@ -134,6 +149,13 @@ export default component FileSheet(props: OverlayProps & {
 
     derived unreadable = first !== null && faultOf(first, asFile) === 'unreadable';
 
+    /** Each reason something chosen may not go, said once however many it holds back. */
+    derived reasons = [...new Set(chosen.flatMap((one) => (one.refused === null ? [] : [ one.refused ])))].map((why) => locale.t(`chat.attach.refused.${ why }`));
+
+    derived stuckSaid = [ locale.t('chat.attach.cannotGo'), ...reasons ].join(' ');
+
+    derived refusalSaid = single ? (reasons[0] ?? '') : '';
+
     derived preview = first?.preview ?? '';
 
     const release = (preview: string) =>
@@ -156,7 +178,7 @@ export default component FileSheet(props: OverlayProps & {
             release(one.preview);
         }
 
-        chosen = chosen.map((one) => ({ ...one, draft: null, preparing: true, unreadable: false, preview: '' }));
+        chosen = chosen.map((one) => ({ ...one, draft: null, preparing: true, unreadable: false, refused: null, preview: '' }));
 
         for (const { key, file: picked } of chosen)
         {
@@ -176,6 +198,7 @@ export default component FileSheet(props: OverlayProps & {
                     next = {
                         draft,
                         preparing: false,
+                        refused: refusalOf(draft),
                         preview: draft.as === 'photo' ? URL.createObjectURL(new Blob([draft.plain as BlobPart], { type: draft.mime })) : ''
                     };
                 }
@@ -326,7 +349,7 @@ export default component FileSheet(props: OverlayProps & {
                                     { () =>
                                         <span class="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1 bg-danger/85 px-1.5 py-0.5 text-ui-2xs font-semibold text-white">
                                             <Icon name="alert" size={ 12 } />
-                                            <span class="truncate">{ faultOf(one, asFile) === 'unreadable' ? locale.t('chat.attach.unreadable') : sizeSaid(one.draft?.plain.byteLength ?? one.file.size, locale) }</span>
+                                            <span class="truncate">{ faultOf(one, asFile) === 'unreadable' ? locale.t('chat.attach.unreadable') : (faultOf(one, asFile) === 'refused' ? locale.t('chat.attach.refusedShort') : sizeSaid(one.draft?.plain.byteLength ?? one.file.size, locale)) }</span>
                                         </span>
                                     }
                                 </Show>
@@ -344,7 +367,7 @@ export default component FileSheet(props: OverlayProps & {
                         </For>
                     </ul>
                     <Show when={ stuck }>
-                        { () => <p class="text-ui-sm text-danger" role="alert" data-over>{ locale.t('chat.attach.cannotGo') }</p> }
+                        { () => <p class="text-ui-sm text-danger" role="alert" data-over>{ stuckSaid }</p> }
                     </Show>
                     <Show when={ left }>
                         { () => <p class="text-ui-sm text-muted" role="status" data-left>{ locale.t('chat.attach.first', { count: FILE_ALBUM_MOST }) }</p> }
@@ -396,6 +419,10 @@ export default component FileSheet(props: OverlayProps & {
 
                     <Show when={ unreadable }>
                         { () => <p class="text-ui-sm text-danger" role="alert">{ locale.t('chat.attach.unreadable') }</p> }
+                    </Show>
+
+                    <Show when={ refusalSaid !== '' }>
+                        { () => <p class="text-ui-sm text-danger" role="alert" data-refused>{ refusalSaid }</p> }
                     </Show>
                 </>
             }

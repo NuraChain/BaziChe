@@ -5,7 +5,8 @@ export const FILE_FAULTS: Record<FileFault, MessageKey> = {
     gone: 'chat.file.gone',
     failed: 'chat.file.failed',
     tampered: 'chat.file.tampered',
-    unshowable: 'chat.file.unshowable'
+    unshowable: 'chat.file.unshowable',
+    refused: 'chat.file.refused'
 };
 
 /** A thumb as the picture its bytes are: base64url in the document, base64 in an address. */

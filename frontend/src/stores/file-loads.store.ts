@@ -2,6 +2,7 @@ import { createSignal, createStore, untrack } from 'azerothjs';
 
 import type { Message } from '../data/chat.ts';
 import { openFile, sniffShown } from '../lib/chat-file.ts';
+import { judgeFile } from '../lib/file-kind.ts';
 import { forgetFile, heldFile, holdFile, onFileHeld } from '../lib/file-held.ts';
 import { ChatFileError, chatFiles } from '../services/chat-files.ts';
 
@@ -10,7 +11,7 @@ import { ChatFileError, chatFiles } from '../services/chat-files.ts';
  * fetched, does not open under the key its sender signed, or is said to be a picture or a film and is
  * neither.
  */
-export type FileFault = 'gone' | 'failed' | 'tampered' | 'unshowable';
+export type FileFault = 'gone' | 'failed' | 'tampered' | 'unshowable' | 'refused';
 
 export type FileState = { at: 'loading'; fraction: number } | { at: 'ready'; url: string; type: string } | { at: 'fault'; fault: FileFault };
 
@@ -107,6 +108,12 @@ export const useFileLoads = createStore((): FileLoadsApi =>
             if (file.as !== 'file' && (shown === null || !shown.startsWith(file.as === 'photo' ? 'image/' : 'video/')))
             {
                 setLoads((current) => ({ ...current, [file.id]: 'unshowable' }));
+                return;
+            }
+
+            if (file.as === 'file' && !judgeFile(plain, file.name).goes)
+            {
+                setLoads((current) => ({ ...current, [file.id]: 'refused' }));
                 return;
             }
 

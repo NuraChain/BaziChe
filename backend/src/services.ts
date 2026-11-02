@@ -53,6 +53,7 @@ import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play
 import { createNoticeService } from './domains/admin/notice.ts';
 import { createShopAdmin } from './domains/admin/shop.ts';
 import { createInviteAdmin } from './domains/admin/invites.ts';
+import { createMarketsMoney } from './domains/admin/markets-money.ts';
 import { createShopMoney } from './domains/admin/shop-money.ts';
 import { worn, type ProfileLooks } from './domains/shop/looks.ts';
 import { createOrderService, type ShopSweep } from './domains/shop/orders.ts';
@@ -1423,6 +1424,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
     const forecasts = marketsChain ?? createMarketsChain({ rpcUrl: config.rpcUrl, chainId: config.chainId, markets: config.marketsAddress, operatorKey: config.refereeKey });
 
+    const marketsFunds = createMarketsMoney(forecasts);
+
     const markets = createMarketService(
         db,
         forecasts,
@@ -2764,6 +2767,20 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 const actor = await ableTo(me, 'wallet');
 
                 return actor === null || actor.address === null ? null : await shopFunds.seller(actor.address, address);
+            },
+
+            async marketsMoney(me)
+            {
+                const actor = await ableTo(me, 'money');
+
+                return actor === null || actor.address === null ? null : await marketsFunds.standing(actor.address);
+            },
+
+            async marketsOperator(me, address)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null || actor.address === null ? null : await marketsFunds.operator(actor.address, address);
             },
 
             async shopPause(me, paused)

@@ -21,6 +21,7 @@ import type {
     AdminOverview,
     AdminPlay,
     AdminShop,
+    AdminMarkets,
     AdminShopMoney,
     AdminShopOrders,
     AdminInviteCampaign,
@@ -963,6 +964,12 @@ export interface AdminPort
     shopShare(me: string, bps: number): Promise<WalletCall | null>;
 
     shopSeller(me: string, address: string): Promise<WalletCall | null>;
+
+    /** Who operates the markets, for the money page; null to anybody who may not see money. */
+    marketsMoney(me: string): Promise<AdminMarkets | null>;
+
+    /** The owner's `setOperator`, composed for their wallet; null to anybody who may not move money. */
+    marketsOperator(me: string, address: string): Promise<WalletCall | null>;
 
     shopPause(me: string, paused: boolean): Promise<WalletCall | null>;
 

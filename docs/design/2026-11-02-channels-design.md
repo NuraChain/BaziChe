@@ -126,13 +126,15 @@ What changed on the way, against the design:
   count; Discover is the public channels under the reader's own, in the same tab.
 - **The paperclip is the chat's own sheet**, which posts to the channel instead of sending into a
   room (`FileSheet`'s `onSend`), so a photo is re-drawn and a file over its limit refused the same way.
-- **Members**: a sheet lists everybody with their role; the owner names and un-names admins and
-  takes members out. Handing the channel on has its route and its store call and no button yet.
-
-Not done, stated:
-
-- **No notification for being invited**: the channel is in the invited person's list at the next
-  nudge, and nothing rings their bell.
+- **Members**: a sheet lists everybody with their role; the owner names and un-names admins, takes
+  members out, and hands the channel on with "Make owner", asked first in the member's own row
+  ("You stay on as an admin"); the sheet stops offering an owner's buttons once it is handed over.
+- **Being invited rings the bell**, asked for after the first build: a notification of its own kind,
+  `channel-invite`, naming the channel by its slug (`ref.channelId`, as a group's `groupId` is) and
+  leading to its page. It is said once per channel (`channel:<id>`), only when the invite seated
+  somebody new, and taken back if they are removed. It is filed under the `groups` notice, so
+  whoever turned off being told about groups is not told about channels either, without a new
+  switch in the settings.
 - **No Postgres was at hand**: `channels.db.spec.ts` was typechecked and never run, and the snapshot
   was written by hand.
 - No real browser was driven; the page, the polls and the posts are held by rendered specs.

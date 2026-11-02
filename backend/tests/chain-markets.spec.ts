@@ -379,3 +379,57 @@ describe('markets that are configured', () =>
         expect(createMarketsChain({ ...settings, operatorKey: '0x1234' }).operator).toBeNull();
     });
 });
+
+describe('who operates the markets', () =>
+{
+    const OWNER: Address = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+    const NEXT: Address = '0x7f21c8c503F28897C16b20614e1312b9f53c77E7';
+
+    it('is read as the contract names it, with whether this server\'s key holds the role and the reader owns the contract', async () =>
+    {
+        const asked: { name: string; args: readonly unknown[] }[] = [];
+        const { url } = await fakeChain((rpc: Rpc): Answer =>
+        {
+            const call = rpc.params[0] as { data: Hex };
+            const { functionName, args } = decodeFunctionData({ abi: MARKETS_ABI, data: call.data });
+            asked.push({ name: functionName, args: args ?? [] });
+
+            if (functionName === 'operator')
+            {
+                return { result: encodeFunctionResult({ abi: MARKETS_ABI, functionName: 'operator', result: OWNER }) };
+            }
+
+            // Only the owner's wallet holds any role here: this server's key has been replaced.
+            const [, account] = args as readonly [Hex, Address];
+
+            return { result: encodeFunctionResult({ abi: MARKETS_ABI, functionName: 'hasRole', result: account.toLowerCase() === OWNER.toLowerCase() }) };
+        });
+
+        await expect(marketsOn(url).roles(OWNER)).resolves.toEqual({ named: OWNER, operatorAllowed: false, owner: true });
+        expect(asked.map((one) => one.name).sort()).toEqual(['hasRole', 'hasRole', 'operator']);
+        expect(asked.find((one) => one.name === 'hasRole' && one.args[0] === keccak256(toBytes('OPERATOR_ROLE')))?.args[1]).toBe(OPERATOR);
+    });
+
+    it('is changed by the owner\'s setOperator, asked of the contract from the owner first, and a refusal said by name', async () =>
+    {
+        const asked: { from?: string; data: Hex }[] = [];
+        const { url } = await fakeChain((rpc: Rpc): Answer =>
+        {
+            if (rpc.method === 'eth_call')
+            {
+                asked.push(rpc.params[0] as { from?: string; data: Hex });
+                return { result: '0x' };
+            }
+
+            return { result: '0x0' };
+        });
+        const made = await marketsOn(url).operatorCall(OWNER, NEXT);
+
+        expect(asked[0].from?.toLowerCase()).toBe(OWNER.toLowerCase());
+        expect(decodeFunctionData({ abi: MARKETS_ABI, data: (made as Extract<MarketsAsked, { ok: true }>).call.data })).toEqual({ functionName: 'setOperator', args: [NEXT] });
+
+        const { url: refusing } = await fakeChain(() => reverted('AccessControlUnauthorizedAccount', [NEXT, `0x${ '0'.repeat(64) }`]));
+
+        await expect(marketsOn(refusing).operatorCall(NEXT, OWNER)).resolves.toEqual({ ok: false, error: 'AccessControlUnauthorizedAccount' });
+    });
+});

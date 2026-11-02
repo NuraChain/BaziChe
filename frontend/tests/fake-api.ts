@@ -33,6 +33,7 @@ import type {
     AdminReport,
     AdminReports,
     AdminShop,
+    AdminMarkets,
     AdminShopMoney,
     AdminShopOrders,
     AdminVault,
@@ -674,6 +675,15 @@ export const shopMoneyState = (): AdminShopMoney => ({
 });
 
 /** The shop as the staff read it: every look and bundle in the catalogue's order at the catalogue's price, offered, none sold. */
+/** Who operates the markets: this server's key holds the role, and the reader's wallet owns the contract. */
+export const marketsMoneyState = (): AdminMarkets => ({
+    configured: true,
+    markets: '0x728715176B9e3E3bD61297B732dE7FeDf61A01ea',
+    chainId: 31337,
+    operator: { address: '0x7f21c8c503F28897C16b20614e1312b9f53c77E7', allowed: true, named: '0x7f21c8c503F28897C16b20614e1312b9f53c77E7' },
+    owner: true
+});
+
 const shopAdminFresh = () => ({
     shop: {
         featured: FEATURED_FIRST,
@@ -1469,6 +1479,9 @@ export const server =
     lookout: lookoutFresh(),
     checks: checksFresh(),
     shopAdmin: shopAdminFresh(),
+
+    /** What the money page's markets panel is answered. */
+    marketsAdmin: marketsMoneyState(),
     invitesAdmin: invitesAdminFresh(),
 
     /** The notice everybody sees, as the staff put it up: none until a spec or a press puts one there. */
@@ -1689,6 +1702,7 @@ export const server =
         server.lookout = lookoutFresh();
         server.checks = checksFresh();
         server.shopAdmin = shopAdminFresh();
+        server.marketsAdmin = marketsMoneyState();
         server.invitesAdmin = invitesAdminFresh();
         server.notice = null;
         server.noticeSeq = 0;
@@ -2765,6 +2779,20 @@ export const client =
             server.calls.push(`admin.shopSeller ${ input.address }`);
             staffGate('wallet');
             return shopCall('0xseller');
+        },
+
+        async marketsMoney()
+        {
+            server.calls.push('admin.marketsMoney');
+            staffGate('money');
+            return structuredClone(server.marketsAdmin);
+        },
+
+        async marketsOperator({ input }: { input: { address: string } })
+        {
+            server.calls.push(`admin.marketsOperator ${ input.address }`);
+            staffGate('wallet');
+            return shopCall('0xoperator');
         },
 
         async shopPause({ input }: { input: { paused: boolean } })

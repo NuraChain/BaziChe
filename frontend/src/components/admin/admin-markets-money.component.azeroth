@@ -1,0 +1,163 @@
+import { createResource } from 'azerothjs';
+
+import { may } from '../../../../backend/src/domains/admin/roles.ts';
+import { client, type WalletCall } from '../../api.ts';
+import { ownerSends } from '../../lib/owner-call.ts';
+import { shortAddress } from '../../lib/wallet.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { useSession } from '../../stores/session.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+import { useVault } from '../../stores/vault.store.ts';
+import ConfirmSheet from '../app/confirm-sheet.component.azeroth';
+import FeatureOff from '../app/feature-off.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import Panel from '../ui/panel.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+
+/**
+ * Who operates the markets, beside the vault's referee and the shop's seller: the server's key signs
+ * every position and settles every market, and when that key is replaced NuraChain has to be told by
+ * the owner's wallet, or no market can be backed or paid out.
+ */
+export default component AdminMarketsMoney()
+{
+    const locale = useLocale();
+    const vaults = useVault();
+    const session = useSession();
+    const toasts = useToasts();
+    const overlay = useOverlay();
+
+    const money = createResource(() => true, () => client.admin.marketsMoney(), { name: 'admin.markets.money' });
+
+    state operatorText = '';
+
+    state operatorTold = null as string | null;
+
+    derived held = money.data() ?? null;
+
+    derived trouble = money.error();
+
+    derived waiting = held === null && trouble === null;
+
+    derived failed = held === null && trouble !== null;
+
+    derived off = held !== null && !held.configured;
+
+    derived open = held !== null && held.configured ? held : null;
+
+    derived shown = open !== null;
+
+    derived operator = open === null ? '' : shortAddress(open.operator.address);
+
+    derived lost = open !== null && !open.operator.allowed;
+
+    derived named = open !== null && open.operator.named.toLowerCase() !== open.operator.address.toLowerCase();
+
+    derived namedWords = open === null ? '' : locale.t('admin.marketsMoney.operatorNamed', { address: shortAddress(open.operator.named) });
+
+    derived mayChange = may(session.account()?.staff ?? null, 'wallet') && (open?.owner ?? false);
+
+    const typed = (value: string) =>
+    {
+        operatorText = value;
+        operatorTold = null;
+    };
+
+    const act = async (compose: () => Promise<WalletCall>, done: string) =>
+    {
+        const answer = await ownerSends(vaults, compose);
+
+        if (answer !== null)
+        {
+            toasts.show({ kind: 'error', text: locale.t(answer) });
+            return false;
+        }
+
+        await money.refetch();
+        toasts.show({ kind: 'success', text: done });
+        return true;
+    };
+
+    const change = async () =>
+    {
+        const address = operatorText.trim();
+
+        if (!/^0x[0-9a-fA-F]{40}$/.test(address))
+        {
+            operatorTold = locale.t('admin.marketsMoney.operatorBad');
+            return;
+        }
+
+        const yes = await overlay.open(
+            ConfirmSheet,
+            {
+                title: locale.t('admin.marketsMoney.operatorAsk', { address: shortAddress(address) }),
+                lead: locale.t('admin.marketsMoney.operatorAskLead'),
+                confirm: locale.t('admin.marketsMoney.operatorSend'),
+                cancel: locale.t('admin.marketsMoney.operatorNo'),
+                destructive: true
+            },
+            { label: locale.t('admin.marketsMoney.operator') }
+        ).closed === true;
+
+        if (yes && await act(() => client.admin.marketsOperator({ input: { address } }), locale.t('admin.marketsMoney.operatorDone', { address: shortAddress(address) })))
+        {
+            operatorText = '';
+        }
+    };
+
+    <section class="flex flex-col gap-4 pt-8" aria-labelledby="admin-markets-money" data-markets-money>
+        <div class="flex flex-col gap-1">
+            <h2 id="admin-markets-money" class="title text-ui-2xl text-text">{ locale.t('admin.marketsMoney.title') }</h2>
+            <p class="text-ui-md text-muted">{ locale.t('admin.marketsMoney.lead') }</p>
+        </div>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 2 } /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState error={ trouble } title={ locale.t('admin.marketsMoney.failed') } onRetry={ () => void money.refetch() } /> }
+        </Show>
+
+        <Show when={ off }>
+            { () => <FeatureOff feature="markets" /> }
+        </Show>
+
+        <Show when={ shown }>
+            <Panel pad="md" stack="sm">
+                <h3 class="text-ui-md font-semibold text-text">{ locale.t('admin.marketsMoney.operator') }</h3>
+                <p class="text-ui-sm text-muted">{ locale.t('admin.marketsMoney.operatorLead') }</p>
+                <p class="truncate text-ui-sm text-text" dir="ltr" data-operator>{ operator }</p>
+                <Show when={ lost }>
+                    <p class="text-ui-sm font-semibold text-danger" role="alert" data-lost>{ locale.t('admin.marketsMoney.operatorLost') }</p>
+                </Show>
+                <Show when={ named }>
+                    <p class="text-ui-sm text-muted" data-named>{ namedWords }</p>
+                </Show>
+                <Show when={ mayChange } fallback={ <p class="text-ui-sm text-muted" data-role="owner-only">{ locale.t('admin.marketsMoney.ownerOnly') }</p> }>
+                    <Field id="admin-markets-operator" label={ locale.t('admin.marketsMoney.operatorLabel') } hint={ locale.t('admin.marketsMoney.operatorHint') } error={ operatorTold }>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <Input
+                                id="admin-markets-operator"
+                                class="min-w-40 flex-1"
+                                value={ operatorText }
+                                autocomplete="off"
+                                enterkeyhint="send"
+                                invalid={ operatorTold !== null }
+                                describedBy={ operatorTold !== null ? 'admin-markets-operator-error' : 'admin-markets-operator-hint' }
+                                onInput={ typed }
+                                onEnter={ () => void change() }
+                            />
+                            <Button variant="outline" loading={ vaults.busy() } onClick={ () => void change() }>{ locale.t('admin.marketsMoney.operatorSend') }</Button>
+                        </div>
+                    </Field>
+                </Show>
+            </Panel>
+        </Show>
+    </section>
+}

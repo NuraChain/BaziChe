@@ -73,6 +73,7 @@ import {
     adminShop,
     adminShopFeatureInput,
     adminShopItemInput,
+    adminMarkets,
     adminShopMoney,
     adminShopOrders,
     adminShopOrdersQuery,
@@ -715,6 +716,12 @@ export function buildApi(ports: Ports)
 
             shopSeller: routes.post('/shop/money/seller', { input: adminRefereeInput, output: walletCall },
                 async (context) => onlyAdmin(await ports.admin.shopSeller(context.principal.userId, context.input.address))),
+
+            marketsMoney: routes.get('/markets/money', { output: adminMarkets },
+                async (context) => onlyAdmin(await ports.admin.marketsMoney(context.principal.userId))),
+
+            marketsOperator: routes.post('/markets/money/operator', { input: adminRefereeInput, output: walletCall },
+                async (context) => onlyAdmin(await ports.admin.marketsOperator(context.principal.userId, context.input.address))),
 
             shopPause: routes.post('/shop/money/pause', { input: adminPauseInput, output: walletCall },
                 async (context) => onlyAdmin(await ports.admin.shopPause(context.principal.userId, context.input.paused))),

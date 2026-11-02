@@ -631,6 +631,20 @@ export const adminShopMoney = union([
 
 export type AdminShopMoney = Infer<typeof adminShopMoney>;
 
+/** Who operates the markets: this server's key, whether it holds the operator's role, the operator the contract names, and whether the reader's wallet owns the contract. */
+export const adminMarkets = union([
+    object({ configured: literal(false) }),
+    object({
+        configured: literal(true),
+        markets: string(),
+        chainId: number(),
+        operator: object({ address: string(), allowed: boolean(), named: string() }),
+        owner: boolean()
+    })
+]);
+
+export type AdminMarkets = Infer<typeof adminMarkets>;
+
 export const adminShopRefundInput = object({ reason: said() });
 
 export const vaultAmountInput = object({ amount: string({ max: 40 }) });

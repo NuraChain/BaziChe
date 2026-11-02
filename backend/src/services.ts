@@ -15,6 +15,7 @@ import { namesDevice } from './domains/device/resource.ts';
 import { createRecoveryService } from './domains/device/recovery-service.ts';
 import { createDeviceService, type DeviceRow } from './domains/device/service.ts';
 import { createChannelService } from './domains/channel/service.ts';
+import { createNftService, type NftSweep } from './domains/nft/service.ts';
 import { createGroupService, refused as refusedInGroup, switchesOf, type GroupRow, type LinkRow, type ReportCopyRow } from './domains/group/service.ts';
 import { saidOf } from './domains/group/reports.ts';
 import { LINK_HOURS, LINK_USES, MUTE_HOURS, mayIn } from './domains/group/roles.ts';
@@ -36,6 +37,7 @@ import { createChainProfiles, recordValue } from './chain/profile.ts';
 import { createNftReader } from './chain/nfts.ts';
 import { createShopChain, type ShopChain } from './chain/shop.ts';
 import { createMarketsChain, type MarketsChain } from './chain/markets.ts';
+import { createNftChain, type NftChain } from './chain/minting.ts';
 import { createTipsChain, type TipsChain } from './chain/tips.ts';
 import { createVault, type Vault } from './chain/vault.ts';
 import { GAME_SEEDS } from './db/seed-reference.ts';
@@ -161,6 +163,9 @@ export interface Services extends Ports
         sweepShop(forMs: number): Promise<ShopSweep>;
         sweepDonations(forMs: number): Promise<DonateSweep>;
         sweepMarkets(forMs: number): Promise<MarketSweep>;
+
+        /** Owed NFTs written down and a few asked of the chain and sent; nothing when the minter is not configured. */
+        sweepNfts(): Promise<NftSweep>;
         reconcile(forMs: number): Promise<ReconcileSweep>;
 
         /** What only the database knows of the work behind: the queues, the stuck payments and the open disagreements. */
@@ -182,7 +187,7 @@ const WATCHABLE_MAX = 48;
 
 const WAITING_SEATS = 500;
 
-export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain, tipsChain?: TipsChain, marketsChain?: MarketsChain): Services
+export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain, tipsChain?: TipsChain, marketsChain?: MarketsChain, nftChain?: NftChain): Services
 {
     const here = (userIds: readonly string[]) => presence?.present(userIds) ?? new Set(userIds);
 
@@ -1361,6 +1366,17 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
     const tipping = tipsChain ?? createTipsChain({ rpcUrl: config.rpcUrl, chainId: config.chainId, tips: config.tipsAddress });
 
+    const minting = nftChain ?? createNftChain({
+        rpcUrl: config.rpcUrl,
+        chainId: config.chainId,
+        minterKey: config.minterKey,
+        looks: config.looksAddress,
+        achievements: config.achievementsAddress
+    });
+
+    /** Owned looks and legendary achievements mirrored as soulbound tokens on NuraChain. */
+    const mirror = createNftService(db, minting);
+
     /** A confirmed gift's line in its game's table chat: after the gift, which it can never undo. */
     const giftLine = async (donationId: string) =>
     {
@@ -1956,6 +1972,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             sweepShop: (forMs) => orders.sweep(forMs),
             sweepDonations: (forMs) => donations.sweep(forMs),
             sweepMarkets: (forMs) => markets.sweep(forMs),
+            sweepNfts: () => mirror.pass(),
             reconcile: (forMs) => reconciler.sweep(forMs),
             sample: sampleWork,
             waiting: () => table.waitingByGame(),

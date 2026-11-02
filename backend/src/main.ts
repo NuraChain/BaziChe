@@ -610,6 +610,40 @@ const sweepMarkets = () =>
 marketing = setTimeout(sweepMarkets, MARKET_SWEEP_MS);
 marketing.unref();
 
+/**
+ * Owned looks and legendary achievements mirrored on NuraChain (docs/design/2026-11-02-nft-design.md):
+ * a minute apart and a few sends a pass, because nothing on a page waits for a token, and a backfill
+ * sent all at once would empty the minter's gas. Off, with nothing asked of the chain, until the
+ * minter key and both contracts are set.
+ */
+const NFT_SWEEP_MS = 60_000;
+
+let minting: NodeJS.Timeout | null = null;
+
+const sweepNfts = () =>
+{
+    void ports.jobs.sweepNfts()
+        .then((moved) =>
+        {
+            if (Object.values(moved).some((count) => count > 0))
+            {
+                log.info('nfts moved', { ...moved });
+            }
+        })
+        .catch((error: unknown) => log.error('nft sweep failed', { error }))
+        .finally(() =>
+        {
+            if (minting !== null)
+            {
+                minting = setTimeout(sweepNfts, NFT_SWEEP_MS);
+                minting.unref();
+            }
+        });
+};
+
+minting = setTimeout(sweepNfts, NFT_SWEEP_MS);
+minting.unref();
+
 const RECONCILE_MS = 60_000;
 
 const RECONCILE_FIRST_MS = 30_000;
@@ -736,6 +770,11 @@ handleShutdownSignals(served, {
         {
             clearTimeout(marketing);
             marketing = null;
+        }
+        if (minting !== null)
+        {
+            clearTimeout(minting);
+            minting = null;
         }
         if (reconciling !== null)
         {

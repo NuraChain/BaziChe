@@ -7,7 +7,9 @@ import type { DataSource } from 'typeorm';
 import { NotFoundError } from '@azerothjs/http';
 
 import { buildApp, requestLog } from '../src/app.ts';
+import { tokenIdOf, tokenPathOf } from '../src/chain/minting.ts';
 import { Unanswered, reached } from '../src/chain/rpc.ts';
+import { RUNGS } from '../src/domains/achieve/families.ts';
 import { VOICE_FILE_MOST } from '../src/domains/chat/voice.ts';
 import { ludoEngine } from '../src/domains/match/engines/ludo.ts';
 import { partyRefusal, partyRefused } from '../src/domains/party/refusal.ts';
@@ -2615,5 +2617,54 @@ describe('who is signed in, asked by the browser', () =>
     it('says nothing of a session that only ran out, so the same person signing back in reads what they read before', async () =>
     {
         expect(await (await me(appAs(false, null))).json()).toEqual({});
+    });
+});
+
+describe('what a wallet shows of a minted look or legendary achievement', () =>
+{
+    const app = buildApp({ db: fakeDb({ initialized: true }), config, log: silent, ports: {} as unknown as Ports });
+    const read = (path: string) => app.handle(new Request(`http://local/api/nft/${ path }`));
+    const pathOf = (key: string) => tokenPathOf(tokenIdOf(key));
+    const legendary = RUNGS.find((rung) => rung.rarity === 'legendary')!;
+    const normal = RUNGS.find((rung) => rung.rarity === 'normal')!;
+
+    it('names a look by its collection and kind, draws it with the shop\'s own preview, and says it is soulbound', async () =>
+    {
+        const response = await read(`looks/${ pathOf('dice.shiraz') }.json`);
+        const body = await response.json() as { name: string; image: string; description: string; attributes: unknown[] };
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('cache-control')).toBe('public, max-age=3600');
+        expect(body.name).toBe('Shiraz Garden Dice');
+        expect(body.image).toBe(`${ config.origin }/looks/dice.shiraz.svg`);
+        expect(body.description).toContain('soulbound');
+        expect(body.attributes).toEqual([
+            { trait_type: 'Kind', value: 'Dice' },
+            { trait_type: 'Collection', value: 'Shiraz Garden' },
+            { trait_type: 'Tier', value: expect.any(String) }
+        ]);
+    });
+
+    it('names a legendary achievement and draws its medal, escaping nothing it did not need to', async () =>
+    {
+        const meta = await (await read(`achievements/${ pathOf(legendary.id) }.json`)).json() as { name: string; image: string; attributes: { trait_type: string; value: string }[] };
+
+        expect(meta.name).toBe(legendary.nameEn);
+        expect(meta.image).toBe(`${ config.origin }/api/nft/achievements/${ pathOf(legendary.id) }.svg`);
+        expect(meta.attributes).toContainEqual({ trait_type: 'Rarity', value: 'Legendary' });
+
+        const medal = await read(`achievements/${ pathOf(legendary.id) }.svg`);
+        expect(medal.headers.get('content-type')).toBe('image/svg+xml');
+        expect(medal.headers.get('content-security-policy')).toContain("default-src 'none'");
+        expect(await medal.text()).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+    });
+
+    it('answers 404 for what is no token: an achievement that is not legendary, a look under the wrong name, an id that is not one', async () =>
+    {
+        expect((await read(`achievements/${ pathOf(normal.id) }.json`)).status, 'only legendary achievements are minted').toBe(404);
+        expect((await read(`looks/${ pathOf(legendary.id) }.json`)).status, 'an achievement is not a look').toBe(404);
+        expect((await read(`looks/${ pathOf('dice.shiraz') }.svg`)).status, 'a look is drawn by the shop').toBe(404);
+        expect((await read(`looks/${ pathOf('dice.shiraz').toUpperCase() }.json`)).status, 'the id in lower case only').toBe(404);
+        expect((await read('looks/nope.json')).status).toBe(404);
     });
 });

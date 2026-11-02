@@ -3,6 +3,7 @@ import { untrack, useHead } from 'azerothjs';
 import { CELEBRATION_SLOT, GAME_SLOTS, PROFILE_SLOTS, SHOP_SLOTS, type ShopSlot } from '../../../../backend/src/domains/shop/catalogue.ts';
 import Page from '../../components/app/page.component.azeroth';
 import PageHeader from '../../components/app/page-header.component.azeroth';
+import NftMark from '../../components/shop/nft-mark.component.azeroth';
 import OrderRow from '../../components/shop/order-row.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
 import ErrorState from '../../components/ui/error-state.component.azeroth';
@@ -65,6 +66,9 @@ export default component CollectionPage()
     derived gifts = held?.owned.filter((one) => one.via === 'gift') ?? [];
 
     derived given = gifts.length > 0;
+
+    /** The looks minted, or being minted, into the reader's wallet: nothing until the minter runs. */
+    derived chained = held?.owned.filter((one) => one.nft !== undefined) ?? [];
 
     derived open = shop.state()?.open === true;
 
@@ -222,6 +226,22 @@ export default component CollectionPage()
                         </ul>
                     </Show>
                 </Panel>
+
+                <Show when={ chained.length > 0 }>
+                    <Panel section stack="md" labelledBy="collection-chain">
+                        <h2 id="collection-chain" class="text-ui-lg font-semibold text-text">{ locale.t('shop.collection.chain') }</h2>
+                        <p class="text-ui-sm text-muted">{ locale.t('shop.collection.chainLead') }</p>
+                        <ul class="divide-y divide-line">
+                            <For each={ chained } key={ (one) => one.item } let={ one }>
+                                <li class="flex items-center gap-3 py-2.5" data-chained={ one.item }>
+                                    <img src={ `/looks/${ one.item }.svg` } alt="" width="64" height="48" loading="lazy" decoding="async" class="block aspect-[4/3] w-16 shrink-0 rounded-control" />
+                                    <span class="min-w-0 flex-1 truncate text-ui-sm font-semibold text-text">{ itemName(one.item, locale) }</span>
+                                    <NftMark mark={ one.nft } class="shrink-0" />
+                                </li>
+                            </For>
+                        </ul>
+                    </Panel>
+                </Show>
 
                 <Panel section stack="md" labelledBy="collection-orders">
                     <h2 id="collection-orders" class="text-ui-lg font-semibold text-text">{ locale.t('shop.collection.orders') }</h2>

@@ -181,6 +181,8 @@ export const shop = {
     'shop.collection.gifts': 'Gifts',
     'shop.collection.from': 'From {name}',
     'shop.collection.noGifts': 'Nobody has sent you a look yet.',
+    'shop.collection.chain': 'On NuraChain',
+    'shop.collection.chainLead': 'Every look you own is minted into your wallet as an NFT that cannot be moved: proof that it is yours.',
     'shop.collection.orders': 'Your orders',
     'shop.collection.noOrders': 'You have not bought anything yet.',
     'shop.collection.older': 'Show older',

@@ -53,6 +53,8 @@ export const me = {
     'rarity.rare': 'Rare',
     'rarity.legendary': 'Legendary',
     'rarity.holders': 'of players have it',
+    'nft.onChain': 'On NuraChain',
+    'nft.minting': 'Minting…',
     'achievements.locked': 'Not earned yet',
     'achievements.earnedOne': 'Earned',
 

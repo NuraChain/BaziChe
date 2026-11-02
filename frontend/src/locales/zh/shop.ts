@@ -184,6 +184,8 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.collection.gifts': '礼物',
     'shop.collection.from': '来自 {name}',
     'shop.collection.noGifts': '还没有人送你外观。',
+    'shop.collection.chain': '在 NuraChain 上',
+    'shop.collection.chainLead': '你拥有的每个外观都会以不可转移的 NFT 铸造到你的钱包里：证明它属于你。',
     'shop.collection.orders': '我的订单',
     'shop.collection.noOrders': '你还没有买过任何东西。',
     'shop.collection.older': '查看更早的',

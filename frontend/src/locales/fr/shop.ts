@@ -184,6 +184,8 @@ export const shop: Pick<Dictionary, keyof typeof reference> = {
     'shop.collection.gifts': 'Cadeaux',
     'shop.collection.from': 'De {name}',
     'shop.collection.noGifts': 'Personne ne t’a encore offert de style.',
+    'shop.collection.chain': 'Sur NuraChain',
+    'shop.collection.chainLead': 'Chaque style que tu possèdes est frappé dans ton portefeuille en NFT impossible à déplacer : la preuve qu’il est à toi.',
     'shop.collection.orders': 'Tes commandes',
     'shop.collection.noOrders': 'Tu n’as encore rien acheté.',
     'shop.collection.older': 'Voir les plus anciennes',

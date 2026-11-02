@@ -186,8 +186,40 @@ paths; a suspended owner keeps the group until the suspension is lifted.
 when; written in the transaction that makes the change; no route edits or deletes a row. Kinds: created,
 joined, left, removed, banned, unbanned, muted, unmuted, role (to admin, moderator or member), rights,
 permissions, info, owner, invite (made, revoked), request (approved, declined), deleted (a message),
-pinned, unpinned, call (started, ended). The owner, admins and moderators read it, fifty a page by the
-microsecond keyset.
+pinned, unpinned, call (started, ended), report (dismissed or actioned). The owner, admins and moderators
+read it, fifty a page by the microsecond keyset.
+
+### The group's reports (MS-D40 to MS-D45)
+
+What the moderators "work" (MS-D3) is a copy, for the group's staff, of a report filed with Nura's team
+about a line in the group's room. Nothing new decides what was said: the copy reads the report's own
+disclosure, which franking verified when it was filed, so a line deleted or run out since is still the
+words the reporter showed, and nobody can put words in somebody's mouth to get them muted.
+
+- **Filing** (MS-D40): the report sheet opened from a line of a group's room asks "Also tell {group}'s
+  admins", on by default; with it on, `POST /social/reports` writes `group_reports` (the group, the
+  report, the person reported, open) beside the report, in its transaction. A report with no line shown
+  goes to Nura's team alone: there would be nothing for the group's staff to look at.
+- **Who reads it** (MS-D41): whoever may work reports in the group (`reports`: the owner, an admin holding
+  `delete`, a moderator) and outranks the person reported, so a report about a moderator reaches the
+  admins with `delete` and the owner, one about an admin the owner, and one about the owner nobody in
+  the group. The person reported never sees one about them. To anybody else the copies are not there.
+- **The reporter is not named to the group** (MS-D42): the staff are the reporter's neighbours, and a
+  name would invite the retaliation a report is for. Nura's team still sees who filed it.
+- **Working it** (MS-D43): `GET /groups/:slug/reports?list=&cursor=` (open first by default, fifty a page by
+  the microsecond keyset), each the person reported, the category, when, the line as disclosed, and
+  whether it is still in the room. From the panel the staff delete the line where they may (the thread's
+  own delete, MS-D12) and mute or ban from the member sheet, then close it as "nothing to do"
+  (`dismissed`) or "dealt with" (`actioned`): `POST /groups/:slug/reports/:id/close`, the row locked, the
+  log's kind `report` with the outcome, in that transaction. A closed copy stays closed; Nura's team's
+  report goes on as it was.
+- **Telling the staff** (MS-D44): `group-report` in the `groups` category, one row a group
+  (`group-report:<group>`) counting up, to each member who reads the copy, leading to the group's
+  Reports panel; taken back from whoever has no open copy left to read. The panel's tab counts the open
+  copies the reader reads (`reports` on the group's summary, as `requests` is).
+- **What a copy shows of a voice message or a file** (MS-D45): what it is ("Voice message (0:12)", the
+  file's name), never its content: the file is kept for Nura's team, and the staff hear or open it in
+  the thread while it is still there.
 
 ### The members list (MS-D15)
 
@@ -208,7 +240,8 @@ first members (friends, up to fifty) and, folded under "Permissions", the switch
 
 A change to a group rings its members (`groups` on the `me` scope and the conversation's `chat`), so a
 role, a right, a permission, a mute, a ban or a removal is seen at once and the page reads again. New
-kinds of notice: `group-request`, `group-approved`, `group-owner`, under the `groups` category.
+kinds of notice: `group-request`, `group-approved`, `group-owner` and `group-report`, under the `groups`
+category.
 
 ## Part 2: photos, videos and files
 
@@ -497,6 +530,12 @@ goes nowhere. The page says calls are "encrypted on the way, not end to end".
 | MS-D37 | Encryption | on the way, not end to end; said so on the page |
 | MS-D38 | Call UI | card, bar, call view, ringtone and ringback made here |
 | MS-D39 | History | a Calls tab, thirty a page |
+| MS-D40 | A group's reports | a copy of a report about a line in its room, asked for in the report sheet (on by default), reading the report's verified disclosure |
+| MS-D41 | Who reads a copy | whoever may work reports and outranks the person reported; nobody in the group for the owner |
+| MS-D42 | The reporter | never named to the group's staff; Nura's team sees them |
+| MS-D43 | Working one | the line deleted, a mute or a ban from the usual places, then closed as dismissed or actioned, logged as `report` |
+| MS-D44 | Telling the staff | `group-report` in `groups`, one row a group, taken back once nothing is left open for them |
+| MS-D45 | Voice and files in a copy | said as what they are, never opened for the group |
 
 ## Not in this work
 
@@ -514,7 +553,7 @@ the information, add, remove, ban, mute, the log and the members list on the ser
 of the group; **G3** links and requests; **G4** pins and deleting others' messages; **G5** the group's
 pages (head, members, admins and rights, permissions, links, requests, banned, the log) and the new
 setup; **G6** the thread (the pin bar, the staff's delete, the composer that says why it cannot send);
-**G7** the group's reports.
+**G7** the group's reports (the schema, the server, then the panel and the report sheet's switch).
 
 Media: **M1** the schema; **M2** files, chunks, fetching, budgets, the sweep, the media message, the
 gallery read and reports keeping files on the server; **M3** sealing in chunks, the upload queue, the

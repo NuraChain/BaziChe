@@ -1,3 +1,5 @@
+import { Link } from 'azerothjs';
+
 import type { ChannelSummary } from '../../api.ts';
 import { useChannels } from '../../stores/channels.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -38,8 +40,8 @@ export default component ChannelList(props: { pane?: boolean })
     const make = () => overlay.open(ChannelForm, {}, { label: locale.t('channels.new') });
 
     const row = (channel: ChannelSummary, joined: boolean) =>
-        <a
-            href={ `/app/channels/${ encodeURIComponent(channel.slug) }` }
+        <Link
+            to={ `/app/channels/${ encodeURIComponent(channel.slug) }` }
             class="flex min-h-16 items-center gap-3 rounded-tile px-3 py-2.5 transition-colors hover:bg-raised/60"
             data-channel={ channel.slug }
         >
@@ -57,7 +59,7 @@ export default component ChannelList(props: { pane?: boolean })
             <Show when={ (channel.unread ?? 0) > 0 }>
                 { () => <span class="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-ui-2xs font-semibold tabular-nums text-accent-ink" data-unread>{ locale.n(channel.unread ?? 0) }</span> }
             </Show>
-        </a>;
+        </Link>;
 
     <div class={ () => (props.pane === true ? 'flex flex-col gap-4 px-2 pb-3' : 'flex flex-col gap-4') } data-channels>
         <Button variant="secondary" leading="megaphone" block onClick={ make }>{ locale.t('channels.new') }</Button>

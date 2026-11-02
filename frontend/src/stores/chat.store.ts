@@ -250,7 +250,35 @@ export const useChat = createStore((): ChatApi =>
         return inFlight;
     };
 
-    const revalidateList = () => queue(() => list.refetch());
+    const listed = (id: string) => (list.data()?.rows ?? []).some((row) => row.conversation.id === id);
+
+    /**
+     * The open conversation once a read of the list has held it. One the list holds no longer was left,
+     * and a page that still shows it (a table's, after a leave from elsewhere) keeps it open: a ring
+     * that met it unlisted on both sides of its read took it for one the list's pages have not
+     * reached, and every connection's ring asked for it and was refused.
+     */
+    let sighted = '';
+
+    const sight = () =>
+    {
+        const open = untrack(openId);
+
+        if (open !== '' && listed(open))
+        {
+            sighted = open;
+        }
+    };
+
+    const readList = async () =>
+    {
+        sight();
+        await list.refetch();
+    };
+
+    const left = (id: string) => id !== '' && id === sighted && !listed(id);
+
+    const revalidateList = () => queue(readList);
 
     let listWaiting: Promise<void> | null = null;
 
@@ -259,60 +287,36 @@ export const useChat = createStore((): ChatApi =>
         listWaiting ??= queue(async () =>
         {
             listWaiting = null;
-            await list.refetch();
+            await readList();
         });
         return listWaiting;
     };
 
-    const revalidate = () => queue(() => Promise.all([list.refetch(), thread.refetch()]));
+    const revalidate = () => queue(() => Promise.all([readList(), thread.refetch()]));
 
     const threaders = new Set<(id: string | undefined) => void>();
 
-    const listed = (id: string) => (list.data()?.rows ?? []).some((row) => row.conversation.id === id);
-
-    /**
-     * The open conversation once a read of the list has found it gone: the reader left it, and a page
-     * that still shows it (a table's, after a leave from elsewhere) keeps it open. A later ring finds
-     * it unlisted on both sides of its read and would take it for one the list's pages have not
-     * reached, which every connection's ring then asked for, and was refused.
-     */
-    let left = '';
-
     const nudgedOpen = (id: string) => queue(async () =>
     {
-        const held = listed(id);
+        await readList();
 
-        await list.refetch();
-
-        if (untrack(openId) !== id)
+        if (untrack(openId) === id && listed(id))
         {
-            return;
-        }
+            for (const listener of threaders)
+            {
+                listener(id);
+            }
 
-        if (!listed(id))
-        {
-            left = held ? id : left;
-            return;
+            await thread.refetch();
         }
-
-        for (const listener of threaders)
-        {
-            listener(id);
-        }
-
-        await thread.refetch();
     });
 
     const nudgedAll = () => queue(async () =>
     {
-        const open = untrack(openId);
-        const held = open !== '' && listed(open);
+        await readList();
 
-        await list.refetch();
-
-        if (open !== '' && !listed(open) && (held || left === open))
+        if (left(untrack(openId)))
         {
-            left = open;
             return;
         }
 
@@ -1005,7 +1009,7 @@ export const useChat = createStore((): ChatApi =>
             sweep = null;
             announced.clear();
             setOpenId('');
-            left = '';
+            sighted = '';
             setDepth(THREAD_PAGE);
             setPages(1);
             setSeen({});

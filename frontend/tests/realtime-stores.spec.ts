@@ -420,6 +420,40 @@ describe('the chat doorbell', () =>
         stop();
     });
 
+    it('asks nothing of that thread when a read for another room found it gone before the ring that names it came', async () =>
+    {
+        const chat = useChat();
+        const stop = chat.start();
+        const heard: (string | undefined)[] = [];
+        const deaf = chat.onThread((id) => heard.push(id));
+
+        chat.openThread('c-reza');
+        await chat.refresh();
+        server.conversations = server.conversations.filter((row) => row.id !== 'c-reza');
+        server.calls = [];
+
+        socket.deliver({ v: 1, t: 'nudge', n: 1, scope: 'chat', id: 'c-sara', at: 0 });
+        clock.advance(NUDGE_WINDOW_MS);
+        await vi.waitFor(() => expect(server.calls.filter((call) => call === 'chat.list').length).toBe(1));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        socket.deliver({ v: 1, t: 'nudge', n: 2, scope: 'chat', id: 'c-reza', at: 0 });
+        clock.advance(NUDGE_WINDOW_MS);
+        await vi.waitFor(() => expect(server.calls.filter((call) => call === 'chat.list').length).toBe(2));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        socket.deliver({ v: 1, t: 'nudge', n: 3, scope: 'chat', at: 0 });
+        clock.advance(NUDGE_WINDOW_MS);
+        await vi.waitFor(() => expect(server.calls.filter((call) => call === 'chat.list').length).toBe(3));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        expect(server.calls, 'a conversation the reader has left was asked for on a later connection').not.toContain('chat.messages');
+        expect(heard, 'who can read the room was asked about, though the reader is out of it').toEqual([]);
+
+        deaf();
+        stop();
+    });
+
     it('reads that thread again once the reader is back in it', async () =>
     {
         const chat = useChat();

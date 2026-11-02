@@ -111,7 +111,20 @@ export default component FileSheet(props: OverlayProps & {
         return locale.t(kinds.size > 1 ? 'chat.albumGist.both' : (kinds.has('video') ? 'chat.albumGist.video' : 'chat.albumGist.photo'), { count: chosen.length });
     })();
 
-    derived hint = single && firstDraft?.as === 'video' ? locale.t('chat.attach.videoHint') : locale.t('chat.attach.photoHint');
+    /** What each photo and video chosen goes as unless the switch says files: what the words under the switch are about. */
+    derived media = chosen.filter((one) => showable(one.file)).map((one) => guessOf(one.file, false));
+
+    derived hint = (() =>
+    {
+        const videos = media.filter((as) => as === 'video').length;
+
+        if (media.length <= 1)
+        {
+            return locale.t(videos === 1 ? 'chat.attach.videoHint' : 'chat.attach.photoHint');
+        }
+
+        return locale.t(videos === 0 ? 'chat.attach.photosHint' : (videos === media.length ? 'chat.attach.videosHint' : 'chat.attach.mixedHint'));
+    })();
 
     derived size = sizeSaid(firstDraft?.plain.byteLength ?? first?.file.size ?? 0, locale);
 

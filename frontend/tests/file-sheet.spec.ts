@@ -335,6 +335,39 @@ describe('the sheet several things go from', () =>
         await vi.waitFor(() => expect(posted).toEqual(['a.jpg ""', 'b.pdf "Notes"']));
     });
 
+    it('says under its switch what happens to what was chosen, one or several, photos, videos or both', async () =>
+    {
+        const said = async (files: readonly File[]) =>
+        {
+            const { container } = sheet(files);
+
+            await ready(container);
+
+            const words = container.querySelector('[role="switch"]')?.textContent ?? '';
+
+            cleanup();
+            return words;
+        };
+
+        expect(await said([photo('a.jpg'), photo('b.jpg'), photo('c.jpg')]), 'three photos').toContain('Sent as photos, they are redrawn without their location or camera details. As files, they go as they are.');
+        expect(await said([video('a.mp4'), video('b.mp4')]), 'two videos').toContain('Videos are sent as they are, with their own details.');
+        expect(await said([photo('a.jpg'), video('b.mp4')]), 'a photo and a video').toContain('Photos are redrawn without their location or camera details, and videos go as they are.');
+        expect(await said([photo('a.jpg'), doc('b.pdf')]), 'one photo among files').toContain('Sent as a photo, it is redrawn without its location or camera details.');
+        expect(await said([video('a.mp4'), doc('b.pdf')]), 'one video among files').toContain('A video is sent as it is, with its own details.');
+    });
+
+    it('goes on saying a video is a video once it is switched to go as a file', async () =>
+    {
+        const { container } = sheet([video('a.mp4')]);
+
+        await ready(container);
+        fire(container.querySelector<HTMLElement>('[role="switch"]')!, 'click');
+
+        await vi.waitFor(() => expect(container.querySelector('[role="switch"]')?.getAttribute('aria-checked')).toBe('true'));
+        await ready(container);
+        expect(container.querySelector('[role="switch"]')?.textContent).toContain('A video is sent as it is, with its own details.');
+    });
+
     it('says in Persian what is chosen', async () =>
     {
         useLocale().setLocale('fa');

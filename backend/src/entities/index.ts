@@ -14,6 +14,8 @@ import { EscrowSeat } from './escrow-seat.entity.ts';
 import { Escrow } from './escrow.entity.ts';
 import { EpochArchive } from './epoch-archive.entity.ts';
 import { EpochKey } from './epoch-key.entity.ts';
+import { Call } from './call.entity.ts';
+import { CallParticipant } from './call-participant.entity.ts';
 import { ChatFile } from './chat-file.entity.ts';
 import { NftToken } from './nft-token.entity.ts';
 import { Channel } from './channel.entity.ts';
@@ -77,7 +79,7 @@ import { VoicePlay } from './voice-play.entity.ts';
 import { Wallet } from './wallet.entity.ts';
 
 export {
-    Achievement, Avatar, Block, Channel, ChannelMember, ChannelPost, ChannelVote, ChatFile, Conversation, ConversationEpoch, ConversationMember, ConversationPin, Device, Discrepancy, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat, EstablishedPlayer,
+    Achievement, Avatar, Block, Call, CallParticipant, Channel, ChannelMember, ChannelPost, ChannelVote, ChatFile, Conversation, ConversationEpoch, ConversationMember, ConversationPin, Device, Discrepancy, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat, EstablishedPlayer,
     EpochArchive, FriendRequest, Friendship,
     Game, GameRule, Group, GroupBan, GroupEvent, GroupInvite, GroupMember, GroupMute, GroupReport, GroupRequest, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, Mute,
     NftToken, Notice, Notification, OwnedItem, PaidAccount, PlayerStats, PushSubscription,
@@ -103,6 +105,7 @@ export const entities: Function[] = [
     RecoveryVault, RecoveryNonce, InviteCode, InviteVisit, InviteCampaign, InviteReward, InviteBoardOff, Referral, EstablishedPlayer,
     Group, GroupMember, GroupBan, GroupMute, GroupInvite, GroupRequest, GroupEvent, GroupReport,
     Channel, ChannelMember, ChannelPost, ChannelVote,
+    Call, CallParticipant,
     Table, TableSeat, TableRemoval, QuickTable,
     Match, MatchPlayer, MatchAction, PlayerStats, UserAchievement,
     Notification, PushSubscription,

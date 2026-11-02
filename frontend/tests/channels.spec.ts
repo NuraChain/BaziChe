@@ -277,4 +277,32 @@ describe('a channel’s members', () =>
         await vi.waitFor(() => expect(looked.querySelector('[data-member="reza"]')).not.toBeNull());
         expect(looked.querySelectorAll('[data-member] button')).toHaveLength(0);
     });
+
+    it('hands the channel on only once the owner says yes, then stops offering what only an owner may do', async () =>
+    {
+        const { default: ChannelMembers } = await import('../src/components/channels/channel-members.component.azeroth');
+        const store = useChannels();
+        const read = vi.spyOn(store, 'members').mockResolvedValue([{ handle: 'sara.k', role: 'owner' }, { handle: 'reza', role: 'member' }]);
+        const transfer = vi.spyOn(store, 'transfer').mockResolvedValue(undefined);
+        const pressed = (root: HTMLElement, words: string) => fire([...root.querySelectorAll<HTMLElement>('button')].find((one) => one.textContent?.trim() === words)!, 'click');
+
+        const owned = routed(() => ChannelMembers({ overlayId: 'm', close: () => undefined, channel: channel({ role: 'owner' }) }));
+
+        await vi.waitFor(() => expect(owned.querySelector('[data-member="reza"]')).not.toBeNull());
+        pressed(owned, 'Make owner');
+        expect(transfer, 'asked first').not.toHaveBeenCalled();
+        expect(owned.querySelector('[data-handing="reza"]')?.textContent).toContain('You stay on as an admin.');
+
+        pressed(owned, 'Cancel');
+        expect(owned.querySelector('[data-handing]')).toBeNull();
+        expect(transfer).not.toHaveBeenCalled();
+
+        pressed(owned, 'Make owner');
+        read.mockResolvedValue([{ handle: 'sara.k', role: 'admin' }, { handle: 'reza', role: 'owner' }]);
+        pressed(owned, 'Hand it over');
+
+        await vi.waitFor(() => expect(owned.querySelector('[data-member="reza"]')?.getAttribute('data-role')).toBe('owner'));
+        expect(transfer).toHaveBeenCalledWith('friday-chess', 'reza');
+        expect(owned.querySelectorAll('[data-member] button'), 'an admin now, who names nobody').toHaveLength(0);
+    });
 });

@@ -1,6 +1,8 @@
+import { mayIn } from '../../../../backend/src/domains/group/roles.ts';
 import type { Conversation, Message } from '../../data/chat.ts';
 import type { GameId } from '../../data/games.ts';
 import Icon from '../../icons/icon.component.azeroth';
+import { runtime } from '../../lib/runtime.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useChat } from '../../stores/chat.store.ts';
 import { useGroups } from '../../stores/groups.store.ts';
@@ -36,8 +38,30 @@ export default component ForwardSheet(props: OverlayProps & { message: Message }
         game: gameNameOf(conversation, gameName)
     }));
 
+    /** A voice message or a file goes where the members may send media; anything else where they may write. */
+    const act = props.message.kind === 'voice' || props.message.kind === 'file' ? 'media' : 'send';
+
+    /** A room the line can go to: no table kept quiet, and no group that keeps the reader to reading what this is. */
+    const takes = (conversation: Conversation) =>
+    {
+        const group = conversation.groupId === null ? undefined : groups.byId(conversation.groupId);
+
+        if (conversation.quiet)
+        {
+            return false;
+        }
+        if (group?.role === undefined)
+        {
+            return true;
+        }
+
+        const muted = group.muted !== undefined && (group.muted.until === undefined || Date.parse(group.muted.until) > runtime().clock.now());
+
+        return mayIn({ role: group.role, rights: group.rights ?? [], muted }, group.switches, act);
+    };
+
     derived rooms = chat.conversations()
-        .filter((conversation) => !conversation.quiet)
+        .filter(takes)
         .map((conversation) => ({ conversation, title: titleFor(conversation) }))
         .filter((room) => query.trim() === '' || room.title.toLowerCase().includes(query.trim().toLowerCase()));
 

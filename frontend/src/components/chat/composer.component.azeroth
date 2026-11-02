@@ -37,6 +37,13 @@ export default component Composer(props: {
      * only where they can be sent.
      */
     record?: string;
+
+    /**
+     * Why a photo, a video, a file or a voice message cannot be sent here after all, said when the
+     * reader reaches for one: the microphone and the paper clip stay where they are, as a group that
+     * keeps them to its staff leaves them.
+     */
+    media?: string;
 })
 {
     const locale = useLocale();
@@ -115,11 +122,22 @@ export default component Composer(props: {
         props.onSend();
     };
 
+    /** Says why nothing but words can be sent here, and answers whether it did. */
+    const refused = () =>
+    {
+        if (props.media === undefined)
+        {
+            return false;
+        }
+        toasts.show({ kind: 'warning', text: props.media, dedupe: 'composer-media' });
+        return true;
+    };
+
     const record = () =>
     {
         const room = props.record;
 
-        if (room === undefined)
+        if (room === undefined || refused())
         {
             return;
         }
@@ -140,7 +158,7 @@ export default component Composer(props: {
     {
         const room = props.record;
 
-        if (file === undefined || room === undefined || !attaching)
+        if (file === undefined || room === undefined || !attaching || refused())
         {
             return;
         }
@@ -175,7 +193,7 @@ export default component Composer(props: {
         if (carrying(event))
         {
             event.preventDefault();
-            dropping = true;
+            dropping = props.media === undefined;
         }
     };
 
@@ -322,7 +340,13 @@ export default component Composer(props: {
                                             label={ locale.t('chat.attach') }
                                             variant="ghost"
                                             class="rounded-full! text-muted hover:text-text"
-                                            onClick={ () => picker?.click() }
+                                            onClick={ () =>
+                                            {
+                                                if (!refused())
+                                                {
+                                                    picker?.click();
+                                                }
+                                            } }
                                         />
                                         <input
                                             ref={ (element) => picker = element }

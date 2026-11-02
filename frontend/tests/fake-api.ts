@@ -1277,7 +1277,8 @@ export const server =
     me: 'alex',
     conversations: [] as ConversationSummary[],
     messages: [] as ChatMessage[],
-    refuseSend: null as string | null,
+    /** Refuses a send with this sentence, or with this code as the server refuses one for a reason of its own. */
+    refuseSend: null as string | { status: number; code: string } | null,
 
     /** Refuses a deletion with this sentence. */
     refuseRemove: null as string | null,
@@ -3594,9 +3595,13 @@ export const client =
             {
                 await server.holdChat;
             }
-            if (server.refuseSend !== null)
+            if (typeof server.refuseSend === 'string')
             {
                 throw new ApiError(403, 'forbidden', server.refuseSend, undefined);
+            }
+            if (server.refuseSend !== null)
+            {
+                throw new ApiError(server.refuseSend.status, server.refuseSend.code, 'Refused.', undefined);
             }
             counter += 1;
 

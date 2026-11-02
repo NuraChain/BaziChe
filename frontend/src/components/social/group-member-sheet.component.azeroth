@@ -1,7 +1,7 @@
 import type { GroupSummary } from '../../api.ts';
 import { GROUP_RIGHTS, MUTE_HOURS, mayOn, type GroupRight } from '../../../../backend/src/domains/group/roles.ts';
 import { attempt } from '../../lib/attempt.ts';
-import { whyGroup } from '../../lib/group-words.ts';
+import { whyGroup } from '../../lib/group-refusal.ts';
 import { useGroupAdmin, type GroupMember } from '../../stores/group-admin.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useOverlay, type OverlayProps } from '../../stores/overlay.store.ts';

@@ -2,7 +2,7 @@ import { untrack } from 'azerothjs';
 
 import type { GroupSwitch, GroupSwitches } from '../../../../backend/src/domains/group/roles.ts';
 import type { GroupSummary } from '../../api.ts';
-import { whyGroup } from '../../lib/group-words.ts';
+import { whyGroup } from '../../lib/group-refusal.ts';
 import { createGuesses, type Guess } from '../../lib/guess.ts';
 import { useGroups } from '../../stores/groups.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';

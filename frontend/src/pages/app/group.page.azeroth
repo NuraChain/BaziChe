@@ -36,7 +36,8 @@ import { usePresence } from '../../stores/presence.store.ts';
 import { useShell } from '../../stores/shell.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
 import { attempt } from '../../lib/attempt.ts';
-import { whyGroup } from '../../lib/group-words.ts';
+import { mutedWordsOf } from '../../lib/group-mute.ts';
+import { whyGroup } from '../../lib/group-refusal.ts';
 import { useAddress } from '../../lib/page-param.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { SEARCH_FIELD, keyboardTo } from '../../lib/way-back.ts';
@@ -125,14 +126,7 @@ export default component GroupPage()
 
     derived silenced = group?.muted !== undefined;
 
-    /** By its time alone when it ends today, and with its date on any other day: "until 14:45" for tomorrow reads as today. */
-    const untilOf = (at: number) =>
-        locale.date(at, new Date(at).toDateString() === new Date(runtime().clock.now()).toDateString() ? { timeStyle: 'short' } : { dateStyle: 'medium', timeStyle: 'short' });
-
-    /** Until a time today, or a date and a time further off; for good where the mute has no end. */
-    derived mutedWords = group?.muted?.until === undefined
-        ? locale.t('groups.youMutedForGood')
-        : locale.t('groups.youMuted', { time: untilOf(Date.parse(group.muted.until)) });
+    derived mutedWords = group?.muted === undefined ? '' : mutedWordsOf(locale, group.muted);
 
     state joining = false;
 

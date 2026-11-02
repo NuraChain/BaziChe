@@ -181,6 +181,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.empty': 'अभी कोई मैसेज नहीं। कुछ तो कहो।',
     'chat.emptyShut': 'अभी कोई मैसेज नहीं।',
     'chat.emptyQuiet': 'अभी कोई मैसेज नहीं।',
+    'chat.groupShutLead': 'तुम अब भी पढ़ सकते हो और रिएक्शन दे सकते हो।',
+    'chat.mediaShut': 'यहाँ सिर्फ़ एडमिन फ़ोटो, वीडियो, फ़ाइल और वॉइस मैसेज भेज सकते हैं।',
     'chat.reply': 'जवाब दो',
     'chat.react': 'रिएक्शन जोड़ो',
     'chat.reactWith': '{emoji} से रिएक्ट करो',

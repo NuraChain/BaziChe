@@ -178,6 +178,8 @@ export const social = {
     'chat.empty': 'No messages yet. Say something.',
     'chat.emptyShut': 'No messages yet.',
     'chat.emptyQuiet': 'No messages yet.',
+    'chat.groupShutLead': 'You can still read and react.',
+    'chat.mediaShut': 'Only admins can send photos, videos, files and voice messages here.',
     'chat.reply': 'Reply',
     'chat.react': 'Add a reaction',
     'chat.reactWith': 'React with {emoji}',

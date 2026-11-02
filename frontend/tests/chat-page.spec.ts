@@ -22,6 +22,7 @@ import { useSession } from '../src/stores/session.store.ts';
 import { useSettings } from '../src/stores/settings.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
+import { useVoiceRooms } from '../src/stores/voice-rooms.store.ts';
 import { server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
 import { PEOPLE_FIXTURES } from './fixtures.ts';
@@ -1948,5 +1949,139 @@ describe('a thread searched for its words', () =>
         type(container, 'never');
 
         await vi.waitFor(() => expect(count(container)).toBe('۱ از ۲'));
+    });
+});
+
+describe('a group the reader may only read', () =>
+{
+    const SLUG = 'friday-night-crew';
+
+    /** The Friday room made its group's, with the reader standing in the group as a test says. */
+    const groupRoom = async (stand: { role?: 'member' | 'admin'; muted?: { until?: string }; send?: boolean; media?: boolean }) =>
+    {
+        const room = server.conversations.find((row) => row.id === 'c-friday')!;
+        const group = server.groups.find((one) => one.slug === SLUG)!;
+
+        room.groupId = SLUG;
+        group.role = stand.role ?? 'member';
+        group.switches = { ...group.switches, send: stand.send ?? true, media: stand.media ?? true };
+        if (stand.muted !== undefined)
+        {
+            group.muted = stand.muted;
+        }
+        await useGroups().refresh();
+        return room.id;
+    };
+
+    const note = (container: HTMLElement) => container.querySelector<HTMLElement>('[data-chat-foot] [data-quiet]');
+
+    const field = (container: HTMLElement) => container.querySelector<HTMLTextAreaElement>('#chat-thread textarea');
+
+    const pressed = (container: HTMLElement, label: string) =>
+        fire(container.querySelector<HTMLButtonElement>(`#chat-thread button[aria-label="${ label }"]`)!, 'click');
+
+    it('says the reader is muted until when, in place of the composer, and gives the composer back as the mute runs out', async () =>
+    {
+        const ends = runtime().clock.now() + 3_600_000;
+        const container = opened(await groupRoom({ muted: { until: new Date(ends).toISOString() } }), 'sidebar');
+
+        await vi.waitFor(() => expect(note(container)?.textContent).toContain(useLocale().t('chat.groupShutLead')), { timeout: 4000 });
+
+        expect(note(container)!.textContent, 'with its end').toContain('muted here until');
+        expect(field(container), 'and nothing to write in').toBeNull();
+
+        (runtime().clock as ManualClock).advance(3_600_000);
+        await settle();
+
+        await vi.waitFor(() => expect(field(container)).not.toBeNull(), { timeout: 4000 });
+        expect(note(container), 'nothing rang: the page let the mute go at its end').toBeNull();
+    });
+
+    it('says a mute that lasts until somebody lifts it, in Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+        const container = opened(await groupRoom({ muted: {} }), 'sidebar');
+
+        await vi.waitFor(() => expect(note(container)?.textContent).toContain(useLocale().t('groups.youMutedForGood')), { timeout: 4000 });
+
+        expect(note(container)!.textContent).toContain(useLocale().t('chat.groupShutLead'));
+        expect(field(container)).toBeNull();
+    });
+
+    it('says only admins write where the members keep to reading', async () =>
+    {
+        const container = opened(await groupRoom({ send: false }), 'sidebar');
+
+        await vi.waitFor(() => expect(note(container)?.textContent).toContain(useLocale().t('group.refused.group-quiet')), { timeout: 4000 });
+
+        expect(field(container)).toBeNull();
+    });
+
+    it('gives the group’s staff the composer where the members keep to reading', async () =>
+    {
+        const container = opened(await groupRoom({ send: false, role: 'admin' }), 'sidebar');
+
+        await vi.waitFor(() => expect(useGroups().byId(SLUG)?.role).toBe('admin'), { timeout: 4000 });
+        await vi.waitFor(() => expect(field(container)).not.toBeNull(), { timeout: 4000 });
+
+        expect(note(container)).toBeNull();
+    });
+
+    it('takes the composer away the moment the reader is muted, without the page being opened again', async () =>
+    {
+        const container = opened(await groupRoom({}), 'sidebar');
+
+        await vi.waitFor(() => expect(useGroups().byId(SLUG)?.role).toBe('member'), { timeout: 4000 });
+        await vi.waitFor(() => expect(field(container)).not.toBeNull(), { timeout: 4000 });
+
+        server.groups.find((one) => one.slug === SLUG)!.muted = {};
+        await useGroups().refresh();
+        await settle();
+
+        await vi.waitFor(() => expect(note(container)?.textContent).toContain(useLocale().t('groups.youMutedForGood')), { timeout: 4000 });
+        expect(field(container)).toBeNull();
+    });
+
+    it('keeps the paper clip and the microphone where the group keeps media to its staff, and says so when they are reached for', async () =>
+    {
+        const container = opened(await groupRoom({ media: false }), 'sidebar');
+        const asked = vi.spyOn(HTMLInputElement.prototype, 'click');
+
+        try
+        {
+            await vi.waitFor(() => expect(useGroups().byId(SLUG)?.switches.media).toBe(false), { timeout: 4000 });
+            await vi.waitFor(() => expect(field(container)?.disabled).toBe(false), { timeout: 4000 });
+            await settle();
+
+            pressed(container, useLocale().t('chat.attach'));
+
+            expect(useToasts().items().at(-1)?.text).toBe(useLocale().t('chat.mediaShut'));
+            expect(asked, 'no file is asked for').not.toHaveBeenCalled();
+
+            pressed(container, useLocale().t('chat.voice.record'));
+
+            expect(useVoiceRooms().has('c-friday'), 'nothing is recorded').toBe(false);
+            expect(useToasts().items().filter((one) => one.text === useLocale().t('chat.mediaShut')), 'said once, however often it is reached for').toHaveLength(1);
+        }
+        finally
+        {
+            asked.mockRestore();
+        }
+    });
+
+    it('says a line the group refused in the group’s own words', async () =>
+    {
+        const id = await groupRoom({});
+        const container = opened(id, 'sidebar');
+
+        await vi.waitFor(() => expect(useGroups().byId(SLUG)?.role).toBe('member'), { timeout: 4000 });
+        await vi.waitFor(() => expect(field(container)?.disabled).toBe(false), { timeout: 4000 });
+
+        server.refuseSend = { status: 403, code: 'group-muted' };
+        useChat().setDraft(id, 'can anybody hear me');
+        await settle();
+        pressed(container, useLocale().t('chat.send'));
+
+        await vi.waitFor(() => expect(useToasts().items().at(-1)?.text).toBe(useLocale().t('group.refused.group-muted')), { timeout: 4000 });
     });
 });

@@ -3,7 +3,7 @@ import type { Person } from '../../data/person.ts';
 import type { GameId } from '../../data/games.ts';
 import type { Conversation } from '../../data/chat.ts';
 import type { LocalizedText } from '../../lib/text.ts';
-import { whyFailed } from '../../lib/failure.ts';
+import { whyGroup } from '../../lib/group-refusal.ts';
 import { SealFailure } from '../../services/chat.source.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import type { MessageVars } from '../../locales/format.ts';
@@ -114,7 +114,7 @@ export function sealSentenceOf(
 {
     if (!(error instanceof SealFailure))
     {
-        return translate(whyFailed(error));
+        return translate(whyGroup(error));
     }
 
     if (error.failure === 'no-keys')

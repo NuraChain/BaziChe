@@ -6,6 +6,8 @@ import { gameNameOf, groupNameOf, othersOf, sealSentenceOf, titleOf } from '../.
 import { seenOf } from '../../components/chat/chat-time.ts';
 import { searchedWords, searchLines } from '../../components/chat/search-lines.ts';
 import ThreadSearch from '../../components/chat/thread-search.component.azeroth';
+import { mayIn } from '../../../../backend/src/domains/group/roles.ts';
+import { mutedWordsOf } from '../../lib/group-mute.ts';
 import { sendBlockOf } from '../../lib/seal-state.ts';
 import { attachStick, centreOn, isNearBottom } from '../../lib/stick.ts';
 import { runtime } from '../../lib/runtime.ts';
@@ -211,6 +213,43 @@ export default component ChatPage()
 
     derived group = conversation?.groupId === undefined || conversation?.groupId === null ? null : (groups.byId(conversation.groupId) ?? null);
 
+    /** When a mute on the reader ends, on this device's clock: none while there is no mute, or one that lasts until it is lifted. */
+    derived muteEnds = group?.muted?.until === undefined ? null : live.toLocal(Date.parse(group.muted.until));
+
+    /** The moment a mute was last weighed against, moved on as it runs out, because nothing rings when it does. */
+    state weighed = runtime().clock.now();
+
+    derived silenced = group?.muted !== undefined && (muteEnds === null || muteEnds > weighed);
+
+    derived standing = group?.role === undefined ? null : { role: group.role, rights: group.rights ?? [], muted: silenced };
+
+    /** The reader is in the room's group and may not write in it: muted, or the members keep to reading. */
+    derived closed = group !== null && standing !== null && !mayIn(standing, group.switches, 'send');
+
+    derived shutWords = group?.muted !== undefined && silenced ? mutedWordsOf(locale, group.muted) : locale.t('group.refused.group-quiet');
+
+    /** What is said when the reader reaches for a photo, a video, a file or a voice message the group keeps to its staff. */
+    derived mediaWords = group !== null && standing !== null && !closed && !mayIn(standing, group.switches, 'media')
+        ? locale.t('chat.mediaShut')
+        : undefined;
+
+    let unmute: () => void = () => undefined;
+
+    effect
+    {
+        const ends = muteEnds;
+
+        untrack(() =>
+        {
+            unmute();
+            unmute = ends === null
+                ? () => undefined
+                : runtime().clock.after(Math.max(0, ends - runtime().clock.now()), () => weighed = Math.max(runtime().clock.now(), ends));
+        });
+    }
+
+    onCleanup(() => unmute());
+
     derived title = conversation === null
         ? locale.t(missing ? 'chat.notFound' : 'common.loading')
         : locale.text(titleOf(conversation, me, people.byHandle, { group: groupNameOf(conversation, groups.byId), game: gameNameOf(conversation, gameName) }));
@@ -229,7 +268,9 @@ export default component ChatPage()
         pending: seal.loading()
     });
 
-    derived noticed = !quiet && !seal.loading() && stop !== null;
+    derived noticed = !quiet && !closed && !seal.loading() && stop !== null;
+
+    derived writable = !quiet && !closed;
 
     derived loading = chat.threadLoading() && messages.length === 0;
 
@@ -1034,7 +1075,7 @@ export default component ChatPage()
                                                         <GroupCrest crest={ crew.crest } hue={ crew.hue } photo={ crew.photo } size="lg" />
                                                     </Show>
                                                     <p class="text-ui-lg font-semibold text-text" dir="auto">{ title }</p>
-                                                    <p class="max-w-xs text-ui-sm text-muted">{ locale.t(quiet ? 'chat.emptyQuiet' : (stop === null ? 'chat.empty' : 'chat.emptyShut')) }</p>
+                                                    <p class="max-w-xs text-ui-sm text-muted">{ locale.t(quiet || closed ? 'chat.emptyQuiet' : (stop === null ? 'chat.empty' : 'chat.emptyShut')) }</p>
                                                     <Show when={ stop === null && !seal.loading() }>
                                                         { () =>
                                                             <div class="mt-1 max-w-md rounded-tile border border-line bg-field/80 text-start">
@@ -1092,6 +1133,16 @@ export default component ChatPage()
                                 }
                             </Show>
 
+                            <Show when={ closed }>
+                                { () =>
+                                    <div class="safe-b px-3 pb-2.5 sm:px-5">
+                                        <div class="pointer-events-auto rounded-[1.375rem] border border-line/70 bg-void/35 shadow-[var(--shadow-2)] backdrop-blur-xl backdrop-saturate-150 px-3 py-2.5">
+                                            <QuietNote class="w-full" title={ shutWords } lead={ locale.t('chat.groupShutLead') } />
+                                        </div>
+                                    </div>
+                                }
+                            </Show>
+
                             <Show when={ noticed }>
                                 { () =>
                                     <div class="px-3 pt-2 sm:px-5">
@@ -1102,7 +1153,7 @@ export default component ChatPage()
                                 }
                             </Show>
 
-                            <Show when={ !quiet }>
+                            <Show when={ writable }>
                                 { () =>
                                     <Composer
                                         value={ editingNow === null ? chat.draft(id) : editingNow.text }
@@ -1116,6 +1167,7 @@ export default component ChatPage()
                                         onSend={ () => (editingNow === null ? send() : save()) }
                                         onGame={ startGame }
                                         record={ id }
+                                        media={ mediaWords }
                                         floating
                                     />
                                 }

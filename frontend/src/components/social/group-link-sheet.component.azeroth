@@ -1,6 +1,6 @@
 import { LINK_HOURS, LINK_USES } from '../../../../backend/src/domains/group/roles.ts';
 import { copyText } from '../../lib/clipboard.ts';
-import { whyGroup } from '../../lib/group-words.ts';
+import { whyGroup } from '../../lib/group-refusal.ts';
 import { useGroupAdmin, type GroupLink } from '../../stores/group-admin.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { OverlayProps } from '../../stores/overlay.store.ts';

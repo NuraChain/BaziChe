@@ -1,5 +1,5 @@
 import { attempt } from '../../lib/attempt.ts';
-import { whyGroup } from '../../lib/group-words.ts';
+import { whyGroup } from '../../lib/group-refusal.ts';
 import { useGroupAdmin, type GroupWaiting } from '../../stores/group-admin.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import Button from '../ui/button.component.azeroth';

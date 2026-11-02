@@ -181,6 +181,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.empty': 'Сообщений пока нет. Напиши что-нибудь.',
     'chat.emptyShut': 'Сообщений пока нет.',
     'chat.emptyQuiet': 'Сообщений пока нет.',
+    'chat.groupShutLead': 'Читать и ставить реакции по-прежнему можно.',
+    'chat.mediaShut': 'Фото, видео, файлы и голосовые сообщения здесь могут отправлять только админы.',
     'chat.reply': 'Ответить',
     'chat.react': 'Добавить реакцию',
     'chat.reactWith': 'Реакция {emoji}',

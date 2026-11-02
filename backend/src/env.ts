@@ -206,7 +206,6 @@ export function loadServerConfig()
     return Object.assign(config, {
         env,
         servePages: env === 'production',
-        databaseSync: env === 'development',
         ...(env === 'development' ? { origin: DEV_ORIGIN } : {})
     });
 }

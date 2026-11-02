@@ -316,26 +316,81 @@ async function keepEpochKey(conversationId: string, epoch: number, key: Uint8Arr
     }
 }
 
-const signerCache = new Map<string, PeerSigner[]>();
+interface Asking
+{
+    signers: Promise<PeerSigner[]>;
+    settled: boolean;
+}
 
-/** Every device that could have signed here, revoked ones included, fetched once per thread. */
-export async function signersFor(conversationId: string, refresh = false)
+/**
+ * Each room's list as it was asked for, kept from the moment it is asked: a page's lines are opened
+ * all at once and every one of them asks who signed it, and a list kept only once it had come was
+ * asked for once a line (forty requests for a page, two hundred where a thread reads back to its
+ * first unread). A forgetting drops what is on its way too, so nothing begun before it lands after it.
+ */
+const signerCache = new Map<string, Asking>();
+
+/** Whether each signer's proof held, checked once for the list it came in however many lines it signed. */
+const verdicts = new WeakMap<PeerSigner, Promise<boolean>>();
+
+/**
+ * Every device that could have signed here, revoked ones included, asked for once per thread. A
+ * refresh asks again unless a request is already on its way, which began after any list a caller
+ * can be holding and so is new enough for all of them.
+ */
+export function signersFor(conversationId: string, refresh = false)
 {
     const held = signerCache.get(conversationId);
 
-    if (held !== undefined && !refresh)
+    if (held !== undefined && (!refresh || !held.settled))
     {
-        return held;
+        return held.signers;
     }
 
-    const answer = await client.chat.signers({ params: { id: conversationId } });
-    signerCache.set(conversationId, answer.signers);
-    return answer.signers;
+    const asking: Asking = {
+        signers: client.chat.signers({ params: { id: conversationId } }).then((answer) => answer.signers),
+        settled: false
+    };
+
+    signerCache.set(conversationId, asking);
+    void asking.signers.then(
+        () =>
+        {
+            asking.settled = true;
+        },
+        () =>
+        {
+            if (signerCache.get(conversationId) === asking)
+            {
+                signerCache.delete(conversationId);
+            }
+        }
+    );
+
+    return asking.signers;
 }
 
 export function forgetSigners()
 {
     signerCache.clear();
+}
+
+/** Whether a signer's wallet proof holds, a check that could not be made asked again next time. */
+function vouchedFor(signer: PeerSigner)
+{
+    const held = verdicts.get(signer);
+
+    if (held !== undefined)
+    {
+        return held;
+    }
+
+    const verdict = checker().then(async (verifyPeerDevice) => await verifyPeerDevice(signer) === 'ok');
+
+    verdicts.set(signer, verdict);
+    void verdict.catch(() => verdicts.delete(signer));
+
+    return verdict;
 }
 
 /**
@@ -347,8 +402,6 @@ export function forgetSigners()
  */
 async function verifiedSigner(conversationId: string, deviceId: string): Promise<PeerSigner | null>
 {
-    const verifyPeerDevice = await checker();
-
     for (const refresh of [false, true])
     {
         const signers = await signersFor(conversationId, refresh);
@@ -356,7 +409,7 @@ async function verifiedSigner(conversationId: string, deviceId: string): Promise
 
         if (signer !== undefined)
         {
-            return await verifyPeerDevice(signer) === 'ok' ? signer : null;
+            return await vouchedFor(signer) ? signer : null;
         }
     }
 

@@ -14,9 +14,10 @@ import LazyMediaPlayer from './lazy-media-player.component.azeroth';
  * at its own proportions, or one of an album's tiles. Its thumb, blurred, with how large it is (and a
  * video how long) until it is pressed; a ring fills as it comes (a second press stops it); come, a
  * photo is shown, a press opening it in the viewer, and a video plays where it is, its corner opening
- * it there. An album's tile says a video's
- * length and nothing more, because a third of a phone's bubble cannot hold a size in every language,
- * and the line under the album says what they come to.
+ * it there. An album's tile is too small for a video's controls: it shows the video's first picture and
+ * its length, and a press plays it in the viewer. It says a video's length and nothing more, because a
+ * third of a phone's bubble cannot hold a size in every language, and the line under the album says
+ * what they come to.
  */
 export default component MediaTile(props: { message: Message; inAlbum?: boolean })
 {
@@ -50,9 +51,11 @@ export default component MediaTile(props: { message: Message; inAlbum?: boolean 
 
     derived tiled = props.inAlbum === true;
 
-    derived marked = !ready && (!tiled || length !== '');
+    derived marked = tiled ? length !== '' : !ready;
 
     derived mark = tiled ? length : meta;
+
+    derived opening = locale.t('chat.video.open');
 
     derived sending = chat.uploadOf(props.message.id);
 
@@ -78,8 +81,18 @@ export default component MediaTile(props: { message: Message; inAlbum?: boolean 
                 </button>
             }
         </Show>
-        <Show when={ ready && !photo }>
+        <Show when={ ready && !photo && !tiled }>
             { () => <LazyMediaPlayer url={ url } label={ named } ms={ file.ms } onOpen={ (from, playing) => void openViewer(props.message, { from, playing }) } /> }
+        </Show>
+        <Show when={ ready && !photo && tiled }>
+            { () =>
+                <button type="button" class="absolute inset-0 cursor-pointer bg-black" aria-label={ opening } onClick={ () => void openViewer(props.message, { from: 0, playing: true }) } data-poster>
+                    <video src={ url } muted playsinline preload="metadata" class="pointer-events-none h-full w-full object-cover" aria-hidden="true" tabindex="-1"></video>
+                    <span class="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm"><Icon name="play" size={ 18 } /></span>
+                    </span>
+                </button>
+            }
         </Show>
         <Show when={ !ready }>
             { () =>

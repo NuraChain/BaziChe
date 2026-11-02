@@ -46,7 +46,7 @@ export default component LazyMediaPlayer(props: PlayerProps)
     <Show
         when={ ready }
         fallback={
-            <span class="absolute inset-0 flex items-center justify-center bg-black text-white/70" aria-hidden="true">
+            <span class="absolute inset-0 flex items-center justify-center bg-black text-white/70" aria-hidden="true" data-player-coming>
                 <Icon name="play" size={ 22 } />
             </span>
         }

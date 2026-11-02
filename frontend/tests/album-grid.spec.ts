@@ -14,6 +14,7 @@ import { routes } from '../src/routes.ts';
 import { ChatFileError, setChatFiles, type ChatFileFailure } from '../src/services/chat-files.ts';
 import { useFileLoads } from '../src/stores/file-loads.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
+import { useOverlay } from '../src/stores/overlay.store.ts';
 import '../src/locales/app-catalogue.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
@@ -202,8 +203,16 @@ describe('an album in its bubble', () =>
         fire(container.querySelector(`[data-tile="${ id }"] [data-download]`)!, 'click');
 
         await vi.waitFor(() => expect(container.querySelector(`[data-tile="${ id }"] [data-download]`), 'come').toBeNull());
-        expect(chips(), 'nothing on a video that has come').toEqual([null, null, null]);
-        await vi.waitFor(() => expect(container.querySelector(`[data-tile="${ id }"] [data-player]`)?.getAttribute('aria-label'), 'with no caption, a video').toBe('ویدیو'), { timeout: 4000 });
+        expect(chips(), 'a video that has come still says how long').toEqual([null, '۰:۰۳', null]);
+
+        const poster = container.querySelector<HTMLButtonElement>(`[data-tile="${ id }"] [data-poster]`)!;
+
+        expect([poster.getAttribute('aria-label'), poster.querySelector('video')?.hasAttribute('controls'), container.querySelector('[data-player], [data-player-coming]')], 'its first picture, too small a tile for controls').toEqual(['باز کردن ویدیو', false, null]);
+
+        fire(poster, 'click');
+        await vi.waitFor(() => expect(useOverlay().items()).toHaveLength(1), { timeout: 4000 });
+        expect([useOverlay().items()[0].kind, useOverlay().items()[0].props.from, useOverlay().items()[0].props.playing], 'played in the viewer').toEqual(['full', 0, true]);
+        useOverlay().reset();
     });
 
     it('says its caption once, under the grid', async () =>

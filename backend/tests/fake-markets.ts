@@ -24,6 +24,7 @@ export function fakeMarkets(configured = true)
     const claims = new Map<Hex, Claims>();
     const placed: { terms: Terms; ticket: Ticket; signature: Hex }[] = [];
     const claimed: { from: Address; tickets: readonly Hex[] }[] = [];
+    const operated: { owner: Address; next: Address }[] = [];
     const sent: string[] = [];
     const state = {
         refusePlace: null as string | null,
@@ -103,6 +104,21 @@ export function fakeMarkets(configured = true)
             return Promise.resolve(send(`cancel ${ market }`));
         },
 
+        roles()
+        {
+            reach();
+
+            return Promise.resolve({ named: FAKE_OPERATOR, operatorAllowed: configured, owner: false });
+        },
+
+        operatorCall(owner, next)
+        {
+            reach();
+            operated.push({ owner, next });
+
+            return Promise.resolve(call(encodeFunctionData({ abi: MARKETS_ABI, functionName: 'setOperator', args: [next] }), 0n));
+        },
+
         marketOf(market)
         {
             reach();
@@ -164,6 +180,7 @@ export function fakeMarkets(configured = true)
         chain,
         placed,
         claimed,
+        operated,
         sent,
         state,
         receipts,

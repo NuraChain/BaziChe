@@ -26,6 +26,11 @@ export const FILE_PENDING_MOST = 10;
 /** How long an upload no message names is kept for its sender to send, in minutes. */
 export const FILE_HOLD_MINUTES = 60;
 
+/** The fewest and the most photos and videos one album holds (MS-D46). */
+export const FILE_ALBUM_LEAST = 2;
+
+export const FILE_ALBUM_MOST = 10;
+
 /** The longest caption, in characters. */
 export const FILE_CAPTION_MOST = 1024;
 
@@ -141,4 +146,53 @@ export function sentFileOf(value: unknown): SentFile | null
         ...(typeof ms === 'number' ? { ms } : {}),
         ...(typeof thumb === 'string' ? { thumb } : {})
     };
+}
+
+/** What an album holds, which each of its items says, so one item is enough to say "4 photos". */
+export const ALBUM_HOLDS = ['photo', 'video', 'both'] as const;
+
+export type AlbumHolds = typeof ALBUM_HOLDS[number];
+
+/**
+ * Where a photo or a video stands in the album it was sent in (MS-D46): the album its sender chose,
+ * its place from nought, how many there are and what they are. Sealed in every item's document beside
+ * the album its row names in the clear, so an item a server moved into another album, or out of its
+ * own, says so.
+ */
+export interface AlbumMark
+{
+    id: string;
+    at: number;
+    of: number;
+    holds: AlbumHolds;
+}
+
+const ALBUM_KEYS = new Set(['id', 'at', 'of', 'holds']);
+
+/** An album mark's fields, exactly, or null. */
+export function albumMarkOf(value: unknown): AlbumMark | null
+{
+    if (typeof value !== 'object' || value === null || Array.isArray(value))
+    {
+        return null;
+    }
+
+    const fields = value as Record<string, unknown>;
+
+    if (Object.keys(fields).some((one) => !ALBUM_KEYS.has(one)))
+    {
+        return null;
+    }
+
+    const { id, at, of, holds } = fields;
+
+    if (typeof id !== 'string' || !UUID.test(id)
+        || !whole(of, FILE_ALBUM_LEAST, FILE_ALBUM_MOST)
+        || !whole(at, 0, of - 1)
+        || typeof holds !== 'string' || !(ALBUM_HOLDS as readonly string[]).includes(holds))
+    {
+        return null;
+    }
+
+    return { id, at, of, holds: holds as AlbumHolds };
 }

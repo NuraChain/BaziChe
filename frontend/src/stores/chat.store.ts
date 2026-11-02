@@ -1,7 +1,7 @@
 import { createMemo, createStore, createResource, createSignal, untrack, type Getter } from 'azerothjs';
 
 import { ApiError, client } from '../api.ts';
-import type { Conversation, FileDraft, Message, VoiceRecording } from '../data/chat.ts';
+import type { Attachment, Conversation, FileDraft, Message, VoiceRecording } from '../data/chat.ts';
 import { sealFile, sniffShown } from '../lib/chat-file.ts';
 import { forgetFile, holdFile } from '../lib/file-held.ts';
 import { createGuesses } from '../lib/guess.ts';
@@ -11,6 +11,7 @@ import { forgetAudio, holdAudio } from '../lib/voice-held.ts';
 import { sealAudio } from '../lib/voice-note.ts';
 import { createApiSource, type ChatScope, type ChatSource, type ConversationRow } from '../services/chat.source.ts';
 import { EDIT_HOURS } from '../../../backend/src/domains/chat/edits.ts';
+import { FILE_ALBUM_LEAST, FILE_ALBUM_MOST } from '../../../backend/src/domains/chat/files.ts';
 import { THREAD_PAGE } from '../../../backend/src/domains/chat/pages.ts';
 import { useAccount } from './account.store.ts';
 import { useGroups } from './groups.store.ts';
@@ -50,6 +51,23 @@ interface Outgoing
     /** A voice message's file or a photo, a video or a file, sealed, and whether it is up yet. A forward's is up already and has no body here. */
     file?: { body: Uint8Array | null; uploaded: boolean };
 }
+
+/** What a file's document says about it: what the composer found, and how it was sealed. */
+const attachmentOf = (id: string, sealed: { key: string; iv: string }, draft: FileDraft): Attachment => ({
+    id,
+    key: sealed.key,
+    iv: sealed.iv,
+    as: draft.as,
+    mime: draft.mime,
+    name: draft.name,
+    bytes: draft.plain.byteLength,
+    ...(draft.w === undefined || draft.h === undefined ? {} : { w: draft.w, h: draft.h }),
+    ...(draft.ms === undefined ? {} : { ms: draft.ms }),
+    ...(draft.thumb === undefined ? {} : { thumb: draft.thumb })
+});
+
+/** The sender sees what they sent at once, as the type its bytes say it is; a file sent as a file never is. */
+const shownAs = (draft: FileDraft) => (draft.as === 'file' ? 'application/octet-stream' : sniffShown(draft.plain) ?? 'application/octet-stream');
 
 let active: ChatSource = createApiSource();
 
@@ -115,6 +133,13 @@ export interface ChatApi
      * from the sender's own copy, its file up, then the message naming it.
      */
     sendFile(id: string, draft: FileDraft, caption: string): Promise<void>;
+
+    /**
+     * Sends two to ten photos and videos together as one album, in the order given, the words typed
+     * as its caption (MS-D46): in the thread at once from the sender's own copies, every file up, then
+     * the album in one request.
+     */
+    sendAlbum(id: string, drafts: readonly FileDraft[], caption: string): Promise<void>;
 
     /** How much of a voice message's file has gone up, 0 to 1, while it is going up. */
     uploadOf(messageId: string): number | null;
@@ -395,8 +420,12 @@ export const useChat = createStore((): ChatApi =>
 
     let posting: Promise<unknown> = Promise.resolve();
 
-    const restate = (id: string, state: Outgoing['state']) =>
-        setOutbox((current) => current.map((one) => (one.message.id === id ? { ...one, state } : one)));
+    const restate = (id: string | readonly string[], state: Outgoing['state']) =>
+    {
+        const ids = typeof id === 'string' ? [id] : id;
+
+        setOutbox((current) => current.map((one) => (ids.includes(one.message.id) ? { ...one, state } : one)));
+    };
 
     const landed = (message: Message) =>
         (thread.data()?.id === message.conversationId && (thread.data()?.messages ?? []).some((one) => one.id === message.id))
@@ -512,6 +541,84 @@ export const useChat = createStore((): ChatApi =>
 
             void reread().then(
                 () => setOutbox((current) => current.filter((held) => held.message.id !== id)),
+                () => undefined
+            );
+        });
+
+        posting = turn;
+        return turn;
+    };
+
+    /** An album's items on their way, in their places. */
+    const albumOf = (album: string) => untrack(outbox)
+        .filter((one) => one.message.album?.id === album)
+        .sort((a, b) => (a.message.album?.at ?? 0) - (b.message.album?.at ?? 0));
+
+    /**
+     * Sends an album in its turn, as `deliverVoice` sends one file: every file not up yet goes up, then
+     * the album in one request, so its items are Not sent, tried again and taken away together. A
+     * refusal for want of a file puts every file up again at the next try: the server answers the one
+     * it still holds as already there.
+     */
+    const deliverAlbum = (album: string) =>
+    {
+        const begun = era;
+        const turn = posting.catch(() => undefined).then(async () =>
+        {
+            const ones = albumOf(album);
+            const ids = ones.map((one) => one.message.id);
+
+            if (ones.length === 0)
+            {
+                return;
+            }
+
+            const uploads = ones.map((one) =>
+            {
+                const id = one.message.id;
+                const file = one.file ?? { body: null, uploaded: true };
+
+                return {
+                    body: file.uploaded ? null : file.body,
+                    progress: (fraction: number) => setUploads((current) => ({ ...current, [id]: fraction })),
+                    uploaded: () => withFile(id, { ...file, uploaded: true })
+                };
+            });
+
+            try
+            {
+                await active.postAlbum(ones.map((one) => one.message), ones[0].expiresAt, uploads);
+            }
+            catch (error)
+            {
+                if (error instanceof ApiError && error.code === 'file-missing')
+                {
+                    for (const one of ones)
+                    {
+                        if (one.file !== undefined && one.file.body !== null)
+                        {
+                            withFile(one.message.id, { ...one.file, uploaded: false });
+                        }
+                    }
+                }
+
+                restate(ids, 'failed');
+                throw error;
+            }
+            finally
+            {
+                setUploads((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !ids.includes(key))));
+            }
+
+            restate(ids, 'sent');
+
+            if (begun !== era)
+            {
+                return;
+            }
+
+            void reread().then(
+                () => setOutbox((current) => current.filter((held) => !ids.includes(held.message.id))),
                 () => undefined
             );
         });
@@ -807,26 +914,54 @@ export const useChat = createStore((): ChatApi =>
             const message: Message = {
                 ...asked(id, caption.trim()),
                 kind: 'file',
-                file: {
-                    id: fileId,
-                    key: sealed.key,
-                    iv: sealed.iv,
-                    as: draft.as,
-                    mime: draft.mime,
-                    name: draft.name,
-                    bytes: draft.plain.byteLength,
-                    ...(draft.w === undefined || draft.h === undefined ? {} : { w: draft.w, h: draft.h }),
-                    ...(draft.ms === undefined ? {} : { ms: draft.ms }),
-                    ...(draft.thumb === undefined ? {} : { thumb: draft.thumb })
-                },
+                file: attachmentOf(fileId, sealed, draft),
                 ...(quoted === undefined ? {} : { reply: quoted.id })
             };
             const one: Outgoing = { message, expiresAt: lifetimeOf(id, message.at), state: 'sending', file: { body: sealed.body, uploaded: false } };
 
-            // The sender sees what they sent at once, as the type its bytes say it is.
-            holdFile(fileId, draft.plain, draft.as === 'file' ? 'application/octet-stream' : sniffShown(draft.plain) ?? 'application/octet-stream');
+            holdFile(fileId, draft.plain, shownAs(draft));
             setOutbox((current) => [...current, one]);
             await deliverVoice(one);
+        },
+
+        async sendAlbum(id, drafts, caption)
+        {
+            const kinds = new Set(drafts.map((draft) => draft.as));
+
+            if (drafts.length < FILE_ALBUM_LEAST || drafts.length > FILE_ALBUM_MOST || kinds.has('file'))
+            {
+                throw new RangeError('An album is two to ten photos and videos.');
+            }
+
+            const album = crypto.randomUUID();
+            const holds = kinds.size > 1 ? 'both' : kinds.has('video') ? 'video' : 'photo';
+            const quoted = untrack(replies)[id];
+            const at = runtime().clock.now();
+            const expiresAt = lifetimeOf(id, at);
+            const ones: Outgoing[] = [];
+
+            setReplies((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
+
+            // Each a millisecond after the one before it, so the order chosen is the order signed.
+            for (const [place, draft] of drafts.entries())
+            {
+                const fileId = crypto.randomUUID();
+                const sealed = await sealFile(draft.plain, fileId);
+                const message: Message = {
+                    ...asked(id, place === 0 ? caption.trim() : ''),
+                    at: at + place,
+                    kind: 'file',
+                    file: attachmentOf(fileId, sealed, draft),
+                    album: { id: album, at: place, of: drafts.length, holds },
+                    ...(place === 0 && quoted !== undefined ? { reply: quoted.id } : {})
+                };
+
+                holdFile(fileId, draft.plain, shownAs(draft));
+                ones.push({ message, expiresAt, state: 'sending', file: { body: sealed.body, uploaded: false } });
+            }
+
+            setOutbox((current) => [...current, ...ones]);
+            await deliverAlbum(album);
         },
 
         uploadOf: (messageId) => uploads()[messageId] ?? null,
@@ -854,22 +989,38 @@ export const useChat = createStore((): ChatApi =>
                 return;
             }
 
+            const album = one.message.album?.id;
+
+            if (album !== undefined)
+            {
+                restate(albumOf(album).map((held) => held.message.id), 'sending');
+                await deliverAlbum(album);
+                return;
+            }
+
             restate(one.message.id, 'sending');
             await (one.message.kind === 'voice' || one.message.kind === 'file' ? deliverVoice(one) : deliver(one));
         },
 
         discard(message)
         {
-            setOutbox((current) => current.filter((one) => one.message.id !== message.id));
+            const album = message.album?.id;
+            const going = album === undefined ? [message] : albumOf(album).map((one) => one.message);
+            const ids = going.map((one) => one.id);
 
-            if (message.voice !== undefined)
-            {
-                forgetAudio(message.voice.id);
-            }
+            setOutbox((current) => current.filter((one) => !ids.includes(one.message.id)));
 
-            if (message.file !== undefined)
+            for (const one of going)
             {
-                forgetFile(message.file.id);
+                if (one.voice !== undefined)
+                {
+                    forgetAudio(one.voice.id);
+                }
+
+                if (one.file !== undefined)
+                {
+                    forgetFile(one.file.id);
+                }
             }
         },
 
@@ -954,9 +1105,12 @@ export const useChat = createStore((): ChatApi =>
 
         async remove(message)
         {
+            const album = message.album?.id;
+
+            // An album is taken away whole, as it was sent.
             await guesses.during(
-                (list) => list.filter((one) => one.id !== message.id),
-                () => active.remove(message.conversationId, message.id),
+                (list) => list.filter((one) => (album === undefined ? one.id !== message.id : one.album?.id !== album)),
+                () => (album === undefined ? active.remove(message.conversationId, message.id) : active.removeAlbum(message.conversationId, album)),
                 reread
             );
         },

@@ -1,4 +1,4 @@
-import { FILE_CAPTION_MOST, sentFileOf, type SentFile } from '../../../backend/src/domains/chat/files.ts';
+import { albumMarkOf, FILE_CAPTION_MOST, sentFileOf, type AlbumMark, type SentFile } from '../../../backend/src/domains/chat/files.ts';
 import { VOICE_FILE_MOST, VOICE_MOST_MS, VOICE_WAVE_BARS } from '../../../backend/src/domains/chat/voice.ts';
 
 export interface TextBody
@@ -34,6 +34,9 @@ export interface VoiceBody
 export interface FileBody
 {
     file: SentFile;
+
+    /** Where a photo or a video stands in the album it was sent in. */
+    album?: AlbumMark;
     caption?: string;
     reply?: string;
     fwd?: true;
@@ -104,6 +107,7 @@ export function encodeFile(body: FileBody)
             ...(ms === undefined ? {} : { ms }),
             ...(thumb === undefined ? {} : { thumb })
         },
+        ...(body.album === undefined ? {} : { album: { id: body.album.id, at: body.album.at, of: body.album.of, holds: body.album.holds } }),
         ...(body.caption === undefined || body.caption === '' ? {} : { caption: body.caption }),
         ...(body.reply === undefined ? {} : { reply: body.reply }),
         ...(body.fwd === true ? { fwd: true } : {})
@@ -206,8 +210,9 @@ export function decodeFile(raw: string): FileBody | null
     }
 
     const sent = sentFileOf(file);
+    const album = found.album === undefined ? undefined : albumMarkOf(found.album);
 
-    if (sent === null)
+    if (sent === null || album === null || (album !== undefined && sent.as === 'file'))
     {
         return null;
     }
@@ -221,6 +226,7 @@ export function decodeFile(raw: string): FileBody | null
 
     return {
         file: sent,
+        ...(album === undefined ? {} : { album }),
         ...(typeof found.caption === 'string' ? { caption: found.caption } : {}),
         ...(typeof found.reply === 'string' ? { reply: found.reply } : {}),
         ...(found.fwd === true ? { fwd: true as const } : {})

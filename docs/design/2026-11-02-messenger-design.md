@@ -30,6 +30,8 @@ here that the owner may overturn.
   `/avatars/<hash>.<ext>`.
 - **No object storage.** One server per database; nginx in front, whose server block in the README
   lets an 8 MiB body through.
+- **Photos, videos and files came with a merge** while this design was being built (see Part 2): one
+  sealed file a message, up to 50 MiB, in Postgres beside the voice notes, with a caption.
 - **The realtime socket** is a doorbell: frames say what changed and pages read it again through the
   routes. It also carries voice: `voice` joins a room, `signal` passes an offer, answer or candidate
   between two joinings, and `sound` carries Opus or μ-law frames that the hub forwards to the others in
@@ -245,132 +247,142 @@ category.
 
 ## Part 2: photos, videos and files
 
-### The file (MS-D17)
+### What the merge brought, and what this work keeps (MS-D17 to MS-D21, MS-D27)
 
-A file is cut into chunks of 1 MiB. Each chunk is sealed with AES-256-GCM under the file's own key, with
-a nonce of an eight-byte random prefix and the chunk's index, and an AAD that names the file, the index
-and how many chunks there are, so a chunk cannot be moved, repeated or dropped without the file failing
-to open. The key, the prefix, the size and the type travel in the sealed document.
+While the groups were being built, `origin/main` brought photos, videos and files to the chat
+(`2026-11-02-chat-files-design.md`, CF-D1 to CF-D10, merged as `d3d5d016`), and this design was written
+before it. The two agree on everything that matters (each file sealed in the sender's browser under a key
+of its own that travels in the sealed document, ciphertext in Postgres beside the voice notes, the
+uploader and the people of a room holding a live message naming the file the only ones who may fetch
+it, a photo re-drawn on a canvas so its EXIF and its GPS fix do not survive, a video's poster and length
+measured where it plays), so what was built stays and this part adds what the brief asks for that it
+does not have. What it keeps, and what the decisions below now say:
 
-### Where it is kept (MS-D18)
+- **One file a message, sealed whole** (MS-D17): one AES-GCM call over the file, AAD `nura-e2ee/v1 ␟
+  file ␟ fileId`, the key, the iv and the id in the message's document; kind `file` with `file_id`.
+  The chunked sealing this design first chose (1 MiB pieces, a file resumed by the chunk) would let a
+  file pass 50 MiB and an upload resume halfway; it is left for later (MS-D27), because every file the
+  limits allow is in memory twice at most, 100 MB, which a phone holds.
+- **Postgres** (MS-D18): `chat_files`, a table of its own beside `voice_notes`, the same rules spelled
+  once for both. Not object storage, which the brief prefers where it fits: here it would be a second
+  service with credentials of its own, to back up and keep in step, for bytes this server cannot read.
+- **The limits** (MS-D19) are the owner's: 10 MiB a photo as sent, 50 MiB a video or a file, 1 GiB a
+  day, 10 uploads waiting, 1,024 characters a caption; to them this work adds ten items an album.
+- **Nothing is fetched until the reader asks** (MS-D21), the owner's own word for the chat files: a
+  photo or a video says its size, and a video its length, before it is downloaded; a blurred thumb of
+  40 px in the document keeps its place.
+- **Uploads** (MS-D27): a raw `PUT` a file with its progress, Cancel, Try again (which sends only what
+  the server lacks), the hour's hold and the minute's sweep.
 
-**In Postgres**, as voice notes and pictures are: `chat_files` (the id the browser chose, the uploader,
-the kind, the size and how many chunks it declared) and `chat_file_chunks` (one row a chunk). One
-database is backed up and restored; nothing else has to be kept in step with it.
+### What this work adds
 
-The brief prefers direct uploads to object storage with signed addresses. That was weighed and not
-taken: it is a second service with credentials of its own, a second thing to back up and keep in step
-with the database, for bytes this server cannot read anyway. Chunks give what signed uploads are for:
-no request holds more than a chunk, so memory stays flat whatever the file; an upload resumes from the
-first chunk the server lacks; and nginx's 8 MiB limit is never approached.
+- **Albums** (MS-D46): up to ten photos and videos sent together, in the order chosen, drawn as one
+  bubble.
+- **The viewer** (MS-D24): over the conversation, with zoom and pan, the album's next and previous and
+  then the room's, the caption, Download, the keyboard and a finger.
+- **The player** (MS-D47): ours, in the bubble and in the viewer, in place of the browser's controls.
+- **The files that may be sent** (MS-D22): read from their bytes at both ends, never anything that runs
+  or renders a page, never a box nobody can look inside.
+- **The composer's attachments** (MS-D48): one button that offers photos and videos (several at once,
+  and the camera on a phone) or a file; several dropped or pasted at once.
+- **The gallery** (MS-D25): a conversation's photos and videos, its files and its voice messages.
+- **The staff's report page shows a reported photo, video or file** (MS-D26), which the merge kept for
+  them without a way to look at it.
 
-### Upload, resume, cancel (MS-D27)
+### Albums (MS-D46)
 
-1. `POST /api/chat/files` `{ id, kind, bytes, chunks }` declares the file: `kind` is `photo`, `video`,
-   `file` or `thumb`. Answered with the chunks already kept, so a retry resumes. Refused: `file-size`
-   (413), `file-taken` (409, the id is somebody else's), `file-budget` (429, the day's bytes),
-   `file-pending` (429, too many files no message names), `file-quota` (429, what one account keeps).
-2. `PUT /api/chat/files/:id/:n`, `application/octet-stream`, one chunk, read with a streaming limit;
-   every chunk but the last is exactly 1 MiB and 16 bytes. Two or three go at once.
-3. The send names the files. A file a message does not name within the hour is let go, and so is one
-   whose upload was cancelled (`DELETE /api/chat/files/:id`, its uploader's, while no message names it).
+Telegram's own shape: an album is up to ten messages of kind `file`, each naming its own photo or video
+as one does now, sent together and grouped by an album id. Every rule the merge spelled for a file (who
+may fetch it, when it goes, a report that keeps it, a forward that names it) holds for each item
+unchanged, which is why it is this shape and not one message naming ten files.
 
-### Fetching, and who may
+- **The id is the sender's** (a uuid, `messages.album_id`, in the clear, as a reaction's target is), and
+  each item's sealed document says it again with the item's place, how many there are and what they
+  are (`"album": { "id", "at", "of", "holds" }`, `holds` being `photo`, `video` or `both`, so the one
+  item the list's last line is can say "4 photos"), so a server that moved an item into another album,
+  or out of its own, makes a document that disagrees with its row, and the reader draws that item alone.
+  Each item is sealed with the next number after the one before it, under one read of the epoch, and
+  signed a millisecond after it, so the order chosen is the order signed.
+- **Sent in one request** (`POST /api/chat/:id/album`, two to ten sealed messages, every upload done
+  first): written in one transaction, so nothing comes between its items in the thread and a reader is
+  rung once. Each item is the sender's, of kind `file`, a photo or a video, under the room's rules, with
+  a file the sender may name; anything else refuses the whole album.
+- **The caption is the first item's** and the album's; the others carry none.
+- **In the thread** the items are one bubble, a grid that keeps every item whole: one, two side by side,
+  three as one and two, and so on to ten, each its thumb and its size until it is asked for. "Download
+  all" fetches them one after another; a press opens the viewer there.
+- **What is done to an album is done to it whole**: a reply quotes it ("Album, 4 photos"), a reaction
+  is the first item's, a forward sends it again as an album, and Delete deletes every item (the sender's,
+  or the staff's in a group). A report is the one exception: a disclosure is exactly one message, so an
+  album is reported item by item, from the item the reader is looking at.
+- **Counted as what it is**: unread counts each item, as Telegram does; the list's last line says "4
+  photos", "3 videos" or "5 photos and videos".
 
-`GET /api/chat/files/:id` streams the chunks in order, `application/octet-stream`, private and
-immutable with the id as its ETag, `nosniff`, `default-src 'none'`. It answers the uploader and anybody
-seated in a room holding a live message that names the file, with no block between them and another
-member there: the rule voice files follow. Everybody else, and a file not wholly uploaded, is answered
-as a file that is not there. A send names only files its sender may fetch, so a forward names the file
-and copies nothing. Ids are 122 random bits; nothing about an id authorises anything.
+### The viewer (MS-D24)
 
-### Limits (MS-D19)
+A photo or a video pressed opens over the conversation (`components/chat/media-viewer`, a chunk of its
+own): the original, fetched and opened then with its progress; zoom by the wheel, a pinch or a double tap,
+up to four times; pan by dragging while zoomed; the album's next and previous by the arrows, a swipe or
+the buttons at its sides, and then the room's photos and videos as the gallery lists them; the caption
+under it; Download, which saves it under its name; Escape, a press outside or a swipe down to close,
+with the keyboard back where it was. A video plays in it with the player. The originals of the item
+shown and its neighbours are kept while it is open and let go when it closes.
 
-Constants both halves read (`domains/chat/media.ts`, importing nothing):
+### The player (MS-D47)
 
-| | |
-|---|---|
-| Items in one message | 10 |
-| A photo, once prepared | 20 MiB |
-| A video, a file | 128 MiB |
-| A thumbnail or a poster | 512 KiB |
-| A day's uploads | 2 GiB an account |
-| Files waiting to be sent | 30 an account |
-| What one account keeps | 20 GiB |
+`components/chat/media-player`: the poster, then the video once fetched and opened (whole: a sealed file
+cannot be read part by part without a service worker between the page and the server); play and pause,
+a timeline to seek with the time and the length, volume and mute, speed (1×, 1.5×, 2×), full screen,
+and its states said (loading with progress, buffering, a failure with Try again). It never plays by
+itself and never with sound unasked; a finger has the same controls, at a size a finger hits. In the
+bubble it is the same player, smaller, and the viewer opens it larger.
 
-File chunks and fetches have a budget of their own beside the api's, so a gallery scrolled quickly does
-not spend the budget every other request draws from.
+### The files that may be sent (MS-D22)
 
-### The message
+The server cannot see a byte, so this is done where the bytes are, at both ends, from the bytes and
+never from a name or a type the picker says (`lib/file-kind.ts`, read by the sender and every reader):
 
-Kind `media`. The sealed document is `{"media": [item, ...], "text"?: caption, "reply"?, "fwd"?}`; an
-item is `{"kind", "id", "key", "iv", "size", "mime", "name"?, "w"?, "h"?, "ms"?, "tone"?, "thumb"?}`
-and a thumbnail `{"id", "key", "iv", "size", "w", "h"}`. In the clear beside the envelope the send says
-which files the message names, in order, each with its thumbnail (`message_files`: the message, the file,
-its place, whether it is a thumbnail, its kind, and the room and time copied in so the gallery reads one
-index). The document names them again, so a row moved onto another file opens as tampered. A message is
-either up to ten photos and videos together (an album, in the order chosen) or up to ten files, never
-both, as Telegram sends them. The caption is a line's words: 500 characters, formatting and mentions.
+- **Sent as they are**: PDF, plain text, Word, Excel and PowerPoint files without macros, OpenDocument,
+  RTF, and pictures, audio and video kept as files.
+- **Refused at the sender, and at every reader saved never**: archives (ZIP that is not an Office or
+  OpenDocument file, RAR, 7z, tar, gzip), anything that runs (Windows, Linux and macOS programs,
+  installers, scripts, shortcuts, disk images, Java, Android and iOS packages) and anything that renders
+  a page (HTML, SVG, XML, macro-enabled Office files). A box nobody here can look inside is a box this
+  chat does not hand over, and the sheet says why in the reader's words.
+- A reader whose browser finds a received file to be one of those says so on its bubble, as an alarm,
+  and offers nothing to save.
 
-It counts as a line everywhere a voice message does: unread, the list's last line ("Photo", "3 photos",
-"Video", "File: report.pdf"), notifications and push, the senders a read passes, replies, reactions,
-forwards and the report.
+### The composer's attachments (MS-D48)
 
-### What the sender's browser does (MS-D20 to MS-D22)
-
-- **A photo** is decoded upright, drawn at no more than 2560 px on its longer side and encoded again
-  (JPEG at 0.86, or WebP, else PNG, where it has transparency), which also drops what the camera wrote
-  into it, the place it was taken among it. An animated GIF, WebP or PNG is sent as it is. A thumbnail of
-  640 px and the photo's tone go with it.
-- **A video** has to play in the sender's browser: its length, size and a poster from its first frame
-  are read there. One that does not play is offered as a file. Nothing is transcoded: the server cannot
-  see the bytes, and a transcoder in the browser is megabytes.
-- **A file** is read for what its bytes are. Accepted: PDF, plain text, Word, Excel and PowerPoint files
-  without macros, OpenDocument, RTF, and pictures, audio and video kept as they are. Refused at the
-  sender and again at every reader: archives, and anything that runs or renders a page (programs,
-  scripts, installers, disk images, shortcuts, HTML, SVG, XML, macro-enabled documents). A box nobody
-  here can look inside is a box this chat does not hand over.
-- **Choosing**: the composer's attachment button opens Photo or video and File; a photo can be dropped
-  on the thread or pasted. Everything chosen waits in a sheet first: the items in order (removed or
-  reordered there), a caption, "Send as files" for pictures, and Send. Each item then uploads with its
-  own progress, Cancel and Try again, and the message goes when every item is up.
-
-### What every reader's browser checks
-
-After opening the file it reads the bytes again: a picture must decode as a picture, a video's
-container must be one the document says, and a file must be a type the allowlist keeps. Anything else is
-shown as a file that cannot be opened here and is never offered to save. A download is named for what
-its bytes are (the extension follows the type), saved through an object address of a type that renders
-nothing, and let go at once.
-
-### In the thread (MS-D21, MS-D24)
-
-- **Photos and videos** are drawn from their thumbnails at their own shape, an album as a grid that
-  keeps every item whole; the tone holds the place until the thumbnail opens. The original is fetched
-  only when the viewer asks for it.
-- **The viewer** opens over the conversation: the original, zoom (wheel, pinch, a double tap), pan,
-  the next and the previous of the album and then of the room's media (arrows, swipes), the caption,
-  Download, Escape to close.
-- **The player** is ours: play, pause, a timeline to seek, the time and the length, volume and mute,
-  speed, full screen, the poster, loading, buffering and a failure. A video is fetched and opened whole
-  before it plays (a sealed file cannot be read part by part without a service worker standing between
-  the page and the server), with progress on its poster; one under 8 MiB is fetched when it comes on
-  screen (never under Save-Data), anything larger at the press. Nothing plays by itself, and nothing
-  plays with sound unasked.
-- **A file** is a row: its type, name, size, Download with progress, and a preview where the browser
-  can show one safely (a picture, a video, audio, text as text, a PDF in the browser's own viewer).
+The paperclip opens a small menu: **Photo or video** (several at once, the phone's own gallery, and on a
+phone **Camera** as well) and **File**. Several dropped on the composer or pasted at once are taken
+together. The sheet before sending lists everything chosen in order, each removable and moved by a drag
+or by the keyboard, with the caption, "Send as files" for photos and videos, and what cannot go said at
+once. Photos and videos chosen together go as an album; files go one message each, the caption on the
+last.
 
 ### The gallery (MS-D25)
 
-From a conversation's head: Media (photos and videos as a grid), Files and Voice, each fifty a page by
-the keyset from the server and drawn as they come on screen, so a room of thousands of messages reads
-one index. Files can be searched by name among what has been read, and the field says that. A press
-opens the viewer, or the message in the thread.
+From a conversation's head and from the sheet about a group: **Media** (photos and videos, a grid),
+**Files** and **Voice**, each fifty a page newest first (`GET /api/chat/:id/media?kind=&cursor=`, keyset
+over the microsecond `(created_at, id)`), drawn as they come on screen from the same sealed rows the
+thread reads, so each item is opened here and nothing about it is told to the server. For the server to
+page Media apart from Files it keeps what each file was sent as (`messages.file_as`, `photo`, `video` or
+`file`, in the clear, MS-D23), which every reader holds to the document's own `as`. Files are searched by
+name among what has been read, and the field says so. A press opens the viewer, or the message in the
+thread.
 
 ### Reports (MS-D26)
 
-Reporting a media message with it disclosed keeps its files for the report, as a voice message's is
-kept, and the staff's report page shows them, opened in the staff's browser under the disclosed keys.
+A reported photo, video or file is kept for the staff (`reports.file_id`, as the merge built it), and the
+staff's report page now shows it: the photo and the video opened in the staff's browser under the
+disclosed key from a route of their own (`GET /api/admin/reports/:id/file`, beside the voice route), the
+file offered to save once its bytes pass MS-D22.
+
+### What the server learns (MS-D23)
+
+Beside who sent what, when and how large, which it knew: which messages form an album and how many
+items it has, and whether each file was sent as a photo, a video or a file.
 
 ## Part 3: calls
 
@@ -507,17 +519,17 @@ goes nowhere. The page says calls are "encrypted on the way, not end to end".
 | MS-D14 | The log | append only, the staff of the group read it, fifty a page |
 | MS-D15 | Members | paged by the server, staff first, searched by handle and name; the summary keeps six faces |
 | MS-D16 | Creating a group | name, photo, description, privacy, first members, permissions folded |
-| MS-D17 | Media sealed | a fresh key a file, 1 MiB chunks, nonce and AAD bound to the file, the index and the count |
-| MS-D18 | Storage | Postgres chunk rows; no object storage |
-| MS-D19 | Limits | ten items; photo 20 MiB, video and file 128 MiB, thumbnail 512 KiB; 2 GiB a day, 30 unsent, 20 GiB kept |
-| MS-D20 | Photos | re-encoded upright, metadata dropped, 2560 px; animations as they are; thumbnail 640 px and a tone |
-| MS-D21 | Videos | no transcoding; must play in the sender's browser or go as a file; fetched whole, under 8 MiB on sight |
-| MS-D22 | Files | an allowlist read from the bytes at both ends; archives and anything that runs or renders refused |
-| MS-D23 | What the server learns | each file's kind and how many a message carries, for the gallery |
-| MS-D24 | Viewer | over the conversation; zoom, pan, swipe and arrows; original fetched only there |
-| MS-D25 | Gallery | Media, Files, Voice; fifty a page from one index |
-| MS-D26 | Reports | keep a media message's files; the staff see them |
-| MS-D27 | Uploads | resumable by chunk, progress, cancel, try again; a day's budget of their own for requests |
+| MS-D17 | Media sealed | as the merge built it: a fresh key a file, the file sealed whole, AAD bound to the file; kind `file` with `file_id` |
+| MS-D18 | Storage | Postgres, `chat_files` beside `voice_notes`; no object storage |
+| MS-D19 | Limits | the owner's: photo 10 MiB, video and file 50 MiB, 1 GiB a day, 10 unsent, 1,024 characters a caption; ten items an album |
+| MS-D20 | Photos | re-drawn on a canvas, which drops EXIF and GPS, 2560 px; GIF and SVG go as files |
+| MS-D21 | Videos | not transcoded; poster, length and size measured where it plays; nothing fetched until the reader asks |
+| MS-D22 | Files | read from the bytes at both ends: documents, pictures, audio and video go; archives and anything that runs or renders a page never |
+| MS-D23 | What the server learns | which messages form an album, and whether each file was sent as a photo, a video or a file |
+| MS-D24 | Viewer | over the conversation; zoom, pan, the album and then the room by arrows and swipes; Download; originals fetched there |
+| MS-D25 | Gallery | Media, Files, Voice from a conversation's head; fifty a page by the keyset from the server; opened in the browser |
+| MS-D26 | Reports | keep a reported file (the merge did); the staff's report page shows it, opened under the disclosed key |
+| MS-D27 | Uploads | a raw `PUT` a file with progress, Cancel and Try again; chunked and resumable uploads past 50 MiB not in this work |
 | MS-D28 | Call topology | direct: a line or carried; group: carried only (SFU over the socket), 50 at most |
 | MS-D29 | Who may call | friends for a direct call; members under the permissions for a group call; the pair rule inside |
 | MS-D30 | States | `ringing`, `live`, `ended` with how; conditional updates, so nothing happens twice |
@@ -536,10 +548,13 @@ goes nowhere. The page says calls are "encrypted on the way, not end to end".
 | MS-D43 | Working one | the line deleted, a mute or a ban from the usual places, then closed as dismissed or actioned, logged as `report` |
 | MS-D44 | Telling the staff | `group-report` in `groups`, one row a group, taken back once nothing is left open for them |
 | MS-D45 | Voice and files in a copy | said as what they are, never opened for the group |
+| MS-D46 | Albums | Telegram's shape: two to ten photo and video messages sent in one request, grouped by the sender's album id (in the clear, and in each document with its place, its count and what it holds); the caption the first item's; one bubble |
+| MS-D47 | Player | ours: poster, play and pause, a timeline, the time, volume and mute, speed, full screen, its states; never plays by itself |
+| MS-D48 | Attachments | the paperclip's menu: photo or video (several, and the camera on a phone) and file; a sheet that orders, removes and captions |
 
 ## Not in this work
 
-Video calls and screen sharing; recording a call; scheduled voice chats; streaming a sealed video while
+Video calls and screen sharing; recording a call; files past 50 MiB, sealed and uploaded in chunks; scheduled voice chats; streaming a sealed video while
 it downloads (a service worker would have to stand between the page and the server); transcoding on
 either side; a link to a group opened by somebody signed out shows the sign-in first; stickers, GIF
 search and link previews; choosing several messages at once; topics, slow mode and broadcast channels;
@@ -555,10 +570,12 @@ pages (head, members, admins and rights, permissions, links, requests, banned, t
 setup; **G6** the thread (the pin bar, the staff's delete, the composer that says why it cannot send);
 **G7** the group's reports (the schema, the server, then the panel and the report sheet's switch).
 
-Media: **M1** the schema; **M2** files, chunks, fetching, budgets, the sweep, the media message, the
-gallery read and reports keeping files on the server; **M3** sealing in chunks, the upload queue, the
-composer's attachments and the sheet before sending; **M4** the bubbles, the viewer, the player and the
-file row; **M5** the gallery; **M6** media in the staff's report page.
+Media, re-planned on top of what the merge built (Part 2): **M0** this plan; **M1** the schema
+(`messages.album_id`, `messages.file_as`, the gallery's index); **M2** the server (an album sent in one
+request, the gallery read, `file_as` held to a file); **M3** albums in the browser (sealing and sending
+them, the bubble's grid, what is done to an album); **M4** the viewer and the player; **M5** the files
+that may be sent and the composer's attachments; **M6** the gallery; **M7** a reported file on the
+staff's report page.
 
 Calls: **C1** a voice frame names its room; **C2** the schema; **C3** direct calls on the server (the
 states, the ring, the sweep, lines, notices, push); **C4** direct calls in the browser (the call store,
@@ -574,11 +591,11 @@ taught every route; **P2** the notes, the self-hosting guide, the full gates and
 - Unit and component specs for each part, in both languages where words are drawn.
 - Database specs on a disposable Postgres: every refusal and the rank rule against every role; two
   transfers at once and exactly one owner after each; a link's limit raced; a ban against every way in;
-  a mute against every send; uploads resumed, refused, swept and fetched only by whoever may; a media
-  message's files through deletion, expiry and a report; a call's every transition repeated and raced;
+  a mute against every send; an album written whole or not at all, and held to its sender, its room and
+  its kind; the gallery's pages across a millisecond; a call's every transition repeated and raced;
   ringing timed out by the sweep; busy; a group call's moderation surviving a reconnect.
 - Passes on the built server between real browsers: photos, an album, a video and a file sent and
-  opened, the viewer, the gallery, a stranger's fetch refused, an upload cancelled and resumed; a direct
+  opened, the viewer, the gallery, a stranger's fetch refused, an upload cancelled and tried again, a file that runs refused; a direct
   call rung, accepted, declined, cancelled, missed, busy and cut, with fake microphones heard both ways;
   a group call of four with a mute, a removal, a raised hand and an end, and a join refused to a
   non-member and a banned member; the group's roles, rights, transfer, links, requests, bans and log over

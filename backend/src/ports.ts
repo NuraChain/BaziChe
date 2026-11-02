@@ -81,6 +81,7 @@ import type {
     GroupSwitchesWire,
     ChannelPost,
     ChannelSummary,
+    MediaPage,
     MessagePage,
     NotificationPage,
     ServerInfo,
@@ -510,6 +511,26 @@ export interface DevicePort
     revoke(me: string, deviceId: string): Promise<Device>;
 }
 
+/** A sealed message as a send states it: an envelope this server reads, and a body it cannot. */
+export interface SealedSend
+{
+    id: string;
+    kind: 'text' | 'voice' | 'file' | 'reaction' | 'edit';
+    target?: string;
+    voice?: string;
+    file?: string;
+    fileAs?: 'photo' | 'video' | 'file';
+    epoch: number;
+    seq: number;
+    iv: string;
+    body: string;
+    senderDeviceId: string;
+    signature: string;
+    clientAt: string;
+    commitment: string;
+    expiresAt: number;
+}
+
 export interface ChatPort
 {
     list(me: string, cursor?: string): Promise<{ conversations: ConversationSummary[]; cursor?: string }>;
@@ -569,24 +590,18 @@ export interface ChatPort
      * accepting one device's claim about another's is the shape of every re-attribution this
      * format binds the AAD to prevent.
      */
-    send(me: string, sessionId: string, conversationId: string, input: {
-        id: string;
-        kind: 'text' | 'voice' | 'file' | 'reaction' | 'edit';
-        target?: string;
-        voice?: string;
-        file?: string;
-        epoch: number;
-        seq: number;
-        iv: string;
-        body: string;
-        senderDeviceId: string;
-        signature: string;
-        clientAt: string;
-        commitment: string;
-        expiresAt: number;
-    }): Promise<ChatMessage>;
+    send(me: string, sessionId: string, conversationId: string, input: SealedSend): Promise<ChatMessage>;
+
+    /** Two to ten photos and videos sent together as one album, each its own sealed message (MS-D46). */
+    sendAlbum(me: string, sessionId: string, conversationId: string, input: { album: string; messages: SealedSend[] }): Promise<{ messages: ChatMessage[] }>;
 
     remove(me: string, conversationId: string, messageId: string): Promise<void>;
+
+    /** Takes away every photo and video of an album at once, as its sender or the group's staff may. */
+    removeAlbum(me: string, conversationId: string, album: string): Promise<void>;
+
+    /** A conversation's photos and videos, its files or its voice messages, a page at a time (MS-D25). */
+    media(me: string, conversationId: string, kind: 'media' | 'files' | 'voice', cursor: string | undefined): Promise<MediaPage>;
 
     /** Pins a line for everybody in the room, or takes its pin away; a group says who may. */
     pinLine(me: string, conversationId: string, messageId: string): Promise<void>;

@@ -9,11 +9,14 @@ import {
     FILE_PENDING_MOST,
     FILE_REFUSALS,
     FILE_SEALED_LEAST,
+    FILE_ALBUM_LEAST,
+    FILE_ALBUM_MOST,
     FILE_SEALED_MOST,
+    type FileAs,
     type FileRefusal
 } from './files.ts';
 import type { Franking } from './franking.ts';
-import { THREAD_PAGE } from './pages.ts';
+import { MEDIA_PAGE, THREAD_PAGE, type MediaKind } from './pages.ts';
 import {
     VOICE_DAY_BYTES,
     VOICE_FILE_LEAST,
@@ -75,6 +78,8 @@ export interface ConversationRow
     last_expires_at: Date | null;
     last_voice_id: string | null;
     last_file_id: string | null;
+    last_file_as: FileAs | null;
+    last_album_id: string | null;
 
     /** When the room last moved, in microseconds since 1970, and 0 for a room nothing was said in. */
     last_key: string;
@@ -130,6 +135,12 @@ export interface MessageRow
     /** The file a photo, a video or a file message names. */
     file_id: string | null;
 
+    /** What that file was sent as, in the clear for the gallery; the sealed document says it again. */
+    file_as: FileAs | null;
+
+    /** The album its sender sent it in, a photo or a video alone; every item's document names it again. */
+    album_id: string | null;
+
     /** Mine, and read by somebody else in the room. Only the history read asks. */
     seen?: boolean | null;
 
@@ -152,6 +163,9 @@ export interface SealedInput
 
     /** The file a photo, a video or a file message names, which its sealed document names again. */
     file?: string;
+
+    /** What that file is sent as, in the clear for the gallery; a file message states it. */
+    fileAs?: FileAs;
     epoch: number;
     seq: number;
     iv: string;
@@ -164,6 +178,13 @@ export interface SealedInput
     /** Epoch milliseconds, or 0 for a message that does not expire. Signed, so it cannot be moved. */
     expiresAt: number;
 }
+
+/** Which rows each list of the gallery holds: each its own partial index. */
+const SHOWN_AS: Record<MediaKind, string> = {
+    media: `x.file_as in ('photo', 'video')`,
+    files: `x.file_as = 'file'`,
+    voice: `x.kind = 'voice'`
+};
 
 /** How many messages one page of history carries. */
 export const PAGE = THREAD_PAGE;
@@ -284,7 +305,9 @@ export function createChatService(
         .addSelect('x.expires_at', 'expires_at')
         .addSelect('x.target_id', 'target_id')
         .addSelect('x.voice_id', 'voice_id')
-        .addSelect('x.file_id', 'file_id');
+        .addSelect('x.file_id', 'file_id')
+        .addSelect('x.file_as', 'file_as')
+        .addSelect('x.album_id', 'album_id');
 
     /**
      * The membership row, which IS the authorisation.
@@ -482,6 +505,326 @@ export function createChatService(
         return rows.map((row) => row.conversationId);
     };
 
+    /**
+     * Every rule a sealed message is held to, asked before anything is written, and what it is stored
+     * as: one message, or each photo and video of an album before any of them is.
+     */
+    const prepare = async (me: string, conversationId: string, deviceId: string | null, input: SealedInput) =>
+    {
+        await mustBeMember(me, conversationId);
+
+        const quiet = await db.getRepository(Conversation)
+            .createQueryBuilder('c')
+            .innerJoin(Table, 't', 't.id = c.table_id')
+            .where('c.id = :conversationId', { conversationId })
+            .andWhere('t.chat = false')
+            .getExists();
+
+        if (quiet)
+        {
+            throw new ForbiddenError('Chat is off at this table.');
+        }
+
+        await mustSayInGroup(me, conversationId, input.kind);
+
+        // The device has to be THIS ACCOUNT's and unrevoked. It used to have to be
+        // the one bound to this session, which sounds stricter and was in practice a lockout:
+        // `sessions.device_id` is written only by an enrolment, so signing out and back in left
+        // a browser with perfectly good keys unable to send at all - and never offered the
+        // enrolment that would fix it, because its keyring is not empty.
+        //
+        // Nothing is given up. This check is defence in depth; the barrier that actually decides
+        // authorship is the per-message SIGNATURE, which every recipient verifies against the
+        // named device's published key. A caller naming a device it cannot sign for produces a
+        // message that fails to open for everybody, including itself.
+        const owned = await db.getRepository(Device).existsBy({ id: input.senderDeviceId, userId: me, revokedAt: IsNull() });
+
+        if (!owned)
+        {
+            throw new ForbiddenError('That is not a device this account can seal with.');
+        }
+
+        if (deviceId !== null && deviceId !== input.senderDeviceId)
+        {
+            throw new ForbiddenError('A message has to name the device that is sending it.');
+        }
+
+        const clean = input.body.trim();
+        if (clean === '')
+        {
+            throw new BadRequestError('A message needs a body.');
+        }
+
+        if ((input.kind === 'text' || input.kind === 'voice' || input.kind === 'file') && input.target !== undefined)
+        {
+            throw new BadRequestError('A message is not about another message; a reaction or an edit is.');
+        }
+
+        if (input.kind !== 'voice' && input.voice !== undefined)
+        {
+            throw new BadRequestError('Only a voice message names a voice file.');
+        }
+
+        if (input.kind === 'voice' && !await hears(me, input.voice ?? ''))
+        {
+            throw refused('voice-missing', 'There is no voice recording of yours with that id.');
+        }
+
+        if (input.kind !== 'file' && (input.file !== undefined || input.fileAs !== undefined))
+        {
+            throw new BadRequestError('Only a photo, a video or a file message names a file.');
+        }
+
+        if (input.kind === 'file' && input.fileAs === undefined)
+        {
+            throw new BadRequestError('A file message says whether it is a photo, a video or a file.');
+        }
+
+        // A sender may name a file they may fetch: their own upload, or one a live message in a
+        // room of theirs names, which is what a forward is.
+        if (input.kind === 'file' && !await reaches(me, input.file ?? ''))
+        {
+            throw fileRefused('file-missing', 'There is no file of yours with that id.');
+        }
+
+        // Refused rather than cut: a file's document cut short opens as nothing for everybody.
+        if (input.kind === 'file' && clean.length > bodyMost(input.kind))
+        {
+            throw new BadRequestError('That message is too long to keep.');
+        }
+
+        if (input.kind === 'reaction')
+        {
+            const target = input.target ?? '';
+
+            const found = UUID.test(target) && await db.getRepository(Message)
+                .createQueryBuilder('t')
+                .where('t.id = :target', { target })
+                .andWhere('t.conversation_id = :conversationId', { conversationId })
+                .andWhere('t.kind in (:...kinds)', { kinds: ['text', 'voice', 'file'] })
+                .andWhere('(t.expires_at is null or t.expires_at > now())')
+                .getExists();
+
+            if (!found)
+            {
+                throw new NotFoundError('There is no such message here to react to.');
+            }
+        }
+
+        // An edit changes words its own sender wrote here, for two days after they were stored,
+        // and lasts exactly as long as the line it changes: longer would keep its words after
+        // the line was gone, shorter would bring the old words back when it ran out.
+        let edited: { expires_at: Date | null } | undefined;
+
+        if (input.kind === 'edit')
+        {
+            const target = input.target ?? '';
+
+            edited = UUID.test(target)
+                ? await db.getRepository(Message)
+                    .createQueryBuilder('t')
+                    .select('t.expires_at', 'expires_at')
+                    .where('t.id = :target', { target })
+                    .andWhere('t.conversation_id = :conversationId', { conversationId })
+                    .andWhere('t.kind = :kind', { kind: 'text' })
+                    .andWhere('t.sender_id = :me', { me })
+                    .andWhere('t.created_at > now() - make_interval(hours => :hours)', { hours: EDIT_HOURS })
+                    .andWhere('(t.expires_at is null or t.expires_at > now())')
+                    .getRawOne<{ expires_at: Date | null }>()
+                : undefined;
+
+            if (edited === undefined)
+            {
+                throw new NotFoundError('There is no line of yours here to edit.');
+            }
+        }
+
+        if (!Number.isSafeInteger(input.seq) || input.seq < 1)
+        {
+            throw new BadRequestError('A message needs a sequence number.');
+        }
+
+        const clientAt = new Date(input.clientAt);
+        if (Number.isNaN(clientAt.getTime()))
+        {
+            throw new BadRequestError('A message needs the time its sender wrote it.');
+        }
+
+        if (input.commitment.trim() === '')
+        {
+            throw new BadRequestError('A message needs a franking commitment.');
+        }
+
+        // Taken from the signed envelope and written down, never decided here. A server that
+        // chose this could give a disappearing message a longer life than its sender asked for.
+        const expiresAt = input.expiresAt === 0 ? null : new Date(input.expiresAt);
+
+        if (expiresAt !== null && Number.isNaN(expiresAt.getTime()))
+        {
+            throw new BadRequestError('That is not a time this message could expire at.');
+        }
+
+        // And CHECKED against what the room agreed to. The server still never chooses the value,
+        // so it still cannot lengthen a message's life; it refuses one the room did not ask for.
+        // Without this, expiry is per-sender in practice whatever the design says - and somebody
+        // sets sixty seconds on their own messages in a room with expiry off, so their words are
+        // gone before anybody can report them and the frank goes with the row.
+        const wanted = expiresAt === null ? null : expiresAt.getTime();
+
+        if (edited !== undefined)
+        {
+            if (wanted !== (edited.expires_at === null ? null : edited.expires_at.getTime()))
+            {
+                throw new ForbiddenError('An edit lasts exactly as long as the line it changes.');
+            }
+        }
+        else
+        {
+            const room = await db.getRepository(Conversation).findOne({
+                select: { expireAfter: true },
+                where: { id: conversationId }
+            });
+
+            const agreed = room?.expireAfter ?? null;
+
+            const matchesRoom = agreed === null
+                ? wanted === null
+                : wanted !== null && Math.abs(wanted - (clientAt.getTime() + agreed * 1000)) <= EXPIRY_SLACK_MS;
+
+            if (!matchesRoom)
+            {
+                throw new ForbiddenError('That is not how long a message in this conversation lasts.');
+            }
+        }
+
+        const known = await db.query(
+            'select 1 as ok from conversation_epochs where conversation_id = $1 and epoch = $2',
+            [conversationId, input.epoch]
+        );
+
+        if (firstRow<{ ok: number }>(known) === null)
+        {
+            throw new NotFoundError('That epoch has not been minted in this conversation.');
+        }
+
+        const others = await db.query(
+            `select cm.user_id, c.kind
+             from conversation_members cm
+             join conversations c on c.id = cm.conversation_id
+             where cm.conversation_id = $1 and cm.user_id <> $2`,
+            [conversationId, me]
+        );
+
+        for (const other of rowsOf<{ user_id: string; kind: string }>(others))
+        {
+            if (other.kind !== 'direct')
+            {
+                continue;
+            }
+            const refusal = await social.mayMessage(me, other.user_id);
+            if (refusal !== null)
+            {
+                throw new ForbiddenError(refusal === 'blocked'
+                    ? 'You cannot reach that account.'
+                    : 'They are not taking messages from people they have not added.');
+            }
+        }
+
+        // Stamped on the way in, over the commitment and the context it arrived in. This is the
+        // only value in the whole format that is the SERVER's own claim, and the only thing it
+        // ever claims is "I saw this" - which is exactly what a report needs and all it needs.
+        const frank = franking.frank({
+            conversationId,
+            messageId: input.id,
+            senderAccountId: me,
+            senderDeviceId: input.senderDeviceId,
+            clientAt: clientAt.getTime(),
+            commitment: input.commitment
+        });
+
+        return {
+            id: input.id,
+            conversationId,
+            senderId: me,
+            kind: input.kind,
+            body: clean.slice(0, bodyMost(input.kind)),
+            epoch: input.epoch,
+            seq: String(input.seq),
+            iv: input.iv,
+            senderDeviceId: input.senderDeviceId,
+            signature: input.signature,
+            clientAt,
+            commitment: input.commitment,
+            frank,
+            expiresAt,
+            targetId: input.kind === 'reaction' || input.kind === 'edit' ? input.target ?? null : null,
+            voiceId: input.kind === 'voice' ? input.voice ?? null : null,
+            fileId: input.kind === 'file' ? input.file ?? null : null,
+            fileAs: input.kind === 'file' ? input.fileAs ?? null : null
+        };
+    };
+
+    /** Takes one line away inside a transaction of the caller's: by its author, or by the group's staff. */
+    const removeIn = async (tx: EntityManager, me: string, conversationId: string, messageId: string, gate?: GroupGate): Promise<'deleted' | 'withdrawn'> =>
+    {
+        const messages = tx.getRepository(Message);
+
+        // Whose line it is decides who is asked. Its author takes it away alone; anybody else
+        // only in a group, with the group's say, which takes the group's row before this takes
+        // the line's. A reaction is never somebody else's to take back.
+        const said = await messages.findOne({ select: { senderId: true, kind: true }, where: { id: messageId, conversationId } });
+        const author = said?.senderId ?? null;
+
+        if (said !== null && author !== null && author !== me)
+        {
+            const room = said.kind === 'text' || said.kind === 'voice' || said.kind === 'file'
+                ? await tx.getRepository(Conversation).findOne({ select: { groupId: true }, where: { id: conversationId, kind: 'group' } })
+                : null;
+
+            if (gate === undefined || room === null || room.groupId === null)
+            {
+                throw new NotFoundError('No such message of yours here.');
+            }
+            await gate.deleteGate(tx, me, room.groupId, author, messageId);
+        }
+
+        const found = await messages.findOne({
+            select: { id: true, kind: true, voiceId: true, fileId: true },
+            where: { id: messageId, conversationId, senderId: author === null ? me : author },
+            lock: { mode: 'pessimistic_write' }
+        });
+
+        if (found === null || (found.kind !== 'text' && found.kind !== 'voice' && found.kind !== 'file' && found.kind !== 'reaction'))
+        {
+            throw new NotFoundError('No such message of yours here.');
+        }
+
+        if (found.kind === 'reaction')
+        {
+            await messages.delete({ id: messageId });
+            return 'withdrawn';
+        }
+
+        await messages.delete({ targetId: messageId, kind: In(['reaction', 'edit']) });
+        await tx.getRepository(VoicePlay).delete({ messageId });
+        await tx.getRepository(ConversationPin).delete({ messageId });
+        await messages.update({ id: messageId }, {
+            kind: 'deleted',
+            body: null,
+            iv: null,
+            signature: null,
+            commitment: null,
+            frank: null,
+            voiceId: null,
+            fileId: null,
+            fileAs: null,
+            albumId: null
+        });
+        await letGo(tx, found.voiceId === null ? [] : [found.voiceId], found.fileId === null ? [] : [found.fileId]);
+
+        return 'deleted';
+    };
+
     return {
         membership,
         mustBeMember,
@@ -537,6 +880,8 @@ export function createChatService(
                         last.expires_at                                                  as last_expires_at,
                         last.voice_id                                                    as last_voice_id,
                         last.file_id                                                     as last_file_id,
+                        last.file_as                                                     as last_file_as,
+                        last.album_id                                                    as last_album_id,
                         (last.sender_account_id = $1
                          and last.created_at <= (select max(o.last_read_at) from conversation_members o
                                                   where o.conversation_id = c.id and o.user_id <> $1)) as last_seen,
@@ -561,7 +906,7 @@ export function createChatService(
                      select x.id, x.kind, x.body, x.payload, x.created_at, su.handle as sender,
                             x.sender_id as sender_account_id,
                             x.epoch, x.seq, x.iv, x.sender_device_id, x.signature, x.client_at,
-                            x.commitment, x.frank, x.expires_at, x.voice_id, x.file_id
+                            x.commitment, x.frank, x.expires_at, x.voice_id, x.file_id, x.file_as, x.album_id
                      from messages x
                      left join users su on su.id = x.sender_id
                      where x.conversation_id = c.id
@@ -718,231 +1063,7 @@ export function createChatService(
          */
         async send(me: string, conversationId: string, deviceId: string | null, input: SealedInput): Promise<MessageRow>
         {
-            await mustBeMember(me, conversationId);
-
-            const quiet = await db.getRepository(Conversation)
-                .createQueryBuilder('c')
-                .innerJoin(Table, 't', 't.id = c.table_id')
-                .where('c.id = :conversationId', { conversationId })
-                .andWhere('t.chat = false')
-                .getExists();
-
-            if (quiet)
-            {
-                throw new ForbiddenError('Chat is off at this table.');
-            }
-
-            await mustSayInGroup(me, conversationId, input.kind);
-
-            // The device has to be THIS ACCOUNT's and unrevoked. It used to have to be
-            // the one bound to this session, which sounds stricter and was in practice a lockout:
-            // `sessions.device_id` is written only by an enrolment, so signing out and back in left
-            // a browser with perfectly good keys unable to send at all - and never offered the
-            // enrolment that would fix it, because its keyring is not empty.
-            //
-            // Nothing is given up. This check is defence in depth; the barrier that actually decides
-            // authorship is the per-message SIGNATURE, which every recipient verifies against the
-            // named device's published key. A caller naming a device it cannot sign for produces a
-            // message that fails to open for everybody, including itself.
-            const owned = await db.getRepository(Device).existsBy({ id: input.senderDeviceId, userId: me, revokedAt: IsNull() });
-
-            if (!owned)
-            {
-                throw new ForbiddenError('That is not a device this account can seal with.');
-            }
-
-            if (deviceId !== null && deviceId !== input.senderDeviceId)
-            {
-                throw new ForbiddenError('A message has to name the device that is sending it.');
-            }
-
-            const clean = input.body.trim();
-            if (clean === '')
-            {
-                throw new BadRequestError('A message needs a body.');
-            }
-
-            if ((input.kind === 'text' || input.kind === 'voice' || input.kind === 'file') && input.target !== undefined)
-            {
-                throw new BadRequestError('A message is not about another message; a reaction or an edit is.');
-            }
-
-            if (input.kind !== 'voice' && input.voice !== undefined)
-            {
-                throw new BadRequestError('Only a voice message names a voice file.');
-            }
-
-            if (input.kind === 'voice' && !await hears(me, input.voice ?? ''))
-            {
-                throw refused('voice-missing', 'There is no voice recording of yours with that id.');
-            }
-
-            if (input.kind !== 'file' && input.file !== undefined)
-            {
-                throw new BadRequestError('Only a photo, a video or a file message names a file.');
-            }
-
-            // A sender may name a file they may fetch: their own upload, or one a live message in a
-            // room of theirs names, which is what a forward is.
-            if (input.kind === 'file' && !await reaches(me, input.file ?? ''))
-            {
-                throw fileRefused('file-missing', 'There is no file of yours with that id.');
-            }
-
-            // Refused rather than cut: a file's document cut short opens as nothing for everybody.
-            if (input.kind === 'file' && clean.length > bodyMost(input.kind))
-            {
-                throw new BadRequestError('That message is too long to keep.');
-            }
-
-            if (input.kind === 'reaction')
-            {
-                const target = input.target ?? '';
-
-                const found = UUID.test(target) && await db.getRepository(Message)
-                    .createQueryBuilder('t')
-                    .where('t.id = :target', { target })
-                    .andWhere('t.conversation_id = :conversationId', { conversationId })
-                    .andWhere('t.kind in (:...kinds)', { kinds: ['text', 'voice', 'file'] })
-                    .andWhere('(t.expires_at is null or t.expires_at > now())')
-                    .getExists();
-
-                if (!found)
-                {
-                    throw new NotFoundError('There is no such message here to react to.');
-                }
-            }
-
-            // An edit changes words its own sender wrote here, for two days after they were stored,
-            // and lasts exactly as long as the line it changes: longer would keep its words after
-            // the line was gone, shorter would bring the old words back when it ran out.
-            let edited: { expires_at: Date | null } | undefined;
-
-            if (input.kind === 'edit')
-            {
-                const target = input.target ?? '';
-
-                edited = UUID.test(target)
-                    ? await db.getRepository(Message)
-                        .createQueryBuilder('t')
-                        .select('t.expires_at', 'expires_at')
-                        .where('t.id = :target', { target })
-                        .andWhere('t.conversation_id = :conversationId', { conversationId })
-                        .andWhere('t.kind = :kind', { kind: 'text' })
-                        .andWhere('t.sender_id = :me', { me })
-                        .andWhere('t.created_at > now() - make_interval(hours => :hours)', { hours: EDIT_HOURS })
-                        .andWhere('(t.expires_at is null or t.expires_at > now())')
-                        .getRawOne<{ expires_at: Date | null }>()
-                    : undefined;
-
-                if (edited === undefined)
-                {
-                    throw new NotFoundError('There is no line of yours here to edit.');
-                }
-            }
-
-            if (!Number.isSafeInteger(input.seq) || input.seq < 1)
-            {
-                throw new BadRequestError('A message needs a sequence number.');
-            }
-
-            const clientAt = new Date(input.clientAt);
-            if (Number.isNaN(clientAt.getTime()))
-            {
-                throw new BadRequestError('A message needs the time its sender wrote it.');
-            }
-
-            if (input.commitment.trim() === '')
-            {
-                throw new BadRequestError('A message needs a franking commitment.');
-            }
-
-            // Taken from the signed envelope and written down, never decided here. A server that
-            // chose this could give a disappearing message a longer life than its sender asked for.
-            const expiresAt = input.expiresAt === 0 ? null : new Date(input.expiresAt);
-
-            if (expiresAt !== null && Number.isNaN(expiresAt.getTime()))
-            {
-                throw new BadRequestError('That is not a time this message could expire at.');
-            }
-
-            // And CHECKED against what the room agreed to. The server still never chooses the value,
-            // so it still cannot lengthen a message's life; it refuses one the room did not ask for.
-            // Without this, expiry is per-sender in practice whatever the design says - and somebody
-            // sets sixty seconds on their own messages in a room with expiry off, so their words are
-            // gone before anybody can report them and the frank goes with the row.
-            const wanted = expiresAt === null ? null : expiresAt.getTime();
-
-            if (edited !== undefined)
-            {
-                if (wanted !== (edited.expires_at === null ? null : edited.expires_at.getTime()))
-                {
-                    throw new ForbiddenError('An edit lasts exactly as long as the line it changes.');
-                }
-            }
-            else
-            {
-                const room = await db.getRepository(Conversation).findOne({
-                    select: { expireAfter: true },
-                    where: { id: conversationId }
-                });
-
-                const agreed = room?.expireAfter ?? null;
-
-                const matchesRoom = agreed === null
-                    ? wanted === null
-                    : wanted !== null && Math.abs(wanted - (clientAt.getTime() + agreed * 1000)) <= EXPIRY_SLACK_MS;
-
-                if (!matchesRoom)
-                {
-                    throw new ForbiddenError('That is not how long a message in this conversation lasts.');
-                }
-            }
-
-            const known = await db.query(
-                'select 1 as ok from conversation_epochs where conversation_id = $1 and epoch = $2',
-                [conversationId, input.epoch]
-            );
-
-            if (firstRow<{ ok: number }>(known) === null)
-            {
-                throw new NotFoundError('That epoch has not been minted in this conversation.');
-            }
-
-            const others = await db.query(
-                `select cm.user_id, c.kind
-                 from conversation_members cm
-                 join conversations c on c.id = cm.conversation_id
-                 where cm.conversation_id = $1 and cm.user_id <> $2`,
-                [conversationId, me]
-            );
-
-            for (const other of rowsOf<{ user_id: string; kind: string }>(others))
-            {
-                if (other.kind !== 'direct')
-                {
-                    continue;
-                }
-                const refusal = await social.mayMessage(me, other.user_id);
-                if (refusal !== null)
-                {
-                    throw new ForbiddenError(refusal === 'blocked'
-                        ? 'You cannot reach that account.'
-                        : 'They are not taking messages from people they have not added.');
-                }
-            }
-
-            // Stamped on the way in, over the commitment and the context it arrived in. This is the
-            // only value in the whole format that is the SERVER's own claim, and the only thing it
-            // ever claims is "I saw this" - which is exactly what a report needs and all it needs.
-            const frank = franking.frank({
-                conversationId,
-                messageId: input.id,
-                senderAccountId: me,
-                senderDeviceId: input.senderDeviceId,
-                clientAt: clientAt.getTime(),
-                commitment: input.commitment
-            });
+            const values = await prepare(me, conversationId, deviceId, input);
 
             let inserted;
 
@@ -951,25 +1072,7 @@ export function createChatService(
                 inserted = await db.getRepository(Message)
                     .createQueryBuilder()
                     .insert()
-                    .values({
-                        id: input.id,
-                        conversationId,
-                        senderId: me,
-                        kind: input.kind,
-                        body: clean.slice(0, bodyMost(input.kind)),
-                        epoch: input.epoch,
-                        seq: String(input.seq),
-                        iv: input.iv,
-                        senderDeviceId: input.senderDeviceId,
-                        signature: input.signature,
-                        clientAt,
-                        commitment: input.commitment,
-                        frank,
-                        expiresAt,
-                        targetId: input.kind === 'reaction' || input.kind === 'edit' ? input.target ?? null : null,
-                        voiceId: input.kind === 'voice' ? input.voice ?? null : null,
-                        fileId: input.kind === 'file' ? input.file ?? null : null
-                    })
+                    .values(values)
                     .returning('*')
                     .execute();
             }
@@ -1001,6 +1104,145 @@ export function createChatService(
             };
         },
 
+        /**
+         * Two to ten photos and videos sent together (MS-D46): each its own sealed message naming its
+         * file, held to every rule one is, and written in one transaction under the album id its
+         * sender chose, each at its own instant so the thread keeps them in the order they were chosen.
+         */
+        async sendAlbum(me: string, conversationId: string, deviceId: string | null, album: string, inputs: readonly SealedInput[]): Promise<MessageRow[]>
+        {
+            if (!UUID.test(album) || inputs.length < FILE_ALBUM_LEAST || inputs.length > FILE_ALBUM_MOST)
+            {
+                throw new BadRequestError('An album is two to ten photos and videos.');
+            }
+
+            if (inputs.some((one) => one.kind !== 'file' || (one.fileAs !== 'photo' && one.fileAs !== 'video')))
+            {
+                throw new BadRequestError('An album holds photos and videos alone.');
+            }
+
+            if (new Set(inputs.map((one) => one.id)).size !== inputs.length)
+            {
+                throw new BadRequestError('Every photo and video of an album is a message of its own.');
+            }
+
+            const values: Awaited<ReturnType<typeof prepare>>[] = [];
+
+            for (const input of inputs)
+            {
+                values.push(await prepare(me, conversationId, deviceId, input));
+            }
+
+            let rows: Omit<MessageRow, 'sender' | 'sender_account_id'>[];
+
+            try
+            {
+                rows = await db.transaction(async (tx) =>
+                {
+                    if (await tx.getRepository(Message).existsBy({ albumId: album }))
+                    {
+                        throw new ConflictError('That album has been sent already.');
+                    }
+
+                    const written: Omit<MessageRow, 'sender' | 'sender_account_id'>[] = [];
+
+                    for (const value of values)
+                    {
+                        const inserted = await tx.getRepository(Message)
+                            .createQueryBuilder()
+                            .insert()
+                            .values({ ...value, albumId: album, createdAt: () => 'clock_timestamp()' })
+                            .returning('*')
+                            .execute();
+
+                        written.push((inserted.raw as Omit<MessageRow, 'sender' | 'sender_account_id'>[])[0]);
+                    }
+
+                    await tx.getRepository(ConversationMember)
+                        .createQueryBuilder()
+                        .update()
+                        .set({ lastReadAt: () => 'greatest(last_read_at, :at)' })
+                        .where('conversation_id = :conversationId and user_id = :me', { conversationId, me })
+                        .setParameter('at', written.at(-1)?.created_at)
+                        .execute();
+
+                    return written;
+                });
+            }
+            catch (error)
+            {
+                if ((error as { code?: string }).code === '23505')
+                {
+                    throw new ConflictError('That message number has already been used. Read the epoch again and resend.');
+                }
+                throw error;
+            }
+
+            const sender = await handleOf(me);
+
+            return rows.map((row) => ({ ...row, sender, sender_account_id: me }));
+        },
+
+        /**
+         * Takes away every photo and video of an album at once, as its sender or the group's staff
+         * may take away one, in one transaction: an album is never left half there.
+         */
+        async removeAlbum(me: string, conversationId: string, album: string, gate?: GroupGate)
+        {
+            await mustBeMember(me, conversationId);
+
+            const items = UUID.test(album)
+                ? await db.getRepository(Message).find({
+                    select: { id: true },
+                    where: { conversationId, albumId: album, kind: 'file' },
+                    order: { createdAt: 'ASC', id: 'ASC' }
+                })
+                : [];
+
+            if (items.length === 0)
+            {
+                throw new NotFoundError('No such album here.');
+            }
+
+            await db.transaction(async (tx) =>
+            {
+                for (const item of items)
+                {
+                    await removeIn(tx, me, conversationId, item.id, gate);
+                }
+            });
+        },
+
+        /**
+         * A conversation's photos and videos, its files or its voice messages, newest first, a page at
+         * a time by the microsecond keyset (MS-D25): the sealed rows the thread reads, found by what
+         * each was sent as, which every reader opens for itself.
+         */
+        async media(me: string, conversationId: string, kind: MediaKind, cursor: string | null | undefined): Promise<{ messages: MessageRow[]; cursor?: string }>
+        {
+            await mustBeMember(me, conversationId);
+
+            const after = keysetAfter(cursor);
+            const query = envelope()
+                .addSelect(keyOf('x.created_at'), 'at_key')
+                .where('x.conversation_id = :conversationId', { conversationId })
+                .andWhere(SHOWN_AS[kind])
+                .andWhere('(x.expires_at is null or x.expires_at > now())');
+
+            if (after !== null)
+            {
+                query.andWhere(olderThan('x.created_at', 'x.id'), after);
+            }
+
+            const page = await query
+                .orderBy('x.created_at', 'DESC')
+                .addOrderBy('x.id', 'DESC')
+                .limit(MEDIA_PAGE + 1)
+                .getRawMany<MessageRow & Keyed>();
+
+            return { messages: page.slice(0, MEDIA_PAGE), ...cursorOf(page, MEDIA_PAGE) };
+        },
+
         async remove(me: string, conversationId: string, messageId: string, gate?: GroupGate): Promise<'deleted' | 'withdrawn'>
         {
             await mustBeMember(me, conversationId);
@@ -1010,63 +1252,7 @@ export function createChatService(
                 throw new NotFoundError('No such message of yours here.');
             }
 
-            return db.transaction(async (tx) =>
-            {
-                const messages = tx.getRepository(Message);
-
-                // Whose line it is decides who is asked. Its author takes it away alone; anybody else
-                // only in a group, with the group's say, which takes the group's row before this takes
-                // the line's. A reaction is never somebody else's to take back.
-                const said = await messages.findOne({ select: { senderId: true, kind: true }, where: { id: messageId, conversationId } });
-                const author = said?.senderId ?? null;
-
-                if (said !== null && author !== null && author !== me)
-                {
-                    const room = said.kind === 'text' || said.kind === 'voice' || said.kind === 'file'
-                        ? await tx.getRepository(Conversation).findOne({ select: { groupId: true }, where: { id: conversationId, kind: 'group' } })
-                        : null;
-
-                    if (gate === undefined || room === null || room.groupId === null)
-                    {
-                        throw new NotFoundError('No such message of yours here.');
-                    }
-                    await gate.deleteGate(tx, me, room.groupId, author, messageId);
-                }
-
-                const found = await messages.findOne({
-                    select: { id: true, kind: true, voiceId: true, fileId: true },
-                    where: { id: messageId, conversationId, senderId: author === null ? me : author },
-                    lock: { mode: 'pessimistic_write' }
-                });
-
-                if (found === null || (found.kind !== 'text' && found.kind !== 'voice' && found.kind !== 'file' && found.kind !== 'reaction'))
-                {
-                    throw new NotFoundError('No such message of yours here.');
-                }
-
-                if (found.kind === 'reaction')
-                {
-                    await messages.delete({ id: messageId });
-                    return 'withdrawn';
-                }
-
-                await messages.delete({ targetId: messageId, kind: In(['reaction', 'edit']) });
-                await tx.getRepository(VoicePlay).delete({ messageId });
-                await tx.getRepository(ConversationPin).delete({ messageId });
-                await messages.update({ id: messageId }, {
-                    kind: 'deleted',
-                    body: null,
-                    iv: null,
-                    signature: null,
-                    commitment: null,
-                    frank: null,
-                    voiceId: null,
-                    fileId: null
-                });
-                await letGo(tx, found.voiceId === null ? [] : [found.voiceId], found.fileId === null ? [] : [found.fileId]);
-
-                return 'deleted';
-            });
+            return db.transaction((tx) => removeIn(tx, me, conversationId, messageId, gate));
         },
 
         /**
@@ -1161,7 +1347,7 @@ export function createChatService(
                  values ($1, $2, $3, $4)
                  returning id, conversation_id, kind, body, payload, created_at,
                            epoch, seq, iv, sender_device_id, signature, client_at, commitment,
-                           frank, expires_at, target_id, voice_id, file_id`,
+                           frank, expires_at, target_id, voice_id, file_id, file_as, album_id`,
                 [conversationId, senderId, kind, JSON.stringify(payload)]
             );
             const message = rowsOf<Omit<MessageRow, 'sender' | 'sender_account_id'>>(inserted)[0];
@@ -1191,7 +1377,7 @@ export function createChatService(
                 `select x.id, x.conversation_id, x.kind, x.body, x.payload, x.created_at,
                         su.handle as sender, x.sender_id as sender_account_id,
                         x.epoch, x.seq, x.iv, x.sender_device_id, x.signature, x.client_at,
-                        x.commitment, x.frank, x.expires_at, x.target_id, x.voice_id, x.file_id
+                        x.commitment, x.frank, x.expires_at, x.target_id, x.voice_id, x.file_id, x.file_as, x.album_id
                  from messages x
                  left join users su on su.id = x.sender_id
                  where x.conversation_id = $1 and x.id = $2 and x.kind in ('text', 'voice', 'file', 'edit')

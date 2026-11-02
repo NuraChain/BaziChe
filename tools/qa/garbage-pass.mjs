@@ -53,6 +53,7 @@ const QUERIES = {
     '/chat': ['cursor'],
     '/chat/:id/epoch': ['epoch', 'device'],
     '/chat/:id/messages': ['cursor', 'limit'],
+    '/chat/:id/media': ['kind', 'cursor'],
     '/vault/games': ['cursor'],
     '/shop/orders': ['cursor'],
     '/donations/history': ['side', 'cursor'],
@@ -138,7 +139,11 @@ const BODIES = {
     '/devices/recovery/restore': (bad) => [{ deviceId: bad, nonce: bad, signature: bad }],
     '/chat/direct': (bad) => [{ id: bad }],
     '/chat/:id/epoch': (bad) => [{ epoch: 0, mintedBy: bad.slice(0, 22), recipients: [bad], signature: bad, confirmation: bad, keys: [] }],
-    '/chat/:id/messages': (bad) => [message(bad), { ...message(bad), kind: 'reaction', target: bad }, { ...message(bad), kind: 'edit', target: bad }, { ...message(bad), kind: 'voice', voice: bad }],
+    '/chat/:id/messages': (bad) => [message(bad), { ...message(bad), kind: 'reaction', target: bad }, { ...message(bad), kind: 'edit', target: bad }, { ...message(bad), kind: 'voice', voice: bad }, { ...message(bad), kind: 'file', file: bad, fileAs: 'photo' }],
+    '/chat/:id/album': (bad) => [
+        { album: bad.slice(0, 36), messages: [{ ...message(bad), kind: 'file', file: bad, fileAs: 'photo' }, { ...message(bad), kind: 'file', file: bad, fileAs: 'video' }] },
+        { album: bad.slice(0, 36), messages: [message(bad), message(bad)] }
+    ],
     '/tables/:id/ready': (bad) => [{ ready: true, signature: bad.slice(0, 4096) }, { ready: false, signature: bad.slice(0, 4096) }],
     '/vault/deposit': (bad) => [{ amount: bad.slice(0, 40) }],
     '/vault/withdraw': (bad) => [{ amount: bad.slice(0, 40) }],

@@ -386,6 +386,16 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             message.file = row.file_id;
         }
 
+        if (row.file_as !== null)
+        {
+            message.fileAs = row.file_as;
+        }
+
+        if (row.album_id !== null)
+        {
+            message.album = row.album_id;
+        }
+
         if (row.played === true)
         {
             message.played = true;
@@ -540,6 +550,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 target_id: null,
                 voice_id: row.last_voice_id,
                 file_id: row.last_file_id,
+                file_as: row.last_file_as,
+                album_id: row.last_album_id,
                 seen: row.last_seen
             });
 
@@ -563,7 +575,9 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 expires_at: row.edit_expires_at,
                 target_id: row.last_id,
                 voice_id: null,
-                file_id: null
+                file_id: null,
+                file_as: null,
+                album_id: null
             }]).get(row.last_id);
 
             if (edited !== undefined)
@@ -4821,10 +4835,53 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 return message;
             },
 
+            async sendAlbum(me, sessionId, conversationId, input)
+            {
+                const rows = await chat.sendAlbum(me, conversationId, await device.deviceOfSession(sessionId), input.album, input.messages);
+                const recipients = await chat.recipients(conversationId);
+                const told = new Set<string>();
+
+                // Each photo and video is a message, so the room's row counts every one of them.
+                for (let item = 0; item < rows.length; item += 1)
+                {
+                    for (const recipient of await notify.tellAll(recipients, {
+                        kind: 'message',
+                        actorId: me,
+                        ref: { conversationId },
+                        dedupeKey: `chat:${ conversationId }`
+                    }))
+                    {
+                        told.add(recipient);
+                    }
+                }
+
+                for (const recipient of told)
+                {
+                    live?.selfChanged(recipient, 'notifications');
+                    wake(recipient);
+                }
+
+                live?.chatChanged(conversationId);
+                return { messages: rows.map(asMessage) };
+            },
+
             async remove(me, conversationId, messageId)
             {
                 await chat.remove(me, conversationId, messageId, group);
                 live?.chatChanged(conversationId);
+            },
+
+            async removeAlbum(me, conversationId, album)
+            {
+                await chat.removeAlbum(me, conversationId, album, group);
+                live?.chatChanged(conversationId);
+            },
+
+            async media(me, conversationId, kind, cursor)
+            {
+                const page = await chat.media(me, conversationId, kind, cursor);
+
+                return { messages: page.messages.map(asMessage), ...(page.cursor === undefined ? {} : { cursor: page.cursor }) };
             },
 
             async pinLine(me, conversationId, messageId)

@@ -17,7 +17,10 @@ export const NOTIFICATION_ICON: Record<NotificationKind, IconName> = {
     'invite-played': 'dice',
     'invite-reward': 'gift',
     'gift': 'gift',
-    'donation': 'coins'
+    'donation': 'coins',
+    'group-request': 'friend-add',
+    'group-approved': 'friend-check',
+    'group-owner': 'crest-crown'
 };
 
 const SAYS: Record<NotificationKind, MessageKey> = {
@@ -32,7 +35,10 @@ const SAYS: Record<NotificationKind, MessageKey> = {
     'invite-played': 'notify.invitePlayed',
     'invite-reward': 'notify.inviteReward',
     'gift': 'notify.gift',
-    'donation': 'notify.donation'
+    'donation': 'notify.donation',
+    'group-request': 'notify.groupRequest',
+    'group-approved': 'notify.groupApproved',
+    'group-owner': 'notify.groupOwner'
 };
 
 export function sayOf(item: Notification, who: string, locale: Pick<LocaleApi, 't' | 'plural' | 'n'>)

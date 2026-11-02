@@ -113,7 +113,7 @@ interface GroupWire
 interface NotificationWire
 {
     id: string;
-    kind: 'friend-request' | 'friend-accepted' | 'group-added' | 'table-invite' | 'table-removed' | 'message' | 'turn' | 'invite-joined' | 'invite-played' | 'invite-reward' | 'gift' | 'donation';
+    kind: 'friend-request' | 'friend-accepted' | 'group-added' | 'table-invite' | 'table-removed' | 'message' | 'turn' | 'invite-joined' | 'invite-played' | 'invite-reward' | 'gift' | 'donation' | 'group-request' | 'group-approved' | 'group-owner';
     actor?: string;
     ref: Record<string, string>;
     count: number;

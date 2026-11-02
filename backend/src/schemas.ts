@@ -3110,7 +3110,16 @@ export const notificationKind = enumOf([
     'gift',
 
     /** Somebody watching a game the reader plays gave them NURA, and the gift is theirs now. */
-    'donation'
+    'donation',
+
+    /** Somebody asked to join a group the reader may let people into. */
+    'group-request',
+
+    /** The reader asked to join a group, and somebody there let them in. */
+    'group-approved',
+
+    /** A group is the reader's now: its owner handed it on, or left it to them. */
+    'group-owner'
 ]);
 
 export type NotificationKind = Infer<typeof notificationKind>;

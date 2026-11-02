@@ -122,6 +122,25 @@ describe('where a notice leads', () =>
         useLocale().setLocale('en');
     });
 
+    it.each([
+        ['en', 'Maya asked to join your group', 'Maya let you into a group', 'Maya handed a group to you: it is yours now'],
+        ['fa', 'Maya درخواست داده عضو گروهت بشه', 'Maya تو رو به یه گروه راه داد', 'Maya یه گروه رو سپرد به تو؛ حالا مال توئه']
+    ] as const)('sends a request to join, a request let in and a group handed on to the group, and says each in %s', (language, asked, approved, owner) =>
+    {
+        useLocale().setLocale(language);
+
+        const about = { actor: 'maya.c', ref: { groupId: 'g-1' } };
+
+        expect(targetOf(notice('group-request', about))).toBe('/app/groups/g-1');
+        expect(targetOf(notice('group-approved', about))).toBe('/app/groups/g-1');
+        expect(targetOf(notice('group-owner', about))).toBe('/app/groups/g-1');
+        expect(sayOf(notice('group-request', about), 'Maya', useLocale())).toBe(asked);
+        expect(sayOf(notice('group-approved', about), 'Maya', useLocale())).toBe(approved);
+        expect(sayOf(notice('group-owner', about), 'Maya', useLocale())).toBe(owner);
+        expect(wordsOf(language).says, 'the worker says what the page says').toMatchObject({ 'group-request': messageOf(language, 'notify.groupRequest'), 'group-approved': messageOf(language, 'notify.groupApproved'), 'group-owner': messageOf(language, 'notify.groupOwner') });
+        useLocale().setLocale('en');
+    });
+
     it('sends somebody a host took out of a table to the games, not back to a table with no chair for them', () =>
     {
         expect(targetOf(notice('table-removed', { actor: 'maya.c', ref: { tableId: 't-1', game: 'ludo' } }))).toBe('/app/games');

@@ -15,6 +15,7 @@ import { Escrow } from './escrow.entity.ts';
 import { EpochArchive } from './epoch-archive.entity.ts';
 import { EpochKey } from './epoch-key.entity.ts';
 import { ChatFile } from './chat-file.entity.ts';
+import { NftToken } from './nft-token.entity.ts';
 import { Channel } from './channel.entity.ts';
 import { ChannelMember } from './channel-member.entity.ts';
 import { ChannelPost } from './channel-post.entity.ts';
@@ -78,7 +79,7 @@ export {
     Achievement, Avatar, Block, Channel, ChannelMember, ChannelPost, ChannelVote, ChatFile, Conversation, ConversationEpoch, ConversationMember, ConversationPin, Device, Discrepancy, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat, EstablishedPlayer,
     EpochArchive, FriendRequest, Friendship,
     Game, GameRule, Group, GroupBan, GroupEvent, GroupInvite, GroupMember, GroupMute, GroupRequest, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, Mute,
-    Notice, Notification, OwnedItem, PaidAccount, PlayerStats, PushSubscription,
+    NftToken, Notice, Notification, OwnedItem, PaidAccount, PlayerStats, PushSubscription,
     QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, Session, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
     UserAchievement, VoiceNote, VoicePlay, Wallet
 };
@@ -106,7 +107,7 @@ export const entities: Function[] = [
     Notification, PushSubscription,
     PaidAccount, TableStake, StakeConsent, Escrow, EscrowSeat,
     StaffMember, StaffAction, Suspension, Notice,
-    ShopItem, ShopCollection, ShopOrder, OwnedItem, EquippedItem,
+    ShopItem, ShopCollection, ShopOrder, OwnedItem, EquippedItem, NftToken,
     Donation, DonationsOff,
     Market, MarketPosition, MarketDisclosure,
     Discrepancy

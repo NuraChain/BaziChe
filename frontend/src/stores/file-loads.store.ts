@@ -2,7 +2,7 @@ import { createSignal, createStore, untrack } from 'azerothjs';
 
 import type { Message } from '../data/chat.ts';
 import { openFile, sniffShown } from '../lib/chat-file.ts';
-import { heldFile, holdFile, onFileHeld } from '../lib/file-held.ts';
+import { forgetFile, heldFile, holdFile, onFileHeld } from '../lib/file-held.ts';
 import { ChatFileError, chatFiles } from '../services/chat-files.ts';
 
 /**
@@ -24,6 +24,12 @@ export interface FileLoadsApi
 
     /** Fetches every one of several files that is neither here nor on its way, one after another, until the reader stops one. */
     all(messages: readonly Message[]): Promise<void>;
+
+    /** Fetches a message's file unless it is here, on its way or refused; answers whether it began a fetch. */
+    ensure(message: Message): boolean;
+
+    /** Lets go of a message's file: stopped if it is on its way, forgotten if it is here. */
+    forget(message: Message): void;
 
     reset(): void;
 }
@@ -193,6 +199,36 @@ export const useFileLoads = createStore((): FileLoadsApi =>
                 {
                     return;
                 }
+            }
+        },
+
+        ensure(message)
+        {
+            const id = message.file?.id;
+
+            if (id === undefined || heldFile(id) !== null || stops.has(id) || untrack(loads)[id] !== undefined)
+            {
+                return false;
+            }
+
+            void fetchOne(message);
+            return true;
+        },
+
+        forget(message)
+        {
+            const id = message.file?.id;
+
+            if (id === undefined)
+            {
+                return;
+            }
+
+            stops.get(id)?.abort();
+
+            if (heldFile(id) !== null)
+            {
+                forgetFile(id);
             }
         },
 

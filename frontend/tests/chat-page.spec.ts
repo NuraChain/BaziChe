@@ -9,7 +9,7 @@ import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetRuntime, runtime, setRuntime } from '../src/lib/runtime.ts';
 import '../src/locales/app-catalogue.ts';
 import { useCatalogue } from '../src/stores/catalogue.store.ts';
-import type { FileDraft } from '../src/data/chat.ts';
+import type { FileDraft, Message } from '../src/data/chat.ts';
 import { createApiSource } from '../src/services/chat.source.ts';
 import { setChatFiles } from '../src/services/chat-files.ts';
 import { setChatSource, useChat } from '../src/stores/chat.store.ts';
@@ -558,6 +558,29 @@ describe('an album sent from the page', () =>
         await vi.waitFor(() => expect(status()).toMatch(/^(sent|read)$/), { timeout: 4000 });
         expect(container.contains(bubble), 'the bubble it was').toBe(true);
         expect(container.querySelectorAll('[data-album]'), 'and still one').toHaveLength(1);
+    });
+
+    it('opens a photo of an album in the viewer, walking the thread it is in', async () =>
+    {
+        setChatFiles({ upload: () => Promise.resolve(), download: () => Promise.reject(new Error('not here')) });
+
+        const thread = server.conversations.find((row) => row.kind === 'direct')!;
+        const container = opened(thread.id, 'sidebar');
+
+        await vi.waitFor(() => expect(container.querySelector('#chat-thread textarea')).not.toBeNull(), { timeout: 4000 });
+        await useChat().sendAlbum(thread.id, [photo(), photo(), photo()], '');
+        await vi.waitFor(() => expect(container.querySelectorAll('[data-album] button[aria-label="Open the photo"]')).toHaveLength(3), { timeout: 4000 });
+
+        fire(container.querySelectorAll<HTMLButtonElement>('[data-album] button[aria-label="Open the photo"]')[1], 'click');
+        await vi.waitFor(() => expect(useOverlay().items()).toHaveLength(1), { timeout: 4000 });
+
+        const [viewer] = useOverlay().items();
+        const walked = (viewer.props.list as () => readonly Message[])().filter((one) => one.album !== undefined);
+
+        expect(walked.map((one) => one.id), 'the thread’s own lines').toEqual(useChat().messages().filter((one) => one.album !== undefined).map((one) => one.id));
+        expect(walked).toHaveLength(3);
+        expect((viewer.props.start as Message).album?.at, 'the second of them').toBe(1);
+        useOverlay().reset();
     });
 
     it('asks about the album it is about to delete whole', async () =>

@@ -1,21 +1,20 @@
 import type { Message } from '../../data/chat.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { plainOf } from '../../lib/markdown.ts';
+import { openViewer } from '../../lib/media-viewer.ts';
 import { useChat } from '../../stores/chat.store.ts';
 import { useFileLoads } from '../../stores/file-loads.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
-import { useOverlay } from '../../stores/overlay.store.ts';
-import { usePeople } from '../../stores/people.store.ts';
 import { FILE_FAULTS, thumbOf } from './file-parts.ts';
 import { sizeSaid, voiceClock } from './gist.ts';
-import FileViewer from './file-viewer.component.azeroth';
 import LazyMediaPlayer from './lazy-media-player.component.azeroth';
 
 /**
  * A photo or a video as it stands in its place, filling whatever box it is given: alone in its bubble
  * at its own proportions, or one of an album's tiles. Its thumb, blurred, with how large it is (and a
  * video how long) until it is pressed; a ring fills as it comes (a second press stops it); come, a
- * photo is shown and opens full screen and a video plays where it is. An album's tile says a video's
+ * photo is shown, a press opening it in the viewer, and a video plays where it is, its corner opening
+ * it there. An album's tile says a video's
  * length and nothing more, because a third of a phone's bubble cannot hold a size in every language,
  * and the line under the album says what they come to.
  */
@@ -24,8 +23,6 @@ export default component MediaTile(props: { message: Message; inAlbum?: boolean 
     const locale = useLocale();
     const chat = useChat();
     const loads = useFileLoads();
-    const overlay = useOverlay();
-    const people = usePeople();
 
     derived file = props.message.file!;
 
@@ -67,23 +64,8 @@ export default component MediaTile(props: { message: Message; inAlbum?: boolean 
         ? (loading ? locale.t('chat.file.cancel') : locale.t('chat.file.download', { name: file.name, size }))
         : locale.t(FILE_FAULTS[fault]);
 
-    derived from = (() =>
-    {
-        const person = people.byHandle(props.message.from);
-
-        return person === null ? props.message.from : locale.text(person.displayName);
-    })();
-
     /** What the video is called to a screen reader: its caption as a quote says it, or that it is a video. */
     derived named = props.message.text.trim() === '' ? locale.t('chat.video.label') : plainOf(locale.text(props.message.text), locale.t('chat.spoilerPreview'));
-
-    const view = () =>
-    {
-        if (url !== '')
-        {
-            overlay.open(FileViewer, { url, name: file.name, from }, { label: locale.t('chat.file.viewer', { name: from }), kind: 'modal' });
-        }
-    };
 
     <div class="absolute inset-0" data-tile={ file.id } data-as={ file.as } data-fault={ fault ?? undefined }>
         <Show when={ thumb !== null && !ready }>
@@ -91,13 +73,13 @@ export default component MediaTile(props: { message: Message; inAlbum?: boolean 
         </Show>
         <Show when={ ready && photo }>
             { () =>
-                <button type="button" class="absolute inset-0 cursor-zoom-in" aria-label={ locale.t('chat.file.open') } onClick={ view }>
+                <button type="button" class="absolute inset-0 cursor-zoom-in" aria-label={ locale.t('chat.file.open') } onClick={ () => void openViewer(props.message) }>
                     <img src={ url } alt={ props.message.text === '' ? file.name : props.message.text } class="h-full w-full object-cover" draggable={ false } />
                 </button>
             }
         </Show>
         <Show when={ ready && !photo }>
-            { () => <LazyMediaPlayer url={ url } label={ named } ms={ file.ms } /> }
+            { () => <LazyMediaPlayer url={ url } label={ named } ms={ file.ms } onOpen={ (from, playing) => void openViewer(props.message, { from, playing }) } /> }
         </Show>
         <Show when={ !ready }>
             { () =>

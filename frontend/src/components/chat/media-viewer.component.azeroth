@@ -1,0 +1,555 @@
+import { untrack } from 'azerothjs';
+
+import type { Message } from '../../data/chat.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { runtime } from '../../lib/runtime.ts';
+import { AT_REST, doubled, fitted, held, panBy, zoomAt, type Frame, type Point, type Size } from '../../lib/zoom.ts';
+import { useDevice } from '../../stores/device.store.ts';
+import { useFileLoads } from '../../stores/file-loads.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import RichText from './rich-text.component.azeroth';
+import ViewerMedia from './viewer-media.component.azeroth';
+
+/** How far across a finger goes before it takes the viewer to the next or the previous. */
+export const SWIPE = 60;
+
+/** How far down a drag goes before it closes the viewer. */
+export const DISMISS = 100;
+
+/** Two presses this close in time and place are one double press. */
+export const DOUBLE_MS = 300;
+
+const DOUBLE_PX = 24;
+
+/** How far a key zooms. */
+const KEY_ZOOM = 1.5;
+
+const BUTTON = 'flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-white hover:bg-white/15 focus-visible:outline-white coarse:h-11 coarse:w-11';
+
+/** A photo or a video the viewer can show: one this browser opened, with a picture or a film in it. */
+const viewable = (message: Message) => message.kind === 'file' && message.file !== undefined && message.file.as !== 'file' && message.locked === undefined;
+
+interface Gesture
+{
+    kind: 'pan' | 'swipe' | 'pinch';
+    x: number;
+    y: number;
+    frame: Frame;
+    spread: number;
+    middle: Point;
+}
+
+/**
+ * A photo or a video over the conversation, the whole window (MS-D24): its original, fetched then
+ * with how much has come; a photo zoomed by the wheel, a pinch, a double press or the keys, up to four
+ * times, and moved while zoomed; the next and the previous of the room's photos and videos by the
+ * arrows, a swipe or the buttons beside it, in the order the page reads; who sent it, when, its
+ * caption and Download; closed by Escape, a press beside it or a drag down, the keyboard going back
+ * where it was. A video plays in it with its player, large. The photos either side are fetched as it
+ * opens on one, and what it fetched and never showed is let go when it closes.
+ */
+export default component MediaViewer(props: OverlayProps & {
+    start: Message;
+
+    /** The thread it was opened from, whose photos and videos it walks. */
+    list: () => readonly Message[];
+
+    /** A video carried on from its bubble: where it was, and whether it was playing. */
+    from?: number;
+    playing?: boolean;
+})
+{
+    const locale = useLocale();
+    const loads = useFileLoads();
+    const people = usePeople();
+    const device = useDevice();
+
+    let stage: HTMLElement | null = null;
+
+    let gesture: Gesture | null = null;
+
+    let moved = false;
+
+    let tapped: { at: number; x: number; y: number } | null = null;
+
+    const pointers = new Map<number, { x: number; y: number }>();
+
+    /** What this viewer began fetching, and what it showed: the first and not the second is let go as it closes. */
+    const began = new Map<string, Message>();
+
+    const seen = new Set<string>();
+
+    state current = props.start.id;
+
+    state frame = AT_REST as Frame;
+
+    state drift = { x: 0, y: 0 };
+
+    state room = { w: 0, h: 0 } as Size;
+
+    state handed = true;
+
+    /** Whether the thread it opened from holds the one pressed: a post anywhere else is shown alone. */
+    const walking = untrack(() => props.list().some((one) => one.id === props.start.id));
+
+    derived items = walking
+        ? [...props.list().filter(viewable)].sort((a, b) => (a.at - b.at) || (a.id < b.id ? -1 : 1))
+        : [props.start];
+
+    derived index = items.findIndex((one) => one.id === current);
+
+    derived message = index < 0 ? null : items[index];
+
+    derived shownOne = message === null ? [] : [message];
+
+    derived file = message?.file ?? null;
+
+    derived photo = file?.as === 'photo';
+
+    derived state = message === null ? null : loads.stateOf(message);
+
+    derived url = state !== null && state.at === 'ready' ? state.url : '';
+
+    derived ready = url !== '';
+
+    derived size = fitted({ w: file?.w ?? 16, h: file?.h ?? 9 }, room);
+
+    derived zoomable = ready && photo;
+
+    derived transform = `translate(${ frame.x + drift.x }px, ${ frame.y + drift.y }px) scale(${ frame.scale })`;
+
+    derived dimmed = drift.y > 0 ? Math.max(0.35, 1 - drift.y / (DISMISS * 4)) : 1;
+
+    derived rtl = locale.dir() === 'rtl';
+
+    derived first = index <= 0;
+
+    derived last = index < 0 || index >= items.length - 1;
+
+    derived beside = !device.coarse();
+
+    derived sender = (() =>
+    {
+        if (message === null)
+        {
+            return '';
+        }
+
+        const person = people.byHandle(message.from);
+
+        return person === null ? message.from : locale.text(person.displayName);
+    })();
+
+    derived when = message === null ? '' : locale.date(message.at, { dateStyle: 'medium', timeStyle: 'short' });
+
+    derived count = locale.t('chat.viewer.count', { at: index + 1, count: items.length });
+
+    derived caption = message?.text ?? '';
+
+    derived captioned = caption.trim() !== '';
+
+    derived saving = file === null ? '' : locale.t('chat.file.save', { name: file.name });
+
+    derived name = file?.name ?? '';
+
+    const fetch = (one: Message | undefined) =>
+    {
+        if (one !== undefined && loads.ensure(one))
+        {
+            began.set(one.id, one);
+        }
+    };
+
+    // The one shown is fetched, and the photos either side of it, so the next is there when it is asked for.
+    effect
+    {
+        const shown = message;
+        const at = index;
+        const all = items;
+
+        if (shown === null)
+        {
+            return;
+        }
+
+        untrack(() =>
+        {
+            seen.add(shown.id);
+            fetch(shown);
+
+            for (const near of [all[at - 1], all[at + 1]])
+            {
+                if (near?.file?.as === 'photo')
+                {
+                    fetch(near);
+                }
+            }
+        });
+    }
+
+    // The one shown was taken away (deleted, or it ran out): there is nothing here to look at.
+    effect
+    {
+        if (index < 0)
+        {
+            untrack(() => props.close());
+        }
+    }
+
+    const go = (step: number) =>
+    {
+        const next = items[index + step];
+
+        if (next !== undefined)
+        {
+            current = next.id;
+            frame = AT_REST;
+            drift = { x: 0, y: 0 };
+            handed = false;
+        }
+    };
+
+    /** The next one is the way the page reads: to the right for a reader of English, to the left for one of Persian. */
+    const toward = (right: boolean) => go(right !== rtl ? 1 : -1);
+
+    const local = (x: number, y: number) =>
+    {
+        const box = stage?.getBoundingClientRect();
+
+        return box === undefined ? { x: 0, y: 0 } : { x: x - box.left - box.width / 2, y: y - box.top - box.height / 2 };
+    };
+
+    const measure = () =>
+    {
+        const box = stage?.getBoundingClientRect();
+
+        if (box !== undefined)
+        {
+            room = { w: box.width, h: box.height };
+            frame = held(frame, size, room);
+        }
+    };
+
+    const zoom = (factor: number, point: Point) =>
+    {
+        if (zoomable)
+        {
+            frame = zoomAt(frame, factor, point, size, room);
+        }
+    };
+
+    const spread = () =>
+    {
+        const [a, b] = [...pointers.values()];
+
+        return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+
+    const middle = () =>
+    {
+        const [a, b] = [...pointers.values()];
+
+        return local((a.x + b.x) / 2, (a.y + b.y) / 2);
+    };
+
+    const down = (event: PointerEvent) =>
+    {
+        const target = event.target instanceof Element ? event.target : null;
+
+        if ((event.pointerType === 'mouse' && event.button !== 0) || target?.closest('button, a') !== null && target?.closest('button, a') !== undefined)
+        {
+            return;
+        }
+
+        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        stage?.setPointerCapture?.(event.pointerId);
+
+        if (pointers.size === 2 && zoomable)
+        {
+            gesture = { kind: 'pinch', x: 0, y: 0, frame: frame, spread: spread(), middle: middle() };
+            moved = true;
+            return;
+        }
+
+        if (pointers.size === 1)
+        {
+            gesture = { kind: frame.scale > 1 ? 'pan' : 'swipe', x: event.clientX, y: event.clientY, frame: frame, spread: 0, middle: { x: 0, y: 0 } };
+            moved = false;
+        }
+    };
+
+    const move = (event: PointerEvent) =>
+    {
+        if (!pointers.has(event.pointerId) || gesture === null)
+        {
+            return;
+        }
+
+        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+        if (gesture.kind === 'pinch' && pointers.size === 2)
+        {
+            const now = middle();
+            const scaled = zoomAt(gesture.frame, spread() / Math.max(1, gesture.spread), gesture.middle, size, room);
+
+            frame = panBy(scaled, now.x - gesture.middle.x, now.y - gesture.middle.y, size, room);
+            return;
+        }
+
+        const dx = event.clientX - gesture.x;
+        const dy = event.clientY - gesture.y;
+
+        moved = moved || Math.abs(dx) + Math.abs(dy) > 6;
+
+        if (gesture.kind === 'pan')
+        {
+            frame = panBy(gesture.frame, dx, dy, size, room);
+        }
+        else if (gesture.kind === 'swipe')
+        {
+            drift = Math.abs(dx) >= Math.abs(dy) ? { x: dx, y: 0 } : { x: 0, y: Math.max(0, dy) };
+        }
+    };
+
+    /** A press that did not move: twice in one place is a double press on a photo; once beside the picture closes. */
+    const tap = (event: PointerEvent) =>
+    {
+        const target = event.target instanceof Element ? event.target : null;
+        const onMedia = target?.closest('[data-media]') !== null && target?.closest('[data-media]') !== undefined;
+        const now = runtime().clock.now();
+
+        if (event.pointerType !== 'mouse' && onMedia && zoomable && tapped !== null && now - tapped.at <= DOUBLE_MS && Math.hypot(event.clientX - tapped.x, event.clientY - tapped.y) <= DOUBLE_PX)
+        {
+            tapped = null;
+            frame = doubled(frame, local(event.clientX, event.clientY), size, room);
+            return;
+        }
+
+        tapped = { at: now, x: event.clientX, y: event.clientY };
+
+        if (!onMedia)
+        {
+            props.close();
+        }
+    };
+
+    const up = (event: PointerEvent) =>
+    {
+        if (!pointers.delete(event.pointerId) || gesture === null)
+        {
+            return;
+        }
+
+        const ended = gesture;
+
+        if (ended.kind === 'pinch')
+        {
+            const left = [...pointers.values()][0];
+
+            gesture = left === undefined ? null : { kind: 'pan', x: left.x, y: left.y, frame: frame, spread: 0, middle: { x: 0, y: 0 } };
+            return;
+        }
+
+        gesture = null;
+
+        if (ended.kind === 'swipe')
+        {
+            const across = drift.x;
+            const down = drift.y;
+
+            drift = { x: 0, y: 0 };
+
+            if (across <= -SWIPE || across >= SWIPE)
+            {
+                toward(across < 0);
+                return;
+            }
+
+            if (down >= DISMISS)
+            {
+                props.close();
+                return;
+            }
+        }
+
+        if (!moved)
+        {
+            tap(event);
+        }
+    };
+
+    const cancel = (event: PointerEvent) =>
+    {
+        pointers.delete(event.pointerId);
+        gesture = null;
+        drift = { x: 0, y: 0 };
+    };
+
+    const wheel = (event: WheelEvent) =>
+    {
+        if (!zoomable)
+        {
+            return;
+        }
+
+        event.preventDefault();
+        zoom(Math.exp(-event.deltaY * 0.002), local(event.clientX, event.clientY));
+    };
+
+    const twice = (event: MouseEvent) =>
+    {
+        const target = event.target instanceof Element ? event.target : null;
+
+        if (zoomable && target?.closest('[data-media]') !== null && target?.closest('[data-media]') !== undefined)
+        {
+            frame = doubled(frame, local(event.clientX, event.clientY), size, room);
+        }
+    };
+
+    const keys = (event: KeyboardEvent) =>
+    {
+        if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey)
+        {
+            return;
+        }
+
+        const act = (run: () => void) =>
+        {
+            event.preventDefault();
+            run();
+        };
+
+        if (event.key === 'ArrowRight' || event.key === 'ArrowLeft')
+        {
+            act(() => toward(event.key === 'ArrowRight'));
+        }
+        else if (zoomable && (event.key === '+' || event.key === '='))
+        {
+            act(() => zoom(KEY_ZOOM, { x: 0, y: 0 }));
+        }
+        else if (zoomable && event.key === '-')
+        {
+            act(() => zoom(1 / KEY_ZOOM, { x: 0, y: 0 }));
+        }
+        else if (zoomable && event.key === '0')
+        {
+            act(() => frame = AT_REST);
+        }
+    };
+
+    mount
+    {
+        const host = stage;
+
+        if (host === null)
+        {
+            return;
+        }
+
+        measure();
+
+        const watch = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+
+        watch?.observe(host);
+        window.addEventListener('resize', measure);
+        host.addEventListener('pointerdown', down);
+        host.addEventListener('pointermove', move);
+        host.addEventListener('pointerup', up);
+        host.addEventListener('pointercancel', cancel);
+        host.addEventListener('wheel', wheel, { passive: false });
+        host.addEventListener('dblclick', twice);
+
+        return () =>
+        {
+            watch?.disconnect();
+            window.removeEventListener('resize', measure);
+            host.removeEventListener('pointerdown', down);
+            host.removeEventListener('pointermove', move);
+            host.removeEventListener('pointerup', up);
+            host.removeEventListener('pointercancel', cancel);
+            host.removeEventListener('wheel', wheel);
+            host.removeEventListener('dblclick', twice);
+
+            for (const [id, one] of began)
+            {
+                if (!seen.has(id))
+                {
+                    loads.forget(one);
+                }
+            }
+        };
+    }
+
+    <div class="flex h-full w-full flex-col text-white" onKeyDown={ keys } data-viewer style={ () => `background-color: rgb(0 0 0 / ${ dimmed })` }>
+        <header class="flex shrink-0 items-center gap-2 px-2 pb-1 pt-2" data-top>
+            <button type="button" class={ BUTTON } aria-label={ locale.t('chat.file.close') } onClick={ () => props.close() } data-close>
+                <Icon name="close" size={ 20 } />
+            </button>
+            <div class="min-w-0 flex-1">
+                <p class="truncate text-ui-sm font-semibold" dir="auto" data-sender>{ sender }</p>
+                <p class="truncate text-ui-2xs text-white/70" data-when>{ when }</p>
+            </div>
+            <span class="shrink-0 px-1 text-ui-xs font-medium tabular-nums text-white/80" aria-live="polite" data-count>{ count }</span>
+            <a
+                href={ ready ? url : undefined }
+                download={ name }
+                class={ () => [ BUTTON, ready ? '' : 'pointer-events-none opacity-40' ].filter(Boolean).join(' ') }
+                aria-label={ saving }
+                aria-disabled={ ready ? undefined : 'true' }
+                data-save
+            >
+                <Icon name="download" size={ 20 } />
+            </a>
+        </header>
+
+        <div ref={ (element) => stage = element } class="relative min-h-0 flex-1 touch-none select-none overflow-hidden" data-stage>
+            <For each={ shownOne } key={ (one) => one.id } let={ one }>
+                <div class="absolute inset-0" data-shown={ () => one.id }>
+                    <ViewerMedia
+                        message={ one }
+                        size={ size }
+                        transform={ transform }
+                        from={ handed ? props.from : undefined }
+                        playing={ handed ? props.playing : undefined }
+                    />
+                </div>
+            </For>
+            <Show when={ beside && !first }>
+                { () =>
+                    <button
+                        type="button"
+                        class={ () => [ BUTTON, 'absolute top-1/2 -translate-y-1/2 bg-black/40', rtl ? 'right-2' : 'left-2' ].join(' ') }
+                        aria-label={ locale.t('chat.viewer.previous') }
+                        onClick={ () => go(-1) }
+                        data-previous
+                    >
+                        <Icon name={ rtl ? 'chevron-right' : 'chevron-left' } size={ 22 } />
+                    </button>
+                }
+            </Show>
+            <Show when={ beside && !last }>
+                { () =>
+                    <button
+                        type="button"
+                        class={ () => [ BUTTON, 'absolute top-1/2 -translate-y-1/2 bg-black/40', rtl ? 'left-2' : 'right-2' ].join(' ') }
+                        aria-label={ locale.t('chat.viewer.next') }
+                        onClick={ () => go(1) }
+                        data-next
+                    >
+                        <Icon name={ rtl ? 'chevron-left' : 'chevron-right' } size={ 22 } />
+                    </button>
+                }
+            </Show>
+        </div>
+
+        <Show when={ captioned }>
+            { () =>
+                <div class="max-h-[30dvh] shrink-0 overflow-y-auto px-4 pb-3 pt-2 text-ui-sm" data-caption>
+                    <RichText text={ caption } />
+                </div>
+            }
+        </Show>
+    </div>
+}

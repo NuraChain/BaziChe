@@ -14,6 +14,7 @@ import { routes } from '../src/routes.ts';
 import { ChatFileError, setChatFiles } from '../src/services/chat-files.ts';
 import { useFileLoads } from '../src/stores/file-loads.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
+import { useOverlay } from '../src/stores/overlay.store.ts';
 import '../src/locales/app-catalogue.ts';
 
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
@@ -93,6 +94,7 @@ afterEach(() =>
     cleanup();
     setChatFiles(null);
     forgetFile();
+    useOverlay().reset();
 });
 
 describe('a file’s size, said', () =>
@@ -154,6 +156,45 @@ describe('a file in its bubble', () =>
         expect(player.querySelector('video')?.hasAttribute('controls'), 'none of the browser’s').toBe(false);
         expect(player.getAttribute('aria-label'), 'a spoiler kept hidden').toBe('Our (spoiler)');
         expect(player.querySelector('[data-clock]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('0:00 / 0:42');
+    });
+
+    it('opens a photo that has come in the viewer, over the whole window, at a press', async () =>
+    {
+        const message = await sent();
+        const container = show(message);
+
+        fire(container.querySelector('[data-download]')!, 'click');
+        await vi.waitFor(() => expect(container.querySelector('button[aria-label="Open the photo"]')).not.toBeNull());
+        fire(container.querySelector('button[aria-label="Open the photo"]')!, 'click');
+
+        await vi.waitFor(() => expect(useOverlay().items()).toHaveLength(1), { timeout: 4000 });
+
+        const [viewer] = useOverlay().items();
+
+        expect([viewer.id, viewer.kind, viewer.label, (viewer.props.start as Message).id]).toEqual(['media-viewer', 'full', 'Photos and videos', 'm-1']);
+        expect(viewer.props.from, 'nothing carried for a photo').toBeUndefined();
+    });
+
+    it('opens a video in the viewer from its corner, where it was and playing if it was', async () =>
+    {
+        const film = new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d, ...Array.from({ length: 300 }, (_, at) => at % 100)]);
+        const container = show(await sent({ as: 'video', mime: 'video/mp4', ms: 42_000, w: 1920, h: 1080 }, {}, film));
+
+        fire(container.querySelector('[data-download]')!, 'click');
+        await vi.waitFor(() => expect(container.querySelector('[data-player] [data-big]')).not.toBeNull(), { timeout: 4000 });
+
+        const video = container.querySelector('video')!;
+
+        fire(container.querySelector('[data-big]')!, 'click');
+        video.currentTime = 4;
+        video.dispatchEvent(new Event('timeupdate'));
+        fire(container.querySelector('[data-corner]')!, 'click');
+
+        await vi.waitFor(() => expect(useOverlay().items()).toHaveLength(1), { timeout: 4000 });
+
+        const [viewer] = useOverlay().items();
+
+        expect([viewer.props.from, viewer.props.playing, video.paused]).toEqual([4, true, true]);
     });
 
     it('says a video’s length beside its size', async () =>

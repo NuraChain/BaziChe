@@ -1,0 +1,108 @@
+import type { Message } from '../../data/chat.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { plainOf } from '../../lib/markdown.ts';
+import type { Size } from '../../lib/zoom.ts';
+import { useFileLoads } from '../../stores/file-loads.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { FILE_FAULTS, thumbOf } from './file-parts.ts';
+import LazyMediaPlayer from './lazy-media-player.component.azeroth';
+
+/**
+ * The photo or the video the viewer shows, drawn whole at the size the viewer gives it and moved as
+ * it says: the original once it has come, the video with its player large; until then its thumb,
+ * blurred, with how much has come, or why it cannot come and Try again.
+ */
+export default component ViewerMedia(props: {
+    message: Message;
+    size: Size;
+    transform: string;
+
+    /** A video carried on from its bubble: where it was, and whether it was playing. */
+    from?: number;
+    playing?: boolean;
+})
+{
+    const locale = useLocale();
+    const loads = useFileLoads();
+
+    derived file = props.message.file!;
+
+    derived photo = file.as === 'photo';
+
+    derived state = loads.stateOf(props.message);
+
+    derived url = state !== null && state.at === 'ready' ? state.url : '';
+
+    derived ready = url !== '';
+
+    derived fraction = state !== null && state.at === 'loading' ? state.fraction : 0;
+
+    derived fault = state !== null && state.at === 'fault' ? state.fault : null;
+
+    derived faulted = fault !== null;
+
+    derived retry = fault === 'failed';
+
+    derived thumb = thumbOf(file.thumb);
+
+    derived blurred = thumb !== null;
+
+    derived named = props.message.text.trim() === ''
+        ? (photo ? locale.t('chat.viewer.photo') : locale.t('chat.video.label'))
+        : plainOf(locale.text(props.message.text), locale.t('chat.spoilerPreview'));
+
+    derived failure = fault === null ? '' : locale.t(FILE_FAULTS[fault]);
+
+    derived retrying = locale.t('common.retry');
+
+    derived coming = locale.t('chat.viewer.coming', { percent: locale.n(fraction, { style: 'percent' }) });
+
+    <div
+        class="absolute left-1/2 top-1/2 [translate:-50%_-50%]"
+        style={ () => `width: ${ props.size.w }px; height: ${ props.size.h }px; transform: ${ props.transform }` }
+        data-media={ file.id }
+    >
+        <Show when={ ready && photo }>
+            { () => <img src={ url } alt={ named } draggable={ false } class="h-full w-full select-none object-contain" data-original /> }
+        </Show>
+        <Show when={ ready && !photo }>
+            { () => <LazyMediaPlayer url={ url } label={ named } ms={ file.ms } large from={ props.from } playing={ props.playing } /> }
+        </Show>
+        <Show when={ !ready }>
+            { () =>
+                <span class="absolute inset-0 overflow-hidden">
+                    <Show when={ blurred }>
+                        { () => <img src={ thumb ?? '' } alt="" class="absolute inset-0 h-full w-full scale-105 object-cover blur-xl" aria-hidden="true" /> }
+                    </Show>
+                    <span class="absolute inset-0 flex items-center justify-center p-4">
+                        <Show
+                            when={ faulted }
+                            fallback={
+                                <span class="flex flex-col items-center gap-2 rounded-tile bg-black/55 px-4 py-3 text-ui-xs font-medium tabular-nums text-white" role="status" data-coming>
+                                    <span class="h-1 w-32 overflow-hidden rounded-full bg-white/30">
+                                        <span class="block h-full rounded-full bg-white" style={ () => `width: ${ (fraction * 100).toFixed(1) }%` }></span>
+                                    </span>
+                                    { coming }
+                                </span>
+                            }
+                        >
+                            { () =>
+                                <span class="flex max-w-xs flex-col items-center gap-2 rounded-tile bg-black/70 px-4 py-3 text-center text-ui-sm text-white" role="alert" data-fault={ fault ?? '' }>
+                                    <Icon name="alert" size={ 20 } />
+                                    { failure }
+                                    <Show when={ retry }>
+                                        { () =>
+                                            <button type="button" class="cursor-pointer rounded-full px-3 py-1 font-semibold underline-offset-2 hover:underline coarse:min-h-11" onClick={ () => loads.toggle(props.message) } data-retry>
+                                                { retrying }
+                                            </button>
+                                        }
+                                    </Show>
+                                </span>
+                            }
+                        </Show>
+                    </span>
+                </span>
+            }
+        </Show>
+    </div>
+}

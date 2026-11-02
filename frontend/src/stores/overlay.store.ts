@@ -2,7 +2,7 @@ import { createStore, createSignal, type Getter, type MountNode } from 'azerothj
 
 import { runtime } from '../lib/runtime.ts';
 
-export type OverlayKind = 'auto' | 'sheet' | 'modal' | 'popover';
+export type OverlayKind = 'auto' | 'sheet' | 'modal' | 'popover' | 'full';
 
 export type OverlayPhase = 'opening' | 'open' | 'closing';
 

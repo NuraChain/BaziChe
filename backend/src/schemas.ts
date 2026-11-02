@@ -3132,7 +3132,10 @@ export const notificationKind = enumOf([
     'gift',
 
     /** Somebody watching a game the reader plays gave them NURA, and the gift is theirs now. */
-    'donation'
+    'donation',
+
+    /** Somebody put the reader in a channel; `channelId` is its slug, as a group's `groupId` is. */
+    'channel-invite'
 ]);
 
 export type NotificationKind = Infer<typeof notificationKind>;
@@ -3148,6 +3151,7 @@ export const notificationRef = object({
     conversationId: string().optional(),
     tableId: string().optional(),
     groupId: string().optional(),
+    channelId: string().optional(),
     requestId: string().optional(),
     personId: string().optional(),
     game: string().optional(),

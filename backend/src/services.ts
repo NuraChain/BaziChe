@@ -3168,6 +3168,16 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 const other = await personNamed(handle);
                 const invited = await channels.invite(me, slug, other.id);
 
+                if (invited.arrived)
+                {
+                    await courtesy('channel invite notice', () => tell({
+                        userId: other.id,
+                        kind: 'channel-invite',
+                        actorId: me,
+                        ref: { channelId: invited.channel.slug },
+                        dedupeKey: `channel:${ invited.id }`
+                    }));
+                }
                 await ringChannel(invited.id);
                 return invited.channel;
             },
@@ -3177,6 +3187,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 const other = await personNamed(handle);
                 const after = await channels.remove(me, slug, other.id);
 
+                await courtesy('channel invite retraction', () => retract(other.id, 'channel-invite', `channel:${ after.id }`));
                 await ringChannel(after.id, other.id);
                 return after.channel;
             },

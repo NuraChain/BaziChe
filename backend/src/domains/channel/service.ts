@@ -467,11 +467,14 @@ export function createChannelService(db: DataSource, social: SocialService, orig
                     : 'They are not taking invitations from people they have not added.');
             }
 
-            await db.query(
-                `insert into channel_members (channel_id, user_id, role) values ($1, $2, 'member') on conflict do nothing`,
+            const seated = rowsOf<{ user_id: string }>(await db.query(
+                `insert into channel_members (channel_id, user_id, role) values ($1, $2, 'member')
+                 on conflict do nothing returning user_id`,
                 [found.id, otherId]
-            );
-            return { channel: await viewOf(me, slug), id: found.id };
+            ));
+
+            // `arrived` is whether they were seated now: somebody already in is not told again.
+            return { channel: await viewOf(me, slug), id: found.id, arrived: seated.length > 0 };
         },
 
         /**

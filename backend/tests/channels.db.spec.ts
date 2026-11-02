@@ -204,7 +204,8 @@ describe.skipIf(!active)('channels, against a real database', () =>
         const [owner, member, friendly, closedOff] = [await makeUser(), await makeUser(), await makeUser(), await makeUser()];
         const channel = await made(owner, 'private');
 
-        await channels.invite(owner, channel.slug, member);
+        expect((await channels.invite(owner, channel.slug, member)).arrived, 'seated now, so told').toBe(true);
+        expect((await channels.invite(owner, channel.slug, member)).arrived, 'already in, so not told again').toBe(false);
         await db.query('update users set allow_stranger_messages = false where id = $1', [closedOff]);
 
         expect((await channels.invite(member, channel.slug, friendly)).channel.memberCount).toBe(3);

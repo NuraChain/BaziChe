@@ -14,7 +14,8 @@ export const NOTICE_OF: Readonly<Record<string, Notice>> = {
     'invite-played': 'inviting',
     'invite-reward': 'inviting',
     'gift': 'gifts',
-    'donation': 'gifts'
+    'donation': 'gifts',
+    'channel-invite': 'groups'
 };
 
 export const isNotice = (value: string): value is Notice => (NOTICES as readonly string[]).includes(value);

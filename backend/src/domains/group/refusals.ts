@@ -10,7 +10,8 @@ export const GROUP_REFUSALS = {
     'group-quiet': 403,
     'group-no-media': 403,
     'group-picture': 422,
-    'group-rights': 422
+    'group-rights': 422,
+    'group-link': 404
 } as const satisfies Record<string, 403 | 404 | 409 | 422>;
 
 export type GroupRefusal = keyof typeof GROUP_REFUSALS;

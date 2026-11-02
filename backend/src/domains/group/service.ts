@@ -1,9 +1,12 @@
+import { randomBytes } from 'node:crypto';
+
 import { ConflictError, ForbiddenError, HttpError, NotFoundError, ValidationError } from '@azerothjs/http';
 import type { DataSource, EntityManager } from 'typeorm';
 
 import { ConversationMember } from '../../entities/conversation-member.entity.ts';
 import { GroupBan } from '../../entities/group-ban.entity.ts';
 import { GroupEvent } from '../../entities/group-event.entity.ts';
+import { GroupInvite } from '../../entities/group-invite.entity.ts';
 import { GroupMember } from '../../entities/group-member.entity.ts';
 import { GroupMute } from '../../entities/group-mute.entity.ts';
 import { GroupRequest } from '../../entities/group-request.entity.ts';
@@ -15,7 +18,7 @@ import { folded, likeLiteral, SEARCH_FROM, searchNeedle } from '../social/names.
 import type { SocialService } from '../social/service.ts';
 import { GROUP_REFUSALS, type GroupRefusal } from './refusals.ts';
 import {
-    GROUP_LOG_PAGE, GROUP_RIGHTS, MEMBERS_PAGE, SWITCH_COLUMNS, SWITCH_DEFAULTS, SWITCHES, mayIn, outranks,
+    GROUP_LOG_PAGE, GROUP_RIGHTS, LINK_TOKEN, MEMBERS_PAGE, SWITCH_COLUMNS, SWITCH_DEFAULTS, SWITCHES, mayIn, outranks,
     type GroupAct, type GroupEventKind, type GroupRight, type GroupRole, type GroupSwitches
 } from './roles.ts';
 import { candidatesFor, checkSlug, slugFromName } from './slug.ts';
@@ -50,6 +53,10 @@ export interface GroupRow
 
     /** The rights this viewer holds, when they are an admin. */
     rights: GroupRight[] | null;
+
+    /** Whether this viewer waits for an answer to a request to join, and how many wait for whoever may answer. */
+    requested: boolean;
+    request_count: number;
 
     /** Whether a mute is in force on this viewer, and until when when it ends by itself. */
     muted: boolean;
@@ -92,6 +99,23 @@ export interface EventRow
     at_key: string;
 }
 
+export interface LinkRow
+{
+    id: string;
+    token: string;
+    by: string | null;
+    created_at: Date;
+    expires_at: Date | null;
+    max_uses: number | null;
+    uses: number;
+    approval: boolean;
+    revoked_at: Date | null;
+    live: boolean;
+}
+
+/** What a link lets its holder do: they are in, may join, may ask, have asked, or are kept out. */
+export type LinkState = 'member' | 'join' | 'request' | 'requested' | 'banned';
+
 /** What a change to a person's place answers: whether anything changed, and from what. */
 export interface Changed
 {
@@ -112,6 +136,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const UNIQUE_VIOLATION = '23505';
 
+/** The most links a group's list shows, and the most requests its queue does. */
+const LINKS_MOST = 100;
+const REQUESTS_MOST = 200;
+
 /** The switch columns in their order, and the values a new group starts with in the same order. */
 const SWITCH_LIST = SWITCHES.map((name) => SWITCH_COLUMNS[name]).join(', ');
 
@@ -125,6 +153,9 @@ const apart = (viewer: string, other: string) => `not exists (select 1 from bloc
                             or (b.user_id = ${ other } and b.blocked_id = ${ viewer }))`;
 
 const LIVE_MUTE = `(m.until is null or m.until > now())`;
+
+/** A link that still brings people in: not revoked, not past its end, not used up. */
+const LIVE_LINK = `(i.revoked_at is null and (i.expires_at is null or i.expires_at > now()) and (i.max_uses is null or i.uses < i.max_uses))`;
 
 /**
  * The columns every group read returns, parameterised by the viewer.
@@ -154,6 +185,11 @@ const GROUP_COLUMNS = `
       where m.group_id = g.id and m.user_id = $1 and ${ LIVE_MUTE })        as muted_until,
 
     (select count(*)::int from group_members gm where gm.group_id = g.id)   as member_count,
+
+    exists (select 1 from group_requests r
+             where r.group_id = g.id and r.user_id = $1)                   as requested,
+
+    (select count(*)::int from group_requests r where r.group_id = g.id)  as request_count,
 
     (select coalesce(array_agg(f.handle order by f.rank desc, f.since nulls last, f.joined, f.handle), '{}')
        from (select u.handle::text as handle, ${ rankOf('gm') } as rank, gm.role_since as since, gm.joined_at as joined
@@ -585,7 +621,7 @@ export function createGroupService(db: DataSource, social: SocialService)
          * Returns false when this account was already in it, so the caller can stay quiet rather
          * than announcing an arrival that did not happen. Somebody the group keeps out is told so.
          */
-        async join(me: string, groupId: string)
+        async join(me: string, groupId: string): Promise<'joined' | 'already' | 'requested'>
         {
             if ((await one(me, groupId)) === null)
             {
@@ -594,19 +630,28 @@ export function createGroupService(db: DataSource, social: SocialService)
 
             return db.transaction(async (tx) =>
             {
-                await lockGroup(tx, groupId);
+                const { group } = await lockGroup(tx, groupId);
 
                 if (await banned(tx, groupId, me))
                 {
                     throw refused('group-banned', 'You cannot join this group.');
                 }
 
-                const arrived = await seatIn(tx, groupId, me);
-                if (arrived)
+                if (await standingIn(tx, me, groupId) !== null)
                 {
-                    await record(tx, groupId, { id: me, role: 'member' }, 'joined', null, { by: 'join' });
+                    return 'already';
                 }
-                return arrived;
+
+                // A public group that asks first takes a request, which waits for whoever may answer.
+                if (group.approval)
+                {
+                    await tx.query('insert into group_requests (group_id, user_id) values ($1, $2) on conflict do nothing', [groupId, me]);
+                    return 'requested';
+                }
+
+                await seatIn(tx, groupId, me);
+                await record(tx, groupId, { id: me, role: 'member' }, 'joined', null, { by: 'join' });
+                return 'joined';
             });
         },
 
@@ -1039,6 +1084,260 @@ export function createGroupService(db: DataSource, social: SocialService)
                 });
                 return { changed: true };
             });
+        },
+
+        /** A link that brings people in, made by whoever may make them: an end, a limit of uses, and whether it asks first. */
+        async makeLink(me: string, groupId: string, input: { hours: number | null; uses: number | null; approval: boolean }): Promise<string>
+        {
+            return db.transaction(async (tx) =>
+            {
+                const { switches } = await lockGroup(tx, groupId);
+                const actor = await actorIn(tx, me, groupId);
+                must(actor, switches, 'links');
+
+                const inserted = await tx.query(
+                    `insert into group_invites (group_id, token, created_by, expires_at, max_uses, approval)
+                     values ($1, $2, $3, case when $4::int is null then null else now() + make_interval(hours => $4::int) end, $5, $6)
+                     returning id`,
+                    [groupId, randomBytes(16).toString('base64url'), me, input.hours, input.uses, input.approval]
+                );
+                const id = rowsOf<{ id: string }>(inserted)[0].id;
+
+                await record(tx, groupId, { id: me, role: actor.role }, 'invite', null, {
+                    to: 'made',
+                    link: id,
+                    approval: input.approval ? 'on' : 'off',
+                    ...(input.hours === null ? {} : { hours: String(input.hours) }),
+                    ...(input.uses === null ? {} : { uses: String(input.uses) })
+                });
+                return id;
+            });
+        },
+
+        /** The group's links, newest first, for whoever may make them; null for anybody else. */
+        async links(me: string, groupId: string): Promise<LinkRow[] | null>
+        {
+            const found = await one(me, groupId);
+            if (found === null || found.role === null || !mayIn({ role: found.role, rights: found.rights }, switchesOf(found), 'links'))
+            {
+                return null;
+            }
+
+            return rowsOf<LinkRow>(await db.query(
+                `select i.id, i.token, u.handle::text as by, i.created_at, i.expires_at, i.max_uses, i.uses, i.approval, i.revoked_at,
+                        ${ LIVE_LINK } as live
+                   from group_invites i left join users u on u.id = i.created_by
+                  where i.group_id = $1
+                  order by i.created_at desc, i.id desc
+                  limit $2`,
+                [groupId, LINKS_MOST]
+            ));
+        },
+
+        /** Stops a link bringing anybody in. One already stopped, or past its end, changes nothing. */
+        async revokeLink(me: string, groupId: string, linkId: string): Promise<Changed>
+        {
+            return db.transaction(async (tx) =>
+            {
+                const { switches } = await lockGroup(tx, groupId);
+                const actor = await actorIn(tx, me, groupId);
+                must(actor, switches, 'links');
+
+                if (!UUID.test(linkId) || !await tx.getRepository(GroupInvite).existsBy({ id: linkId, groupId }))
+                {
+                    throw new NotFoundError('No such link.');
+                }
+
+                const revoked = rowsOf<{ id: string }>(await tx.query(
+                    `update group_invites set revoked_at = greatest(now(), created_at)
+                      where id = $1 and revoked_at is null
+                      returning id`,
+                    [linkId]
+                ));
+                if (revoked.length === 0)
+                {
+                    return { changed: false };
+                }
+
+                await record(tx, groupId, { id: me, role: actor.role }, 'invite', null, { to: 'revoked', link: linkId });
+                return { changed: true };
+            });
+        },
+
+        /**
+         * What a link opens onto, for anybody signed in who holds it: the group as its members see
+         * its face, and what the reader can do. A link that is no link, ended, used up or revoked is
+         * null, one answer for all of them. A private group is seen through its link and only through it.
+         */
+        async byLink(me: string, token: string): Promise<{ row: GroupRow; can: LinkState } | null>
+        {
+            if (!LINK_TOKEN.test(token))
+            {
+                return null;
+            }
+
+            const link = firstRow<{ group_id: string; approval: boolean }>(await db.query(
+                `select i.group_id, i.approval from group_invites i where i.token = $1 and ${ LIVE_LINK }`,
+                [token]
+            ));
+            if (link === null)
+            {
+                return null;
+            }
+
+            const row = firstRow<GroupRow>(await db.query(`select ${ GROUP_COLUMNS } from groups g where g.id = $2`, [me, link.group_id]));
+            if (row === null)
+            {
+                return null;
+            }
+
+            const kept = await db.getRepository(GroupBan).existsBy({ groupId: link.group_id, userId: me });
+            const asked = await db.getRepository(GroupRequest).existsBy({ groupId: link.group_id, userId: me });
+
+            const can: LinkState = row.role !== null ? 'member' : kept ? 'banned' : asked ? 'requested' : link.approval ? 'request' : 'join';
+            return { row, can };
+        },
+
+        /**
+         * Comes in by a link: seated when the link lets anybody in, a request when it asks first. A use
+         * is counted in the statement that admits the person, so a limit cannot be raced past.
+         */
+        async joinByLink(me: string, token: string): Promise<{ row: GroupRow; came: 'member' | 'joined' | 'requested' }>
+        {
+            const link = LINK_TOKEN.test(token)
+                ? firstRow<{ id: string; group_id: string; approval: boolean }>(await db.query(
+                    `select i.id, i.group_id, i.approval from group_invites i where i.token = $1 and ${ LIVE_LINK }`,
+                    [token]
+                ))
+                : null;
+
+            if (link === null)
+            {
+                throw refused('group-link', 'That invite link no longer works.');
+            }
+
+            return db.transaction(async (tx) =>
+            {
+                await lockGroup(tx, link.group_id);
+
+                // The face is read here, in the change's own transaction, because the link is what lets
+                // its holder see the group: a private group's asker could not read it by its id.
+                const face = async () => firstRow<GroupRow>(await tx.query(`select ${ GROUP_COLUMNS } from groups g where g.id = $2`, [me, link.group_id]))!;
+
+                if (await standingIn(tx, me, link.group_id) !== null)
+                {
+                    return { row: await face(), came: 'member' as const };
+                }
+                if (await banned(tx, link.group_id, me))
+                {
+                    throw refused('group-banned', 'You cannot join this group.');
+                }
+
+                if (link.approval)
+                {
+                    await tx.query(
+                        `insert into group_requests (group_id, user_id, invite_id) values ($1, $2, $3) on conflict do nothing`,
+                        [link.group_id, me, link.id]
+                    );
+                    return { row: await face(), came: 'requested' as const };
+                }
+
+                const used = rowsOf<{ id: string }>(await tx.query(
+                    `update group_invites i set uses = uses + 1 where i.id = $1 and ${ LIVE_LINK } returning i.id`,
+                    [link.id]
+                ));
+                if (used.length === 0)
+                {
+                    throw refused('group-link', 'That invite link no longer works.');
+                }
+
+                await seatIn(tx, link.group_id, me);
+                await record(tx, link.group_id, { id: me, role: 'member' }, 'joined', null, { by: 'link', link: link.id });
+                return { row: await face(), came: 'joined' as const };
+            });
+        },
+
+        /** Who waits to be let in, the longest waiting first, for whoever may answer. */
+        async requests(me: string, groupId: string): Promise<{ user_id: string; created_at: Date; by_link: boolean }[] | null>
+        {
+            const found = await one(me, groupId);
+            if (found === null || found.role === null || !mayIn({ role: found.role, rights: found.rights }, switchesOf(found), 'approve'))
+            {
+                return null;
+            }
+
+            return rowsOf<{ user_id: string; created_at: Date; by_link: boolean }>(await db.query(
+                `select r.user_id, r.created_at, r.invite_id is not null as by_link
+                   from group_requests r join users u on u.id = r.user_id
+                  where r.group_id = $1 and u.is_suspended = false
+                  order by r.created_at, r.user_id
+                  limit $2`,
+                [groupId, REQUESTS_MOST]
+            ));
+        },
+
+        /**
+         * Lets somebody in or turns them away. Let in, they are seated and a use of the link they came
+         * by is counted while it still has one; either way the request goes, and an answer to a request
+         * that is not there changes nothing.
+         */
+        async answer(me: string, groupId: string, otherId: string, approve: boolean): Promise<Changed & { seated: boolean; left: number }>
+        {
+            return db.transaction(async (tx) =>
+            {
+                const { switches } = await lockGroup(tx, groupId);
+                const actor = await actorIn(tx, me, groupId);
+                must(actor, switches, 'approve');
+
+                const request = UUID.test(otherId)
+                    ? await tx.getRepository(GroupRequest).findOne({ where: { groupId, userId: otherId }, lock: { mode: 'pessimistic_write' } })
+                    : null;
+
+                if (request === null)
+                {
+                    return { changed: false, seated: false, left: await tx.getRepository(GroupRequest).countBy({ groupId }) };
+                }
+
+                await tx.getRepository(GroupRequest).delete({ groupId, userId: otherId });
+
+                if (approve)
+                {
+                    await seatIn(tx, groupId, otherId);
+                    if (request.inviteId !== null)
+                    {
+                        await tx.query(`update group_invites i set uses = uses + 1 where i.id = $1 and ${ LIVE_LINK }`, [request.inviteId]);
+                    }
+                    await record(tx, groupId, { id: me, role: actor.role }, 'request', otherId, { to: 'approved' });
+                }
+                else
+                {
+                    await record(tx, groupId, { id: me, role: actor.role }, 'request', otherId, { to: 'declined' });
+                }
+
+                return { changed: true, seated: approve, left: await tx.getRepository(GroupRequest).countBy({ groupId }) };
+            });
+        },
+
+        /** Takes back one's own request. */
+        async withdraw(me: string, groupId: string): Promise<Changed & { left: number }>
+        {
+            if (!UUID.test(groupId))
+            {
+                return { changed: false, left: 0 };
+            }
+            const gone = await db.getRepository(GroupRequest).delete({ groupId, userId: me });
+            return { changed: (gone.affected ?? 0) > 0, left: await db.getRepository(GroupRequest).countBy({ groupId }) };
+        },
+
+        /** Everybody who may answer a request: the owner and the admins holding `approve`. */
+        async approvers(groupId: string): Promise<string[]>
+        {
+            const rows = await db.getRepository(GroupMember).createQueryBuilder('gm')
+                .select('gm.user_id', 'user_id')
+                .where('gm.group_id = :groupId', { groupId })
+                .andWhere(`(gm.role = 'owner' or (gm.role = 'admin' and 'approve' = any(gm.rights)))`)
+                .getRawMany<{ user_id: string }>();
+            return rows.map((row) => row.user_id);
         },
 
         /**

@@ -69,8 +69,11 @@ import type {
     Device,
     RecoveryState,
     Challenge as DeviceChallenge,
+    GroupLinkFace,
+    GroupLinks,
     GroupLog,
     GroupMembers,
+    GroupRequests,
     GroupPrivacy,
     GroupSummary,
     GroupSwitchesWire,
@@ -280,6 +283,23 @@ export interface GroupPort
 
     /** Who is kept out, for whoever may lift a ban; null for anybody else. */
     banned(me: string, slug: string): Promise<{ people: { person: PersonSummary; at: string }[] } | null>;
+
+    /** The group's links, for whoever may make them; null for anybody else. */
+    links(me: string, slug: string): Promise<GroupLinks | null>;
+    makeLink(me: string, slug: string, input: { hours?: number; uses?: number; approval: boolean }): Promise<GroupLinks>;
+    revokeLink(me: string, slug: string, id: string): Promise<GroupLinks>;
+
+    /** What a link opens onto; a link that no longer works is refused in one way whatever ended it. */
+    byLink(me: string, token: string): Promise<GroupLinkFace>;
+    joinByLink(me: string, token: string): Promise<GroupLinkFace>;
+
+    /** Takes back one's own request through the link it was asked by, which is how a private group's asker reaches it. */
+    withdrawByLink(me: string, token: string): Promise<GroupLinkFace>;
+
+    /** Who waits to be let in, for whoever may answer; null for anybody else. */
+    requests(me: string, slug: string): Promise<GroupRequests | null>;
+    answer(me: string, slug: string, input: { id: string; approve: boolean }): Promise<GroupSummary>;
+    withdraw(me: string, slug: string): Promise<GroupSummary>;
 
     join(me: string, slug: string): Promise<GroupSummary>;
 

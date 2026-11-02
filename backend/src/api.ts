@@ -153,14 +153,19 @@ import {
     deviceRef,
     enrolInput,
     gameList,
+    groupAnswerInput,
     groupBanned,
     groupCreateInput,
     groupEditInput,
+    groupLinkFace,
+    groupLinkInput,
+    groupLinks,
     groupList,
     groupLog,
     groupMembers,
     groupMembersQuery,
     groupMuteInput,
+    groupRequests,
     groupRoleInput,
     groupSummary,
     groupSwitchesInput,
@@ -1086,7 +1091,57 @@ export function buildApi(ports: Ports)
                     throw new NotFoundError('No group there.');
                 }
                 return kept;
-            })
+            }),
+
+            links: routes.get('/:slug/links', { output: groupLinks }, async (context) =>
+            {
+                const links = await ports.group.links(context.principal.userId, context.params.slug);
+                if (links === null)
+                {
+                    throw new NotFoundError('No group there.');
+                }
+                return links;
+            }),
+
+            makeLink: routes.post('/:slug/links', { input: groupLinkInput, output: groupLinks },
+                (context) => ports.group.makeLink(context.principal.userId, context.params.slug, context.input)),
+
+            revokeLink: routes.post('/:slug/links/:linkId/revoke', { output: groupLinks },
+                (context) => ports.group.revokeLink(context.principal.userId, context.params.slug, context.params.linkId)),
+
+            /** Who waits to be let in, and a page that is not there to anybody who may not answer. */
+            requests: routes.get('/:slug/requests', { output: groupRequests }, async (context) =>
+            {
+                const waiting = await ports.group.requests(context.principal.userId, context.params.slug);
+                if (waiting === null)
+                {
+                    throw new NotFoundError('No group there.');
+                }
+                return waiting;
+            }),
+
+            answer: routes.post('/:slug/requests/answer', { input: groupAnswerInput, output: groupSummary },
+                (context) => ports.group.answer(context.principal.userId, context.params.slug, context.input)),
+
+            withdraw: routes.post('/:slug/requests/withdraw', { output: groupSummary },
+                (context) => ports.group.withdraw(context.principal.userId, context.params.slug))
+        })),
+
+        /**
+         * A group's invitation link, opened by somebody signed in.
+         *
+         * Apart from `/groups`, because a token is not a slug and the group it opens may be one its
+         * holder could not otherwise see. A link that no longer works answers in one way whatever ended it.
+         */
+        groupLinks: feature('/group-links', [session], (routes) => ({
+            face: routes.get('/:token', { output: groupLinkFace },
+                (context) => ports.group.byLink(context.principal.userId, context.params.token)),
+
+            join: routes.post('/:token/join', { output: groupLinkFace },
+                (context) => ports.group.joinByLink(context.principal.userId, context.params.token)),
+
+            withdraw: routes.post('/:token/withdraw', { output: groupLinkFace },
+                (context) => ports.group.withdrawByLink(context.principal.userId, context.params.token))
         })),
 
         /**

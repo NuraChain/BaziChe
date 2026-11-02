@@ -14,8 +14,8 @@ import { createPeerDevices, type PeerDeviceRow } from './domains/device/peers.ts
 import { namesDevice } from './domains/device/resource.ts';
 import { createRecoveryService } from './domains/device/recovery-service.ts';
 import { createDeviceService, type DeviceRow } from './domains/device/service.ts';
-import { createGroupService, refused as refusedInGroup, switchesOf, type GroupRow } from './domains/group/service.ts';
-import { MUTE_HOURS } from './domains/group/roles.ts';
+import { createGroupService, refused as refusedInGroup, switchesOf, type GroupRow, type LinkRow } from './domains/group/service.ts';
+import { LINK_HOURS, LINK_USES, MUTE_HOURS, mayIn } from './domains/group/roles.ts';
 import { createNotifyService, type NotificationRow } from './domains/notify/service.ts';
 import { isNotice, NOTICE_OF, type Notice } from './domains/notify/notices.ts';
 import { sendPush, type VapidKeys } from './domains/notify/push.ts';
@@ -561,6 +561,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         {
             summary.game = row.game;
         }
+        if (row.requested)
+        {
+            summary.requested = true;
+        }
         if (row.role !== null)
         {
             summary.role = row.role;
@@ -572,6 +576,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             if (row.muted)
             {
                 summary.muted = row.muted_until === null ? {} : { until: row.muted_until.toISOString() };
+            }
+            if (mayIn({ role: row.role, rights: row.rights }, switchesOf(row), 'approve'))
+            {
+                summary.requests = row.request_count;
             }
 
             // Only a member is given the thread. A non-member holding the id could not read it -
@@ -673,6 +681,56 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         }
         live?.socialChanged(...await group.memberIds(row.id), ...also);
     };
+
+    /** A link as its makers see it, with the address to share on this server. */
+    const asLink = (row: LinkRow) => ({
+        id: row.id,
+        link: `${ config.origin }/app/g/${ row.token }`,
+        ...(row.by === null ? {} : { by: row.by }),
+        at: row.created_at.toISOString(),
+        ...(row.expires_at === null ? {} : { ends: row.expires_at.toISOString() }),
+        ...(row.max_uses === null ? {} : { most: row.max_uses }),
+        uses: row.uses,
+        approval: row.approval,
+        ...(row.revoked_at === null ? {} : { revoked: row.revoked_at.toISOString() }),
+        live: row.live
+    });
+
+    /** Somebody asked to join: everybody who may answer is told, and rung with the asker. */
+    const askedToJoin = (row: GroupRow, asker: string) => courtesy('group request notices', async () =>
+    {
+        const approvers = (await group.approvers(row.id)).filter((id) => id !== asker);
+
+        for (const approver of approvers)
+        {
+            await tell({
+                userId: approver,
+                kind: 'group-request',
+                actorId: asker,
+                ref: { groupId: row.slug },
+                dedupeKey: `group-request:${ row.id }`
+            });
+        }
+        live?.socialChanged(asker, ...approvers);
+    });
+
+    /** A queue of requests that has emptied takes back what told the staff of it. */
+    const quieted = (row: GroupRow, left: number) => left > 0 ? Promise.resolve() : courtesy('group request notices', async () =>
+    {
+        for (const approver of await group.approvers(row.id))
+        {
+            await retract(approver, 'group-request', `group-request:${ row.id }`);
+        }
+    });
+
+    /** Somebody a group was handed to is told whose it was. */
+    const toldOwner = (row: GroupRow, from: string, to: string) => courtesy('group owner notice', () => tell({
+        userId: to,
+        kind: 'group-owner',
+        actorId: from,
+        ref: { groupId: row.slug },
+        dedupeKey: `group-owner:${ row.id }`
+    }));
 
     /** Somebody added to a group is told, as an addition always was. */
     const toldAdded = (row: GroupRow, actor: string, otherId: string) => courtesy('group added notice', () => tell({
@@ -3228,13 +3286,17 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             async join(me, slug)
             {
                 const found = await mustSee(me, slug);
-                const arrived = await group.join(me, found.id);
+                const came = await group.join(me, found.id);
 
                 const after = await reread(me, found.id);
-                if (arrived)
+                if (came === 'joined')
                 {
                     await announce(after, me, 'joined', {});
                     await ring(after);
+                }
+                if (came === 'requested')
+                {
+                    await askedToJoin(after, me);
                 }
                 return asGroup(after);
             },
@@ -3252,6 +3314,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 if (outcome.newOwner !== null)
                 {
                     await announce(found, null, 'owner', { who: outcome.newOwner });
+                }
+                if (outcome.heirId !== null)
+                {
+                    await toldOwner(found, me, outcome.heirId);
                 }
                 if (found.conversation_id !== null)
                 {
@@ -3305,6 +3371,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 if (handed.changed)
                 {
                     await announce(after, me, 'owner', { who: other.handle });
+                    await toldOwner(after, me, other.id);
                     await ring(after);
                 }
                 return asGroup(after);
@@ -3483,6 +3550,150 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                         return person === undefined || viewer === null ? [] : [{ person: seenBy(viewer, person, 'none'), at: row.created_at.toISOString() }];
                     })
                 };
+            },
+
+            async links(me, slug)
+            {
+                const found = await mustSee(me, slug);
+                const rows = await group.links(me, found.id);
+                return rows === null ? null : { links: rows.map(asLink) };
+            },
+
+            async makeLink(me, slug, input)
+            {
+                if (input.hours !== undefined && !(LINK_HOURS as readonly number[]).includes(input.hours))
+                {
+                    throw new ValidationError({ hours: 'An hour, a day or a week.' }, 'That is not how long a link works.');
+                }
+                if (input.uses !== undefined && !(LINK_USES as readonly number[]).includes(input.uses))
+                {
+                    throw new ValidationError({ uses: 'Once, ten times or a hundred.' }, 'That is not how often a link can be used.');
+                }
+
+                const found = await mustSee(me, slug);
+                await group.makeLink(me, found.id, { hours: input.hours ?? null, uses: input.uses ?? null, approval: input.approval });
+                return { links: ((await group.links(me, found.id)) ?? []).map(asLink) };
+            },
+
+            async revokeLink(me, slug, id)
+            {
+                const found = await mustSee(me, slug);
+                await group.revokeLink(me, found.id, id);
+                return { links: ((await group.links(me, found.id)) ?? []).map(asLink) };
+            },
+
+            async byLink(me, token)
+            {
+                const found = await group.byLink(me, token);
+                if (found === null)
+                {
+                    throw refusedInGroup('group-link', 'That invite link no longer works.');
+                }
+                return { group: asGroup(found.row), can: found.can };
+            },
+
+            async joinByLink(me, token)
+            {
+                const { row, came } = await group.joinByLink(me, token);
+
+                if (came === 'joined')
+                {
+                    await announce(row, me, 'joined', {});
+                    await ring(row);
+                }
+                if (came === 'requested')
+                {
+                    await askedToJoin(row, me);
+                }
+                return { group: asGroup(row), can: came === 'requested' ? 'requested' : 'member' };
+            },
+
+            async withdrawByLink(me, token)
+            {
+                const found = await group.byLink(me, token);
+                if (found === null)
+                {
+                    throw refusedInGroup('group-link', 'That invite link no longer works.');
+                }
+
+                const taken = await group.withdraw(me, found.row.id);
+                if (taken.changed)
+                {
+                    await quieted(found.row, taken.left);
+                    await ring(found.row, me);
+                }
+
+                const after = await group.byLink(me, token);
+                if (after === null)
+                {
+                    throw refusedInGroup('group-link', 'That invite link no longer works.');
+                }
+                return { group: asGroup(after.row), can: after.can };
+            },
+
+            async requests(me, slug)
+            {
+                const found = await mustSee(me, slug);
+                const rows = await group.requests(me, found.id);
+                if (rows === null)
+                {
+                    return null;
+                }
+
+                const viewer = await social.person(me);
+                const people = new Map((await social.peopleOf(rows.map((row) => row.user_id))).map((row) => [row.id, row]));
+                const friends = new Set((await social.friends(me)).map((row) => row.id));
+
+                return {
+                    requests: rows.flatMap((row) =>
+                    {
+                        const person = people.get(row.user_id);
+                        return person === undefined || viewer === null
+                            ? []
+                            : [{ person: seenBy(viewer, person, friends.has(person.id) ? 'friend' : 'none'), at: row.created_at.toISOString(), byLink: row.by_link }];
+                    })
+                };
+            },
+
+            async answer(me, slug, input)
+            {
+                const found = await mustSee(me, slug);
+                const other = await someone(input.id);
+
+                const answered = await group.answer(me, found.id, other.id, input.approve);
+                const after = await reread(me, found.id);
+
+                if (answered.changed)
+                {
+                    if (answered.seated)
+                    {
+                        await announce(after, me, 'joined', { who: other.handle });
+                        await courtesy('group approved notice', () => tell({
+                            userId: other.id,
+                            kind: 'group-approved',
+                            actorId: me,
+                            ref: { groupId: after.slug },
+                            dedupeKey: `group-approved:${ after.id }`
+                        }));
+                    }
+                    await quieted(after, answered.left);
+                    await ring(after, other.id);
+                }
+                return asGroup(after);
+            },
+
+            async withdraw(me, slug)
+            {
+                const found = await mustSee(me, slug);
+                const taken = await group.withdraw(me, found.id);
+                const after = await reread(me, found.id);
+
+                if (taken.changed)
+                {
+                    await quieted(after, taken.left);
+                    await ring(after, me);
+                }
+                return asGroup(after);
             }
         },
 

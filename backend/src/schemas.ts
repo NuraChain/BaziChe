@@ -2076,6 +2076,12 @@ export const groupSummary = object({
     /** A mute in force on this viewer. */
     muted: groupMuted.optional(),
 
+    /** That this viewer waits for an answer to a request to join. */
+    requested: literal(true).optional(),
+
+    /** How many wait for an answer, to whoever may give one. */
+    requests: number().optional(),
+
     /** Up to six members, the staff first: who the card and the head draw. */
     faces: array(string()),
 
@@ -2187,6 +2193,48 @@ export const groupLog = object({ rows: array(groupLogRow), cursor: string().opti
 export type GroupLog = Infer<typeof groupLog>;
 
 export const groupBanned = object({ people: array(object({ person: personSummary, at: string() })) });
+
+/** A link made to bring people into a group: an end in hours and a limit of uses, each from a short list, and whether it asks first. */
+export const groupLinkInput = object({
+    hours: number({ int: true }).optional(),
+    uses: number({ int: true }).optional(),
+    approval: boolean()
+});
+
+export const groupLink = object({
+    id: string(),
+
+    /** The whole address to share, this server's own. */
+    link: string(),
+    by: string().optional(),
+    at: string(),
+    ends: string().optional(),
+    most: number().optional(),
+    uses: number(),
+    approval: boolean(),
+    revoked: string().optional(),
+
+    /** Whether it still brings anybody in. */
+    live: boolean()
+});
+
+export const groupLinks = object({ links: array(groupLink) });
+
+export type GroupLinks = Infer<typeof groupLinks>;
+
+/** What a link opens onto: the group as its holder may see it, and what they can do. */
+export const groupLinkFace = object({
+    group: groupSummary,
+    can: enumOf(['member', 'join', 'request', 'requested', 'banned'])
+});
+
+export type GroupLinkFace = Infer<typeof groupLinkFace>;
+
+export const groupRequests = object({ requests: array(object({ person: personSummary, at: string(), byLink: boolean() })) });
+
+export type GroupRequests = Infer<typeof groupRequests>;
+
+export const groupAnswerInput = object({ id: string({ min: 1, max: 32 }), approve: boolean() });
 
 /* ------------------------------------------------------------------------ tables */
 

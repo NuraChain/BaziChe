@@ -184,8 +184,8 @@ describe.skipIf(!active)('groups, against a real database', () =>
             const group = await make(owner, 'Twice');
             const id = (await groups.bySlug(owner, group.slug))!.id;
 
-            expect(await groups.join(joiner, id)).toBe(true);
-            expect(await groups.join(joiner, id)).toBe(false);
+            expect(await groups.join(joiner, id)).toBe('joined');
+            expect(await groups.join(joiner, id)).toBe('already');
         });
 
         it('takes a leaver out of the conversation as well as the group', async () =>

@@ -1,4 +1,5 @@
 import type { GameId } from './games.ts';
+import { SEATS } from './seats.ts';
 import { CLOCK_DEFAULT, type ClockId } from '../../../backend/src/domains/table/clocks.ts';
 import { teamsOf, type Partners } from '../../../backend/src/domains/table/teams.ts';
 import type { VoiceScope } from '../../../backend/src/domains/table/voices.ts';
@@ -63,11 +64,11 @@ export interface TableRules
 }
 
 export const TABLE_RULES: Record<GameId, TableRules> = {
-    hokm: { seats: [2, 3, 4], modes: ['live', 'turns'], targets: [7, 13], stakes: 'none', partners: 'required', hasCube: false, hasBlinds: false, clocks: [] },
-    poker: { seats: [2, 6, 9], modes: ['live'], targets: [], stakes: 'play-money', partners: 'none', hasCube: false, hasBlinds: true, clocks: [] },
-    backgammon: { seats: [2], modes: ['live', 'turns'], targets: [1, 3, 5], stakes: 'none', partners: 'none', hasCube: true, hasBlinds: false, clocks: [] },
-    ludo: { seats: [2, 3, 4], modes: ['live', 'turns'], targets: [], stakes: 'none', partners: 'optional', hasCube: false, hasBlinds: false, clocks: [] },
-    chess: { seats: [2], modes: ['live', 'turns'], targets: [], stakes: 'none', partners: 'none', hasCube: false, hasBlinds: false, clocks: ['3+2', '5+0', '10+0', '15+10', '30+0'] }
+    hokm: { seats: SEATS.hokm, modes: ['live', 'turns'], targets: [7, 13], stakes: 'none', partners: 'required', hasCube: false, hasBlinds: false, clocks: [] },
+    poker: { seats: SEATS.poker, modes: ['live'], targets: [], stakes: 'play-money', partners: 'none', hasCube: false, hasBlinds: true, clocks: [] },
+    backgammon: { seats: SEATS.backgammon, modes: ['live', 'turns'], targets: [1, 3, 5], stakes: 'none', partners: 'none', hasCube: true, hasBlinds: false, clocks: [] },
+    ludo: { seats: SEATS.ludo, modes: ['live', 'turns'], targets: [], stakes: 'none', partners: 'optional', hasCube: false, hasBlinds: false, clocks: [] },
+    chess: { seats: SEATS.chess, modes: ['live', 'turns'], targets: [], stakes: 'none', partners: 'none', hasCube: false, hasBlinds: false, clocks: ['3+2', '5+0', '10+0', '15+10', '30+0'] }
 };
 
 export function defaultTable(game: GameId): TableConfig

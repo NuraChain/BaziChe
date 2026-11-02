@@ -1,12 +1,12 @@
 import type { Game } from '../../data/games.ts';
-import { TABLE_RULES } from '../../data/tables.ts';
+import { SEATS } from '../../data/seats.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 
 export default component SeatCount(props: { game: Game; class?: string })
 {
     const locale = useLocale();
 
-    derived seats = TABLE_RULES[props.game.id].seats;
+    derived seats = SEATS[props.game.id];
 
     derived run = seats.every((count, index) => index === 0 || count === seats[index - 1] + 1);
 

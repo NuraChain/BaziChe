@@ -125,7 +125,8 @@ const MUST_BE_LAZY = [
     { match: /\/connect-dialog\.component\.azeroth$/, why: 'public-shell imports connect-dialog dynamically' },
     { match: /-board(\.component)?\.(ts|azeroth)$/, why: 'a board renderer — dynamic import inside mount, only once a match is running' },
     { match: /^src\/api\.ts$/, why: 'the typed api client — its top-level await fetches the route manifest' },
-    { match: /^src\/locales\/fa\/landing\.ts$/, why: 'the Persian landing catalogue — loaded only for a Persian reader' }
+    { match: /^src\/locales\/fa\/landing\.ts$/, why: 'the Persian landing catalogue — loaded only for a Persian reader' },
+    { match: /^src\/data\/tables\.ts$/, why: 'a table\'s rules, with the server\'s clocks and teams behind them — the landing reads its seat counts from data/seats.ts' }
 ];
 
 const CHUNK_MODULES = join(DIST, '.vite', 'chunks.json');

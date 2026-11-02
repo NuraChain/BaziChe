@@ -637,6 +637,8 @@ describe('chat store', () =>
             react: () => Promise.resolve(),
             edit: () => Promise.resolve(),
             remove: () => Promise.resolve(),
+            pinLine: () => Promise.resolve(),
+            unpinLine: () => Promise.resolve(),
             openDirect: () => Promise.reject(new Error('offline')),
             archive: () => [],
             reset: () => undefined
@@ -665,6 +667,8 @@ describe('chat store', () =>
             react: (...args) => live.react(...args),
             edit: (...args) => live.edit(...args),
             remove: (...args) => live.remove(...args),
+            pinLine: (...args) => live.pinLine(...args),
+            unpinLine: (...args) => live.unpinLine(...args),
             openDirect: (scope, personId, at) => live.openDirect(scope, personId, at),
             archive: (scope) => live.archive(scope),
             reset: () => live.reset()
@@ -732,6 +736,8 @@ describe('chat store', () =>
             react: (...args) => live.react(...args),
             edit: (...args) => live.edit(...args),
             remove: (...args) => live.remove(...args),
+            pinLine: (...args) => live.pinLine(...args),
+            unpinLine: (...args) => live.unpinLine(...args),
             openDirect: (scope, personId, at) => live.openDirect(scope, personId, at),
             archive: (scope) => live.archive(scope),
             reset: () => live.reset()
@@ -1693,5 +1699,135 @@ describe('a line the reader edits', () =>
 
         expect(chat.editing('c-reza')).toBeNull();
         expect(chat.replyTo('c-reza')).toBeNull();
+    });
+});
+
+describe('a line pinned at the head of its room', () =>
+{
+    const holding = () =>
+    {
+        let release: () => void = () => undefined;
+
+        server.holdChat = new Promise<void>((resolve) =>
+        {
+            release = resolve;
+        });
+
+        return () =>
+        {
+            server.holdChat = null;
+            release();
+        };
+    };
+
+    const opened = async (id: string) =>
+    {
+        const chat = useChat();
+
+        chat.openThread(id);
+        await chat.refresh();
+    };
+
+    const theirs = () => useChat().messages().find((one) => one.kind === 'text' && one.from !== 'alex')!;
+
+    const pinned = () => useChat().linePins().map((one) => one.id);
+
+    it('is shown only in the room it was pressed in, while the server has not answered', async () =>
+    {
+        const chat = useChat();
+
+        await opened('c-reza');
+
+        const line = theirs();
+        const release = holding();
+        const pinning = chat.pinLine(line);
+
+        expect(pinned(), 'at the press').toEqual([line.id]);
+
+        chat.closeThread();
+        await opened('c-parisa');
+
+        expect(pinned(), 'never in another room').toEqual([]);
+
+        release();
+        await pinning;
+
+        chat.closeThread();
+        await opened('c-reza');
+
+        expect(pinned(), 'the server holds it').toEqual([line.id]);
+    });
+
+    it('carries what the reader does to the line, at the press: new words, and gone with it', async () =>
+    {
+        const chat = useChat();
+
+        await opened('c-reza');
+        await chat.send('c-reza', 'pinned words');
+        await chat.refresh();
+
+        const line = chat.messages().find((one) => one.text === 'pinned words')!;
+
+        await chat.pinLine(line);
+
+        const release = holding();
+        const editing = chat.edit(line, 'changed words');
+
+        expect(chat.linePins()[0]?.text, 'the pin says the new words at the press').toBe('changed words');
+
+        release();
+        await editing;
+
+        const again = holding();
+        const removing = chat.remove(chat.messages().find((one) => one.id === line.id)!);
+
+        expect(pinned(), 'gone with its line at the press').toEqual([]);
+
+        again();
+        await removing;
+    });
+
+    it('keeps a pin the server took while the read after it fails, and believes the next read that lands', async () =>
+    {
+        const live = createApiSource();
+        let failing = false;
+        const chat = useChat();
+
+        setChatSource({ ...live, thread: (...args) => (failing ? Promise.reject(new Error('offline')) : live.thread(...args)) });
+        await opened('c-reza');
+
+        const line = theirs();
+
+        failing = true;
+        await chat.pinLine(line);
+
+        expect(pinned(), 'the server took it, and no read says otherwise').toEqual([line.id]);
+
+        server.linePins['c-reza'] = [];
+        failing = false;
+        await chat.refresh();
+
+        expect(pinned(), 'unpinned elsewhere meanwhile').toEqual([]);
+    });
+
+    it('forgets a pin still on its way when it is reset', async () =>
+    {
+        const chat = useChat();
+
+        await opened('c-reza');
+
+        const line = theirs();
+        const release = holding();
+
+        void chat.pinLine(line).catch(() => undefined);
+        expect(pinned()).toEqual([line.id]);
+
+        chat.reset();
+        server.holdChat = null;
+        await opened('c-reza');
+
+        expect(pinned(), 'nothing the server was not told').toEqual([]);
+
+        release();
     });
 });

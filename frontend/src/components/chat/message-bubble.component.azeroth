@@ -17,7 +17,6 @@ import { useDevice } from '../../stores/device.store.ts';
 import { useEmojiPop } from '../../stores/emoji-pop.store.ts';
 import { useSettings } from '../../stores/settings.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
-import type { MessageKey } from '../../locales/en.ts';
 import Avatar from '../ui/avatar.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
@@ -29,15 +28,7 @@ import RichText from './rich-text.component.azeroth';
 import { jumboOf } from '../../lib/markdown-dom.ts';
 import { STATUS_ICON, STATUS_WORDS } from './status.ts';
 import type { MenuPoint } from './actions.ts';
-
-const LOCKED: Record<MessageLock, MessageKey> = {
-    'unknown-sender': 'locked.unknownSender',
-    'bad-signature': 'locked.badSignature',
-    'no-key': 'locked.noKey',
-    'no-epoch-key': 'locked.noEpochKey',
-    tampered: 'locked.tampered',
-    expired: 'expiry.locked'
-};
+import { LOCKED } from './locked.ts';
 
 const ALARMING: MessageLock[] = ['bad-signature', 'tampered'];
 

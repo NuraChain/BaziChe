@@ -1,4 +1,4 @@
-import type { GroupSummary } from '../../api.ts';
+import { ApiError, type GroupSummary } from '../../api.ts';
 import type { Person } from '../../data/person.ts';
 import type { GameId } from '../../data/games.ts';
 import type { Conversation } from '../../data/chat.ts';
@@ -114,7 +114,9 @@ export function sealSentenceOf(
 {
     if (!(error instanceof SealFailure))
     {
-        return translate(whyGroup(error));
+        return error instanceof ApiError && error.code === 'pins-full'
+            ? translate('chat.pins.full')
+            : translate(whyGroup(error));
     }
 
     if (error.failure === 'no-keys')

@@ -394,7 +394,7 @@ describe('a voice message played', () =>
 
         return {
             ...real,
-            thread: async () => ({ messages: [theirs, { ...theirs, id: 'v-2', from: 'alex' }], earlier: false }),
+            thread: async () => ({ messages: [theirs, { ...theirs, id: 'v-2', from: 'alex' }], earlier: false, pins: [] }),
             played: async (conversationId, messageId) =>
             {
                 told.push(`${ conversationId }:${ messageId }`);

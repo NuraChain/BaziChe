@@ -80,6 +80,13 @@ export interface ChatApi
     earlierLoading: Getter<boolean>;
     earlier(): void;
 
+    /** The open thread's pinned lines, newest first, with what the reader did to them still in flight laid over them. */
+    linePins: Getter<Message[]>;
+
+    /** Pins a line at the head of its room, or lets it go from there: shown at the press, taken back when refused. */
+    pinLine(message: Message): Promise<void>;
+    unpinLine(message: Message): Promise<void>;
+
     lastOf(id: string): Message | undefined;
     unread(id: string): number;
     totalUnread: Getter<number>;
@@ -204,6 +211,7 @@ export const useChat = createStore((): ChatApi =>
     const [uploads, setUploads] = createSignal<Record<string, number>>({});
 
     const guesses = createGuesses<Message[]>();
+    const pinGuesses = createGuesses<Message[]>();
 
     const [pages, setPages] = createSignal(1);
 
@@ -359,6 +367,12 @@ export const useChat = createStore((): ChatApi =>
 
     const hasEarlier = () => thread.data()?.earlier === true;
 
+    /**
+     * A pin is a line of the thread, so what the reader did to a line still in flight shows on its pin
+     * too: new words, or gone with the line.
+     */
+    const linePins = () => guesses.over(pinGuesses.over(thread.data()?.pins ?? []));
+
     const threadLoading = createMemo(() => thread.loading() && thread.data()?.id !== openId());
 
     const lastOf = (id: string) =>
@@ -392,6 +406,7 @@ export const useChat = createStore((): ChatApi =>
     function tidy()
     {
         guesses.landed();
+        pinGuesses.landed();
         setOutbox((current) => (current.some((one) => one.state === 'sent' && landed(one.message))
             ? current.filter((one) => one.state !== 'sent' || !landed(one.message))
             : current));
@@ -668,6 +683,26 @@ export const useChat = createStore((): ChatApi =>
             {
                 setDepth((current) => current + THREAD_PAGE);
             }
+        },
+
+        linePins,
+
+        async pinLine(message)
+        {
+            await pinGuesses.during(
+                (list) => (openId() === message.conversationId ? [message, ...list.filter((one) => one.id !== message.id)] : list),
+                () => active.pinLine(message.conversationId, message.id),
+                reread
+            );
+        },
+
+        async unpinLine(message)
+        {
+            await pinGuesses.during(
+                (list) => list.filter((one) => one.id !== message.id),
+                () => active.unpinLine(message.conversationId, message.id),
+                reread
+            );
         },
 
         lastOf,
@@ -1074,6 +1109,7 @@ export const useChat = createStore((): ChatApi =>
             setOutbox([]);
             setUploads({});
             guesses.clear();
+            pinGuesses.clear();
             era += 1;
             inFlight = Promise.resolve();
             posting = Promise.resolve();

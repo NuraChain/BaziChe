@@ -1,0 +1,52 @@
+import type { Message } from '../../data/chat.ts';
+import IconButton from '../ui/icon-button.component.azeroth';
+import { useLocale } from '../../stores/locale.store.ts';
+import { gistOf } from './gist.ts';
+import { LOCKED } from './locked.ts';
+
+/** How many marks say where the pin shown stands among them; past that the marks follow it along. */
+const MARKS = 4;
+
+/**
+ * A room's pinned line under its head: the newest first, a press taking the thread to it and the bar
+ * on to the one pinned before it, and the way to unpin it for whoever may.
+ */
+export default component PinBar(props: {
+    message: Message;
+
+    /** Which pin is shown, the newest being 0, and how many there are. */
+    at: number;
+    count: number;
+    onGo: () => void;
+    onUnpin?: () => void;
+})
+{
+    const locale = useLocale();
+
+    derived gist = props.message.locked === undefined ? gistOf(props.message, locale) : locale.t(LOCKED[props.message.locked]);
+
+    derived heading = props.count > 1 ? locale.t('chat.pins.of', { at: props.at + 1, count: props.count }) : locale.t('chat.pins.one');
+
+    derived first = props.count <= MARKS ? 0 : Math.min(Math.max(props.at - 1, 0), props.count - MARKS);
+
+    derived marks = Array.from({ length: Math.min(props.count, MARKS) }, (_, index) => first + index);
+
+    derived unpinnable = props.onUnpin !== undefined;
+
+    <div class="pointer-events-auto flex items-center gap-1 rounded-[1.375rem] border border-line/70 bg-void/35 p-1 shadow-[var(--shadow-2)] backdrop-blur-xl backdrop-saturate-150" data-pin-bar>
+        <button type="button" class="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-[1.125rem] px-2.5 py-1 text-start hover:bg-raised/60" onClick={ () => props.onGo() }>
+            <span class="flex h-8 w-0.75 shrink-0 flex-col gap-0.5" aria-hidden="true">
+                <For each={ marks } key={ (mark) => mark } let={ mark }>
+                    <span class={ () => [ 'min-h-0 flex-1 rounded-full', mark === props.at ? 'bg-accent' : 'bg-line-strong' ].join(' ') } data-pin-mark={ mark === props.at ? 'shown' : 'other' } />
+                </For>
+            </span>
+            <span class="flex min-w-0 flex-1 flex-col">
+                <span class="text-ui-xs font-semibold text-accent" data-pin-heading>{ heading }</span>
+                <span class="truncate text-ui-sm text-text" dir="auto" data-pin-gist>{ gist }</span>
+            </span>
+        </button>
+        <Show when={ unpinnable }>
+            <IconButton icon="pin-off" label={ locale.t('chat.unpin') } variant="ghost" onClick={ () => props.onUnpin?.() } />
+        </Show>
+    </div>
+}

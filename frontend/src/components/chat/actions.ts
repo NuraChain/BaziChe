@@ -20,6 +20,10 @@ export interface LineHandlers
 
     /** Handed only for a line the reader may still edit: their own words, within two days. */
     onEdit?: () => void;
+
+    /** Handed only where the reader may pin in the room, the one of the two the line's place calls for. */
+    onPin?: () => void;
+    onUnpin?: () => void;
     onForward?: () => void;
     onDelete?: () => void;
 
@@ -42,6 +46,16 @@ export function messageActions(say: (key: MessageKey) => string, message: Messag
     if (mine && handlers.onEdit !== undefined)
     {
         list.push({ id: 'edit', icon: 'edit', label: say('chat.edit'), run: handlers.onEdit });
+    }
+
+    if (handlers.onPin !== undefined)
+    {
+        list.push({ id: 'pin', icon: 'pin', label: say('chat.pin'), run: handlers.onPin });
+    }
+
+    if (handlers.onUnpin !== undefined)
+    {
+        list.push({ id: 'unpin', icon: 'pin-off', label: say('chat.unpin'), run: handlers.onUnpin });
     }
 
     if (message.kind !== 'voice' && (message.kind !== 'file' || message.text.trim() !== ''))

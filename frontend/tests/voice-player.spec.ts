@@ -247,7 +247,7 @@ const source = (): ChatSource =>
 
     return {
         ...real,
-        thread: async () => ({ messages: lines, earlier: false }),
+        thread: async () => ({ messages: lines, earlier: false, pins: [] }),
         played: async (conversationId, messageId) =>
         {
             told.push(`${ conversationId }:${ messageId }`);

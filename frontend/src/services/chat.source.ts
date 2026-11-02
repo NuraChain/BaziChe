@@ -75,6 +75,9 @@ export interface ThreadPage
 {
     messages: Message[];
     earlier: boolean;
+
+    /** The room's pinned lines, newest first, as its first page names them. */
+    pins: Message[];
 }
 
 export interface ConversationPage
@@ -123,6 +126,10 @@ export interface ChatSource
     /** Seals new words for a line of the reader's, to last exactly as long as the line does. */
     edit(conversationId: string, from: string, target: string, text: string, at: number, expiresAt: number): Promise<void>;
     remove(conversationId: string, messageId: string): Promise<void>;
+
+    /** Pins a line at the head of its room, or lets it go from there. */
+    pinLine(conversationId: string, messageId: string): Promise<void>;
+    unpinLine(conversationId: string, messageId: string): Promise<void>;
     openDirect(scope: ChatScope, personId: string, at: number): Promise<string>;
     archive(scope: ChatScope): Message[];
     reset(): void;
@@ -669,9 +676,10 @@ export function createApiSource()
 
             const born = age;
 
-            const walk = async (): Promise<{ wires: ChatMessage[]; earlier: boolean }> =>
+            const walk = async (): Promise<{ wires: ChatMessage[]; earlier: boolean; pinned: ChatMessage[] }> =>
             {
                 const wires: ChatMessage[] = [];
+                let pinned: ChatMessage[] = [];
                 let cursor: string | undefined;
                 let earlier: boolean;
 
@@ -680,13 +688,18 @@ export function createApiSource()
                     const limit = String(Math.min(wanted - wires.length, THREAD_MOST));
                     const page = await client.chat.messages({ params: { id }, query: cursor === undefined ? { limit } : { limit, cursor } });
 
+                    if (cursor === undefined)
+                    {
+                        pinned = (page.pins ?? []).map((pin) => pin.message);
+                    }
+
                     wires.unshift(...page.messages);
                     earlier = page.hasMore;
                     cursor = page.hasMore ? page.cursor : undefined;
                 }
                 while (cursor !== undefined && wires.length < wanted);
 
-                return { wires, earlier };
+                return { wires, earlier, pinned };
             };
 
             const [page, secrets, mine] = await Promise.all([walk(), keyStore().secrets(), keyStore().load()]);
@@ -713,7 +726,12 @@ export function createApiSource()
 
             try
             {
-                return { messages: await Promise.all(page.wires.map((wire) => openOne(born, wire, keyFor))), earlier: page.earlier };
+                const [messages, pins] = await Promise.all([
+                    Promise.all(page.wires.map((wire) => openOne(born, wire, keyFor))),
+                    Promise.all(page.pinned.map((wire) => openOne(born, wire, keyFor)))
+                ]);
+
+                return { messages, earlier: page.earlier, pins };
             }
             finally
             {
@@ -808,6 +826,16 @@ export function createApiSource()
         {
             await client.chat.remove({ params: { id: conversationId, messageId } });
             archive.delete(messageId);
+        },
+
+        async pinLine(conversationId, messageId)
+        {
+            await client.chat.pinLine({ params: { id: conversationId }, input: { messageId } });
+        },
+
+        async unpinLine(conversationId, messageId)
+        {
+            await client.chat.unpinLine({ params: { id: conversationId, messageId } });
         },
 
         async openDirect(_scope, personId)

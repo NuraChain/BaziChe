@@ -977,7 +977,7 @@ describe('a right click, on a line and on a conversation', () =>
 
         await vi.waitFor(() => expect(item('reply')).not.toBeNull(), { timeout: 4000 });
 
-        expect(offered()).toEqual(['reply', 'copy', 'forward', 'person']);
+        expect(offered()).toEqual(['reply', 'pin', 'copy', 'forward', 'person']);
         expect(menu()!.querySelector(`[aria-label="${ useLocale().t('chat.reactWith', { emoji: QUICK_REACTIONS[0] }) }"]`)).not.toBeNull();
         expect(useOverlay().items(), 'a menu, not a sheet').toHaveLength(0);
         expect(bar(line.id)?.classList.contains('invisible'), 'the line’s bar steps aside while its menu is open').toBe(true);
@@ -1002,7 +1002,7 @@ describe('a right click, on a line and on a conversation', () =>
 
         await vi.waitFor(() => expect(item('delete')).not.toBeNull(), { timeout: 4000 });
 
-        expect(offered()).toEqual(['reply', 'edit', 'copy', 'forward', 'delete']);
+        expect(offered()).toEqual(['reply', 'edit', 'pin', 'copy', 'forward', 'delete']);
 
         fire(item('delete')!, 'click');
 
@@ -2227,5 +2227,400 @@ describe('a line the group’s staff take away', () =>
 
         expect(item('reply')).toBeNull();
         expect(item('take'), 'a moderator who is muted still keeps the room').not.toBeNull();
+    });
+});
+
+describe('lines pinned at the head of a room', () =>
+{
+    /** c-parisa's lines, oldest first: the reader's "Good game. You never resign, do you.", then parisa's "Never." and her "Balcony group…". */
+    const parisa = () =>
+    {
+        const lines = server.messages.filter((one) => one.conversationId === 'c-parisa');
+
+        return { resign: lines[0], never: lines[1], balcony: lines[2] };
+    };
+
+    afterEach(() =>
+    {
+        server.holdChat = null;
+        useOverlay().reset();
+    });
+
+    const bar = (container: HTMLElement) => container.querySelector<HTMLElement>('[data-pin-bar]');
+
+    const heading = (container: HTMLElement) => bar(container)?.querySelector('[data-pin-heading]')?.textContent ?? null;
+
+    const gist = (container: HTMLElement) => bar(container)?.querySelector('[data-pin-gist]')?.textContent ?? null;
+
+    const go = (container: HTMLElement) => bar(container)!.querySelector<HTMLButtonElement>('button')!;
+
+    const unpinButton = (container: HTMLElement) => bar(container)?.querySelector<HTMLButtonElement>(`button[aria-label="${ useLocale().t('chat.unpin') }"]`) ?? null;
+
+    const item = (id: string) => document.querySelector<HTMLButtonElement>(`[role="menu"] [data-item="${ id }"]`);
+
+    const right = (container: HTMLElement, id: string) =>
+        container.querySelector(`[data-message="${ id }"] .bubble`)!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 200 }));
+
+    const drawn = async (container: HTMLElement, id: string) =>
+    {
+        await vi.waitFor(() => expect(container.querySelector(`[data-message="${ id }"] .bubble`)).not.toBeNull(), { timeout: 4000 });
+        await settle();
+    };
+
+    /** Counts the lines brought on screen by the flash a jump plays, and answers what puts `animate` back. */
+    const flashes = () =>
+    {
+        const seen: string[] = [];
+        const original = Element.prototype.animate;
+
+        Element.prototype.animate = function (this: Element, keyframes: Keyframe[] | PropertyIndexedKeyframes | null, options?: number | KeyframeAnimationOptions)
+        {
+            if (Array.isArray(keyframes) && keyframes.some((frame) => 'boxShadow' in frame))
+            {
+                seen.push(this.closest('[data-message]')?.getAttribute('data-message') ?? '');
+            }
+
+            return original.call(this, keyframes, options);
+        };
+
+        return {
+            seen,
+            undo: () =>
+            {
+                Element.prototype.animate = original;
+            }
+        };
+    };
+
+    it('shows the newest pin under the head with how many there are, and no bar in a room with none', async () =>
+    {
+        const { resign, never } = parisa();
+
+        server.linePins['c-parisa'] = [never.id, resign.id];
+
+        const container = opened('c-parisa', 'sidebar');
+
+        await drawn(container, never.id);
+        await vi.waitFor(() => expect(bar(container)).not.toBeNull(), { timeout: 4000 });
+
+        expect(bar(container)!.closest('[data-chat-head]'), 'under the head').not.toBeNull();
+        expect(heading(container)).toBe('Pinned message 1 of 2');
+        expect(gist(container)).toBe('Never.');
+
+        cleanup();
+        useChat().closeThread();
+
+        const alone = opened('c-reza', 'sidebar');
+
+        await vi.waitFor(() => expect(alone.querySelector('[data-message]')).not.toBeNull(), { timeout: 4000 });
+        await settle();
+
+        expect(bar(alone)).toBeNull();
+    });
+
+    it('says one pin plainly, and the count in the reader’s own words', async () =>
+    {
+        const { resign, never } = parisa();
+
+        server.linePins['c-parisa'] = [never.id];
+
+        const container = opened('c-parisa', 'sidebar');
+
+        await vi.waitFor(() => expect(heading(container)).toBe('Pinned message'), { timeout: 4000 });
+
+        server.linePins['c-parisa'] = [never.id, resign.id];
+        useLocale().setLocale('fa');
+        await useChat().refresh();
+
+        await vi.waitFor(() => expect(heading(container)).toBe(useLocale().t('chat.pins.of', { at: 1, count: 2 })), { timeout: 4000 });
+        expect(heading(container)).toContain('۲');
+    });
+
+    it('takes the thread to the line at a press, reading back for one older than the screen, and the bar on to the one pinned before it', async () =>
+    {
+        const { resign, never } = parisa();
+        const template = server.messages.find((one) => one.id === never.id)!;
+
+        server.messages.push(...Array.from({ length: 45 }, (_, index) => ({ ...template, id: `newer-${ index }` })));
+        server.linePins['c-parisa'] = [never.id, resign.id];
+
+        const flashed = flashes();
+
+        try
+        {
+            const container = opened('c-parisa', 'sidebar');
+
+            await vi.waitFor(() => expect(gist(container)).toBe('Never.'), { timeout: 4000 });
+            await settle();
+
+            expect(container.querySelector(`[data-message="${ never.id }"]`), 'a page back, and the bar says it all the same').toBeNull();
+
+            const reads = server.calls.filter((one) => one === 'chat.messages').length;
+
+            fire(go(container), 'click');
+
+            await vi.waitFor(() => expect(flashed.seen).toEqual([never.id]), { timeout: 4000 });
+            expect(server.calls.filter((one) => one === 'chat.messages').length, 'read back to reach it').toBeGreaterThan(reads);
+            expect(heading(container)).toBe('Pinned message 2 of 2');
+            expect(gist(container)).toBe('Good game. You never resign, do you.');
+
+            fire(go(container), 'click');
+
+            await vi.waitFor(() => expect(flashed.seen).toEqual([never.id, resign.id]), { timeout: 4000 });
+            expect(heading(container), 'round to the newest again').toBe('Pinned message 1 of 2');
+
+            fire(go(container), 'click');
+
+            await vi.waitFor(() => expect(flashed.seen, 'and round again').toEqual([never.id, resign.id, never.id]), { timeout: 4000 });
+        }
+        finally
+        {
+            flashed.undo();
+        }
+    });
+
+    it('pins a line from its menu at the press, before the server has answered, and the bar shows it', async () =>
+    {
+        const { never } = parisa();
+        const container = opened('c-parisa', 'sidebar');
+        let release = () => undefined as void;
+
+        await drawn(container, never.id);
+        expect(bar(container)).toBeNull();
+
+        right(container, never.id);
+        await vi.waitFor(() => expect(item('pin')).not.toBeNull(), { timeout: 4000 });
+        expect(item('unpin'), 'a line not pinned is not offered to be unpinned').toBeNull();
+
+        server.holdChat = new Promise<void>((done) =>
+        {
+            release = done;
+        });
+        fire(item('pin')!, 'click');
+
+        await vi.waitFor(() => expect(gist(container)).toBe('Never.'));
+        expect(server.calls).toContain('chat.pinLine');
+        expect(server.linePins['c-parisa'] ?? [], 'the server has not answered yet').toEqual([]);
+
+        release();
+        await vi.waitFor(() => expect(server.linePins['c-parisa']).toEqual([never.id]));
+        await settle();
+
+        expect(gist(container), 'and stays once it has').toBe('Never.');
+
+        right(container, never.id);
+        await vi.waitFor(() => expect(item('unpin')).not.toBeNull(), { timeout: 4000 });
+        expect(item('pin')).toBeNull();
+    });
+
+    it('shows a new pin first, whichever pin the bar had come to', async () =>
+    {
+        const { resign, never, balcony } = parisa();
+
+        server.linePins['c-parisa'] = [never.id, resign.id];
+
+        const container = opened('c-parisa', 'sidebar');
+
+        await drawn(container, balcony.id);
+        await vi.waitFor(() => expect(gist(container)).toBe('Never.'), { timeout: 4000 });
+
+        fire(go(container), 'click');
+        await vi.waitFor(() => expect(heading(container)).toBe('Pinned message 2 of 2'));
+
+        right(container, balcony.id);
+        await vi.waitFor(() => expect(item('pin')).not.toBeNull(), { timeout: 4000 });
+        fire(item('pin')!, 'click');
+
+        await vi.waitFor(() => expect(heading(container)).toBe('Pinned message 1 of 3'));
+        expect(gist(container)).toBe('Balcony group is playing tonight, you in?');
+    });
+
+    it('goes to a pin every time it is pressed, the same one again included', async () =>
+    {
+        const { never } = parisa();
+
+        server.linePins['c-parisa'] = [never.id];
+
+        const flashed = flashes();
+
+        try
+        {
+            const container = opened('c-parisa', 'sidebar');
+
+            await drawn(container, never.id);
+            await vi.waitFor(() => expect(bar(container)).not.toBeNull(), { timeout: 4000 });
+
+            fire(go(container), 'click');
+            await vi.waitFor(() => expect(flashed.seen).toEqual([never.id]), { timeout: 4000 });
+
+            fire(go(container), 'click');
+            await vi.waitFor(() => expect(flashed.seen).toEqual([never.id, never.id]), { timeout: 4000 });
+        }
+        finally
+        {
+            flashed.undo();
+        }
+    });
+
+    it('unpins from the bar and from a line’s menu, at the press', async () =>
+    {
+        const { resign, never } = parisa();
+
+        server.linePins['c-parisa'] = [never.id, resign.id];
+
+        const container = opened('c-parisa', 'sidebar');
+
+        await drawn(container, never.id);
+        await vi.waitFor(() => expect(gist(container)).toBe('Never.'), { timeout: 4000 });
+
+        fire(go(container), 'click');
+        await vi.waitFor(() => expect(gist(container)).toBe('Good game. You never resign, do you.'));
+
+        server.holdChat = new Promise<void>(() => undefined);
+        fire(unpinButton(container)!, 'click');
+
+        await vi.waitFor(() => expect(gist(container), 'the one left, wherever the bar had come to').toBe('Never.'));
+        expect(heading(container)).toBe('Pinned message');
+        expect(server.calls).toContain('chat.unpinLine');
+
+        right(container, never.id);
+        await vi.waitFor(() => expect(item('unpin')).not.toBeNull(), { timeout: 4000 });
+        fire(item('unpin')!, 'click');
+
+        await vi.waitFor(() => expect(bar(container), 'the last one goes with the bar').toBeNull());
+    });
+
+    it('takes a pin back with the reason when the server will not take it', async () =>
+    {
+        const { never } = parisa();
+        const container = opened('c-parisa', 'sidebar');
+
+        await drawn(container, never.id);
+
+        server.refusePin = { status: 409, code: 'pins-full' };
+        right(container, never.id);
+        await vi.waitFor(() => expect(item('pin')).not.toBeNull(), { timeout: 4000 });
+        fire(item('pin')!, 'click');
+
+        await vi.waitFor(() => expect(useToasts().items().at(-1)?.text).toBe(useLocale().t('chat.pins.full')), { timeout: 4000 });
+        await vi.waitFor(() => expect(bar(container), 'gone again').toBeNull(), { timeout: 4000 });
+    });
+
+    it('puts a pin back with the reason when the server will not let it go', async () =>
+    {
+        const { never } = parisa();
+
+        server.linePins['c-parisa'] = [never.id];
+
+        const container = opened('c-parisa', 'sidebar');
+
+        await drawn(container, never.id);
+        await vi.waitFor(() => expect(unpinButton(container)).not.toBeNull(), { timeout: 4000 });
+
+        server.refusePin = { status: 403, code: 'group-right' };
+        fire(unpinButton(container)!, 'click');
+
+        await vi.waitFor(() => expect(useToasts().items().at(-1)?.text).toBe(useLocale().t('group.refused.group-right')), { timeout: 4000 });
+        await vi.waitFor(() => expect(gist(container), 'back where it was').toBe('Never.'), { timeout: 4000 });
+    });
+
+    it('gives the search the bar’s place while it is open, and takes it back once it is closed', async () =>
+    {
+        const { never } = parisa();
+
+        server.linePins['c-parisa'] = [never.id];
+
+        const container = opened('c-parisa', 'sidebar');
+        const search = () => container.querySelector<HTMLButtonElement>(`header button[aria-label="${ useLocale().t('chat.search.label') }"]`)!;
+
+        await drawn(container, never.id);
+        await vi.waitFor(() => expect(bar(container)).not.toBeNull(), { timeout: 4000 });
+
+        fire(search(), 'click');
+
+        await vi.waitFor(() => expect(container.querySelector('[data-thread-search]')).not.toBeNull());
+        expect(bar(container), 'the search stands in its place').toBeNull();
+
+        fire(search(), 'click');
+
+        await vi.waitFor(() => expect(bar(container), 'back once the search is closed').not.toBeNull());
+    });
+
+    it('takes a line the reader deletes off the bar with it, at the yes', async () =>
+    {
+        const { resign } = parisa();
+
+        server.linePins['c-parisa'] = [resign.id];
+
+        const container = opened('c-parisa', 'sidebar');
+
+        await drawn(container, resign.id);
+        await vi.waitFor(() => expect(bar(container)).not.toBeNull(), { timeout: 4000 });
+
+        right(container, resign.id);
+        await vi.waitFor(() => expect(item('delete')).not.toBeNull(), { timeout: 4000 });
+        fire(item('delete')!, 'click');
+        await settle();
+
+        server.holdChat = new Promise<void>(() => undefined);
+        useOverlay().close(useOverlay().items().find((one) => one.phase !== 'closing')!.id, true);
+
+        await vi.waitFor(() => expect(bar(container)).toBeNull());
+    });
+
+    it('offers pinning in a group only as the group lets the reader, and never beside a table', async () =>
+    {
+        const SLUG = 'friday-night-crew';
+        const group = server.groups.find((one) => one.slug === SLUG)!;
+        const line = server.messages.filter((one) => one.conversationId === 'c-friday' && one.kind === 'text' && one.from === 'mina').at(-1)!;
+
+        server.conversations.find((row) => row.id === 'c-friday')!.groupId = SLUG;
+        group.role = 'member';
+        group.switches = { ...group.switches, pin: false };
+        server.linePins['c-friday'] = [line.id];
+        await useGroups().refresh();
+        await useChat().refresh();
+
+        let container = opened('c-friday', 'sidebar');
+
+        await vi.waitFor(() => expect(useGroups().byId(SLUG)?.role).toBe('member'), { timeout: 4000 });
+        await drawn(container, line.id);
+        await vi.waitFor(() => expect(bar(container)).not.toBeNull(), { timeout: 4000 });
+
+        expect(unpinButton(container), 'a member who may not pin unpins nothing').toBeNull();
+
+        right(container, line.id);
+        await vi.waitFor(() => expect(item('reply')).not.toBeNull(), { timeout: 4000 });
+        expect(item('unpin')).toBeNull();
+        expect(item('pin')).toBeNull();
+
+        cleanup();
+        useChat().closeThread();
+        group.switches = { ...group.switches, pin: true };
+        await useGroups().refresh();
+
+        container = opened('c-friday', 'sidebar');
+        await vi.waitFor(() => expect(useGroups().byId(SLUG)?.switches.pin).toBe(true), { timeout: 4000 });
+        await drawn(container, line.id);
+        await vi.waitFor(() => expect(unpinButton(container), 'the members may pin').not.toBeNull(), { timeout: 4000 });
+
+        right(container, line.id);
+        await vi.waitFor(() => expect(item('unpin')).not.toBeNull(), { timeout: 4000 });
+
+        cleanup();
+        useChat().closeThread();
+
+        const table = server.conversations.find((row) => row.id === 'c-parisa')!;
+        const { never } = parisa();
+
+        table.kind = 'game';
+        await useChat().refresh();
+
+        container = opened('c-parisa', 'sidebar');
+        await drawn(container, never.id);
+
+        right(container, never.id);
+        await vi.waitFor(() => expect(item('reply')).not.toBeNull(), { timeout: 4000 });
+        expect(item('pin'), 'a table’s chat is never pinned in').toBeNull();
     });
 });

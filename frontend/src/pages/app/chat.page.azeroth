@@ -6,6 +6,7 @@ import { gameNameOf, groupNameOf, othersOf, sealSentenceOf, titleOf } from '../.
 import { seenOf } from '../../components/chat/chat-time.ts';
 import { searchedWords, searchLines } from '../../components/chat/search-lines.ts';
 import ThreadSearch from '../../components/chat/thread-search.component.azeroth';
+import PinBar from '../../components/chat/pin-bar.component.azeroth';
 import { mayIn, mayOn } from '../../../../backend/src/domains/group/roles.ts';
 import { mutedWordsOf } from '../../lib/group-mute.ts';
 import { sendBlockOf } from '../../lib/seal-state.ts';
@@ -115,6 +116,14 @@ export default component ChatPage()
 
     /** The line the search last brought on screen, so a line arriving meanwhile does not bring it again. */
     let shownFor = '';
+
+    /** Which pinned line the bar shows, the newest being 0. */
+    state pinAt = 0;
+
+    /** A pin pressed in the bar until its line is on screen: a new one at each press, so one pin pressed twice is gone to twice. */
+    state pinGoing = null as { id: string } | null;
+
+    let pinBrought: { id: string } | null = null;
 
     let finder: HTMLElement | null = null;
 
@@ -232,6 +241,16 @@ export default component ChatPage()
     derived mediaWords = group !== null && standing !== null && !closed && !mayIn(standing, group.switches, 'media')
         ? locale.t('chat.mediaShut')
         : undefined;
+
+    /** Where the reader may pin: either of the two in a direct chat, whoever the group lets in a group's, nobody at a table. */
+    derived pinsHere = conversation?.kind === 'direct' || (group !== null && standing !== null && mayIn(standing, group.switches, 'pin'));
+
+    derived pins = chat.linePins();
+
+    derived pinShown = pins.length === 0 ? -1 : Math.min(pinAt, pins.length - 1);
+
+    /** The pin the bar shows, while there is one and the search does not stand in its place. */
+    derived pinned = pinShown === -1 || searching ? null : pins[pinShown];
 
     let unmute: () => void = () => undefined;
 
@@ -410,6 +429,50 @@ export default component ChatPage()
         requestAnimationFrame(() =>
         {
             const row = list?.querySelector(`[data-message="${ wanted }"]`);
+
+            if (row !== null && row !== undefined)
+            {
+                flash(row);
+            }
+        });
+    }
+
+    /** Brings a pin pressed in the bar on screen, reading back a page at a time while it is older than what is drawn. */
+    effect
+    {
+        const press = pinGoing;
+
+        if (press === null || press === pinBrought)
+        {
+            return;
+        }
+
+        if (!messages.some((message) => message.id === press.id))
+        {
+            untrack(() =>
+            {
+                if (chat.earlierLoading())
+                {
+                    return;
+                }
+
+                if (chat.hasEarlier())
+                {
+                    chat.earlier();
+                    return;
+                }
+
+                pinBrought = press;
+                toasts.show({ kind: 'info', text: locale.t('chat.pins.gone'), dedupe: 'chat-pin' });
+            });
+            return;
+        }
+
+        pinBrought = press;
+
+        requestAnimationFrame(() =>
+        {
+            const row = list?.querySelector(`[data-message="${ press.id }"]`);
 
             if (row !== null && row !== undefined)
             {
@@ -820,6 +883,29 @@ export default component ChatPage()
         }
     };
 
+    const pin = (message: Message) =>
+    {
+        pinAt = 0;
+        void chat.pinLine(message).catch(warn);
+    };
+
+    const unpin = (message: Message) =>
+    {
+        void chat.unpinLine(message).catch(warn);
+    };
+
+    /** Takes the thread to the pin the bar shows, and the bar on to the one pinned before it. */
+    const goPin = () =>
+    {
+        const line = pins[pinShown];
+
+        if (line !== undefined)
+        {
+            pinGoing = { id: line.id };
+            pinAt = (pinShown + 1) % pins.length;
+        }
+    };
+
     /** Somebody else's line, of words or a file, by somebody ranked below the reader in a group whose staff may take it away. */
     const takable = (message: Message) =>
         group !== null && standing !== null && message.from !== me
@@ -845,6 +931,7 @@ export default component ChatPage()
     const handlersOf = (message: Message): LineHandlers => ({
         ...(quiet || closed ? {} : { onReply: () => reply(message) }),
         ...(quiet || closed || !chat.editable(message) ? {} : { onEdit: () => edit(message) }),
+        ...(!pinsHere ? {} : pins.some((one) => one.id === message.id) ? { onUnpin: () => unpin(message) } : { onPin: () => pin(message) }),
         onForward: () => overlay.open(ForwardSheet, { message }, { label: locale.t('chat.forwardTitle') }),
         onDelete: () => void remove(message),
         ...(takable(message) ? { onTake: () => void take(message) } : {}),
@@ -993,6 +1080,16 @@ export default component ChatPage()
                                     </Show>
                                 </span>
                             </header>
+
+                            <Show when={ pinned } let={ line }>
+                                <PinBar
+                                    message={ line }
+                                    at={ pinShown }
+                                    count={ pins.length }
+                                    onGo={ goPin }
+                                    onUnpin={ pinsHere ? () => unpin(line) : undefined }
+                                />
+                            </Show>
 
                             <Show when={ searching }>
                                 { () =>

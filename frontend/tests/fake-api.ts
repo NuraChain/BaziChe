@@ -4,7 +4,7 @@ import { threadSize } from '../../backend/src/domains/chat/pages.ts';
 import { WATCH_TAIL } from '../../backend/src/domains/match/turns.ts';
 import { codeFrom } from '../../backend/src/domains/invite/policy.ts';
 import { NOTICE_OF } from '../../backend/src/domains/notify/notices.ts';
-import { FACES, FIRST_MEMBERS_MOST, GROUP_LOG_PAGE, GROUP_RIGHTS, MEMBERS_PAGE, RANK, SWITCH_DEFAULTS, mayIn, type GroupAct, type GroupEventKind, type GroupRight, type GroupRole, type GroupSwitches } from '../../backend/src/domains/group/roles.ts';
+import { FACES, FIRST_MEMBERS_MOST, GROUP_LOG_PAGE, GROUP_RIGHTS, MEMBERS_PAGE, PINS_MOST, RANK, SWITCH_DEFAULTS, mayIn, type GroupAct, type GroupEventKind, type GroupRight, type GroupRole, type GroupSwitches } from '../../backend/src/domains/group/roles.ts';
 import { PEOPLE_FOUND_MAX, SEARCH_FROM, searchNeedle } from '../../backend/src/domains/social/names.ts';
 import { handleFromAddress } from '../../backend/src/domains/identity/handle.ts';
 import { createParties, type Parties, type PartyWhy } from '../../backend/src/domains/party/parties.ts';
@@ -409,6 +409,28 @@ const takenBy = (conversationId: string, line: ChatMessage) =>
         throw new ApiError(409, 'group-rank', 'Refused.', undefined);
     }
     return true;
+};
+
+/** Whether the reader may pin in a room, asked as the server asks it: never at a table, and in a group's room as the group lets them. */
+const pinGate = (conversationId: string) =>
+{
+    const room = server.conversations.find((row) => row.id === conversationId);
+
+    if (room === undefined || room.kind === 'game')
+    {
+        throw new ApiError(404, 'not-found', 'No such message here.', undefined);
+    }
+    if (server.refusePin !== null)
+    {
+        throw new ApiError(server.refusePin.status, server.refusePin.code, 'Refused.', undefined);
+    }
+
+    const group = groupOfRoom(conversationId);
+
+    if (group?.role !== undefined && !mayIn({ role: group.role, rights: group.rights ?? [], muted: group.muted !== undefined }, group.switches, 'pin'))
+    {
+        throw new ApiError(403, 'group-right', 'Refused.', undefined);
+    }
 };
 
 /** A change the staff make: refused when a spec says so, and answered with the group as it now stands. */
@@ -1322,6 +1344,12 @@ export const server =
     /** Refuses a deletion with this sentence. */
     refuseRemove: null as string | null,
 
+    /** Each room's pinned lines by id, newest first. */
+    linePins: {} as Record<string, string[]>,
+
+    /** Refuses a pin or an unpin as the server would, for a reason of its own. */
+    refusePin: null as { status: number; code: string } | null,
+
     /** Holds every send and deletion at the door until it settles, so a test can look in between. */
     holdChat: null as Promise<void> | null,
 
@@ -1653,6 +1681,7 @@ export const server =
         server.me = 'alex';
         server.refuseSend = null;
         server.refuseRemove = null;
+        server.refusePin = null;
         server.holdChat = null;
         server.listPage = null;
         loadFixtures();
@@ -1738,6 +1767,7 @@ function loadFixtures()
     counter = 0;
     server.conversations = [];
     server.messages = [];
+    server.linePins = {};
     server.conversationDevices = {};
     server.epochs = {};
     server.sealDevice = sealed.devices.get(server.me)?.id ?? null;
@@ -3621,10 +3651,15 @@ export const client =
             const start = Math.max(0, end - threadSize(query?.limit));
             const page = thread.slice(start, end);
             const group = groupOfRoom(params.id);
+            const pins = (server.linePins[params.id] ?? [])
+                .map((pinned) => thread.find((one) => one.id === pinned))
+                .filter((one): one is ChatMessage => one !== undefined && ['text', 'voice', 'file'].includes(one.kind))
+                .map((one) => ({ message: group === undefined ? one : ranked(group, one), at: new Date(0).toISOString() }));
             return {
                 messages: group === undefined ? page : page.map((one) => ranked(group, one)),
                 hasMore: start > 0,
-                ...(start > 0 ? { cursor: page[0].id } : {})
+                ...(start > 0 ? { cursor: page[0].id } : {}),
+                ...(query?.cursor === undefined ? { pins } : {})
             };
         },
 
@@ -3756,6 +3791,45 @@ export const client =
 
             const { id, conversationId, from, at } = server.messages[found];
             server.messages[found] = { id, conversationId, kind: 'deleted', at, ...(from === undefined ? {} : { from }) };
+            return { ok: true };
+        },
+
+        async pinLine({ params, input }: { params: { id: string }; input: { messageId: string } })
+        {
+            server.calls.push('chat.pinLine');
+            if (server.holdChat !== null)
+            {
+                await server.holdChat;
+            }
+            pinGate(params.id);
+
+            const line = server.messages.find((one) => one.id === input.messageId && one.conversationId === params.id && ['text', 'voice', 'file'].includes(one.kind));
+            if (line === undefined)
+            {
+                throw new ApiError(404, 'not-found', 'No such message here.', undefined);
+            }
+
+            const held = server.linePins[params.id] ?? [];
+            if (!held.includes(line.id))
+            {
+                if (held.length >= PINS_MOST)
+                {
+                    throw new ApiError(409, 'pins-full', 'A conversation holds twenty pinned messages at most. Unpin one first.', undefined);
+                }
+                server.linePins[params.id] = [line.id, ...held];
+            }
+            return { ok: true };
+        },
+
+        async unpinLine({ params }: { params: { id: string; messageId: string } })
+        {
+            server.calls.push('chat.unpinLine');
+            if (server.holdChat !== null)
+            {
+                await server.holdChat;
+            }
+            pinGate(params.id);
+            server.linePins[params.id] = (server.linePins[params.id] ?? []).filter((one) => one !== params.messageId);
             return { ok: true };
         },
 

@@ -766,6 +766,8 @@ const staffFresh = () => ({
     logged: 0
 });
 
+const WALLET_HANDLES: Readonly<Record<string, string>> = { '0x15d34aaf54267db7d7c367839aaf71a00a2c6a65': 'mina' };
+
 type PlayStatus = AdminPlay['games'][number]['status'];
 
 export type AdminShopItem = AdminShop['items'][number];
@@ -2198,24 +2200,25 @@ export const client =
             staffGate('staff');
 
             const actor = staffRoleOf(server.me);
-            const known = input.handle === server.me || server.staff.owners.includes(input.handle) || PEOPLE_FIXTURES.some((one) => one.handle === input.handle);
+            const handle = WALLET_HANDLES[input.handle.toLowerCase()] ?? input.handle;
+            const known = handle === server.me || server.staff.owners.includes(handle) || PEOPLE_FIXTURES.some((one) => one.handle === handle);
 
             if (!known)
             {
                 throw staffRefused('staff-nobody', 'No one by that name.');
             }
 
-            if (server.staff.owners.includes(input.handle))
+            if (server.staff.owners.includes(handle))
             {
                 throw staffRefused('staff-owner', 'An owner is named by the server itself, and never changed from this page.');
             }
 
-            if (input.handle === server.me)
+            if (handle === server.me && actor !== 'owner')
             {
                 throw staffRefused('staff-self', 'Nobody changes their own role.');
             }
 
-            const current = server.staff.members.find((one) => one.handle === input.handle)?.role ?? null;
+            const current = server.staff.members.find((one) => one.handle === handle)?.role ?? null;
 
             if ((current !== null && !outranks(actor, current)) || (input.role !== 'none' && !outranks(actor, input.role)))
             {
@@ -2223,21 +2226,22 @@ export const client =
             }
 
             const at = new Date(runtime().clock.now()).toISOString();
-            const entry = { at, staff: server.me, staffRole: actor ?? 'moderator', person: input.handle, reason: input.reason };
+            const entry = { at, staff: server.me, staffRole: actor ?? 'moderator', person: handle, reason: input.reason };
+            const by = handle === server.me ? undefined : server.me;
 
             if (input.role === 'none' && current !== null)
             {
-                server.staff.members = server.staff.members.filter((one) => one.handle !== input.handle);
+                server.staff.members = server.staff.members.filter((one) => one.handle !== handle);
                 staffLogged({ ...entry, kind: 'revoke', details: { from: current } });
             }
             else if (input.role !== 'none' && current === null)
             {
-                server.staff.members = [...server.staff.members, staffMember(input.handle, input.role, server.me, at)];
+                server.staff.members = [...server.staff.members, staffMember(handle, input.role, by, at)];
                 staffLogged({ ...entry, kind: 'grant', details: { to: input.role } });
             }
             else if (input.role !== 'none' && current !== input.role)
             {
-                server.staff.members = server.staff.members.map((one) => (one.handle === input.handle ? staffMember(one.handle, input.role as GrantedRole, server.me, at) : one));
+                server.staff.members = server.staff.members.map((one) => (one.handle === handle ? staffMember(one.handle, input.role as GrantedRole, by, at) : one));
                 staffLogged({ ...entry, kind: 'change', details: { from: current ?? '', to: input.role } });
             }
 

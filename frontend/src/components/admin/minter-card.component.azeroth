@@ -1,0 +1,169 @@
+import Icon from '../../icons/icon.component.azeroth';
+import { copyText } from '../../lib/clipboard.ts';
+import { failureWord, STANDING_SAID, STANDING_TONES, STANDING_WORDS, standingOf, type MinterCard, type MinterChange } from '../../lib/minter-words.ts';
+import { explorerTx } from '../../lib/nura.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+import Panel from '../ui/panel.component.azeroth';
+import When from './when.component.azeroth';
+
+export default component MinterCard(props: {
+    card: MinterCard;
+    last: MinterChange | undefined;
+    chainId: number;
+    owner: boolean;
+    locked: boolean;
+    working: 'grant' | 'revoke' | null;
+    onGrant: () => void;
+    onRevoke: () => void;
+})
+{
+    const locale = useLocale();
+
+    derived card = props.card;
+
+    derived last = props.last;
+
+    derived open = card.open;
+
+    derived standing = standingOf(card);
+
+    derived nameId = `minter-${ card.key }`;
+
+    derived tone = STANDING_TONES[standing] === 'danger' ? 'danger' : 'field';
+
+    derived said = locale.t(STANDING_SAID[standing], { node: locale.n(card.node ?? 0, { useGrouping: false }), chain: locale.n(props.chainId, { useGrouping: false }) });
+
+    derived ready = card.state === 'ready';
+
+    derived held = standing === 'active';
+
+    derived waiting = standing === 'pending';
+
+    derived adminHeld = card.admin === true;
+
+    derived acts = props.owner && ready && !waiting;
+
+    derived canGrant = acts && !held;
+
+    derived canRevoke = acts && held;
+
+    derived lacksAdmin = acts && !adminHeld;
+
+    derived failed = !waiting && last?.state === 'failed';
+
+    derived failedWhy = locale.t(failureWord(last?.failure));
+
+    derived failedAt = last === undefined ? '' : last.settledAt ?? last.at;
+
+    derived failedLink = last?.hash === undefined ? null : explorerTx(props.chainId, last.hash);
+
+    derived sentAt = open?.at ?? '';
+
+    derived sentLink = open?.hash === undefined ? null : explorerTx(props.chainId, open.hash);
+
+    derived role = card.role ?? '';
+
+    derived hasRole = role !== '';
+
+    derived grantWorking = props.working === 'grant';
+
+    derived revokeWorking = props.working === 'revoke';
+
+    const copyAddress = () =>
+    {
+        void copyText(card.address, 'admin.minters.addressCopied', { dedupe: 'admin-minter-address' });
+    };
+
+    const copyRole = () =>
+    {
+        void copyText(role, 'admin.minters.roleCopied', { dedupe: 'admin-minter-role' });
+    };
+
+    <Panel section tone={ tone } pad="md" stack="md" labelledBy={ nameId }>
+        <div class="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+            <h3 id={ nameId } class="title min-w-0 text-ui-xl text-text" data-name>{ card.name }</h3>
+            <div class="flex flex-wrap items-center gap-2" data-badges>
+                <span class="flex" data-standing={ standing }>
+                    <Badge dot text={ locale.t(STANDING_WORDS[standing]) } tone={ STANDING_TONES[standing] } />
+                </span>
+                <Show when={ failed }>
+                    <span class="flex" data-failed>
+                        <Badge dot variant="outline" text={ locale.t('admin.minters.state.failed') } tone="danger" />
+                    </span>
+                </Show>
+            </div>
+        </div>
+
+        <p class="text-ui-sm text-muted" data-said>{ said }</p>
+
+        <dl class="grid gap-3 @lg:grid-cols-2">
+            <div class="flex min-w-0 flex-col gap-1 rounded-tile border border-line bg-sunk p-3" data-fact="contract">
+                <dt class="text-ui-xs text-muted">{ locale.t('admin.minters.fact.contract') }</dt>
+                <dd class="flex items-start gap-1">
+                    <span class="tally min-w-0 flex-1 break-all text-ui-sm text-text" dir="ltr">{ card.address }</span>
+                    <IconButton icon="copy" label={ locale.t('admin.minters.copyContract') } variant="ghost" size="sm" onClick={ copyAddress } />
+                </dd>
+            </div>
+            <Show when={ hasRole }>
+                <div class="flex min-w-0 flex-col gap-1 rounded-tile border border-line bg-sunk p-3" data-fact="role">
+                    <dt class="text-ui-xs text-muted">{ locale.t('admin.minters.fact.role') }</dt>
+                    <dd class="flex items-start gap-1">
+                        <span class="tally min-w-0 flex-1 break-all text-ui-sm text-text" dir="ltr">{ role }</span>
+                        <IconButton icon="copy" label={ locale.t('admin.minters.copyRole') } variant="ghost" size="sm" onClick={ copyRole } />
+                    </dd>
+                </div>
+            </Show>
+            <Show when={ ready }>
+                <div class="flex min-w-0 flex-col gap-1 rounded-tile border border-line bg-sunk p-3" data-fact="minter">
+                    <dt class="text-ui-xs text-muted">{ locale.t('admin.minters.fact.minter') }</dt>
+                    <dd class={ () => `text-ui-sm font-semibold ${ held ? 'text-live' : 'text-danger' }` }>{ locale.t(held ? 'admin.minters.holds.yes' : 'admin.minters.holds.no') }</dd>
+                </div>
+                <div class="flex min-w-0 flex-col gap-1 rounded-tile border border-line bg-sunk p-3" data-fact="admin">
+                    <dt class="text-ui-xs text-muted">{ locale.t('admin.minters.fact.admin') }</dt>
+                    <dd class={ () => `text-ui-sm font-semibold ${ adminHeld ? 'text-text' : 'text-muted' }` }>{ locale.t(adminHeld ? 'admin.minters.admin.yes' : 'admin.minters.admin.no') }</dd>
+                </div>
+            </Show>
+        </dl>
+
+        <Show when={ waiting }>
+            <p class="facts text-ui-sm text-muted" data-waiting>
+                <span>{ locale.t('admin.minters.sentAt') } <When at={ sentAt } /></span>
+                <Show when={ sentLink } let={ href }>
+                    <a class="inline-flex min-h-11 items-center font-semibold text-accent hover:underline md:min-h-0" href={ href } target="_blank" rel="noopener noreferrer">{ locale.t('vault.tx') }</a>
+                </Show>
+            </p>
+        </Show>
+
+        <Show when={ failed }>
+            <p class="facts text-ui-sm text-danger" data-failure role="alert">
+                <span>{ failedWhy }</span>
+                <span class="text-faint"><When at={ failedAt } /></span>
+                <Show when={ failedLink } let={ href }>
+                    <a class="inline-flex min-h-11 items-center font-semibold text-accent hover:underline md:min-h-0" href={ href } target="_blank" rel="noopener noreferrer">{ locale.t('vault.tx') }</a>
+                </Show>
+            </p>
+        </Show>
+
+        <Show when={ acts }>
+            <div class="flex flex-col gap-2" data-actions>
+                <div class="flex flex-wrap items-center gap-2">
+                    <Show when={ canGrant }>
+                        <Button variant="primary" leading="key" disabled={ props.locked || !adminHeld } loading={ grantWorking } onClick={ props.onGrant }>{ locale.t('admin.minters.grant') }</Button>
+                    </Show>
+                    <Show when={ canRevoke }>
+                        <Button variant="destructive" leading="block" disabled={ props.locked || !adminHeld } loading={ revokeWorking } onClick={ props.onRevoke }>{ locale.t('admin.minters.revoke') }</Button>
+                    </Show>
+                </div>
+                <Show when={ lacksAdmin }>
+                    <p class="flex items-start gap-1.5 text-ui-xs text-muted" data-lacks-admin>
+                        <Icon name="info" size={ 14 } class="mt-0.5 shrink-0" />
+                        <span>{ locale.t('admin.minters.lacksAdmin') }</span>
+                    </p>
+                </Show>
+            </div>
+        </Show>
+    </Panel>
+}

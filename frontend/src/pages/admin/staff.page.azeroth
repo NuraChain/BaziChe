@@ -19,6 +19,7 @@ import { focusFirstInvalid } from '../../lib/form.ts';
 import { createGuesses, type Guess } from '../../lib/guess.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { foldHandle, ROLE_WORDS, whyStaffRefused } from '../../lib/staff-words.ts';
+import { isAddress, shortAddress } from '../../lib/wallet.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import { useDevice } from '../../stores/device.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -35,6 +36,8 @@ const DONE: Record<Choice, MessageKey> = {
 };
 
 const REASON_MIN = 3;
+
+const same: Guess<StaffList> = (list) => list;
 
 const placed = (members: readonly StaffMember[], member: StaffMember) =>
 {
@@ -155,9 +158,9 @@ export default component StaffPage()
         }
 
         const at = new Date(runtime().clock.now()).toISOString();
-        const sent = guesses.during(guessed(handle, to, at), () => client.admin.setStaff({ input: { handle, role: to, reason } }), reread);
+        const sent = guesses.during(isAddress(handle) ? same : guessed(handle, to, at), () => client.admin.setStaff({ input: { handle, role: to, reason } }), reread);
 
-        if (await attempt(sent, locale.t(DONE[to], { handle }), whyStaffRefused))
+        if (await attempt(sent, locale.t(DONE[to], { handle: shortAddress(handle) }), whyStaffRefused))
         {
             handleText = '';
             reasonText = '';
@@ -249,7 +252,7 @@ export default component StaffPage()
                             value={ handleText }
                             autocomplete="off"
                             enterkeyhint="next"
-                            maxlength={ 33 }
+                            maxlength={ 43 }
                             invalid={ handleTold !== null }
                             describedBy={ handleTold !== null ? 'admin-staff-handle-error' : undefined }
                             onInput={ typedHandle }

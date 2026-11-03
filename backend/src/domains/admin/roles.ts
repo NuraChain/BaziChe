@@ -27,9 +27,26 @@ export const GRANTED_ROLES = ['moderator', 'admin', 'co-owner'] as const;
 
 export type GrantedRole = (typeof GRANTED_ROLES)[number];
 
-export const ACTION_KINDS = ['grant', 'change', 'revoke', 'note', 'suspend', 'lift', 'expire', 'clear', 'sign-out', 'report', 'game', 'void', 'close', 'minor', 'notice', 'check', 'shop-item', 'shop-feature', 'shop-grant', 'shop-revoke', 'shop-refund', 'invite-campaign', 'invite-reward'] as const;
+export const ACTION_KINDS = ['grant', 'change', 'revoke', 'note', 'suspend', 'lift', 'expire', 'clear', 'sign-out', 'report', 'game', 'void', 'close', 'minor', 'notice', 'check', 'shop-item', 'shop-feature', 'shop-grant', 'shop-revoke', 'shop-refund', 'invite-campaign', 'invite-reward', 'minter-grant', 'minter-revoke'] as const;
 
 export type ActionKind = (typeof ACTION_KINDS)[number];
+
+/** What the owner's wallet does to the NFT minter's role on a contract. */
+export const MINTER_OPERATIONS = ['grant', 'revoke'] as const;
+
+export type MinterOperation = (typeof MINTER_OPERATIONS)[number];
+
+/** Where a role change stands: asked of the owner's wallet, sent and waiting, settled either way, or never sent. */
+export const MINTER_STATES = ['asked', 'pending', 'confirmed', 'failed', 'lapsed'] as const;
+
+export type MinterState = (typeof MINTER_STATES)[number];
+
+/** What NuraChain lets a page say of one NFT contract: its roles read, or why they could not be. */
+export const MINTER_CONTRACT_STATES = ['ready', 'unreachable', 'wrong-chain', 'no-contract', 'no-roles'] as const;
+
+export type MinterContractState = (typeof MINTER_CONTRACT_STATES)[number];
+
+export const MINTER_CHANGES_PAGE = 25;
 
 export const LOG_PAGE = 50;
 

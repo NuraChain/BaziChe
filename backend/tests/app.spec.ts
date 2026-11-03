@@ -1847,7 +1847,7 @@ describe('the owner\'s view of the vault', () =>
             identity: {
                 principal: () => Promise.resolve({ userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' })
             },
-            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice', 'shop', 'shopItem', 'shopFeature', 'shopOrders', 'giveLook', 'takeLook', 'shopMoney', 'shopWithdraw', 'shopShare', 'shopSeller', 'shopPause', 'shopRefund', 'invites', 'campaigns', 'writeCampaign', 'changeCampaign', 'moveCampaign', 'rewards', 'decideReward'].map((verb) => [verb, (...said: unknown[]) =>
+            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice', 'shop', 'shopItem', 'shopFeature', 'shopOrders', 'giveLook', 'takeLook', 'shopMoney', 'shopWithdraw', 'shopShare', 'shopSeller', 'shopPause', 'shopRefund', 'minters', 'minterGrant', 'minterRevoke', 'minterSent', 'invites', 'campaigns', 'writeCampaign', 'changeCampaign', 'moveCampaign', 'rewards', 'decideReward'].map((verb) => [verb, (...said: unknown[]) =>
             {
                 told.push([verb, ...said]);
 
@@ -2291,6 +2291,51 @@ describe('the owner\'s view of the vault', () =>
         expect((await sent(app, '/shop/money/share', { bps: 'all' })).status).toBe(422);
         expect((await sent(app, '/shop/money/pause', {})).status).toBe(422);
         expect(told).toHaveLength(6);
+    });
+
+    it('answers anybody who may not see or change the NFT minter\'s roles as a page that is not there, and takes a change only in the shapes the wire offers', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = owned(told, null);
+        const change = '0a6a3f0e-1111-4222-8333-444455556666';
+        const hash = `0x${ 'ab'.repeat(32) }`;
+        const answers = [
+            await sent(app, '/minters'),
+            await sent(app, '/minters/looks/grant', { reason: 'The minter was refused' }),
+            await sent(app, '/minters/achievements/revoke', { reason: 'The key was replaced' }),
+            await sent(app, `/minters/changes/${ change }/sent`, { hash })
+        ];
+
+        for (const response of answers)
+        {
+            const body = await response.json() as { error: { code: string; message: string } };
+
+            expect([response.status, body.error.code, body.error.message]).toEqual([404, 'not-found', 'Nothing there.']);
+        }
+
+        expect(told).toEqual([
+            ['minters', 'somebody'],
+            ['minterGrant', 'somebody', 'looks', { reason: 'The minter was refused' }],
+            ['minterRevoke', 'somebody', 'achievements', { reason: 'The key was replaced' }],
+            ['minterSent', 'somebody', change, { hash }]
+        ]);
+        expect((await sent(app, '/minters/looks/grant', { reason: 'no' })).status).toBe(422);
+        expect((await sent(app, '/minters/looks/grant', {})).status).toBe(422);
+        expect((await sent(app, '/minters/looks/revoke', { reason: 'x'.repeat(501) })).status).toBe(422);
+        expect((await sent(app, `/minters/changes/${ change }/sent`, { hash: '0x1234' })).status).toBe(422);
+        expect((await sent(app, `/minters/changes/${ change }/sent`, { hash: `0x${ 'zz'.repeat(32) }` })).status).toBe(422);
+        expect((await sent(app, `/minters/changes/${ change }/sent`, {})).status).toBe(422);
+        expect(told).toHaveLength(4);
+    });
+
+    it('hands the owner\'s wallet the call the port composed for a change and its id, and nothing the wire does not declare', async () =>
+    {
+        const id = '0a6a3f0e-1111-4222-8333-444455556666';
+        const call = { from: `0x${ 'ab'.repeat(20) }`, to: `0x${ '12'.repeat(20) }`, data: '0x1234', value: '0x0', chainId: 31337 };
+        const response = await sent(owned([], { change: id, call: { ...call, secret: 'x' }, key: 'not-for-the-wire' }), '/minters/looks/grant', { reason: 'The minter was refused' });
+
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ change: id, call });
     });
 
     it('answers anybody who may not run invites as a page that is not there, and takes a campaign, a move and a decision only in the shapes the wire offers', async () =>

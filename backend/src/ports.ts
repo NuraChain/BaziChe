@@ -22,6 +22,8 @@ import type {
     AdminPlay,
     AdminShop,
     AdminMarkets,
+    AdminMinterAsked,
+    AdminMinters,
     AdminShopMoney,
     AdminShopOrders,
     AdminInviteCampaign,
@@ -109,7 +111,7 @@ import type {
     StaffLog
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
-import type { adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
+import type { adminMinterInput, adminMinterSentInput, adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
 import type { ShopSlot } from './domains/shop/catalogue.ts';
 import type { QuickAsk } from './domains/table/quick.ts';
@@ -1029,6 +1031,17 @@ export interface AdminPort
 
     /** The owner's `setOperator`, composed for their wallet; null to anybody who may not move money. */
     marketsOperator(me: string, address: string): Promise<WalletCall | null>;
+
+    /** Who may mint the NFTs, and the changes asked of it, for the money page; null to anybody who may not see money. */
+    minters(me: string): Promise<AdminMinters | null>;
+
+    /** The owner's grant of the minter's role on a contract, composed for their wallet; null to anybody who may not move money and for a contract that is not one of the worker's. */
+    minterGrant(me: string, contract: string, input: Infer<typeof adminMinterInput>): Promise<AdminMinterAsked | null>;
+
+    minterRevoke(me: string, contract: string, input: Infer<typeof adminMinterInput>): Promise<AdminMinterAsked | null>;
+
+    /** The transaction the owner's wallet sent for a change it was asked for; null for a change that is not there or not theirs. */
+    minterSent(me: string, change: string, input: Infer<typeof adminMinterSentInput>): Promise<AdminMinters | null>;
 
     shopPause(me: string, paused: boolean): Promise<WalletCall | null>;
 

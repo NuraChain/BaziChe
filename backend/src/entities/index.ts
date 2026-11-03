@@ -48,6 +48,7 @@ import { MatchAction } from './match-action.entity.ts';
 import { MatchPlayer } from './match-player.entity.ts';
 import { Match } from './match.entity.ts';
 import { Message } from './message.entity.ts';
+import { MinterChange } from './minter-change.entity.ts';
 import { QuickTable } from './quick-table.entity.ts';
 import { TableRemoval } from './table-removal.entity.ts';
 import { TableSeat } from './table-seat.entity.ts';
@@ -82,7 +83,7 @@ import { Wallet } from './wallet.entity.ts';
 export {
     Achievement, Avatar, Block, Call, CallParticipant, Channel, ChannelMember, ChannelPost, ChannelVote, ChatFile, Conversation, ConversationEpoch, ConversationMember, ConversationPin, Device, Discrepancy, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat, EstablishedPlayer,
     EpochArchive, FriendRequest, Friendship,
-    Game, GameRule, Group, GroupBan, GroupEvent, GroupInvite, GroupMember, GroupMute, GroupReport, GroupRequest, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, Mute,
+    Game, GameRule, Group, GroupBan, GroupEvent, GroupInvite, GroupMember, GroupMute, GroupReport, GroupRequest, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, MinterChange, Mute,
     NftToken, Notice, Notification, OwnedItem, PaidAccount, PlayerStats, ProfileSponsorship, PushSubscription,
     QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, Session, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
     UserAchievement, VoiceNote, VoicePlay, Wallet
@@ -112,7 +113,7 @@ export const entities: Function[] = [
     Notification, PushSubscription,
     PaidAccount, TableStake, StakeConsent, Escrow, EscrowSeat,
     StaffMember, StaffAction, Suspension, Notice,
-    ShopItem, ShopCollection, ShopOrder, OwnedItem, EquippedItem, NftToken,
+    ShopItem, ShopCollection, ShopOrder, OwnedItem, EquippedItem, NftToken, MinterChange,
     Donation, DonationsOff,
     Market, MarketPosition, MarketDisclosure,
     Discrepancy

@@ -1,5 +1,5 @@
 import { array, boolean, enumOf, literal, number, object, record, string as text, union, type Infer, type StringOptions } from '@azerothjs/schema';
-import { ACTION_KINDS, CLEAR_PARTS, GRANTED_ROLES, MATCH_LISTS, NOTICE_HOURS, NOTICE_MAX, PEOPLE_LISTS, REPORT_LISTS, REPORT_OUTCOMES, REPORT_STATUSES, SALE_HOURS, STAFF_ROLES, STUCK_KINDS, SUSPEND_CATEGORIES, SUSPEND_DAYS, CAMPAIGN_MOST, CAMPAIGN_MOVES, MILESTONE_MOST, MILESTONES_MOST, REWARD_LISTS, REWARD_MOVES } from './domains/admin/roles.ts';
+import { ACTION_KINDS, CLEAR_PARTS, GRANTED_ROLES, MATCH_LISTS, MINTER_CONTRACT_STATES, MINTER_OPERATIONS, MINTER_STATES, NOTICE_HOURS, NOTICE_MAX, PEOPLE_LISTS, REPORT_LISTS, REPORT_OUTCOMES, REPORT_STATUSES, SALE_HOURS, STAFF_ROLES, STUCK_KINDS, SUSPEND_CATEGORIES, SUSPEND_DAYS, CAMPAIGN_MOST, CAMPAIGN_MOVES, MILESTONE_MOST, MILESTONES_MOST, REWARD_LISTS, REWARD_MOVES } from './domains/admin/roles.ts';
 import { RARITY_IDS } from './domains/achieve/rarity.ts';
 import { PARTY_ENDS, PARTY_STAGES } from './domains/party/rules.ts';
 import { CALL_ENDINGS, CALL_KINDS, CALL_STATES } from './domains/call/rules.ts';
@@ -604,7 +604,7 @@ export const staffList = object({ owners: array(staffMember), members: array(sta
 export type StaffList = Infer<typeof staffList>;
 
 export const staffInput = object({
-    handle: string({ min: 1, max: 32 }),
+    handle: string({ min: 1, max: 42 }),
     role: enumOf([...GRANTED_ROLES, 'none']),
     reason: said()
 });
@@ -671,6 +671,61 @@ export const adminMarkets = union([
 ]);
 
 export type AdminMarkets = Infer<typeof adminMarkets>;
+
+const adminMinterChange = object({
+    id: string(),
+    contract: string(),
+    operation: enumOf(MINTER_OPERATIONS),
+    state: enumOf(MINTER_STATES),
+    by: string(),
+    reason: string(),
+    hash: string().optional(),
+    failure: string().optional(),
+    at: string(),
+    settledAt: string().optional()
+});
+
+/**
+ * Who may mint the NFTs: the address of the minting key, each NFT contract with what NuraChain says of
+ * the key's `MINTER_ROLE` and of the reader's wallet's `DEFAULT_ADMIN_ROLE`, and the changes asked of
+ * those roles, newest first. A contract is named by a key the staff address it with, and carries the
+ * change that is waiting on the owner's wallet or on NuraChain, if there is one.
+ */
+export const adminMinters = union([
+    object({ configured: literal(false) }),
+    object({
+        configured: literal(true),
+        chainId: number(),
+        minter: string(),
+        admin: string().optional(),
+        contracts: array(object({
+            key: string(),
+            name: string(),
+            address: string(),
+            state: enumOf(MINTER_CONTRACT_STATES),
+
+            /** The chain the node answered on, where it is not the one this server is set to. */
+            node: number().optional(),
+            role: string().optional(),
+            minter: boolean().optional(),
+            admin: boolean().optional(),
+            open: adminMinterChange.optional()
+        })),
+        changes: array(adminMinterChange),
+        updatedAt: string().optional()
+    })
+]);
+
+export type AdminMinters = Infer<typeof adminMinters>;
+
+export const adminMinterInput = object({ reason: said() });
+
+export const adminMinterSentInput = object({ hash: string({ pattern: /^0x[0-9a-fA-F]{64}$/ }) });
+
+/** A change recorded as asked, and the call the owner's wallet sends for it. */
+export const adminMinterAsked = object({ change: string(), call: walletCall });
+
+export type AdminMinterAsked = Infer<typeof adminMinterAsked>;
 
 export const adminShopRefundInput = object({ reason: said() });
 

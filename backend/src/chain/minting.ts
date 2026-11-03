@@ -1,6 +1,7 @@
 import {
     BaseError,
     ContractFunctionRevertedError,
+    TransactionNotFoundError,
     TransactionReceiptNotFoundError,
     createWalletClient,
     decodeErrorResult,
@@ -17,7 +18,7 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
-import { boundedClient, boundedTransport, reached, refusedByContract } from './rpc.ts';
+import { boundedClient, boundedTransport, reached, refusedByContract, unreached } from './rpc.ts';
 import { gasFloorOf, type Mined } from './vault.ts';
 
 /**
@@ -34,6 +35,11 @@ export const NFT_ABI = parseAbi([
     'function achievements(uint256 id) view returns (bool, bool, uint64)',
     'function defineAchievement(string name, bool soulbound, string metadataURI) returns (uint256 id)',
     'function award(address player, uint256 id)',
+    'function MINTER_ROLE() view returns (bytes32)',
+    'function DEFAULT_ADMIN_ROLE() view returns (bytes32)',
+    'function hasRole(bytes32 role, address account) view returns (bool)',
+    'function grantRole(bytes32 role, address account)',
+    'function revokeRole(bytes32 role, address account)',
     'error ZeroAddress()',
     'error AlreadyHeld(address owner, uint256 id)',
     'error NotHeld(address owner, uint256 id)',
@@ -63,6 +69,53 @@ export interface NftChainSettings
     achievements: string;
 }
 
+/** One NFT contract the worker mints on, by the key the staff address it with: an address a client sends is never looked up. */
+export interface NftContract
+{
+    key: string;
+    name: string;
+    address: Address;
+}
+
+/** What NuraChain says about one contract and its roles, as far as it could be read. */
+export interface NftStanding
+{
+    /** The chain id the node answered, which the staff compare with the one this server is set to. */
+    node: number;
+
+    /** Whether the address holds code. */
+    deployed: boolean;
+
+    /** `MINTER_ROLE` as the contract names it, or null where nothing was read: another chain, no code, or a contract with no roles. */
+    role: Hex | null;
+
+    /** Whether the minter key holds `MINTER_ROLE`. */
+    minter: boolean;
+
+    /** Whether the reader's wallet holds `DEFAULT_ADMIN_ROLE`, or null when there was no wallet to ask about. */
+    admin: boolean | null;
+}
+
+export interface NftCall
+{
+    to: Address;
+    data: Hex;
+    value: bigint;
+    chainId: number;
+    gasPrice: bigint | null;
+}
+
+/** A role call the contract would take, composed for a wallet, or the word it would refuse it with. */
+export type NftAsked = { ok: true; call: NftCall } | { ok: false; refusal: string };
+
+/** A transaction as the node holds it. */
+export interface NftTransaction
+{
+    from: Address;
+    to: Address | null;
+    input: Hex;
+}
+
 export interface NftChain
 {
     /** Whether the key, the RPC and both contracts are set. Without them nothing is ever sent. */
@@ -73,6 +126,21 @@ export interface NftChain
     /** The two contracts, checksummed, or null when unset: what the explorer links point at. */
     readonly looks: Address | null;
     readonly achievements: Address | null;
+
+    /** The address of the key the worker mints with, which is what `MINTER_ROLE` is granted to. */
+    readonly minter: Address | null;
+
+    /** Every contract the worker mints on, in the order the staff see them; none until the worker is configured. */
+    readonly contracts: readonly NftContract[];
+
+    /** What NuraChain says of a contract and its roles. Nothing of roles is read on a node that is on another chain or where there is no code. */
+    standing(contract: NftContract, wallet: Address | null): Promise<NftStanding>;
+
+    /** `grantRole` or `revokeRole` of `MINTER_ROLE` for the minter, composed for `admin`'s wallet and asked of the contract from it first. */
+    roleCall(contract: NftContract, admin: Address, grant: boolean): Promise<NftAsked>;
+
+    /** A transaction as the node holds it, or null when it holds none under that hash. */
+    transactionOf(hash: Hex): Promise<NftTransaction | null>;
 
     /** Whether `owner` holds look `id` now. */
     holdsLook(owner: Address, id: Hex): Promise<boolean>;
@@ -153,6 +221,10 @@ export function createNftChain(settings: NftChainSettings): NftChain
 
     const reader = () => boundedClient(settings.rpcUrl);
 
+    const contracts: readonly NftContract[] = configured && looks !== null && achievements !== null
+        ? [{ key: 'looks', name: 'Baziche Looks', address: looks }, { key: 'achievements', name: 'Baziche Achievements', address: achievements }]
+        : [];
+
     const ready = (at: Address | null) =>
     {
         if (!configured || account === null || at === null)
@@ -165,6 +237,23 @@ export function createNftChain(settings: NftChainSettings): NftChain
 
     const read = <T>(at: Address | null, functionName: string, args: readonly unknown[]) =>
         reached(reader().readContract({ address: ready(at).to, abi: NFT_ABI, functionName, args } as never) as Promise<T>);
+
+    const suggested = async () =>
+    {
+        try
+        {
+            return await reader().getGasPrice().then((live) => (live > floor ? live : floor));
+        }
+        catch (error)
+        {
+            if (unreached(error))
+            {
+                return floor;
+            }
+
+            throw error;
+        }
+    };
 
     /** Asks first, then sends only what would pass: a refusal is answered by name, and nothing is spent on it. */
     const send = async (at: Address | null, data: Hex): Promise<Sent> =>
@@ -207,6 +296,86 @@ export function createNftChain(settings: NftChainSettings): NftChain
         chainId,
         looks,
         achievements,
+        minter: account?.address ?? null,
+        contracts,
+
+        async standing(contract, wallet)
+        {
+            ready(contract.address);
+
+            const [node, code] = await reached(Promise.all([reader().getChainId(), reader().getCode({ address: contract.address })]));
+            const deployed = code !== undefined && code !== '0x';
+            const unread = { node, deployed, role: null, minter: false, admin: null };
+
+            if (node !== chainId || !deployed)
+            {
+                return unread;
+            }
+
+            try
+            {
+                const [role, owner] = await Promise.all([read<Hex>(contract.address, 'MINTER_ROLE', []), read<Hex>(contract.address, 'DEFAULT_ADMIN_ROLE', [])]);
+                const [minter, admin] = await Promise.all([
+                    account === null ? false : read<boolean>(contract.address, 'hasRole', [role, account.address]),
+                    wallet === null ? null : read<boolean>(contract.address, 'hasRole', [owner, wallet])
+                ]);
+
+                return { node, deployed, role, minter, admin };
+            }
+            catch (error)
+            {
+                if (refusedByContract(error))
+                {
+                    return unread;
+                }
+
+                throw error;
+            }
+        },
+
+        async roleCall(contract, admin, grant)
+        {
+            const { to, from } = ready(contract.address);
+            const role = await read<Hex>(contract.address, 'MINTER_ROLE', []);
+            const data = encodeFunctionData({ abi: NFT_ABI, functionName: grant ? 'grantRole' : 'revokeRole', args: [role, from.address] });
+
+            try
+            {
+                await reader().call({ account: admin, to, data });
+            }
+            catch (error)
+            {
+                const refusal = nftRefusalOf(error);
+
+                if (refusal !== null)
+                {
+                    return { ok: false, refusal };
+                }
+
+                return await reached(Promise.reject(error));
+            }
+
+            return { ok: true, call: { to, data, value: 0n, chainId, gasPrice: floor > 0n ? await suggested() : null } };
+        },
+
+        async transactionOf(hash)
+        {
+            try
+            {
+                const found = await reader().getTransaction({ hash });
+
+                return { from: getAddress(found.from), to: found.to === null ? null : getAddress(found.to), input: found.input };
+            }
+            catch (error)
+            {
+                if (error instanceof BaseError && error.walk((cause) => cause instanceof TransactionNotFoundError) !== null)
+                {
+                    return null;
+                }
+
+                return await reached(Promise.reject(error));
+            }
+        },
 
         holdsLook: async (owner, id) => await read<bigint>(looks, 'balanceOf', [owner, BigInt(id)]) > 0n,
 

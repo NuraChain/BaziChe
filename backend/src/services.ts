@@ -58,6 +58,7 @@ import { createNoticeService } from './domains/admin/notice.ts';
 import { createShopAdmin } from './domains/admin/shop.ts';
 import { createInviteAdmin } from './domains/admin/invites.ts';
 import { createMarketsMoney } from './domains/admin/markets-money.ts';
+import { createMintersAdmin } from './domains/admin/minters.ts';
 import { createShopMoney } from './domains/admin/shop-money.ts';
 import { worn, type ProfileLooks } from './domains/shop/looks.ts';
 import { createOrderService, type ShopSweep } from './domains/shop/orders.ts';
@@ -1531,7 +1532,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
     const shownOwners = () => shownOwnersOf(config.adminWallet);
 
-    const team = createStaffService(db, owners, shownOwners);
+    const team = createStaffService(db, shownOwners);
 
     const accounts = createPeopleService(db, owners, shownOwners, config.origin);
 
@@ -1664,6 +1665,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const forecasts = marketsChain ?? createMarketsChain({ rpcUrl: config.rpcUrl, chainId: config.chainId, markets: config.marketsAddress, operatorKey: config.refereeKey });
 
     const marketsFunds = createMarketsMoney(forecasts);
+
+    const minterDesk = createMintersAdmin(db, minting, courtesy);
 
     const markets = createMarketService(
         db,
@@ -3126,6 +3129,34 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 const actor = await ableTo(me, 'wallet');
 
                 return actor === null || actor.address === null ? null : await marketsFunds.operator(actor.address, address);
+            },
+
+            async minters(me)
+            {
+                const actor = await ableTo(me, 'money');
+
+                return actor === null ? null : await minterDesk.read(actor);
+            },
+
+            async minterGrant(me, contract, input)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null ? null : await minterDesk.ask(actor, contract, true, input.reason);
+            },
+
+            async minterRevoke(me, contract, input)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null ? null : await minterDesk.ask(actor, contract, false, input.reason);
+            },
+
+            async minterSent(me, change, input)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null ? null : await minterDesk.sent(actor, change, input.hash);
             },
 
             async shopPause(me, paused)

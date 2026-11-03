@@ -7,7 +7,7 @@ import { whyStaffRefused } from './staff-words.ts';
  * A call the owner's wallet sends, through the vault's own way to a wallet: `null` once it is mined,
  * otherwise what to say, in the staff's own words when the server refused it before a wallet was asked.
  */
-export async function ownerSends(vaults: Pick<VaultApi, 'send'>, compose: () => Promise<WalletCall>)
+export async function ownerSends(vaults: Pick<VaultApi, 'send'>, compose: () => Promise<WalletCall>, onHash?: (hash: string) => Promise<unknown>)
 {
     let refused: MessageKey | null = null;
     const answer = await vaults.send(async () =>
@@ -23,7 +23,7 @@ export async function ownerSends(vaults: Pick<VaultApi, 'send'>, compose: () => 
             refused = word === 'common.actionFailed' ? null : word;
             throw error;
         }
-    });
+    }, onHash);
 
     return answer === null ? null : refused ?? answer;
 }

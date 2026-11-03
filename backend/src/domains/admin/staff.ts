@@ -56,9 +56,11 @@ export const staffRefusal = (word: StaffRefusal, message: string) => new HttpErr
 
 const nobody = () => staffRefusal('staff-nobody', 'No one by that name.');
 
+const WALLET = /^0x[0-9a-f]{40}$/;
+
 const aboveYou = () => staffRefusal('staff-rank', 'That is above what your role may do.');
 
-export const record = async (tx: EntityManager, actor: Actor | null, entry: Entry) =>
+export const record = async (tx: EntityManager, actor: (Pick<Actor, 'handle' | 'role'> & { id: string | null }) | null, entry: Entry) =>
 {
     await tx.getRepository(StaffAction).insert({
         staffId: actor?.id ?? null,
@@ -85,7 +87,7 @@ const wire = (row: LogRow) => ({
 
 const newestFirst = <T extends ObjectLiteral>(query: SelectQueryBuilder<T>) => query.orderBy('a.created_at', 'DESC').addOrderBy('a.id', 'DESC');
 
-export function createStaffService(db: DataSource, owners: () => readonly string[], shown: () => readonly string[])
+export function createStaffService(db: DataSource, shown: () => readonly string[])
 {
     const members = (manager: EntityManager) => manager.getRepository(User).createQueryBuilder('u')
         .select('u.id', 'id')
@@ -126,14 +128,13 @@ export function createStaffService(db: DataSource, owners: () => readonly string
     const list = async (manager: EntityManager = db.manager): Promise<StaffList> =>
     {
         const heads = await headsOf(manager, shown());
-        const ranked = await headsOf(manager, owners());
         const rest = await members(manager)
             .innerJoin(StaffMember, 'm', 'm.user_id = u.id')
             .leftJoin(User, 'g', 'g.id = m.granted_by')
             .addSelect('m.role', 'role')
             .addSelect('m.granted_at', 'granted_at')
             .addSelect('g.handle', 'granted_by')
-            .where(ranked.length === 0 ? 'true' : 'not (u.id = any(:heads))', { heads: ranked.map((one) => one.id) })
+            .where(heads.length === 0 ? 'true' : 'not (u.id = any(:heads))', { heads: heads.map((one) => one.id) })
             .orderBy(`case m.role when 'co-owner' then 0 when 'admin' then 1 else 2 end`)
             .addOrderBy('m.granted_at', 'ASC')
             .addOrderBy('u.handle', 'ASC')
@@ -154,7 +155,7 @@ export function createStaffService(db: DataSource, owners: () => readonly string
             {
                 const target = await tx.getRepository(User).createQueryBuilder('u')
                     .setLock('pessimistic_write')
-                    .where('u.handle = :handle', { handle })
+                    .where(WALLET.test(handle.toLowerCase()) ? 'u.id = (select w.user_id from wallets w where w.address = :handle)' : 'u.handle = :handle', { handle })
                     .getOne();
 
                 if (target === null || target.isSuspended)
@@ -162,19 +163,14 @@ export function createStaffService(db: DataSource, owners: () => readonly string
                     throw nobody();
                 }
 
-                const ranked = (await headsOf(tx, owners())).some((one) => one.id === target.id);
-
-                if (ranked && target.id !== actor.id && !(await headsOf(tx, shown())).some((one) => one.id === target.id))
-                {
-                    throw nobody();
-                }
-
-                if (ranked)
+                if ((await headsOf(tx, shown())).some((one) => one.id === target.id))
                 {
                     throw staffRefusal('staff-owner', 'An owner is named by the server itself, and never changed from this page.');
                 }
 
-                if (target.id === actor.id)
+                const own = target.id === actor.id;
+
+                if (own && actor.role !== 'owner')
                 {
                     throw staffRefusal('staff-self', 'Nobody changes their own role.');
                 }
@@ -188,6 +184,7 @@ export function createStaffService(db: DataSource, owners: () => readonly string
                 }
 
                 const person = { id: target.id, handle: target.handle };
+                const grantedBy = own ? null : actor.id;
 
                 if (role === 'none' && current !== null)
                 {
@@ -196,12 +193,12 @@ export function createStaffService(db: DataSource, owners: () => readonly string
                 }
                 else if (role !== 'none' && current === null)
                 {
-                    await tx.getRepository(StaffMember).insert({ userId: target.id, role, grantedBy: actor.id });
+                    await tx.getRepository(StaffMember).insert({ userId: target.id, role, grantedBy });
                     await record(tx, actor, { kind: 'grant', person, reason, details: { to: role } });
                 }
                 else if (role !== 'none' && current !== role)
                 {
-                    await tx.getRepository(StaffMember).update({ userId: target.id }, { role, grantedBy: actor.id, grantedAt: () => 'now()' });
+                    await tx.getRepository(StaffMember).update({ userId: target.id }, { role, grantedBy, grantedAt: () => 'now()' });
                     await record(tx, actor, { kind: 'change', person, reason, details: { from: current ?? '', to: role } });
                 }
 

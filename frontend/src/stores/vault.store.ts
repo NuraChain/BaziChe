@@ -46,7 +46,7 @@ export interface VaultApi
     deposit(wei: bigint): Promise<MessageKey | null>;
     withdraw(wei: bigint): Promise<MessageKey | null>;
     reclaim(escrowId: string): Promise<MessageKey | null>;
-    send(compose: () => Promise<WalletCall>): Promise<MessageKey | null>;
+    send(compose: () => Promise<WalletCall>, onHash?: (hash: string) => Promise<unknown>): Promise<MessageKey | null>;
     signStake(tableId: string): Promise<Signed>;
     signSearch(game: string, stake: string): Promise<Signed>;
     reset(): void;
@@ -120,7 +120,7 @@ export const useVault = createStore((): VaultApi =>
 
     const ours = (chainId: number) => readyToSend(wallet, account.address(), chainId);
 
-    const sent = async (compose: () => Promise<WalletCall>): Promise<MessageKey | null> =>
+    const sent = async (compose: () => Promise<WalletCall>, onHash?: (hash: string) => Promise<unknown>): Promise<MessageKey | null> =>
     {
         if (busy())
         {
@@ -148,6 +148,8 @@ export const useVault = createStore((): VaultApi =>
             {
                 return VAULT_COPY[REFUSAL_OF[wallet.failure() ?? 'unknown']];
             }
+
+            await onHash?.(hash).catch(() => undefined);
 
             const ok = await settled(hash);
 

@@ -206,6 +206,40 @@ describe('the staff', () =>
         expect(button(admin, 'Change Mina Sadeghi’s role')).toBeDefined();
     });
 
+    it('offers a change on the reader\'s own row to an owner, who outranks every role, and to nobody else', async () =>
+    {
+        server.staff.owners = ['reza.t'];
+        server.staff.members = [staffMember('alex', 'co-owner', undefined, ago(2)), staffMember('mina', 'moderator', 'reza.t', ago(1))];
+        const owner = await shown();
+
+        expect(button(owner, 'Change Alex Morgan’s role')).toBeDefined();
+        expect(button(owner, 'Change Mina Sadeghi’s role')).toBeDefined();
+        expect(owner.querySelector('[data-member="alex"] [data-made]'), 'a granter was drawn for a role nobody granted').toBeNull();
+        cleanup();
+
+        as('co-owner');
+        const coOwner = await shown();
+
+        expect(button(coOwner, 'Change Alex Morgan’s role')).toBeUndefined();
+        expect(button(coOwner, 'Change Mina Sadeghi’s role')).toBeDefined();
+    });
+
+    it('refuses a change to one\'s own role to anybody who is not an owner, in the reader\'s words, and leaves the team as it was', async () =>
+    {
+        server.staff.owners = ['reza.t'];
+        server.staff.members = [staffMember('alex', 'admin', 'reza.t', ago(2))];
+        as('admin');
+        const container = await shown();
+
+        fill(container, 'alex', 'Moderator', 'Trying my own role.');
+        button(container, 'Save')!.click();
+        await settle();
+
+        expect(toasts()).toEqual(['Nobody does this to their own account.']);
+        expect(team(container)).toEqual(['alex admin']);
+        expect(server.staff.log).toEqual([]);
+    });
+
     it('shows a new member at the press, says so once the server has, and empties the form', async () =>
     {
         let answer: () => void = () => undefined;
@@ -234,6 +268,43 @@ describe('the staff', () =>
         expect(container.querySelector<HTMLInputElement>('#admin-staff-handle')!.value).toBe('');
         expect(container.querySelector<HTMLTextAreaElement>('#admin-staff-reason')!.value).toBe('');
         expect(server.staff.log.map((row) => `${ row.kind } ${ row.person } ${ row.details.to }`)).toEqual(['grant mina admin']);
+    });
+
+    it('names the person by the wallet of their account too, and draws no row of its own for a wallet before the server has answered', async () =>
+    {
+        let answer: () => void = () => undefined;
+        const sent = vi.spyOn(client.admin, 'setStaff');
+        sent.mockImplementationOnce(async (request) =>
+        {
+            await new Promise<void>((resolve) => answer = resolve);
+            return await client.admin.setStaff(request);
+        });
+        const container = await shown();
+        const wallet = '0x15D34AAf54267DB7D7c367839AAf71A00a2C6A65';
+
+        expect(Number(container.querySelector('#admin-staff-handle')?.getAttribute('maxlength'))).toBeGreaterThanOrEqual(wallet.length);
+
+        fill(container, wallet, 'Admin', 'Runs the Friday tables.');
+        button(container, 'Save')!.click();
+        await settle();
+
+        expect(sent).toHaveBeenCalledWith({ input: { handle: wallet.toLowerCase(), role: 'admin', reason: 'Runs the Friday tables.' } });
+        expect(team(container)).toEqual([]);
+
+        answer();
+        await settle();
+
+        expect(team(container)).toEqual(['mina admin']);
+        expect(toasts()).toEqual(['0x15d3…6a65 is an admin now.']);
+        expect(container.querySelector<HTMLInputElement>('#admin-staff-handle')!.value).toBe('');
+
+        useToasts().dismissAll();
+        fill(container, `0x${ '1'.repeat(40) }`, 'Admin', 'Nobody holds this wallet.');
+        button(container, 'Save')!.click();
+        await settle();
+
+        expect(team(container)).toEqual(['mina admin']);
+        expect(toasts()).toEqual(['No one by that name.']);
     });
 
     it('takes a change back when the server refuses it, says why in the reader\'s words, and keeps what was typed', async () =>
@@ -268,7 +339,7 @@ describe('the staff', () =>
         button(container, 'Save')!.click();
         await settle();
 
-        expect(said(container, '#admin-staff-handle-error')).toBe('Type the handle of the person.');
+        expect(said(container, '#admin-staff-handle-error')).toBe('Type the handle or the wallet of the person.');
         expect(said(container, '#admin-staff-reason-error')).toBe('Say why, in three characters or more.');
         expect(server.calls.slice(before)).toEqual([]);
         expect(container.querySelector('#admin-staff-reason')?.getAttribute('aria-invalid')).toBe('true');

@@ -75,6 +75,10 @@ import {
     adminShopRepriceInput,
     adminShopItemInput,
     adminMarkets,
+    adminMinterAsked,
+    adminMinterInput,
+    adminMinters,
+    adminMinterSentInput,
     adminShopMoney,
     adminShopOrders,
     adminShopOrdersQuery,
@@ -746,6 +750,18 @@ export function buildApi(ports: Ports)
 
             marketsOperator: routes.post('/markets/money/operator', { input: adminRefereeInput, output: walletCall },
                 async (context) => onlyAdmin(await ports.admin.marketsOperator(context.principal.userId, context.input.address))),
+
+            minters: routes.get('/minters', { output: adminMinters },
+                async (context) => onlyAdmin(await ports.admin.minters(context.principal.userId))),
+
+            minterGrant: routes.post('/minters/:contract/grant', { input: adminMinterInput, output: adminMinterAsked },
+                async (context) => onlyAdmin(await ports.admin.minterGrant(context.principal.userId, context.params.contract, context.input))),
+
+            minterRevoke: routes.post('/minters/:contract/revoke', { input: adminMinterInput, output: adminMinterAsked },
+                async (context) => onlyAdmin(await ports.admin.minterRevoke(context.principal.userId, context.params.contract, context.input))),
+
+            minterSent: routes.post('/minters/changes/:id/sent', { input: adminMinterSentInput, output: adminMinters },
+                async (context) => onlyAdmin(await ports.admin.minterSent(context.principal.userId, context.params.id, context.input))),
 
             shopPause: routes.post('/shop/money/pause', { input: adminPauseInput, output: walletCall },
                 async (context) => onlyAdmin(await ports.admin.shopPause(context.principal.userId, context.input.paused))),

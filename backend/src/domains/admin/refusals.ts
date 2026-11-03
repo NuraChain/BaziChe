@@ -39,7 +39,17 @@ export const STAFF_REFUSALS = {
     'staff-campaign-ended': 409,
     'staff-campaign-gave': 409,
     'staff-reward-move': 409,
-    'staff-reward-suspended': 409
+    'staff-reward-suspended': 409,
+    'staff-minter-off': 409,
+    'staff-minter-chain': 409,
+    'staff-minter-code': 409,
+    'staff-minter-roles': 409,
+    'staff-minter-admin': 409,
+    'staff-minter-held': 409,
+    'staff-minter-lacks': 409,
+    'staff-minter-busy': 409,
+    'staff-minter-refused': 409,
+    'staff-minter-change': 409
 } as const satisfies Record<string, 404 | 409 | 422>;
 
 export type StaffRefusal = keyof typeof STAFF_REFUSALS;

@@ -8,6 +8,7 @@ import { CallParticipant } from '../../entities/call-participant.entity.ts';
 import { Conversation } from '../../entities/conversation.entity.ts';
 import { ConversationMember } from '../../entities/conversation-member.entity.ts';
 import { User } from '../../entities/user.entity.ts';
+import { cursorOf, keyOf, keysetAfter, olderThan } from '../../lib/keyset.ts';
 import { FACES, mayIn, outranks, type GroupRight, type GroupRole, type GroupStanding, type GroupSwitches } from '../group/roles.ts';
 import type { SocialService } from '../social/service.ts';
 import { CALL_REFUSALS, type CallRefusal } from './refusals.ts';
@@ -24,6 +25,9 @@ const SHOWN_MOST = 8;
 
 /** The calls one sweep ends of each kind; the rest wait for the next. */
 const SWEPT_MOST = 100;
+
+/** The calls the Calls tab is handed at a time (MS-D39). */
+export const HISTORY_PAGE = 30;
 
 const SAYS: Record<CallRefusal, string> = {
     'call-missing': 'No call there.',
@@ -136,6 +140,28 @@ export interface CallChange
     id: string;
     changed: boolean;
     started?: boolean;
+}
+
+/** A call the reader took part in that has ended, as their Calls tab lists it (MS-D39). */
+export interface CallRecord
+{
+    id: string;
+    room: string;
+    kind: CallKind;
+
+    /** The other person of a call between two, by handle; none for a voice chat. */
+    with: string | null;
+
+    /** The group whose voice chat it was, by slug; none for a call between two. */
+    group: string | null;
+
+    /** Whether the reader rang it, or began the voice chat. */
+    out: boolean;
+    ending: CallEnding;
+    at: Date;
+
+    /** How long it ran once answered, in whole seconds as its line says it; nought for one never answered. */
+    seconds: number;
 }
 
 /**
@@ -572,6 +598,76 @@ export function createCallService(db: DataSource, social: SocialService, groups:
         async one(me: string, callId: string)
         {
             return await standing(me, callId) === null ? null : (await loaded(db.manager, [callId]))[0] ?? null;
+        },
+
+        /**
+         * The reader's calls that have ended, newest first, a page at a time by the microsecond keyset
+         * over when each began (MS-D39): those between two with the other person, and the group voice
+         * chats they were in, in rooms they are still in. A call with somebody suspended, or whose
+         * account is gone, is left out, as every list leaves them out.
+         */
+        async history(me: string, cursor: string | null): Promise<{ rows: CallRecord[]; cursor?: string }>
+        {
+            const after = keysetAfter(cursor);
+            const query = db.getRepository(Call).createQueryBuilder('c')
+                .innerJoin(CallParticipant, 'p', 'p.call_id = c.id and p.user_id = :me', { me })
+                .innerJoin(ConversationMember, 'm', 'm.conversation_id = c.conversation_id and m.user_id = :me')
+                .select('c.id', 'id')
+                .addSelect(keyOf('c.created_at'), 'at_key')
+                .addSelect('c.conversation_id', 'room')
+                .addSelect('c.kind', 'kind')
+                .addSelect('coalesce(c.started_by = :me, false)', 'out')
+                .addSelect('c.ending', 'ending')
+                .addSelect('c.created_at', 'created_at')
+                .addSelect('c.answered_at', 'answered_at')
+                .addSelect('c.ended_at', 'ended_at')
+                .addSelect(`(select u.handle from call_participants q join users u on u.id = q.user_id
+                              where q.call_id = c.id and q.user_id <> :me and c.kind = 'direct' and u.is_suspended = false)`, 'with')
+                .addSelect(`(select g.slug from conversations v join groups g on g.id = v.group_id
+                              where v.id = c.conversation_id and c.kind = 'group')`, 'group')
+                .where(`c.state = 'ended'`)
+                .andWhere(`(c.kind = 'group' or exists (select 1 from call_participants q join users u on u.id = q.user_id
+                                                         where q.call_id = c.id and q.user_id <> :me and u.is_suspended = false))`);
+
+            if (after !== null)
+            {
+                query.andWhere(olderThan('c.created_at', 'c.id'), after);
+            }
+
+            const rows = await query
+                .orderBy('c.created_at', 'DESC')
+                .addOrderBy('c.id', 'DESC')
+                .limit(HISTORY_PAGE + 1)
+                .getRawMany<{
+                    id: string;
+                    at_key: string;
+                    room: string;
+                    kind: CallKind;
+                    out: boolean;
+                    ending: CallEnding;
+                    created_at: Date;
+                    answered_at: Date | null;
+                    ended_at: Date | null;
+                    with: string | null;
+                    group: string | null;
+                }>();
+
+            return {
+                rows: rows.slice(0, HISTORY_PAGE).map((row) => ({
+                    id: row.id,
+                    room: row.room,
+                    kind: row.kind,
+                    with: row.with,
+                    group: row.group,
+                    out: row.out,
+                    ending: row.ending,
+                    at: row.created_at,
+                    seconds: row.answered_at === null || row.ended_at === null
+                        ? 0
+                        : Math.max(0, Math.floor((row.ended_at.getTime() - row.answered_at.getTime()) / 1000))
+                })),
+                ...cursorOf(rows, HISTORY_PAGE)
+            };
         },
 
         /**

@@ -260,6 +260,7 @@ import {
     callPersonInput,
     callView,
     callsState,
+    callHistory,
     voiceChatState,
     partyState
 } from './schemas.ts';
@@ -1455,6 +1456,10 @@ export function buildApi(ports: Ports)
          */
         calls: feature('/calls', [session], (routes) => ({
             state: routes.get('/', { output: callsState }, (context) => ports.calls.state(context.principal.userId)),
+
+            /** The reader's calls that have ended, for the Calls tab, newest first and thirty a page. */
+            history: routes.get('/history', { query: cursorQuery, output: callHistory },
+                (context) => ports.calls.history(context.principal.userId, context.query.cursor ?? null)),
 
             view: routes.get('/:id', { output: callView }, (context) => ports.calls.view(context.principal.userId, context.params.id)),
 

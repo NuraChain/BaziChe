@@ -601,6 +601,33 @@ describe.skipIf(!active)('a group\'s voice chat, against a real database', () =>
             expect((await ports.calls.state(member.id)).calls.map((one) => one.state), 'shown a moment longer as it ended').toEqual(['ended']);
         });
 
+        it('is in the history of whoever was in it, with its group and from whoever began it, and leaves it with the group', async () =>
+        {
+            const owner = await makeUser();
+            const member = await makeUser();
+            const away = await makeUser();
+            const { slug, room } = await crew(owner, member, away);
+
+            const started = await ports.calls.ring(owner.id, room);
+            await ports.calls.join(member.id, started.id);
+            await db.query(`update calls set answered_at = answered_at - interval '95 seconds', created_at = created_at - interval '95 seconds' where id = $1`, [started.id]);
+
+            expect((await ports.calls.history(owner.id, null)).calls, 'nothing while it runs').toEqual([]);
+
+            await ports.calls.end(owner.id, started.id);
+
+            const said = (await lines(room)).find((line) => line.key === 'chat.line.voice.ended')?.params.seconds;
+            const began = (await ports.calls.history(owner.id, null)).calls;
+
+            expect(began).toEqual([{ id: started.id, room, kind: 'group', group: slug, out: true, ending: 'answered', at: began[0]?.at, seconds: Number(said) }]);
+            expect((await ports.calls.history(member.id, null)).calls.map((one) => [one.id, one.out]), 'joined, not begun').toEqual([[started.id, false]]);
+            expect((await ports.calls.history(away.id, null)).calls, 'never in it').toEqual([]);
+
+            await ports.group.leave(member.id, slug);
+
+            expect((await ports.calls.history(member.id, null)).calls, 'a room they are no longer in').toEqual([]);
+        });
+
         it('ends by itself once nobody has been in its room for longer than it waits, as of when the last one went', async () =>
         {
             const owner = await makeUser();

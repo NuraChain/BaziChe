@@ -2778,6 +2778,30 @@ export const callsState = object({ calls: array(callView) });
 
 export type CallsState = Infer<typeof callsState>;
 
+/**
+ * A call the reader took part in that has ended, as their Calls tab lists it (MS-D39): the other
+ * person of a call between two by handle (`with`), or the group of a voice chat by slug, whether the
+ * reader rang it or began it (`out`), how it ended, when it began and how long it ran once answered.
+ */
+export const callRecord = object({
+    id: string(),
+    room: string(),
+    kind: enumOf(CALL_KINDS),
+    with: string().optional(),
+    group: string().optional(),
+    out: boolean(),
+    ending: enumOf(CALL_ENDINGS),
+    at: string(),
+    seconds: number({ int: true, min: 0 })
+});
+
+export type CallRecord = Infer<typeof callRecord>;
+
+/** The reader's calls that have ended, newest first, thirty a page, with the cursor to the next page while there is one. */
+export const callHistory = object({ calls: array(callRecord), cursor: string().optional() });
+
+export type CallHistory = Infer<typeof callHistory>;
+
 export const callInput = object({ room: string({ max: 64 }) });
 
 /** A hand up or down in a group's voice chat. */

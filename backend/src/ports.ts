@@ -98,6 +98,7 @@ import type {
     PartyState,
     CallView,
     CallsState,
+    CallHistory,
     VoiceChatState,
     ShopCollectionView,
     ShopOrderView,
@@ -461,6 +462,9 @@ export interface CallPort
 
     /** The voice chat running in a group's room, as its members see it from the head. */
     room(me: string, room: string): Promise<VoiceChatState>;
+
+    /** The reader's calls that have ended, newest first, a page at a time (MS-D39). */
+    history(me: string, cursor: string | null): Promise<CallHistory>;
 }
 
 /**

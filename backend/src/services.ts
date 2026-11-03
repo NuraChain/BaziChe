@@ -4715,6 +4715,26 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 }
 
                 return found.call === null ? {} : { call: found.call };
+            },
+
+            async history(me, cursor)
+            {
+                const page = await calls.history(me, cursor);
+
+                return {
+                    calls: page.rows.map((row) => ({
+                        id: row.id,
+                        room: row.room,
+                        kind: row.kind,
+                        ...(row.with === null ? {} : { with: row.with }),
+                        ...(row.group === null ? {} : { group: row.group }),
+                        out: row.out,
+                        ending: row.ending,
+                        at: row.at.toISOString(),
+                        seconds: row.seconds
+                    })),
+                    ...(page.cursor === undefined ? {} : { cursor: page.cursor })
+                };
             }
         },
 

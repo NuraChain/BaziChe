@@ -707,4 +707,108 @@ describe.skipIf(!active)('calls between two people, against Postgres', () =>
             expect((await callOf(going.id)).state, 'somebody else unfriending').toBe('ringing');
         });
     });
+
+    describe('the calls that ended', () =>
+    {
+        it('lists them newest first from the reader\'s own side, with how each ended and how long it ran, and never one still open', async () =>
+        {
+            const { a, b, room } = await pair();
+
+            const talked = await ports.calls.ring(a.id, room);
+
+            await ports.calls.accept(b.id, talked.id);
+            await ago(talked.id, 65);
+            await ports.calls.hangUp(b.id, talked.id);
+
+            const declined = await ports.calls.ring(b.id, room);
+
+            await ports.calls.decline(a.id, declined.id);
+
+            const cancelled = await ports.calls.ring(a.id, room);
+
+            await ports.calls.hangUp(a.id, cancelled.id);
+            await ports.calls.ring(b.id, room);
+
+            const mine = await ports.calls.history(a.id, null);
+            const theirs = await ports.calls.history(b.id, null);
+
+            expect(mine.calls.map((one) => [one.id, one.out, one.ending, one.seconds])).toEqual([
+                [cancelled.id, true, 'cancelled', 0],
+                [declined.id, false, 'declined', 0],
+                [talked.id, true, 'answered', 65]
+            ]);
+            expect(theirs.calls.map((one) => [one.id, one.out]), 'the same calls from the other side').toEqual([[cancelled.id, false], [declined.id, true], [talked.id, false]]);
+            expect(mine.calls[0]).toEqual({ id: cancelled.id, room, kind: 'direct', with: b.handle, out: true, ending: 'cancelled', at: mine.calls[0].at, seconds: 0 });
+            expect(new Date(mine.calls[0].at).getTime(), 'when it began').toBe((await callOf(cancelled.id)).createdAt.getTime());
+            expect(String(mine.calls[2].seconds), 'as long as its line in the chat says').toBe((await lines(room))[0]?.params.seconds);
+            expect(mine.cursor, 'one page').toBeUndefined();
+        });
+
+        it('leaves out somebody else\'s calls and one with somebody suspended or gone', async () =>
+        {
+            const { a, b, room } = await pair();
+            const c = await makeUser();
+            const d = await makeUser();
+
+            await befriend(a, c);
+            await befriend(b, c);
+            await befriend(a, d);
+
+            const kept = await ports.calls.ring(a.id, room);
+
+            await ports.calls.hangUp(a.id, kept.id);
+
+            const withC = await ports.calls.ring(a.id, await ports.chat.openDirect(a.id, c.handle));
+
+            await ports.calls.hangUp(a.id, withC.id);
+
+            const theirs = await ports.calls.ring(b.id, await ports.chat.openDirect(b.id, c.handle));
+
+            await ports.calls.hangUp(b.id, theirs.id);
+
+            const withD = await ports.calls.ring(a.id, await ports.chat.openDirect(a.id, d.handle));
+
+            await ports.calls.hangUp(a.id, withD.id);
+
+            expect((await ports.calls.history(a.id, null)).calls.map((one) => one.id)).toEqual([withD.id, withC.id, kept.id]);
+
+            await db.query(`update users set is_suspended = true where id = $1`, [c.id]);
+            await db.getRepository(User).delete({ id: d.id });
+
+            expect((await ports.calls.history(a.id, null)).calls.map((one) => one.id), 'nobody suspended, nobody gone').toEqual([kept.id]);
+        });
+
+        it('turns pages of thirty across rows written in one millisecond, and reads a cursor that is none as the first page', async () =>
+        {
+            const { a, b, room } = await pair();
+            const made = rowsOf<{ id: string }>(await db.query(
+                `insert into calls (conversation_id, kind, started_by, state, ending, created_at, answered_at, ended_at)
+                 select $1, 'direct', $2, 'ended', 'missed',
+                        timestamptz '2026-11-01 10:00:00+00' + (g / 2) * interval '1 millisecond' + (g % 2) * interval '1 microsecond',
+                        null,
+                        timestamptz '2026-11-01 10:00:05+00'
+                   from generate_series(0, 64) g
+                 returning id`,
+                [room, a.id]
+            ));
+
+            await db.query(
+                `insert into call_participants (call_id, user_id, joined_at, left_at, held)
+                 select c.id, u, c.created_at, c.created_at, false from calls c, unnest($2::uuid[]) as u where c.id = any($1::uuid[])`,
+                [made.map((one) => one.id), [a.id, b.id]]
+            );
+
+            const first = await ports.calls.history(b.id, null);
+            const second = await ports.calls.history(b.id, first.cursor ?? null);
+            const third = await ports.calls.history(b.id, second.cursor ?? null);
+            const read = [...first.calls, ...second.calls, ...third.calls].map((one) => one.id);
+            const order = rowsOf<{ id: string }>(await db.query(`select id from calls where id = any($1::uuid[]) order by created_at desc, id desc`, [made.map((one) => one.id)]));
+
+            expect([first.calls.length, second.calls.length, third.calls.length]).toEqual([30, 30, 5]);
+            expect(third.cursor, 'nothing past the last page').toBeUndefined();
+            expect(read, 'every call once, newest first').toEqual(order.map((one) => one.id));
+            expect(first.calls.every((one) => one.ending === 'missed' && !one.out && one.seconds === 0)).toBe(true);
+            expect((await ports.calls.history(b.id, 'not|a-cursor')).calls.map((one) => one.id)).toEqual(first.calls.map((one) => one.id));
+        });
+    });
 });

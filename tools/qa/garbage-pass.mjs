@@ -47,6 +47,7 @@ const QUERIES = {
     '/social/people/:handle/achievements/:family': ['game'],
     '/tables/watching': ['game', 'mode'],
     '/matches/history': ['cursor'],
+    '/calls/history': ['cursor'],
     '/matches/:id/since': ['rev'],
     '/matches/:id/watch': ['rev'],
     '/notifications': ['cursor', 'notice'],

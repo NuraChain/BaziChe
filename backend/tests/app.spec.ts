@@ -1052,7 +1052,7 @@ describe('calls', () =>
         log: silent,
         ports: {
             identity: { principal: () => Promise.resolve(who) },
-            calls: Object.fromEntries(['state', 'view', 'ring', 'join', 'accept', 'decline', 'hangUp', 'end', 'room', 'hand', 'hold', 'holdAll', 'remove'].map((verb) => [verb, (...said: unknown[]) =>
+            calls: Object.fromEntries(['state', 'view', 'ring', 'join', 'accept', 'decline', 'hangUp', 'end', 'room', 'hand', 'hold', 'holdAll', 'remove', 'history'].map((verb) => [verb, (...said: unknown[]) =>
             {
                 told.push([verb, ...said]);
 
@@ -1079,6 +1079,27 @@ describe('calls', () =>
         expect(await all.json()).toEqual({ calls: [view] });
         expect(await one.json()).toEqual(view);
         expect(told).toEqual([['state', 'somebody'], ['view', 'somebody', CALL]]);
+    });
+
+    it('reads the reader the calls that ended a page at a time, by the cursor as it came, and nothing it does not declare', async () =>
+    {
+        const told: unknown[][] = [];
+        const ended = { id: CALL, room: ROOM, kind: 'direct', with: 'mina', out: false, ending: 'missed', at: '2026-11-03T01:00:00.000Z', seconds: 0, startedBy: 'a-uuid' };
+        const page = { calls: [ended, { ...ended, kind: 'group', with: undefined, group: 'friday-night-crew', out: true, ending: 'answered', seconds: 754 }], cursor: '1793682000000000|3f0e3c2a-1111-4222-8333-444455556666' };
+        const app = calledAs(told, () => Promise.resolve(page));
+        const first = await call(app, '/api/calls/history');
+        const next = await call(app, `/api/calls/history?cursor=${ encodeURIComponent(page.cursor) }`);
+
+        expect(first.status).toBe(200);
+        expect(await first.json()).toEqual({
+            calls: [
+                { id: CALL, room: ROOM, kind: 'direct', with: 'mina', out: false, ending: 'missed', at: '2026-11-03T01:00:00.000Z', seconds: 0 },
+                { id: CALL, room: ROOM, kind: 'group', group: 'friday-night-crew', out: true, ending: 'answered', at: '2026-11-03T01:00:00.000Z', seconds: 754 }
+            ],
+            cursor: page.cursor
+        });
+        expect(next.status).toBe(200);
+        expect(told, 'not read as a call by that id').toEqual([['history', 'somebody', null], ['history', 'somebody', page.cursor]]);
     });
 
     it('hands the page everybody\'s place in a voice chat and whether the reader may run it, which the page asks before offering to', async () =>
@@ -1236,7 +1257,7 @@ describe('calls', () =>
         expect(told).toEqual([]);
     });
 
-    it('is thirteen routes', async () =>
+    it('is fourteen routes', async () =>
     {
         const manifest = await (await call(calledAs([]), '/api/_manifest')).json() as Record<string, Record<string, { method: string; path: string }>>;
 
@@ -1246,6 +1267,7 @@ describe('calls', () =>
             'end POST /calls/:id/end',
             'hand POST /calls/:id/hand',
             'hangUp POST /calls/:id/hang-up',
+            'history GET /calls/history',
             'hold POST /calls/:id/hold',
             'holdAll POST /calls/:id/hold-all',
             'join POST /calls/:id/join',

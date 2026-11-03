@@ -170,7 +170,7 @@ describe('the reader\'s invite link', () =>
         expect(qr.getAttribute('aria-label')).toBe('QR code of your invite link');
         expect([count(container, 'visits'), count(container, 'joined'), count(container, 'played')]).toEqual(['3', '2', '1']);
         expect(container.textContent).toContain('Made 2 hours ago');
-        expect(server.calls.filter((call) => call.startsWith('invites.'))).toEqual(['invites.summary', 'invites.people']);
+        expect(server.calls.filter((call) => call.startsWith('invites.') && call !== 'invites.earnings'), 'the page\'s own reads, once each; what invites earned is its panel\'s, read once its chunk has come').toEqual(['invites.summary', 'invites.people']);
     });
 
     it('copies the link, and says so once it is copied', async () =>

@@ -12,7 +12,8 @@
         "build": "vite build && vite build --ssr src/entry.server.ts --outDir ../.dist-server && azeroth-kit-prerender --entry ../.dist-server/entry.server.js --client ../.dist-frontend",
         "test": "vitest run",
         "test:watch": "vitest",
-        "test:shuffle": "vitest run --sequence.shuffle"
+        "test:shuffle": "vitest run --sequence.shuffle",
+        "test:changed": "vitest run --changed origin/main --passWithNoTests"
     },
     "dependencies": {
         "@azerothjs/http": "2.1.0",

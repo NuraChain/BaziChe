@@ -138,7 +138,8 @@ describe.skipIf(!active)('a seat that has quit a game still being played, agains
             env: 'test',
             vapidPublicKey: '',
             vapidPrivateKey: '',
-            vapidSubject: ''
+            vapidSubject: '',
+adminWallet: ''
         } as Parameters<typeof buildPorts>[1], listener, { present: (userIds) => new Set(userIds), looking: () => [...lookers] });
     }, 60_000);
 

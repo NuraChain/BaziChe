@@ -288,7 +288,8 @@ describe.skipIf(!active)('a host taking somebody out of a chair, against a real 
             env: 'test',
             vapidPublicKey: '',
             vapidPrivateKey: '',
-            vapidSubject: ''
+            vapidSubject: '',
+            adminWallet: ''
         } as Parameters<typeof buildPorts>[1], listener);
     }, 60_000);
 

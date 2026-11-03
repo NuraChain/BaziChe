@@ -50,7 +50,7 @@ describe.skipIf(!active)('when somebody was last seen, against a real database',
         await db.initialize();
         await syncSchema(db);
         social = createSocialService(db);
-        ports = buildPorts(db, { secret: 'a-test-secret-that-is-long-enough-to-use', origin: 'http://localhost:1', env: 'test' } as Parameters<typeof buildPorts>[1]);
+        ports = buildPorts(db, { secret: 'a-test-secret-that-is-long-enough-to-use', origin: 'http://localhost:1', env: 'test', adminWallet: '' } as Parameters<typeof buildPorts>[1]);
     }, 60_000);
 
     afterAll(async () =>

@@ -48,7 +48,7 @@ import { createStakeService, type StakeSweep } from './domains/stake/service.ts'
 import { createIdentityService } from './domains/identity/service.ts';
 import { createInviteService, noInvite } from './domains/invite/service.ts';
 import { isAdminAddress } from './domains/identity/admin.ts';
-import { may, ownersOf, shownOwnersOf, type Ability, type GrantedRole } from './domains/admin/roles.ts';
+import { may, ownersOf, type Ability, type GrantedRole } from './domains/admin/roles.ts';
 import { createPeopleService } from './domains/admin/people.ts';
 import { createLiveService, type Call, type Online } from './domains/admin/live.ts';
 import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play.ts';
@@ -238,7 +238,9 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     };
     const achieve = createAchieveService(db);
 
-    const invites = createInviteService(db, () => ownersOf(config.adminWallet));
+    const owners = () => ownersOf(config.adminWallet);
+
+    const invites = createInviteService(db, owners);
 
     /** A code with the link that carries it, on the origin the browser is served from. */
     const linked = <T extends { code: string }>(view: T) => ({ ...view, link: `${ config.origin }/join/${ view.code }` });
@@ -1408,29 +1410,25 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             dedupeKey: `gift:${ gift.order }`
         })),
         unworn: (userId) => courtesy('profile look', () => ringProfile(userId))
-    });
+    }, owners);
 
     const shopFunds = createShopMoney(db, looksShop);
 
-    const owners = () => ownersOf(config.adminWallet);
+    const team = createStaffService(db, owners);
 
-    const shownOwners = () => shownOwnersOf(config.adminWallet);
+    const accounts = createPeopleService(db, owners, config.origin);
 
-    const team = createStaffService(db, owners, shownOwners);
+    const desk = createReportsService(db, owners);
 
-    const accounts = createPeopleService(db, owners, shownOwners, config.origin);
+    const plays = createPlayService(db, owners);
 
-    const desk = createReportsService(db, shownOwners);
-
-    const plays = createPlayService(db, owners, shownOwners);
-
-    const onlineNow = createLiveService(db, shownOwners);
+    const onlineNow = createLiveService(db, owners);
 
     const notices = createNoticeService(db);
 
     const shopAdmin = createShopAdmin(db);
 
-    const inviteAdmin = createInviteAdmin(db, shownOwners);
+    const inviteAdmin = createInviteAdmin(db, owners);
 
     const liveNow = async () =>
     {

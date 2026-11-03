@@ -49,7 +49,8 @@ const door = () => buildPorts(db, {
     env: 'test',
     vapidPublicKey: '',
     vapidPrivateKey: '',
-    vapidSubject: ''
+    vapidSubject: '',
+    adminWallet: ''
 } as Parameters<typeof buildPorts>[1], listener);
 
 const makeUser = async () =>

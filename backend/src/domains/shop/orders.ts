@@ -12,7 +12,6 @@ import { ShopOrder } from '../../entities/shop-order.entity.ts';
 import { User } from '../../entities/user.entity.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan } from '../../lib/keyset.ts';
 import type { ShopOrderView, ShopPaying, ShopPurchase, ShopState } from '../../schemas.ts';
-import { OWNER_WALLET } from '../admin/roles.ts';
 import { audited, AUDIT_PAGE, nothing, RECENT, type AuditAsk, type Finding } from '../reconcile/audit.ts';
 import { orderVerdict, type OrderAfter, type Sold } from '../reconcile/verdicts.ts';
 import { FEATURED_FIRST, SHOP_COLLECTIONS, bundleOf, bundlePriceFor, isItemId } from './catalogue.ts';
@@ -167,8 +166,6 @@ const pending = () => shopRefusal('shop-pending', 'An order for that look is alr
 const noFriend = () => shopRefusal('shop-friend', 'You can give a look only to a friend.');
 const noOrder = () => shopRefusal('shop-order', 'No order of yours by that name.');
 
-const freeFor = (address: string | null) => address?.toLowerCase() === OWNER_WALLET;
-
 /** What the shop's refusal of a purchase means to whoever asked for it. */
 const refusalOf = (error: string, price: string) =>
 {
@@ -192,8 +189,11 @@ const refusalOf = (error: string, price: string) =>
  * server never holds NURA and never takes the browser's word that something was paid: the worker
  * asks the shop about each order by its id.
  */
-export function createOrderService(db: DataSource, shop: ShopChain, hooks: OrderHooks)
+/** `owners` are the wallets that take any look for nothing: the owner the server's `.env` names. */
+export function createOrderService(db: DataSource, shop: ShopChain, hooks: OrderHooks, owners: () => readonly string[])
 {
+    const freeFor = (address: string | null) => address !== null && owners().includes(address.toLowerCase());
+
     /** When each order nobody said they sent was last asked about, in this process. */
     const askedAt = new Map<string, number>();
 

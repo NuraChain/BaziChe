@@ -118,7 +118,8 @@ describe.skipIf(!active)('a request that is not well formed, against Postgres', 
             env: 'test',
             vapidPublicKey: '',
             vapidPrivateKey: '',
-            vapidSubject: ''
+            vapidSubject: '',
+adminWallet: ''
         } as Parameters<typeof buildPorts>[1], listener);
     }, 60_000);
 

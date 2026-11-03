@@ -1,24 +1,20 @@
-export const STAFF_ROLES = ['moderator', 'admin', 'owner'] as const;
+/**
+ * Lowest first. The owner is the wallet the server's `.env` names, and nobody else: never granted,
+ * never taken. A co-owner is granted by the owner alone and does everything the server does that
+ * an owner may, over admins too, but signs for no contract: every `wallet` ability is the owner's.
+ */
+export const STAFF_ROLES = ['moderator', 'admin', 'co-owner', 'owner'] as const;
 
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
-export const OWNER_WALLET = '0x6c1bd367efcc5f57f2812b404d83480c2af77987';
-
 export function ownersOf(named: string)
 {
-    const also = named.trim().toLowerCase();
+    const owner = named.trim().toLowerCase();
 
-    return also === '' || also === OWNER_WALLET ? [OWNER_WALLET] : [OWNER_WALLET, also];
+    return owner === '' ? [] : [owner];
 }
 
-export function shownOwnersOf(named: string)
-{
-    const also = named.trim().toLowerCase();
-
-    return also === '' ? [] : [also];
-}
-
-export const GRANTED_ROLES = ['moderator', 'admin'] as const;
+export const GRANTED_ROLES = ['moderator', 'admin', 'co-owner'] as const;
 
 export type GrantedRole = (typeof GRANTED_ROLES)[number];
 

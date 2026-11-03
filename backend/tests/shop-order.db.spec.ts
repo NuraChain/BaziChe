@@ -8,7 +8,6 @@ import { SHOP_ABI, itemOf, orderIdOf } from '../src/chain/shop.ts';
 import { Notification, OwnedItem, Referral, ShopOrder, Table, User, Wallet, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
-import { OWNER_WALLET } from '../src/domains/admin/roles.ts';
 import { BUNDLES, FEATURED_FIRST, LOOKS, NURA, bundleOf, bundlePriceFor, lookOf } from '../src/domains/shop/catalogue.ts';
 import { buildPorts, type WriteListener } from '../src/services.ts';
 import { FAKE_SHOP, fakeShop } from './fake-shop.ts';
@@ -42,6 +41,9 @@ const listener: WriteListener = {
     seen: () => undefined
 };
 
+/** The owner the server's .env names: hardhat's published account 6, whose own looks are free. */
+const OWNER_ADDRESS = '0x976ea74026e726554db657fa54763abd0c3a0aa9';
+
 const CONFIG = {
     secret: 'a-test-secret-that-is-long-enough-to-use',
     origin: 'http://localhost:1',
@@ -53,7 +55,7 @@ const CONFIG = {
     vapidSubject: '',
     vaultAddress: '',
     shopAddress: '',
-    adminWallet: ''
+    adminWallet: OWNER_ADDRESS
 } as Parameters<typeof buildPorts>[1];
 
 const door = (fake = fakeShop()) => ({ ports: buildPorts(db, CONFIG, listener, undefined, undefined, undefined, undefined, fake.shop), fake });
@@ -379,9 +381,9 @@ describe.skipIf(!active)('buying a look with NURA, against a real database', () 
         });
     });
 
-    describe('the wallet whose own looks are free', () =>
+    describe('the owner .env names, whose own looks are free', () =>
     {
-        const FREE = getAddress(OWNER_WALLET);
+        const FREE = getAddress(OWNER_ADDRESS);
 
         const freeBuyer = async (options: { minor?: boolean } = {}): Promise<Person> =>
         {

@@ -59,7 +59,8 @@ const CONFIG = {
     env: 'test',
     vapidPublicKey: '',
     vapidPrivateKey: '',
-    vapidSubject: ''
+    vapidSubject: '',
+    adminWallet: ''
 } as Parameters<typeof buildPorts>[1];
 
 let db: DataSource;

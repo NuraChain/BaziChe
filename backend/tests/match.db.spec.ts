@@ -1377,7 +1377,8 @@ describe.skipIf(!active)('a match, against a real database', () =>
             env: 'test',
             vapidPublicKey: '',
             vapidPrivateKey: '',
-            vapidSubject: ''
+            vapidSubject: '',
+            adminWallet: ''
         } as Parameters<typeof buildPorts>[1]);
 
         const sent = async (matchId: string, rev: number | null = null) => matchWatch.parse(await portsOf().match.watch(await makeUser(), matchId, rev));

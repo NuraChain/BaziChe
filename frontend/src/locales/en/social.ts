@@ -807,6 +807,7 @@ export const social = {
     'notify.groupReport': { one: 'A message was reported in a group you help run', other: '{count} messages were reported in a group you help run' },
     'notify.call': '{who} is calling you',
     'notify.callMissed': 'You missed a call from {who}',
+    'notify.groupCall': '{who} started a voice chat in a group',
     'notify.groupApproved': '{who} let you into a group',
     'notify.groupOwner': '{who} handed a group to you: it is yours now',
     'notify.channelInvite': '{who} added you to a channel',

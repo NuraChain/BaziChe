@@ -78,8 +78,8 @@ const call = (shape: Shape = {}, conversationId = room) =>
 
 const ended = (ending: CallEnding, answeredAt: Date | null): Shape => ({ state: 'ended', ending, answeredAt, endedAt: new Date(Date.now() + 1000) });
 
-const join = (callId: string, userId: string, more: Partial<Pick<CallParticipant, 'leftAt' | 'removedAt' | 'handAt' | 'held' | 'joinedAt'>> = {}) =>
-    db.getRepository(CallParticipant).insert({ callId, userId, joinedAt: more.joinedAt ?? new Date(), held: more.held ?? false, leftAt: more.leftAt ?? null, handAt: more.handAt ?? null, removedAt: more.removedAt ?? null });
+const join = (callId: string, userId: string, more: Partial<Pick<CallParticipant, 'leftAt' | 'goneAt' | 'removedAt' | 'handAt' | 'held' | 'joinedAt'>> = {}) =>
+    db.getRepository(CallParticipant).insert({ callId, userId, joinedAt: more.joinedAt ?? new Date(), held: more.held ?? false, leftAt: more.leftAt ?? null, goneAt: more.goneAt ?? null, handAt: more.handAt ?? null, removedAt: more.removedAt ?? null });
 
 describe.skipIf(!active)('a call\'s rows', () =>
 {
@@ -211,12 +211,26 @@ describe.skipIf(!active)('a call\'s rows', () =>
     {
         const person = await makeUser();
         const held = call();
+        const later = new Date(Date.now() + 1000);
 
         await held.write;
 
         expect(await refusal(join(held.id, person, { removedAt: new Date() })), 'removed, still there').toBe('23514');
+        expect(await refusal(join(held.id, person, { leftAt: later, removedAt: later })), 'removed, and never gone').toBe('23514');
+        expect(await refusal(join(held.id, person, { goneAt: later })), 'gone, and still in its room').toBe('23514');
         expect(await refusal(join(held.id, person, { joinedAt: new Date(), leftAt: ago(60) })), 'gone before they came').toBe('23514');
-        expect(await refusal(join(held.id, person, { held: true, handAt: new Date(), leftAt: new Date(Date.now() + 1000), removedAt: new Date(Date.now() + 1000) })), 'held, a hand up, removed').toBeNull();
+        expect(await refusal(join(held.id, person, { held: true, handAt: new Date(), leftAt: later, goneAt: later, removedAt: later })), 'held, a hand up, removed').toBeNull();
+    });
+
+    it('keep somebody who left on purpose out of the room they left', async () =>
+    {
+        const person = await makeUser();
+        const held = call();
+        const later = new Date(Date.now() + 1000);
+
+        await held.write;
+
+        expect(await refusal(join(held.id, person, { leftAt: later, goneAt: later })), 'gone and out').toBeNull();
     });
 
     it('go with their call and with their person', async () =>

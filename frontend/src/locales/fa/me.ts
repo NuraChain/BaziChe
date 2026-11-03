@@ -149,7 +149,7 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'settings.notifications.turns': 'بازی‌ها: نوبتت و شروع بازی',
     'settings.notifications.gifts': 'هدیه یا NURA گرفتن',
     'settings.notifications.inviting': 'دوستایی که دعوت کردی',
-    'settings.notifications.calls': 'تماس‌ها: وقتی یکی زنگ می‌زنه و تماس‌هایی که جواب ندادی',
+    'settings.notifications.calls': 'تماس‌ها: وقتی یکی زنگ می‌زنه، تماس‌هایی که جواب ندادی و وقتی توی یه گروه چت صوتی شروع می‌شه',
     'settings.notifications.haptics': 'لرزش',
     'settings.notifications.hapticsHint': 'یه لرزش کوتاه وقتی میز آماده می‌شه، یه دست رو می‌بری یا یه حرکت می‌شینه.',
 

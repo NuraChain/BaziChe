@@ -810,6 +810,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.groupReport': { other: '你协助管理的群组里有 {count} 条消息被举报了' },
     'notify.call': '{who} 正在呼叫你',
     'notify.callMissed': '你错过了 {who} 的来电',
+    'notify.groupCall': '{who} 在群组中发起了语音聊天',
     'notify.groupApproved': '{who} 让你加入了一个群组',
     'notify.groupOwner': '{who} 把一个群组交给了你：现在它归你了',
     'notify.channelInvite': '{who} 把你加入了一个频道',

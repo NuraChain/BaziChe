@@ -810,6 +810,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.groupReport': { one: 'Yönetimine yardım ettiğin bir grupta bir mesaj şikâyet edildi', other: 'Yönetimine yardım ettiğin bir grupta {count} mesaj şikâyet edildi' },
     'notify.call': '{who} seni arıyor',
     'notify.callMissed': 'Cevapsız arama: {who}',
+    'notify.groupCall': '{who} bir grupta sesli sohbet başlattı',
     'notify.groupApproved': '{who} seni bir gruba aldı',
     'notify.groupOwner': '{who} bir grubu sana devretti: artık senin',
     'notify.channelInvite': '{who} seni bir kanala ekledi',

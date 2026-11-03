@@ -810,6 +810,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.groupReport': { one: 'Denunciaram uma mensagem em um grupo que você ajuda a administrar', many: 'Denunciaram {count} mensagens em um grupo que você ajuda a administrar', other: 'Denunciaram {count} mensagens em um grupo que você ajuda a administrar' },
     'notify.call': '{who} está te ligando',
     'notify.callMissed': 'Você perdeu uma chamada de {who}',
+    'notify.groupCall': '{who} começou um chat de voz em um grupo',
     'notify.groupApproved': '{who} deixou você entrar em um grupo',
     'notify.groupOwner': '{who} passou um grupo para você: agora ele é seu',
     'notify.channelInvite': '{who} te adicionou a um canal',

@@ -3458,7 +3458,10 @@ export const notificationKind = enumOf([
     'call',
 
     /** A call the reader did not answer: missed, called off by whoever rang, or rung while they were busy. */
-    'call-missed'
+    'call-missed',
+
+    /** Somebody started a voice chat in a group the reader is in; taken back once it ends. */
+    'group-call'
 ]);
 
 export type NotificationKind = Infer<typeof notificationKind>;

@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 
 import { entities } from './entities/index.ts';
-import { oneAtATime } from './lib/one-at-a-time.ts';
+import { queueRunners } from './lib/one-at-a-time.ts';
 
 /**
  * The single DataSource export. `CommandUtils.loadDataSource` errors on zero or two, and the
@@ -37,6 +37,4 @@ export const dataSource = new DataSource({
     logging: process.env.NODE_ENV === 'development' ? ['error', 'warn', 'migration'] : ['error']
 });
 
-const createRunner = dataSource.driver.createQueryRunner.bind(dataSource.driver);
-
-dataSource.driver.createQueryRunner = (mode) => oneAtATime(createRunner(mode));
+queueRunners(dataSource);

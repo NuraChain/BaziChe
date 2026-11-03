@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { DataSource, type DataSourceOptions, type MigrationInterface } from 'typeorm';
 
+import { queueRunners } from '../lib/one-at-a-time.ts';
 import { MIGRATIONS } from './migrations/index.ts';
 import { keptFirst, meaningful, type Statement } from './drift.ts';
 import { INDEXES_TYPEORM_CANNOT_EXPRESS, createUnexpressibleIndexes, holdsNothing, rewriteChecks, syncSchema } from './schema.ts';
@@ -180,7 +181,7 @@ export async function migrate(target: MigrationTarget, log: MigrationLog)
  */
 export function migrationSource(options: DataSourceOptions, migrations: (new () => MigrationInterface)[] = MIGRATIONS)
 {
-    return new DataSource({
+    return queueRunners(new DataSource({
         ...options,
         migrations,
         migrationsTableName: MIGRATIONS_TABLE,
@@ -193,7 +194,7 @@ export function migrationSource(options: DataSourceOptions, migrations: (new () 
             statement_timeout: 30 * 60_000,
             lock_timeout: 60_000
         }
-    } as DataSourceOptions);
+    } as DataSourceOptions));
 }
 
 export function targetOf(db: DataSource): MigrationTarget

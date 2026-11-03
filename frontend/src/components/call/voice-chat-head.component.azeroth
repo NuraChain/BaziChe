@@ -22,7 +22,9 @@ import { groupOfCall, lastedOf, ticking, voiceChatSaid } from './said.ts';
  * how long it has run, pressed for the call's view, the microphone and Leave. Whenever the reader's
  * call is this voice chat, on this tab or another device, the card leaves it to the strip, as it does
  * to the bar across the top of other pages, rather than lying over the thread's head and its Join.
- * `joins` is whether the group lets the reader in, asked of the group.
+ * Somebody the staff took out of it is told so under the count and offered no Join, since the server
+ * keeps them out of it for as long as it runs. `joins` is whether the group lets the reader in, asked
+ * of the group.
  */
 export default component VoiceChatHead(props: { room: string; joins: boolean })
 {
@@ -56,7 +58,9 @@ export default component VoiceChatHead(props: { room: string; joins: boolean })
 
     derived inIt = ours && calls.here();
 
-    derived offered = live && !inIt && props.joins;
+    derived removed = call?.removed === true;
+
+    derived offered = live && !inIt && props.joins && !removed;
 
     derived held = current?.people?.find((one) => one.who === account.user()?.id)?.held === true;
 
@@ -105,7 +109,12 @@ export default component VoiceChatHead(props: { room: string; joins: boolean })
                     <span class="flex min-w-0 flex-1 items-center gap-2">
                         <Icon name="call" size={ 16 } class="shrink-0 text-live" />
                         <AvatarGroup people={ faces } total={ count } size="xs" max={ 3 } class="shrink-0" />
-                        <span class="min-w-0 flex-1 truncate text-ui-sm text-text" data-voice-chat-here>{ locale.t('call.voiceChat.here', { count }) }</span>
+                        <span class="flex min-w-0 flex-1 flex-col">
+                            <span class="truncate text-ui-sm text-text" data-voice-chat-here>{ locale.t('call.voiceChat.here', { count }) }</span>
+                            <Show when={ removed }>
+                                <span class="line-clamp-2 text-balance text-ui-2xs text-muted" data-voice-chat-removed>{ locale.t('call.refused.call-removed') }</span>
+                            </Show>
+                        </span>
                     </span>
                 }
             >

@@ -1180,6 +1180,10 @@ describe('calls', () =>
 
         expect(await none.json()).toEqual({});
         expect(told).toEqual([['room', 'somebody', ROOM]]);
+
+        const out = await call(calledAs([], () => Promise.resolve({ call: { ...running.call, removed: true } })), `/api/calls/room/${ ROOM }`);
+
+        expect(await out.json(), 'a reader taken out of it').toEqual({ call: { id: CALL, here: 2, faces: ['mina', 'sara.k'], removed: true } });
     });
 
     it('says who is in a group\'s voice chat, and nothing more of them', async () =>

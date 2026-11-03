@@ -138,12 +138,16 @@ export interface CallChange
     started?: boolean;
 }
 
-/** A group's voice chat as its room's members see it: how many are in it and the first of their handles. */
+/**
+ * A group's voice chat as its room's members see it: how many are in it, the first of their handles,
+ * and whether the reader was taken out of it, which keeps them out of it for as long as it runs.
+ */
 export interface RoomCall
 {
     id: string;
     here: number;
     faces: string[];
+    removed?: true;
 }
 
 /**
@@ -608,7 +612,13 @@ export function createCallService(db: DataSource, social: SocialService, groups:
                 .addOrderBy('p.user_id')
                 .getRawMany<{ handle: string; shown: boolean }>();
 
-            return { call: { id: open, here: here.length, faces: here.filter((one) => one.shown).slice(0, FACES).map((one) => one.handle) } };
+            const removed = await db.getRepository(CallParticipant).createQueryBuilder('p')
+                .where('p.call_id = :open and p.user_id = :me and p.removed_at is not null', { open, me })
+                .getExists();
+
+            const call: RoomCall = { id: open, here: here.length, faces: here.filter((one) => one.shown).slice(0, FACES).map((one) => one.handle) };
+
+            return { call: removed ? { ...call, removed: true } : call };
         },
 
         /**

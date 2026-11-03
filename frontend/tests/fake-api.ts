@@ -327,6 +327,11 @@ const intoVoice = (id: string, room: string, began: boolean) =>
         throw new ApiError(CALL_REFUSALS['call-ended'], 'call-ended', 'That voice chat has ended.', undefined);
     }
 
+    if (running.removed === true)
+    {
+        throw new ApiError(CALL_REFUSALS['call-removed'], 'call-removed', 'You were taken out of this voice chat.', undefined);
+    }
+
     if (!running.faces.includes(server.me))
     {
         running.faces = [...running.faces, server.me];
@@ -1705,8 +1710,11 @@ export const server =
     phoneHeld: null as Promise<void> | null,
     phoneSeq: 0,
 
-    /** The voice chat running in each group room, as the room's head reads it: a test puts one running there. */
-    voiceRooms: {} as Record<string, { id: string; here: number; faces: string[] }>,
+    /**
+     * The voice chat running in each group room, as the room's head reads it: a test puts one running
+     * there, `removed` when the reader was taken out of it.
+     */
+    voiceRooms: {} as Record<string, { id: string; here: number; faces: string[]; removed?: true }>,
     refusals: {} as Record<string, 'blocked' | 'strangers-off' | 'minor-safety'>,
 
     /** The profile look each person wears, by handle, carried on their profile and their public face as the server carries it. */

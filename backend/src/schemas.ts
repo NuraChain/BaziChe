@@ -2759,13 +2759,15 @@ export type CallView = Infer<typeof callView>;
 
 /**
  * A group's voice chat as anybody in its conversation sees it from the head (MS-D38): how many
- * are in its room, and the first of them by handle. Absent while none runs.
+ * are in its room, the first of them by handle, and `removed` for a reader taken out of it, who
+ * cannot come back into it. Absent while none runs.
  */
 export const voiceChatState = object({
     call: object({
         id: string(),
         here: number({ int: true, min: 0 }),
-        faces: array(string())
+        faces: array(string()),
+        removed: literal(true).optional()
     }).optional()
 });
 

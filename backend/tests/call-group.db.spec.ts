@@ -855,7 +855,7 @@ describe.skipIf(!active)('a group\'s voice chat, against a real database', () =>
 
         it('takes somebody out for good, somebody who had left included, and lets nobody take out whoever is at or above them', async () =>
         {
-            const { owner, admin, member, other, slug, callId } = await staffed();
+            const { owner, admin, member, other, slug, room, callId } = await staffed();
 
             await into(member, callId);
 
@@ -867,14 +867,18 @@ describe.skipIf(!active)('a group\'s voice chat, against a real database', () =>
             expect(row.goneAt).not.toBeNull();
             expect(row.leftAt, 'out of its room').not.toBeNull();
             expect(await word(ports.calls.join(member.id, callId))).toBe('403 call-removed');
+            expect((await ports.calls.room(member.id, room)).call?.removed, 'the head says so to whoever was taken out').toBe(true);
+            expect((await ports.calls.room(admin.id, room)).call, 'and to nobody else').not.toHaveProperty('removed');
 
             rung = [];
             await ports.calls.remove(admin.id, callId, member.handle);
             expect(rung, 'taken out twice').toEqual([]);
 
             await ports.calls.hangUp(other.id, callId);
+            expect((await ports.calls.room(other.id, room)).call, 'somebody who left of their own accord may come back').not.toHaveProperty('removed');
             await ports.calls.remove(admin.id, callId, other.handle);
             expect(await word(ports.calls.join(other.id, callId)), 'somebody who had left').toBe('403 call-removed');
+            expect((await ports.calls.room(other.id, room)).call?.removed).toBe(true);
 
             expect(await word(ports.calls.remove(admin.id, callId, owner.handle))).toBe('409 call-rank');
             expect(await word(ports.calls.remove(admin.id, callId, 'nobody.here'))).toBe('404 call-nobody');

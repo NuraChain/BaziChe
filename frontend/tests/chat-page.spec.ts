@@ -3036,6 +3036,24 @@ describe('a group’s voice chat, at the head of its thread', () =>
         expect(strip(container)!.querySelector('[data-voice-chat-open]')).toBeNull();
     });
 
+    it('tells a reader the staff took out of it why there is no way in, and nobody else', async () =>
+    {
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 2, faces: ['sara.k', 'mina'], removed: true };
+        await groupRoom();
+
+        const container = opened('c-friday', 'sidebar');
+
+        await vi.waitFor(() => expect(strip(container)?.querySelector('[data-voice-chat-removed]')?.textContent).toBe('You were taken out of this voice chat.'), { timeout: 4000 });
+        expect(strip(container)!.querySelector('[data-voice-chat-here]')?.textContent, 'who is in it, as for anybody').toBe('2 in the voice chat');
+        expect(strip(container)!.querySelector('[data-voice-chat-join]'), 'no Join the server would refuse').toBeNull();
+
+        delete server.voiceRooms['c-friday'].removed;
+        await rings();
+
+        await vi.waitFor(() => expect(strip(container)!.querySelector('[data-voice-chat-join] button') ?? null, 'a voice chat the reader may come back into').not.toBeNull(), { timeout: 4000 });
+        expect(strip(container)!.querySelector('[data-voice-chat-removed]')).toBeNull();
+    });
+
     it('is the same strip, Join and all, through a read of the thread and of its room', async () =>
     {
         server.voiceRooms['c-friday'] = { id: 'call-31', here: 2, faces: ['sara.k', 'mina'] };

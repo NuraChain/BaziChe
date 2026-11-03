@@ -6,9 +6,9 @@ import type { MigrationInterface } from 'typeorm';
  *
  * Each is named `<milliseconds>-<Name>.ts` by `npm run migration:new <Name>`, which also adds it
  * here. Timestamps rather than 0001, 0002: two people adding a migration the same day would both
- * write 0002. `migrations-list.spec.ts` holds the folder and this list to one another.
+ * write 0002. `migrate.spec.ts` holds the folder and this list to one another.
  *
- * Empty at first, and that is the baseline: the schema of 1.1.0 is the entities as they were, and a
- * database that met them was adopted as it stood (`migrate.ts`). Every change from here is a file.
+ * A file is only for what the entities cannot say (rows moved, a column renamed with its values):
+ * every other change a start makes by itself from the entities, as a version (`migrate.ts`).
  */
 export const MIGRATIONS: (new () => MigrationInterface)[] = [];

@@ -4,13 +4,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DataSource, type DataSourceOptions, type MigrationInterface, type QueryRunner } from 'typeorm';
 
 import { entities } from '../src/entities/index.ts';
-import { BehindAndDestructive, MIGRATIONS_TABLE, RULES_TABLE, migrate, migrationSource, rulesOf, targetOf } from '../src/db/migrate.ts';
+import { MIGRATIONS_TABLE, RULES_TABLE, VERSIONS_TABLE, migrate, migrationSource, rulesOf, targetOf } from '../src/db/migrate.ts';
 import { syncSchema } from '../src/db/schema.ts';
 
 /**
  * A start against a real Postgres: an empty database built and versioned, one built before versions
- * adopted (and refused when that would lose data), a migration applied once and never again, one
- * that fails rolled back whole, two starts at once migrating once, and a CHECK that changed with no
+ * adopted (what it would lose kept beside it), an entity change with no file applied as a version,
+ * one the rows cannot take rolled back whole, a migration applied once and never again, one that
+ * fails rolled back whole, two starts at once migrating once, and a CHECK that changed with no
  * migration rewritten all the same. OPT-IN, like the other `.db.spec` suites, on a database of its own.
  */
 
@@ -92,6 +93,9 @@ const onProbe = async <T>(work: (db: DataSource) => Promise<T>) =>
 
 const tables = (db: DataSource) => db.query(`select tablename as t from pg_tables where schemaname = 'public'`).then((rows: { t: string }[]) => rows.map((row) => row.t));
 
+const columnsOf = (db: DataSource, table: string) =>
+    db.query(`select column_name as c from information_schema.columns where table_name = $1`, [table]).then((rows: { c: string }[]) => rows.map((row) => row.c));
+
 const applied = (db: DataSource) => db.query(`select name from ${ MIGRATIONS_TABLE } order by id`).then((rows: { name: string }[]) => rows.map((row) => row.name));
 
 describe.skipIf(!active)('a start migrating the database, against a real Postgres', () =>
@@ -131,19 +135,19 @@ describe.skipIf(!active)('a start migrating the database, against a real Postgre
             expect(await targetOf(db).drift(), 'a database just built differs from the entities in something the noise does not cover').toEqual([]);
         });
 
-        expect(await start([AddProbeTable1900000000000])).toEqual({ done: 'migrated', applied: [] });
+        expect(await start([AddProbeTable1900000000000])).toEqual({ done: 'migrated', applied: [], changed: null });
     }, 300_000);
 
     it('adopts a database built before versions as it stands, and from then on is versioned', async () =>
     {
         await onProbe((db) => syncSchema(db));
 
-        expect(await start()).toEqual({ done: 'adopted', synced: false });
+        expect(await start()).toEqual({ done: 'adopted', changed: null });
         await onProbe(async (db) => expect(await tables(db)).toContain(MIGRATIONS_TABLE));
-        expect(await start()).toEqual({ done: 'migrated', applied: [] });
+        expect(await start()).toEqual({ done: 'migrated', applied: [], changed: null });
     }, 300_000);
 
-    it('adopts one that only lacks something, building it, with the rows it had kept', async () =>
+    it('adopts one that only lacks something, changing it as version 1, with the rows it had kept', async () =>
     {
         await onProbe(async (db) =>
         {
@@ -152,32 +156,76 @@ describe.skipIf(!active)('a start migrating the database, against a real Postgre
             await db.query(`insert into users (handle, display_name, hue) values ('kept', 'Kept', 1)`);
         });
 
-        expect(await start()).toEqual({ done: 'adopted', synced: true });
+        const done = await start();
+
+        expect(done.done).toBe('adopted');
+        expect(done.done === 'adopted' ? done.changed?.version : null).toBe(1);
 
         await onProbe(async (db) =>
         {
-            expect((await db.query(`select column_name from information_schema.columns where table_name = 'channel_votes' and column_name = 'voted_at'`)).length).toBe(1);
+            expect(await columnsOf(db, 'channel_votes')).toContain('voted_at');
             expect((await db.query(`select handle from users`)).map((row: { handle: string }) => row.handle)).toEqual(['kept']);
+            expect(await targetOf(db).drift()).toEqual([]);
         });
     }, 300_000);
 
-    it('refuses to adopt one that would lose a column with its data, and changes nothing', async () =>
+    it('adopts one holding a column the entities dropped, keeping its rows in a table beside it', async () =>
     {
         await onProbe(async (db) =>
         {
             await syncSchema(db);
-            await db.query(`alter table channels add column somebodys_notes text`);
+            await db.query(`alter table users add column somebodys_notes text`);
+            await db.query(`insert into users (handle, display_name, hue, somebodys_notes) values ('noted', 'Noted', 1, 'remember this')`);
         });
 
-        const refused = await start().catch((error: unknown) => error);
+        const done = await start();
+        const changed = done.done === 'adopted' ? done.changed : null;
 
-        expect(refused).toBeInstanceOf(BehindAndDestructive);
-        expect((refused as BehindAndDestructive).statements.join(' ')).toContain('somebodys_notes');
+        expect(changed?.kept).toEqual([`kept_${ changed?.version }_users__somebodys_notes`]);
 
         await onProbe(async (db) =>
         {
-            expect(await tables(db)).not.toContain(MIGRATIONS_TABLE);
-            expect((await db.query(`select column_name from information_schema.columns where table_name = 'channels' and column_name = 'somebodys_notes'`)).length).toBe(1);
+            expect(await columnsOf(db, 'users')).not.toContain('somebodys_notes');
+            expect(await db.query(`select u.handle, k.somebodys_notes as notes from "${ changed!.kept[0] }" k join users u on u.id = k.id`)).toEqual([{ handle: 'noted', notes: 'remember this' }]);
+            expect(await targetOf(db).drift(), 'a kept table is something a later diff sees').toEqual([]);
+        });
+    }, 300_000);
+
+    it('changes a versioned database to an entity that changed with no migration for it, once, as the next version', async () =>
+    {
+        await start();
+        await onProbe((db) => db.query(`alter table channel_votes drop column voted_at`));
+
+        const done = await start();
+
+        expect(done).toEqual({ done: 'migrated', applied: [], changed: { version: 1, statements: [expect.stringContaining('voted_at')], kept: [] } });
+        expect(await start()).toEqual({ done: 'migrated', applied: [], changed: null });
+
+        await onProbe(async (db) =>
+        {
+            expect(await columnsOf(db, 'channel_votes')).toContain('voted_at');
+            expect(await db.query(`select version, statements from ${ VERSIONS_TABLE }`)).toEqual([{ version: 1, statements: [expect.stringContaining('voted_at')] }]);
+        });
+    }, 300_000);
+
+    it('rolls a change the rows cannot take back whole, writes no version, and stops', async () =>
+    {
+        await start();
+
+        await onProbe(async (db) =>
+        {
+            await db.query(`insert into users (handle, display_name, hue) values ('there', 'There', 1)`);
+            await db.query(`alter table users drop column display_name`);
+        });
+
+        const failed = await start().catch((error: unknown) => error);
+
+        expect((failed as { driverError?: { code?: string } }).driverError?.code, 'a NOT NULL column with no default, added to a table with rows').toBe('23502');
+
+        await onProbe(async (db) =>
+        {
+            expect(await columnsOf(db, 'users')).not.toContain('display_name');
+            expect(await db.query(`select count(*)::int as n from ${ VERSIONS_TABLE }`).catch(() => [{ n: 0 }])).toEqual([{ n: 0 }]);
         });
     }, 300_000);
 
@@ -186,8 +234,8 @@ describe.skipIf(!active)('a start migrating the database, against a real Postgre
         await start();
         await onProbe((db) => db.query('create table probe_counter (n int)'));
 
-        expect(await start([AddProbeTable1900000000000])).toEqual({ done: 'migrated', applied: ['AddProbeTable1900000000000'] });
-        expect(await start([AddProbeTable1900000000000])).toEqual({ done: 'migrated', applied: [] });
+        expect(await start([AddProbeTable1900000000000])).toEqual({ done: 'migrated', applied: ['AddProbeTable1900000000000'], changed: null });
+        expect(await start([AddProbeTable1900000000000])).toEqual({ done: 'migrated', applied: [], changed: null });
 
         await onProbe(async (db) =>
         {
@@ -235,7 +283,7 @@ describe.skipIf(!active)('a start migrating the database, against a real Postgre
             await db.query(`update ${ RULES_TABLE } set hash = 'the rules of an older build'`);
         });
 
-        expect(await start()).toEqual({ done: 'migrated', applied: [] });
+        expect(await start()).toEqual({ done: 'migrated', applied: [], changed: null });
 
         await onProbe(async (db) =>
         {

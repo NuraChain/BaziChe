@@ -9,9 +9,10 @@ import { migrationSource } from './migrate.ts';
 import { MIGRATION_NAME, migrationSourceOf, registered } from './migration-file.ts';
 
 /**
- * `npm run migration:new <Name>`: a migration written from what the entities say and this database
- * does not yet hold. Change an entity, run this against the development database, read the file it
- * wrote, start the server (which applies it), commit both.
+ * `npm run migration:new <Name>`: a migration file written from what the entities say and this
+ * database does not yet hold, for a change whose rows must move, which a start cannot do by itself
+ * (`migrate.ts`). Change the entity, run this against the development database, edit the file to
+ * move the rows, start the server (which applies it), commit both.
  *
  * It refuses while a migration is still pending here, because the difference would then hold that
  * one's work a second time; and it refuses a migration that loses data (a table or a column dropped,

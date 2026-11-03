@@ -2,16 +2,17 @@ import { readdirSync, readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { destructive, meaningful, type Statement } from '../src/db/drift.ts';
-import { BehindAndDestructive, migrate, type MigrationTarget } from '../src/db/migrate.ts';
+import { destructive, keptFirst, meaningful, type Statement } from '../src/db/drift.ts';
+import { migrate, type MigrationTarget } from '../src/db/migrate.ts';
 import { MIGRATION_NAME, migrationSourceOf, registered } from '../src/db/migration-file.ts';
 import { MIGRATIONS } from '../src/db/migrations/index.ts';
 import { HAND_BUILT_INDEX_NAMES } from '../src/db/schema.ts';
 
 /**
  * What a start does to the database, step by step, against a database that answers as told: built
- * when empty, adopted once when it predates versions (and refused when that would lose data), every
- * pending migration applied, the rules rewritten when they moved, and one lock round all of it.
+ * when empty, adopted once when it predates versions, every pending migration applied, what still
+ * differs changed by the start itself as a version, the rules rewritten when they moved, and one
+ * lock round all of it.
  */
 
 interface World
@@ -67,7 +68,12 @@ const run = async (world: World) =>
         {
             did.push('indexes');
         },
-        drift: async () => world.drift[drifts++] ?? []
+        drift: async () => world.drift[drifts++] ?? [],
+        change: async (statements) =>
+        {
+            did.push(`change ${ statements.map((one) => one.query).join('; ') }`);
+            return { version: 7, statements: statements.map((one) => one.query), kept: keptFirst(statements, 7, () => ['id']).kept };
+        }
     };
 
     const done = await migrate(target, { info: () => undefined, warn: (_event, fields) => warned.push(fields) }).catch((error: unknown) => error);
@@ -94,41 +100,49 @@ describe('a start, against the database it finds', () =>
     {
         const ran = await run(world({ versioned: false }));
 
-        expect(ran.done).toEqual({ done: 'adopted', synced: false });
-        expect(ran.did).toEqual(['lock', 'settle', 'stamp', 'indexes', 'unlock']);
+        expect(ran.done).toEqual({ done: 'adopted', changed: null });
+        expect(ran.did).toEqual(['lock', 'stamp', 'settle', 'indexes', 'unlock']);
     });
 
-    it('adopts one that only lacks what can be added, by building what it lacks', async () =>
+    it('adopts one that lacks something by changing it to the entities, as a version', async () =>
     {
         const ran = await run(world({ versioned: false, drift: [[ADD]] }));
 
-        expect(ran.done).toEqual({ done: 'adopted', synced: true });
-        expect(ran.did).toEqual(['lock', 'build', 'stamp', 'indexes', 'unlock']);
-    });
-
-    it('refuses to adopt one that would lose data, changing nothing and letting the lock go', async () =>
-    {
-        const ran = await run(world({ versioned: false, drift: [[ADD, DROP]] }));
-
-        expect(ran.done).toBeInstanceOf(BehindAndDestructive);
-        expect((ran.done as BehindAndDestructive).statements).toEqual([DROP.query]);
-        expect(ran.did).toEqual(['lock', 'unlock']);
+        expect(ran.done).toEqual({ done: 'adopted', changed: { version: 7, statements: [ADD.query], kept: [] } });
+        expect(ran.did).toEqual(['lock', 'stamp', `change ${ ADD.query }`, 'settle', 'indexes', 'unlock']);
     });
 
     it('applies what is pending and rewrites the rules after, and on the next start applies nothing', async () =>
     {
         const first = await run(world({ pending: ['AddChannelTopic1730000000000'] }));
 
-        expect(first.done).toEqual({ done: 'migrated', applied: ['AddChannelTopic1730000000000'] });
+        expect(first.done).toEqual({ done: 'migrated', applied: ['AddChannelTopic1730000000000'], changed: null });
         expect(first.did).toEqual(['lock', 'apply AddChannelTopic1730000000000', 'settle', 'indexes', 'unlock']);
 
         const second = await run(world());
 
-        expect(second.done).toEqual({ done: 'migrated', applied: [] });
+        expect(second.done).toEqual({ done: 'migrated', applied: [], changed: null });
         expect(second.did).toEqual(['lock', 'apply', 'indexes', 'unlock']);
     });
 
-    it('rewrites the rules when only a CHECK changed, which no migration can carry', async () =>
+    it('changes what an entity says and no migration file covers by itself, after the files, and settles the rules', async () =>
+    {
+        const ran = await run(world({ pending: ['AddChannelTopic1730000000000'], drift: [[ADD]] }));
+
+        expect(ran.done).toEqual({ done: 'migrated', applied: ['AddChannelTopic1730000000000'], changed: { version: 7, statements: [ADD.query], kept: [] } });
+        expect(ran.did).toEqual(['lock', 'apply AddChannelTopic1730000000000', `change ${ ADD.query }`, 'settle', 'indexes', 'unlock']);
+        expect(ran.warned).toEqual([]);
+    });
+
+    it('changes one that drops something too, and says where its rows were kept', async () =>
+    {
+        const ran = await run(world({ drift: [[ADD, DROP]] }));
+
+        expect((ran.done as { changed: unknown }).changed).toEqual({ version: 7, statements: [ADD.query, DROP.query], kept: ['kept_7_channels__bio'] });
+        expect(ran.warned).toEqual([{ version: 7, kept: ['kept_7_channels__bio'] }]);
+    });
+
+    it('rewrites the rules when only a CHECK changed, which no diff can see', async () =>
     {
         expect((await run(world({ rulesMoved: true }))).did).toEqual(['lock', 'apply', 'settle', 'indexes', 'unlock']);
     });
@@ -141,12 +155,54 @@ describe('a start, against the database it finds', () =>
         expect(ran.did).toEqual(['lock', 'unlock']);
     });
 
-    it('says what still differs once it is done, naming the statements, and starts all the same', async () =>
+    it('says what still differs once it changed what it could, naming the statements, and starts all the same', async () =>
     {
-        const ran = await run(world({ drift: [[ADD]] }));
+        const ran = await run(world({ drift: [[ADD], [ADD]] }));
 
-        expect(ran.done).toEqual({ done: 'migrated', applied: [] });
+        expect((ran.done as { done: string }).done).toBe('migrated');
         expect(ran.warned).toEqual([{ statements: [ADD.query] }]);
+    });
+});
+
+describe('what a change by itself would lose', () =>
+{
+    const keys = (table: string) => (table === 'channel_votes' ? ['channel_id', 'user_id'] : table === 'channels' ? ['id'] : []);
+
+    it('is copied first, with the primary key beside it, and the change runs as it was', () =>
+    {
+        const planned = keptFirst([ADD, DROP], 3, keys);
+
+        expect(planned.statements.map((one) => one.query)).toEqual([
+            ADD.query,
+            'CREATE TABLE "kept_3_channels__bio" AS SELECT "id", "bio" FROM "channels"',
+            DROP.query
+        ]);
+        expect(planned.kept).toEqual(['kept_3_channels__bio']);
+    });
+
+    it('keeps a retyped column, a column of a table with no known key whole, and a dropped table whole, each once', () =>
+    {
+        const planned = keptFirst([
+            { query: 'ALTER TABLE "channel_votes" ALTER COLUMN "weight" TYPE integer' },
+            { query: 'ALTER TABLE "channel_votes" DROP COLUMN "weight"' },
+            { query: 'ALTER TABLE "probe" DROP COLUMN "note"' },
+            { query: 'DROP TABLE "old_things"' }
+        ], 4, keys);
+
+        expect(planned.statements.map((one) => one.query).filter((one) => one.startsWith('CREATE'))).toEqual([
+            'CREATE TABLE "kept_4_channel_votes__weight" AS SELECT "channel_id", "user_id", "weight" FROM "channel_votes"',
+            'CREATE TABLE "kept_4_probe__note" AS TABLE "probe"',
+            'CREATE TABLE "kept_4_old_things" AS TABLE "old_things"'
+        ]);
+        expect(planned.statements).toHaveLength(7);
+    });
+
+    it('leaves what loses nothing as it is, and names a copy within what Postgres keeps of a name', () =>
+    {
+        const index = { query: 'CREATE INDEX "x" ON "channels" ("slug")' };
+
+        expect(keptFirst([ADD, index], 1, keys)).toEqual({ statements: [ADD, index], kept: [] });
+        expect(keptFirst([{ query: `ALTER TABLE "${ 'a'.repeat(60) }" DROP COLUMN "b"` }], 12, keys).kept[0]).toHaveLength(63);
     });
 });
 

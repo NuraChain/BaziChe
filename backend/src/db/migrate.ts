@@ -3,11 +3,14 @@ import { createHash } from 'node:crypto';
 import { DataSource, type DataSourceOptions, type MigrationInterface } from 'typeorm';
 
 import { MIGRATIONS } from './migrations/index.ts';
-import { destructive, meaningful, type Statement } from './drift.ts';
+import { keptFirst, meaningful, type Statement } from './drift.ts';
 import { INDEXES_TYPEORM_CANNOT_EXPRESS, createUnexpressibleIndexes, holdsNothing, rewriteChecks, syncSchema } from './schema.ts';
 
 /** The table the applied migrations are written in, one row each. */
 export const MIGRATIONS_TABLE = 'schema_migrations';
+
+/** The versions a start made by itself from the entities, one row each, with what it ran. */
+export const VERSIONS_TABLE = 'schema_versions';
 
 /** Where the fingerprint of the rules TypeORM's diff cannot see is kept: one row. */
 export const RULES_TABLE = 'schema_rules';
@@ -62,12 +65,23 @@ export interface MigrationTarget
 
     /** What would still change to match the entities, less the noise (`drift.ts`). */
     drift(): Promise<Statement[]>;
+
+    /** Applies those statements in one transaction, a copy of what each would lose taken first, and writes them down as the next version. */
+    change(statements: readonly Statement[]): Promise<Changed>;
+}
+
+/** One version a start made by itself: its number, what it ran, and the tables that keep what it would have lost. */
+export interface Changed
+{
+    version: number;
+    statements: string[];
+    kept: string[];
 }
 
 export type Migrated =
     | { done: 'built' }
-    | { done: 'adopted'; synced: boolean }
-    | { done: 'migrated'; applied: string[] };
+    | { done: 'adopted'; changed: Changed | null }
+    | { done: 'migrated'; applied: string[]; changed: Changed | null };
 
 export interface MigrationLog
 {
@@ -75,33 +89,25 @@ export interface MigrationLog
     warn(event: string, fields?: Record<string, unknown>): void;
 }
 
-/** A database that holds tables, has never been versioned, and would lose something to match the entities. */
-export class BehindAndDestructive extends Error
-{
-    override readonly name = 'BehindAndDestructive';
-
-    constructor(readonly statements: readonly string[])
-    {
-        super('This database is behind the entities in a way that would lose data, and it has never been versioned.');
-    }
-}
-
 /**
- * Brings the database to the entities, one version at a time, on every boot, before anything reads it.
+ * Brings the database to the entities on every boot, before anything reads it, with no command for
+ * anybody to run.
  *
  * - **Empty**: built from the entities, and every migration written down as applied, because what
  *   they would do is already done.
- * - **Never versioned** (built by `syncSchema` before this existed): adopted. If it already matches
- *   the entities, or only lacks what can be added without losing anything, it is synced (its CHECKs
- *   rewritten either way) and every migration written down as applied. If matching them would drop a table or a column it stops,
- *   because that is a person's call and a dump's: `npm run schema:sync` once, then start again.
- * - **Versioned**: every migration not yet applied runs, oldest first, each in a transaction of its
- *   own; the first that fails rolls back and stops the boot. The CHECKs are rewritten after any did,
- *   and whenever their fingerprint moved (`rulesOf`), which no migration can carry.
+ * - **Never versioned** (built by `syncSchema` before this existed): adopted, every migration written
+ *   down as applied, then changed like any other.
+ * - **Versioned**: every migration file not yet applied runs, oldest first, each in a transaction of
+ *   its own; the first that fails rolls back and stops the boot. A file is for what the entities
+ *   cannot say: rows moved, a column renamed with its values.
  *
- * Then whatever still differs from the entities is said, as a warning naming the statements: an
- * entity changed with no migration for it. It does not stop the boot, because TypeORM's diff is not
- * exact (`drift.ts`), and a gate on a guess could keep production down.
+ * Then whatever still differs from the entities is applied by the start itself, in one transaction,
+ * and written down as the next version (`schema_versions`). What a statement would lose (a column
+ * dropped or retyped, a table dropped) is copied to a `kept_` table first, so no start ever loses a
+ * row; one the rows cannot take (a NOT NULL column with no default on a table that has rows, a value
+ * that does not cast) rolls the whole version back and stops the boot, nothing moved. The CHECKs
+ * are rewritten after anything changed, and whenever their fingerprint moved (`rulesOf`), which no
+ * diff can see.
  *
  * Every server on the database takes one lock around all of it, so two that start together migrate
  * once.
@@ -120,40 +126,32 @@ export async function migrate(target: MigrationTarget, log: MigrationLog)
             await target.stamp();
             migrated = { done: 'built' };
         }
-        else if (!await target.versioned())
-        {
-            const behind = await target.drift();
-            const loses = destructive(behind);
-
-            if (loses.length > 0)
-            {
-                throw new BehindAndDestructive(loses.map((one) => one.query));
-            }
-
-            // Built, or its rules rewritten, either way: a database synced before versions existed may
-            // hold a CHECK from before its entity changed, which nothing about its tables shows.
-            if (behind.length > 0)
-            {
-                await target.build();
-            }
-            else
-            {
-                await target.settle();
-            }
-
-            await target.stamp();
-            migrated = { done: 'adopted', synced: behind.length > 0 };
-        }
         else
         {
-            const applied = await target.apply();
+            const adopting = !await target.versioned();
+            const applied = adopting ? [] : await target.apply();
 
-            if (applied.length > 0 || await target.rulesMoved())
+            if (adopting)
+            {
+                await target.stamp();
+            }
+
+            const behind = await target.drift();
+            const changed = behind.length === 0 ? null : await target.change(behind);
+
+            // A database synced before versions existed may hold a CHECK from before its entity
+            // changed, which nothing about its tables shows: an adopted one is settled whatever.
+            if (adopting || applied.length > 0 || changed !== null || await target.rulesMoved())
             {
                 await target.settle();
             }
 
-            migrated = { done: 'migrated', applied };
+            if (changed !== null && changed.kept.length > 0)
+            {
+                log.warn('a change dropped or retyped something that held rows: they are kept beside it', { version: changed.version, kept: changed.kept });
+            }
+
+            migrated = adopting ? { done: 'adopted', changed } : { done: 'migrated', applied, changed };
         }
 
         await target.indexes();
@@ -162,7 +160,7 @@ export async function migrate(target: MigrationTarget, log: MigrationLog)
 
         if (left.length > 0)
         {
-            log.warn('the entities differ from the database and no migration covers it: npm run migration:new <Name>', {
+            log.warn('the entities still differ from the database after it was changed to match them', {
                 statements: left.map((one) => one.query).slice(0, 20)
             });
         }
@@ -202,6 +200,9 @@ export function targetOf(db: DataSource): MigrationTarget
 {
     const runner = db.createQueryRunner();
     const rules = rulesOf(db);
+
+    const keysOf = (table: string) =>
+        db.entityMetadatas.find((entity) => entity.tableName === table)?.primaryColumns.map((column) => column.databaseName) ?? [];
 
     const writeRules = async () =>
     {
@@ -268,6 +269,24 @@ export function targetOf(db: DataSource): MigrationTarget
 
         indexes: () => createUnexpressibleIndexes(db),
 
-        drift: async () => meaningful((await db.driver.createSchemaBuilder().log()).upQueries)
+        drift: async () => meaningful((await db.driver.createSchemaBuilder().log()).upQueries),
+
+        change: async (statements) => await db.transaction(async (tx) =>
+        {
+            await tx.query(`create table if not exists ${ VERSIONS_TABLE } (version serial primary key, at timestamptz not null default now(), statements jsonb not null, kept text[] not null default '{}')`);
+
+            const queries = statements.map((one) => one.query);
+            const [row] = await tx.query(`insert into ${ VERSIONS_TABLE } (statements) values ($1) returning version`, [JSON.stringify(queries)]) as { version: number }[];
+            const planned = keptFirst(statements, row.version, keysOf);
+
+            for (const statement of planned.statements)
+            {
+                await tx.query(statement.query, statement.parameters);
+            }
+
+            await tx.query(`update ${ VERSIONS_TABLE } set kept = $2 where version = $1`, [row.version, planned.kept]);
+
+            return { version: row.version, statements: queries, kept: planned.kept };
+        })
     };
 }

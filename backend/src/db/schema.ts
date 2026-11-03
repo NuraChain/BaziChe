@@ -126,8 +126,7 @@ export const behindTheEntities = (error: unknown) => ['42P01', '42703'].includes
 
 /**
  * Whether the database holds none of the entities' tables: one nothing was built in yet, which a
- * production start builds without losing anything. One that holds any of them is changed only by
- * `npm run schema:sync`, which can drop a column with its data, so it waits for a person and a dump.
+ * start builds whole. One that holds any of them is changed version by version (`migrate.ts`).
  */
 export async function holdsNothing(db: DataSource)
 {

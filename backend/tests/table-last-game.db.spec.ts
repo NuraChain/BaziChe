@@ -94,7 +94,8 @@ describe.skipIf(!active)('the game that ended last at a table, against a real da
             env: 'test',
             vapidPublicKey: '',
             vapidPrivateKey: '',
-            vapidSubject: ''
+            vapidSubject: '',
+adminWallet: ''
         } as Parameters<typeof buildPorts>[1], listener);
     }, 60_000);
 

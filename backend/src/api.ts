@@ -142,6 +142,9 @@ import {
     chainPerson,
     chainProfileState,
     chainPublish,
+    profileSponsorAsk,
+    profileSponsored,
+    profileSponsorInput,
     nftPage,
     nftQuery,
     challenge,
@@ -212,6 +215,7 @@ import {
     publicPerson,
     inviteBoard,
     inviteCard,
+    inviteEarnings,
     inviteListed,
     inviteListedInput,
     inviteSummary,
@@ -573,6 +577,11 @@ export function buildApi(ports: Ports)
                 calls: await ports.chain.publish(context.principal.userId)
             })),
 
+            sponsor: routes.post('/profile/sponsor', { output: profileSponsorAsk }, (context) => ports.chain.sponsor(context.principal.userId)),
+
+            sponsored: routes.post('/profile/sponsor/send', { input: profileSponsorInput, output: profileSponsored },
+                (context) => ports.chain.sponsored(context.principal.userId, context.input)),
+
             nfts: routes.get('/nfts', { output: nftPage, query: nftQuery }, (context) =>
                 ports.chain.nfts(
                     context.principal.userId,
@@ -586,6 +595,9 @@ export function buildApi(ports: Ports)
 
             fee: routes.post('/vault/fee', { input: adminFeeInput, output: walletCall },
                 async (context) => onlyAdmin(await ports.admin.fee(context.principal.userId, context.input.bps))),
+
+            share: routes.post('/vault/share', { input: adminFeeInput, output: walletCall },
+                async (context) => onlyAdmin(await ports.admin.share(context.principal.userId, context.input.bps))),
 
             gameFee: routes.post('/vault/game-fee', { input: adminGameFeeInput, output: walletCall },
                 async (context) => onlyAdmin(await ports.admin.gameFee(context.principal.userId, context.input.game, context.input.bps))),
@@ -792,6 +804,8 @@ export function buildApi(ports: Ports)
             board: routes.get('/top', { output: inviteBoard }, (context) => ports.invites.board(context.principal.userId)),
 
             listed: routes.get('/listed', { output: inviteListed }, (context) => ports.invites.listed(context.principal.userId)),
+
+            earnings: routes.get('/earnings', { output: inviteEarnings }, (context) => ports.invites.earnings(context.principal.userId)),
 
             list: routes.post('/listed', { input: inviteListedInput, output: inviteListed },
                 (context) => ports.invites.list(context.principal.userId, context.input.on))

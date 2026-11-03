@@ -244,6 +244,37 @@ describe('the vault, as its owner sees it', () =>
         expect(server.calls).toContain('admin.fee 250');
     });
 
+    it('shows the inviters\' share, and changes it through the wallet within the vault\'s own bounds', async () =>
+    {
+        const container = await shown();
+        const send = sending();
+        const field = container.querySelector<HTMLInputElement>('#admin-share')!;
+
+        expect(container.querySelector('[data-fact="share"] .tally')?.textContent).toBe('20%');
+
+        for (const typed of ['0.5', '76', 'a fifth', ''])
+        {
+            typeInto(field, typed);
+            await settle();
+            fire(button(container, 'Change the share')!, 'click');
+            await settle();
+
+            expect(said(container, '#admin-share-error'), typed).toBe('Write a share from 1% to 75%, like 20 or 12.5.');
+        }
+
+        expect(send).not.toHaveBeenCalled();
+
+        typeInto(field, '25');
+        await settle();
+        fire(button(container, 'Change the share')!, 'click');
+        await settle();
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(server.calls).toContain('admin.share 2500');
+        expect(toasts()).toEqual(['success Inviters now get 25% of each fee.']);
+        expect(field.value).toBe('');
+    });
+
     it('changes the ceiling a seat may stake, as wei', async () =>
     {
         const container = await shown();

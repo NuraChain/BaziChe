@@ -240,5 +240,6 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'chain.asking': 'Ton portefeuille te demande déjà quelque chose. Ouvre-le et réponds.',
     'chain.noWallet': 'Ton portefeuille n’est pas connecté à ce site. Ouvre-le, connecte ce site et réessaie.',
     'chain.wrongAccount': 'Ton portefeuille est sur un autre compte que celui avec lequel tu t’es connecté. Passe sur ce compte et réessaie.',
-    'chain.walletFailed': 'Ton portefeuille n’a pas pu l’envoyer, le plus souvent faute de fonds pour le gas. Vérifie ton portefeuille et réessaie.'
+    'chain.walletFailed': 'Ton portefeuille n’a pas pu l’envoyer, le plus souvent faute de fonds pour le gas. Vérifie ton portefeuille et réessaie.',
+    'chain.sponsorLimit': 'Ton portefeuille a trop peu de NURA pour le gaz, et le serveur a déjà payé aujourd’hui tous les enregistrements qu’il paie. Ajoute un peu de NURA à ton portefeuille, ou enregistre demain.'
 };

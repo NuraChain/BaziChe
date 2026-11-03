@@ -28,7 +28,6 @@ interface PersonRow extends Keyed
     address: string | null;
     staff_role: GrantedRole | null;
     owner: boolean;
-    ranked: boolean;
     reports: number;
 }
 
@@ -102,7 +101,7 @@ const face = (row: PersonRow) =>
     };
 };
 
-export function createPeopleService(db: DataSource, owners: () => readonly string[], shown: () => readonly string[], origin: string)
+export function createPeopleService(db: DataSource, owners: () => readonly string[], origin: string)
 {
     const people = (manager: EntityManager) => manager.getRepository(User).createQueryBuilder('u')
         .select('u.id', 'id')
@@ -117,10 +116,8 @@ export function createPeopleService(db: DataSource, owners: () => readonly strin
         .addSelect('(select w.address::text from wallets w where w.user_id = u.id order by w.last_used_at desc nulls last limit 1)', 'address')
         .addSelect('(select m.role from staff_members m where m.user_id = u.id)', 'staff_role')
         .addSelect('exists (select 1 from wallets o where o.user_id = u.id and o.address = any(:owners))', 'owner')
-        .addSelect('exists (select 1 from wallets o where o.user_id = u.id and o.address = any(:ranked))', 'ranked')
         .addSelect('(select count(*)::int from reports r where r.against = u.id)', 'reports')
-        .setParameter('owners', shown())
-        .setParameter('ranked', owners());
+        .setParameter('owners', owners());
 
     const locked = async (tx: EntityManager, handle: string) =>
     {
@@ -139,7 +136,7 @@ export function createPeopleService(db: DataSource, owners: () => readonly strin
     {
         const target = await one(manager, handle);
 
-        if (target === null || (target.ranked && !target.owner && target.id !== actor.id))
+        if (target === null)
         {
             throw nobody();
         }

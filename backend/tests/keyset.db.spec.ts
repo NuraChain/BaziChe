@@ -88,7 +88,8 @@ describe.skipIf(!active)('a list read a page at a time through rows made two to 
             env: 'test',
             vapidPublicKey: '',
             vapidPrivateKey: '',
-            vapidSubject: ''
+            vapidSubject: '',
+            adminWallet: ''
         } as Parameters<typeof buildPorts>[1], listener);
     }, 60_000);
 

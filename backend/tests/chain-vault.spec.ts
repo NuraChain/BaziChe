@@ -332,6 +332,8 @@ describe('the owner\'s view of the vault', () =>
             case 'feeOf': return { result: encodeFunctionResult({ abi: VAULT_ABI, functionName: 'feeOf', result: called.args[0] === 'hokm' ? 700 : 400 }) };
             case 'gameFee': return { result: encodeFunctionResult({ abi: VAULT_ABI, functionName: 'gameFee', result: called.args[0] === keccak256(stringToHex('hokm')) ? 700 : 0 }) };
             case 'referee': return { result: encodeFunctionResult({ abi: VAULT_ABI, functionName: 'referee', result: REFEREE }) };
+            case 'referralShare': return { result: encodeFunctionResult({ abi: VAULT_ABI, functionName: 'referralShare', result: 2_000 }) };
+            case 'referralEarned': return { result: encodeFunctionResult({ abi: VAULT_ABI, functionName: 'referralEarned', result: called.args[0].toLowerCase() === OWNER.toLowerCase() ? 12n : 0n }) };
             case 'hasRole':
             {
                 const [role, holder] = called.args;
@@ -371,7 +373,8 @@ describe('the owner\'s view of the vault', () =>
             chainReferee: REFEREE,
             ownFees: { ludo: 0, hokm: 700 },
             adminAllowed: true,
-            pauserAllowed: false
+            pauserAllowed: false,
+            referralShare: 2_000
         });
 
         const before = asked.length;
@@ -379,6 +382,16 @@ describe('the owner\'s view of the vault', () =>
         await expect(vault.terms()).resolves.toEqual({ fee: 400, maxStake: 9n, reclaimAfter: 259_200n, paused: true, games: { ludo: 400, hokm: 700 } });
         expect(asked.length, 'the terms it had just read were asked for again').toBe(before);
         await expect(vaultOn(url, '1020').ledger(OWNER)).resolves.toMatchObject({ gasPrice: NURA_GAS_FLOOR });
+    });
+
+    it('reads what an inviter was paid for the seats of the people they brought in, and the share paid now', async () =>
+    {
+        const { url } = await fakeChain(answering([]));
+        const vault = vaultOn(url);
+
+        await expect(vault.earned(OWNER)).resolves.toBe(12n);
+        await expect(vault.earned(REFEREE)).resolves.toBe(0n);
+        await expect(vault.share()).resolves.toBe(2_000);
     });
 
     it('asks the vault as the owner before it hands the owner\'s wallet a call, and names what the vault would refuse', async () =>
@@ -397,14 +410,15 @@ describe('the owner\'s view of the vault', () =>
         const decoded = (asked: Asked) => (asked.ok ? decodeFunctionData({ abi: VAULT_ABI, data: asked.call.data }) : asked.refusal);
 
         expect(decoded(await vault.feeCall(OWNER, 400))).toEqual({ functionName: 'setFee', args: [400] });
+        expect(decoded(await vault.shareCall(OWNER, 2_500))).toEqual({ functionName: 'setReferralShare', args: [2_500] });
         expect(decoded(await vault.gameFeeCall(OWNER, 'hokm', 700))).toEqual({ functionName: 'setGameFee', args: ['hokm', 700] });
         expect(decoded(await vault.refereeCall(OWNER, REFEREE))).toEqual({ functionName: 'setReferee', args: [REFEREE] });
         expect(decoded(await vault.ceilingCall(OWNER, 9n))).toEqual({ functionName: 'setMaxStake', args: [9n] });
         expect(decoded(await vault.pauseCall(OWNER, true))).toEqual({ functionName: 'pause' });
         expect(decoded(await vault.pauseCall(OWNER, false))).toEqual({ functionName: 'unpause' });
         expect(await vault.feesCall(OWNER, 2n)).toEqual({ ok: false, refusal: { error: 'InsufficientFees', player: null } });
-        expect(decodeFunctionData({ abi: VAULT_ABI, data: seen[6].data })).toEqual({ functionName: 'withdrawFees', args: [OWNER, 2n] });
-        expect(seen.map((call) => call.from?.toLowerCase())).toEqual(Array(7).fill(OWNER.toLowerCase()));
+        expect(decodeFunctionData({ abi: VAULT_ABI, data: seen[7].data })).toEqual({ functionName: 'withdrawFees', args: [OWNER, 2n] });
+        expect(seen.map((call) => call.from?.toLowerCase())).toEqual(Array(8).fill(OWNER.toLowerCase()));
         await expect(vault.feeCall(OWNER, 400)).resolves.toMatchObject({ ok: true, call: { to: VAULT, value: 0n, chainId: 31337, gasPrice: null } });
     });
 });
@@ -448,9 +462,13 @@ describe('reading the vault', () =>
         const { url } = await fakeChain(() => ({ result: '0x2' }));
         const vault = vaultOn(url);
 
-        const deposit = await vault.depositCall(5n);
+        const deposit = await vault.depositCall(5n, null);
         expect(deposit).toMatchObject({ to: VAULT, value: 5n, chainId: 31337, gasPrice: null });
-        expect(decodeFunctionData({ abi: VAULT_ABI, data: deposit.data }).functionName).toBe('deposit');
+        expect(decodeFunctionData({ abi: VAULT_ABI, data: deposit.data })).toEqual({ functionName: 'deposit', args: undefined });
+
+        const invited = await vault.depositCall(5n, REFEREE);
+        expect(invited.value).toBe(5n);
+        expect(decodeFunctionData({ abi: VAULT_ABI, data: invited.data }), 'a deposit that names who brought the player in').toEqual({ functionName: 'deposit', args: [REFEREE] });
 
         const withdrawal = await vault.withdrawCall(3n);
         expect(withdrawal.value).toBe(0n);
@@ -461,7 +479,7 @@ describe('reading the vault', () =>
     {
         const { url } = await fakeChain(() => ({ result: '0x0' }));
 
-        await expect(vaultOn(url, '1020').depositCall(5n)).resolves.toMatchObject({ chainId: 1020, gasPrice: NURA_GAS_FLOOR });
+        await expect(vaultOn(url, '1020').depositCall(5n, null)).resolves.toMatchObject({ chainId: 1020, gasPrice: NURA_GAS_FLOOR });
     });
 
     it('still hands the wallet a withdrawal at the floor when the chain cannot be asked its price', async () =>

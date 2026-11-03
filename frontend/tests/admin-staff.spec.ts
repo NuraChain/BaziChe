@@ -174,16 +174,25 @@ describe('the staff', () =>
         expect(refused.querySelector('[data-team]')).toBeNull();
     });
 
-    it('offers the owner every role and an admin only a moderator, and a change only on somebody below the reader', async () =>
+    it('offers the owner every role, a co-owner up to an admin, and an admin only a moderator, and a change only on somebody below the reader', async () =>
     {
         server.staff.members = [staffMember('sara.k', 'admin', 'alex', ago(3)), staffMember('mina', 'moderator', 'alex', ago(1))];
         const owner = await shown();
         const roles = (root: ParentNode) => [...root.querySelectorAll('[role="group"] button')].map((one) => one.textContent?.trim());
 
-        expect(roles(owner)).toEqual(['Moderator', 'Admin', 'No role']);
+        expect(roles(owner)).toEqual(['Moderator', 'Admin', 'Co-owner', 'No role']);
+        expect(owner.textContent, 'the owner was not told what a co-owner cannot do').toContain('signs for no contract');
         expect(button(owner, 'Change Sara Kamali’s role')).toBeDefined();
         expect(button(owner, 'Change Mina Sadeghi’s role')).toBeDefined();
         expect(owner.querySelector('[data-owner] button')).toBeNull();
+        cleanup();
+
+        as('co-owner');
+        const coOwner = await shown();
+
+        expect(roles(coOwner)).toEqual(['Moderator', 'Admin', 'No role']);
+        expect(coOwner.textContent).not.toContain('signs for no contract');
+        expect(button(coOwner, 'Change Sara Kamali’s role')).toBeDefined();
         cleanup();
 
         server.staff.owners = ['reza.t'];
@@ -298,7 +307,7 @@ describe('the staff', () =>
 
         expect(said(container, 'h1')).toBe('تیم');
         expect(said(container, '[data-member="mina"]')).toContain('ناظر');
-        expect([...container.querySelectorAll('[role="group"] button')].map((one) => one.textContent?.trim())).toEqual(['ناظر', 'ادمین', 'بدون نقش']);
+        expect([...container.querySelectorAll('[role="group"] button')].map((one) => one.textContent?.trim())).toEqual(['ناظر', 'ادمین', 'هم‌مالک', 'بدون نقش']);
 
         fill(container, 'sara.k', 'ادمین', 'مسئول میزهای جمعه.');
         button(container, 'ثبت')!.click();

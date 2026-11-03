@@ -5,14 +5,13 @@ import { itemOf, orderIdOf, type Quote, type ShopAsked, type ShopCall, type Shop
 import { Friendship } from '../../entities/friendship.entity.ts';
 import { EquippedItem } from '../../entities/equipped-item.entity.ts';
 import { OwnedItem } from '../../entities/owned-item.entity.ts';
-import { Referral } from '../../entities/referral.entity.ts';
 import { ShopCollection } from '../../entities/shop-collection.entity.ts';
 import { ShopItem } from '../../entities/shop-item.entity.ts';
 import { ShopOrder } from '../../entities/shop-order.entity.ts';
 import { User } from '../../entities/user.entity.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan } from '../../lib/keyset.ts';
 import type { ShopOrderView, ShopPaying, ShopPurchase, ShopState } from '../../schemas.ts';
-import { OWNER_WALLET } from '../admin/roles.ts';
+import { inviterWalletOf } from '../invite/inviter.ts';
 import { audited, AUDIT_PAGE, nothing, RECENT, type AuditAsk, type Finding } from '../reconcile/audit.ts';
 import { orderVerdict, type OrderAfter, type Sold } from '../reconcile/verdicts.ts';
 import { FEATURED_FIRST, SHOP_COLLECTIONS, bundleOf, bundlePriceFor, isItemId } from './catalogue.ts';
@@ -167,8 +166,6 @@ const pending = () => shopRefusal('shop-pending', 'An order for that look is alr
 const noFriend = () => shopRefusal('shop-friend', 'You can give a look only to a friend.');
 const noOrder = () => shopRefusal('shop-order', 'No order of yours by that name.');
 
-const freeFor = (address: string | null) => address?.toLowerCase() === OWNER_WALLET;
-
 /** What the shop's refusal of a purchase means to whoever asked for it. */
 const refusalOf = (error: string, price: string) =>
 {
@@ -192,8 +189,11 @@ const refusalOf = (error: string, price: string) =>
  * server never holds NURA and never takes the browser's word that something was paid: the worker
  * asks the shop about each order by its id.
  */
-export function createOrderService(db: DataSource, shop: ShopChain, hooks: OrderHooks)
+/** `owners` are the wallets that take any look for nothing: the owner the server's `.env` names. */
+export function createOrderService(db: DataSource, shop: ShopChain, hooks: OrderHooks, owners: () => readonly string[])
 {
+    const freeFor = (address: string | null) => address !== null && owners().includes(address.toLowerCase());
+
     /** When each order nobody said they sent was last asked about, in this process. */
     const askedAt = new Map<string, number>();
 
@@ -252,21 +252,6 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
         }
 
         return found.id;
-    };
-
-    /** The wallet of whoever brought the buyer in, once that invite counted, unless it is the buyer's own. */
-    const referrerOf = async (runner: EntityManager, me: string, buyer: Address) =>
-    {
-        const found = await runner.getRepository(Referral)
-            .createQueryBuilder('f')
-            .innerJoin('users', 'i', 'i.id = f.inviter_id and i.is_suspended = false')
-            .select(walletOf('i'), 'address')
-            .where('f.invitee_id = :me', { me })
-            .andWhere('f.counted_at is not null')
-            .getRawOne<{ address: string | null }>();
-        const address = found?.address ?? null;
-
-        return address === null || address.toLowerCase() === buyer.toLowerCase() ? null : address.toLowerCase();
     };
 
     /** What `item` costs the recipient now: its price or its sale's, a bundle priced down for the looks of it they own. */
@@ -348,7 +333,7 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
             itemId: item,
             price: price.toString(),
             buyerAddress: buyer.toLowerCase(),
-            referrerAddress: await referrerOf(tx, me, buyer),
+            referrerAddress: await inviterWalletOf(tx, me, buyer),
             deadline: () => `date_trunc('second', now() + ${ QUOTE_LIFE })`,
             state: 'quoted'
         });

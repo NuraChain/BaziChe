@@ -93,7 +93,8 @@ describe.skipIf(!active)('the match a reader is sent, against a real database', 
             env: 'test',
             vapidPublicKey: '',
             vapidPrivateKey: '',
-            vapidSubject: ''
+            vapidSubject: '',
+adminWallet: ''
         } as Parameters<typeof buildPorts>[1], listener);
     }, 60_000);
 

@@ -69,7 +69,8 @@ const ports = () => buildPorts(db, {
     env: 'test',
     vapidPublicKey: '',
     vapidPrivateKey: '',
-    vapidSubject: ''
+    vapidSubject: '',
+    adminWallet: ''
 } as Parameters<typeof buildPorts>[1], listener);
 
 const search = async (ask: QuickAsk = {}) => await tables.quick(await makeUser(), { game: 'ludo', voice: 'off', ...ask }, everybody);

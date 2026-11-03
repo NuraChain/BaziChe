@@ -20,6 +20,11 @@ export const MIN_FEE_BPS = 100;
 
 export const MAX_FEE_BPS = 1_500;
 
+/** The part of each seat's fee its inviter may be paid, as the vault holds it: 1% of the fee to 75%. */
+export const MIN_SHARE_BPS = 100;
+
+export const MAX_SHARE_BPS = 7_500;
+
 export const ELIGIBILITIES = ['yes', 'paid-wallet', 'paid-minor', 'paid-terms', 'paid-break'] as const;
 
 export type Eligibility = typeof ELIGIBILITIES[number];

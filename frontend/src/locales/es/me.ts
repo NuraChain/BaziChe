@@ -240,5 +240,6 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'chain.asking': 'Tu billetera ya te está preguntando algo. Ábrela y responde.',
     'chain.noWallet': 'Tu billetera no está conectada a este sitio. Ábrela, conecta este sitio e inténtalo de nuevo.',
     'chain.wrongAccount': 'Tu billetera está en una cuenta distinta de la que usaste para iniciar sesión. Cambia a esa cuenta e inténtalo de nuevo.',
-    'chain.walletFailed': 'Tu billetera no ha podido enviarlo, casi siempre porque no hay suficiente para el gas. Revisa tu billetera e inténtalo de nuevo.'
+    'chain.walletFailed': 'Tu billetera no ha podido enviarlo, casi siempre porque no hay suficiente para el gas. Revisa tu billetera e inténtalo de nuevo.',
+    'chain.sponsorLimit': 'Tu billetera tiene muy poco NURA para el gas, y el servidor ya pagó hoy todos los guardados que paga. Añade un poco de NURA a tu billetera o vuelve a guardar mañana.'
 };

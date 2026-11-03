@@ -3,6 +3,7 @@ import { untrack, useHead } from 'azerothjs';
 import ConfirmSheet from '../../components/app/confirm-sheet.component.azeroth';
 import Page from '../../components/app/page.component.azeroth';
 import PageHeader from '../../components/app/page-header.component.azeroth';
+import LazyInviteEarnings from '../../components/social/lazy-invite-earnings.component.azeroth';
 import LazyInviteCampaign from '../../components/social/lazy-invite-campaign.component.azeroth';
 import TopInviters from '../../components/social/top-inviters.component.azeroth';
 import Avatar from '../../components/ui/avatar.component.azeroth';
@@ -243,6 +244,8 @@ export default component InvitePage()
                     <Show when={ campaign } let={ running }>
                         <LazyInviteCampaign campaign={ running } />
                     </Show>
+
+                    <LazyInviteEarnings />
 
                     <section aria-labelledby="invite-came" class="flex flex-col gap-3">
                         <div class="flex flex-col gap-1">

@@ -113,8 +113,9 @@ flowchart LR
   that will see it.
 - **The wire is declared once**, in `backend/src/schemas.ts`, and the browser's client is typed from
   that declaration.
-- **The schema is the entities.** TypeORM entities are the only description of the database, and
-  `syncSchema()` builds it from them; there are no migrations until something ships.
+- **The schema is the entities.** TypeORM entities are the only description of the database. Every
+  start brings the database to them by itself and writes each change down as a version, keeping
+  what a change would lose beside it (`docs/operations/rollout.md`).
 - **The browser** uses AzerothJS single-file components with signals and no virtual DOM. Pages load
   as they are needed, the landing page is prerendered in every language, and the build fails when a
   page outgrows its budget.
@@ -188,10 +189,11 @@ command, never from the file.
 |---|---|
 | `DATABASE_URL`, `SESSION_SECRET`, `PUBLIC_ORIGIN` | the database, the secret that signs sessions, the address people use |
 | `HOST`, `PORT`, `API_RATE_MAX`, `DATABASE_POOL_MAX` | where it listens, requests a minute from one address, the database pool |
-| `ADMIN_WALLET_ADDRESS` | the wallet that opens `/admin` as its owner |
+| `ADMIN_WALLET_ADDRESS` | the wallet that opens `/admin` as its owner, who may name co-owners there |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web Push; empty, notifications stay in the app |
 | `NURA_CHAIN_ID`, `NURA_RPC_URL`, `NURA_PROFILE_ADDRESS`, `NURA_PROFILE_LENS_ADDRESS`, `NURA_EXPLORER_API` | NuraChain: smart-contract wallets, on-chain profiles and NFTs |
 | `NURA_VAULT_ADDRESS`, `NURA_SHOP_ADDRESS`, `NURA_TIPS_ADDRESS`, `NURA_MARKETS_ADDRESS`, `NURA_REFEREE_KEY` | paid tables, the shop, donations and markets |
+| `NURA_SPONSOR_KEY` | a wallet of its own that pays the gas of a profile write for somebody whose wallet holds none; fund it with a little NURA, and empty, nobody's is paid for |
 | `METRICS_TOKEN` | Prometheus metrics at `/api/metrics`; empty, off |
 
 The example's NuraChain values are the public NuraChain deployment: a fresh `.env` reads on-chain

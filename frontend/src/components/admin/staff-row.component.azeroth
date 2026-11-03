@@ -12,6 +12,7 @@ export type StaffMember = StaffList['members'][number];
 
 const ROLE_TONE: Record<StaffRole, Tone> = {
     owner: 'gold',
+    'co-owner': 'gold',
     admin: 'accent',
     moderator: 'neutral'
 };

@@ -15,6 +15,7 @@ export type LogRow = StaffLog['rows'][number];
 
 export const ROLE_WORDS: Record<StaffRole, MessageKey> = {
     owner: 'admin.role.owner',
+    'co-owner': 'admin.role.co-owner',
     admin: 'admin.role.admin',
     moderator: 'admin.role.moderator'
 };
@@ -28,6 +29,7 @@ export const FLAG_WORDS: Record<InviteFlag, MessageKey> = {
 
 export const ROLE_IN: Record<StaffRole, MessageKey> = {
     owner: 'admin.role.in.owner',
+    'co-owner': 'admin.role.in.co-owner',
     admin: 'admin.role.in.admin',
     moderator: 'admin.role.in.moderator'
 };

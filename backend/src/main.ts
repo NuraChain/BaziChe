@@ -15,7 +15,7 @@ import { buildPorts } from './services.ts';
 import { dataSource } from './data-source.ts';
 import { seedWalletFixtures } from './db/seed-wallets.ts';
 import { seedReference } from './db/seed-reference.ts';
-import { BehindAndDestructive, migrate, migrationSource, targetOf } from './db/migrate.ts';
+import { migrate, migrationSource, targetOf } from './db/migrate.ts';
 import { behindTheEntities } from './db/schema.ts';
 import { loadServerConfig } from './env.ts';
 import { watchBuild } from './http/build-watch.ts';
@@ -58,9 +58,10 @@ const log = createServerLogger(config);
 await dataSource.initialize();
 log.info('database ready', { pool: config.databasePoolMax });
 
-// The database is brought to the entities before anything reads it, one version at a time
-// (db/migrate.ts): built when empty, adopted when it was built before versions existed, and every
-// migration not yet applied run in order. On its own connection, with a migration's time limits.
+// The database is brought to the entities before anything reads it, by the start itself
+// (db/migrate.ts): built when empty, every migration file not yet applied run in order, and what
+// still differs applied and written down as the next version. On its own connection, with a
+// migration's time limits.
 {
     const migrator = migrationSource(dataSource.options);
 
@@ -74,13 +75,21 @@ log.info('database ready', { pool: config.databasePoolMax });
         {
             log.info('schema built onto an empty database');
         }
-        else if (done.done === 'adopted')
+        else
         {
-            log.info(done.synced ? 'schema brought to the entities and versioned from here' : 'schema versioned from here');
-        }
-        else if (done.applied.length > 0)
-        {
-            log.info('migrations applied', { applied: done.applied });
+            if (done.done === 'adopted')
+            {
+                log.info('schema versioned from here');
+            }
+            else if (done.applied.length > 0)
+            {
+                log.info('migrations applied', { applied: done.applied });
+            }
+
+            if (done.changed !== null)
+            {
+                log.info('schema brought to the entities', { version: done.changed.version, statements: done.changed.statements.slice(0, 20) });
+            }
         }
     }
     catch (error)
@@ -89,11 +98,8 @@ log.info('database ready', { pool: config.databasePoolMax });
 
         log.error('the database could not be brought to this version', {
             reason: error instanceof Error ? error.message : String(error),
-            ...(error instanceof BehindAndDestructive
-                ? { would: error.statements, fix: 'take a dump (docs/operations/rollout.md), run npm run schema:sync once, then start again: from then on every update migrates by itself' }
-                : {}),
-            ...(code.startsWith('23')
-                ? { fix: 'a migration met rows it cannot change: it was rolled back and nothing moved. Mend the migration, or the rows, and start again' }
+            ...(code.startsWith('23') || code.startsWith('22') || code === '42804'
+                ? { fix: 'the rows in the database cannot take this change as they are (a NOT NULL column with no default on a table that has rows, a value that does not cast): it was rolled back and nothing moved. Give the column a default in its entity, or add a migration file that moves the rows (npm run migration:new), and start again' }
                 : {})
         });
         process.exit(1);
@@ -120,7 +126,7 @@ catch (error)
     {
         log.error('this database is behind the entities', {
             reason: error instanceof Error ? error.message : String(error),
-            fix: 'an entity changed with no migration for it: npm run migration:new <Name>, then start again'
+            fix: 'the start could not bring the database to the entities: the warning above names what still differs'
         });
         process.exit(1);
     }

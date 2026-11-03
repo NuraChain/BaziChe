@@ -43,6 +43,7 @@ import type {
     Account,
     Challenge,
     ChainCall,
+    ProfileSponsorAsk,
     StakeTerms,
     VaultGames,
     VaultState,
@@ -56,6 +57,7 @@ import type {
     PublicPerson,
     InviteBoard,
     InviteCard,
+    InviteEarnings,
     InviteListed,
     InviteSummary,
     InvitedPeople,
@@ -730,6 +732,12 @@ export interface ChainPort
 
     publish(userId: string): Promise<ChainCall[]>;
 
+    /** Whether the server pays the gas of the profile's next write, and the request to sign when it does. */
+    sponsor(userId: string): Promise<ProfileSponsorAsk>;
+
+    /** That request, signed, sent with the server's key: the hash of the transaction. */
+    sponsored(userId: string, input: { gas: string; deadline: number; signature: string }): Promise<{ hash: string }>;
+
     nfts(userId: string, offset: number, limit: number): Promise<NftPage>;
 
     nftImage(userId: string, contract: string, tokenId: string): Promise<{ type: string; bytes: Uint8Array } | null>;
@@ -772,6 +780,9 @@ export interface InvitePort
 
     /** Shows the reader among the top inviters, or takes them off. */
     list(me: string, on: boolean): Promise<InviteListed>;
+
+    /** What the reader's invites have earned them at tables played for NURA, read from the vault: `chain-unreachable` when it cannot be. */
+    earnings(me: string): Promise<InviteEarnings>;
 
     /** Who a link invites to, as their public profile shows them; a link that no longer works is `invite-missing`. */
     card(code: string): Promise<InviteCard>;
@@ -880,6 +891,9 @@ export interface AdminPort
     vault(me: string): Promise<AdminVault | null>;
 
     fee(me: string, feeBps: number): Promise<WalletCall | null>;
+
+    /** The part of each seat's fee its inviter is paid, as a call for the owner's wallet to send. */
+    share(me: string, shareBps: number): Promise<WalletCall | null>;
 
     gameFee(me: string, game: string, feeBps: number): Promise<WalletCall | null>;
 

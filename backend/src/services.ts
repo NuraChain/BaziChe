@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@azerothjs/http';
 import type { DataSource } from 'typeorm';
-import { getAddress } from 'viem';
+import { getAddress, type Hex } from 'viem';
 
 import { createCatalogueService } from './domains/catalogue/service.ts';
 import { createChatService, type ConversationRow, type MessageRow } from './domains/chat/service.ts';
@@ -40,6 +40,7 @@ import { createNftReader } from './chain/nfts.ts';
 import { createShopChain, type ShopChain } from './chain/shop.ts';
 import { createMarketsChain, type MarketsChain } from './chain/markets.ts';
 import { createNftChain, type NftChain } from './chain/minting.ts';
+import { createProfileSponsor, type ProfileSponsor } from './chain/sponsor.ts';
 import { createTipsChain, type TipsChain } from './chain/tips.ts';
 import { createVault, type Vault } from './chain/vault.ts';
 import { GAME_SEEDS } from './db/seed-reference.ts';
@@ -48,7 +49,8 @@ import { createStakeService, type StakeSweep } from './domains/stake/service.ts'
 import { createIdentityService } from './domains/identity/service.ts';
 import { createInviteService, noInvite } from './domains/invite/service.ts';
 import { isAdminAddress } from './domains/identity/admin.ts';
-import { may, ownersOf, shownOwnersOf, type Ability, type GrantedRole } from './domains/admin/roles.ts';
+import { createProfileSponsorship } from './domains/identity/sponsor.ts';
+import { may, ownersOf, type Ability, type GrantedRole } from './domains/admin/roles.ts';
 import { createPeopleService } from './domains/admin/people.ts';
 import { createLiveService, type Call, type Online } from './domains/admin/live.ts';
 import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play.ts';
@@ -198,7 +200,7 @@ const WATCHABLE_MAX = 48;
 
 const WAITING_SEATS = 500;
 
-export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain, tipsChain?: TipsChain, marketsChain?: MarketsChain, nftChain?: NftChain): Services
+export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain, tipsChain?: TipsChain, marketsChain?: MarketsChain, nftChain?: NftChain, sponsorChain?: ProfileSponsor): Services
 {
     const here = (userIds: readonly string[]) => presence?.present(userIds) ?? new Set(userIds);
 
@@ -238,7 +240,9 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     };
     const achieve = createAchieveService(db);
 
-    const invites = createInviteService(db, () => ownersOf(config.adminWallet));
+    const owners = () => ownersOf(config.adminWallet);
+
+    const invites = createInviteService(db, owners);
 
     /** A code with the link that carries it, on the origin the browser is served from. */
     const linked = <T extends { code: string }>(view: T) => ({ ...view, link: `${ config.origin }/join/${ view.code }` });
@@ -1410,29 +1414,25 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             dedupeKey: `gift:${ gift.order }`
         })),
         unworn: (userId) => courtesy('profile look', () => ringProfile(userId))
-    });
+    }, owners);
 
     const shopFunds = createShopMoney(db, looksShop);
 
-    const owners = () => ownersOf(config.adminWallet);
+    const team = createStaffService(db, owners);
 
-    const shownOwners = () => shownOwnersOf(config.adminWallet);
+    const accounts = createPeopleService(db, owners, config.origin);
 
-    const team = createStaffService(db, owners, shownOwners);
+    const desk = createReportsService(db, owners);
 
-    const accounts = createPeopleService(db, owners, shownOwners, config.origin);
+    const plays = createPlayService(db, owners);
 
-    const desk = createReportsService(db, shownOwners);
-
-    const plays = createPlayService(db, owners, shownOwners);
-
-    const onlineNow = createLiveService(db, shownOwners);
+    const onlineNow = createLiveService(db, owners);
 
     const notices = createNoticeService(db);
 
     const shopAdmin = createShopAdmin(db);
 
-    const inviteAdmin = createInviteAdmin(db, shownOwners);
+    const inviteAdmin = createInviteAdmin(db, owners);
 
     const liveNow = async () =>
     {
@@ -2004,6 +2004,39 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         lens: config.profileLens
     });
 
+    /** What the reader's profile on the chain is asked to hold: what this server holds of them. */
+    const profileWrite = async (userId: string) =>
+    {
+        const row = await identity.profileFor(userId);
+
+        if (row === null || row.address === null)
+        {
+            return null;
+        }
+
+        const calls = await chain.publish({
+            address: row.address,
+            displayName: row.display_name,
+            bio: row.bio,
+            avatar: row.avatar ?? '',
+            record: recordValue(await achieve.recordOf(row.handle))
+        });
+
+        return { owner: getAddress(row.address), calls };
+    };
+
+    const sponsorship = createProfileSponsorship(
+        db,
+        sponsorChain ?? createProfileSponsor({ rpcUrl: config.rpcUrl, chainId: config.chainId, registry: config.profileRegistry, sponsorKey: config.sponsorKey }),
+        async (userId) =>
+        {
+            const write = await profileWrite(userId);
+            const [call] = write?.calls ?? [];
+
+            return write === null || call === undefined ? null : { owner: write.owner, to: getAddress(call.to), data: call.data as Hex };
+        }
+    );
+
     const nfts = createNftReader({ rpcUrl: config.rpcUrl, explorerApi: config.explorerApi });
 
 
@@ -2296,6 +2329,20 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
             list: (me, on) => invites.list(me, on),
 
+            async earnings(me)
+            {
+                const row = vaults.configured ? await identity.profileFor(me) : null;
+
+                if (row === null || row.address === null)
+                {
+                    return { tables: false as const };
+                }
+
+                const [earned, share, terms] = await Promise.all([vaults.earned(getAddress(row.address)), vaults.share(), vaults.terms()]);
+
+                return { tables: true as const, share, fee: terms.fee, earned: earned.toString() };
+            },
+
             /** A link's page shows its inviter only where their public profile would, so a minor's link works with no face. */
             async card(code)
             {
@@ -2385,6 +2432,13 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 const actor = await ableTo(me, 'wallet');
 
                 return actor === null || actor.address === null ? null : await vaultAdmin.fee(actor.address, feeBps);
+            },
+
+            async share(me, shareBps)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null || actor.address === null ? null : await vaultAdmin.share(actor.address, shareBps);
             },
 
             async gameFee(me, game, feeBps)
@@ -3077,21 +3131,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 return row === null ? '' : recordValue(await achieve.recordOf(row.handle));
             },
 
-            async publish(userId)
-            {
-                const row = await identity.profileFor(userId);
-                if (row === null || row.address === null)
-                {
-                    return [];
-                }
-                return chain.publish({
-                    address: row.address,
-                    displayName: row.display_name,
-                    bio: row.bio,
-                    avatar: row.avatar ?? '',
-                    record: recordValue(await achieve.recordOf(row.handle))
-                });
-            },
+            publish: async (userId) => (await profileWrite(userId))?.calls ?? [],
+
+            sponsor: (userId) => sponsorship.ask(userId),
+
+            sponsored: (userId, input) => sponsorship.send(userId, input),
 
             async nfts(userId, offset, limit)
             {

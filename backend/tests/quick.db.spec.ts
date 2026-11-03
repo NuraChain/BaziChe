@@ -56,7 +56,8 @@ const door = (presence?: PresenceReader, note?: Note) => buildPorts(db, {
     env: 'test',
     vapidPublicKey: '',
     vapidPrivateKey: '',
-    vapidSubject: ''
+    vapidSubject: '',
+    adminWallet: ''
 } as Parameters<typeof buildPorts>[1], listener, presence, note);
 
 const makeUser = async (overrides: Partial<Pick<User, 'isMinor' | 'allowStrangerMessages'>> = {}) =>

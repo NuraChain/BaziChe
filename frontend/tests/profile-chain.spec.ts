@@ -28,6 +28,8 @@ const settle = async () =>
 
 let seed = 0;
 
+const SIGNED = `0x${ '22'.repeat(65) }`;
+
 const addressOf = (n: number) => `0x${ n.toString(16).padStart(40, '0') }`;
 
 const walletWith = (address: string, send: () => Promise<unknown>, locked = false): { calls: string[]; provider: Eip1193Provider } =>
@@ -58,6 +60,10 @@ const walletWith = (address: string, send: () => Promise<unknown>, locked = fals
                 if (method === 'eth_sendTransaction')
                 {
                     return send();
+                }
+                if (method === 'eth_signTypedData_v4')
+                {
+                    return SIGNED;
                 }
                 if (method === 'eth_getTransactionReceipt')
                 {
@@ -297,6 +303,44 @@ describe('saving a profile writes the name, the picture and the bio to the Nura 
 
         expect(told()).toContain('not enough for gas');
         expect(told()).not.toContain('could not be reached');
+    });
+
+    it('has the reader sign it for nothing when the server pays the gas, sends nothing from the wallet, and says so once the chain has it', async () =>
+    {
+        const owner = addressOf(seed);
+        const signer = walletWith(owner, async () => '0xfeed');
+        await signInWith(signer, owner);
+        server.chain = { configured: true, profile: null };
+        server.sponsor.ask = { sponsored: true, typedData: '{"primaryType":"ForwardRequest"}', gas: '265000', deadline: 1_900_000_000 };
+
+        const container = await sheet();
+        fill(container, 'profile-name', 'Dana Whitfield');
+        await settle();
+        await save(container);
+
+        expect(signer.calls).toContain('eth_signTypedData_v4');
+        expect(signer.calls, 'the wallet was asked to pay gas the server pays').not.toContain('eth_sendTransaction');
+        expect(server.sponsor.sent).toEqual([{ gas: '265000', deadline: 1_900_000_000, signature: SIGNED }]);
+        expect(told()).toContain('written to your Nura Profile');
+        expect(closedWith).toBe(true);
+    });
+
+    it('says the server has paid for as many saves as it does today, and asks the wallet nothing, when the wallet cannot pay either', async () =>
+    {
+        const owner = addressOf(seed);
+        const signer = walletWith(owner, async () => '0xfeed');
+        await signInWith(signer, owner);
+        server.chain = { configured: true, profile: null };
+        server.sponsor.ask = { sponsored: false, why: 'limit' };
+
+        const container = await sheet();
+        fill(container, 'profile-name', 'Dana Whitfield');
+        await settle();
+        await save(container);
+
+        expect(told()).toContain('already paid for as many saves as it does today');
+        expect(signer.calls).not.toContain('eth_sendTransaction');
+        expect(signer.calls).not.toContain('eth_signTypedData_v4');
     });
 
     it('says it could not reach the registry, and does not hang, when the chain state will not load', async () =>

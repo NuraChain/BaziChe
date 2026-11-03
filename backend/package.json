@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:shuffle": "vitest run --sequence.shuffle",
+    "test:changed": "vitest run --changed origin/main --passWithNoTests",
     "test:db": "vitest run --no-file-parallelism .db.spec. seat-race.spec.",
     "test:ws": "vitest run --config vitest.socket.config.ts",
     "schema:sync": "npm run build && node ../.dist-backend/db/sync-cli.js",

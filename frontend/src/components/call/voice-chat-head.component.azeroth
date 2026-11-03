@@ -1,22 +1,39 @@
+import { onCleanup, untrack } from 'azerothjs';
+
 import Icon from '../../icons/icon.component.azeroth';
 import AvatarGroup from '../ui/avatar-group.component.azeroth';
 import Button from '../ui/button.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
 import type { Person } from '../../data/person.ts';
 import { openCallView } from '../../lib/call-view.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { useAccount } from '../../stores/account.store.ts';
 import { useCalls } from '../../stores/calls.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
+import { useRealtime } from '../../stores/realtime.store.ts';
+import { useVoice } from '../../stores/voice.store.ts';
+import { groupOfCall, lastedOf, ticking, voiceChatSaid } from './said.ts';
 
 /**
- * The voice chat running in a group's room, under the head of its thread (MS-D38): the first faces
- * in its room, how many are there, and Join, or Open for the reader already in it. Nothing while
- * none runs. `joins` is whether the group lets the reader in, which the head asks of the group.
+ * The voice chat running in a group's room, under the head of its thread (MS-D38): the first faces in
+ * its room, how many are there, and Join where the group lets the reader in; nothing while none runs.
+ * For a reader in it on this tab it is the voice chat's bar in its own thread, which draws no strips:
+ * how long it has run, pressed for the call's view, the microphone and Leave. Whenever the reader's
+ * call is this voice chat, on this tab or another device, the card leaves it to the strip, as it does
+ * to the bar across the top of other pages, rather than lying over the thread's head and its Join.
+ * `joins` is whether the group lets the reader in, asked of the group.
  */
 export default component VoiceChatHead(props: { room: string; joins: boolean })
 {
     const calls = useCalls();
+    const account = useAccount();
     const locale = useLocale();
     const people = usePeople();
+    const voice = useVoice();
+    const realtime = useRealtime();
+
+    state now = runtime().clock.now();
 
     derived call = calls.roomCall();
 
@@ -33,13 +50,46 @@ export default component VoiceChatHead(props: { room: string; joins: boolean })
         return found === null ? [] : [found];
     });
 
-    derived inIt = live && calls.current()?.id === id && calls.here();
+    derived current = calls.current();
+
+    derived ours = live && current?.id === id;
+
+    derived inIt = ours && calls.here();
 
     derived offered = live && !inIt && props.joins;
 
+    derived held = current?.people?.find((one) => one.who === account.user()?.id)?.held === true;
+
+    derived speaks = inIt && !held;
+
+    derived muted = voice.muted();
+
+    derived status = voiceChatSaid(true, voice.joining(), lastedOf(current, now, realtime.toLocal), locale);
+
+    derived opens = locale.t('call.voiceChat.openBar', { name: groupOfCall(current) ?? locale.t('call.voiceChat.action') });
+
+    effect
+    {
+        if (!ours)
+        {
+            return;
+        }
+
+        const release = untrack(() => calls.bar());
+
+        onCleanup(release);
+    }
+
     mount
     {
-        return calls.watchRoom(props.room);
+        const unwatch = calls.watchRoom(props.room);
+        const stop = ticking((at) => now = at);
+
+        return () =>
+        {
+            stop();
+            unwatch();
+        };
     }
 
     <Show when={ live }>
@@ -49,9 +99,31 @@ export default component VoiceChatHead(props: { room: string; joins: boolean })
             aria-label={ locale.t('call.voiceChat.region') }
             data-voice-chat={ id }
         >
-            <Icon name="call" size={ 16 } class="shrink-0 text-live" />
-            <AvatarGroup people={ faces } total={ count } size="xs" max={ 3 } class="shrink-0" />
-            <span class="min-w-0 flex-1 truncate text-ui-sm text-text" data-voice-chat-here>{ locale.t('call.voiceChat.here', { count }) }</span>
+            <Show
+                when={ inIt }
+                fallback={
+                    <span class="flex min-w-0 flex-1 items-center gap-2">
+                        <Icon name="call" size={ 16 } class="shrink-0 text-live" />
+                        <AvatarGroup people={ faces } total={ count } size="xs" max={ 3 } class="shrink-0" />
+                        <span class="min-w-0 flex-1 truncate text-ui-sm text-text" data-voice-chat-here>{ locale.t('call.voiceChat.here', { count }) }</span>
+                    </span>
+                }
+            >
+                <span class="contents" data-voice-chat-open>
+                    <button
+                        type="button"
+                        class="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-control text-start"
+                        aria-haspopup="dialog"
+                        aria-label={ opens }
+                        onClick={ () => openCallView() }
+                    >
+                        <Icon name="call" size={ 16 } class="shrink-0 text-live" />
+                        <AvatarGroup people={ faces } total={ count } size="xs" max={ 3 } class="shrink-0" />
+                        <span class="min-w-0 flex-1 truncate text-ui-sm text-text" data-voice-chat-here>{ locale.t('call.voiceChat.here', { count }) }</span>
+                        <span class="shrink-0 text-ui-sm text-live" data-voice-chat-status>{ status }</span>
+                    </button>
+                </span>
+            </Show>
             <Show when={ offered }>
                 <span class="contents" data-voice-chat-join>
                     <Button variant="live" size="sm" onClick={ () => void calls.join(id, props.room) }>
@@ -59,10 +131,21 @@ export default component VoiceChatHead(props: { room: string; joins: boolean })
                     </Button>
                 </span>
             </Show>
+            <Show when={ speaks }>
+                <span class="contents" data-voice-chat-mute>
+                    <IconButton
+                        icon={ muted ? 'voice-off' : 'voice' }
+                        label={ locale.t(muted ? 'call.unmute' : 'call.mute') }
+                        variant="ghost"
+                        pressed={ muted }
+                        onClick={ () => voice.toggleMute() }
+                    />
+                </span>
+            </Show>
             <Show when={ inIt }>
-                <span class="contents" data-voice-chat-open>
-                    <Button variant="outline" size="sm" onClick={ () => openCallView() }>
-                        { locale.t('call.voiceChat.open') }
+                <span class="contents" data-voice-chat-leave>
+                    <Button variant="destructive" size="sm" leading="hang-up" onClick={ () => void calls.hangUp(id) }>
+                        { locale.t('call.voiceChat.leave') }
                     </Button>
                 </span>
             </Show>

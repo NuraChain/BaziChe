@@ -2875,10 +2875,23 @@ describe('a group’s voice chat, at the head of its thread', () =>
 
     const faces = (within: HTMLElement) => [...within.querySelectorAll('[role="img"][aria-label]')].map((one) => one.getAttribute('aria-label'));
 
+    /** The voice store stood in for: a join puts this tab in the room it was asked for, and a leave takes it out. */
     beforeEach(() =>
     {
+        const voice = useVoice();
+        let room: string | null = null;
+
         useCalls().reset();
-        vi.spyOn(useVoice(), 'join').mockResolvedValue(undefined);
+        vi.spyOn(voice, 'table').mockImplementation(() => room);
+        vi.spyOn(voice, 'joining').mockImplementation(() => false);
+        vi.spyOn(voice, 'join').mockImplementation(async (asked) =>
+        {
+            room = asked;
+        });
+        vi.spyOn(voice, 'leave').mockImplementation(() =>
+        {
+            room = null;
+        });
     });
 
     afterEach(() =>
@@ -2913,7 +2926,7 @@ describe('a group’s voice chat, at the head of its thread', () =>
         expect(voiceButton(shut), 'the group lets only its staff begin one').toBeNull();
     }, 14_000);
 
-    it('shows the one running under the head, with its people and Join, and Open once the reader is in it', async () =>
+    it('shows the one running under the head, with its people and Join, and is its bar once the reader is in it', async () =>
     {
         server.voiceRooms['c-friday'] = { id: 'call-31', here: 2, faces: ['sara.k', 'mina'] };
         await groupRoom();
@@ -2925,16 +2938,61 @@ describe('a group’s voice chat, at the head of its thread', () =>
         expect(strip(container)!.querySelector('[data-voice-chat-here]')?.textContent).toBe('2 in the voice chat');
         await vi.waitFor(() => expect(faces(strip(container)!)).toEqual(['Sara Kamali', 'Mina Sadeghi']), { timeout: 4000 });
         expect(strip(container)!.querySelector('[data-voice-chat-open]')).toBeNull();
+        expect(strip(container)!.querySelector('[data-voice-chat-leave]')).toBeNull();
+        expect(useCalls().barred(), 'nothing here is the call’s bar before the reader is in it').toBe(false);
 
         server.calls = [];
         fire(strip(container)!.querySelector<HTMLButtonElement>('[data-voice-chat-join] button')!, 'click');
 
-        await vi.waitFor(() => expect(strip(container)!.querySelector('[data-voice-chat-open] button')?.textContent?.trim()).toBe('Open'), { timeout: 4000 });
+        await vi.waitFor(() => expect(strip(container)!.querySelector('[data-voice-chat-open] button')?.getAttribute('aria-label')).toBe('Open the voice chat in Friday Night Crew'), { timeout: 4000 });
         expect(strip(container)!.querySelector('[data-voice-chat-join]'), 'in it at the press').toBeNull();
+        expect(strip(container)!.querySelector('[data-voice-chat-leave] button')?.textContent?.trim()).toBe('Leave');
+        expect(strip(container)!.querySelector('[data-voice-chat-mute] button')?.getAttribute('aria-label'), 'the microphone, as the call has it').toBe(useVoice().muted() ? 'Unmute' : 'Mute');
+        expect(useCalls().barred(), 'the card leaves the live call to the strip, and stays off the thread’s head').toBe(true);
 
         await vi.waitFor(() => expect(server.calls).toContain('calls.join'), { timeout: 4000 });
         await vi.waitFor(() => expect(strip(container)!.querySelector('[data-voice-chat-here]')?.textContent).toBe('3 in the voice chat'), { timeout: 4000 });
+
+        server.phone = server.phone.map((call) => ({ ...call, people: call.people?.map((one) => (one.who === 'alex' ? { ...one, held: true } : one)) }));
+        await useCalls().refresh();
+
+        await vi.waitFor(() => expect(strip(container)!.querySelector('[data-voice-chat-mute]'), 'no microphone for a reader the voice chat holds').toBeNull(), { timeout: 4000 });
+        expect(strip(container)!.querySelector('[data-voice-chat-leave] button'), 'who can still leave').not.toBeNull();
+
+        fire(strip(container)!.querySelector<HTMLButtonElement>('[data-voice-chat-leave] button')!, 'click');
+
+        await vi.waitFor(() => expect(strip(container)!.querySelector('[data-voice-chat-join]'), 'Join again once the reader has left').not.toBeNull(), { timeout: 4000 });
+        expect(useCalls().barred(), 'and the strip is no bar once they are out').toBe(false);
+        await vi.waitFor(() => expect(server.calls).toContain('calls.hangUp'), { timeout: 4000 });
     }, 12_000);
+
+    it('takes the card’s place for the reader’s voice chat on another device, and offers to bring it here', async () =>
+    {
+        const at = new Date(0).toISOString();
+
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 2, faces: ['sara.k', 'alex'] };
+        server.phone = [{
+            id: 'call-31',
+            room: 'c-friday',
+            kind: 'group',
+            state: 'live',
+            out: false,
+            rung: false,
+            at,
+            answeredAt: at,
+            people: [{ who: 'alex', held: false, hand: false, here: true, role: 'member' }, { who: 'sara.k', held: false, hand: false, here: true, role: 'member' }],
+            may: { calls: false }
+        }];
+        await groupRoom();
+        await useCalls().refresh();
+
+        const container = opened('c-friday', 'sidebar');
+
+        await vi.waitFor(() => expect(strip(container)?.querySelector('[data-voice-chat-join] button') ?? null).not.toBeNull(), { timeout: 4000 });
+        expect(useCalls().here(), 'the call is on another device').toBe(false);
+        expect(useCalls().barred(), 'the strip says it, so the card does not lie over the thread’s head').toBe(true);
+        expect(strip(container)!.querySelector('[data-voice-chat-leave]')).toBeNull();
+    });
 
     it('comes when one begins and goes when it ends, as its room rings', async () =>
     {

@@ -490,7 +490,6 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'call.voiceChat.region': 'Salon vocal',
     'call.voiceChat.here': { one: '{count} dans le salon vocal', many: '{count} dans le salon vocal', other: '{count} dans le salon vocal' },
     'call.voiceChat.join': 'Rejoindre',
-    'call.voiceChat.open': 'Ouvrir',
     'call.voiceChat.leave': 'Quitter',
     'call.voiceChat.openBar': 'Ouvrir le salon vocal de {name}',
     'call.voiceChat.title': 'Salon vocal de {name}',

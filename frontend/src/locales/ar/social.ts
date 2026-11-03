@@ -490,7 +490,6 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'call.voiceChat.region': 'دردشة صوتية',
     'call.voiceChat.here': { zero: 'لا أحد في الدردشة الصوتية', one: 'شخص واحد في الدردشة الصوتية', two: 'شخصان في الدردشة الصوتية', few: '{count} أشخاص في الدردشة الصوتية', many: '{count} شخصًا في الدردشة الصوتية', other: '{count} شخص في الدردشة الصوتية' },
     'call.voiceChat.join': 'انضم',
-    'call.voiceChat.open': 'افتح',
     'call.voiceChat.leave': 'مغادرة',
     'call.voiceChat.openBar': 'افتح الدردشة الصوتية في {name}',
     'call.voiceChat.title': 'الدردشة الصوتية في {name}',

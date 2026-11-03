@@ -487,7 +487,6 @@ export const social = {
     'call.voiceChat.region': 'Voice chat',
     'call.voiceChat.here': { one: '{count} in the voice chat', other: '{count} in the voice chat' },
     'call.voiceChat.join': 'Join',
-    'call.voiceChat.open': 'Open',
     'call.voiceChat.leave': 'Leave',
     'call.voiceChat.openBar': 'Open the voice chat in {name}',
     'call.voiceChat.title': 'Voice chat in {name}',

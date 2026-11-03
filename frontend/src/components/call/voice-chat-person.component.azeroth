@@ -60,20 +60,22 @@ export default component VoiceChatPerson(props: { who: string })
     <div class="flex flex-col" data-voice-chat-person={ props.who }>
         <VoicePeer who={ props.who } />
         <Show when={ marked }>
-            <span class="facts px-3 pb-2 text-ui-2xs text-muted" data-voice-chat-marks>
-                <Show when={ placed }>
-                    <span data-role={ role }>{ locale.t(`groups.role.${ role }`) }</span>
-                </Show>
-                <Show when={ held }>
-                    <span class="font-semibold text-gold" data-held>{ locale.t('call.voiceChat.held') }</span>
-                </Show>
-                <Show when={ hand }>
-                    <span class="font-semibold text-accent" data-hand>{ locale.t('call.voiceChat.hand') }</span>
-                </Show>
+            <span class="block ps-16 pe-3 pb-2">
+                <span class="facts text-ui-2xs text-muted" data-voice-chat-marks>
+                    <Show when={ placed }>
+                        <span data-role={ role }>{ locale.t(`groups.role.${ role }`) }</span>
+                    </Show>
+                    <Show when={ held }>
+                        <span class="font-semibold text-gold" data-held>{ locale.t('call.voiceChat.held') }</span>
+                    </Show>
+                    <Show when={ hand }>
+                        <span class="font-semibold text-accent" data-hand>{ locale.t('call.voiceChat.hand') }</span>
+                    </Show>
+                </span>
             </span>
         </Show>
         <Show when={ runs }>
-            <span class="flex flex-wrap gap-2 px-3 pb-3" data-voice-chat-staff>
+            <span class="flex flex-wrap gap-2 ps-16 pe-3 pb-3" data-voice-chat-staff>
                 <span class="contents" data-voice-chat-hold>
                     <Button
                         size="sm"

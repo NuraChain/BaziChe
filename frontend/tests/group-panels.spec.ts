@@ -804,18 +804,28 @@ describe('the recent actions', () =>
         ]);
     });
 
-    it('say who ended the voice chat for everybody, and nothing yet of what else is done in one', async () =>
+    it('say what the staff did in the voice chat, and nothing of an act it does not know', async () =>
     {
         owned();
         server.groupLogs[SLUG] = [
-            { id: 'c-2', at: ago(1), kind: 'call', actor: 'alex', actorRole: 'owner', details: { act: 'end' } },
-            { id: 'c-1', at: ago(2), kind: 'call', actor: 'alex', actorRole: 'owner', person: 'mina', details: { act: 'hold' } }
+            { id: 'c-6', at: ago(1), kind: 'call', actor: 'alex', actorRole: 'owner', details: { act: 'end' } },
+            { id: 'c-5', at: ago(2), kind: 'call', actor: 'alex', actorRole: 'owner', person: 'mina', details: { act: 'hold' } },
+            { id: 'c-4', at: ago(3), kind: 'call', actor: 'alex', actorRole: 'owner', person: 'mina', details: { act: 'speak' } },
+            { id: 'c-3', at: ago(4), kind: 'call', actor: 'alex', actorRole: 'owner', details: { act: 'hold-all' } },
+            { id: 'c-2', at: ago(5), kind: 'call', actor: 'alex', actorRole: 'owner', person: 'mina', details: { act: 'remove' } },
+            { id: 'c-1', at: ago(6), kind: 'call', actor: 'alex', actorRole: 'owner', details: { act: 'toString' } }
         ];
 
         const container = opened('?tab=log');
-        await vi.waitFor(() => expect(rowsIn(logOf(container)).length).toBe(1), { timeout: 4000 });
+        await vi.waitFor(() => expect(rowsIn(logOf(container)).length).toBe(5), { timeout: 4000 });
 
-        expect(rowsIn(logOf(container)).map((row) => row.querySelector('p')?.textContent)).toEqual([t('groups.log.callEnded', { actor: 'alex' })]);
+        expect(rowsIn(logOf(container)).map((row) => row.querySelector('p')?.textContent)).toEqual([
+            t('groups.log.callEnded', { actor: 'alex' }),
+            t('groups.log.callHeld', { actor: 'alex', person: 'mina' }),
+            t('groups.log.callSpeak', { actor: 'alex', person: 'mina' }),
+            t('groups.log.callHeldAll', { actor: 'alex' }),
+            t('groups.log.callRemoved', { actor: 'alex', person: 'mina' })
+        ]);
     });
 
     it('leave out a kind it has no words for rather than drawing an empty row', async () =>

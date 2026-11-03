@@ -19,6 +19,15 @@ const permissionsKey = (details: GroupLogRow['details']): MessageKey =>
     return 'groups.log.permissions';
 };
 
+/** What the staff did in the group's voice chat, each in its own sentence. */
+const CALL_ACTS: Readonly<Record<string, MessageKey>> = {
+    end: 'groups.log.callEnded',
+    hold: 'groups.log.callHeld',
+    speak: 'groups.log.callSpeak',
+    'hold-all': 'groups.log.callHeldAll',
+    remove: 'groups.log.callRemoved'
+};
+
 /** The sentence a row of a group's log is said in, or nothing for a kind no page words yet. */
 const keyOf = (row: GroupLogRow): MessageKey | null =>
 {
@@ -45,7 +54,7 @@ const keyOf = (row: GroupLogRow): MessageKey | null =>
         case 'pinned': return 'groups.log.pinned';
         case 'unpinned': return 'groups.log.unpinned';
         case 'report': return details.to === 'actioned' ? 'groups.log.reportActioned' : 'groups.log.reportDismissed';
-        case 'call': return details.act === 'end' ? 'groups.log.callEnded' : null;
+        case 'call': return details.act !== undefined && Object.hasOwn(CALL_ACTS, details.act) ? CALL_ACTS[details.act] : null;
     }
 };
 

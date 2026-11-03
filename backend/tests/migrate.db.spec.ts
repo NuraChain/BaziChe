@@ -5,6 +5,7 @@ import { DataSource, type DataSourceOptions, type MigrationInterface, type Query
 
 import { entities } from '../src/entities/index.ts';
 import { MIGRATIONS_TABLE, RULES_TABLE, VERSIONS_TABLE, migrate, migrationSource, rulesOf, targetOf } from '../src/db/migrate.ts';
+import { FillMessengerColumns1793682422851 } from '../src/db/migrations/1793682422851-FillMessengerColumns.ts';
 import { syncSchema } from '../src/db/schema.ts';
 
 /**
@@ -97,6 +98,73 @@ const columnsOf = (db: DataSource, table: string) =>
     db.query(`select column_name as c from information_schema.columns where table_name = $1`, [table]).then((rows: { c: string }[]) => rows.map((row) => row.c));
 
 const applied = (db: DataSource) => db.query(`select name from ${ MIGRATIONS_TABLE } order by id`).then((rows: { name: string }[]) => rows.map((row) => row.name));
+
+const FILLED = FillMessengerColumns1793682422851.name;
+
+const EVERY_RIGHT = ['info', 'invite', 'approve', 'remove', 'ban', 'delete', 'pin', 'members', 'calls'];
+
+/**
+ * A group with an owner, an admin holding one right and a member, its room, and a file sent in it,
+ * each in the shape the entities give them now, with roles that began an hour after they joined.
+ */
+const groupWithAFile = async (db: DataSource) =>
+{
+    await db.query(`insert into users (handle, display_name, hue) values ('old.owner', 'Owner', 1), ('old.admin', 'Admin', 2), ('old.member', 'Member', 3)`);
+
+    const ids = Object.fromEntries((await db.query(`select handle::text as handle, id from users`) as { handle: string; id: string }[]).map((row) => [row.handle, row.id]));
+
+    await db.query(
+        `insert into groups (slug, name, crest, hue, privacy, created_by, members_send, members_media, members_add, members_pin,
+                             members_info, members_call, members_join_call, members_speak, approval)
+         values ('old-crew', 'Old crew', 'dice', 1, 'public', $1, false, false, false, true, true, false, false, false, true)`,
+        [ids['old.owner']]
+    );
+
+    const [group] = await db.query(`select id from groups`) as { id: string }[];
+
+    await db.query(
+        `insert into group_members (group_id, user_id, role, rights, role_since, joined_at)
+         values ($1, $2, 'owner', null, now() - interval '1 day' + interval '1 hour', now() - interval '1 day'),
+                ($1, $3, 'admin', array['pin']::text[], now() - interval '1 day' + interval '1 hour', now() - interval '1 day'),
+                ($1, $4, 'member', null, null, now() - interval '1 day')`,
+        [group.id, ids['old.owner'], ids['old.admin'], ids['old.member']]
+    );
+    await db.query(`insert into conversations (kind, group_id) values ('group', $1)`, [group.id]);
+
+    const [room] = await db.query(`select id from conversations where group_id = $1`, [group.id]) as { id: string }[];
+    const device = 'od00000000000000000001';
+    const file = crypto.randomUUID();
+
+    await db.query(
+        `insert into devices (id, user_id, label, exchange_key, signing_key, attested, attested_address, attested_message, attested_signature)
+         values ($1, $2, 'Old', 'exchange', 'signing', 'wallet', '0x0000000000000000000000000000000000000000', 'message', 'signature')`,
+        [device, ids['old.owner']]
+    );
+    await db.query(
+        `insert into conversation_epochs (conversation_id, epoch, minted_by, recipients, signature, confirmation)
+         values ($1, 1, $2, $3, 'signature', 'confirmation')`,
+        [room.id, device, device]
+    );
+    await db.query(`insert into chat_files (id, uploader_id, bytes, size) values ($1, $2, $3, 4096)`, [file, ids['old.owner'], Buffer.alloc(4096, 9)]);
+    await db.query(
+        `insert into messages (conversation_id, sender_id, kind, body, epoch, seq, iv, sender_device_id, signature, client_at, commitment, frank, file_id, file_as)
+         values ($1, $2, 'file', 'a sealed document', 1, 1, 'nonce', $3, 'signature', now(), 'a-commitment', 'a-frank', $4, 'photo')`,
+        [room.id, ids['old.owner'], device, file]
+    );
+};
+
+const switchesOf = (db: DataSource) => db.query(
+    `select members_send as send, members_media as media, members_add as add, members_pin as pin, members_info as info,
+            members_call as call, members_join_call as join, members_speak as speak, approval
+       from groups`
+);
+
+/** Each member's role, rights, and how many seconds after they joined their role began. */
+const rolesOf = (db: DataSource) => db.query(
+    `select role, rights, extract(epoch from role_since - joined_at)::int as since
+       from group_members
+      order by case role when 'owner' then 0 when 'admin' then 1 else 2 end`
+) as Promise<{ role: string; rights: string[] | null; since: number | null }[]>;
 
 describe.skipIf(!active)('a start migrating the database, against a real Postgres', () =>
 {
@@ -291,6 +359,61 @@ describe.skipIf(!active)('a start migrating the database, against a real Postgre
 
             expect(rule.def).toContain('channel-invite');
             expect((await db.query(`select hash from ${ RULES_TABLE }`))[0].hash).toBe(rulesOf(db));
+        });
+    }, 300_000);
+
+    it('gives rows from before the messenger what a row made now is given, and the start then holds them to its rules', async () =>
+    {
+        await start();
+
+        await onProbe(async (db) =>
+        {
+            await groupWithAFile(db);
+
+            // What a database built before the messenger's groups and files holds: the rows, and none of these.
+            await db.query(
+                `alter table groups drop column members_send, drop column members_media, drop column members_add, drop column members_pin,
+                                    drop column members_info, drop column members_call, drop column members_join_call,
+                                    drop column members_speak, drop column approval`
+            );
+            await db.query(`alter table group_members drop column rights, drop column role_since`);
+            await db.query(`alter table messages drop column file_as`);
+        });
+
+        const done = await start([FillMessengerColumns1793682422851]);
+
+        expect(done).toEqual({ done: 'migrated', applied: [FILLED], changed: expect.objectContaining({ kept: [] }) });
+        expect(await start([FillMessengerColumns1793682422851])).toEqual({ done: 'migrated', applied: [], changed: null });
+
+        await onProbe(async (db) =>
+        {
+            expect(await switchesOf(db)).toEqual([{ send: true, media: true, add: true, pin: false, info: false, call: true, join: true, speak: true, approval: false }]);
+            expect(await rolesOf(db)).toEqual([
+                { role: 'owner', rights: null, since: 0 },
+                { role: 'admin', rights: EVERY_RIGHT, since: 0 },
+                { role: 'member', rights: null, since: null }
+            ]);
+            expect(await db.query(`select kind, file_as from messages`)).toEqual([{ kind: 'file', file_as: 'file' }]);
+            expect(await targetOf(db).drift()).toEqual([]);
+        });
+    }, 300_000);
+
+    it('changes nothing on a database that already holds what it gives', async () =>
+    {
+        await start();
+        await onProbe(groupWithAFile);
+
+        expect(await start([FillMessengerColumns1793682422851])).toEqual({ done: 'migrated', applied: [FILLED], changed: null });
+
+        await onProbe(async (db) =>
+        {
+            expect(await switchesOf(db)).toEqual([{ send: false, media: false, add: false, pin: true, info: true, call: false, join: false, speak: false, approval: true }]);
+            expect(await rolesOf(db)).toEqual([
+                { role: 'owner', rights: null, since: 3600 },
+                { role: 'admin', rights: ['pin'], since: 3600 },
+                { role: 'member', rights: null, since: null }
+            ]);
+            expect(await db.query(`select file_as from messages`)).toEqual([{ file_as: 'photo' }]);
         });
     }, 300_000);
 });

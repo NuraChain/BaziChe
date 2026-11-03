@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ABILITIES, GRANTED_ROLES, STAFF_ROLES, may, ownersOf, outranks, type Ability, type StaffRole } from '../src/domains/admin/roles.ts';
+import { ABILITIES, GRANTED_ROLES, OWNER_WALLET, STAFF_ROLES, may, ownersOf, outranks, shownOwnersOf, type Ability, type StaffRole } from '../src/domains/admin/roles.ts';
 import { STAFF_REFUSALS, isStaffRefusal } from '../src/domains/admin/refusals.ts';
 
 const ROLES: (StaffRole | null)[] = [null, ...STAFF_ROLES];
@@ -47,15 +47,29 @@ describe('who on the staff may do what', () =>
     });
 });
 
-describe('who the owner is', () =>
+describe('who the owners are', () =>
 {
     const NAMED = '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc';
 
-    it('is the wallet .env names, lowercase, and nobody when it names nobody: no wallet is written into the server', () =>
+    it('is the wallet written into the server, and beside it the one .env names, lowercase and once each', () =>
     {
-        expect(ownersOf('')).toEqual([]);
-        expect(ownersOf('   ')).toEqual([]);
-        expect(ownersOf(` ${ NAMED.toUpperCase().replace('0X', '0x') } `)).toEqual([NAMED]);
+        expect(ownersOf('')).toEqual([OWNER_WALLET]);
+        expect(ownersOf('   ')).toEqual([OWNER_WALLET]);
+        expect(ownersOf(` ${ NAMED.toUpperCase().replace('0X', '0x') } `)).toEqual([OWNER_WALLET, NAMED]);
+        expect(ownersOf(OWNER_WALLET.toUpperCase().replace('0X', '0x'))).toEqual([OWNER_WALLET]);
+    });
+
+    it('shows the staff the one .env names alone, lowercase, and nobody when it names nobody', () =>
+    {
+        expect(shownOwnersOf('')).toEqual([]);
+        expect(shownOwnersOf('   ')).toEqual([]);
+        expect(shownOwnersOf(` ${ NAMED.toUpperCase().replace('0X', '0x') } `)).toEqual([NAMED]);
+        expect(shownOwnersOf(OWNER_WALLET.toUpperCase().replace('0X', '0x'))).toEqual([OWNER_WALLET]);
+    });
+
+    it('writes the server\'s own owner as an address, lowercase', () =>
+    {
+        expect(OWNER_WALLET).toMatch(/^0x[0-9a-f]{40}$/);
     });
 });
 

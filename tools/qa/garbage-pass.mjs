@@ -127,6 +127,9 @@ const BODIES = {
     '/tables/:id/remove': (bad) => [{ id: bad }],
     '/parties': (bad) => [{ id: bad.slice(0, 32), game: 'hokm' }, { id: bad.slice(0, 32), game: bad.slice(0, 32) }],
     '/calls': (bad) => [{ room: bad.slice(0, 64) }],
+    '/calls/:id/hand': (bad) => [{ up: bad }],
+    '/calls/:id/hold': (bad) => [{ id: bad.slice(0, 32), held: true }, { id: 'nobody', held: bad }],
+    '/calls/:id/remove': (bad) => [{ id: bad.slice(0, 32) }],
     '/matches/:id/play': (bad) => [{ key: bad.slice(0, 64), rev: 0, play: { kind: 'ludo', verb: 'roll' } }, { key: 'k', rev: 0, play: { kind: bad, verb: bad } }],
     '/matches/:id/resign': (bad) => [{ key: bad.slice(0, 64) }],
     '/notifications/push': (bad) => [{ endpoint: bad, p256dh: bad, auth: bad }],
@@ -201,7 +204,7 @@ const SPARED = new Set([
     '/auth/sign-out', '/auth/sign-out-everywhere', '/chain/profile/publish', '/social/privacy', '/groups/:slug/join', '/groups/:slug/leave', '/groups/:slug/permissions',
     '/groups/:slug/links/:linkId/revoke', '/groups/:slug/requests/withdraw', '/group-links/:token/join', '/group-links/:token/withdraw',
     '/tables/:id/seat', '/tables/:id/leave', '/tables/:id/close', '/tables/:id/voice', '/tables/:id/start', '/tables/:id/stake',
-    '/parties/:id/accept', '/parties/:id/decline', '/parties/:id/leave', '/calls/:id/join', '/calls/:id/accept', '/calls/:id/decline', '/calls/:id/hang-up', '/calls/:id/end',
+    '/parties/:id/accept', '/parties/:id/decline', '/parties/:id/leave', '/calls/:id/join', '/calls/:id/accept', '/calls/:id/decline', '/calls/:id/hang-up', '/calls/:id/end', '/calls/:id/hold-all',
     '/notifications/:id/read', '/notifications/read-all', '/notifications/:id/dismiss', '/devices/:id/revoke', '/devices/recovery/off',
     '/chat/:id/read', '/chat/:id/expiry', '/chat/:id/pin', '/chat/:id/messages/:messageId/played', '/vault/terms', '/vault/break', '/admin/vault/pause', '/admin/shop/money/pause',
     '/shop/earnings/claim', '/donations/accepting', '/markets/disclosure', '/invites/code', '/invites/listed'

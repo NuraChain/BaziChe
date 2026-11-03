@@ -255,6 +255,9 @@ import {
     sinceQuery,
     partyInput,
     callInput,
+    callHandInput,
+    callHoldInput,
+    callPersonInput,
     callView,
     callsState,
     voiceChatState,
@@ -1475,7 +1478,19 @@ export function buildApi(ports: Ports)
                 (context) => ports.calls.hangUp(context.principal.userId, context.params.id)),
 
             end: routes.post('/:id/end', { output: callView },
-                (context) => ports.calls.end(context.principal.userId, context.params.id))
+                (context) => ports.calls.end(context.principal.userId, context.params.id)),
+
+            hand: routes.post('/:id/hand', { input: callHandInput, output: callView },
+                (context) => ports.calls.hand(context.principal.userId, context.params.id, context.input.up)),
+
+            hold: routes.post('/:id/hold', { input: callHoldInput, output: callView },
+                (context) => ports.calls.hold(context.principal.userId, context.params.id, context.input.id, context.input.held)),
+
+            holdAll: routes.post('/:id/hold-all', { output: callView },
+                (context) => ports.calls.holdAll(context.principal.userId, context.params.id)),
+
+            remove: routes.post('/:id/remove', { input: callPersonInput, output: callView },
+                (context) => ports.calls.remove(context.principal.userId, context.params.id, context.input.id))
         })),
 
         /**

@@ -1,4 +1,5 @@
 import type { MigrationInterface } from 'typeorm';
+import { FillMessengerColumns1793682422851 } from './1793682422851-FillMessengerColumns.ts';
 
 /**
  * Every migration, oldest first, listed by hand: a glob would resolve against the working directory
@@ -11,4 +12,6 @@ import type { MigrationInterface } from 'typeorm';
  * A file is only for what the entities cannot say (rows moved, a column renamed with its values):
  * every other change a start makes by itself from the entities, as a version (`migrate.ts`).
  */
-export const MIGRATIONS: (new () => MigrationInterface)[] = [];
+export const MIGRATIONS: (new () => MigrationInterface)[] = [
+    FillMessengerColumns1793682422851
+];

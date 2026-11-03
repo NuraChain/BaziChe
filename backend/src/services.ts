@@ -50,7 +50,7 @@ import { createIdentityService } from './domains/identity/service.ts';
 import { createInviteService, noInvite } from './domains/invite/service.ts';
 import { isAdminAddress } from './domains/identity/admin.ts';
 import { createProfileSponsorship } from './domains/identity/sponsor.ts';
-import { may, ownersOf, type Ability, type GrantedRole } from './domains/admin/roles.ts';
+import { may, ownersOf, shownOwnersOf, type Ability, type GrantedRole } from './domains/admin/roles.ts';
 import { createPeopleService } from './domains/admin/people.ts';
 import { createLiveService, type Call, type Online } from './domains/admin/live.ts';
 import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play.ts';
@@ -1330,6 +1330,17 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         return asCall(me, row);
     };
 
+    /** Somebody kept quiet in a group is held in its voice chat too, and its room carries them no more. */
+    const quietInVoiceChat = (room: string | null, userId: string) => courtesy('voice chat', async () =>
+    {
+        const held = room === null ? null : await calls.quieted(room, userId);
+
+        if (held !== null)
+        {
+            live?.callChanged(held, [userId]);
+        }
+    });
+
     /**
      * Whoever is no longer in a group is no longer in its voice chat, and its room lets go of them:
      * after leaving it, being taken out of it and being banned from it.
@@ -1503,21 +1514,23 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
     const shopFunds = createShopMoney(db, looksShop);
 
-    const team = createStaffService(db, owners);
+    const shownOwners = () => shownOwnersOf(config.adminWallet);
 
-    const accounts = createPeopleService(db, owners, config.origin);
+    const team = createStaffService(db, owners, shownOwners);
 
-    const desk = createReportsService(db, owners);
+    const accounts = createPeopleService(db, owners, shownOwners, config.origin);
 
-    const plays = createPlayService(db, owners);
+    const desk = createReportsService(db, shownOwners);
 
-    const onlineNow = createLiveService(db, owners);
+    const plays = createPlayService(db, owners, shownOwners);
+
+    const onlineNow = createLiveService(db, shownOwners);
 
     const notices = createNoticeService(db);
 
     const shopAdmin = createShopAdmin(db);
 
-    const inviteAdmin = createInviteAdmin(db, owners);
+    const inviteAdmin = createInviteAdmin(db, shownOwners);
 
     const liveNow = async () =>
     {
@@ -4051,6 +4064,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
                 if (set.changed)
                 {
+                    await quietInVoiceChat(after.conversation_id, other.id);
                     await ring(after, other.id);
                 }
                 return asGroup(after);
@@ -4671,6 +4685,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             decline: async (me, callId) => await callAnswer(me, await calls.decline(me, callId)),
             hangUp: async (me, callId) => await callAnswer(me, await calls.hangUp(me, callId)),
             end: async (me, callId) => await callAnswer(me, await calls.end(me, callId)),
+            hand: async (me, callId, up) => await callAnswer(me, await calls.hand(me, callId, up)),
+            hold: async (me, callId, handle, held) => await callAnswer(me, await calls.hold(me, callId, handle, held)),
+            holdAll: async (me, callId) => await callAnswer(me, await calls.holdAll(me, callId)),
+            remove: async (me, callId, handle) => await callAnswer(me, await calls.remove(me, callId, handle)),
 
             async room(me, room)
             {

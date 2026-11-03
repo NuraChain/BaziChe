@@ -249,12 +249,14 @@ describe('a migration\'s file', () =>
 
     it('is added to the list after the others, its import beside theirs', () =>
     {
-        const empty = readFileSync(new URL('../src/db/migrations/index.ts', import.meta.url), 'utf8');
+        const live = readFileSync(new URL('../src/db/migrations/index.ts', import.meta.url), 'utf8');
+        const empty = live.replace(/^import \{ \w+ \} from '\.\/\d{13}-\w+\.ts';\n/gm, '').replace(/= \[[^\]]*\];/, '= [];');
         const once = registered(empty, 'AddChannelTopic', 1730000000000);
         const twice = registered(once, 'DropOldColumn', 1730000000001);
 
         expect(twice).toContain(`import { AddChannelTopic1730000000000 } from './1730000000000-AddChannelTopic.ts';\nimport { DropOldColumn1730000000001 } from './1730000000001-DropOldColumn.ts';`);
         expect(twice).toMatch(/export const MIGRATIONS: \(new \(\) => MigrationInterface\)\[\] = \[\n {4}AddChannelTopic1730000000000,\n {4}DropOldColumn1730000000001\n\];/);
+        expect(registered(live, 'AddChannelTopic', 1730000000000)).toContain(`\n    ${ MIGRATIONS.at(-1)?.name },\n    AddChannelTopic1730000000000\n];`);
     });
 
     it('is named in PascalCase', () =>

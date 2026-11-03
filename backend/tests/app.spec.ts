@@ -1052,7 +1052,7 @@ describe('calls', () =>
         log: silent,
         ports: {
             identity: { principal: () => Promise.resolve(who) },
-            calls: Object.fromEntries(['state', 'view', 'ring', 'join', 'accept', 'decline', 'hangUp', 'end', 'room'].map((verb) => [verb, (...said: unknown[]) =>
+            calls: Object.fromEntries(['state', 'view', 'ring', 'join', 'accept', 'decline', 'hangUp', 'end', 'room', 'hand', 'hold', 'holdAll', 'remove'].map((verb) => [verb, (...said: unknown[]) =>
             {
                 told.push([verb, ...said]);
 
@@ -1116,6 +1116,38 @@ describe('calls', () =>
         expect(told).toEqual([['join', 'somebody', CALL], ['accept', 'somebody', CALL], ['decline', 'somebody', 'not-a-uuid'], ['hangUp', 'somebody', CALL], ['end', 'somebody', CALL]]);
     });
 
+    it('hands a hand, a hold, a hold of everybody and a removal what they say, and passes nothing on that does not say it', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = calledAs(told);
+
+        for (const [path, body] of [
+            [`/calls/${ CALL }/hand`, '{"up":true}'],
+            [`/calls/${ CALL }/hold`, '{"id":"mina","held":false}'],
+            [`/calls/${ CALL }/hold-all`, undefined],
+            [`/calls/${ CALL }/remove`, '{"id":"mina"}']
+        ] as const)
+        {
+            const response = await post(app, path, body);
+
+            expect(response.status, path).toBe(200);
+            expect(await response.json(), path).toEqual(view);
+        }
+
+        for (const [path, body] of [
+            [`/calls/${ CALL }/hand`, '{}'],
+            [`/calls/${ CALL }/hand`, '{"up":"yes"}'],
+            [`/calls/${ CALL }/hold`, '{"id":"mina"}'],
+            [`/calls/${ CALL }/hold`, '{"id":"","held":true}'],
+            [`/calls/${ CALL }/remove`, JSON.stringify({ id: 'x'.repeat(33) })]
+        ] as const)
+        {
+            expect((await post(app, path, body)).status, `${ path } ${ body }`).toBe(422);
+        }
+
+        expect(told).toEqual([['hand', 'somebody', CALL, true], ['hold', 'somebody', CALL, 'mina', false], ['holdAll', 'somebody', CALL], ['remove', 'somebody', CALL, 'mina']]);
+    });
+
     it('reads the voice chat running in a room for its head, the room out of the address as it came, and nothing it does not declare', async () =>
     {
         const told: unknown[][] = [];
@@ -1173,7 +1205,7 @@ describe('calls', () =>
         expect((await call(app, `/api/calls/${ CALL }`)).status).toBe(401);
         expect((await post(app, '/calls', JSON.stringify({ room: ROOM }))).status).toBe(401);
 
-        for (const verb of ['join', 'accept', 'decline', 'hang-up', 'end'])
+        for (const verb of ['join', 'accept', 'decline', 'hang-up', 'end', 'hold-all'])
         {
             expect((await post(app, `/calls/${ CALL }/${ verb }`)).status, verb).toBe(401);
         }
@@ -1182,7 +1214,7 @@ describe('calls', () =>
         expect(told).toEqual([]);
     });
 
-    it('is nine routes', async () =>
+    it('is thirteen routes', async () =>
     {
         const manifest = await (await call(calledAs([]), '/api/_manifest')).json() as Record<string, Record<string, { method: string; path: string }>>;
 
@@ -1190,8 +1222,12 @@ describe('calls', () =>
             'accept POST /calls/:id/accept',
             'decline POST /calls/:id/decline',
             'end POST /calls/:id/end',
+            'hand POST /calls/:id/hand',
             'hangUp POST /calls/:id/hang-up',
+            'hold POST /calls/:id/hold',
+            'holdAll POST /calls/:id/hold-all',
             'join POST /calls/:id/join',
+            'remove POST /calls/:id/remove',
             'ring POST /calls',
             'room GET /calls/room/:room',
             'state GET /calls',
@@ -1207,7 +1243,12 @@ describe('calls', () =>
 
         expect(bodies).toMatch(/'\/calls': \(bad\) => \[/);
 
-        for (const path of ['/calls/:id/join', '/calls/:id/accept', '/calls/:id/decline', '/calls/:id/hang-up', '/calls/:id/end'])
+        for (const path of ['/calls/:id/hand', '/calls/:id/hold', '/calls/:id/remove'])
+        {
+            expect(bodies, path).toContain(`'${ path }': (bad) => [`);
+        }
+
+        for (const path of ['/calls/:id/join', '/calls/:id/accept', '/calls/:id/decline', '/calls/:id/hang-up', '/calls/:id/end', '/calls/:id/hold-all'])
         {
             expect(spared, path).toContain(`'${ path }'`);
         }

@@ -8,6 +8,7 @@ import { SHOP_ABI, itemOf, orderIdOf } from '../src/chain/shop.ts';
 import { Notification, OwnedItem, Referral, ShopOrder, Table, User, Wallet, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
+import { OWNER_WALLET } from '../src/domains/admin/roles.ts';
 import { BUNDLES, FEATURED_FIRST, LOOKS, NURA, bundleOf, bundlePriceFor, lookOf } from '../src/domains/shop/catalogue.ts';
 import { buildPorts, type WriteListener } from '../src/services.ts';
 import { FAKE_SHOP, fakeShop } from './fake-shop.ts';
@@ -412,6 +413,19 @@ describe.skipIf(!active)('buying a look with NURA, against a real database', () 
             expect(fake.quotes, 'a quote was signed for a free look').toEqual([]);
             expect(fake.asked, 'the chain was asked about a free look').toEqual([]);
             expect(rung).toContainEqual([owner.id, 'shop']);
+        });
+
+        it('is the wallet written into the server too, while .env names another', async () =>
+        {
+            const { ports, fake } = door();
+            const builtIn = await db.getRepository(User).save({ handle: 'built.in', displayName: 'Built in', hue: 41, kind: 'wallet' });
+
+            await db.getRepository(Wallet).insert({ userId: builtIn.id, address: getAddress(OWNER_WALLET), attestation: 'wallet', lastUsedAt: new Date() });
+
+            expect(await ports.shop.state(builtIn.id)).toMatchObject({ may: 'yes', free: true });
+            expect(await ports.shop.purchase(builtIn.id, 'dice.shiraz', undefined)).toEqual({ given: true });
+            expect(await ownedBy(builtIn.id)).toEqual([{ item: 'dice.shiraz', via: 'grant', order: null, giver: null }]);
+            expect(fake.quotes, 'a quote was signed for a free look').toEqual([]);
         });
 
         it('is given its looks though the shop is turned off, and told the shop gives them free', async () =>

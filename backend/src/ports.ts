@@ -447,6 +447,18 @@ export interface CallPort
     /** A group's voice chat ended for everybody in it. */
     end(me: string, callId: string): Promise<CallView>;
 
+    /** The reader's hand up or down in a group's voice chat. */
+    hand(me: string, callId: string, up: boolean): Promise<CallView>;
+
+    /** Somebody in a group's voice chat held, or let speak, by its group's staff. */
+    hold(me: string, callId: string, handle: string, held: boolean): Promise<CallView>;
+
+    /** Everybody ranked below the reader in a group's voice chat held at once. */
+    holdAll(me: string, callId: string): Promise<CallView>;
+
+    /** Somebody taken out of a group's voice chat for good. */
+    remove(me: string, callId: string, handle: string): Promise<CallView>;
+
     /** The voice chat running in a group's room, as its members see it from the head. */
     room(me: string, room: string): Promise<VoiceChatState>;
 }

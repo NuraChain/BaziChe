@@ -8,7 +8,9 @@ export const CALL_REFUSALS = {
     'call-right': 403,
     'call-full': 409,
     'call-removed': 403,
-    'call-ended': 409
+    'call-ended': 409,
+    'call-nobody': 404,
+    'call-rank': 409
 } as const;
 
 export type CallRefusal = keyof typeof CALL_REFUSALS;

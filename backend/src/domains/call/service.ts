@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
 import { HttpError } from '@azerothjs/http';
-import type { DataSource, EntityManager } from 'typeorm';
+import { In, IsNull, type DataSource, type EntityManager } from 'typeorm';
 
 import { Call } from '../../entities/call.entity.ts';
 import { CallParticipant } from '../../entities/call-participant.entity.ts';
 import { Conversation } from '../../entities/conversation.entity.ts';
 import { ConversationMember } from '../../entities/conversation-member.entity.ts';
 import { User } from '../../entities/user.entity.ts';
-import { FACES, mayIn, type GroupStanding, type GroupSwitches } from '../group/roles.ts';
+import { FACES, mayIn, outranks, type GroupStanding, type GroupSwitches } from '../group/roles.ts';
 import type { SocialService } from '../social/service.ts';
 import { CALL_REFUSALS, type CallRefusal } from './refusals.ts';
 import { callMoved } from './rooms.ts';
@@ -34,7 +34,9 @@ const SAYS: Record<CallRefusal, string> = {
     'call-right': 'You cannot do that in this voice chat.',
     'call-full': 'This voice chat is full.',
     'call-removed': 'You were taken out of this voice chat.',
-    'call-ended': 'That voice chat has ended.'
+    'call-ended': 'That voice chat has ended.',
+    'call-nobody': 'Nobody by that name is in this voice chat.',
+    'call-rank': 'They hold a place at or above yours in this group.'
 };
 
 export const callRefusal = (word: CallRefusal) => new HttpError(CALL_REFUSALS[word], SAYS[word], { code: word });
@@ -380,6 +382,22 @@ export function createCallService(db: DataSource, social: SocialService, groups:
             return { id, changed: true, started: true };
         });
 
+    /** Somebody's row in a call, by their handle whatever its case, or nothing. */
+    const rowIn = (tx: EntityManager, callId: string, handle: string) =>
+        tx.getRepository(CallParticipant).createQueryBuilder('p')
+            .innerJoin(User, 'u', 'u.id = p.user_id')
+            .where('p.call_id = :callId and u.handle = :handle', { callId, handle })
+            .getOne();
+
+    /** Refuses an act of the staff on somebody not ranked below the reader in the group, themselves included. */
+    const below = async (gate: CallGate, otherId: string) =>
+    {
+        if (!outranks(gate.standing.role, (await gate.of(otherId))?.role ?? null))
+        {
+            throw callRefusal('call-rank');
+        }
+    };
+
     /** The group a voice chat's room belongs to, or nothing for a call that is no group's. */
     const voiceChat = async (callId: string) =>
     {
@@ -448,6 +466,43 @@ export function createCallService(db: DataSource, social: SocialService, groups:
             .execute();
 
         return true;
+    };
+
+    /**
+     * An act of a group's staff on its voice chat, under the group's lock as every act on the group
+     * is: refused to whoever is not in the group as a call that is not there, to whoever lacks the
+     * calls right, and once it has ended. `act` answers whether it changed anything.
+     */
+    const staffAct = async (me: string, callId: string, act: (tx: EntityManager, gate: CallGate) => Promise<boolean>): Promise<CallChange> =>
+    {
+        const chat = await voiceChat(callId);
+
+        if (chat === null)
+        {
+            throw callRefusal('call-missing');
+        }
+
+        return await db.transaction(async (tx) =>
+        {
+            const gate = await groups.callGate(tx, me, chat.group_id);
+
+            if (gate === null)
+            {
+                throw callRefusal('call-missing');
+            }
+
+            if (!mayIn(gate.standing, gate.switches, 'calls'))
+            {
+                throw callRefusal('call-right');
+            }
+
+            if (!await tx.getRepository(Call).existsBy({ id: callId, state: 'live' }))
+            {
+                throw callRefusal('call-ended');
+            }
+
+            return { id: callId, changed: await act(tx, gate) };
+        });
     };
 
     /** Whether two people may be in a call together: friends, no block either way, neither suspended (MS-D29). */
@@ -753,6 +808,152 @@ export function createCallService(db: DataSource, social: SocialService, groups:
 
                 return { id: callId, changed: ended };
             });
+        },
+
+        /** The reader's hand up, or down, in a group's voice chat they are in (MS-D33). */
+        async hand(me: string, callId: string, up: boolean): Promise<CallChange>
+        {
+            const mine = await voiceChat(callId) === null ? null : await db.getRepository(CallParticipant).findOne({ where: { callId, userId: me } });
+
+            if (mine === null || mine.goneAt !== null)
+            {
+                throw callRefusal('call-missing');
+            }
+
+            const raised = await db.getRepository(CallParticipant).createQueryBuilder()
+                .update()
+                .set({ handAt: up ? () => 'now()' : null })
+                .where(`call_id = :callId and user_id = :me and gone_at is null and hand_at is ${ up ? 'null' : 'not null' }`, { callId, me })
+                .andWhere(`exists (select 1 from calls c where c.id = call_id and c.state = 'live')`)
+                .execute();
+
+            if ((raised.affected ?? 0) > 0)
+            {
+                return { id: callId, changed: true };
+            }
+
+            if (!await db.getRepository(Call).existsBy({ id: callId, state: 'live' }))
+            {
+                throw callRefusal('call-ended');
+            }
+
+            return { id: callId, changed: false };
+        },
+
+        /**
+         * Somebody in a group's voice chat held, so this server carries nothing they say, or let speak,
+         * which puts their hand down: by the owner or an admin with the calls right, on somebody ranked
+         * below them (MS-D33). Written to the group's log.
+         */
+        async hold(me: string, callId: string, handle: string, held: boolean)
+        {
+            return await staffAct(me, callId, async (tx, gate) =>
+            {
+                const other = await rowIn(tx, callId, handle);
+
+                if (other === null || other.goneAt !== null)
+                {
+                    throw callRefusal('call-nobody');
+                }
+
+                await below(gate, other.userId);
+
+                const moved = await tx.getRepository(CallParticipant).createQueryBuilder()
+                    .update()
+                    .set(held ? { held: true } : { held: false, handAt: null })
+                    .where('call_id = :callId and user_id = :other and held = :was', { callId, other: other.userId, was: !held })
+                    .execute();
+
+                if ((moved.affected ?? 0) === 0)
+                {
+                    return false;
+                }
+
+                await gate.log(other.userId, { act: held ? 'hold' : 'speak' });
+                return true;
+            });
+        },
+
+        /** Everybody in a group's voice chat ranked below the reader held at once, written to its log once. */
+        async holdAll(me: string, callId: string)
+        {
+            return await staffAct(me, callId, async (tx, gate) =>
+            {
+                const rows = await tx.getRepository(CallParticipant).find({ where: { callId, held: false, goneAt: IsNull() } });
+                const lower: string[] = [];
+
+                for (const row of rows)
+                {
+                    if (outranks(gate.standing.role, (await gate.of(row.userId))?.role ?? null))
+                    {
+                        lower.push(row.userId);
+                    }
+                }
+
+                if (lower.length === 0)
+                {
+                    return false;
+                }
+
+                await tx.getRepository(CallParticipant).update({ callId, userId: In(lower), held: false }, { held: true });
+                await gate.log(null, { act: 'hold-all' });
+                return true;
+            });
+        },
+
+        /**
+         * Somebody taken out of a group's voice chat, who cannot come back into it (MS-D33): out of its
+         * room and gone from it, by whoever may hold them. Written to the group's log.
+         */
+        async remove(me: string, callId: string, handle: string)
+        {
+            return await staffAct(me, callId, async (tx, gate) =>
+            {
+                const other = await rowIn(tx, callId, handle);
+
+                if (other === null)
+                {
+                    throw callRefusal('call-nobody');
+                }
+
+                await below(gate, other.userId);
+
+                const taken = await tx.getRepository(CallParticipant).createQueryBuilder()
+                    .update()
+                    .set({ removedAt: () => 'now()', goneAt: () => 'coalesce(gone_at, now())', leftAt: () => 'coalesce(left_at, now())' })
+                    .where('call_id = :callId and user_id = :other and removed_at is null', { callId, other: other.userId })
+                    .execute();
+
+                if ((taken.affected ?? 0) === 0)
+                {
+                    return false;
+                }
+
+                await gate.log(other.userId, { act: 'remove' });
+                return true;
+            });
+        },
+
+        /**
+         * Somebody kept quiet in a group is held in its voice chat, as they would be coming into it,
+         * until somebody lets them speak. Answers the voice chat when it held them.
+         */
+        async quieted(room: string, userId: string)
+        {
+            const open = UUID.test(room) ? await openIn(db.manager, room) : null;
+
+            if (open === null)
+            {
+                return null;
+            }
+
+            const held = await db.getRepository(CallParticipant).createQueryBuilder()
+                .update()
+                .set({ held: true })
+                .where('call_id = :open and user_id = :userId and held = false and gone_at is null', { open, userId })
+                .execute();
+
+            return (held.affected ?? 0) > 0 ? open : null;
         },
 
         /** Ends, as `failed`, every open call of the person's with somebody they may no longer call. */

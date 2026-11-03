@@ -715,6 +715,184 @@ describe.skipIf(!active)('a group\'s voice chat, against a real database', () =>
             expect((await ports.calls.view(owner.id, started.id)).people?.map((one) => one.who)).toEqual([owner.handle]);
         });
     });
+    describe('what is done in it', () =>
+    {
+        /** A group with an owner, an admin who holds the calls right, one who does not, a moderator and two members, all in a voice chat the owner began. */
+        const staffed = async () =>
+        {
+            const owner = await makeUser();
+            const admin = await makeUser();
+            const plain = await makeUser();
+            const moderator = await makeUser();
+            const member = await makeUser();
+            const other = await makeUser();
+            const { slug, room } = await crew(owner, admin, plain, moderator, member, other);
+
+            await ports.group.role(owner.id, slug, { id: admin.handle, role: 'admin', rights: ['calls'] });
+            await ports.group.role(owner.id, slug, { id: plain.handle, role: 'admin', rights: ['pin'] });
+            await ports.group.role(owner.id, slug, { id: moderator.handle, role: 'moderator' });
+
+            const started = await ports.calls.ring(owner.id, room);
+
+            for (const person of [admin, plain, moderator, member, other])
+            {
+                await ports.calls.join(person.id, started.id);
+            }
+
+            return { owner, admin, plain, moderator, member, other, slug, room, callId: started.id };
+        };
+
+        const personIn = async (reader: Person, callId: string, who: Person) =>
+            (await ports.calls.view(reader.id, callId)).people?.find((one) => one.who === who.handle);
+
+        it('puts a hand up and down for whoever is in it, once each way', async () =>
+        {
+            const { owner, member, other, callId } = await staffed();
+
+            rung = [];
+            expect((await ports.calls.hand(member.id, callId, true)).people?.find((one) => one.who === member.handle)?.hand).toBe(true);
+            expect(rung).toHaveLength(1);
+
+            rung = [];
+            await ports.calls.hand(member.id, callId, true);
+            expect(rung, 'up twice').toEqual([]);
+
+            expect((await ports.calls.hand(member.id, callId, false)).people?.find((one) => one.who === member.handle)?.hand).toBe(false);
+
+            await ports.calls.hangUp(other.id, callId);
+            expect(await word(ports.calls.hand(other.id, callId, true)), 'somebody who left').toBe('404 call-missing');
+            expect(await word(ports.calls.hand(member.id, NOWHERE, true))).toBe('404 call-missing');
+
+            await ports.calls.end(owner.id, callId);
+            expect(await word(ports.calls.hand(member.id, callId, true))).toBe('409 call-ended');
+        });
+
+        it('holds somebody, and lets them speak with their hand down, by whoever holds the calls right, on somebody ranked below them', async () =>
+        {
+            const { owner, admin, plain, moderator, member, other, slug, callId } = await staffed();
+
+            await ports.calls.hand(member.id, callId, true);
+
+            rung = [];
+            const held = await ports.calls.hold(admin.id, callId, member.handle.toUpperCase(), true);
+
+            expect(held.people?.find((one) => one.who === member.handle)).toMatchObject({ held: true, hand: true });
+            expect(rung).toHaveLength(1);
+            expect(await callRoom(db, member.id, roomOf(callId))).toMatchObject({ held: true });
+
+            rung = [];
+            await ports.calls.hold(admin.id, callId, member.handle, true);
+            expect(rung, 'held twice').toEqual([]);
+
+            await ports.calls.hold(admin.id, callId, member.handle, false);
+            expect(await personIn(owner, callId, member), 'let speak, the hand put down').toMatchObject({ held: false, hand: false });
+
+            expect(await log(slug)).toEqual([
+                { kind: 'call', actor_handle: admin.handle, actor_role: 'admin', person_handle: member.handle, details: { act: 'hold' } },
+                { kind: 'call', actor_handle: admin.handle, actor_role: 'admin', person_handle: member.handle, details: { act: 'speak' } }
+            ]);
+
+            expect(await word(ports.calls.hold(plain.id, callId, member.handle, true)), 'an admin without the right').toBe('403 call-right');
+            expect(await word(ports.calls.hold(member.id, callId, other.handle, true)), 'a member').toBe('403 call-right');
+            expect(await word(ports.calls.hold(moderator.id, callId, member.handle, true)), 'a moderator').toBe('403 call-right');
+            expect(await word(ports.calls.hold(admin.id, callId, owner.handle, true)), 'the owner').toBe('409 call-rank');
+            expect(await word(ports.calls.hold(admin.id, callId, plain.handle, true)), 'another admin').toBe('409 call-rank');
+            expect(await word(ports.calls.hold(admin.id, callId, admin.handle, true)), 'themselves').toBe('409 call-rank');
+            expect(await word(ports.calls.hold(admin.id, callId, 'nobody.here', true))).toBe('404 call-nobody');
+            expect(await word(ports.calls.hold((await makeUser()).id, callId, member.handle, true)), 'somebody not in the group').toBe('404 call-missing');
+
+            await ports.calls.hangUp(other.id, callId);
+            expect(await word(ports.calls.hold(admin.id, callId, other.handle, true)), 'somebody who left').toBe('404 call-nobody');
+            expect(await word(ports.calls.hold(owner.id, callId, moderator.handle, true)), 'the owner on a moderator').toBeNull();
+            expect(await log(slug), 'a refusal writes nothing').toHaveLength(3);
+        });
+
+        it('holds everybody ranked below the reader at once, and says so once', async () =>
+        {
+            const { owner, admin, plain, moderator, member, other, slug, callId } = await staffed();
+
+            await ports.calls.holdAll(admin.id, callId);
+
+            const people = (await ports.calls.view(owner.id, callId)).people ?? [];
+
+            expect(people.filter((one) => one.held).map((one) => one.who).sort()).toEqual([moderator.handle, member.handle, other.handle].sort());
+            expect(people.find((one) => one.who === plain.handle)?.held, 'another admin').toBe(false);
+            expect(await log(slug)).toEqual([{ kind: 'call', actor_handle: admin.handle, actor_role: 'admin', person_handle: null, details: { act: 'hold-all' } }]);
+
+            rung = [];
+            await ports.calls.holdAll(admin.id, callId);
+            expect(rung, 'nobody left to hold').toEqual([]);
+            expect(await log(slug)).toHaveLength(1);
+            expect(await word(ports.calls.holdAll(member.id, callId))).toBe('403 call-right');
+        });
+
+        it('takes somebody out for good, somebody who had left included, and lets nobody take out whoever is at or above them', async () =>
+        {
+            const { owner, admin, member, other, slug, callId } = await staffed();
+
+            await into(member, callId);
+
+            const after = await ports.calls.remove(admin.id, callId, member.handle);
+            const row = await rowOf(callId, member);
+
+            expect(after.people?.map((one) => one.who), 'gone from it').not.toContain(member.handle);
+            expect(row.removedAt).not.toBeNull();
+            expect(row.goneAt).not.toBeNull();
+            expect(row.leftAt, 'out of its room').not.toBeNull();
+            expect(await word(ports.calls.join(member.id, callId))).toBe('403 call-removed');
+
+            rung = [];
+            await ports.calls.remove(admin.id, callId, member.handle);
+            expect(rung, 'taken out twice').toEqual([]);
+
+            await ports.calls.hangUp(other.id, callId);
+            await ports.calls.remove(admin.id, callId, other.handle);
+            expect(await word(ports.calls.join(other.id, callId)), 'somebody who had left').toBe('403 call-removed');
+
+            expect(await word(ports.calls.remove(admin.id, callId, owner.handle))).toBe('409 call-rank');
+            expect(await word(ports.calls.remove(admin.id, callId, 'nobody.here'))).toBe('404 call-nobody');
+            expect((await log(slug)).map((one) => [one.details.act, one.person_handle])).toEqual([['remove', member.handle], ['remove', other.handle]]);
+        });
+
+        it('holds somebody kept quiet in the group who is in its voice chat, and nobody who is not', async () =>
+        {
+            const owner = await makeUser();
+            const member = await makeUser();
+            const outside = await makeUser();
+            const { slug, room } = await crew(owner, member, outside);
+
+            const started = await ports.calls.ring(owner.id, room);
+            await ports.calls.join(member.id, started.id);
+
+            rung = [];
+            await ports.group.mute(owner.id, slug, { id: member.handle });
+
+            expect((await rowOf(started.id, member)).held).toBe(true);
+            expect(rung).toEqual([{ callId: started.id, people: [member.id] }]);
+
+            rung = [];
+            await ports.group.mute(owner.id, slug, { id: outside.handle });
+            expect(rung, 'not in it').toEqual([]);
+        });
+
+        it('answers an act on a voice chat that ended as ended, and on a call that is no voice chat as a call that is not there', async () =>
+        {
+            const { owner, admin, member, callId } = await staffed();
+            const friend = await makeUser();
+
+            await ports.calls.end(owner.id, callId);
+
+            expect(await word(ports.calls.hold(admin.id, callId, member.handle, true))).toBe('409 call-ended');
+            expect(await word(ports.calls.holdAll(admin.id, callId))).toBe('409 call-ended');
+            expect(await word(ports.calls.remove(admin.id, callId, member.handle))).toBe('409 call-ended');
+
+            await db.query(`insert into friendships (user_id, friend_id) values ($1, $2), ($2, $1)`, [owner.id, friend.id]);
+            const direct = await ports.calls.ring(owner.id, await ports.chat.openDirect(owner.id, friend.handle));
+
+            expect(await word(ports.calls.hand(owner.id, direct.id, true))).toBe('404 call-missing');
+            expect(await word(ports.calls.hold(owner.id, direct.id, friend.handle, true))).toBe('404 call-missing');
+        });
+    });
 });
 
 /** Whether a voice chat runs in a room. */

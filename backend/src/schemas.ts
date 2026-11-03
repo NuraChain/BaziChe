@@ -2774,6 +2774,15 @@ export type CallsState = Infer<typeof callsState>;
 
 export const callInput = object({ room: string({ max: 64 }) });
 
+/** A hand up or down in a group's voice chat. */
+export const callHandInput = object({ up: boolean() });
+
+/** Somebody in a group's voice chat, by handle, held or let speak. */
+export const callHoldInput = object({ id: string({ min: 1, max: 32 }), held: boolean() });
+
+/** Somebody in a group's voice chat, by handle. */
+export const callPersonInput = object({ id: string({ min: 1, max: 32 }) });
+
 /* ----------------------------------------------------------------- matches */
 
 /**

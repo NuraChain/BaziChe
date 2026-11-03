@@ -193,6 +193,22 @@ const BODIES = {
     '/admin/shop/money/withdraw': (bad) => [{ amount: bad.slice(0, 40) }],
     '/admin/shop/money/share': (bad) => [{ bps: bad.length }],
     '/admin/shop/money/seller': (bad) => [{ address: bad.slice(0, 64) }],
+    '/admin/vault/share': (bad) => [{ bps: bad.length }],
+    '/admin/shop/reprice': (bad) => [{ percent: bad.length, reason: bad.slice(0, 500) }, { percent: -bad.length, reason: bad.slice(0, 500) }],
+    '/admin/markets/money/operator': (bad) => [{ address: bad.slice(0, 64) }],
+    '/chain/profile/sponsor/send': (bad) => [{ gas: bad.slice(0, 10), deadline: bad.length, signature: bad.padEnd(132, '0').slice(0, 132) }],
+    '/channels': (bad) => [{ name: bad.slice(0, 40), bio: bad.slice(0, 200), photo: bad.slice(0, 512), privacy: 'private' }],
+    '/channels/:slug': (bad) => [{ name: bad.slice(0, 40), bio: bad.slice(0, 200), photo: bad.slice(0, 512), privacy: 'public' }],
+    '/channels/:slug/members': (bad) => [{ id: bad }],
+    '/channels/:slug/members/remove': (bad) => [{ id: bad }],
+    '/channels/:slug/roles': (bad) => [{ id: bad, role: 'admin' }, { id: bad, role: 'member' }],
+    '/channels/:slug/owner': (bad) => [{ id: bad }],
+    '/channels/:slug/posts': (bad) => [
+        { kind: 'text', text: bad.slice(0, 2000) },
+        { kind: 'file', text: '', file: { id: bad.slice(0, 36), key: bad, iv: bad, as: 'photo', mime: bad.slice(0, 80), name: bad.slice(0, 120), bytes: bad.length } },
+        { kind: 'poll', text: '', poll: { question: bad.slice(0, 200), answers: [bad.slice(0, 80), bad.slice(0, 80)], anonymous: false, multiple: true } }
+    ],
+    '/channels/:slug/posts/:postId/vote': (bad) => [{ choices: [0, bad.length % 10] }, { choices: [] }],
     '/admin/invites/campaigns': (bad) => campaignGarbage(bad),
     '/admin/invites/campaigns/:id': (bad) => campaignGarbage(bad),
     '/admin/invites/campaigns/:id/state': (bad) => [{ to: bad.slice(0, 16), reason: bad.slice(0, 500).padEnd(3, 'x') }, { to: 'active', reason: bad }],
@@ -208,7 +224,9 @@ const SPARED = new Set([
     '/parties/:id/accept', '/parties/:id/decline', '/parties/:id/leave', '/calls/:id/join', '/calls/:id/accept', '/calls/:id/decline', '/calls/:id/hang-up', '/calls/:id/end', '/calls/:id/hold-all',
     '/notifications/:id/read', '/notifications/read-all', '/notifications/:id/dismiss', '/devices/:id/revoke', '/devices/recovery/off',
     '/chat/:id/read', '/chat/:id/expiry', '/chat/:id/pin', '/chat/:id/messages/:messageId/played', '/vault/terms', '/vault/break', '/admin/vault/pause', '/admin/shop/money/pause',
-    '/shop/earnings/claim', '/donations/accepting', '/markets/disclosure', '/invites/code', '/invites/listed'
+    '/shop/earnings/claim', '/donations/accepting', '/markets/disclosure', '/invites/code', '/invites/listed',
+    '/chain/profile/sponsor', '/channels/:slug/join', '/channels/:slug/leave', '/channels/:slug/delete', '/channels/:slug/read',
+    '/channels/:slug/posts/:postId/delete', '/channels/:slug/posts/:postId/close'
 ]);
 
 const SIGNED_OUT = new Set(['/auth/challenge', '/auth/wallet']);

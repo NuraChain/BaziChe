@@ -45,6 +45,7 @@ import type {
     DonationsState,
     DonationView,
     InviteBoard,
+    InviteEarnings,
     InvitedPeople,
     InviteSummary,
     MarketPositionView,
@@ -1185,8 +1186,11 @@ const invitesFresh = () => ({
     /** Whether the reader lets themselves be shown among the top inviters. */
     listed: true,
 
+    /** What the reader's invites earned at the tables, as the vault says. */
+    earnings: { tables: true, share: 2000, fee: 500, earned: '0' } as InviteEarnings,
+
     /** A read that fails, so a page can be shown and either part of it refused. */
-    refuse: null as 'summary' | 'people' | 'renew' | 'board' | 'listed' | 'list' | null,
+    refuse: null as 'summary' | 'people' | 'renew' | 'board' | 'listed' | 'list' | 'earnings' | null,
 
     /** A promise every read and the renewal wait on before they are answered. */
     hold: null as Promise<void> | null
@@ -3470,6 +3474,19 @@ export const client =
             }
 
             return structuredClone({ ...server.myInvites.board, listed: server.myInvites.listed });
+        },
+
+        async earnings()
+        {
+            server.calls.push('invites.earnings');
+            await server.myInvites.hold;
+
+            if (server.myInvites.refuse === 'earnings')
+            {
+                throw new ApiError(503, 'chain-unreachable', 'We could not reach the network. Try again in a moment.', undefined);
+            }
+
+            return structuredClone(server.myInvites.earnings);
         },
 
         async listed()

@@ -23,7 +23,7 @@ import { socket } from './fake-realtime.ts';
 vi.mock('../src/api.ts', async () => await import('./fake-api.ts'));
 
 const SOURCES = import.meta.glob(
-    ['../src/pages/app/invite.page.azeroth', '../src/components/social/lazy-invite-campaign.component.azeroth', '../src/components/social/top-inviters.component.azeroth'],
+    ['../src/pages/app/invite.page.azeroth', '../src/components/social/lazy-invite-campaign.component.azeroth', '../src/components/social/lazy-invite-earnings.component.azeroth', '../src/components/social/top-inviters.component.azeroth'],
     { query: '?raw', import: 'default', eager: true }
 ) as Record<string, string>;
 
@@ -822,6 +822,85 @@ describe('what the campaign running now gives', () =>
         }
 
         expect(SOURCES['../src/components/social/lazy-invite-campaign.component.azeroth']).toContain('import(\'./invite-campaign.component.azeroth\')');
+    });
+});
+
+describe('what the reader\'s invites earn them', () =>
+{
+    const earnings = async (container: HTMLElement) =>
+    {
+        const landed = () => container.querySelector('[data-invite-earnings] [data-earned], [data-invite-earnings] [role="alert"]') !== null;
+
+        for (let at = 0; at < 20 && !landed(); at += 1)
+        {
+            await settle();
+        }
+
+        return container.querySelector('[data-invite-earnings]');
+    };
+
+    it('shows the shop\'s share with what it owes and its claim, and the tables\' share with what the vault paid so far', async () =>
+    {
+        server.shop.earnings = { ...server.shop.earnings, earnings: '2500000000000000000', share: 1000 };
+        server.myInvites.earnings = { tables: true, share: 2000, fee: 500, earned: '3000000000000000000' };
+        const { container } = await page();
+        const block = await earnings(container);
+        const shop = block?.querySelector('[data-earned="shop"]');
+        const tables = block?.querySelector('[data-earned="tables"]');
+
+        expect(shop?.textContent).toContain('You get 10% of what they spend there.');
+        expect(shop?.querySelector('button')?.textContent?.trim()).toBe('Claim 2.5 NURA');
+        expect(tables?.textContent).toContain('You get 20% of the 5% fee on each seat they take');
+        expect(tables?.querySelector('.tally')?.textContent).toBe('3');
+        expect(tables?.querySelector('a')?.getAttribute('href'), 'what the tables paid is in the vault, withdrawn from the wallet page').toBe('/app/me/wallet');
+    });
+
+    it('offers no claim when the shop owes nothing yet', async () =>
+    {
+        const { container } = await page();
+        const block = await earnings(container);
+
+        expect(block?.querySelector('[data-earned="shop"] button')).toBeNull();
+        expect(block?.querySelector('[data-earned="tables"] .tally')?.textContent).toBe('0');
+    });
+
+    it('says what the tables paid could not be read, never that they paid nothing, and reads it again when asked', async () =>
+    {
+        server.myInvites.refuse = 'earnings';
+        const { container } = await page();
+        const block = await earnings(container);
+
+        expect(block?.textContent).toContain('What your invites earned could not be read.');
+        expect(block?.querySelector('[data-earned="tables"]')).toBeNull();
+
+        server.myInvites.refuse = null;
+        [...block!.querySelectorAll('button')].find((one) => one.textContent?.trim() === 'Try again')!.click();
+        await settle();
+
+        expect(block?.querySelector('[data-earned="tables"]')).not.toBeNull();
+    });
+
+    it('shows nothing of it where the server sells nothing and plays for nothing', async () =>
+    {
+        server.shop.state = { ...server.shop.state, open: false };
+        server.myInvites.earnings = { tables: false };
+        const { container } = await page();
+
+        await settle();
+        await settle();
+
+        expect(container.querySelector('[data-invite-earnings]')).toBeNull();
+    });
+
+    it('says it in Persian, in the reader\'s digits', async () =>
+    {
+        useLocale().setLocale('fa');
+        server.myInvites.earnings = { tables: true, share: 2000, fee: 500, earned: '3000000000000000000' };
+        const { container } = await page();
+        const block = await earnings(container);
+
+        expect(block?.querySelector('h2')?.textContent).toBe('درآمدت از دعوت‌ها');
+        expect(block?.querySelector('[data-earned="tables"] .tally')?.textContent).toBe('۳');
     });
 });
 

@@ -1,0 +1,24 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+type Earnings = (props: Record<string, never>) => MountNode;
+
+/** What the reader's invites earn them, a chunk of its own, so the invite page carries none of the shop. */
+export default component LazyInviteEarnings()
+{
+    let Earnings: Earnings | null = null;
+
+    state loaded = false;
+
+    mount
+    {
+        void import('./invite-earnings.component.azeroth').then((module) =>
+        {
+            Earnings = module.default as Earnings;
+            loaded = true;
+        }, () => undefined);
+    }
+
+    <Show when={ loaded }>
+        { () => <Dynamic component={ Earnings! } props={ () => ({}) } /> }
+    </Show>
+}

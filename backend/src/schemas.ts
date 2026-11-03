@@ -1619,6 +1619,19 @@ export const inviteListed = object({ listed: boolean() });
 
 export type InviteListed = Infer<typeof inviteListed>;
 
+/**
+ * What the reader's invites have earned them at tables played for NURA: the part of each seat's fee
+ * the vault pays whoever brought that player in, the fee it is a part of, and everything the vault
+ * has paid the reader's wallet so far, which already sits in their balance there. Off where the server
+ * keeps no vault, or the reader has no wallet.
+ */
+export const inviteEarnings = union([
+    object({ tables: literal(false) }),
+    object({ tables: literal(true), share: number(), fee: number(), earned: string() })
+]);
+
+export type InviteEarnings = Infer<typeof inviteEarnings>;
+
 export const inviteListedInput = object({ on: boolean() });
 
 export const inviteVisitInput = object({ visitor: string({ pattern: VISITOR_SHAPE }) });

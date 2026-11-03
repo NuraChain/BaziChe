@@ -56,6 +56,7 @@ import type {
     PublicPerson,
     InviteBoard,
     InviteCard,
+    InviteEarnings,
     InviteListed,
     InviteSummary,
     InvitedPeople,
@@ -772,6 +773,9 @@ export interface InvitePort
 
     /** Shows the reader among the top inviters, or takes them off. */
     list(me: string, on: boolean): Promise<InviteListed>;
+
+    /** What the reader's invites have earned them at tables played for NURA, read from the vault: `chain-unreachable` when it cannot be. */
+    earnings(me: string): Promise<InviteEarnings>;
 
     /** Who a link invites to, as their public profile shows them; a link that no longer works is `invite-missing`. */
     card(code: string): Promise<InviteCard>;

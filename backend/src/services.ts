@@ -2292,6 +2292,20 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
             list: (me, on) => invites.list(me, on),
 
+            async earnings(me)
+            {
+                const row = vaults.configured ? await identity.profileFor(me) : null;
+
+                if (row === null || row.address === null)
+                {
+                    return { tables: false as const };
+                }
+
+                const [earned, share, terms] = await Promise.all([vaults.earned(getAddress(row.address)), vaults.share(), vaults.terms()]);
+
+                return { tables: true as const, share, fee: terms.fee, earned: earned.toString() };
+            },
+
             /** A link's page shows its inviter only where their public profile would, so a minor's link works with no face. */
             async card(code)
             {

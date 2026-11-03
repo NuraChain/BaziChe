@@ -1418,6 +1418,43 @@ describe.skipIf(!active)('a table played for NURA, against a real database', () 
         });
     });
 
+    describe('what an inviter is paid at the tables', () =>
+    {
+        it('reads what the vault paid the reader\'s wallet for the seats of the people they brought in, with the share and the fee it is a part of', async () =>
+        {
+            const inviter = await makeUser(0);
+            const nobody = await makeUser(1);
+
+            fake.state.earned.set(WALLETS[0], 3n * WEI_PER_NURA);
+            fake.state.ledger.referralShare = 2_500;
+
+            expect(await ports.invites.earnings(inviter.id)).toEqual({ tables: true, share: 2_500, fee: 500, earned: (3n * WEI_PER_NURA).toString() });
+            expect(await ports.invites.earnings(nobody.id)).toEqual({ tables: true, share: 2_500, fee: 500, earned: '0' });
+        });
+
+        it('says there are no tables to earn at for a guest with no wallet, or where the server keeps no vault, and asks the chain nothing', async () =>
+        {
+            const guest = await makeUser(null);
+
+            expect(await ports.invites.earnings(guest.id)).toEqual({ tables: false });
+
+            fake = fakeVault(false);
+            ports = buildPorts(db, CONFIG, listener, undefined, undefined, fake.vault);
+            fake.state.away = true;
+
+            expect(await ports.invites.earnings((await makeUser(0)).id)).toEqual({ tables: false });
+        });
+
+        it('refuses as unreachable, never as nothing earned, when the vault cannot be read', async () =>
+        {
+            const inviter = await makeUser(0);
+
+            fake.state.away = true;
+
+            await expect(ports.invites.earnings(inviter.id), 'a vault that could not be read was read as nothing earned').rejects.toThrow('the chain could not be reached');
+        });
+    });
+
     describe('the owner\'s view of the vault', () =>
     {
         const OWNER = 5;

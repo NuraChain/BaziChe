@@ -212,6 +212,7 @@ import {
     publicPerson,
     inviteBoard,
     inviteCard,
+    inviteEarnings,
     inviteListed,
     inviteListedInput,
     inviteSummary,
@@ -795,6 +796,8 @@ export function buildApi(ports: Ports)
             board: routes.get('/top', { output: inviteBoard }, (context) => ports.invites.board(context.principal.userId)),
 
             listed: routes.get('/listed', { output: inviteListed }, (context) => ports.invites.listed(context.principal.userId)),
+
+            earnings: routes.get('/earnings', { output: inviteEarnings }, (context) => ports.invites.earnings(context.principal.userId)),
 
             list: routes.post('/listed', { input: inviteListedInput, output: inviteListed },
                 (context) => ports.invites.list(context.principal.userId, context.input.on))

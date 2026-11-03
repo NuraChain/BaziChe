@@ -43,6 +43,7 @@ import type {
     Account,
     Challenge,
     ChainCall,
+    ProfileSponsorAsk,
     StakeTerms,
     VaultGames,
     VaultState,
@@ -730,6 +731,12 @@ export interface ChainPort
     record(userId: string): Promise<string>;
 
     publish(userId: string): Promise<ChainCall[]>;
+
+    /** Whether the server pays the gas of the profile's next write, and the request to sign when it does. */
+    sponsor(userId: string): Promise<ProfileSponsorAsk>;
+
+    /** That request, signed, sent with the server's key: the hash of the transaction. */
+    sponsored(userId: string, input: { gas: string; deadline: number; signature: string }): Promise<{ hash: string }>;
 
     nfts(userId: string, offset: number, limit: number): Promise<NftPage>;
 

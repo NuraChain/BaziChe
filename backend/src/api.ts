@@ -142,6 +142,9 @@ import {
     chainPerson,
     chainProfileState,
     chainPublish,
+    profileSponsorAsk,
+    profileSponsored,
+    profileSponsorInput,
     nftPage,
     nftQuery,
     challenge,
@@ -573,6 +576,11 @@ export function buildApi(ports: Ports)
             publish: routes.post('/profile/publish', { output: chainPublish }, async (context) => ({
                 calls: await ports.chain.publish(context.principal.userId)
             })),
+
+            sponsor: routes.post('/profile/sponsor', { output: profileSponsorAsk }, (context) => ports.chain.sponsor(context.principal.userId)),
+
+            sponsored: routes.post('/profile/sponsor/send', { input: profileSponsorInput, output: profileSponsored },
+                (context) => ports.chain.sponsored(context.principal.userId, context.input)),
 
             nfts: routes.get('/nfts', { output: nftPage, query: nftQuery }, (context) =>
                 ports.chain.nfts(

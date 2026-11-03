@@ -464,6 +464,27 @@ export type ChainCall = Infer<typeof chainCall>;
 
 export const chainPublish = object({ calls: array(chainCall) });
 
+/**
+ * Whether the server pays the gas of the profile's next write: no while it pays for nothing
+ * (`off`), while the reader's wallet can pay (`pays`), past the day's limits (`limit`) or for a
+ * write heavier than it pays for (`heavy`); yes with the request to sign, the gas it names and when
+ * it stops being good.
+ */
+export const profileSponsorAsk = union([
+    object({ sponsored: literal(false), why: enumOf(['off', 'pays', 'limit', 'heavy']) }),
+    object({ sponsored: literal(true), typedData: string(), gas: string(), deadline: number() })
+]);
+
+export type ProfileSponsorAsk = Infer<typeof profileSponsorAsk>;
+
+export const profileSponsorInput = object({
+    gas: string({ min: 1, max: 10 }),
+    deadline: number({ int: true }),
+    signature: string({ min: 132, max: 132 })
+});
+
+export const profileSponsored = object({ hash: string() });
+
 const vaultBalances = object({
     address: string(),
     free: string(),

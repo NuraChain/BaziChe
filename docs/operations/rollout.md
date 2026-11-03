@@ -95,6 +95,9 @@ no `error` line from the start.
 - **It did change them**: the old code expects the old shape, which the start has already migrated. Restore the dump taken before the update into a new database (below), point
   `DATABASE_URL` at it, and start the old build there. Everything written since the dump is lost,
   so when the update has run for a while, mending forward with a fix is usually the better way.
+  Never start the old build on the migrated database itself: its start would change the database
+  back to its own entities, moving the update's new columns into `kept_` tables, and starting the
+  update again would add them back empty.
 
 A money record written after the dump and lost with a rollback is still on NuraChain: the
 reconciliation compares each one, and what it cannot put right it lists for a person (Admin › Money

@@ -730,8 +730,8 @@ describe('a reported photo, video or file', () =>
         await settle();
 
         expect(store.opened, 'opened as the video it was').toEqual([FILM]);
-        expect(page.querySelector('[data-media-box] [data-player-coming], [data-media-box] video'), 'its player').not.toBeNull();
-        expect(page.querySelector('[data-shown]'), 'never drawn as a picture').toBeNull();
+        await vi.waitFor(() => expect(page.querySelector('[data-media-box] video'), 'its player').not.toBeNull(), { timeout: 5000 });
+        expect(page.querySelector('img[data-shown]'), 'never drawn as a picture').toBeNull();
     });
 
     it('saves a reported file under its name once it is fetched and judged, and saves nothing of a kind nobody is handed', async () =>

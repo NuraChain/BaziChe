@@ -510,6 +510,10 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'call.refused.call-friends': '你只能呼叫好友。',
     'call.refused.in-call': '你已在通话中。',
     'call.refused.call-over': '这通电话已不再响铃。',
+    'call.bar.open': '打开与 {name} 的通话',
+    'call.view.label': '你的通话',
+    'call.view.title': '与 {name} 通话',
+    'call.view.muted': '{name} 已将麦克风静音',
 
     'expiry.title': '阅后即焚',
     'expiry.off': '关闭',

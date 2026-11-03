@@ -28,7 +28,10 @@ const SOURCES = import.meta.glob(
 const LAZY = [
     '../src/stores/calls.store.ts',
     '../src/components/call/call.ts',
-    '../src/components/call/call-card.component.azeroth'
+    '../src/components/call/call-card.component.azeroth',
+    '../src/components/call/call-bar.component.azeroth',
+    '../src/components/call/call-view.component.azeroth',
+    '../src/components/call/said.ts'
 ];
 
 let clock: ManualClock;
@@ -546,6 +549,43 @@ describe('the call’s card', () =>
         clock.advance(1000);
         await settle();
         expect(text(container, 'data-call-status')).toBe('0:07');
+    });
+
+    it('says how long a call lasted to the moment it was hung up, not to the last tick of its clock, on the server’s clock', async () =>
+    {
+        const calls = useCalls();
+        const ahead = 2 * 3_600_000;
+
+        useRealtime().start();
+        socket.accept();
+        socket.deliver({ v: 1, t: 'hello', n: 1, rt: 'nura-rt/v1', self: 'alex', at: clock.now() + ahead });
+        await settle();
+
+        inRoom();
+        server.phone = [ringing()];
+        await calls.refresh();
+        await calls.accept('call-9');
+        await settle();
+
+        server.phone = [ringing({ state: 'live', answeredAt: new Date(clock.now() + ahead - 4500).toISOString() })];
+        await calls.refresh();
+        vi.spyOn(useVoice(), 'people').mockImplementation(() => [{ who: 'reza.t', me: false, muted: false, talk: true, link: null, speaking: false, silenced: false, volume: 1 }]);
+
+        const container = drawn();
+
+        await settle();
+        expect(text(container, 'data-call-status')).toBe('0:04');
+
+        clock.advance(900);
+
+        const open = held();
+        const hung = calls.hangUp('call-9');
+
+        await settle();
+        expect(text(container, 'data-call-status')).toBe('Call ended · 0:05');
+
+        open();
+        await hung;
     });
 
     it('names a caller this page had not been told about, once the server has', async () =>

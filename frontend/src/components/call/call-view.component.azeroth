@@ -1,0 +1,143 @@
+import { untrack } from 'azerothjs';
+
+import Avatar from '../ui/avatar.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import Panel from '../ui/panel.component.azeroth';
+import SheetHeader from '../ui/sheet-header.component.azeroth';
+import VoiceInputSettings from '../voice/voice-input-settings.component.azeroth';
+import VoiceOutputSettings from '../voice/voice-output-settings.component.azeroth';
+import VoicePeer from '../voice/voice-peer.component.azeroth';
+import { haptic } from '../../lib/haptics.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { useCalls } from '../../stores/calls.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import { useRealtime } from '../../stores/realtime.store.ts';
+import { useVoice } from '../../stores/voice.store.ts';
+import { heardIn, lastedOf, liveSaid, ticking } from './said.ts';
+
+/**
+ * The live call, opened from its bar or its card (MS-D38): who it is with, ringed while they speak and
+ * marked while they have muted themselves, how their line is doing, the reader's own microphone and
+ * the way out, then the microphone's and the speaker's own settings. It goes when the call does.
+ */
+export default component CallView(props: OverlayProps)
+{
+    const calls = useCalls();
+    const locale = useLocale();
+    const people = usePeople();
+    const voice = useVoice();
+    const realtime = useRealtime();
+
+    state now = runtime().clock.now();
+
+    derived call = calls.current();
+
+    derived live = call !== null && call.state === 'live';
+
+    derived here = calls.here();
+
+    derived person = call?.person ?? '';
+
+    derived name = people.byHandle(person)?.displayName ?? person;
+
+    derived heard = heardIn(call, here, voice);
+
+    derived lasted = lastedOf(call, now, realtime.toLocal);
+
+    derived status = liveSaid(here, heard, lasted, locale);
+
+    derived them = voice.people().find((one) => one.who === person) ?? null;
+
+    derived speaking = them !== null && them.speaking;
+
+    derived quiet = them !== null && them.muted;
+
+    derived muted = voice.muted();
+
+    derived mic = voice.mic() === 'live';
+
+    derived joining = here && voice.joining();
+
+    derived id = call?.id ?? '';
+
+    effect
+    {
+        if (!live)
+        {
+            untrack(() => props.close());
+        }
+    }
+
+    mount
+    {
+        const stopTicking = ticking((at) => now = at);
+        const stopLines = voice.watchLines();
+
+        return () =>
+        {
+            stopLines();
+            stopTicking();
+        };
+    }
+
+    <div class="flex flex-col gap-5 p-5" data-call-view={ id }>
+        <SheetHeader title={ locale.t('call.view.title', { name }) } onClose={ () => props.close() } />
+        <div class="flex flex-col items-center gap-2 text-center">
+            <span
+                class={ () => [ 'flex rounded-full transition-shadow duration-150', speaking ? 'ring-2 ring-live ring-offset-4 ring-offset-lifted' : '' ].join(' ') }
+                data-speaking={ speaking ? '' : undefined }
+                aria-hidden="true"
+            >
+                <Avatar person={ people.byHandle(person) } size="2xl" />
+            </span>
+            <span class="text-ui-xl font-semibold text-text" dir={ locale.dir() }><bdi>{ name }</bdi></span>
+            <span class="text-ui-sm text-muted" data-call-view-status>{ status }</span>
+            <Show when={ quiet }>
+                <span class="text-ui-xs text-gold" data-call-view-muted>{ locale.t('call.view.muted', { name }) }</span>
+            </Show>
+        </div>
+        <div class="flex flex-wrap justify-center gap-2" role="group" aria-label={ locale.t('call.region') }>
+            <Show when={ here }>
+                <span class="contents" data-call-view-mute>
+                    <Button
+                        variant={ muted ? 'outline' : 'secondary' }
+                        leading={ muted ? 'voice-off' : 'voice' }
+                        size="sm"
+                        disabled={ !mic || joining }
+                        pressed={ mic && !muted }
+                        onClick={ () =>
+                        {
+                            haptic('tick');
+                            voice.toggleMute();
+                        } }
+                    >
+                        { locale.t(!mic ? 'voice.micUnavailable' : (muted ? 'voice.unmute' : 'voice.mute')) }
+                    </Button>
+                </span>
+            </Show>
+            <span class="contents" data-call-view-hang-up>
+                <Button variant="destructive" size="sm" leading="hang-up" onClick={ () => void calls.hangUp(id) }>
+                    { locale.t('call.hangUp') }
+                </Button>
+            </span>
+        </div>
+        <Show when={ here } fallback={ <p class="text-center text-ui-sm text-muted">{ locale.t('call.elsewhere') }</p> }>
+            <section class="flex flex-col gap-3" aria-labelledby="call-view-people">
+                <h3 id="call-view-people" class="label text-ui-sm text-text">{ locale.t('voice.manager.people') }</h3>
+                <ul class="divide-y divide-line rounded-panel border border-line bg-field">
+                    <li class="voice-peer" data-who={ person }>
+                        <VoicePeer who={ person } />
+                    </li>
+                </ul>
+            </section>
+            <Panel stack="md">
+                <VoiceInputSettings />
+            </Panel>
+            <Panel stack="md">
+                <VoiceOutputSettings />
+            </Panel>
+        </Show>
+    </div>
+}

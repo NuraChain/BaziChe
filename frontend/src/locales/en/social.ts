@@ -507,6 +507,10 @@ export const social = {
     'call.refused.call-friends': 'You can call only your friends.',
     'call.refused.in-call': 'You are already in a call.',
     'call.refused.call-over': 'That call is no longer ringing.',
+    'call.bar.open': 'Open the call with {name}',
+    'call.view.label': 'Your call',
+    'call.view.title': 'Call with {name}',
+    'call.view.muted': '{name} has muted their microphone',
 
     'expiry.title': 'Disappearing messages',
     'expiry.off': 'Off',

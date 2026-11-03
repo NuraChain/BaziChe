@@ -510,6 +510,10 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'call.refused.call-friends': 'Vous ne pouvez appeler que vos amis.',
     'call.refused.in-call': 'Vous êtes déjà en appel.',
     'call.refused.call-over': 'Cet appel ne sonne plus.',
+    'call.bar.open': 'Ouvrir l’appel avec {name}',
+    'call.view.label': 'Votre appel',
+    'call.view.title': 'Appel avec {name}',
+    'call.view.muted': '{name} a coupé son micro',
 
     'expiry.title': 'Messages éphémères',
     'expiry.off': 'Désactivés',

@@ -462,9 +462,13 @@ describe('reading the vault', () =>
         const { url } = await fakeChain(() => ({ result: '0x2' }));
         const vault = vaultOn(url);
 
-        const deposit = await vault.depositCall(5n);
+        const deposit = await vault.depositCall(5n, null);
         expect(deposit).toMatchObject({ to: VAULT, value: 5n, chainId: 31337, gasPrice: null });
-        expect(decodeFunctionData({ abi: VAULT_ABI, data: deposit.data }).functionName).toBe('deposit');
+        expect(decodeFunctionData({ abi: VAULT_ABI, data: deposit.data })).toEqual({ functionName: 'deposit', args: undefined });
+
+        const invited = await vault.depositCall(5n, REFEREE);
+        expect(invited.value).toBe(5n);
+        expect(decodeFunctionData({ abi: VAULT_ABI, data: invited.data }), 'a deposit that names who brought the player in').toEqual({ functionName: 'deposit', args: [REFEREE] });
 
         const withdrawal = await vault.withdrawCall(3n);
         expect(withdrawal.value).toBe(0n);
@@ -475,7 +479,7 @@ describe('reading the vault', () =>
     {
         const { url } = await fakeChain(() => ({ result: '0x0' }));
 
-        await expect(vaultOn(url, '1020').depositCall(5n)).resolves.toMatchObject({ chainId: 1020, gasPrice: NURA_GAS_FLOOR });
+        await expect(vaultOn(url, '1020').depositCall(5n, null)).resolves.toMatchObject({ chainId: 1020, gasPrice: NURA_GAS_FLOOR });
     });
 
     it('still hands the wallet a withdrawal at the floor when the chain cannot be asked its price', async () =>

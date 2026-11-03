@@ -120,7 +120,7 @@ export function fakeVault(configured = true)
             reach();
             return state.clock ?? BigInt(Math.floor(Date.now() / 1000));
         },
-        depositCall: async (amount) => ({ to: FAKE_VAULT, data: '0xd0e30db0', value: amount, chainId: 31337, gasPrice: null }),
+        depositCall: async (amount, referrer) => ({ to: FAKE_VAULT, data: referrer === null ? '0xd0e30db0' : `0xf340fa01${ referrer.slice(2).toLowerCase().padStart(64, '0') }`, value: amount, chainId: 31337, gasPrice: null }),
         withdrawCall: async () => ({ to: FAKE_VAULT, data: '0x2e1a7d4d', value: 0n, chainId: 31337, gasPrice: null }),
         reclaimCall: async (id) => ({ to: FAKE_VAULT, data: `0xreclaim${ id.slice(2) }` as Hex, value: 0n, chainId: 31337, gasPrice: null }),
         async open(id, game, amount, feeBps, seats)

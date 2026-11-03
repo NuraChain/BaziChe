@@ -29,6 +29,7 @@ import { booksOf, boundedClient, boundedTransport, reached, refusedByContract, u
 export const VAULT_ABI = parseAbi([
     'struct Seat { address player; bytes32 commit; bytes32 nonce; uint64 deadline; bytes signature; }',
     'function deposit() payable',
+    'function deposit(address referrer) payable',
     'function withdraw(uint256 amount)',
     'function cancel(bytes32 nonce)',
     'function open(bytes32 id, string game, uint256 amount, uint16 feeBps, Seat[] seats)',
@@ -224,7 +225,9 @@ export interface Vault
     terms(): Promise<VaultTerms>;
     game(id: Hex): Promise<VaultGame>;
     clock(): Promise<bigint>;
-    depositCall(amount: bigint): Promise<VaultCall>;
+
+    /** A deposit; one that names `referrer` makes them the player's inviter on the vault, if nobody is yet, paid a share of each fee the player's seats pay from then on. */
+    depositCall(amount: bigint, referrer: Address | null): Promise<VaultCall>;
     withdrawCall(amount: bigint): Promise<VaultCall>;
     reclaimCall(id: Hex): Promise<VaultCall>;
     open(id: Hex, game: string, amount: bigint, feeBps: number, seats: readonly SignedSeat[]): Promise<Sent>;
@@ -585,7 +588,12 @@ export function createVault(settings: VaultSettings): Vault
             return (await reached(reader().getBlock({ blockTag: 'latest' }))).timestamp;
         },
 
-        depositCall: (amount) => callTo(encodeFunctionData({ abi: VAULT_ABI, functionName: 'deposit' }), amount),
+        depositCall: (amount, referrer) => callTo(
+            referrer === null
+                ? encodeFunctionData({ abi: VAULT_ABI, functionName: 'deposit', args: [] })
+                : encodeFunctionData({ abi: VAULT_ABI, functionName: 'deposit', args: [referrer] }),
+            amount
+        ),
 
         withdrawCall: (amount) => callTo(encodeFunctionData({ abi: VAULT_ABI, functionName: 'withdraw', args: [amount] }), 0n),
 

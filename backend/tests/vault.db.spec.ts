@@ -7,7 +7,7 @@ import { getAddress, toHex, type Address, type Hex } from 'viem';
 import { HttpError, errorResponse } from '@azerothjs/http';
 
 import type { Vault, VaultTerms } from '../src/chain/vault.ts';
-import { PaidAccount, Table, User, entities } from '../src/entities/index.ts';
+import { PaidAccount, Referral, Table, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import { STAKE_LADDER, WEI_PER_NURA } from '../src/domains/stake/policy.ts';
@@ -61,9 +61,9 @@ const fakeVault = (overrides: Partial<VaultTerms> = {}, configured = true) =>
         },
         game: async () => ({ status: 'none', feeBps: 0, openedAt: 0n, amount: 0n, players: [] }),
         clock: async () => BigInt(Math.floor(Date.now() / 1000)),
-        async depositCall(amount)
+        async depositCall(amount, referrer)
         {
-            asked.push(`deposit ${ amount }`);
+            asked.push(`deposit ${ amount }${ referrer === null ? '' : ` naming ${ referrer }` }`);
             return { to: VAULT, data: '0xd0e30db0', value: amount, chainId: 31337, gasPrice: null };
         },
         async withdrawCall(amount)
@@ -347,6 +347,30 @@ describe.skipIf(!active)('a player\'s NURA in the vault, against a real database
 
             expect(call).toEqual({ from: getAddress(DANA), to: VAULT, data: '0xd0e30db0', value: toHex(2_500_000_000_000_000_000n), chainId: 31337 });
             expect(asked).toContain('deposit 2500000000000000000');
+        });
+
+        it('names on the deposit whoever brought the reader in, once that invite counted, so the vault pays them a share of each fee', async () =>
+        {
+            const { vault, asked } = fakeVault();
+            const stakes = createStakeService(db, vault, idle);
+            const inviter = await makeUser([OMID]);
+            const me = await makeUser([DANA]);
+            await stakes.accept(me);
+
+            await db.getRepository(Referral).insert({ inviteeId: me, inviterId: inviter });
+            await stakes.deposit(me, '1');
+
+            await db.getRepository(Referral).update({ inviteeId: me }, { countedAt: new Date() });
+            await stakes.deposit(me, '2');
+
+            await db.getRepository(User).update({ id: inviter }, { isSuspended: true });
+            await stakes.deposit(me, '3');
+
+            expect(asked.filter((one) => one.startsWith('deposit'))).toEqual([
+                'deposit 1',
+                `deposit 2 naming ${ getAddress(OMID) }`,
+                'deposit 3'
+            ]);
         });
 
         it('hands the wallet a withdrawal with the gas price it should pay, whoever has not accepted the terms', async () =>

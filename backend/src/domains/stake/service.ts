@@ -14,6 +14,7 @@ import { Table } from '../../entities/table.entity.ts';
 import { User } from '../../entities/user.entity.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import type { VaultState } from '../../schemas.ts';
+import { inviterWalletOf } from '../invite/inviter.ts';
 import { audited, AUDIT_PAGE, nothing, RECENT, type AuditAsk, type Finding } from '../reconcile/audit.ts';
 import { escrowVerdict } from '../reconcile/verdicts.ts';
 import { gameOff, gameOn, lockTable, lockingAt, stillLocking, tableRefusal } from '../table/service.ts';
@@ -959,7 +960,9 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
                 throw halted();
             }
 
-            return wireCall(owner, await vault.depositCall(wei));
+            const inviter = await inviterWalletOf(db, me, owner);
+
+            return wireCall(owner, await vault.depositCall(wei, inviter === null ? null : getAddress(inviter)));
         },
 
         async withdraw(me: string, amount: string)

@@ -1,0 +1,76 @@
+import { Link } from 'azerothjs';
+
+import Icon from '../../icons/icon.component.azeroth';
+import { placeCall } from '../../lib/place-call.ts';
+import type { CallRecord } from '../../stores/call-history.store.ts';
+import { useGroups } from '../../stores/groups.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import { useSocial } from '../../stores/social.store.ts';
+import { stampOf } from '../chat/chat-time.ts';
+import { recordMissed, recordSaid } from '../chat/line-said.ts';
+import GroupCrest from '../social/group-crest.component.azeroth';
+import Avatar from '../ui/avatar.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+
+/**
+ * One call in the Calls tab: who it was with or the group whose voice chat it was, which way it went
+ * and how it ended in the words its line in the chat says (red for a call the reader missed), when,
+ * and, for a call with somebody who is still a friend, the way to call them again. The row leads to
+ * the conversation it was in.
+ */
+export default component CallHistoryRow(props: { call: CallRecord; now: number })
+{
+    const locale = useLocale();
+    const people = usePeople();
+    const groups = useGroups();
+    const social = useSocial();
+
+    derived direct = props.call.kind === 'direct';
+
+    derived person = props.call.with === undefined ? null : people.byHandle(props.call.with);
+
+    derived group = props.call.group === undefined ? null : groups.byId(props.call.group);
+
+    derived name = direct
+        ? person?.displayName ?? props.call.with ?? ''
+        : group?.name ?? props.call.group ?? '';
+
+    derived missed = recordMissed(props.call);
+
+    derived said = recordSaid(props.call, locale);
+
+    derived way = missed ? 'call-missed' : (props.call.out ? 'call-out' : 'call-in');
+
+    derived stamp = stampOf(locale, Date.parse(props.call.at), props.now);
+
+    derived friend = direct && props.call.with !== undefined && social.relation(props.call.with) === 'friend';
+
+    <div class="flex items-center gap-1" data-call-record={ props.call.id }>
+        <Link
+            to={ () => `/app/chats/${ props.call.room }` }
+            class="flex min-w-0 flex-1 items-center gap-3 rounded-tile px-3 py-2.5 text-start hover:bg-raised"
+        >
+            <Show
+                when={ group }
+                let={ crew }
+                fallback={ <Avatar person={ person } size="md" /> }
+            >
+                <GroupCrest crest={ crew.crest } hue={ crew.hue } photo={ crew.photo } size="sm" />
+            </Show>
+            <span class="flex min-w-0 flex-1 flex-col">
+                <span class="truncate text-ui-md font-medium text-text" dir="auto" data-call-record-name>{ name }</span>
+                <span class={ () => [ 'flex min-w-0 items-center gap-1.5 text-ui-sm', missed ? 'text-danger' : 'text-muted' ].join(' ') } data-call-record-said>
+                    <Icon name={ way } size={ 14 } class="shrink-0" />
+                    <span class="truncate">{ said }</span>
+                </span>
+            </span>
+            <span class="shrink-0 self-start pt-0.5 text-ui-xs text-faint" data-call-record-at>{ stamp }</span>
+        </Link>
+        <Show when={ friend }>
+            <span class="contents" data-call-record-back>
+                <IconButton icon="call" label={ locale.t('call.action', { name }) } variant="ghost" onClick={ () => void placeCall(props.call.room) } />
+            </span>
+        </Show>
+    </div>
+}

@@ -1,0 +1,98 @@
+import { runtime } from '../../lib/runtime.ts';
+import { useCallHistory } from '../../stores/call-history.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import EmptyState from '../ui/empty-state.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import LoadMore from '../ui/load-more.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import CallHistoryRow from './call-history-row.component.azeroth';
+
+const MINUTE_MS = 60_000;
+
+/**
+ * The Calls tab (MS-D39): the reader's calls that ended, newest first, thirty a page under "Show
+ * older calls", read when the tab is opened and again whenever the reader's calls change. A call
+ * is listed once the server has it as ended; nothing is said to be empty before the read has
+ * answered, and a read that fails keeps what was on screen.
+ */
+export default component CallHistory(props: { pane: boolean })
+{
+    const history = useCallHistory();
+    const locale = useLocale();
+
+    /** What a row's time is measured against: a call of today says its time until midnight, then its weekday. */
+    state now = runtime().clock.now();
+
+    derived calls = history.calls();
+
+    derived stand = history.reading();
+
+    derived reading = stand === 'reading';
+
+    derived failed = stand === 'failed';
+
+    derived listed = stand === 'read' && calls.length > 0;
+
+    derived none = stand === 'read' && calls.length === 0;
+
+    derived stale = stand === 'read' && history.failure() !== null;
+
+    derived older = listed && history.hasMore();
+
+    derived moreFailed = listed && history.moreFailure() !== null;
+
+    derived pane = props.pane;
+
+    mount
+    {
+        const close = history.open();
+        const untick = runtime().clock.every(MINUTE_MS, () => now = runtime().clock.now());
+
+        return () =>
+        {
+            untick();
+            close();
+        };
+    }
+
+    <div class={ () => (pane ? 'px-2 pb-3' : '') } data-call-history>
+        <Show when={ reading }>
+            <ul class="flex flex-col gap-0.5" aria-label={ locale.t('common.loading') } aria-busy="true" data-reading>
+                <For each={ [0, 1, 2, 3] } key={ (row) => row } let={ row }>
+                    <li class="flex items-center gap-3 rounded-tile px-3 py-3">
+                        <Skeleton class="h-11 w-11 shrink-0 rounded-full" />
+                        <span class="flex min-w-0 flex-1 flex-col gap-2">
+                            <Skeleton class="h-3.5 w-32" />
+                            <Skeleton class={ row % 2 === 0 ? 'h-3 w-44' : 'h-3 w-28' } />
+                        </span>
+                    </li>
+                </For>
+            </ul>
+        </Show>
+        <Show when={ failed }>
+            <ErrorState title={ locale.t('calls.history.failed') } error={ history.failure() } onRetry={ () => history.refresh() } />
+        </Show>
+        <Show when={ none }>
+            <EmptyState icon="call" title={ locale.t('calls.history.empty') } lead={ locale.t('calls.history.emptyLead') } class="py-10" />
+        </Show>
+        <Show when={ stale }>
+            <ErrorState compact title={ locale.t('calls.history.failed') } error={ history.failure() } onRetry={ () => history.refresh() } class="px-3" />
+        </Show>
+        <Show when={ listed }>
+            <ul
+                class={ () => (pane ? 'flex flex-col gap-0.5' : 'flex flex-col divide-y divide-line rounded-panel border border-line bg-field px-1.5') }
+                aria-label={ locale.t('chats.tab.calls') }
+            >
+                <For each={ calls } key={ (call) => call.id } let={ call }>
+                    <li><CallHistoryRow call={ call } now={ now } /></li>
+                </For>
+            </ul>
+        </Show>
+        <Show when={ moreFailed }>
+            <ErrorState compact error={ history.moreFailure() } onRetry={ () => void history.more() } class="px-3 pt-3" />
+        </Show>
+        <Show when={ older }>
+            <LoadMore label={ locale.t('calls.history.older') } loading={ history.paging() } class="pt-3" onMore={ () => void history.more() } />
+        </Show>
+    </div>
+}

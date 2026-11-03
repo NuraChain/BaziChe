@@ -1,4 +1,4 @@
-import { CALL_ENDINGS, type CallEnding } from '../../../../backend/src/domains/call/rules.ts';
+import { CALL_ENDINGS, type CallEnding, type CallKind } from '../../../../backend/src/domains/call/rules.ts';
 import type { MessageLine } from '../../data/chat.ts';
 import { isLineKey, namedParams } from '../../lib/lines.ts';
 import type { MessageKey } from '../../locales/en.ts';
@@ -20,6 +20,31 @@ export function callMissed(line: MessageLine, me: string)
     const { who, ending } = line.params;
 
     return line.key === 'chat.line.call' && typeof who === 'string' && said(ending) && who.toLowerCase() !== me.toLowerCase() && CALL_SAID.in[ending] === 'chat.call.missed';
+}
+
+/** A call that ended, as the Calls tab holds it: which kind, whether the reader rang it, how it ended and how long it ran. */
+interface Ended
+{
+    kind: CallKind;
+    out: boolean;
+    ending: CallEnding;
+    seconds: number;
+}
+
+/** Whether a call the Calls tab lists rang for the reader and nobody took it up, said "Missed call" as its line is. */
+export const recordMissed = (call: Ended) => call.kind === 'direct' && !call.out && said(call.ending) && CALL_SAID.in[call.ending] === 'chat.call.missed';
+
+/** How a call the Calls tab lists ended, in the words its line in the chat says from the reader's side. */
+export function recordSaid(call: Ended, locale: Pick<LocaleApi, 't' | 'n'>)
+{
+    const duration = voiceClock(call.seconds, locale.n);
+
+    if (call.kind === 'group')
+    {
+        return locale.t('chat.line.voice.ended', { duration });
+    }
+
+    return said(call.ending) ? locale.t(CALL_SAID[call.out ? 'out' : 'in'][call.ending], { duration }) : locale.t('call.ended.failed');
 }
 
 /**

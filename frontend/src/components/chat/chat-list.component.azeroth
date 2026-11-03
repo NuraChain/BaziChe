@@ -1,6 +1,7 @@
 import type { GameId } from '../../data/games.ts';
 
 import type { MenuPoint } from './actions.ts';
+import LazyCallHistory from '../call/lazy-call-history.component.azeroth';
 import ChannelList from '../channels/channel-list.component.azeroth';
 import ChatActions from './chat-actions.component.azeroth';
 import ChatListItem from './chat-list-item.component.azeroth';
@@ -179,13 +180,16 @@ export default component ChatList(props: { active?: string; pane?: boolean; fold
         { id: 'direct', label: locale.t('chats.tab.direct') },
         { id: 'groups', label: locale.t('chats.tab.groups') },
         { id: 'games', label: locale.t('chats.tab.games') },
-        { id: 'channels', label: locale.t('chats.tab.channels'), count: channels.unread() }
+        { id: 'channels', label: locale.t('chats.tab.channels'), count: channels.unread() },
+        { id: 'calls', label: locale.t('chats.tab.calls') }
     ];
 
-    /** The Channels tab draws the channels instead of the rooms; a folded list keeps the rooms. */
+    /** The Channels tab draws the channels instead of the rooms, and Calls the calls; a folded list keeps the rooms. */
     derived channelled = tab === 'channels' && !folded;
 
-    derived roomed = !channelled;
+    derived called = tab === 'calls' && !folded;
+
+    derived roomed = !channelled && !called;
 
     <div class={ () => [ 'flex min-h-0 flex-col', props.class ?? '' ].filter(Boolean).join(' ') }>
         <Show when={ searching }>
@@ -206,6 +210,10 @@ export default component ChatList(props: { active?: string; pane?: boolean; fold
 
         <Show when={ channelled }>
             { () => <div class={ () => pane ? 'min-h-0 flex-1 overflow-y-auto' : '' }><ChannelList pane={ pane } /></div> }
+        </Show>
+
+        <Show when={ called }>
+            { () => <div class={ () => pane ? 'min-h-0 flex-1 overflow-y-auto' : '' }><LazyCallHistory pane={ pane } /></div> }
         </Show>
 
         <div ref={ (element) => scroller = pane ? element : null } class={ () => [ pane ? 'min-h-0 flex-1 overflow-y-auto px-2 pb-3' : '', roomed ? '' : 'hidden' ].filter(Boolean).join(' ') }>

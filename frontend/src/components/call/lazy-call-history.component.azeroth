@@ -1,0 +1,48 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+import ErrorState from '../ui/error-state.component.azeroth';
+
+type History = (props: { pane: boolean }) => MountNode;
+
+/**
+ * The Calls tab's list, fetched once the tab is chosen so the chat page's chunk carries none of the
+ * calls. A chunk that would not come says so with Try again, never an empty tab.
+ */
+export default component LazyCallHistory(props: { pane: boolean })
+{
+    let History: History | null = null;
+
+    state loaded = false;
+
+    state failure = null as unknown;
+
+    derived failed = failure !== null;
+
+    const fetchList = () =>
+    {
+        failure = null;
+
+        void import('./call-history.component.azeroth').then((module) =>
+        {
+            History = module.default as History;
+            loaded = true;
+        }).catch((error: unknown) =>
+        {
+            failure = error;
+        });
+    };
+
+    mount
+    {
+        fetchList();
+    }
+
+    <div class="contents">
+        <Show when={ loaded }>
+            { () => <Dynamic component={ History! } props={ () => ({ pane: props.pane }) } /> }
+        </Show>
+        <Show when={ failed }>
+            <ErrorState error={ failure } onRetry={ fetchList } />
+        </Show>
+    </div>
+}

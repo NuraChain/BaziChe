@@ -18,6 +18,7 @@ import { guestChairs, teamsOf } from '../../backend/src/domains/table/teams.ts';
 import type { VoiceScope } from '../../backend/src/domains/table/voices.ts';
 import type {
     Account,
+    CallHistory,
     CallView,
     AdminCampaignInput,
     AdminInviteCampaign,
@@ -1711,6 +1712,15 @@ export const server =
     phoneSeq: 0,
 
     /**
+     * The reader's calls that ended, newest first, as the Calls tab reads them a page at a time:
+     * `historyPage` a page's size, and `historyHeld` holds every read at the door until it is let go.
+     */
+    callHistory: [] as CallHistory['calls'],
+    historyPage: 30,
+    historyHeld: null as Promise<void> | null,
+    historyRefused: false,
+
+    /**
      * The voice chat running in each group room, as the room's head reads it: a test puts one running
      * there, `removed` when the reader was taken out of it.
      */
@@ -1814,6 +1824,10 @@ export const server =
         server.phoneRefusal = null;
         server.phoneHeld = null;
         server.phoneSeq = 0;
+        server.callHistory = [];
+        server.historyPage = 30;
+        server.historyHeld = null;
+        server.historyRefused = false;
         server.voiceRooms = {};
         server.refusals = {};
         server.themes = {};
@@ -5438,6 +5452,24 @@ export const client =
             await phoned();
 
             return moved(params.id, (call) => (call.state === 'ringing' ? { state: 'ended', ending: 'declined', endedAt: new Date(0).toISOString() } : null));
+        },
+
+        /** The reader's calls that ended, a page at a time, by a cursor that is where the next page begins. */
+        async history({ query }: { query: { cursor?: string } })
+        {
+            server.calls.push(`calls.history ${ query.cursor ?? '' }`.trim());
+            await server.historyHeld;
+
+            if (server.historyRefused)
+            {
+                throw new ApiError(503, 'unavailable', 'The server is not answering.', undefined);
+            }
+
+            const from = Number(query.cursor ?? 0) || 0;
+            const page = server.callHistory.slice(from, from + server.historyPage);
+            const next = from + server.historyPage;
+
+            return { calls: page.map((one) => ({ ...one })), ...(next < server.callHistory.length ? { cursor: String(next) } : {}) };
         },
 
         async room({ params }: { params: { room: string } })

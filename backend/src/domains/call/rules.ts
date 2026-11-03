@@ -25,3 +25,9 @@ export const ALONE_SECONDS = 30;
 
 /** What a call's room is called on the voice frames, beside a table's id. */
 export const CALL_ROOM = 'call:';
+
+/** The most people in a group's voice chat at once (MS-D28). */
+export const GROUP_CALL_MOST = 50;
+
+/** How long a group's voice chat goes on with nobody in its room before it ends by itself (MS-D32). */
+export const EMPTY_SECONDS = 120;

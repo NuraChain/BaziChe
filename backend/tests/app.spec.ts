@@ -1052,7 +1052,7 @@ describe('calls', () =>
         log: silent,
         ports: {
             identity: { principal: () => Promise.resolve(who) },
-            calls: Object.fromEntries(['state', 'view', 'ring', 'accept', 'decline', 'hangUp'].map((verb) => [verb, (...said: unknown[]) =>
+            calls: Object.fromEntries(['state', 'view', 'ring', 'join', 'accept', 'decline', 'hangUp', 'end', 'room'].map((verb) => [verb, (...said: unknown[]) =>
             {
                 told.push([verb, ...said]);
 
@@ -1100,12 +1100,12 @@ describe('calls', () =>
         expect(told).toEqual([['ring', 'somebody', ROOM]]);
     });
 
-    it('hands an answer, a decline and a hang up the id out of the address, as it came', async () =>
+    it('hands a join, an answer, a decline, a hang up and an end the id out of the address, as it came', async () =>
     {
         const told: unknown[][] = [];
         const app = calledAs(told);
 
-        for (const path of [`/calls/${ CALL }/accept`, '/calls/not-a-uuid/decline', `/calls/${ CALL }/hang-up`])
+        for (const path of [`/calls/${ CALL }/join`, `/calls/${ CALL }/accept`, '/calls/not-a-uuid/decline', `/calls/${ CALL }/hang-up`, `/calls/${ CALL }/end`])
         {
             const response = await post(app, path);
 
@@ -1113,12 +1113,37 @@ describe('calls', () =>
             expect(await response.json(), path).toEqual(view);
         }
 
-        expect(told).toEqual([['accept', 'somebody', CALL], ['decline', 'somebody', 'not-a-uuid'], ['hangUp', 'somebody', CALL]]);
+        expect(told).toEqual([['join', 'somebody', CALL], ['accept', 'somebody', CALL], ['decline', 'somebody', 'not-a-uuid'], ['hangUp', 'somebody', CALL], ['end', 'somebody', CALL]]);
+    });
+
+    it('reads the voice chat running in a room for its head, the room out of the address as it came, and nothing it does not declare', async () =>
+    {
+        const told: unknown[][] = [];
+        const running = { call: { id: CALL, here: 2, faces: ['mina', 'sara.k'], startedBy: 'a-uuid' }, room: ROOM };
+        const app = calledAs(told, (verb) => Promise.resolve(verb === 'room' ? running : view));
+        const read = await call(app, `/api/calls/room/${ ROOM }`);
+
+        expect(read.status).toBe(200);
+        expect(await read.json()).toEqual({ call: { id: CALL, here: 2, faces: ['mina', 'sara.k'] } });
+
+        const none = await call(calledAs([], () => Promise.resolve({})), '/api/calls/room/not-a-uuid');
+
+        expect(await none.json()).toEqual({});
+        expect(told).toEqual([['room', 'somebody', ROOM]]);
+    });
+
+    it('says who is in a group\'s voice chat, and nothing more of them', async () =>
+    {
+        const group = { id: CALL, room: ROOM, kind: 'group', state: 'live', out: true, rung: false, at: view.at, answeredAt: '2026-11-03T01:00:01.000Z' };
+        const loose = { ...group, people: [{ who: 'mina', held: true, hand: true, here: false, id: 'a-uuid', removedAt: null }] };
+        const read = await call(calledAs([], () => Promise.resolve(loose)), `/api/calls/${ CALL }`);
+
+        expect(await read.json()).toEqual({ ...group, people: [{ who: 'mina', held: true, hand: true, here: false }] });
     });
 
     it('sends nothing about a call that the wire does not declare', async () =>
     {
-        const loose = { ...view, startedBy: 'a-uuid', people: [{ id: 'a-uuid', handle: 'mina' }], conversationId: ROOM, rungAt: 5 };
+        const loose = { ...view, startedBy: 'a-uuid', conversationId: ROOM, rungAt: 5 };
         const answers = [await call(calledAs([], () => Promise.resolve(loose)), `/api/calls/${ CALL }`), await post(calledAs([], () => Promise.resolve(loose)), '/calls', JSON.stringify({ room: ROOM }))];
 
         for (const response of answers)
@@ -1148,23 +1173,27 @@ describe('calls', () =>
         expect((await call(app, `/api/calls/${ CALL }`)).status).toBe(401);
         expect((await post(app, '/calls', JSON.stringify({ room: ROOM }))).status).toBe(401);
 
-        for (const verb of ['accept', 'decline', 'hang-up'])
+        for (const verb of ['join', 'accept', 'decline', 'hang-up', 'end'])
         {
             expect((await post(app, `/calls/${ CALL }/${ verb }`)).status, verb).toBe(401);
         }
 
+        expect((await call(app, `/api/calls/room/${ ROOM }`)).status).toBe(401);
         expect(told).toEqual([]);
     });
 
-    it('is six routes', async () =>
+    it('is nine routes', async () =>
     {
         const manifest = await (await call(calledAs([]), '/api/_manifest')).json() as Record<string, Record<string, { method: string; path: string }>>;
 
         expect(Object.entries(manifest.calls).map(([name, route]) => `${ name } ${ route.method } ${ route.path }`).sort()).toEqual([
             'accept POST /calls/:id/accept',
             'decline POST /calls/:id/decline',
+            'end POST /calls/:id/end',
             'hangUp POST /calls/:id/hang-up',
+            'join POST /calls/:id/join',
             'ring POST /calls',
+            'room GET /calls/room/:room',
             'state GET /calls',
             'view GET /calls/:id'
         ]);
@@ -1178,7 +1207,7 @@ describe('calls', () =>
 
         expect(bodies).toMatch(/'\/calls': \(bad\) => \[/);
 
-        for (const path of ['/calls/:id/accept', '/calls/:id/decline', '/calls/:id/hang-up'])
+        for (const path of ['/calls/:id/join', '/calls/:id/accept', '/calls/:id/decline', '/calls/:id/hang-up', '/calls/:id/end'])
         {
             expect(spared, path).toContain(`'${ path }'`);
         }

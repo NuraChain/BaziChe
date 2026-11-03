@@ -34,6 +34,13 @@ export function lineSaid(line: MessageLine, me: string, nameOf: (handle: string)
         return '';
     }
 
+    if (line.key === 'chat.line.voice.ended')
+    {
+        const { seconds } = line.params;
+
+        return locale.t(line.key, { duration: voiceClock(Number(typeof seconds === 'string' ? seconds : 0), locale.n) });
+    }
+
     if (line.key !== 'chat.line.call')
     {
         return locale.t(line.key, namedParams(line.params, nameOf, locale));

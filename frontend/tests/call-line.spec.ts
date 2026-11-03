@@ -45,6 +45,22 @@ afterEach(() =>
     useLocale().setLocale('en');
 });
 
+describe('a group\'s voice chat, said in its room', () =>
+{
+    it.each([
+        ['en', 'Alex Morgan started a voice chat', 'Voice chat ended · 12:04', 'Voice chat ended · 0:00'],
+        ['fa', 'Alex Morgan یه چت صوتی راه انداخت', 'چت صوتی تموم شد · ۱۲:۰۴', 'چت صوتی تموم شد · ۰:۰۰']
+    ] as const)('names whoever began it, and says how long it ran, in %s', (language, started, ended, none) =>
+    {
+        useLocale().setLocale(language);
+
+        expect(said({ key: 'chat.line.voice.started', params: { who: 'alex' } }, 'sara.k')).toBe(started);
+        expect(said({ key: 'chat.line.voice.started', params: { who: 'alex' } }, 'alex'), 'the same to whoever began it').toBe(started);
+        expect(said({ key: 'chat.line.voice.ended', params: { seconds: '724' } }, 'sara.k')).toBe(ended);
+        expect(said({ key: 'chat.line.voice.ended', params: {} }, 'alex'), 'no length kept').toBe(none);
+    });
+});
+
 describe('a call that ended, said in its room', () =>
 {
     it.each([

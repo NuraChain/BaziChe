@@ -22,7 +22,7 @@ export interface VoicePeer
     opus: boolean;
 }
 
-export type NudgeScope = 'chat' | 'social' | 'game' | 'table' | 'me';
+export type NudgeScope = 'chat' | 'social' | 'game' | 'table' | 'me' | 'call';
 
 export const SIGNAL_DATA_MAX = 12_288;
 

@@ -201,7 +201,7 @@ const SPARED = new Set([
     '/auth/sign-out', '/auth/sign-out-everywhere', '/chain/profile/publish', '/social/privacy', '/groups/:slug/join', '/groups/:slug/leave', '/groups/:slug/permissions',
     '/groups/:slug/links/:linkId/revoke', '/groups/:slug/requests/withdraw', '/group-links/:token/join', '/group-links/:token/withdraw',
     '/tables/:id/seat', '/tables/:id/leave', '/tables/:id/close', '/tables/:id/voice', '/tables/:id/start', '/tables/:id/stake',
-    '/parties/:id/accept', '/parties/:id/decline', '/parties/:id/leave', '/calls/:id/accept', '/calls/:id/decline', '/calls/:id/hang-up',
+    '/parties/:id/accept', '/parties/:id/decline', '/parties/:id/leave', '/calls/:id/join', '/calls/:id/accept', '/calls/:id/decline', '/calls/:id/hang-up', '/calls/:id/end',
     '/notifications/:id/read', '/notifications/read-all', '/notifications/:id/dismiss', '/devices/:id/revoke', '/devices/recovery/off',
     '/chat/:id/read', '/chat/:id/expiry', '/chat/:id/pin', '/chat/:id/messages/:messageId/played', '/vault/terms', '/vault/break', '/admin/vault/pause', '/admin/shop/money/pause',
     '/shop/earnings/claim', '/donations/accepting', '/markets/disclosure', '/invites/code', '/invites/listed'

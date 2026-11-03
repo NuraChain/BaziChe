@@ -804,6 +804,20 @@ describe('the recent actions', () =>
         ]);
     });
 
+    it('say who ended the voice chat for everybody, and nothing yet of what else is done in one', async () =>
+    {
+        owned();
+        server.groupLogs[SLUG] = [
+            { id: 'c-2', at: ago(1), kind: 'call', actor: 'alex', actorRole: 'owner', details: { act: 'end' } },
+            { id: 'c-1', at: ago(2), kind: 'call', actor: 'alex', actorRole: 'owner', person: 'mina', details: { act: 'hold' } }
+        ];
+
+        const container = opened('?tab=log');
+        await vi.waitFor(() => expect(rowsIn(logOf(container)).length).toBe(1), { timeout: 4000 });
+
+        expect(rowsIn(logOf(container)).map((row) => row.querySelector('p')?.textContent)).toEqual([t('groups.log.callEnded', { actor: 'alex' })]);
+    });
+
     it('leave out a kind it has no words for rather than drawing an empty row', async () =>
     {
         logged();

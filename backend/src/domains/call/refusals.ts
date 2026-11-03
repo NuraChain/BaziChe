@@ -4,7 +4,11 @@ export const CALL_REFUSALS = {
     'call-room': 404,
     'call-friends': 403,
     'in-call': 409,
-    'call-over': 409
+    'call-over': 409,
+    'call-right': 403,
+    'call-full': 409,
+    'call-removed': 403,
+    'call-ended': 409
 } as const;
 
 export type CallRefusal = keyof typeof CALL_REFUSALS;

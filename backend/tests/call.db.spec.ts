@@ -53,6 +53,7 @@ const listener: WriteListener = {
     {
         rung.push({ callId, people: [...people].sort() });
     },
+    voiceChatChanged: () => undefined,
     catalogueChanged: () => undefined,
     sessionsRevoked: () => undefined,
     seen: () => undefined
@@ -347,8 +348,8 @@ describe.skipIf(!active)('calls between two people, against Postgres', () =>
             expect(live.answeredAt).toBeDefined();
             expect(live.remainingMs).toBeUndefined();
             expect(heardBy(call.id)).toEqual([[a.id, b.id].sort()]);
-            expect(await callRoom(db, a.id, roomOf(call.id))).toBe(roomOf(call.id));
-            expect(await callRoom(db, b.id, `call:${ call.id.toUpperCase() }`), 'its id in capitals').toBe(roomOf(call.id));
+            expect(await callRoom(db, a.id, roomOf(call.id)), 'tried on a line, carried as it is').toEqual({ call: roomOf(call.id), held: false, lines: true, most: null });
+            expect((await callRoom(db, b.id, `call:${ call.id.toUpperCase() }`))?.call, 'its id in capitals').toBe(roomOf(call.id));
 
             rung = [];
             expect(await ports.calls.accept(b.id, call.id)).toMatchObject({ state: 'live' });

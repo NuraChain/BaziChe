@@ -1157,6 +1157,30 @@ export function createGroupService(db: DataSource, social: SocialService)
         },
 
         /**
+         * The group's say in its voice chat, inside the call's own transaction: the reader's place and
+         * what its members may do, read under the group's lock as every change to who holds what is,
+         * the place of anybody an act is about, and how a change is logged. Nothing for somebody who
+         * is not in the group.
+         */
+        async callGate(tx: EntityManager, me: string, groupId: string)
+        {
+            const { switches } = await lockGroup(tx, groupId);
+            const standing = await standingIn(tx, me, groupId);
+
+            if (standing === null)
+            {
+                return null;
+            }
+
+            return {
+                standing,
+                switches,
+                of: (otherId: string) => standingIn(tx, otherId, groupId),
+                log: (otherId: string | null, details: Record<string, string>) => record(tx, groupId, { id: me, role: standing.role }, 'call', otherId, details)
+            };
+        },
+
+        /**
          * The staff of the group a room belongs to, each by account with their place: what a page of
          * its thread says beside their lines, so the page offers to take somebody's line away only
          * where the group would let it go. Nobody for a room that is not a group's.

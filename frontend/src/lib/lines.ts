@@ -48,7 +48,12 @@ export const LINE_KEYS = [
 
     // Written by the calls' half of `services.ts` when a call ends: who rang and how it ended, which
     // each of the two reads from their own side (`components/chat/line-said.ts`).
-    'chat.line.call'
+    'chat.line.call',
+
+    // Written by the calls' half of `services.ts` when a group's voice chat begins, and when it ends
+    // with how long it ran.
+    'chat.line.voice.started',
+    'chat.line.voice.ended'
 ] as const;
 
 export type LineKey = typeof LINE_KEYS[number];

@@ -73,6 +73,7 @@ const listener: WriteListener = {
     tableChanged: () => undefined,
     tableViewed: () => undefined,
     callChanged: () => undefined,
+    voiceChatChanged: () => undefined,
     catalogueChanged: () => undefined,
     sessionsRevoked: () => undefined,
     seen: () => undefined

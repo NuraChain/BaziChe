@@ -45,7 +45,7 @@ const keyOf = (row: GroupLogRow): MessageKey | null =>
         case 'pinned': return 'groups.log.pinned';
         case 'unpinned': return 'groups.log.unpinned';
         case 'report': return details.to === 'actioned' ? 'groups.log.reportActioned' : 'groups.log.reportDismissed';
-        case 'call': return null;
+        case 'call': return details.act === 'end' ? 'groups.log.callEnded' : null;
     }
 };
 

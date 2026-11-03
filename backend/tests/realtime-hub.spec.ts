@@ -88,6 +88,13 @@ interface World
     sessionsHeld: Promise<void> | null;
     delivered: number[];
     moved: string[];
+
+    /** Chairs whose sound is not carried, as a group's voice chat holds somebody until they are let speak. */
+    holding: Set<string>;
+
+    /** Rooms carried by this server alone, as a group's voice chat is: no line, and a most. */
+    carried: Set<string>;
+    most: number;
 }
 
 let world: World;
@@ -114,7 +121,10 @@ function build()
         sessionsAsked: null,
         sessionsHeld: null,
         delivered: [],
-        moved: []
+        moved: [],
+        holding: new Set(),
+        carried: new Set(),
+        most: 50
     };
 
     state.hub = createHub({
@@ -154,7 +164,14 @@ function build()
                 return null;
             }
 
-            return side === undefined ? tableId.toLowerCase() : `${ tableId.toLowerCase() }#${ side }`;
+            const carried = state.carried.has(tableId.toLowerCase());
+
+            return {
+                call: side === undefined ? tableId.toLowerCase() : `${ tableId.toLowerCase() }#${ side }`,
+                held: state.holding.has(chair),
+                lines: !carried,
+                most: carried ? state.most : null
+            };
         },
         mayTalk: async (a, b) => !state.apart.has([a, b].sort().join('|')),
         voiceMoved: (userId, call, here) => state.moved.push(`${ userId } ${ here ? 'in' : 'out' } ${ call }`),
@@ -2116,6 +2133,195 @@ describe('a call\'s room', () =>
         expect(lastVoice(sara.wire)?.peers.map((peer) => peer.who), 'a table with the call\'s id').toEqual(['sara.k']);
         expect(world.hub.voiceOf('c1')).toEqual(['alex']);
         expect(world.hub.voiceOf(ROOM)).toEqual(['sara.k']);
+    });
+});
+
+describe('a group\'s voice chat', () =>
+{
+    const ROOM = 'call:g1';
+
+    const seat = (...handles: string[]) =>
+    {
+        for (const handle of handles)
+        {
+            world.seated.add(`${ handle }@${ ROOM }`);
+        }
+    };
+
+    const rest = async () =>
+    {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await world.hub.flush();
+    };
+
+    const lastVoice = (wire: FakeWire) =>
+        wire.framesOf('voice').at(-1) as Extract<ServerFrame, { t: 'voice' }> | undefined;
+
+    const joinOf = (wire: FakeWire, who: string) => lastVoice(wire)?.peers.find((peer) => peer.who === who)?.join ?? '';
+
+    const mutedIn = (wire: FakeWire) => lastVoice(wire)?.peers.map((peer) => [peer.who, peer.muted]);
+
+    beforeEach(() =>
+    {
+        world.carried.add(ROOM);
+    });
+
+    it('carries nobody held, says them muted to everybody, and carries them once somebody lets them speak', async () =>
+    {
+        seat('alex', 'sara.k');
+        world.holding.add(`sara.k@${ ROOM }`);
+        const alex = await connect('alex');
+        const sara = await connect('sara.k');
+
+        world.hub.voice(alex.connection, ROOM, true, false, true);
+        await rest();
+        world.hub.voice(sara.connection, ROOM, true, false, true);
+        await rest();
+
+        expect(mutedIn(alex.wire), 'held, so heard by nobody').toEqual([['alex', false], ['sara.k', true]]);
+        expect(mutedIn(sara.wire), 'and told so herself').toEqual([['alex', false], ['sara.k', true]]);
+
+        world.hub.sound(sara.connection, ROOM, [joinOf(sara.wire, 'alex')], 'opus', 1, 'AQID');
+        world.hub.sound(alex.connection, ROOM, [joinOf(alex.wire, 'sara.k')], 'opus', 1, 'BAUG');
+        await rest();
+
+        expect(alex.wire.framesOf('sound'), 'a held voice was carried').toEqual([]);
+        expect(sara.wire.framesOf('sound'), 'somebody held still hears').toEqual([expect.objectContaining({ room: ROOM, data: 'BAUG' })]);
+
+        world.holding.delete(`sara.k@${ ROOM }`);
+        world.hub.callChanged('g1', []);
+        await rest();
+
+        expect(mutedIn(alex.wire), 'let speak').toEqual([['alex', false], ['sara.k', false]]);
+
+        world.hub.sound(sara.connection, ROOM, [joinOf(sara.wire, 'alex')], 'opus', 2, 'BwgJ');
+        await rest();
+
+        expect(alex.wire.framesOf('sound')).toEqual([expect.objectContaining({ room: ROOM, join: joinOf(alex.wire, 'sara.k'), at: 2, data: 'BwgJ' })]);
+
+        world.holding.add(`alex@${ ROOM }`);
+        world.hub.callChanged('g1', []);
+        await rest();
+
+        world.hub.sound(alex.connection, ROOM, [joinOf(alex.wire, 'sara.k')], 'opus', 3, 'CgsM');
+        await rest();
+
+        expect(mutedIn(sara.wire), 'held after joining').toEqual([['alex', true], ['sara.k', false]]);
+        expect(sara.wire.framesOf('sound').map((frame) => (frame.t === 'sound' ? frame.data : '')), 'carried once held').toEqual(['BAUG']);
+        expect(world.hub.voiceOf(ROOM), 'nobody is let go for being held').toEqual(['alex', 'sara.k']);
+    });
+
+    it('carries one frame from a speaker to everybody in its room who may talk with them, whoever the frame names', async () =>
+    {
+        seat('alex', 'sara.k', 'mina', 'omid.k');
+        world.apart.add(['alex', 'mina'].sort().join('|'));
+        const alex = await connect('alex');
+        const sara = await connect('sara.k');
+        const mina = await connect('mina');
+        const omid = await connect('omid.k');
+
+        for (const one of [alex, sara, mina, omid])
+        {
+            world.hub.voice(one.connection, ROOM, true, false, true);
+            await rest();
+        }
+
+        world.hub.sound(alex.connection, ROOM, [joinOf(alex.wire, 'alex')], 'opus', 4, 'AQID');
+        await rest();
+
+        expect(sara.wire.framesOf('sound')).toEqual([expect.objectContaining({ room: ROOM, join: joinOf(sara.wire, 'alex'), at: 4, data: 'AQID' })]);
+        expect(omid.wire.framesOf('sound')).toHaveLength(1);
+        expect(mina.wire.framesOf('sound'), 'somebody the speaker may not talk with').toEqual([]);
+        expect(alex.wire.framesOf('sound'), 'never back to the speaker').toEqual([]);
+    });
+
+    it('relays no signal, so nobody in it can reach anybody on a line the server does not carry', async () =>
+    {
+        seat('alex', 'sara.k');
+        const alex = await connect('alex');
+        const sara = await connect('sara.k');
+
+        world.hub.voice(alex.connection, ROOM, true, false, true);
+        await rest();
+        world.hub.voice(sara.connection, ROOM, true, false, true);
+        await rest();
+
+        world.hub.signal(alex.connection, ROOM, 'sara.k', joinOf(alex.wire, 'sara.k'), 'offer', '{"sdp":"a"}');
+        world.hub.signal(sara.connection, ROOM, 'alex', joinOf(sara.wire, 'alex'), 'offer', '{"sdp":"b"}');
+        await rest();
+
+        expect(alex.wire.framesOf('signal')).toEqual([]);
+        expect(sara.wire.framesOf('signal')).toEqual([]);
+    });
+
+    it('lets no more joinings into its room than it holds, and takes the same person again from another tab', async () =>
+    {
+        world.most = 2;
+        seat('alex', 'sara.k', 'mina');
+        const alex = await connect('alex');
+        const sara = await connect('sara.k');
+        const mina = await connect('mina');
+        const again = await connect('alex');
+
+        world.hub.voice(alex.connection, ROOM, true, false, true);
+        await rest();
+        world.hub.voice(sara.connection, ROOM, true, false, true);
+        await rest();
+        world.hub.voice(mina.connection, ROOM, true, false, true);
+        await rest();
+
+        expect(lastVoice(mina.wire)).toMatchObject({ room: ROOM, joined: false });
+        expect(world.hub.voiceOf(ROOM)).toEqual(['alex', 'sara.k']);
+        expect(world.moved, 'the one turned away never came in').toEqual(['alex in call:g1', 'sara.k in call:g1']);
+
+        world.hub.voice(again.connection, ROOM, true, false, true);
+        await rest();
+
+        expect(lastVoice(again.wire)).toMatchObject({ room: ROOM, joined: true });
+        expect(world.hub.voiceOf(ROOM)).toEqual(['alex', 'sara.k']);
+
+        world.hub.voice(sara.connection, ROOM, false, false, true);
+        await rest();
+        world.hub.voice(mina.connection, ROOM, true, false, true);
+        await rest();
+
+        expect(lastVoice(mina.wire), 'a place came free').toMatchObject({ room: ROOM, joined: true });
+    });
+
+    it('holds a table\'s call to no most, and lets its people try lines as they always did', async () =>
+    {
+        world.most = 1;
+        world.seated.add('alex@t-9');
+        world.seated.add('sara.k@t-9');
+        const alex = await connect('alex');
+        const sara = await connect('sara.k');
+
+        world.hub.voice(alex.connection, 't-9', true, false, true);
+        await rest();
+        world.hub.voice(sara.connection, 't-9', true, false, true);
+        await rest();
+
+        world.hub.signal(alex.connection, 't-9', 'sara.k', joinOf(alex.wire, 'sara.k'), 'offer', '{"sdp":"a"}');
+        await rest();
+
+        expect(world.hub.voiceOf('t-9')).toEqual(['alex', 'sara.k']);
+        expect(sara.wire.framesOf('signal')).toHaveLength(1);
+    });
+
+    it('tells everybody in its conversation that it changed, once for a burst, and nobody else', async () =>
+    {
+        world.recipients.set('c-9', ['alex', 'sara.k']);
+        const alex = await connect('alex');
+        const sara = await connect('sara.k');
+        const other = await connect('omid.k');
+
+        world.hub.voiceChatChanged('c-9');
+        world.hub.voiceChatChanged('c-9');
+        await settle();
+
+        expect(scopesOf(alex.wire)).toEqual(['call:c-9']);
+        expect(scopesOf(sara.wire)).toEqual(['call:c-9']);
+        expect(scopesOf(other.wire)).toEqual([]);
     });
 });
 

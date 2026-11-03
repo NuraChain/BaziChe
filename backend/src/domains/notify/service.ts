@@ -132,6 +132,21 @@ export function createNotifyService(db: DataSource, social: SocialService)
             return (gone.affected ?? 0) > 0;
         },
 
+        /** Takes back from everybody what one key told them, and answers whose bell lost a row. */
+        async retractAll(kind: NotificationKind, dedupeKey: string)
+        {
+            const told = await db.getRepository(Notification).find({ select: { userId: true }, where: { kind, dedupeKey } });
+
+            if (told.length === 0)
+            {
+                return [];
+            }
+
+            await db.getRepository(Notification).delete({ kind, dedupeKey });
+
+            return told.map((row) => row.userId);
+        },
+
         /**
          * Reads a notification whose news the reader has already read where it happened, as long
          * as nothing was told under it after `micros` (the instant read up to, in microseconds): a

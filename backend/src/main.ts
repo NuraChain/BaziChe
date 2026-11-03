@@ -34,7 +34,7 @@ import { createIdentityService } from './domains/identity/service.ts';
 import { createSocialService } from './domains/social/service.ts';
 import { attachRealtime } from './realtime/gateway.ts';
 import { voiceCall } from './domains/table/voice.ts';
-import { callMoved, callRoom } from './domains/call/rooms.ts';
+import { callRoom } from './domains/call/rooms.ts';
 import { CALL_ROOM } from './domains/call/rules.ts';
 import { keyedQueue } from './lib/keyed-queue.ts';
 import { createHub } from './realtime/hub.ts';
@@ -197,11 +197,21 @@ const hub = createHub({
 
     report: (error, where) => log.error('realtime failure', { where, error }),
 
-    voiceCall: (userId, room) => (room.startsWith(CALL_ROOM) ? callRoom(dataSource, userId, room) : voiceCall(dataSource, userId, room)),
+    async voiceCall(userId, room)
+    {
+        if (room.startsWith(CALL_ROOM))
+        {
+            return await callRoom(dataSource, userId, room);
+        }
+
+        const call = await voiceCall(dataSource, userId, room);
+
+        return call === null ? null : { call, held: false, lines: true, most: null };
+    },
 
     voiceMoved: (userId, call, here) =>
     {
-        void moves.run(userId, () => callMoved(dataSource, userId, call, here))
+        void moves.run(userId, () => ports.jobs.callMoved(userId, call, here))
             .catch((error: unknown) => log.error('realtime failure', { where: 'realtime.call', error }));
     },
 

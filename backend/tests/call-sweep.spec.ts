@@ -39,16 +39,16 @@ describe('what ends a call by time', () =>
 
 describe('a call\'s room, as the hub asks about it', () =>
 {
-    it('is a call\'s by its name and a table\'s otherwise', () =>
+    it('is a call\'s by its name and a table\'s otherwise, a table\'s carried as it always was', () =>
     {
-        expect(main).toMatch(/import \{ callMoved, callRoom \} from '\.\/domains\/call\/rooms\.ts';/);
-        expect(hub).toMatch(/voiceCall: \(userId, room\) => \(room\.startsWith\(CALL_ROOM\) \? callRoom\(dataSource, userId, room\) : voiceCall\(dataSource, userId, room\)\)/);
+        expect(main).toMatch(/import \{ callRoom \} from '\.\/domains\/call\/rooms\.ts';/);
+        expect(hub).toMatch(/async voiceCall\(userId, room\)\s*\{\s*if \(room\.startsWith\(CALL_ROOM\)\)\s*\{\s*return await callRoom\(dataSource, userId, room\);\s*\}\s*const call = await voiceCall\(dataSource, userId, room\);\s*return call === null \? null : \{ call, held: false, lines: true, most: null \};/);
     });
 
     it('writes each person\'s comings and goings one after another, and logs one that failed', () =>
     {
         expect(main).toMatch(/^const moves = keyedQueue\(\);$/m);
-        expect(hub).toMatch(/voiceMoved: \(userId, call, here\) =>\s*\{\s*void moves\.run\(userId, \(\) => callMoved\(dataSource, userId, call, here\)\)/);
+        expect(hub).toMatch(/voiceMoved: \(userId, call, here\) =>\s*\{\s*void moves\.run\(userId, \(\) => ports\.jobs\.callMoved\(userId, call, here\)\)/);
         expect(hub).toMatch(/\.catch\(\(error: unknown\) => log\.error\('realtime failure', \{ where: 'realtime\.call', error \}\)\)/);
     });
 

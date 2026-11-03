@@ -120,6 +120,7 @@ export interface WriteListener
     edgesChanged(...userIds: string[]): void;
     selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'calls' | 'vault' | 'shop' | 'donations' | 'markets' | 'channels'): void;
     callChanged(callId: string, people: readonly string[]): void;
+    voiceChatChanged(conversationId: string): void;
     gamePushed(pushes: readonly { userId: string; match: MatchView; events: MatchEventLog[] }[]): void;
     gameWatched(viewers: readonly string[], match: MatchView, events: MatchEventLog[]): void;
     tableChanged(tableId: string, people: readonly string[]): void;
@@ -187,6 +188,9 @@ export interface Services extends Ports
 
         /** Everybody out of every call's room, as a server that has just started holds nobody in one. */
         emptyCallRooms(): Promise<number>;
+
+        /** Somebody came into a call's room or went out of it, as the hub saw it. */
+        callMoved(userId: string, room: string, here: boolean): Promise<void>;
     };
 
     pulse(): Promise<Pulse>;
@@ -1153,7 +1157,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             row.id === game && row.status === 'available' && row.rules.seats.includes(4) && teamsOf(row.rules.partners, 4, true))
     });
 
-    const calls = createCallService(db, social);
+    const calls = createCallService(db, social, group);
 
     /**
      * When a page of the callee's first read a call that rings for them. Memory, as presence is: a
@@ -1172,7 +1176,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             state: row.state,
             ...(row.ending === null ? {} : { ending: row.ending }),
             out: row.startedBy === me,
-            ...(person === undefined ? {} : { person: person.handle }),
+            ...(row.kind === 'direct' && person !== undefined ? { person: person.handle } : {}),
+            ...(row.kind === 'group'
+                ? { people: row.people.filter((one) => !one.gone).map((one) => ({ who: one.handle, held: one.held, hand: one.hand, here: one.here })) }
+                : {}),
             rung: row.state === 'ringing' && rung.has(row.id),
             ...(row.state === 'ringing' ? { remainingMs: row.remainingMs } : {}),
             at: row.at.toISOString(),
@@ -1205,9 +1212,15 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
      * in whole seconds as every clock here says it. The bell and the line are courtesies to a
      * change already made.
      */
-    const afterCall = async (row: CallRow) =>
+    const afterCall = async (row: CallRow, change?: CallChange, by: string | null = null) =>
     {
         live?.callChanged(row.id, row.people.map((one) => one.id));
+
+        if (row.kind === 'group')
+        {
+            await afterVoiceChat(row, change?.started === true, by);
+            return;
+        }
 
         const caller = row.people.find((one) => one.id === row.startedBy);
         const callee = row.people.find((one) => one.id !== row.startedBy);
@@ -1243,6 +1256,63 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         }
     };
 
+    /**
+     * What a change of a group's voice chat says once it is made. Everybody in its conversation reads
+     * it again, so the head shows who is in it. Begun, the room says who began it and every member
+     * is told (MS-D35), a push waking whoever asked; ended, the room says how long it ran, and the
+     * bell lets go of it, since there is nothing left to join (MS-D34). Each a courtesy to a change
+     * already made.
+     */
+    const afterVoiceChat = async (row: CallRow, started: boolean, by: string | null) =>
+    {
+        live?.voiceChatChanged(row.room);
+
+        const dedupeKey = `call:${ row.id }`;
+        const starter = row.people.find((one) => one.id === row.startedBy);
+
+        if (started && starter !== undefined)
+        {
+            await courtesy('voice chat line', async () =>
+            {
+                await chat.post(row.room, 'system', { key: 'chat.line.voice.started', params: { who: starter.handle } }, starter.id);
+                live?.chatChanged(row.room);
+            });
+
+            await courtesy('voice chat notice', async () =>
+            {
+                for (const userId of await notify.tellAll(await chat.recipients(row.room), { kind: 'group-call', actorId: starter.id, ref: { conversationId: row.room }, dedupeKey }))
+                {
+                    live?.selfChanged(userId, 'notifications');
+                    wake(userId);
+                }
+            });
+            return;
+        }
+
+        if (row.state !== 'ended')
+        {
+            return;
+        }
+
+        const seconds = row.answeredAt === null || row.endedAt === null
+            ? 0
+            : Math.max(0, Math.floor((row.endedAt.getTime() - row.answeredAt.getTime()) / 1000));
+
+        await courtesy('voice chat line', async () =>
+        {
+            await chat.post(row.room, 'system', { key: 'chat.line.voice.ended', params: { seconds: String(seconds) } }, by);
+            live?.chatChanged(row.room);
+        });
+
+        await courtesy('voice chat notice', async () =>
+        {
+            for (const userId of await notify.retractAll('group-call', dedupeKey))
+            {
+                live?.selfChanged(userId, 'notifications');
+            }
+        });
+    };
+
     const callAnswer = async (me: string, change: CallChange) =>
     {
         const [row] = await calls.loaded([change.id]);
@@ -1254,11 +1324,26 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
         if (change.changed)
         {
-            await afterCall(row);
+            await afterCall(row, change, me);
         }
 
         return asCall(me, row);
     };
+
+    /**
+     * Whoever is no longer in a group is no longer in its voice chat, and its room lets go of them:
+     * after leaving it, being taken out of it and being banned from it.
+     */
+    const outOfVoiceChat = (room: string | null, ...userIds: string[]) => courtesy('voice chat', async () =>
+    {
+        const left = room === null ? null : await calls.outOf(room, userIds);
+
+        if (left !== null && room !== null)
+        {
+            live?.callChanged(left, userIds);
+            live?.voiceChatChanged(room);
+        }
+    });
 
     /** Ends somebody's calls with anybody they may no longer call: after an unfriend, a block or a suspension. */
     const recall = (userId: string) => courtesy('call revalidate', async () =>
@@ -2176,7 +2261,17 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 return { missed: missed.length, ended: ended.length };
             },
 
-            emptyCallRooms: () => calls.emptyRooms()
+            emptyCallRooms: () => calls.emptyRooms(),
+
+            async callMoved(userId, room, here)
+            {
+                const voiceChat = await calls.moved(userId, room, here);
+
+                if (voiceChat !== null)
+                {
+                    live?.voiceChatChanged(voiceChat);
+                }
+            }
         },
 
         async pulse()
@@ -3809,6 +3904,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 // account has just been removed from - and a conversation it can no longer read.
                 await announce(found, me, 'left', {});
                 const outcome = await group.leave(me, found.id);
+                await outOfVoiceChat(found.conversation_id, me);
 
                 if (outcome.newOwner !== null)
                 {
@@ -3853,6 +3949,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
                 if (removed)
                 {
+                    await outOfVoiceChat(after.conversation_id, other.id);
                     await announce(after, me, 'removed', { who: other.handle });
                     await ring(after, other.id);
                 }
@@ -3916,6 +4013,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 {
                     if (kept.wasMember)
                     {
+                        await outOfVoiceChat(after.conversation_id, other.id);
                         await announce(after, me, 'removed', { who: other.handle });
                     }
                     await ring(after, other.id);
@@ -4568,9 +4666,23 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             },
 
             ring: async (me, room) => await callAnswer(me, await calls.ring(me, room)),
+            join: async (me, callId) => await callAnswer(me, await calls.join(me, callId)),
             accept: async (me, callId) => await callAnswer(me, await calls.accept(me, callId)),
             decline: async (me, callId) => await callAnswer(me, await calls.decline(me, callId)),
-            hangUp: async (me, callId) => await callAnswer(me, await calls.hangUp(me, callId))
+            hangUp: async (me, callId) => await callAnswer(me, await calls.hangUp(me, callId)),
+            end: async (me, callId) => await callAnswer(me, await calls.end(me, callId)),
+
+            async room(me, room)
+            {
+                const found = await calls.ofRoom(me, room);
+
+                if (found === null)
+                {
+                    throw new NotFoundError('No conversation with that id.');
+                }
+
+                return found.call === null ? {} : { call: found.call };
+            }
         },
 
         party: {

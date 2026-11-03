@@ -257,6 +257,7 @@ import {
     callInput,
     callView,
     callsState,
+    voiceChatState,
     partyState
 } from './schemas.ts';
 import { NAMES_MAX, PEOPLE_FOUND_MAX } from './domains/social/names.ts';
@@ -1457,6 +1458,13 @@ export function buildApi(ports: Ports)
             ring: routes.post('/', { input: callInput, output: callView },
                 (context) => ports.calls.ring(context.principal.userId, context.input.room)),
 
+            /** The voice chat running in a group's room, for its head; a room the reader is not in is a page that is not there. */
+            room: routes.get('/room/:room', { output: voiceChatState },
+                (context) => ports.calls.room(context.principal.userId, context.params.room)),
+
+            join: routes.post('/:id/join', { output: callView },
+                (context) => ports.calls.join(context.principal.userId, context.params.id)),
+
             accept: routes.post('/:id/accept', { output: callView },
                 (context) => ports.calls.accept(context.principal.userId, context.params.id)),
 
@@ -1464,7 +1472,10 @@ export function buildApi(ports: Ports)
                 (context) => ports.calls.decline(context.principal.userId, context.params.id)),
 
             hangUp: routes.post('/:id/hang-up', { output: callView },
-                (context) => ports.calls.hangUp(context.principal.userId, context.params.id))
+                (context) => ports.calls.hangUp(context.principal.userId, context.params.id)),
+
+            end: routes.post('/:id/end', { output: callView },
+                (context) => ports.calls.end(context.principal.userId, context.params.id))
         })),
 
         /**

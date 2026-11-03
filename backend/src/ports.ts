@@ -98,6 +98,7 @@ import type {
     PartyState,
     CallView,
     CallsState,
+    VoiceChatState,
     ShopCollectionView,
     ShopOrderView,
     ShopPaying,
@@ -430,15 +431,24 @@ export interface PartyPort
     leave(me: string, partyId: string): Promise<void>;
 }
 
-/** Calls between people (MS-D28 to MS-D39): each answers the call as the reader now stands in it. */
+/** Calls between people and a group's voice chat (MS-D28 to MS-D39): each answers the call as the reader now stands in it. */
 export interface CallPort
 {
     state(me: string): Promise<CallsState>;
     view(me: string, callId: string): Promise<CallView>;
+
+    /** A friend rung in a direct conversation, or a group's voice chat begun or joined in its room. */
     ring(me: string, room: string): Promise<CallView>;
+    join(me: string, callId: string): Promise<CallView>;
     accept(me: string, callId: string): Promise<CallView>;
     decline(me: string, callId: string): Promise<CallView>;
     hangUp(me: string, callId: string): Promise<CallView>;
+
+    /** A group's voice chat ended for everybody in it. */
+    end(me: string, callId: string): Promise<CallView>;
+
+    /** The voice chat running in a group's room, as its members see it from the head. */
+    room(me: string, room: string): Promise<VoiceChatState>;
 }
 
 /**

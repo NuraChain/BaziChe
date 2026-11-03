@@ -52,8 +52,8 @@ export interface HubDeps
 
     report(error: unknown, where: string): void;
 
-    /** The call somebody may be in for a room they asked for: a table's, or a call's (`call:<id>`), or nothing. */
-    voiceCall(userId: string, room: string): Promise<string | null>;
+    /** The call somebody may be in for a room they asked for, and how: a table's, or a call's (`call:<id>`), or nothing. */
+    voiceCall(userId: string, room: string): Promise<VoiceRoom | null>;
 
     /** Somebody's joining came into a call or went out of it, named as `voiceCall` names it. */
     voiceMoved?(userId: string, call: string, here: boolean): void;
@@ -67,6 +67,22 @@ export interface HubDeps
 
     /** A watch frame handed to its socket, this long after its move was pushed: what spectator delivery is measured from. */
     delivered?(ms: number): void;
+}
+
+/** The call a joining is let into, and how it is carried there. */
+export interface VoiceRoom
+{
+    /** The call, as the hub keys it: a table's id, a side of one (`<id>#<side>`), or `call:<id>`. */
+    call: string;
+
+    /** In its room and not carried: their sound reaches nobody until somebody lets them speak (MS-D33). */
+    held: boolean;
+
+    /** Whether two in it may try a line between them; a group's voice chat is carried by this server alone (MS-D28). */
+    lines: boolean;
+
+    /** The most joinings its room takes at once, or none. */
+    most: number | null;
 }
 
 export interface GamePush
@@ -115,6 +131,8 @@ interface Caller
     opus: boolean;
     join: string;
     room: string;
+    held: boolean;
+    lines: boolean;
 }
 
 const OUTBOX_FRAMES = 256;
@@ -156,6 +174,9 @@ export interface Hub
 
     /** A call changed: everybody in it reads their calls again, and its room lets go of whoever may no longer be in it. */
     callChanged(callId: string, people: readonly string[]): void;
+
+    /** A group's voice chat began, ended, or somebody came into its room or went: everybody in the conversation reads it again. */
+    voiceChatChanged(conversationId: string): void;
     catalogueChanged(): void;
     sessionsRevoked(sessionIds: readonly string[]): void;
     seen(userId: string): void;
@@ -222,6 +243,7 @@ export function createHub(deps: HubDeps): Hub
     const pendingSelf = new Map<string, Set<SelfTopic>>();
     const pendingTable = new Map<string, { at: number; people: Set<string> }>();
     const pendingCalls = new Set<string>();
+    const pendingVoiceChats = new Map<string, number>();
     const viewed = new Map<string, string[]>();
     const watchers = new Map<string, Set<string>>();
     const sighted = new Map<string, number>();
@@ -263,7 +285,7 @@ export function createHub(deps: HubDeps): Hub
         {
             const peers: VoicePeer[] = members.map((other) => ({
                 who: other.socket.handle,
-                muted: other.muted,
+                muted: other.muted || other.held,
                 talk: other.socket.userId === member.socket.userId || talks.get(pairOf(member.socket.userId, other.socket.userId)) === true,
                 join: other.join,
                 opus: other.opus
@@ -691,20 +713,40 @@ export function createHub(deps: HubDeps): Hub
         await retalk(moved);
     };
 
+    /**
+     * Asks again of everybody in a table's calls, or in a call's room, whether they may be there and
+     * how: whoever may not is let go, and whoever was held or let speak since is carried as they now
+     * are.
+     */
     const recheck = async (tableId: string) =>
     {
         for (const call of callsOf(tableId))
         {
             const members = [...(rooms.get(call)?.values() ?? [])];
             const verdicts = await Promise.all(members.map((member) => deps.voiceCall(member.socket.userId, member.room)));
+            let changed = false;
 
             members.forEach((member, index) =>
             {
-                if (verdicts[index] !== call)
+                const verdict = verdicts[index];
+
+                if (verdict?.call !== call)
                 {
                     leave(call, member.socket.id, true);
+                    return;
+                }
+
+                if (verdict.held !== member.held && rooms.get(call)?.get(member.socket.userId) === member)
+                {
+                    member.held = verdict.held;
+                    changed = true;
                 }
             });
+
+            if (changed)
+            {
+                roster(call);
+            }
         }
     };
 
@@ -822,12 +864,14 @@ export function createHub(deps: HubDeps): Hub
         const self = [...pendingSelf.entries()];
         const tables = [...pendingTable.entries()];
         const calls = [...pendingCalls];
+        const voiceChats = [...pendingVoiceChats.entries()];
         pendingChat.clear();
         pendingSocial.clear();
         pendingEdges.clear();
         pendingSelf.clear();
         pendingTable.clear();
         pendingCalls.clear();
+        pendingVoiceChats.clear();
 
         for (const [tableId, { at, people }] of tables)
         {
@@ -850,7 +894,10 @@ export function createHub(deps: HubDeps): Hub
                 .then((recipients) => publish(new Set([...recipients, ...also]), (n) => nudge(n, 'chat', at, conversationId)))
                 .catch((error) => deps.report(error, 'realtime.recipients'))),
             ...tables.map(([tableId]) => recheck(tableId).catch((error) => deps.report(error, 'realtime.voice'))),
-            ...calls.map((callId) => recheck(`${ CALL_ROOM }${ callId }`).catch((error) => deps.report(error, 'realtime.voice')))
+            ...calls.map((callId) => recheck(`${ CALL_ROOM }${ callId }`).catch((error) => deps.report(error, 'realtime.voice'))),
+            ...voiceChats.map(([conversationId, at]) => deps.recipientsOf(conversationId)
+                .then((recipients) => publish(new Set(recipients), (n) => nudge(n, 'call', at, conversationId)))
+                .catch((error) => deps.report(error, 'realtime.recipients')))
         ]);
     }
 
@@ -1062,6 +1109,12 @@ export function createHub(deps: HubDeps): Hub
             schedule();
         },
 
+        voiceChatChanged(conversationId)
+        {
+            pendingVoiceChats.set(conversationId, deps.now());
+            schedule();
+        },
+
         gamePushed(pushes)
         {
             const at = deps.now();
@@ -1175,13 +1228,15 @@ export function createHub(deps: HubDeps): Hub
                         return;
                     }
 
-                    const call = await deps.voiceCall(socket.userId, tableId);
+                    const found = await deps.voiceCall(socket.userId, tableId);
 
-                    if (call === null || !socket.alive)
+                    if (found === null || !socket.alive)
                     {
                         emit(socket, (n) => voice(n, tableId, false, '', []));
                         return;
                     }
+
+                    const { call } = found;
 
                     for (const other of callsOf(tableId).filter((one) => one !== call))
                     {
@@ -1206,12 +1261,18 @@ export function createHub(deps: HubDeps): Hub
                     const room = rooms.get(call) ?? new Map<string, Caller>();
                     const previous = room.get(socket.userId);
 
+                    if (found.most !== null && room.size - (previous === undefined ? 0 : 1) >= found.most)
+                    {
+                        emit(socket, (n) => voice(n, tableId, false, '', []));
+                        return;
+                    }
+
                     if (previous !== undefined)
                     {
                         emit(previous.socket, (n) => voice(n, previous.room, false, '', []));
                     }
 
-                    room.set(socket.userId, { socket, muted, opus, join: randomBytes(9).toString('base64url'), room: tableId });
+                    room.set(socket.userId, { socket, muted, opus, join: randomBytes(9).toString('base64url'), room: tableId, held: found.held, lines: found.lines });
                     rooms.set(call, room);
                     roster(call);
                     deps.voiceMoved?.(socket.userId, call, true);
@@ -1226,7 +1287,7 @@ export function createHub(deps: HubDeps): Hub
             const room = call === undefined ? undefined : rooms.get(call);
             const sender = room?.get(socket.userId);
 
-            if (room === undefined || sender === undefined)
+            if (room === undefined || sender === undefined || !sender.lines)
             {
                 return;
             }
@@ -1248,16 +1309,20 @@ export function createHub(deps: HubDeps): Hub
             const room = call === undefined ? undefined : rooms.get(call);
             const sender = room?.get(socket.userId);
 
-            if (room === undefined || sender === undefined || sender.muted)
+            if (room === undefined || sender === undefined || sender.muted || sender.held)
             {
                 return;
             }
 
-            for (const join of new Set(to))
-            {
-                const target = [...room.values()].find((member) => member.join === join);
+            // A room this server alone carries hears one frame from a speaker, whoever it names: a frame
+            // names at most eight joinings, and a group's voice chat holds fifty.
+            const targets = sender.lines
+                ? [...new Set(to)].flatMap((join) => [...room.values()].filter((member) => member.join === join))
+                : [...room.values()];
 
-                if (target === undefined || talks.get(pairOf(socket.userId, target.socket.userId)) !== true)
+            for (const target of targets)
+            {
+                if (target === sender || talks.get(pairOf(socket.userId, target.socket.userId)) !== true)
                 {
                     continue;
                 }

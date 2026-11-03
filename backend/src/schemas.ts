@@ -2718,10 +2718,22 @@ export const partyInput = object({
 /* ------------------------------------------------------------------- calls */
 
 /**
+ * Somebody in a group's voice chat (MS-D33): held until somebody lets them speak, with a hand up,
+ * and in its room now.
+ */
+export const callPerson = object({
+    who: string(),
+    held: boolean(),
+    hand: boolean(),
+    here: boolean()
+});
+
+/**
  * A call as one of the people in it reads it (MS-D30). `person` is the other one of a direct call,
  * absent once their account is gone; `rung` says a page of the callee's has it, which is when the
  * caller's card says Ringing rather than Calling; `remainingMs` is what is left of a ring by the
- * server's clock, counted from when the answer arrives.
+ * server's clock, counted from when the answer arrives. `people` is everybody in a group's voice
+ * chat who has not left it.
  */
 export const callView = object({
     id: string(),
@@ -2731,6 +2743,7 @@ export const callView = object({
     ending: enumOf(CALL_ENDINGS).optional(),
     out: boolean(),
     person: string().optional(),
+    people: array(callPerson).optional(),
     rung: boolean(),
     remainingMs: number({ int: true, min: 0 }).optional(),
     at: string(),
@@ -2739,6 +2752,20 @@ export const callView = object({
 });
 
 export type CallView = Infer<typeof callView>;
+
+/**
+ * A group's voice chat as anybody in its conversation sees it from the head (MS-D38): how many
+ * are in its room, and the first of them by handle. Absent while none runs.
+ */
+export const voiceChatState = object({
+    call: object({
+        id: string(),
+        here: number({ int: true, min: 0 }),
+        faces: array(string())
+    }).optional()
+});
+
+export type VoiceChatState = Infer<typeof voiceChatState>;
 
 /** The reader's open calls, and those that ended a moment ago, newest first. */
 export const callsState = object({ calls: array(callView) });

@@ -19,6 +19,7 @@ interface FakeCall
 {
     deps: VoiceCallDeps;
     synced: { mine: string; peers: { who: string; join: string }[] }[];
+    carried: boolean[];
     received: { join: string; signal: VoiceSignal }[];
     sounds: { join: string; codec: string; at: number; data: string }[];
     muted: boolean[];
@@ -35,7 +36,7 @@ let calls: FakeCall[] = [];
 
 const fakeCall = (deps: VoiceCallDeps): VoiceCall =>
 {
-    const call: FakeCall = { deps, synced: [], received: [], sounds: [], muted: [], mic: [], volumes: {}, sinks: [], qualities: [], lines: {}, asked: 0, closed: false };
+    const call: FakeCall = { deps, synced: [], carried: [], received: [], sounds: [], muted: [], mic: [], volumes: {}, sinks: [], qualities: [], lines: {}, asked: 0, closed: false };
     calls.push(call);
 
     return {
@@ -47,9 +48,10 @@ const fakeCall = (deps: VoiceCallDeps): VoiceCall =>
         {
             call.muted.push(muted);
         },
-        sync: (mine, peers) =>
+        sync: (mine, peers, carried) =>
         {
             call.synced.push({ mine, peers: [...peers] });
+            call.carried.push(carried === true);
         },
         receive: async (join, signal) =>
         {
@@ -188,6 +190,30 @@ describe('voice at a table', () =>
             ['sara.k', false, true],
             ['mina', false, false]
         ]);
+    });
+
+    it('tells the call a room is one this server alone carries as the room\'s frame says, and not at a table', async () =>
+    {
+        await useVoice().join(TABLE);
+
+        socket.deliver({ v: 1, t: 'voice', n: 3, room: TABLE, joined: true, mine: 'j1', peers: [
+            { who: 'alex', muted: false, talk: true, join: 'j1', opus: false },
+            { who: 'sara.k', muted: false, talk: true, join: 'j2', opus: false }
+        ] });
+        await settle();
+
+        expect(calls[0].carried.at(-1), 'a table tries its lines').toBe(false);
+
+        await useVoice().join('call:g1');
+
+        socket.deliver({ v: 1, t: 'voice', n: 4, room: 'call:g1', joined: true, mine: 'j3', carried: true, peers: [
+            { who: 'alex', muted: false, talk: true, join: 'j3', opus: false },
+            { who: 'sara.k', muted: false, talk: true, join: 'j4', opus: false }
+        ] });
+        await settle();
+
+        expect(calls.at(-1)?.synced.at(-1)).toEqual({ mine: 'j3', peers: [{ who: 'sara.k', join: 'j4', opus: false }] });
+        expect(calls.at(-1)?.carried.at(-1), 'a group\'s voice chat tried a line').toBe(true);
     });
 
     it('knows its own row by the joining, so a handle it has not heard of yet does not make it a stranger', async () =>

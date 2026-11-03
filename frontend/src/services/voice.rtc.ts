@@ -49,7 +49,9 @@ export interface VoiceCall
 {
     setMic(stream: MediaStream | null): Promise<void>;
     setMuted(muted: boolean): void;
-    sync(mine: string, peers: readonly VoiceJoin[]): void;
+
+    /** `carried`: a room this server alone carries, where no line between two in it is tried. */
+    sync(mine: string, peers: readonly VoiceJoin[], carried?: boolean): void;
     receive(join: string, signal: VoiceSignal): Promise<void>;
     heard(join: string, codec: Codec, at: number, data: string): void;
     setVolume(who: string, volume: number): void;
@@ -72,7 +74,9 @@ interface Peer
     join: string;
     opus: boolean;
     link: PeerLink;
-    connection: RTCPeerConnection;
+
+    /** None in a room this server alone carries, where no line is tried. */
+    connection: RTCPeerConnection | null;
     sender: RTCRtpSender | null;
     audio: HTMLAudioElement | null;
     direct: MediaStream | null;
@@ -192,6 +196,7 @@ export function createVoiceCall(deps: VoiceCallDeps): VoiceCall
     let kit: RelayKit | null = null;
     let outbound: Outbound | null = null;
     let quality = 64_000;
+    let fanned = false;
 
     const after = deps.after ?? ((ms: number, run: () => void) =>
     {
@@ -272,7 +277,7 @@ export function createVoiceCall(deps: VoiceCallDeps): VoiceCall
             outbound.setTrack(track);
         }
 
-        outbound?.to(targets);
+        outbound?.to(targets, fanned);
     };
 
     const unboost = (peer: Peer) =>
@@ -424,7 +429,7 @@ export function createVoiceCall(deps: VoiceCallDeps): VoiceCall
         peer.hungUp = true;
         peer.linked = false;
         peer.flowing = false;
-        peer.connection.close();
+        peer.connection?.close();
         viaServer(peer);
         hear(peer);
         mark(peer, 'connected');
@@ -442,7 +447,7 @@ export function createVoiceCall(deps: VoiceCallDeps): VoiceCall
         }
     };
 
-    const watch = (peer: Peer) =>
+    const watch = (peer: Peer, connection: RTCPeerConnection) =>
     {
         unwatch(peer);
 
@@ -453,7 +458,7 @@ export function createVoiceCall(deps: VoiceCallDeps): VoiceCall
 
             try
             {
-                for (const report of (await peer.connection.getStats()).values() as IterableIterator<Stat>)
+                for (const report of (await connection.getStats()).values() as IterableIterator<Stat>)
                 {
                     if (report.type === 'inbound-rtp' && report.kind === 'audio')
                     {
@@ -499,7 +504,7 @@ export function createVoiceCall(deps: VoiceCallDeps): VoiceCall
     const lostOf = (seen: Seen, before: Seen | null) =>
         before === null || before.path !== seen.path ? shareOf(seen.lost, seen.packets) : shareOf(seen.lost - before.lost, seen.packets - before.packets);
 
-    const directly = async (peer: Peer, now: number): Promise<LineFacts> =>
+    const directly = async (peer: Peer, connection: RTCPeerConnection, now: number): Promise<LineFacts> =>
     {
         const pairs = new Map<string, Stat>();
         let chosen: string | undefined;
@@ -508,7 +513,7 @@ export function createVoiceCall(deps: VoiceCallDeps): VoiceCall
 
         try
         {
-            for (const report of (await peer.connection.getStats()).values() as IterableIterator<Stat>)
+            for (const report of (await connection.getStats()).values() as IterableIterator<Stat>)
             {
                 if (report.type === 'transport' && report.selectedCandidatePairId !== undefined)
                 {
@@ -585,9 +590,9 @@ export function createVoiceCall(deps: VoiceCallDeps): VoiceCall
 
     const factsOf = async (peer: Peer, now: number) =>
     {
-        if (peer.flowing)
+        if (peer.flowing && peer.connection !== null)
         {
-            return directly(peer, now);
+            return directly(peer, peer.connection, now);
         }
 
         if (peer.inbound !== null)
@@ -636,7 +641,7 @@ export function createVoiceCall(deps: VoiceCallDeps): VoiceCall
             peer.audio.srcObject = null;
             peer.audio.remove();
         }
-        peer.connection.close();
+        peer.connection?.close();
         if (peer.relaying)
         {
             peer.relaying = false;
@@ -686,8 +691,57 @@ export function createVoiceCall(deps: VoiceCallDeps): VoiceCall
         }
     };
 
+    /** Somebody in a room this server alone carries: carried from the first moment, or reached by nothing. */
+    const openCarried = (join: string, who: string, opus: boolean) =>
+    {
+        const peer: Peer = {
+            who,
+            join,
+            opus,
+            link: 'connecting',
+            connection: null,
+            sender: null,
+            audio: null,
+            direct: null,
+            inbound: null,
+            stream: null,
+            boost: null,
+            meter: null,
+            making: false,
+            ignoring: false,
+            settling: false,
+            polite: false,
+            volume: 1,
+            relaying: false,
+            linked: false,
+            flowing: false,
+            hungUp: false,
+            patience: null,
+            watching: null,
+            seen: null
+        };
+
+        peers.set(join, peer);
+
+        if (carries())
+        {
+            viaServer(peer);
+            mark(peer, 'connected');
+        }
+        else
+        {
+            mark(peer, 'failed');
+        }
+    };
+
     const open = (join: string, who: string, opus: boolean) =>
     {
+        if (fanned)
+        {
+            openCarried(join, who, opus);
+            return;
+        }
+
         const connection = connect({});
 
         const peer: Peer = {
@@ -782,7 +836,7 @@ export function createVoiceCall(deps: VoiceCallDeps): VoiceCall
 
                 if (carries())
                 {
-                    watch(peer);
+                    watch(peer, connection);
                 }
                 else
                 {
@@ -886,12 +940,14 @@ export function createVoiceCall(deps: VoiceCallDeps): VoiceCall
             }
         },
 
-        sync(mine, wanted)
+        sync(mine, wanted, carried = false)
         {
             if (closed)
             {
                 return;
             }
+
+            fanned = carried;
 
             if (mine !== own)
             {
@@ -947,13 +1003,12 @@ export function createVoiceCall(deps: VoiceCallDeps): VoiceCall
         async receive(join, signal)
         {
             const peer = peers.get(join);
+            const connection = peer?.connection ?? null;
 
-            if (closed || peer === undefined || peer.hungUp)
+            if (closed || peer === undefined || peer.hungUp || connection === null)
             {
                 return;
             }
-
-            const connection = peer.connection;
 
             try
             {

@@ -506,6 +506,26 @@ describe('the microphone, as the server carries it', () =>
         expect(heard.slice(100, 900).every((sample) => Math.abs(sample + 0.25) < 0.02)).toBe(true);
     });
 
+    it('names one of everybody in a room the server hands every frame to, spoken in the code all of them hear', async () =>
+    {
+        const one = speaking();
+        const out = one.outbound(true);
+
+        out.setMuted(false);
+        out.setTrack(one.track);
+        out.to([{ join: 'm1', opus: true }, { join: 's1', opus: false }, { join: 'o1', opus: true }], true);
+        await flush();
+
+        one.say(0.25);
+
+        expect(one.sent.map((frame) => [frame.to, frame.codec, frame.at]), 'a frame named everybody, past the eight one may name').toEqual([[['m1'], 'law', 0]]);
+
+        out.to([{ join: 'm1', opus: false }, { join: 's1', opus: false }]);
+        one.say(0.25);
+
+        expect(one.sent.at(-1)?.to, 'a call of lines names everybody it carries for').toEqual(['m1', 's1']);
+    });
+
     it('counts every frame the microphone gives, sent or not, so a pause is a gap in the count and not a shift in time', async () =>
     {
         const one = speaking();

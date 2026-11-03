@@ -785,6 +785,7 @@ interface Carried
 function carried(options: { relay?: boolean; context?: boolean; opus?: boolean } = {})
 {
     const targets: { join: string; opus: boolean }[][] = [];
+    const fans: boolean[] = [];
     const tracks: (MediaStreamTrack | null)[] = [];
     const mutes: boolean[] = [];
     const speaks: boolean[] = [];
@@ -805,9 +806,10 @@ function carried(options: { relay?: boolean; context?: boolean; opus?: boolean }
             send(['probe'], 'law', 0, 'AA==');
 
             return {
-                to: (next) =>
+                to: (next, fan) =>
                 {
                     targets.push(next.map((one) => ({ ...one })));
+                    fans.push(fan === true);
                 },
                 setTrack: (track) =>
                 {
@@ -889,6 +891,7 @@ function carried(options: { relay?: boolean; context?: boolean; opus?: boolean }
     return {
         call,
         targets,
+        fans,
         tracks,
         mutes,
         speaks,
@@ -1270,6 +1273,111 @@ describe('a call the server carries from its first moment', () =>
             {
                 one.done();
             }
+        }
+    });
+});
+
+describe('a room this server alone carries', () =>
+{
+    const SARA = { who: 'sara.k', join: 's1', opus: false };
+
+    it('tries no line at all, counts everybody connected from the first moment, and hands the microphone to one frame for all of them', async () =>
+    {
+        const one = carried();
+
+        try
+        {
+            await one.call.setMic(stream);
+            one.call.sync('d1', [MINA_OPUS, SARA], true);
+
+            expect(one.connections, 'a line was opened in a room nobody may try one in').toHaveLength(0);
+            expect(one.links).toEqual([['mina', 'connected'], ['sara.k', 'connected']]);
+            expect(one.targets.at(-1)).toEqual([{ join: 'm1', opus: true }, { join: 's1', opus: false }]);
+            expect(one.fans.at(-1), 'every frame named everybody, where the server hands it to all').toBe(true);
+            expect(one.timers, 'a line was waited for').toEqual([]);
+        }
+        finally
+        {
+            one.done();
+        }
+    });
+
+    it('plays what the server carries from somebody, takes no signal, and lets them go when they leave', async () =>
+    {
+        const one = carried();
+
+        try
+        {
+            one.call.sync('d1', [MINA_OPUS], true);
+            await one.call.receive('m1', said('offer'));
+
+            expect(one.connections, 'an offer was answered').toHaveLength(0);
+
+            one.call.heard('m1', 'opus', 1, 'AQID');
+
+            expect(one.inbound.map((carried) => carried.took)).toEqual([[['opus', 1, 'AQID']]]);
+            expect(one.heard()).toEqual({ carried: 0 });
+            expect((await one.call.facts(1000)).mina.path).toBe('carried');
+
+            one.call.sync('d1', [], true);
+
+            expect(one.inbound[0].closed).toBe(true);
+            expect(one.links.at(-1)).toEqual(['mina', null]);
+            expect(document.body.querySelector('audio'), 'somebody who left is still heard').toBeNull();
+        }
+        finally
+        {
+            one.done();
+        }
+    });
+
+    it('says nobody can be reached where nothing can carry the room, and still tries no line', () =>
+    {
+        for (const options of [{ relay: false }, { context: false }])
+        {
+            const one = carried(options);
+
+            try
+            {
+                one.call.sync('d1', [MINA_OPUS], true);
+
+                expect(one.connections, JSON.stringify(options)).toHaveLength(0);
+                expect(one.links, JSON.stringify(options)).toEqual([['mina', 'failed']]);
+            }
+            finally
+            {
+                one.done();
+            }
+        }
+    });
+
+    it('names everybody again in a call of lines, the room of a table or of two people', async () =>
+    {
+        const one = carried();
+
+        try
+        {
+            await one.call.setMic(stream);
+            one.call.sync('d1', [MINA_OPUS], true);
+            one.call.close();
+
+            const table = carried();
+
+            try
+            {
+                table.sees(MINA_OPUS);
+
+                expect(table.fans.at(-1)).toBe(false);
+                expect(table.connections, 'a table tries its line beside the server').toHaveLength(1);
+            }
+            finally
+            {
+                table.done();
+            }
+        }
+        finally
+        {
+            one.done();
         }
     });
 });

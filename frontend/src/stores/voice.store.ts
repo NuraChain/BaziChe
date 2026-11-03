@@ -378,7 +378,11 @@ export const useVoice = createStore((): VoiceApi =>
         setRoster(frame.peers);
         setMine(frame.mine);
 
-        call?.sync(frame.mine, frame.peers.filter((peer) => peer.talk && peer.join !== frame.mine).map((peer) => ({ who: peer.who, join: peer.join, opus: peer.opus })));
+        call?.sync(
+            frame.mine,
+            frame.peers.filter((peer) => peer.talk && peer.join !== frame.mine).map((peer) => ({ who: peer.who, join: peer.join, opus: peer.opus })),
+            frame.carried === true
+        );
     };
 
     const sounded = (frame: SoundFrame) =>

@@ -12,7 +12,11 @@ export interface Target
 
 export interface Outbound
 {
-    to(targets: readonly Target[]): void;
+    /**
+     * Who the microphone is carried for. `fanned`: the server hands each frame to everybody in the
+     * room, so a frame names one of them and is spoken in a codec all of them hear.
+     */
+    to(targets: readonly Target[], fanned?: boolean): void;
     setTrack(track: MediaStreamTrack | null): void;
     setMuted(muted: boolean): void;
     setBitrate(target: number): void;
@@ -281,6 +285,7 @@ export function createRelayKit(context: AudioContext): RelayKit
         outbound(send, opus)
         {
             let targets: readonly Target[] = [];
+            let fanned = false;
             let track: MediaStreamTrack | null = null;
             let muted = true;
             let closed = false;
@@ -316,7 +321,7 @@ export function createRelayKit(context: AudioContext): RelayKit
 
             const ship = (how: Codec, index: number, bytes: Uint8Array) =>
             {
-                const to = targets.map((one) => one.join);
+                const to = (fanned ? targets.slice(0, 1) : targets).map((one) => one.join);
 
                 if (to.length === 0)
                 {
@@ -493,11 +498,12 @@ export function createRelayKit(context: AudioContext): RelayKit
             };
 
             return {
-                to(next)
+                to(next, fan = false)
                 {
                     const was = targets.length > 0;
 
                     targets = next;
+                    fanned = fan;
 
                     if (targets.length === 0)
                     {

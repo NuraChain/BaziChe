@@ -585,6 +585,9 @@ export const adminState = (): AdminVault => ({
     fee: 500,
     minFee: 100,
     maxFee: 1500,
+    share: 2000,
+    minShare: 100,
+    maxShare: 7500,
     games: [
         { game: 'hokm', fee: 700, own: true },
         { game: 'poker', fee: 500, own: false },
@@ -1990,6 +1993,12 @@ export const client =
             server.calls.push(`admin.fee ${ input.bps }`);
             adminRefusal();
             return { ...server.nura.call, data: '0xfee' };
+        },
+        async share({ input }: { input: { bps: number } })
+        {
+            server.calls.push(`admin.share ${ input.bps }`);
+            adminRefusal();
+            return { ...server.nura.call, data: '0xshare' };
         },
         async gameFee({ input }: { input: { game: string; bps: number } })
         {

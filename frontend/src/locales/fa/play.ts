@@ -191,6 +191,7 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'tables.refused.paid-done': 'مبلغ‌های اون بازی دیگه قفل نیستن.',
     'tables.refused.vault-role': 'این کیف پول این نقش رو توی صندوق نداره.',
     'tables.refused.vault-fee': 'کارمزد باید بین ۱٪ تا ۱۵٪ باشه.',
+    'tables.refused.vault-share': 'سهم دعوت‌کننده از ۱٪ تا ۷۵٪ کارمزده.',
     'tables.refused.vault-fees': 'صندوق این‌قدر کارمزد نداره.',
     'tables.refused.vault-game': 'بازی‌ای با این اسم برای NURA بازی نمی‌شه.',
     'tables.refused.vault-referee': 'صندوق این آدرس رو نمی‌تونه قبول کنه.',

@@ -200,6 +200,7 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'tables.refused.paid-done': 'Ставки этой игры больше не заблокированы.',
     'tables.refused.vault-role': 'У этого кошелька нет такой роли в хранилище.',
     'tables.refused.vault-fee': 'Комиссия может быть от 1% до 15%.',
+    'tables.refused.vault-share': 'Пригласивший получает от 1% до 75% комиссии.',
     'tables.refused.vault-fees': 'В хранилище нет столько комиссий.',
     'tables.refused.vault-game': 'Игры с таким названием на NURA нет.',
     'tables.refused.vault-referee': 'Хранилище не может принять такой адрес.',

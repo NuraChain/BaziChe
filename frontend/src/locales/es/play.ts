@@ -200,6 +200,7 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'tables.refused.paid-done': 'Las apuestas de esa partida ya no están bloqueadas.',
     'tables.refused.vault-role': 'Esta billetera no tiene ese rol en la bóveda.',
     'tables.refused.vault-fee': 'Una comisión va del 1% al 15%.',
+    'tables.refused.vault-share': 'A quien invita se le paga del 1% al 75% de una comisión.',
     'tables.refused.vault-fees': 'La bóveda no tiene tanto en comisiones.',
     'tables.refused.vault-game': 'No hay ningún juego con ese nombre que se juegue por NURA.',
     'tables.refused.vault-referee': 'Esa no es una dirección que la bóveda pueda aceptar.',

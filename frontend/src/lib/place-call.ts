@@ -1,8 +1,9 @@
 import { attempt } from './attempt.ts';
 
 /**
- * Rings the other person of a direct conversation from wherever a call is offered: the head of a
- * thread, the sheet about a friend (whose conversation may still be on its way). A ring refused is
+ * Rings a conversation's room from wherever a call is offered: the other person of a direct one, from
+ * the head of its thread or the sheet about a friend (whose conversation may still be on its way), or a
+ * group's voice chat from the head of its thread, which the ring begins or joins. A ring refused is
  * said by the calls' store; a conversation that could not be opened, or the calls' chunk that would
  * not load, is said here, so every press ends in a sentence and nothing is left unhandled.
  */

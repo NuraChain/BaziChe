@@ -1,0 +1,102 @@
+import ConfirmSheet from '../app/confirm-sheet.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import VoicePeer from '../voice/voice-peer.component.azeroth';
+import { outranks } from '../../../../backend/src/domains/group/roles.ts';
+import { useAccount } from '../../stores/account.store.ts';
+import { useCalls } from '../../stores/calls.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+
+/**
+ * Somebody in a group's voice chat, as its view lists them (MS-D33): their line, where the group
+ * places them, whether they are held or have a hand up, and, for a reader who may run the voice chat
+ * and stands above them, the way to let them speak or hold them and to take them out of it, which
+ * is asked first because they cannot come back into this one.
+ */
+export default component VoiceChatPerson(props: { who: string })
+{
+    const calls = useCalls();
+    const account = useAccount();
+    const locale = useLocale();
+    const people = usePeople();
+    const overlay = useOverlay();
+
+    derived call = calls.current();
+
+    derived person = call?.people?.find((one) => one.who === props.who) ?? null;
+
+    derived mine = call?.people?.find((one) => one.who === account.user()?.id) ?? null;
+
+    derived held = person !== null && person.held;
+
+    derived hand = person !== null && person.hand;
+
+    derived role = person?.role ?? 'member';
+
+    derived placed = role !== 'member';
+
+    derived marked = placed || held || hand;
+
+    derived runs = call?.may?.calls === true && mine !== null && outranks(mine.role ?? null, role);
+
+    derived known = people.byHandle(props.who);
+
+    derived name = known === null ? props.who : locale.text(known.displayName);
+
+    derived id = call?.id ?? '';
+
+    const remove = async () =>
+    {
+        const title = locale.t('call.voiceChat.removeAsk', { name });
+        const lead = locale.t('call.voiceChat.removeLead');
+
+        if ((await overlay.open(ConfirmSheet, { title, lead, confirm: locale.t('call.voiceChat.removeConfirm'), destructive: true }, { label: title }).closed) === true)
+        {
+            void calls.remove(id, props.who);
+        }
+    };
+
+    <div class="flex flex-col" data-voice-chat-person={ props.who }>
+        <VoicePeer who={ props.who } />
+        <Show when={ marked }>
+            <span class="facts px-3 pb-2 text-ui-2xs text-muted" data-voice-chat-marks>
+                <Show when={ placed }>
+                    <span data-role={ role }>{ locale.t(`groups.role.${ role }`) }</span>
+                </Show>
+                <Show when={ held }>
+                    <span class="font-semibold text-gold" data-held>{ locale.t('call.voiceChat.held') }</span>
+                </Show>
+                <Show when={ hand }>
+                    <span class="font-semibold text-accent" data-hand>{ locale.t('call.voiceChat.hand') }</span>
+                </Show>
+            </span>
+        </Show>
+        <Show when={ runs }>
+            <span class="flex flex-wrap gap-2 px-3 pb-3" data-voice-chat-staff>
+                <span class="contents" data-voice-chat-hold>
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        leading={ held ? 'voice' : 'voice-off' }
+                        label={ locale.t(held ? 'call.voiceChat.letSpeakOf' : 'call.voiceChat.holdOf', { name }) }
+                        onClick={ () => void calls.hold(id, props.who, !held) }
+                    >
+                        { locale.t(held ? 'call.voiceChat.letSpeak' : 'call.voiceChat.hold') }
+                    </Button>
+                </span>
+                <span class="contents" data-voice-chat-remove>
+                    <Button
+                        size="sm"
+                        variant="destructive-ghost"
+                        leading="close"
+                        label={ locale.t('call.voiceChat.removeOf', { name }) }
+                        onClick={ () => void remove() }
+                    >
+                        { locale.t('call.voiceChat.remove') }
+                    </Button>
+                </span>
+            </span>
+        </Show>
+    </div>
+}

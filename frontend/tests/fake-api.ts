@@ -5,7 +5,7 @@ import { MEDIA_PAGE, threadSize, type MediaKind } from '../../backend/src/domain
 import { WATCH_TAIL } from '../../backend/src/domains/match/turns.ts';
 import { codeFrom } from '../../backend/src/domains/invite/policy.ts';
 import { NOTICE_OF } from '../../backend/src/domains/notify/notices.ts';
-import { FACES, FIRST_MEMBERS_MOST, GROUP_LOG_PAGE, GROUP_REPORTS_PAGE, GROUP_RIGHTS, MEMBERS_PAGE, PINS_MOST, RANK, SWITCH_DEFAULTS, mayIn, type GroupAct, type GroupEventKind, type GroupRight, type GroupRole, type GroupSwitches } from '../../backend/src/domains/group/roles.ts';
+import { FACES, FIRST_MEMBERS_MOST, GROUP_LOG_PAGE, GROUP_REPORTS_PAGE, GROUP_RIGHTS, MEMBERS_PAGE, PINS_MOST, RANK, SWITCH_DEFAULTS, mayIn, outranks as outranksInGroup, type GroupAct, type GroupEventKind, type GroupRight, type GroupRole, type GroupSwitches } from '../../backend/src/domains/group/roles.ts';
 import { PEOPLE_FOUND_MAX, SEARCH_FROM, searchNeedle } from '../../backend/src/domains/social/names.ts';
 import { handleFromAddress } from '../../backend/src/domains/identity/handle.ts';
 import { createParties, type Parties, type PartyWhy } from '../../backend/src/domains/party/parties.ts';
@@ -291,6 +291,71 @@ const phoned = async () =>
         server.phoneRefusal = null;
         throw new ApiError(CALL_REFUSALS[word], word, 'That call was refused.', undefined);
     }
+};
+
+/** Where somebody stands in the voice chat of a group's room: where the group places them, the reader as their own view of the group says. */
+const voiceRoleOf = (room: string, who: string) =>
+{
+    const group = groupOfRoom(room);
+
+    if (group === undefined)
+    {
+        return 'member';
+    }
+
+    return who === server.me ? group.role ?? placeOf(group, who).role : placeOf(group, who).role;
+};
+
+/** Whether the reader's place in the group of a room lets them run its voice chat, asked as the server asks it. */
+const runsVoice = (room: string) =>
+{
+    const group = groupOfRoom(room);
+
+    return group?.role !== undefined && mayIn({ role: group.role, rights: group.rights ?? [], muted: group.muted !== undefined }, group.switches, 'calls');
+};
+
+/**
+ * The reader brought into the voice chat running in a group's room, as the server brings them: in its
+ * room's faces once, and holding a view of it in which each person stands where the group places them.
+ */
+const intoVoice = (id: string, room: string, began: boolean) =>
+{
+    const running = server.voiceRooms[room];
+
+    if (running === undefined)
+    {
+        throw new ApiError(CALL_REFUSALS['call-ended'], 'call-ended', 'That voice chat has ended.', undefined);
+    }
+
+    if (!running.faces.includes(server.me))
+    {
+        running.faces = [...running.faces, server.me];
+        running.here += 1;
+    }
+
+    let call = server.phone.find((one) => one.id === id);
+
+    if (call === undefined)
+    {
+        const at = new Date(0).toISOString();
+
+        call = {
+            id,
+            room,
+            kind: 'group',
+            state: 'live',
+            out: began,
+            rung: false,
+            at,
+            answeredAt: at,
+            people: running.faces.map((who) => ({ who, held: false, hand: false, here: true, role: voiceRoleOf(room, who) })),
+            may: { calls: runsVoice(room) }
+        };
+
+        server.phone.push(call);
+    }
+
+    return { ...call };
 };
 
 /** A call of the reader's moved as the server moves it, from the state it expects, or answered as it is. */
@@ -1639,6 +1704,9 @@ export const server =
     phoneRefusal: null as CallRefusal | null,
     phoneHeld: null as Promise<void> | null,
     phoneSeq: 0,
+
+    /** The voice chat running in each group room, as the room's head reads it: a test puts one running there. */
+    voiceRooms: {} as Record<string, { id: string; here: number; faces: string[] }>,
     refusals: {} as Record<string, 'blocked' | 'strangers-off' | 'minor-safety'>,
 
     /** The profile look each person wears, by handle, carried on their profile and their public face as the server carries it. */
@@ -1738,6 +1806,7 @@ export const server =
         server.phoneRefusal = null;
         server.phoneHeld = null;
         server.phoneSeq = 0;
+        server.voiceRooms = {};
         server.refusals = {};
         server.themes = {};
         server.effects = {};
@@ -5299,6 +5368,21 @@ export const client =
             server.calls.push('calls.ring');
             await phoned();
 
+            if (server.conversations.some((one) => one.id === input.room && one.kind === 'group'))
+            {
+                const running = server.voiceRooms[input.room];
+
+                if (running !== undefined)
+                {
+                    return intoVoice(running.id, input.room, false);
+                }
+
+                server.phoneSeq += 1;
+                server.voiceRooms[input.room] = { id: `call-${ server.phoneSeq }`, here: 0, faces: [] };
+
+                return intoVoice(`call-${ server.phoneSeq }`, input.room, true);
+            }
+
             const room = server.conversations.find((one) => one.id === input.room && one.kind === 'direct');
 
             if (room === undefined)
@@ -5348,10 +5432,100 @@ export const client =
             return moved(params.id, (call) => (call.state === 'ringing' ? { state: 'ended', ending: 'declined', endedAt: new Date(0).toISOString() } : null));
         },
 
+        async room({ params }: { params: { room: string } })
+        {
+            server.calls.push(`calls.room ${ params.room }`);
+
+            const running = server.voiceRooms[params.room];
+
+            return running === undefined ? {} : { call: { ...running, faces: [...running.faces] } };
+        },
+
+        async join({ params }: { params: { id: string } })
+        {
+            server.calls.push('calls.join');
+            await phoned();
+
+            const room = Object.keys(server.voiceRooms).find((one) => server.voiceRooms[one].id === params.id);
+
+            if (room === undefined)
+            {
+                throw new ApiError(CALL_REFUSALS['call-missing'], 'call-missing', 'No call there.', undefined);
+            }
+
+            return intoVoice(params.id, room, false);
+        },
+
+        async end({ params }: { params: { id: string } })
+        {
+            server.calls.push('calls.end');
+            await phoned();
+
+            const ended = moved(params.id, (call) => (call.state === 'live' ? { state: 'ended', ending: 'answered', endedAt: new Date(0).toISOString() } : null));
+
+            delete server.voiceRooms[ended.room];
+
+            return ended;
+        },
+
+        async hand({ params, input }: { params: { id: string }; input: { up: boolean } })
+        {
+            server.calls.push(`calls.hand ${ input.up }`);
+            await phoned();
+
+            return moved(params.id, (call) => ({ people: call.people?.map((one) => (one.who === server.me ? { ...one, hand: input.up } : one)) }));
+        },
+
+        async hold({ params, input }: { params: { id: string }; input: { id: string; held: boolean } })
+        {
+            server.calls.push(`calls.hold ${ input.id } ${ input.held }`);
+            await phoned();
+
+            return moved(params.id, (call) => ({ people: call.people?.map((one) => (one.who === input.id ? { ...one, held: input.held, hand: input.held && one.hand } : one)) }));
+        },
+
+        async holdAll({ params }: { params: { id: string } })
+        {
+            server.calls.push('calls.holdAll');
+            await phoned();
+
+            return moved(params.id, (call) =>
+            {
+                const mine = call.people?.find((one) => one.who === server.me);
+
+                return { people: call.people?.map((one) => (outranksInGroup(mine?.role ?? null, one.role ?? null) ? { ...one, held: true } : one)) };
+            });
+        },
+
+        async remove({ params, input }: { params: { id: string }; input: { id: string } })
+        {
+            server.calls.push(`calls.remove ${ input.id }`);
+            await phoned();
+
+            return moved(params.id, (call) => ({ people: call.people?.filter((one) => one.who !== input.id) }));
+        },
+
         async hangUp({ params }: { params: { id: string } })
         {
             server.calls.push('calls.hangUp');
             await phoned();
+
+            const voice = server.phone.find((one) => one.id === params.id && one.kind === 'group');
+
+            if (voice !== undefined)
+            {
+                const running = server.voiceRooms[voice.room];
+
+                if (running !== undefined && running.faces.includes(server.me))
+                {
+                    running.faces = running.faces.filter((one) => one !== server.me);
+                    running.here -= 1;
+                }
+
+                server.phone = server.phone.filter((one) => one !== voice);
+
+                return { ...voice };
+            }
 
             return moved(params.id, (call) => (call.state === 'ended'
                 ? null

@@ -22,7 +22,7 @@ export type ReplyFrame = Extract<ServerFrame, { t: 'ack' | 'refused' }>;
 
 export type PulseFrame = Extract<ServerFrame, { t: 'pulse' }>;
 
-const SCOPES: readonly NudgeScope[] = ['chat', 'social', 'game', 'table', 'me'];
+const SCOPES: readonly NudgeScope[] = ['chat', 'social', 'game', 'table', 'me', 'call'];
 
 export type RealtimeStatus = 'idle' | 'connecting' | 'connected' | 'down';
 

@@ -9,6 +9,7 @@ import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { placeCall } from '../src/lib/place-call.ts';
 import { resetRuntime, runtime, setRuntime } from '../src/lib/runtime.ts';
 import '../src/locales/app-catalogue.ts';
+import { useCalls } from '../src/stores/calls.store.ts';
 import { useCatalogue } from '../src/stores/catalogue.store.ts';
 import type { FileDraft, Message } from '../src/data/chat.ts';
 import { createApiSource } from '../src/services/chat.source.ts';
@@ -20,11 +21,12 @@ import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
 import { usePeople } from '../src/stores/people.store.ts';
 import { usePresence } from '../src/stores/presence.store.ts';
-import { useRealtime } from '../src/stores/realtime.store.ts';
+import { NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useSettings } from '../src/stores/settings.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
+import { useVoice } from '../src/stores/voice.store.ts';
 import { useVoiceRooms } from '../src/stores/voice-rooms.store.ts';
 import { server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
@@ -2840,5 +2842,174 @@ describe('the door to a conversation’s gallery', () =>
             expect(useOverlay().items().find((one) => one.id === 'chat-gallery')?.props).toMatchObject({ conversationId: thread.id });
             cleanup();
         }
+    });
+});
+
+describe('a group’s voice chat, at the head of its thread', () =>
+{
+    const SLUG = 'friday-night-crew';
+
+    /** The Friday room made its group's, with the group's switches as a test says. */
+    const groupRoom = async (switches: { call?: boolean; joinCall?: boolean } = {}) =>
+    {
+        const room = server.conversations.find((row) => row.id === 'c-friday')!;
+        const group = server.groups.find((one) => one.slug === SLUG)!;
+
+        room.groupId = SLUG;
+        group.role = 'member';
+        group.switches = { ...group.switches, ...switches };
+        await useGroups().refresh();
+        await useChat().refresh();
+    };
+
+    const strip = (container: HTMLElement) => container.querySelector<HTMLElement>('[data-voice-chat]');
+
+    const voiceButton = (container: HTMLElement) => container.querySelector<HTMLButtonElement>('header [data-head-voice] button');
+
+    const rings = async () =>
+    {
+        socket.deliver({ v: 1, t: 'nudge', n: 1, scope: 'call', id: 'c-friday', at: 0 });
+        (runtime().clock as ManualClock).advance(NUDGE_WINDOW_MS);
+        await settle();
+    };
+
+    const faces = (within: HTMLElement) => [...within.querySelectorAll('[role="img"][aria-label]')].map((one) => one.getAttribute('aria-label'));
+
+    beforeEach(() =>
+    {
+        useCalls().reset();
+        vi.spyOn(useVoice(), 'join').mockResolvedValue(undefined);
+    });
+
+    afterEach(() =>
+    {
+        vi.restoreAllMocks();
+        useCalls().reset();
+    });
+
+    it('begins one from the head where the group lets the reader, and offers none where it does not', async () =>
+    {
+        await groupRoom();
+
+        const container = opened('c-friday', 'sidebar');
+
+        await vi.waitFor(() => expect(voiceButton(container)?.getAttribute('aria-label')).toBe('Voice chat'), { timeout: 4000 });
+        expect(container.querySelector('header [data-head-call]'), 'nobody in a group is called on their own').toBeNull();
+
+        server.calls = [];
+        fire(voiceButton(container)!, 'click');
+
+        await vi.waitFor(() => expect(server.calls).toContain('calls.ring'), { timeout: 8000 });
+        expect(server.voiceRooms['c-friday']).toMatchObject({ here: 1, faces: ['alex'] });
+
+        cleanup();
+        await groupRoom({ call: false });
+
+        const shut = opened('c-friday', 'sidebar');
+
+        await vi.waitFor(() => expect(shut.querySelector('header h1')?.textContent).not.toBe(''), { timeout: 4000 });
+        await settle();
+
+        expect(voiceButton(shut), 'the group lets only its staff begin one').toBeNull();
+    }, 14_000);
+
+    it('shows the one running under the head, with its people and Join, and Open once the reader is in it', async () =>
+    {
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 2, faces: ['sara.k', 'mina'] };
+        await groupRoom();
+
+        const container = opened('c-friday', 'sidebar');
+
+        await vi.waitFor(() => expect(strip(container)?.getAttribute('data-voice-chat')).toBe('call-31'), { timeout: 4000 });
+        expect(strip(container)!.getAttribute('aria-label')).toBe('Voice chat');
+        expect(strip(container)!.querySelector('[data-voice-chat-here]')?.textContent).toBe('2 in the voice chat');
+        await vi.waitFor(() => expect(faces(strip(container)!)).toEqual(['Sara Kamali', 'Mina Sadeghi']), { timeout: 4000 });
+        expect(strip(container)!.querySelector('[data-voice-chat-open]')).toBeNull();
+
+        server.calls = [];
+        fire(strip(container)!.querySelector<HTMLButtonElement>('[data-voice-chat-join] button')!, 'click');
+
+        await vi.waitFor(() => expect(strip(container)!.querySelector('[data-voice-chat-open] button')?.textContent?.trim()).toBe('Open'), { timeout: 4000 });
+        expect(strip(container)!.querySelector('[data-voice-chat-join]'), 'in it at the press').toBeNull();
+
+        await vi.waitFor(() => expect(server.calls).toContain('calls.join'), { timeout: 4000 });
+        await vi.waitFor(() => expect(strip(container)!.querySelector('[data-voice-chat-here]')?.textContent).toBe('3 in the voice chat'), { timeout: 4000 });
+    }, 12_000);
+
+    it('comes when one begins and goes when it ends, as its room rings', async () =>
+    {
+        await groupRoom();
+
+        const container = opened('c-friday', 'sidebar');
+
+        await vi.waitFor(() => expect(server.calls).toContain('calls.room c-friday'), { timeout: 4000 });
+        await settle();
+        expect(strip(container), 'nothing runs, so nothing is drawn').toBeNull();
+
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 1, faces: ['sara.k'] };
+        await rings();
+
+        await vi.waitFor(() => expect(strip(container)?.querySelector('[data-voice-chat-here]')?.textContent).toBe('1 in the voice chat'), { timeout: 4000 });
+
+        delete server.voiceRooms['c-friday'];
+        await rings();
+
+        await vi.waitFor(() => expect(strip(container)).toBeNull(), { timeout: 4000 });
+
+        cleanup();
+        server.calls = [];
+        await rings();
+
+        expect(server.calls.filter((one) => one.startsWith('calls.room')), 'a thread left watches nothing').toEqual([]);
+    });
+
+    it('shows a reader the group keeps out who is in it, and no way in', async () =>
+    {
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 7, faces: ['sara.k', 'mina'] };
+        await groupRoom({ joinCall: false });
+
+        const container = opened('c-friday', 'sidebar');
+
+        await vi.waitFor(() => expect(strip(container)).not.toBeNull(), { timeout: 4000 });
+        await settle();
+
+        expect(strip(container)!.querySelector('[data-voice-chat-here]')?.textContent, 'everybody in it, past the faces shown').toBe('7 in the voice chat');
+        expect(strip(container)!.querySelector('[data-voice-chat-join]')).toBeNull();
+        expect(strip(container)!.querySelector('[data-voice-chat-open]')).toBeNull();
+    });
+
+    it('is the same strip, Join and all, through a read of the thread and of its room', async () =>
+    {
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 2, faces: ['sara.k', 'mina'] };
+        await groupRoom();
+
+        const container = opened('c-friday', 'sidebar');
+
+        await vi.waitFor(() => expect(strip(container)?.querySelector('[data-voice-chat-join] button') ?? null).not.toBeNull(), { timeout: 4000 });
+
+        const drawn = strip(container)!;
+        const join = drawn.querySelector('[data-voice-chat-join] button');
+
+        await useChat().refresh();
+        await useGroups().refresh();
+        await rings();
+
+        expect(strip(container), 'the strip').toBe(drawn);
+        expect(drawn.querySelector('[data-voice-chat-join] button'), 'and its Join').toBe(join);
+    });
+
+    it('says it in Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 2, faces: ['sara.k', 'mina'] };
+        await groupRoom();
+
+        const container = opened('c-friday', 'sidebar');
+
+        await vi.waitFor(() => expect(strip(container)).not.toBeNull(), { timeout: 4000 });
+
+        expect(strip(container)!.querySelector('[data-voice-chat-here]')?.textContent).toBe('۲ نفر توی چت صوتی');
+        expect(strip(container)!.querySelector('[data-voice-chat-join] button')?.textContent?.trim()).toBe('بیا تو');
+        expect(voiceButton(container)?.getAttribute('aria-label')).toBe('چت صوتی');
     });
 });

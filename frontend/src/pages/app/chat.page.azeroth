@@ -7,6 +7,7 @@ import { seenOf } from '../../components/chat/chat-time.ts';
 import { searchedWords, searchLines } from '../../components/chat/search-lines.ts';
 import ThreadSearch from '../../components/chat/thread-search.component.azeroth';
 import PinBar from '../../components/chat/pin-bar.component.azeroth';
+import LazyVoiceChatHead from '../../components/call/lazy-voice-chat-head.component.azeroth';
 import { mayIn, mayOn } from '../../../../backend/src/domains/group/roles.ts';
 import { openGallery } from '../../lib/gallery.ts';
 import { mutedWordsOf } from '../../lib/group-mute.ts';
@@ -995,6 +996,13 @@ export default component ChatPage()
 
     derived callable = conversation?.kind === 'direct' && other !== null && social.relation(other.id) === 'friend';
 
+    derived grouped = group !== null;
+
+    /** The group lets the reader begin its voice chat; pressed, it begins one or joins the one running, as the server does. */
+    derived voiceBegins = group !== null && standing !== null && mayIn(standing, group.switches, 'call');
+
+    derived voiceJoins = group !== null && standing !== null && mayIn(standing, group.switches, 'joinCall');
+
     derived callee = other?.displayName ?? '';
 
     const callBack = () => void placeCall(id);
@@ -1056,6 +1064,11 @@ export default component ChatPage()
                                         <IconButton icon="call" label={ locale.t('call.action', { name: callee }) } variant="ghost" onClick={ callBack } />
                                     </span>
                                 </Show>
+                                <Show when={ voiceBegins }>
+                                    <span class="contents" data-head-voice>
+                                        <IconButton icon="call" label={ locale.t('call.voiceChat.action') } variant="ghost" onClick={ callBack } />
+                                    </span>
+                                </Show>
                                 <span ref={ (element) => opener = element } class="contents">
                                     <IconButton
                                         icon="search"
@@ -1089,6 +1102,10 @@ export default component ChatPage()
                                     </Show>
                                 </span>
                             </header>
+
+                            <Show when={ grouped }>
+                                { () => <LazyVoiceChatHead room={ id } joins={ voiceJoins } /> }
+                            </Show>
 
                             <Show when={ pinned } let={ line }>
                                 <PinBar

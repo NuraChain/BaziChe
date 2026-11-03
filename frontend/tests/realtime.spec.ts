@@ -307,7 +307,7 @@ describe('the realtime store', () =>
         socket.accept();
         clock.advance(NUDGE_WINDOW_MS);
 
-        expect(heard.sort()).toEqual(['chat:', 'game:', 'me:', 'social:', 'table:']);
+        expect(heard.sort()).toEqual(['call:', 'chat:', 'game:', 'me:', 'social:', 'table:']);
     });
 
     it('rings every doorbell once when it comes back from idle, so nothing missed while away stays missed', () =>
@@ -326,7 +326,7 @@ describe('the realtime store', () =>
         socket.accept();
         clock.advance(NUDGE_WINDOW_MS);
 
-        expect(heard.sort()).toEqual(['chat:', 'game:', 'me:', 'social:', 'table:']);
+        expect(heard.sort()).toEqual(['call:', 'chat:', 'game:', 'me:', 'social:', 'table:']);
     });
 
     it('asks its socket for an answer the moment the tab is shown again, and opens a new one when none comes', () =>

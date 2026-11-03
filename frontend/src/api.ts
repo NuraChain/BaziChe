@@ -104,6 +104,7 @@ export type {
     VaultGame,
     VaultGames,
     VaultState,
+    VoiceChatState,
     WalletCall
 } from '../../backend/src/schemas.ts';
 

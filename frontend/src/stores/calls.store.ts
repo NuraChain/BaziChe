@@ -1,8 +1,9 @@
-import { createResource, createSignal, createStore, untrack, type Getter } from 'azerothjs';
+import { createMemo, createResource, createSignal, createStore, untrack, type Getter } from 'azerothjs';
 
-import { ApiError, client, type CallView, type CallsState } from '../api.ts';
+import { ApiError, client, type CallView, type CallsState, type VoiceChatState } from '../api.ts';
 import { CALL_REFUSALS, type CallRefusal } from '../../../backend/src/domains/call/refusals.ts';
 import { CALL_ROOM } from '../../../backend/src/domains/call/rules.ts';
+import { outranks } from '../../../backend/src/domains/group/roles.ts';
 import { attempt } from '../lib/attempt.ts';
 import { createGuesses } from '../lib/guess.ts';
 import { joinVoice } from '../lib/join-voice.ts';
@@ -28,6 +29,12 @@ export function whyCall(error: unknown): MessageKey
     return Object.hasOwn(CALL_REFUSALS, code) ? `call.refused.${ code as CallRefusal }` : 'common.actionFailed';
 }
 
+/** Somebody in a group's voice chat, as the reader's view of it names them. */
+export type VoicePerson = NonNullable<CallView['people']>[number];
+
+/** The voice chat running in a group's room, as its head draws it. */
+export type RoomCall = NonNullable<VoiceChatState['call']>;
+
 export interface CallsApi
 {
     /**
@@ -45,10 +52,34 @@ export interface CallsApi
     /** Says a bar shows the live call, for as long as the answer is not called. */
     bar(): () => void;
 
+    /** The voice chat running in the room being watched; none while none runs, or before it was read. */
+    roomCall: Getter<RoomCall | null>;
+
+    /** Watches one room's voice chat for as long as the answer is not called, read again whenever it changes. */
+    watchRoom(room: string): () => void;
+
     ring(room: string): Promise<boolean>;
+
+    /** Comes into a group's voice chat that runs in `room`. */
+    join(callId: string, room: string): Promise<boolean>;
     accept(callId: string): Promise<boolean>;
     decline(callId: string): Promise<boolean>;
     hangUp(callId: string): Promise<boolean>;
+
+    /** Ends a group's voice chat for everybody in it; its room is left once the server has ended it. */
+    end(callId: string): Promise<boolean>;
+
+    /** Puts the reader's hand up or down in a group's voice chat. */
+    hand(callId: string, up: boolean): Promise<boolean>;
+
+    /** Holds somebody in a group's voice chat, or lets them speak. */
+    hold(callId: string, who: string, held: boolean): Promise<boolean>;
+
+    /** Holds everybody in a group's voice chat ranked below the reader. */
+    holdAll(callId: string): Promise<boolean>;
+
+    /** Takes somebody out of a group's voice chat for good. */
+    remove(callId: string, who: string): Promise<boolean>;
     dismiss(callId: string): void;
     refresh(): Promise<void>;
     start(): () => void;
@@ -101,6 +132,10 @@ export const useCalls = createStore((): CallsApi =>
     const [shown, setShown] = createSignal<ReadonlySet<string>>(new Set());
     const [gone, setGone] = createSignal<ReadonlySet<string>>(new Set());
     const [bars, setBars] = createSignal(0);
+    const [watches, setWatches] = createSignal<readonly { room: string }[]>([]);
+
+    /** The room of the newest watch still held: a head drawn again takes its room up before the last one lets go of it. */
+    const watched = createMemo(() => watches().at(-1)?.room ?? null);
 
     let asked = 0;
     let running = false;
@@ -206,7 +241,7 @@ export const useCalls = createStore((): CallsApi =>
             setShown(new Set([...untrack(shown), ...open]));
         }
 
-        void people.want(answer.calls.flatMap((one) => (one.person === undefined ? [] : [one.person])));
+        void people.want(answer.calls.flatMap((one) => [...(one.person === undefined ? [] : [one.person]), ...(one.people ?? []).map((person) => person.who)]));
         follow(answer.calls);
         keep(answer.calls);
     };
@@ -231,6 +266,31 @@ export const useCalls = createStore((): CallsApi =>
         return inFlight;
     };
 
+    /** A room's voice chat with the room it was read for, so an answer about another room is never drawn. */
+    const roomRead = createResource(watched, async (room) =>
+    {
+        const call = (await client.calls.room({ params: { room } })).call ?? null;
+
+        void people.want(call?.faces ?? []);
+
+        return { room, call };
+    }, { name: 'calls.room' });
+
+    const roomCall = () =>
+    {
+        const found = roomRead.data();
+
+        return found !== undefined && found.room === watched() ? found.call : null;
+    };
+
+    const rereadRoom = () =>
+    {
+        if (untrack(watched) !== null)
+        {
+            void roomRead.refetch();
+        }
+    };
+
     const listed = () => guesses.over(readFor() !== null && readFor() === who() ? read.data()?.calls ?? [] : []);
 
     const current = () =>
@@ -247,8 +307,37 @@ export const useCalls = createStore((): CallsApi =>
     const act = (work: () => Promise<unknown>, guess: (calls: CallView[]) => CallView[]) =>
         attempt(guesses.during(guess, work, revalidate), undefined, whyCall);
 
+    /** A voice chat's people as the guess of a press leaves them. */
+    const among = (callId: string, change: (people: VoicePerson[], mine: VoicePerson | undefined) => VoicePerson[]) => (calls: CallView[]) =>
+        calls.map((one) => (one.id === callId && one.people !== undefined
+            ? { ...one, people: change(one.people, one.people.find((person) => person.who === who())) }
+            : one));
+
     return {
         current,
+
+        roomCall,
+
+        watchRoom(room)
+        {
+            const watch = { room };
+
+            setWatches((all) => [...all, watch]);
+
+            const off = useRealtime().onNudge((scope, id) =>
+            {
+                if (scope === 'call' && (id === undefined || id === room) && untrack(watched) === room)
+                {
+                    void roomRead.refetch();
+                }
+            });
+
+            return () =>
+            {
+                off();
+                setWatches((all) => all.filter((one) => one !== watch));
+            };
+        },
 
         here: () => hereId() !== null,
 
@@ -293,6 +382,29 @@ export const useCalls = createStore((): CallsApi =>
             }
         },
 
+        async join(callId, room)
+        {
+            const before = untrack(hereId);
+            const at = new Date(serverNow()).toISOString();
+            const arriving: CallView = { id: callId, room, kind: 'group', state: 'live', out: false, rung: false, at, answeredAt: at, people: [] };
+
+            placeHere(callId);
+
+            const went = await act(
+                () => client.calls.join({ params: { id: callId } }),
+                (calls) => (calls.some((one) => one.id === callId) ? calls : [arriving, ...calls])
+            );
+
+            if (!went && untrack(hereId) === callId)
+            {
+                placeHere(before);
+            }
+
+            rereadRoom();
+
+            return went;
+        },
+
         async accept(callId)
         {
             const before = untrack(hereId);
@@ -321,10 +433,51 @@ export const useCalls = createStore((): CallsApi =>
                 voice.leave();
             }
 
+            if (call?.kind === 'group')
+            {
+                const went = await act(() => client.calls.hangUp({ params: { id: callId } }), (calls) => calls.filter((one) => one.id !== callId));
+
+                rereadRoom();
+
+                return went;
+            }
+
             const ended = ending === 'answered' ? { endedAt: new Date(serverNow()).toISOString() } : {};
 
             return await act(() => client.calls.hangUp({ params: { id: callId } }), changed(callId, { state: 'ended', ending, ...ended }));
         },
+
+        async end(callId)
+        {
+            const went = await act(
+                () => client.calls.end({ params: { id: callId } }),
+                changed(callId, { state: 'ended', ending: 'answered', endedAt: new Date(serverNow()).toISOString() })
+            );
+
+            rereadRoom();
+
+            return went;
+        },
+
+        hand: (callId, up) => act(
+            () => client.calls.hand({ params: { id: callId }, input: { up } }),
+            among(callId, (people) => people.map((one) => (one.who === who() ? { ...one, hand: up } : one)))
+        ),
+
+        hold: (callId, handle, held) => act(
+            () => client.calls.hold({ params: { id: callId }, input: { id: handle, held } }),
+            among(callId, (people) => people.map((one) => (one.who === handle ? { ...one, held, hand: held && one.hand } : one)))
+        ),
+
+        holdAll: (callId) => act(
+            () => client.calls.holdAll({ params: { id: callId } }),
+            among(callId, (people, mine) => people.map((one) => (outranks(mine?.role ?? null, one.role ?? null) ? { ...one, held: true } : one)))
+        ),
+
+        remove: (callId, handle) => act(
+            () => client.calls.remove({ params: { id: callId }, input: { id: handle } }),
+            among(callId, (people) => people.filter((one) => one.who !== handle))
+        ),
 
         dismiss(callId)
         {
@@ -365,6 +518,7 @@ export const useCalls = createStore((): CallsApi =>
             setGone(new Set());
             setHereId(null);
             keepHere(null);
+            setWatches([]);
             inFlight = Promise.resolve();
             setReadFor(null);
             void read.refetch();

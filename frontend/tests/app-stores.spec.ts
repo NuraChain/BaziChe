@@ -1031,11 +1031,11 @@ describe('connection', () =>
         socket.drop();
 
         clock.advance(LIFELINE_MS + 500);
-        expect([...rung].sort(), 'nothing was read again though no socket could ring').toEqual(['chat', 'game', 'me', 'social', 'table']);
+        expect([...rung].sort(), 'nothing was read again though no socket could ring').toEqual(['call', 'chat', 'game', 'me', 'social', 'table']);
 
         rung.length = 0;
         clock.advance(LIFELINE_MS);
-        expect([...rung].sort()).toEqual(['chat', 'game', 'me', 'social', 'table']);
+        expect([...rung].sort()).toEqual(['call', 'chat', 'game', 'me', 'social', 'table']);
 
         socket.accept();
         clock.advance(500);
@@ -1046,7 +1046,7 @@ describe('connection', () =>
 
         socket.drop();
         clock.advance(LIFELINE_MS + 500);
-        expect([...rung].sort(), 'a socket that dropped left the page with nothing to read by').toEqual(['chat', 'game', 'me', 'social', 'table']);
+        expect([...rung].sort(), 'a socket that dropped left the page with nothing to read by').toEqual(['call', 'chat', 'game', 'me', 'social', 'table']);
 
         deaf();
         stop();

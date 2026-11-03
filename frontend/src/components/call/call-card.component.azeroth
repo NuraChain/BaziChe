@@ -8,7 +8,8 @@ import { usePeople } from '../../stores/people.store.ts';
 import { useRealtime } from '../../stores/realtime.store.ts';
 import { useVoice } from '../../stores/voice.store.ts';
 import { voiceClock } from '../chat/gist.ts';
-import { heardIn, lastedOf, liveSaid, ticking } from './said.ts';
+import { groupOfCall, heardIn, lastedOf, liveSaid, ticking, voiceChatSaid } from './said.ts';
+import Icon from '../../icons/icon.component.azeroth';
 import Avatar from '../ui/avatar.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
@@ -17,7 +18,8 @@ import IconButton from '../ui/icon-button.component.azeroth';
  * The call this page is part of (MS-D38): one ringing for the reader, with Accept and Decline and
  * the whole screen on a phone; one the reader is ringing, Calling and then Ringing once a page of
  * theirs has it; one that is live, with its time, the microphone and the way out, wherever no bar
- * across the top of the page shows it (a table); and, for a moment, how one ended.
+ * across the top of the page shows it (a table); and, for a moment, how one ended. A group's voice
+ * chat is named by its group and is left rather than hung up.
  */
 export default component CallCard()
 {
@@ -36,9 +38,11 @@ export default component CallCard()
 
     derived shown = call !== null && !barred;
 
+    derived grouped = call !== null && call.kind === 'group';
+
     derived person = call?.person ?? '';
 
-    derived name = people.byHandle(person)?.displayName ?? person;
+    derived name = grouped ? (groupOfCall(call) ?? locale.t('call.voiceChat.action')) : (people.byHandle(person)?.displayName ?? person);
 
     derived incoming = call !== null && call.state === 'ringing' && !call.out;
 
@@ -51,6 +55,8 @@ export default component CallCard()
     derived here = calls.here();
 
     derived heard = heardIn(call, here, voice);
+
+    derived joining = here && voice.joining();
 
     derived full = incoming && device.posture() === 'phone';
 
@@ -96,11 +102,15 @@ export default component CallCard()
 
         if (live)
         {
-            return liveSaid(here, heard, lasted, locale);
+            return grouped ? voiceChatSaid(here, joining, lasted, locale) : liveSaid(here, heard, lasted, locale);
         }
 
-        return endingOf(call);
+        return grouped ? locale.t('call.voiceChat.ended', { duration: voiceClock(lasted, locale.n) }) : endingOf(call);
     })();
+
+    derived opens = locale.t(grouped ? 'call.voiceChat.openBar' : 'call.bar.open', { name });
+
+    derived leaves = locale.t(grouped ? 'call.voiceChat.leave' : 'call.hangUp');
 
     derived id = call?.id ?? '';
 
@@ -130,7 +140,11 @@ export default component CallCard()
                 data-call-card
             >
                 <span class="flex shrink-0" aria-hidden="true">
-                    <Avatar person={ people.byHandle(person) } size={ full ? '2xl' : 'md' } />
+                    <Show when={ grouped } fallback={ <Avatar person={ people.byHandle(person) } size={ full ? '2xl' : 'md' } /> }>
+                        <span class="grid size-10 place-items-center rounded-full bg-live/15 text-live" data-call-crest>
+                            <Icon name="call" size={ 20 } />
+                        </span>
+                    </Show>
                 </span>
                 <span class={ () => [ 'flex min-w-0 flex-col', full ? 'items-center text-center' : 'flex-1 basis-40' ].join(' ') }>
                     <span class={ () => [ 'break-words font-semibold text-text', full ? 'text-ui-xl' : 'text-ui-base' ].join(' ') } dir={ locale.dir() } data-call-heading>
@@ -161,7 +175,7 @@ export default component CallCard()
                         </span>
                     </Show>
                     <Show when={ live }>
-                        <IconButton icon="expand" label={ locale.t('call.bar.open', { name }) } variant="ghost" onClick={ () => openCallView() } />
+                        <IconButton icon="expand" label={ opens } variant="ghost" onClick={ () => openCallView() } />
                         <Show when={ here }>
                             <IconButton
                                 icon={ voice.muted() ? 'voice-off' : 'voice' }
@@ -173,7 +187,7 @@ export default component CallCard()
                         </Show>
                         <span class="contents" data-call-hang-up>
                             <Button variant="destructive" size="sm" leading="hang-up" onClick={ () => void calls.hangUp(id) }>
-                                { locale.t('call.hangUp') }
+                                { leaves }
                             </Button>
                         </span>
                     </Show>

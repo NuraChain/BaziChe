@@ -1,0 +1,24 @@
+import { Dynamic, type MountNode } from 'azerothjs';
+
+type Head = (props: { room: string; joins: boolean }) => MountNode;
+
+/** A group's voice chat under the head of its thread, fetched once the thread is drawn so the chat page's chunk carries none of the calls. */
+export default component LazyVoiceChatHead(props: { room: string; joins: boolean })
+{
+    let Head: Head | null = null;
+
+    state loaded = false;
+
+    mount
+    {
+        void import('./voice-chat-head.component.azeroth').then((module) =>
+        {
+            Head = module.default as Head;
+            loaded = true;
+        }, () => undefined);
+    }
+
+    <Show when={ loaded }>
+        { () => <Dynamic component={ Head! } props={ () => ({ room: props.room, joins: props.joins }) } /> }
+    </Show>
+}

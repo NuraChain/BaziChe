@@ -32,7 +32,9 @@ const LAZY = [
     '../src/components/call/call-bar.component.azeroth',
     '../src/components/call/call-view.component.azeroth',
     '../src/components/call/said.ts',
-    '../src/components/call/ringer.ts'
+    '../src/components/call/ringer.ts',
+    '../src/components/call/voice-chat-head.component.azeroth',
+    '../src/components/call/voice-chat-person.component.azeroth'
 ];
 
 let clock: ManualClock;
@@ -673,5 +675,353 @@ describe('the calls’ chunk', () =>
         await settle();
 
         expect(document.querySelector('[data-call]')).toBeNull();
+    });
+});
+
+describe('a group’s voice chat', () =>
+{
+    const at = new Date(0).toISOString();
+
+    /** The Friday room's voice chat as the reader's view of it names everybody: a test says where each stands. */
+    const voiceChat = (people: NonNullable<CallView['people']>, more: Partial<CallView> = {}): CallView => ({
+        id: 'call-31',
+        room: 'c-friday',
+        kind: 'group',
+        state: 'live',
+        out: false,
+        rung: false,
+        at,
+        answeredAt: at,
+        people,
+        may: { calls: true },
+        ...more
+    });
+
+    const one = (who: string, more: Partial<NonNullable<CallView['people']>[number]> = {}) => ({ who, held: false, hand: false, here: true, role: 'member' as const, ...more });
+
+    const rang = async (id?: string) =>
+    {
+        socket.deliver({ v: 1, t: 'nudge', n: 1, scope: 'call', ...(id === undefined ? {} : { id }), at: 0 });
+        clock.advance(NUDGE_WINDOW_MS);
+        await settle();
+    };
+
+    it('is read for the room being watched, again whenever that room rings, and by nobody once the watch lets go', async () =>
+    {
+        const calls = useCalls();
+
+        useRealtime().start();
+        socket.accept();
+        clock.advance(NUDGE_WINDOW_MS);
+        await settle();
+
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 2, faces: ['sara.k', 'mina'] };
+        server.calls = [];
+
+        const unwatch = calls.watchRoom('c-friday');
+
+        await vi.waitFor(() => expect(calls.roomCall(), 'read for the room, though the store was never started').toEqual({ id: 'call-31', here: 2, faces: ['sara.k', 'mina'] }));
+
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 3, faces: ['sara.k', 'mina', 'leila.a'] };
+        server.calls = [];
+
+        await rang('c-balcony');
+        expect(server.calls, 'another room rang').toEqual([]);
+
+        await rang('c-friday');
+        expect(server.calls).toEqual(['calls.room c-friday']);
+        expect(calls.roomCall()?.here).toBe(3);
+
+        delete server.voiceRooms['c-friday'];
+        await rang();
+        expect(calls.roomCall(), 'a ring for every room, as a reconnection rings').toBeNull();
+
+        unwatch();
+        server.calls = [];
+        await rang('c-friday');
+
+        expect(server.calls, 'a room nobody watches is read by nobody').toEqual([]);
+    });
+
+    it('never draws one room’s answer for another room', async () =>
+    {
+        const calls = useCalls();
+
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 2, faces: ['sara.k', 'mina'] };
+
+        const friday = calls.watchRoom('c-friday');
+
+        await vi.waitFor(() => expect(calls.roomCall()?.id).toBe('call-31'));
+
+        const balcony = calls.watchRoom('c-balcony');
+
+        expect(calls.roomCall(), 'the Friday answer is not the Balcony’s').toBeNull();
+        await vi.waitFor(() => expect(server.calls).toContain('calls.room c-balcony'));
+
+        useRealtime().start();
+        socket.accept();
+        clock.advance(NUDGE_WINDOW_MS);
+        await settle();
+        server.calls = [];
+
+        await rang('c-friday');
+        expect(server.calls, 'the Friday room rang while the Balcony is the room shown').toEqual([]);
+
+        friday();
+        await settle();
+        expect(calls.roomCall(), 'a watch let go after another took its place leaves the other').toBeNull();
+
+        balcony();
+    });
+
+    it('keeps a room watched by a head drawn again before the last one let go of it', async () =>
+    {
+        const calls = useCalls();
+
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 2, faces: ['sara.k', 'mina'] };
+
+        const before = calls.watchRoom('c-friday');
+
+        await vi.waitFor(() => expect(calls.roomCall()?.id).toBe('call-31'));
+
+        const after = calls.watchRoom('c-friday');
+
+        before();
+        await settle();
+
+        expect(calls.roomCall()?.id, 'the room the later head watches').toBe('call-31');
+
+        after();
+        await settle();
+
+        expect(calls.roomCall(), 'and nobody’s once it lets go').toBeNull();
+    });
+
+    it('gives the room back to the head still drawn when a later one lets go', async () =>
+    {
+        const calls = useCalls();
+
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 2, faces: ['sara.k', 'mina'] };
+
+        const friday = calls.watchRoom('c-friday');
+
+        await vi.waitFor(() => expect(calls.roomCall()?.id).toBe('call-31'));
+
+        const balcony = calls.watchRoom('c-balcony');
+
+        expect(calls.roomCall()).toBeNull();
+
+        balcony();
+
+        await vi.waitFor(() => expect(calls.roomCall()?.id, 'the Friday head is still drawn').toBe('call-31'));
+
+        friday();
+    });
+
+    it('begins with a ring of the group’s room, and a ring of a room whose voice chat runs joins it', async () =>
+    {
+        const calls = useCalls();
+        const voice = inRoom();
+        const stop = calls.start();
+
+        expect(await calls.ring('c-friday')).toBe(true);
+        await settle();
+
+        expect(calls.current()).toMatchObject({ kind: 'group', room: 'c-friday', state: 'live', out: true });
+        expect(calls.here()).toBe(true);
+        expect(voice.join).toHaveBeenCalledWith(callRoomOf(calls.current()!.id));
+        expect(server.voiceRooms['c-friday']).toMatchObject({ here: 1, faces: ['alex'] });
+
+        stop();
+        calls.reset();
+        server.phone = [];
+        server.voiceRooms = { 'c-balcony': { id: 'call-40', here: 1, faces: ['reza.t'] } };
+
+        expect(await calls.ring('c-balcony')).toBe(true);
+        await settle();
+
+        expect(calls.current()).toMatchObject({ id: 'call-40', kind: 'group', out: false });
+        expect(server.voiceRooms['c-balcony']).toMatchObject({ here: 2, faces: ['reza.t', 'alex'] });
+    });
+
+    it('is come into at the press: the reader’s and this tab’s before the server has answered, and its room once it has', async () =>
+    {
+        const calls = useCalls();
+        const voice = inRoom();
+        const stop = calls.start();
+
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 1, faces: ['sara.k'] };
+
+        const unwatch = calls.watchRoom('c-friday');
+
+        await vi.waitFor(() => expect(calls.roomCall()?.here).toBe(1));
+
+        const open = held();
+        const joined = calls.join('call-31', 'c-friday');
+
+        await settle();
+        expect(calls.current(), 'in it at the press').toMatchObject({ id: 'call-31', kind: 'group', room: 'c-friday', state: 'live' });
+        expect(calls.here()).toBe(true);
+        expect(voice.join, 'nothing heard before the server has let the reader in').not.toHaveBeenCalled();
+
+        open();
+        expect(await joined).toBe(true);
+        await settle();
+
+        expect(server.calls).toContain('calls.join');
+        expect(voice.join).toHaveBeenCalledWith(callRoomOf('call-31'));
+        await vi.waitFor(() => expect(calls.roomCall()).toMatchObject({ here: 2, faces: ['sara.k', 'alex'] }));
+
+        unwatch();
+        stop();
+    });
+
+    it('takes a coming in back with the refusal’s sentence, leaving the reader where they were', async () =>
+    {
+        const calls = useCalls();
+
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 50, faces: ['sara.k'] };
+        server.phoneRefusal = 'call-full';
+
+        expect(await calls.join('call-31', 'c-friday')).toBe(false);
+
+        expect(calls.current()).toBeNull();
+        expect(calls.here()).toBe(false);
+        expect(useToasts().items().map((toast) => toast.text)).toContain('This voice chat is full.');
+    });
+
+    it('is left at the press: no longer the reader’s, out of its room, and the room read again once the server has it', async () =>
+    {
+        const calls = useCalls();
+        const voice = inRoom();
+        const stop = calls.start();
+
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 1, faces: ['sara.k'] };
+
+        const unwatch = calls.watchRoom('c-friday');
+
+        await calls.join('call-31', 'c-friday');
+        await settle();
+        await vi.waitFor(() => expect(calls.roomCall()?.here).toBe(2));
+
+        const open = held();
+        const left = calls.hangUp('call-31');
+
+        await settle();
+        expect(calls.current(), 'gone at the press').toBeNull();
+        expect(voice.leave).toHaveBeenCalled();
+
+        open();
+        expect(await left).toBe(true);
+        await settle();
+
+        expect(server.calls).toContain('calls.hangUp');
+        await vi.waitFor(() => expect(calls.roomCall()).toMatchObject({ here: 1, faces: ['sara.k'] }));
+        expect(calls.here(), 'nothing of it held by this tab').toBe(false);
+
+        unwatch();
+        stop();
+    });
+
+    it('is ended for everybody at the press, its room left once the server has ended it, and kept with the refusal’s sentence', async () =>
+    {
+        const calls = useCalls();
+        const voice = inRoom();
+        const stop = calls.start();
+
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 1, faces: ['sara.k'] };
+
+        const unwatch = calls.watchRoom('c-friday');
+
+        await calls.join('call-31', 'c-friday');
+        await settle();
+
+        server.phoneRefusal = 'call-right';
+        expect(await calls.end('call-31')).toBe(false);
+
+        expect(calls.current()?.state, 'still on').toBe('live');
+        expect(voice.leave, 'an end refused takes nobody out').not.toHaveBeenCalled();
+        expect(useToasts().items().map((toast) => toast.text)).toContain('You cannot do that in this voice chat.');
+
+        const open = held();
+        const ended = calls.end('call-31');
+
+        await settle();
+        expect(calls.current(), 'over at the press').toMatchObject({ id: 'call-31', state: 'ended', ending: 'answered' });
+
+        open();
+        expect(await ended).toBe(true);
+        await settle();
+
+        expect(server.calls).toContain('calls.end');
+        expect(server.voiceRooms['c-friday']).toBeUndefined();
+        expect(voice.leave, 'out of its room once it is over').toHaveBeenCalled();
+        expect(calls.here()).toBe(false);
+        await vi.waitFor(() => expect(calls.roomCall(), 'and its room read again, with nothing running').toBeNull());
+
+        unwatch();
+        stop();
+    });
+
+    it('puts a hand up, holds, lets speak, holds everybody below the reader and takes somebody out, each at the press', async () =>
+    {
+        const calls = useCalls();
+
+        server.phone = [voiceChat([one('alex', { role: 'admin' }), one('sara.k', { hand: true }), one('leila.a', { role: 'moderator' }), one('babak.r', { role: 'owner' })])];
+        await calls.refresh();
+
+        const person = (who: string) => calls.current()?.people?.find((someone) => someone.who === who);
+
+        let open = held();
+        const hand = calls.hand('call-31', true);
+
+        await settle();
+        expect(person('alex')?.hand, 'the reader’s hand up at the press').toBe(true);
+        open();
+        expect(await hand).toBe(true);
+
+        open = held();
+        const hold = calls.hold('call-31', 'sara.k', true);
+
+        await settle();
+        expect(person('sara.k'), 'held at the press, her hand still up to ask').toMatchObject({ held: true, hand: true });
+        open();
+        expect(await hold).toBe(true);
+
+        open = held();
+        const speak = calls.hold('call-31', 'sara.k', false);
+
+        await settle();
+        expect(person('sara.k'), 'let speak at the press, which answers her hand').toMatchObject({ held: false, hand: false });
+        open();
+        expect(await speak).toBe(true);
+
+        server.phoneRefusal = 'call-rank';
+        expect(await calls.hold('call-31', 'babak.r', true)).toBe(false);
+        expect(person('babak.r')?.held, 'back as the server has them').toBe(false);
+        expect(useToasts().items().map((toast) => toast.text)).toContain('They hold a place at or above yours in this group.');
+
+        open = held();
+        const all = calls.holdAll('call-31');
+
+        await settle();
+        expect(calls.current()?.people?.map((someone) => [someone.who, someone.held]), 'everybody below an admin, and nobody else').toEqual([
+            ['alex', false],
+            ['sara.k', true],
+            ['leila.a', true],
+            ['babak.r', false]
+        ]);
+        open();
+        expect(await all).toBe(true);
+
+        open = held();
+        const out = calls.remove('call-31', 'leila.a');
+
+        await settle();
+        expect(person('leila.a'), 'out at the press').toBeUndefined();
+        open();
+        expect(await out).toBe(true);
+
+        expect(server.calls).toEqual(expect.arrayContaining(['calls.hand true', 'calls.hold sara.k true', 'calls.hold sara.k false', 'calls.holdAll', 'calls.remove leila.a']));
     });
 });

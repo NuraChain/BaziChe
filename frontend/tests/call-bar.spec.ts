@@ -13,6 +13,8 @@ import '../src/locales/app-catalogue.ts';
 import { begin } from '../src/components/call/call.ts';
 import { callBar, offerCallBar } from '../src/stores/call-bar.ts';
 import { useCalls } from '../src/stores/calls.store.ts';
+import { useChat } from '../src/stores/chat.store.ts';
+import { useGroups } from '../src/stores/groups.store.ts';
 import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
 import { usePeople } from '../src/stores/people.store.ts';
@@ -384,5 +386,266 @@ describe('the call’s view', () =>
         expect(container.querySelector('h2')?.textContent).toBe('تماس با Reza Tehrani');
         expect(container.querySelector('[data-call-view] span[dir]')?.getAttribute('dir'), 'the name stands where the reader starts').toBe('rtl');
         expect(container.querySelector('[data-call-view] span[dir] bdi')?.textContent).toBe('Reza Tehrani');
+    });
+});
+
+describe('a group’s voice chat, in the bar, the card and the view', () =>
+{
+    const SLUG = 'friday-night-crew';
+
+    type Somebody = NonNullable<CallView['people']>[number];
+
+    const one = (who: string, more: Partial<Somebody> = {}): Somebody => ({ who, held: false, hand: false, here: true, role: 'member', ...more });
+
+    const sara = (more: Partial<VoicePerson> = {}): VoicePerson => ({ who: 'sara.k', me: false, muted: false, talk: true, link: 'connected', speaking: false, silenced: false, volume: 1, ...more });
+
+    /**
+     * The reader in the Friday room's voice chat, begun a minute ago and come into in this tab, with
+     * everybody a test names and the calls right as it says. The room is the group's, so its name is
+     * known; `named` false leaves the room a stranger to the page.
+     */
+    const inVoiceChat = async (people: Somebody[] = [one('alex'), one('sara.k')], runs = false, named = true) =>
+    {
+        if (named)
+        {
+            server.conversations.find((row) => row.id === 'c-friday')!.groupId = SLUG;
+            await useGroups().refresh();
+            await useChat().refresh();
+        }
+
+        server.voiceRooms['c-friday'] = { id: 'call-31', here: 1, faces: ['sara.k'] };
+        await useCalls().join('call-31', 'c-friday');
+        await settle();
+
+        const at = new Date(clock.now() - 60_000).toISOString();
+
+        server.phone = [{ id: 'call-31', room: 'c-friday', kind: 'group', state: 'live', out: false, rung: false, at, answeredAt: at, people, may: { calls: runs } }];
+        await useCalls().refresh();
+        await settle();
+    };
+
+    const sheet = async () =>
+    {
+        const { container } = renderTest(() => CallSheet({ overlayId: 'call-view', close: () => undefined }) as HTMLElement);
+
+        await settle();
+        return container;
+    };
+
+    const press = (within: ParentNode, selector: string) => fire(within.querySelector<HTMLButtonElement>(selector)!, 'click');
+
+    const asked = async (yes: boolean) =>
+    {
+        await vi.waitFor(() => expect(useOverlay().items().length).toBeGreaterThan(0), { timeout: 4000 });
+
+        const question = useOverlay().items().at(-1)!;
+
+        expect(question.props, 'asked as something that cannot be taken back').toMatchObject({ destructive: true });
+        useOverlay().close(question.id, yes);
+        await settle();
+
+        return String(question.props.title);
+    };
+
+    beforeEach(() =>
+    {
+        useGroups().reset();
+        useChat().reset();
+    });
+
+    afterEach(() =>
+    {
+        useChat().reset();
+        useGroups().reset();
+    });
+
+    it('is named in the bar by its group, with how long it has run, and left at a press', async () =>
+    {
+        inRoom(() => []);
+        await inVoiceChat();
+
+        const { container } = renderTest(() => CallBar({}) as HTMLElement);
+
+        await settle();
+        expect(container.querySelector('[data-call-bar] button')?.getAttribute('aria-label')).toBe('Open the voice chat in Friday Night Crew');
+        expect(container.querySelector('[data-call-bar] bdi')?.textContent).toBe('Friday Night Crew');
+        expect(text(container, 'data-call-bar-status'), 'its time, whoever is heard').toBe('1:00');
+        expect(text(container, 'data-call-bar-hang-up')).toBe('Leave');
+
+        press(container, '[data-call-bar-hang-up] button');
+        await settle();
+
+        expect(container.querySelector('[data-call-bar]'), 'gone at the press').toBeNull();
+        expect(server.calls).toContain('calls.hangUp');
+    });
+
+    it('says this tab is coming into it, and that another device holds it', async () =>
+    {
+        inRoom(() => []);
+        await inVoiceChat();
+
+        const joining = vi.spyOn(useVoice(), 'joining').mockImplementation(() => true);
+        const coming = renderTest(() => CallBar({}) as HTMLElement).container;
+
+        await settle();
+        expect(text(coming, 'data-call-bar-status')).toBe('Connecting…');
+
+        cleanup();
+        joining.mockImplementation(() => false);
+        useCalls().reset();
+        await useCalls().refresh();
+
+        const elsewhere = renderTest(() => CallBar({}) as HTMLElement).container;
+
+        await settle();
+        expect(text(elsewhere, 'data-call-bar-status')).toBe('In this voice chat on another device');
+        expect(elsewhere.querySelector('[data-call-bar-mute]')).toBeNull();
+
+        const view = await sheet();
+
+        expect(text(view, 'data-call-view-away'), 'said where the people would be').toBe('In this voice chat on another device');
+        expect(view.querySelector('li.voice-peer'), 'nobody listed to a tab that is not in it').toBeNull();
+    });
+
+    it('is called a voice chat where the page has not read its room', async () =>
+    {
+        inRoom();
+        await inVoiceChat(undefined, false, false);
+
+        const { container } = renderTest(() => CallBar({}) as HTMLElement);
+
+        await settle();
+        expect(container.querySelector('[data-call-bar] bdi')?.textContent).toBe('Voice chat');
+    });
+
+    it('is on the card where no bar is, as the group’s, and says so when it is over', async () =>
+    {
+        inRoom();
+        await inVoiceChat();
+
+        const card = renderTest(() => CallCard({}) as HTMLElement).container;
+
+        await settle();
+        expect(card.querySelector('[data-call-state="live"]')).not.toBeNull();
+        expect(card.querySelector('[data-call-crest]'), 'a group, not a face').not.toBeNull();
+        expect(text(card, 'data-call-heading')).toBe('Friday Night Crew');
+        expect(text(card, 'data-call-status')).toBe('1:00');
+        expect(text(card, 'data-call-hang-up')).toBe('Leave');
+        expect(card.querySelector('button[aria-label="Open the voice chat in Friday Night Crew"]')).not.toBeNull();
+
+        server.phone = [{ ...server.phone[0], state: 'ended', ending: 'answered', endedAt: new Date(clock.now()).toISOString() }];
+        await useCalls().refresh();
+        await settle();
+
+        expect(text(card, 'data-call-status')).toBe('Voice chat ended · 1:00');
+    });
+
+    it('lists everybody in it but the reader, where the group places them, and who is held or has a hand up', async () =>
+    {
+        inRoom(() => [sara()]);
+        await inVoiceChat([one('alex'), one('sara.k', { hand: true }), one('babak.r', { role: 'owner' }), one('mina', { held: true })]);
+
+        const container = await sheet();
+
+        expect(container.querySelector('h2')?.textContent).toBe('Voice chat in Friday Night Crew');
+        expect(text(container, 'data-call-view-status')).toBe('1:00');
+        expect(text(container, 'data-call-view-count')).toBe('4 in the voice chat');
+        expect([...container.querySelectorAll('li.voice-peer')].map((row) => row.getAttribute('data-who'))).toEqual(['sara.k', 'babak.r', 'mina']);
+        expect(text(container.querySelector('[data-who="babak.r"]')!, 'data-role')).toBe('Owner');
+        expect(container.querySelector('[data-who="sara.k"] [data-role]'), 'a member is not marked one').toBeNull();
+        expect(text(container.querySelector('[data-who="sara.k"]')!, 'data-hand')).toBe('Hand raised');
+        expect(text(container.querySelector('[data-who="mina"]')!, 'data-held')).toBe('Can\'t speak');
+        expect(container.querySelector('[data-voice-chat-staff]'), 'nothing to run for a reader the group lets run nothing').toBeNull();
+        expect(container.querySelector('[data-call-view-staff]')).toBeNull();
+        expect(container.querySelector('[data-call-view-held]'), 'the reader speaks').toBeNull();
+        expect(container.querySelector('[data-call-view-mute] button')).not.toBeNull();
+    });
+
+    it('puts the reader’s hand up and down at a press, and says they only listen while they are held', async () =>
+    {
+        inRoom(() => [sara()]);
+        await inVoiceChat([one('alex', { held: true }), one('sara.k')]);
+
+        const container = await sheet();
+
+        expect(text(container, 'data-call-view-held')).toBe('You\'re listening. Raise your hand to ask to speak.');
+        expect(container.querySelector('[data-call-view-mute]'), 'no microphone to offer while held').toBeNull();
+        expect(text(container, 'data-call-view-hand')).toBe('Raise hand');
+
+        press(container, '[data-call-view-hand] button');
+        await settle();
+
+        expect(text(container, 'data-call-view-hand')).toBe('Lower hand');
+        expect(container.querySelector('[data-call-view-hand] button')?.getAttribute('aria-pressed')).toBe('true');
+        expect(server.calls).toContain('calls.hand true');
+
+        press(container, '[data-call-view-hand] button');
+        await settle();
+
+        expect(text(container, 'data-call-view-hand')).toBe('Raise hand');
+        expect(server.calls).toContain('calls.hand false');
+    });
+
+    it('lets a reader who may run it hold, let speak and take out whoever stands below them, hold everybody, and end it once asked', async () =>
+    {
+        inRoom(() => [sara()]);
+        await inVoiceChat([one('alex', { role: 'admin' }), one('sara.k'), one('babak.r', { role: 'owner' }), one('mina', { held: true, hand: true })], true);
+
+        const container = await sheet();
+        const row = (who: string) => container.querySelector(`[data-who="${ who }"]`)!;
+
+        expect(row('babak.r').querySelector('[data-voice-chat-staff]'), 'nothing over somebody above the reader').toBeNull();
+        expect(row('sara.k').querySelector('[data-voice-chat-hold] button')?.getAttribute('aria-label')).toBe('Mute Sara Kamali');
+        expect(row('mina').querySelector('[data-voice-chat-hold] button')?.textContent?.trim()).toBe('Let speak');
+
+        press(row('mina'), '[data-voice-chat-hold] button');
+        await settle();
+
+        expect(server.calls).toContain('calls.hold mina false');
+        expect(row('mina').querySelector('[data-held]'), 'let speak at the press').toBeNull();
+        expect(row('mina').querySelector('[data-hand]'), 'which answers her hand').toBeNull();
+
+        press(container, '[data-call-view-hold-all] button');
+        await settle();
+
+        expect(server.calls).toContain('calls.holdAll');
+        expect(row('sara.k').querySelector('[data-held]')).not.toBeNull();
+        expect(row('mina').querySelector('[data-held]')).not.toBeNull();
+        expect(row('babak.r').querySelector('[data-held]'), 'the owner stands above an admin').toBeNull();
+
+        press(row('sara.k'), '[data-voice-chat-remove] button');
+        expect(await asked(false)).toBe('Take Sara Kamali out of the voice chat?');
+        expect(server.calls, 'nothing done on a no').not.toContain('calls.remove sara.k');
+
+        press(row('sara.k'), '[data-voice-chat-remove] button');
+        await asked(true);
+
+        expect(server.calls).toContain('calls.remove sara.k');
+        expect(container.querySelector('[data-who="sara.k"]'), 'out at the press').toBeNull();
+
+        press(container, '[data-call-view-end] button');
+        expect(await asked(false)).toBe('End the voice chat for everyone?');
+        expect(server.calls).not.toContain('calls.end');
+
+        press(container, '[data-call-view-end] button');
+        await asked(true);
+
+        expect(server.calls).toContain('calls.end');
+    });
+
+    it('says it in Persian', async () =>
+    {
+        useLocale().setLocale('fa');
+        inRoom(() => [sara()]);
+        await inVoiceChat([one('alex', { role: 'admin', held: true }), one('sara.k', { hand: true })], true);
+
+        const container = await sheet();
+
+        expect(container.querySelector('h2')?.textContent).toBe('چت صوتی Friday Night Crew');
+        expect(text(container, 'data-call-view-held')).toBe('فعلاً فقط می‌شنوی. اگه می‌خوای حرف بزنی دستتو بلند کن.');
+        expect(text(container, 'data-call-view-hand')).toBe('دستتو بلند کن');
+        expect(text(container.querySelector('[data-who="sara.k"]')!, 'data-hand')).toBe('دستشو بلند کرده');
+        expect(text(container, 'data-call-view-hang-up')).toBe('خروج');
+        expect(text(container, 'data-call-view-end')).toBe('برای همه تمومش کن');
     });
 });

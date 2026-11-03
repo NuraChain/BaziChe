@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderTest } from '@azerothjs/testing';
-import { RouterProvider, createMemoryHistory, createRouter } from 'azerothjs';
+import { RouterProvider, createMemoryHistory, createRouter, createSignal } from 'azerothjs';
 
 import ChatListItem from '../src/components/chat/chat-list-item.component.azeroth';
 import { lineSaid } from '../src/components/chat/line-said.ts';
@@ -90,6 +90,99 @@ describe('a call that ended, said in its room', () =>
         expect(drawn('alex')).toContain('Outgoing call · 1:15');
         cleanup();
         expect(drawn('sara.k')).toContain('Incoming call · 1:15');
+    });
+});
+
+describe('a call\'s line, pressed to call again', () =>
+{
+    const line = (who: string, ending: string, seconds?: string): Message => ({
+        id: 'm-call',
+        conversationId: 'c-1',
+        from: '',
+        kind: 'system',
+        text: '',
+        line: { key: 'chat.line.call', params: { who, ending, ...(seconds === undefined ? {} : { seconds }) } },
+        at: 1_700_000_000_000,
+        ref: null
+    });
+
+    /** The line drawn for sara.k, whom alex rang, offered a way to call again when `onCall` is handed. */
+    const drawn = (first: Message, onCall?: () => void) =>
+    {
+        const [message, setMessage] = createSignal(first);
+        const router = createRouter({ routes, history: createMemoryHistory('/app/chats/c-1'), scroll: false });
+        const { container } = renderTest(() => RouterProvider({
+            router,
+            children: () => MessageBubble({
+                get message()
+                {
+                    return message();
+                },
+                me: 'sara.k',
+                onCall
+            })
+        }) as HTMLElement);
+
+        return { container, read: setMessage, button: () => container.querySelector<HTMLButtonElement>('[data-call-again]') };
+    };
+
+    const mark = (button: HTMLButtonElement | null) => button?.querySelector('svg')?.getAttribute('class') ?? '';
+
+    it('calls again at a press, named for what it says and what it does', () =>
+    {
+        const onCall = vi.fn();
+        const { button } = drawn(line('alex', 'answered', '75'), onCall);
+
+        expect(button()?.getAttribute('aria-label')).toBe('Incoming call · 1:15. Call again');
+        expect(button()?.textContent).toContain('Incoming call · 1:15');
+
+        button()?.click();
+
+        expect(onCall).toHaveBeenCalledTimes(1);
+    });
+
+    it('marks a call that rang for the reader and nobody took, and no other', () =>
+    {
+        expect(mark(drawn(line('alex', 'missed'), vi.fn()).button())).toContain('text-danger');
+        cleanup();
+        expect(mark(drawn(line('alex', 'cancelled'), vi.fn()).button()), 'one whoever rang gave up on is missed too').toContain('text-danger');
+        cleanup();
+        expect(mark(drawn(line('alex', 'declined'), vi.fn()).button()), 'one the reader declined').toContain('text-accent');
+        cleanup();
+        expect(mark(drawn(line('sara.k', 'missed'), vi.fn()).button()), 'one the reader rang and nobody took').toContain('text-accent');
+    });
+
+    it('is words with nothing to press where the thread cannot call, and on a line that is no call', () =>
+    {
+        const quiet = drawn(line('alex', 'missed'));
+
+        expect(quiet.button()).toBeNull();
+        expect(quiet.container.textContent).toContain('Missed call');
+
+        cleanup();
+
+        const joined = drawn({ ...line('alex', 'missed'), line: { key: 'chat.line.group.joined', params: { who: 'alex' } } }, vi.fn());
+
+        expect(joined.button()).toBeNull();
+    });
+
+    it('is the same button when the thread is read again', async () =>
+    {
+        const { button, read } = drawn(line('alex', 'missed'), vi.fn());
+        const first = button();
+
+        read(line('alex', 'missed'));
+        await Promise.resolve();
+
+        expect(first).not.toBeNull();
+        expect(button(), 'drawn again for a line that said the same').toBe(first);
+    });
+
+    it('says what it does in Persian', () =>
+    {
+        useLocale().setLocale('fa');
+
+        expect(drawn(line('alex', 'missed'), vi.fn()).button()?.getAttribute('aria-label')).toBe('تماس بی‌جواب. دوباره زنگ بزن');
     });
 });
 

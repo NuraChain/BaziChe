@@ -28,6 +28,7 @@
         "qa": "node tools/qa/matrix.mjs",
         "sound": "node tools/art/sound.mjs",
         "voices": "node tools/art/look-sounds.mjs",
+        "call-sounds": "node tools/art/call-sounds.mjs",
         "beds": "node tools/art/beds.mjs",
         "looks": "node tools/art/looks.mjs && node tools/art/profile-looks.mjs && node tools/art/table-looks.mjs"
     },

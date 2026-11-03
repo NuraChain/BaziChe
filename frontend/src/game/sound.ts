@@ -67,6 +67,23 @@ export interface SoundHandle
     dispose(): void;
 }
 
+/** What a call says while it rings: the ring on the pages it rings at, the ringback on the one that rang. */
+export type Ring = 'ring' | 'ringback';
+
+/** A call's sounds: one ring at a time, repeating until it is quieted, and the tone a call ends with. */
+export interface Ringer
+{
+    /** Rings `cue` from now until `quiet`, in place of whatever rang; asked again for the one that rings, it rings on as it was. */
+    ring(cue: Ring): void;
+
+    quiet(): void;
+
+    /** The tone a call ends with, once. */
+    end(): void;
+
+    dispose(): void;
+}
+
 /** A pack the engine fetches: a table's, or a collection's voices for a place. */
 type Source = Pack | `${ Frame }-${ Place }`;
 
@@ -111,6 +128,7 @@ interface Engine
     wanted: Map<Source, number>;
     waiting: { cue: Voiced; options: PlayOptions; asked: number; until: number }[];
     readying: { sources: readonly Source[]; settle: () => void }[];
+    ringers: Set<() => void>;
     handles: number;
     listening: number;
     resuming: boolean;
@@ -209,7 +227,16 @@ const TONES: Record<Tone, readonly Voice[]> = {
     ]
 };
 
-const JINGLES: ReadonlySet<Cue> = new Set<Cue>(['win', 'lose', 'draw', 'hand-won', 'six', 'home', 'promote']);
+const JINGLES: ReadonlySet<Cue> = new Set<Cue>(['win', 'lose', 'draw', 'hand-won', 'six', 'home', 'promote', 'ring', 'ringback', 'call-end']);
+
+/**
+ * How often each ring rings, in seconds: its take is laid at the start of a loop this long, which
+ * plays on the audio clock, so a ring keeps its time in a hidden tab, whose timers are held back.
+ */
+const RINGS: Record<Ring, number> = { ring: 3, ringback: 3 };
+
+/** How fast a ring that is quieted falls silent, in seconds a fall by e: cut where it stands, it would click. */
+const HUSH = 0.02;
 
 /** The end of a game, which the background sits 6 dB under for as long as it sounds. */
 const STINGS: ReadonlySet<Cue> = new Set<Cue>(['win', 'lose', 'draw']);
@@ -256,6 +283,7 @@ const fresh = (): Engine => ({
     wanted: new Map(),
     waiting: [],
     readying: [],
+    ringers: new Set(),
     handles: 0,
     listening: 0,
     resuming: false,
@@ -443,6 +471,11 @@ function ran(context: AudioContext | null)
     for (const listener of engine.beds)
     {
         listener(context, into);
+    }
+
+    for (const sync of engine.ringers)
+    {
+        sync();
     }
 }
 
@@ -710,6 +743,11 @@ function fetchPack(context: AudioContext, source: Source)
             at.landed.add(source);
             heard(at, cues);
             arrived(at);
+
+            for (const sync of at === engine ? at.ringers : [])
+            {
+                sync();
+            }
         }, () =>
         {
             at.fetched.delete(source);
@@ -945,6 +983,122 @@ export function createSound(enabled: boolean, game?: GameId)
 export function createVoices(enabled: boolean, place: Place = 'profile')
 {
     return handle(enabled, [], place);
+}
+
+const CALLING: readonly Pack[] = ['calls'];
+
+/**
+ * A handle for a call's sounds. A ring plays from the moment its take is in and the page's context
+ * runs, and is heard in a hidden tab, which is where a call often rings; so is the end.
+ */
+export function createRinger(): Ringer
+{
+    const at = engine;
+    const sound = handle(true, CALLING, 'table');
+    let live = true;
+    let wanted: Ring | null = null;
+    let sounding: { cue: Ring; context: AudioContext; source: AudioBufferSourceNode; level: GainNode } | null = null;
+
+    const hush = () =>
+    {
+        const was = sounding;
+
+        sounding = null;
+
+        if (was === null)
+        {
+            return;
+        }
+
+        try
+        {
+            const now = was.context.currentTime;
+
+            was.level.gain.setTargetAtTime(0, now, HUSH);
+            was.source.stop(now + HUSH * 8);
+        }
+        catch
+        {
+            // A context that has closed has stopped it already.
+        }
+    };
+
+    const sync = () =>
+    {
+        const context = at.context;
+        const buses = at.buses;
+        const take = wanted === null ? undefined : at.takes.get(wanted)?.[0];
+
+        if (!live || wanted === null || at !== engine || context === null || context.state !== 'running' || buses === null || take === undefined)
+        {
+            hush();
+            return;
+        }
+
+        if (sounding !== null && sounding.cue === wanted && sounding.context === context)
+        {
+            return;
+        }
+
+        hush();
+
+        try
+        {
+            const rate = take.buffer.sampleRate;
+            const loop = context.createBuffer(1, Math.round(RINGS[wanted] * rate), rate);
+            const skip = Math.round(take.offset * rate);
+
+            loop.copyToChannel(take.buffer.getChannelData(0).subarray(skip, skip + loop.length), 0);
+
+            const source = context.createBufferSource();
+            const level = context.createGain();
+
+            source.buffer = loop;
+            source.loop = true;
+            source.connect(level);
+            level.connect(buses[busOf(wanted)]);
+            source.start();
+            sounding = { cue: wanted, context, source, level };
+        }
+        catch
+        {
+            sounding = null;
+        }
+    };
+
+    at.ringers.add(sync);
+
+    return {
+        ring: (cue) =>
+        {
+            wanted = cue;
+            sync();
+        },
+
+        quiet: () =>
+        {
+            wanted = null;
+            sync();
+        },
+
+        end: () =>
+        {
+            sound.play('call-end', { urgent: true });
+        },
+
+        dispose: () =>
+        {
+            if (!live)
+            {
+                return;
+            }
+
+            live = false;
+            hush();
+            at.ringers.delete(sync);
+            sound.dispose();
+        }
+    };
 }
 
 function handle(enabled: boolean, packs: readonly Pack[], place: Place): SoundHandle

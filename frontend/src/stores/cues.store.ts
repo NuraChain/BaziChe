@@ -39,7 +39,7 @@ const SAID_ELSEWHERE: ReadonlySet<NotificationKind> = new Set(['friend-request',
 
 const LEADS_NOWHERE: ReadonlySet<NotificationKind> = new Set(['table-removed']);
 
-/** Said on the page by the call's own card, so a page is told of them only while nobody looks at it. */
+/** Said on the page by the call's own card and rung by its ringer, so a page is told of them only while nobody looks at it, and never chimes for them. */
 const SAID_BY_CARD: ReadonlySet<NotificationKind> = new Set(['call', 'call-missed']);
 
 /**
@@ -299,7 +299,7 @@ export const useCues = createStore((): CuesApi =>
 
                     system(told.text, rowTag(item), targetOf(item) ?? '/app/notifications', true);
 
-                    if (!carded || item.kind === 'call')
+                    if (!carded)
                     {
                         chime();
                     }

@@ -997,6 +997,8 @@ export default component ChatPage()
 
     derived callee = other?.displayName ?? '';
 
+    const callBack = () => void placeCall(id);
+
     <Page padded={ false } fill label={ title } class="flex">
         <div class="flex h-full min-h-0 w-full">
             <Show when={ split }>
@@ -1051,7 +1053,7 @@ export default component ChatPage()
                                 </span>
                                 <Show when={ callable }>
                                     <span class="contents" data-head-call>
-                                        <IconButton icon="call" label={ locale.t('call.action', { name: callee }) } variant="ghost" onClick={ () => void placeCall(id) } />
+                                        <IconButton icon="call" label={ locale.t('call.action', { name: callee }) } variant="ghost" onClick={ callBack } />
                                     </span>
                                 </Show>
                                 <span ref={ (element) => opener = element } class="contents">
@@ -1163,6 +1165,7 @@ export default component ChatPage()
                                                             replying={ chat.replyTo(id)?.id === row.message.id }
                                                             found={ row.message.id === target }
                                                             menued={ menu?.message.id === row.message.id }
+                                                            onCall={ callable ? callBack : undefined }
                                                         />
                                                     </div>
                                                 </For>

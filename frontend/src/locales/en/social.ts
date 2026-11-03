@@ -479,6 +479,7 @@ export const social = {
     'chat.call.declined': 'Declined call',
     'chat.call.cancelled': 'Cancelled call',
     'chat.call.busy': 'Busy',
+    'chat.call.again': '{line}. Call again',
     'call.region': 'Call',
     'call.action': 'Call {name}',
     'call.incoming': '{name} is calling',

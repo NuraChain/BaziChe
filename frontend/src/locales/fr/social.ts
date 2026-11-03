@@ -482,6 +482,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.call.declined': 'Appel refusé',
     'chat.call.cancelled': 'Appel annulé',
     'chat.call.busy': 'Occupé',
+    'chat.call.again': '{line}. Rappeler',
     'call.region': 'Appel',
     'call.action': 'Appeler {name}',
     'call.incoming': '{name} vous appelle',

@@ -482,6 +482,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.call.declined': '已拒绝的通话',
     'chat.call.cancelled': '已取消的通话',
     'chat.call.busy': '忙线',
+    'chat.call.again': '{line}。回拨',
     'call.region': '通话',
     'call.action': '呼叫 {name}',
     'call.incoming': '{name} 正在呼叫',

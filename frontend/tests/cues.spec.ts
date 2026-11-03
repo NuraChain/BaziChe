@@ -1627,7 +1627,7 @@ describe('what the browser is told when nobody is looking at the page', () =>
         expect(browser.shown[0].options).toMatchObject({ tag: 'chat:c-reza', lang: 'en', dir: 'ltr', data: { target: '/app/chats/c-reza' } });
     });
 
-    it('is told a call rang or was missed, while the page shows no toast for either, which the call\'s own card says', async () =>
+    it('is told a call rang or was missed, while the page shows no toast and chimes for neither, which the call\'s own card says and its ringer rings', async () =>
     {
         useSettings().update({ sound: true });
         await armed();
@@ -1639,7 +1639,6 @@ describe('what the browser is told when nobody is looking at the page', () =>
 
         expect(useToasts().items(), 'a page that is looked at has the card').toEqual([]);
         expect(browser.shown).toEqual([]);
-        await vi.waitFor(() => expect(chimed.heard, 'a call arriving still rings').toEqual(['chime']));
 
         browser.hide(true);
         server.notify({ kind: 'call-missed', actor: 'reza.t', ref: { conversationId: 'c-reza' }, dedupeKey: 'call:call-2' });
@@ -1650,7 +1649,14 @@ describe('what the browser is told when nobody is looking at the page', () =>
         expect(useToasts().items()).toEqual([]);
 
         await new Promise((resolve) => setTimeout(resolve, 50));
-        expect(chimed.heard, 'a missed call rings nothing').toEqual(['chime']);
+        expect(chimed.heard, 'a call or a missed call chimed').toEqual([]);
+
+        browser.hide(false);
+        server.notify({ kind: 'table-invite', actor: 'sara.k', ref: { tableId: 't-1' }, dedupeKey: 'table:t-1' });
+        await useNotifications().refresh();
+        await settle();
+
+        await vi.waitFor(() => expect(chimed.heard, 'an invitation after them chimes as ever').toEqual(['chime']));
     });
 
     it('is told nothing while the page is being looked at, and nothing with the switch for this device off', async () =>

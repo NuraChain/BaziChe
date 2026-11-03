@@ -31,7 +31,8 @@ const LAZY = [
     '../src/components/call/call-card.component.azeroth',
     '../src/components/call/call-bar.component.azeroth',
     '../src/components/call/call-view.component.azeroth',
-    '../src/components/call/said.ts'
+    '../src/components/call/said.ts',
+    '../src/components/call/ringer.ts'
 ];
 
 let clock: ManualClock;

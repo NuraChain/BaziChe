@@ -83,6 +83,9 @@ export function createProfileSponsorship(db: DataSource, sponsor: ProfileSponsor
     const paysItself = async (owner: Address, gas: bigint) =>
         await sponsor.balanceOf(owner) >= gas * await sponsor.gasPrice();
 
+    /** The gas the server names for a write: what the chain says it takes, and a margin. */
+    const gasFor = async (call: { owner: Address; data: Hex }) => await sponsor.estimate(call.owner, call.data) * 6n / 5n + 25_000n;
+
     const used = async (runner: Pick<DataSource, 'query'>, userId: string) =>
     {
         const [row] = await runner.query(
@@ -103,7 +106,7 @@ export function createProfileSponsorship(db: DataSource, sponsor: ProfileSponsor
             }
 
             const call = await asked(userId);
-            const gas = await sponsor.estimate(call.owner, call.data) * 6n / 5n + 25_000n;
+            const gas = await gasFor(call);
 
             if (gas > SPONSOR_GAS_MOST)
             {
@@ -137,8 +140,16 @@ export function createProfileSponsorship(db: DataSource, sponsor: ProfileSponsor
             }
 
             const call = await asked(userId);
+            const needed = await gasFor(call);
 
-            if (await paysItself(call.owner, gas))
+            // Judged on the gas the server names, never on what came back: a wallet that can pay
+            // for the write must not buy the server's payment by signing for far more gas.
+            if (gas > needed * 2n)
+            {
+                throw refused('sponsor-request', 'That is not a request the server made.');
+            }
+
+            if (await paysItself(call.owner, needed))
             {
                 throw refused('sponsor-pays', 'Your wallet can pay for this itself.');
             }

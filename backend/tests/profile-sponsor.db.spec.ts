@@ -132,6 +132,8 @@ describe.skipIf(!active)('the server paying a profile\'s gas, against a real dat
         state.balance = 265_000n * state.price;
         expect(await sponsorship.ask(me)).toEqual({ sponsored: false, why: 'pays' });
         expect(await word(sponsorship.send(me, good()))).toBe('409 sponsor-pays');
+        expect(await word(sponsorship.send(me, { ...good(), gas: '520000' })), 'a wallet that can pay signed for more gas than it holds').toBe('409 sponsor-pays');
+        expect(await word(sponsorship.send(me, { ...good(), gas: '531000' })), 'signed for more than twice the gas the write takes').toBe('422 sponsor-request');
 
         state.balance = 0n;
         state.estimate = SPONSOR_GAS_MOST;

@@ -3,7 +3,7 @@ import { User } from './user.entity.ts';
 
 import type { GrantedRole } from '../domains/admin/roles.ts';
 
-@Check('staff_members_role_known', `role in ('moderator', 'admin')`)
+@Check('staff_members_role_known', `role in ('moderator', 'admin', 'co-owner')`)
 @Check('staff_members_not_self_granted', `granted_by is null or granted_by <> user_id`)
 @Index('staff_members_granted_by', ['grantedBy'])
 @Entity('staff_members')

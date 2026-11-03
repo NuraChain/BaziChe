@@ -50,6 +50,10 @@ export default component AdminVault()
 
     state feeTold = null as string | null;
 
+    state shareText = '';
+
+    state shareTold = null as string | null;
+
     state ceilingText = '';
 
     state ceilingTold = null as string | null;
@@ -93,6 +97,12 @@ export default component AdminVault()
     derived minFee = open === null ? '' : percent(open.minFee);
 
     derived maxFee = open === null ? '' : percent(open.maxFee);
+
+    derived share = open === null ? '' : percent(open.share);
+
+    derived minShare = open === null ? '' : percent(open.minShare);
+
+    derived maxShare = open === null ? '' : percent(open.maxShare);
 
     derived ceiling = open === null ? '' : nura(open.maxStake);
 
@@ -185,6 +195,28 @@ export default component AdminVault()
     {
         feeText = value;
         feeTold = null;
+    };
+
+    const typedShare = (value: string) =>
+    {
+        shareText = value;
+        shareTold = null;
+    };
+
+    const changeShare = async () =>
+    {
+        const bps = bpsOf(shareText);
+
+        if (bps === null || open === null || bps < open.minShare || bps > open.maxShare)
+        {
+            shareTold = locale.t('admin.vault.shareBad', { min: minShare, max: maxShare });
+            return;
+        }
+
+        if (await act(() => client.admin.share({ input: { bps } }), locale.t('admin.vault.shareDone', { share: percent(bps) })))
+        {
+            shareText = '';
+        }
     };
 
     const typedCeiling = (value: string) =>
@@ -369,6 +401,10 @@ export default component AdminVault()
                         <dt class="text-ui-xs text-muted">{ locale.t('admin.vault.fee') }</dt>
                         <dd class="text-ui-lg font-semibold text-text"><span class="tally">{ fee }</span></dd>
                     </div>
+                    <div class="flex flex-col gap-1 rounded-tile border border-line bg-field p-3" data-fact="share">
+                        <dt class="text-ui-xs text-muted">{ locale.t('admin.vault.share') }</dt>
+                        <dd class="text-ui-lg font-semibold text-text"><span class="tally">{ share }</span></dd>
+                    </div>
                     <div class="flex flex-col gap-1 rounded-tile border border-line bg-field p-3" data-fact="ceiling">
                         <dt class="text-ui-xs text-muted">{ locale.t('admin.vault.ceiling') }</dt>
                         <dd class="text-ui-lg font-semibold text-text"><span class="tally">{ ceiling }</span> NURA</dd>
@@ -504,6 +540,23 @@ export default component AdminVault()
                                     onEnter={ () => void changeFee() }
                                 />
                                 <Button variant="outline" loading={ vaults.busy() } onClick={ () => void changeFee() }>{ locale.t('admin.vault.feeSend') }</Button>
+                            </div>
+                        </Field>
+                        <Field id="admin-share" label={ locale.t('admin.vault.shareLabel') } hint={ locale.t('admin.vault.shareHint', { min: minShare, max: maxShare }) } error={ shareTold }>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <Input
+                                    id="admin-share"
+                                    class="min-w-40 flex-1"
+                                    value={ shareText }
+                                    inputmode="decimal"
+                                    autocomplete="off"
+                                    enterkeyhint="send"
+                                    invalid={ shareTold !== null }
+                                    describedBy={ shareTold !== null ? 'admin-share-error' : 'admin-share-hint' }
+                                    onInput={ typedShare }
+                                    onEnter={ () => void changeShare() }
+                                />
+                                <Button variant="outline" loading={ vaults.busy() } onClick={ () => void changeShare() }>{ locale.t('admin.vault.shareSend') }</Button>
                             </div>
                         </Field>
                         <Field id="admin-ceiling" label={ locale.t('admin.vault.ceilingLabel') } hint={ locale.t('vault.amountHint') } error={ ceilingTold }>

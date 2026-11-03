@@ -31,14 +31,52 @@ git pull
 npm ci
 npm run build
 npm run setup                                  # adds any name the update put in .env.example
-npm run schema:sync
-# restart the service with whatever supervises it
+# restart the service with whatever supervises it: it migrates the database before it serves
 curl -s http://127.0.0.1:4900/api/healthz      # {"status":"ok","database":true}
 ```
 
-`npm run schema:sync` makes the database match the entities exactly: a column an entity no longer
-has is dropped with what was in it. That is why the dump comes first, every time, even when the
-diff of the entities is empty. `DATABASE_URL` is the one in the server's `.env`.
+Every start brings the database to the entities by itself (`backend/src/db/migrate.ts`), and
+nobody runs a command for it. First each migration file the update brought
+(`backend/src/db/migrations/`) runs once, in order, in a transaction of its own. Then whatever still
+differs from the entities is applied in one transaction and written down as the next version, in
+`schema_versions` (its number, when, and every statement it ran). The first thing that fails is
+rolled back and stops the start, with the reason in the log and nothing half done: the server
+refuses to start rather than serve a database it does not match. Two servers on one database
+migrate once. The dump still comes first, every time: a change is code, and code can be wrong.
+`DATABASE_URL` is the one in the server's `.env`.
+
+**Nothing a start does loses a row.** Before a column is dropped or retyped, its values are copied,
+with the row's key, into a table beside it named `kept_<version>_<table>__<column>`; a dropped table
+is copied whole to `kept_<version>_<table>`. The start's log names them in a warning. Once the
+update is known good, drop them by hand.
+
+### The first start of a database from before versions
+
+A database built before migrations existed is adopted at its first start: versioned from then on,
+and brought to the entities like any other, what it would lose kept beside it.
+
+### Changing an entity
+
+Change the entity and start the server: it changes the database to match, as the next version, and
+every other database does the same at its next start. A CHECK whose rule changed is the same:
+every start compares the rules and rewrites them when they moved.
+
+Two changes need a person, because the entities cannot say them:
+
+- **A NOT NULL column added to a table that has rows** needs a default in its entity, or the start
+  stops (rolled back, nothing moved) and says so.
+- **Rows that must move** (a column renamed with its values, a value rewritten) need a migration
+  file, which runs before the start's own change:
+
+  ```sh
+  npm run migration:new -- RenameChannelTopic   # writes backend/src/db/migrations/<time>-RenameChannelTopic.ts
+  ```
+
+  It writes the difference as a starting point: edit it to move the rows, read it, and commit it
+  with the entity.
+
+`npm run migrate` does what a start does, without starting; `npm run schema:sync` is still there for
+a development database to be reset to the entities.
 
 After the restart: Admin › Overview should say nothing needs you, and the server's log should hold
 no `error` line from the start.
@@ -54,10 +92,12 @@ no `error` line from the start.
   # restart
   ```
 
-- **It did change them**: the old code expects the old shape, which `schema:sync` has already
-  changed. Restore the dump taken before the update into a new database (below), point
+- **It did change them**: the old code expects the old shape, which the start has already migrated. Restore the dump taken before the update into a new database (below), point
   `DATABASE_URL` at it, and start the old build there. Everything written since the dump is lost,
   so when the update has run for a while, mending forward with a fix is usually the better way.
+  Never start the old build on the migrated database itself: its start would change the database
+  back to its own entities, moving the update's new columns into `kept_` tables, and starting the
+  update again would add them back empty.
 
 A money record written after the dump and lost with a rollback is still on NuraChain: the
 reconciliation compares each one, and what it cannot put right it lists for a person (Admin › Money

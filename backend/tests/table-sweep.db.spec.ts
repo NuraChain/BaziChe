@@ -74,7 +74,8 @@ const door = (presence?: PresenceReader, from: DataSource = db, live: WriteListe
     env: 'test',
     vapidPublicKey: '',
     vapidPrivateKey: '',
-    vapidSubject: ''
+    vapidSubject: '',
+    adminWallet: ''
 } as Parameters<typeof buildPorts>[1], live, presence);
 
 const hubAt = (clock: { at: number }) => createHub({

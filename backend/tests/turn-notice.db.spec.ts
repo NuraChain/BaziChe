@@ -115,7 +115,8 @@ describe.skipIf(!active)('the notice that it is somebody\'s go, against a real d
             env: 'test',
             vapidPublicKey: '',
             vapidPrivateKey: '',
-            vapidSubject: ''
+            vapidSubject: '',
+adminWallet: ''
         } as Parameters<typeof buildPorts>[1], listener);
     }, 60_000);
 

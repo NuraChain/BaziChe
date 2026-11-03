@@ -1,0 +1,126 @@
+import { createResource, untrack } from 'azerothjs';
+
+import { client } from '../../api.ts';
+import { nuraOf } from '../../lib/nura.ts';
+import '../../locales/shop-catalogue.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useShop } from '../../stores/shop.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Panel from '../ui/panel.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+
+/**
+ * What the reader's invites earn them: a share of what the people they brought in spend in the
+ * shop, claimed from here, and of the fee on every seat they take at a table played for NURA, which
+ * the vault puts in the reader's balance there as it is paid. Nothing at all where the server sells
+ * nothing and plays for nothing.
+ */
+export default component InviteEarnings()
+{
+    const locale = useLocale();
+    const shop = useShop();
+    const toasts = useToasts();
+
+    const earned = createResource(() => true, () => client.invites.earnings(), { name: 'invite.earnings' });
+
+    const nura = (wei: string) => locale.n(nuraOf(wei), { maximumFractionDigits: 4 });
+
+    const percent = (bps: number) => locale.n(bps / 10_000, { style: 'percent', maximumFractionDigits: 2 });
+
+    derived open = shop.state()?.open === true;
+
+    derived owed = open ? shop.earnings() : null;
+
+    derived selling = owed !== null;
+
+    derived claimable = owed !== null && BigInt(owed.earnings) > 0n;
+
+    derived owedFigure = nura(owed?.earnings ?? '0');
+
+    derived shopShare = percent(owed?.share ?? 0);
+
+    derived held = earned.data() ?? null;
+
+    derived trouble = earned.error();
+
+    derived waiting = held === null && trouble === null;
+
+    derived failed = held === null && trouble !== null;
+
+    derived tables = held !== null && held.tables ? held : null;
+
+    derived playing = tables !== null;
+
+    derived tablesShare = percent(tables?.share ?? 0);
+
+    derived tablesFee = percent(tables?.fee ?? 0);
+
+    derived tablesFigure = nura(tables?.earned ?? '0');
+
+    derived shown = selling || waiting || failed || playing;
+
+    // What the shop owes for the people the reader invited is the contract's to say, and a closed shop has none to ask.
+    effect
+    {
+        if (open)
+        {
+            untrack(() => shop.want('earnings'));
+        }
+    }
+
+    const claim = async () =>
+    {
+        const said = await shop.claim();
+
+        toasts.show(said === null ? { kind: 'success', text: locale.t('shop.claimed') } : { kind: 'warning', text: locale.t(said) });
+    };
+
+    <Show when={ shown }>
+        <section class="flex flex-col gap-3" aria-labelledby="invite-earn" data-invite-earnings>
+            <div class="flex flex-col gap-1">
+                <h2 id="invite-earn" class="text-ui-lg font-semibold text-text">{ locale.t('invite.earn.title') }</h2>
+                <p class="text-ui-xs text-muted">{ locale.t('invite.earn.lead') }</p>
+            </div>
+            <div class="grid gap-3 @2xl:grid-cols-2">
+                <Show when={ selling }>
+                    <div class="flex flex-col" data-earned="shop">
+                        <Panel pad="md" stack="sm" class="flex-1">
+                            <h3 class="text-ui-md font-semibold text-text">{ locale.t('invite.earn.shop') }</h3>
+                            <p class="text-ui-sm text-muted">{ locale.t('invite.earn.shopLead', { share: shopShare }) }</p>
+                            <p class="text-ui-2xl font-bold text-text"><span class="tally">{ owedFigure }</span> NURA</p>
+                            <Show when={ claimable }>
+                                <Button variant="primary" class="self-start" leading="coins" loading={ shop.claiming() } onClick={ () => void claim() }>
+                                    { locale.t('shop.claim', { amount: owedFigure }) }
+                                </Button>
+                            </Show>
+                        </Panel>
+                    </div>
+                </Show>
+
+                <Show when={ waiting }>
+                    { () => <Skeleton lines={ 3 } class="rounded-panel border border-line bg-field p-4" /> }
+                </Show>
+
+                <Show when={ failed }>
+                    { () => <ErrorState error={ trouble } title={ locale.t('invite.earn.failed') } onRetry={ () => void earned.refetch() } /> }
+                </Show>
+
+                <Show when={ playing }>
+                    <div class="flex flex-col" data-earned="tables">
+                        <Panel pad="md" stack="sm" class="flex-1">
+                            <h3 class="text-ui-md font-semibold text-text">{ locale.t('invite.earn.tables') }</h3>
+                            <p class="text-ui-sm text-muted">{ locale.t('invite.earn.tablesLead', { share: tablesShare, fee: tablesFee }) }</p>
+                            <p class="flex flex-col">
+                                <span class="text-ui-2xl font-bold text-text"><span class="tally">{ tablesFigure }</span> NURA</span>
+                                <span class="text-ui-xs text-muted">{ locale.t('invite.earn.tablesSoFar') }</span>
+                            </p>
+                            <Button variant="outline" class="self-start" leading="wallet" href="/app/me/wallet">{ locale.t('invite.earn.vault') }</Button>
+                        </Panel>
+                    </div>
+                </Show>
+            </div>
+        </section>
+    </Show>
+}

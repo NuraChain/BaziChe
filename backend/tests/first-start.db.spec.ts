@@ -9,9 +9,10 @@ import { behindTheEntities, holdsNothing, syncSchema } from '../src/db/schema.ts
 import { seedReference } from '../src/db/seed-reference.ts';
 
 /**
- * A production start builds the schema onto a database that holds none of it, and changes nothing in
- * one that holds any of it: `npm run schema:sync` does that, after a dump. OPT-IN, like the other
- * `.db.spec` suites, on a throwaway database of its own.
+ * Every start brings the database to the entities before anything reads it, by `migrate`
+ * (`migrate.db.spec.ts` holds what it does to each kind of database), and what it builds onto is told
+ * apart here: a database holding none of the schema, and one an update left behind. OPT-IN, like the
+ * other `.db.spec` suites, on a throwaway database of its own.
  */
 
 const url = process.env.TEST_DATABASE_URL;
@@ -26,11 +27,15 @@ const probeUrl = () => new URL(url ?? '').toString().replace(/\/[^/]*$/, `/${ PR
 
 describe('a start', () =>
 {
-    it('builds the schema at every start in development, and in production only onto a database holding none of it', () =>
+    it('migrates at every start, on a connection of its own, before the catalogue is seeded, and stops when it cannot', () =>
     {
         const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
 
-        expect(main).toMatch(/if \(config\.databaseSync \|\| await holdsNothing\(dataSource\)\)\s*\{\s*try\s*\{\s*await syncSchema\(dataSource\);/);
+        expect(main).toMatch(/const migrator = migrationSource\(dataSource\.options\);/);
+        expect(main).toMatch(/const done = await migrate\(targetOf\(migrator\), log\);/);
+        expect(main.indexOf('await migrate(')).toBeLessThan(main.indexOf('await seedReference(dataSource)'));
+        expect(main.slice(main.indexOf('await migrate('), main.indexOf('await seedReference(dataSource)'))).toContain('process.exit(1);');
+        expect(main, 'a start no longer syncs the schema by itself').not.toMatch(/await syncSchema\(dataSource\)/);
     });
 });
 

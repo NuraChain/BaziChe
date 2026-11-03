@@ -57,6 +57,7 @@ import { Notice } from './notice.entity.ts';
 import { Notification } from './notification.entity.ts';
 import { OwnedItem } from './owned-item.entity.ts';
 import { PaidAccount } from './paid-account.entity.ts';
+import { ProfileSponsorship } from './profile-sponsorship.entity.ts';
 import { PushSubscription } from './push-subscription.entity.ts';
 import { RecoveryNonce } from './recovery-nonce.entity.ts';
 import { RecoveryVault } from './recovery-vault.entity.ts';
@@ -82,7 +83,7 @@ export {
     Achievement, Avatar, Block, Call, CallParticipant, Channel, ChannelMember, ChannelPost, ChannelVote, ChatFile, Conversation, ConversationEpoch, ConversationMember, ConversationPin, Device, Discrepancy, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat, EstablishedPlayer,
     EpochArchive, FriendRequest, Friendship,
     Game, GameRule, Group, GroupBan, GroupEvent, GroupInvite, GroupMember, GroupMute, GroupReport, GroupRequest, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, Mute,
-    NftToken, Notice, Notification, OwnedItem, PaidAccount, PlayerStats, PushSubscription,
+    NftToken, Notice, Notification, OwnedItem, PaidAccount, PlayerStats, ProfileSponsorship, PushSubscription,
     QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, Session, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
     UserAchievement, VoiceNote, VoicePlay, Wallet
 };
@@ -99,7 +100,7 @@ export {
  */
 export const entities: Function[] = [
     Game, GameRule, Achievement,
-    User, Avatar, Wallet, Session, SiweNonce, Device,
+    User, Avatar, Wallet, Session, SiweNonce, Device, ProfileSponsorship,
     Friendship, FriendRequest, Block, Mute, Report,
     Conversation, ConversationMember, VoiceNote, ChatFile, Message, VoicePlay, ConversationPin, ConversationEpoch, EpochKey, EpochArchive,
     RecoveryVault, RecoveryNonce, InviteCode, InviteVisit, InviteCampaign, InviteReward, InviteBoardOff, Referral, EstablishedPlayer,

@@ -22,7 +22,8 @@ const config = {
     env: 'test',
     vapidPublicKey: '',
     vapidPrivateKey: '',
-    vapidSubject: ''
+    vapidSubject: '',
+    adminWallet: ''
 } as Parameters<typeof buildPorts>[1];
 
 describe.skipIf(!active)('the other servers using the database', () =>

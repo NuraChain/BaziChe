@@ -5,7 +5,6 @@ import { DataSource } from 'typeorm';
 
 import { errorResponse } from '@azerothjs/http';
 
-import { OWNER_WALLET } from '../src/domains/admin/roles.ts';
 import { StaffAction, StaffMember, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { buildPorts, type Services, type WriteListener } from '../src/services.ts';
@@ -21,12 +20,12 @@ const WALLETS = [
     '0x90f79bf6eb2c4f870365e785982e1f101e93b906',
     '0x15d34aaf54267db7d7c367839aaf71a00a2c6a65',
     '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc',
-    OWNER_WALLET
+    '0x976ea74026e726554db657fa54763abd0c3a0aa9'
 ];
 
 const OWNER = 5;
 
-const BUILT_IN = 6;
+const OTHER = 6;
 
 const listener: WriteListener = {
     chatChanged: () => undefined,
@@ -99,7 +98,7 @@ const word = async (work: Promise<unknown>) =>
     return `${ response.status } ${ body.error.code }`;
 };
 
-const set = (actor: Person, target: { handle: string }, role: 'moderator' | 'admin' | 'none', reason = 'Runs the evening tables') =>
+const set = (actor: Person, target: { handle: string }, role: 'moderator' | 'admin' | 'co-owner' | 'none', reason = 'Runs the evening tables') =>
     ports.admin.setStaff(actor.id, { handle: target.handle, role, reason });
 
 const roles = async () =>
@@ -149,20 +148,19 @@ describe.skipIf(!active)('the staff, against a real database', () =>
             expect(await ports.identity.me(player.id)).not.toHaveProperty('staff');
         });
 
-        it('holds the wallet written into the server as an owner beside the one .env names, and alone when .env names nobody, listed nowhere', async () =>
+        it('holds as the owner the wallet .env names and no other, and nobody when .env names nobody', async () =>
         {
             const named = await makeUser(OWNER);
-            const builtIn = await makeUser(BUILT_IN);
+            const other = await makeUser(OTHER);
 
             expect((await ports.identity.me(named.id))?.staff).toBe('owner');
-            expect((await ports.identity.me(builtIn.id))?.staff).toBe('owner');
+            expect(await ports.identity.me(other.id), 'a wallet written into the server is an owner').not.toHaveProperty('staff');
 
             const unnamed = buildPorts(db, { ...CONFIG, adminWallet: '' }, listener);
 
-            expect((await unnamed.identity.me(builtIn.id))?.staff).toBe('owner');
             expect(await unnamed.identity.me(named.id)).not.toHaveProperty('staff');
-            expect((await unnamed.admin.staff(builtIn.id))?.owners).toEqual([]);
             expect(await unnamed.admin.staff(named.id)).toBeNull();
+            expect(await unnamed.admin.staff(other.id)).toBeNull();
         });
 
         it('lists somebody on the staff once, as an owner, from the moment .env names their wallet', async () =>
@@ -201,10 +199,10 @@ describe.skipIf(!active)('the staff, against a real database', () =>
             expect(await logged()).toHaveLength(2);
         });
 
-        it('lists the owners apart by handle, then the admins before the moderators, with who made each one', async () =>
+        it('lists the owner apart, then the co-owners, the admins and the moderators, with who made each one', async () =>
         {
             const owner = await makeUser(OWNER);
-            const builtIn = await makeUser(BUILT_IN);
+            const coOwner = await makeUser(OTHER);
             const admin = await makeUser(0);
             const moderator = await makeUser(1);
             const second = await makeUser(2);
@@ -212,21 +210,21 @@ describe.skipIf(!active)('the staff, against a real database', () =>
             await set(owner, moderator, 'moderator');
             await set(owner, admin, 'admin');
             await set(admin, second, 'moderator');
-            await db.getRepository(StaffMember).insert({ userId: builtIn.id, role: 'admin', grantedBy: owner.id });
+            await set(owner, coOwner, 'co-owner');
 
             const list = await ports.admin.staff(owner.id);
 
-            expect(list?.owners.map((one) => [one.handle, one.role]), 'the owner the server holds of its own was listed').toEqual([[owner.handle, 'owner']]);
-            expect(list?.members.map((one) => one.handle)).not.toContain(builtIn.handle);
+            expect(list?.owners.map((one) => [one.handle, one.role])).toEqual([[owner.handle, 'owner']]);
             expect(list?.owners.some((one) => 'grantedBy' in one || 'grantedAt' in one)).toBe(false);
             expect(list?.members.map((member) => [member.handle, member.role, member.grantedBy])).toEqual([
+                [coOwner.handle, 'co-owner', owner.handle],
                 [admin.handle, 'admin', owner.handle],
                 [moderator.handle, 'moderator', owner.handle],
                 [second.handle, 'moderator', admin.handle]
             ]);
             expect(list?.members.every((member) => typeof member.grantedAt === 'string')).toBe(true);
             expect(await ports.admin.staff(admin.id)).toEqual(list);
-            expect(await ports.admin.staff(builtIn.id)).toEqual(list);
+            expect(await ports.admin.staff(coOwner.id)).toEqual(list);
         });
     });
 
@@ -275,7 +273,6 @@ describe.skipIf(!active)('the staff, against a real database', () =>
         it('refuses a change to oneself, to the owner, and to somebody who is not there, a suspended account in the same words', async () =>
         {
             const owner = await makeUser(OWNER);
-            const builtIn = await makeUser(BUILT_IN);
             const admin = await makeUser(0);
             const suspended = await makeUser(1, { isSuspended: true });
 
@@ -284,10 +281,6 @@ describe.skipIf(!active)('the staff, against a real database', () =>
             expect(await word(set(admin, admin, 'moderator'))).toBe('409 staff-self');
             expect(await word(set(admin, owner, 'none'))).toBe('409 staff-owner');
             expect(await word(set(owner, owner, 'admin'))).toBe('409 staff-owner');
-            expect(await word(set(owner, builtIn, 'none')), 'the owner the server holds of its own was named').toBe('404 staff-nobody');
-            expect(await word(set(admin, builtIn, 'moderator'))).toBe('404 staff-nobody');
-            expect(await word(set(builtIn, owner, 'moderator'))).toBe('409 staff-owner');
-            expect(await word(set(builtIn, builtIn, 'admin'))).toBe('409 staff-owner');
 
             const missing = await set(owner, { handle: 'nobody-here' }, 'moderator').then(() => null, (error: unknown) => errorResponse(error));
             const hidden = await set(owner, suspended, 'moderator').then(() => null, (error: unknown) => errorResponse(error));
@@ -295,6 +288,64 @@ describe.skipIf(!active)('the staff, against a real database', () =>
             expect(missing?.status).toBe(404);
             expect(await hidden?.text()).toBe(await missing?.text());
             expect(await logged()).toHaveLength(1);
+        });
+
+        it('lets the owner alone make or unmake a co-owner, and a co-owner run every role below it, written as a co-owner', async () =>
+        {
+            const owner = await makeUser(OWNER);
+            const coOwner = await makeUser(OTHER);
+            const other = await makeUser(0);
+            const admin = await makeUser(1);
+            const player = await makeUser(2);
+
+            await set(owner, admin, 'admin');
+
+            expect(await word(set(admin, coOwner, 'co-owner')), 'an admin made a co-owner').toBe('409 staff-rank');
+
+            await set(owner, coOwner, 'co-owner', 'Runs the server beside me');
+            await set(owner, other, 'co-owner');
+
+            expect((await ports.identity.me(coOwner.id))?.staff).toBe('co-owner');
+
+            await set(coOwner, player, 'admin', 'Takes the weekend');
+            await set(coOwner, admin, 'moderator', 'Asked for less');
+
+            expect(await word(set(coOwner, other, 'none')), 'a co-owner unmade another').toBe('409 staff-rank');
+            expect(await word(set(coOwner, player, 'co-owner')), 'a co-owner made another').toBe('409 staff-rank');
+            expect(await word(set(coOwner, owner, 'none'))).toBe('409 staff-owner');
+            expect(await word(set(coOwner, coOwner, 'admin'))).toBe('409 staff-self');
+
+            await set(owner, other, 'none', 'Stepped away');
+
+            expect(await roles()).toEqual({ [coOwner.id]: 'co-owner', [player.id]: 'admin', [admin.id]: 'moderator' });
+            expect((await logged()).slice(0, 3)).toEqual([
+                ['revoke', owner.handle, 'owner', other.handle, 'Stepped away', { from: 'co-owner' }],
+                ['change', coOwner.handle, 'co-owner', admin.handle, 'Asked for less', { from: 'admin', to: 'moderator' }],
+                ['grant', coOwner.handle, 'co-owner', player.handle, 'Takes the weekend', { to: 'admin' }]
+            ]);
+        });
+
+        it('opens every section to a co-owner and signs it for no contract', async () =>
+        {
+            const owner = await makeUser(OWNER);
+            const coOwner = await makeUser(OTHER);
+
+            await set(owner, coOwner, 'co-owner');
+
+            expect(await ports.admin.staff(coOwner.id)).not.toBeNull();
+            expect(await ports.admin.log(coOwner.id, {})).not.toBeNull();
+            expect(await ports.admin.vault(coOwner.id), 'a co-owner sees the vault').not.toBeNull();
+
+            for (const signed of [
+                ports.admin.fee(coOwner.id, 500),
+                ports.admin.pause(coOwner.id, true),
+                ports.admin.shopWithdraw(coOwner.id, '1'),
+                ports.admin.shopShare(coOwner.id, 1000),
+                ports.admin.marketsOperator(coOwner.id, WALLETS[0])
+            ])
+            {
+                expect(await signed, 'a co-owner was given a contract call').toBeNull();
+            }
         });
 
         it('writes nothing when the role asked for is the role already held, or none for somebody who holds none', async () =>

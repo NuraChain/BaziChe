@@ -15,6 +15,7 @@ export type LogRow = StaffLog['rows'][number];
 
 export const ROLE_WORDS: Record<StaffRole, MessageKey> = {
     owner: 'admin.role.owner',
+    'co-owner': 'admin.role.co-owner',
     admin: 'admin.role.admin',
     moderator: 'admin.role.moderator'
 };
@@ -28,6 +29,7 @@ export const FLAG_WORDS: Record<InviteFlag, MessageKey> = {
 
 export const ROLE_IN: Record<StaffRole, MessageKey> = {
     owner: 'admin.role.in.owner',
+    'co-owner': 'admin.role.in.co-owner',
     admin: 'admin.role.in.admin',
     moderator: 'admin.role.in.moderator'
 };
@@ -207,6 +209,13 @@ const said = (row: LogRow, locale: LocaleApi) =>
     if (row.kind === 'check')
     {
         return locale.t(CHECK_LINES[row.details.family ?? ''] ?? 'admin.log.line.check.contract', slots);
+    }
+
+    if (row.kind === 'shop-item' && row.details.field === 'every')
+    {
+        const percent = Number(row.details.percent ?? '0');
+
+        return locale.t('admin.log.line.shop.every', { ...slots, percent: `${ percent > 0 ? '+' : '' }${ locale.n(percent) }%` });
     }
 
     if (row.kind === 'shop-item')

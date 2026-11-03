@@ -197,6 +197,7 @@ export const play = {
     'tables.refused.paid-done': 'The stakes of that game are not locked any more.',
     'tables.refused.vault-role': 'This wallet does not hold that role on the vault.',
     'tables.refused.vault-fee': 'A fee is from 1% to 15%.',
+    'tables.refused.vault-share': 'An inviter is paid from 1% to 75% of a fee.',
     'tables.refused.vault-fees': 'The vault does not hold that much in fees.',
     'tables.refused.vault-game': 'No game by that name is played for NURA.',
     'tables.refused.vault-referee': 'That is not an address the vault can name.',

@@ -15,7 +15,8 @@ import { buildPorts } from './services.ts';
 import { dataSource } from './data-source.ts';
 import { seedWalletFixtures } from './db/seed-wallets.ts';
 import { seedReference } from './db/seed-reference.ts';
-import { behindTheEntities, holdsNothing, syncSchema } from './db/schema.ts';
+import { migrate, migrationSource, targetOf } from './db/migrate.ts';
+import { behindTheEntities } from './db/schema.ts';
 import { loadServerConfig } from './env.ts';
 import { watchBuild } from './http/build-watch.ts';
 import { gzipOnTheWay, precompressed } from './http/compression.ts';
@@ -57,26 +58,59 @@ const log = createServerLogger(config);
 await dataSource.initialize();
 log.info('database ready', { pool: config.databasePoolMax });
 
-if (config.databaseSync || await holdsNothing(dataSource))
+// The database is brought to the entities before anything reads it, by the start itself
+// (db/migrate.ts): built when empty, every migration file not yet applied run in order, and what
+// still differs applied and written down as the next version. On its own connection, with a
+// migration's time limits.
 {
+    const migrator = migrationSource(dataSource.options);
+
     try
     {
-        await syncSchema(dataSource);
+        await migrator.initialize();
+
+        const done = await migrate(targetOf(migrator), log);
+
+        if (done.done === 'built')
+        {
+            log.info('schema built onto an empty database');
+        }
+        else
+        {
+            if (done.done === 'adopted')
+            {
+                log.info('schema versioned from here');
+            }
+            else if (done.applied.length > 0)
+            {
+                log.info('migrations applied', { applied: done.applied });
+            }
+
+            if (done.changed !== null)
+            {
+                log.info('schema brought to the entities', { version: done.changed.version, statements: done.changed.statements.slice(0, 20) });
+            }
+        }
     }
     catch (error)
     {
         const code = (error as { driverError?: { code?: string } }).driverError?.code ?? '';
 
-        log.error('the schema cannot be built onto this database', {
+        log.error('the database could not be brought to this version', {
             reason: error instanceof Error ? error.message : String(error),
-            ...(code.startsWith('23')
-                ? { fix: 'this database holds rows from before the entities changed, and nothing here migrates them. Rebuild it: psql "$DATABASE_URL" -c "drop schema public cascade; create schema public", then start again' }
+            ...(code.startsWith('23') || code.startsWith('22') || code === '42804'
+                ? { fix: 'the rows in the database cannot take this change as they are (a NOT NULL column with no default on a table that has rows, a value that does not cast): it was rolled back and nothing moved. Give the column a default in its entity, or add a migration file that moves the rows (npm run migration:new), and start again' }
                 : {})
         });
         process.exit(1);
     }
-
-    log.info(config.databaseSync ? 'schema synced from the entities' : 'schema built onto an empty database');
+    finally
+    {
+        if (migrator.isInitialized)
+        {
+            await migrator.destroy();
+        }
+    }
 }
 
 // The catalogue is part of the product, not development data: every environment needs identical
@@ -92,7 +126,7 @@ catch (error)
     {
         log.error('this database is behind the entities', {
             reason: error instanceof Error ? error.message : String(error),
-            fix: 'an update changed the entities: take a dump of the database (docs/operations/rollout.md), then run npm run schema:sync and start again'
+            fix: 'the start could not bring the database to the entities: the warning above names what still differs'
         });
         process.exit(1);
     }

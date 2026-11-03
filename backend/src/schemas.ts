@@ -464,6 +464,27 @@ export type ChainCall = Infer<typeof chainCall>;
 
 export const chainPublish = object({ calls: array(chainCall) });
 
+/**
+ * Whether the server pays the gas of the profile's next write: no while it pays for nothing
+ * (`off`), while the reader's wallet can pay (`pays`), past the day's limits (`limit`) or for a
+ * write heavier than it pays for (`heavy`); yes with the request to sign, the gas it names and when
+ * it stops being good.
+ */
+export const profileSponsorAsk = union([
+    object({ sponsored: literal(false), why: enumOf(['off', 'pays', 'limit', 'heavy']) }),
+    object({ sponsored: literal(true), typedData: string(), gas: string(), deadline: number() })
+]);
+
+export type ProfileSponsorAsk = Infer<typeof profileSponsorAsk>;
+
+export const profileSponsorInput = object({
+    gas: string({ min: 1, max: 10 }),
+    deadline: number({ int: true }),
+    signature: string({ min: 132, max: 132 })
+});
+
+export const profileSponsored = object({ hash: string() });
+
 const vaultBalances = object({
     address: string(),
     free: string(),
@@ -527,6 +548,11 @@ export const adminVault = union([
         fee: number(),
         minFee: number(),
         maxFee: number(),
+
+        /** The part of each seat's fee its inviter is paid, in basis points of the fee, and the bounds the vault holds it to. */
+        share: number(),
+        minShare: number(),
+        maxShare: number(),
 
         /** Every game with the fee it is played at, and whether that is a fee of its own. */
         games: array(object({ game: string(), fee: number(), own: boolean() })),
@@ -1613,6 +1639,19 @@ export type InviteBoard = Infer<typeof inviteBoard>;
 export const inviteListed = object({ listed: boolean() });
 
 export type InviteListed = Infer<typeof inviteListed>;
+
+/**
+ * What the reader's invites have earned them at tables played for NURA: the part of each seat's fee
+ * the vault pays whoever brought that player in, the fee it is a part of, and everything the vault
+ * has paid the reader's wallet so far, which already sits in their balance there. Off where the server
+ * keeps no vault, or the reader has no wallet.
+ */
+export const inviteEarnings = union([
+    object({ tables: literal(false) }),
+    object({ tables: literal(true), share: number(), fee: number(), earned: string() })
+]);
+
+export type InviteEarnings = Infer<typeof inviteEarnings>;
 
 export const inviteListedInput = object({ on: boolean() });
 
@@ -3936,6 +3975,9 @@ export const adminShopItemInput = object({
 });
 
 export const adminShopFeatureInput = object({ collection: enumOf(SHOP_COLLECTIONS), reason: said() });
+
+/** Every price moved by one whole percentage, up or down, with the reason (`domains/shop/reprice.ts`). */
+export const adminShopRepriceInput = object({ percent: number({ int: true }), reason: said() });
 
 export const adminShopOrdersQuery = object({
     state: enumOf(ORDER_STATES).optional(),

@@ -9,7 +9,7 @@ import { errorResponse } from '@azerothjs/http';
 
 import { privateKeyToAccount } from 'viem/accounts';
 
-import { LOG_PAGE, OWNER_WALLET, PEOPLE_PAGE } from '../src/domains/admin/roles.ts';
+import { LOG_PAGE, PEOPLE_PAGE } from '../src/domains/admin/roles.ts';
 import { Avatar, Match, PushSubscription, Session, StaffAction, Suspension, TableSeat, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
@@ -26,12 +26,12 @@ const WALLETS = [
     '0x90f79bf6eb2c4f870365e785982e1f101e93b906',
     '0x15d34aaf54267db7d7c367839aaf71a00a2c6a65',
     '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc',
-    OWNER_WALLET
+    '0x976ea74026e726554db657fa54763abd0c3a0aa9'
 ];
 
 const OWNER = 5;
 
-const BUILT_IN = 6;
+const OTHER = 6;
 
 const listener: WriteListener = {
     chatChanged: () => undefined,
@@ -128,7 +128,7 @@ const word = async (work: Promise<unknown>) =>
     return `${ response.status } ${ body.error.code }`;
 };
 
-const grant = (owner: Person, target: Person, role: 'moderator' | 'admin') =>
+const grant = (owner: Person, target: Person, role: 'moderator' | 'admin' | 'co-owner') =>
     ports.admin.setStaff(owner.id, { handle: target.handle, role, reason: 'Runs the evening tables' });
 
 const handles = (rows: { handle: string }[] | undefined) => (rows ?? []).map((row) => row.handle);
@@ -193,30 +193,21 @@ describe.skipIf(!active)('the people, against a real database', () =>
         expect(await ports.admin.person(moderator.id, 'nobody-here')).toBeNull();
     });
 
-    it('shows the owner the server holds of its own as nobody special, answers what anybody else does to them as nobody, and lets them act as an owner', async () =>
+    it('shows a co-owner as one, lets them act on an admin, and lets only the owner act on them', async () =>
     {
         const owner = await makeUser(OWNER);
         const admin = await makeUser(1);
-        const builtIn = await makeUser(BUILT_IN);
+        const coOwner = await makeUser(OTHER);
 
         await grant(owner, admin, 'admin');
+        await grant(owner, coOwner, 'co-owner');
 
-        const row = (await ports.admin.people(owner.id, {}))?.rows.find((one) => one.handle === builtIn.handle);
-        const page = await ports.admin.person(admin.id, builtIn.handle);
-
-        expect(row?.handle).toBe(builtIn.handle);
-        expect(row, 'listed as an owner').not.toHaveProperty('staff');
-        expect(page?.handle).toBe(builtIn.handle);
-        expect(page, 'read as an owner').not.toHaveProperty('staff');
-        expect(handles((await ports.admin.people(owner.id, { list: 'staff' }))?.rows).sort()).toEqual([admin.handle, owner.handle].sort());
-
-        for (const actor of [admin, owner])
-        {
-            expect(await word(ports.admin.note(actor.id, builtIn.handle, { text: 'Looks like a player' }))).toBe('404 staff-nobody');
-        }
-
-        expect((await ports.admin.note(builtIn.id, admin.handle, { text: 'An owner writes on an admin' }))?.handle).toBe(admin.handle);
-        expect(await word(ports.admin.note(builtIn.id, builtIn.handle, { text: 'A note about myself' }))).toBe('409 staff-self');
+        expect((await ports.admin.people(owner.id, {}))?.rows.find((one) => one.handle === coOwner.handle)?.staff).toBe('co-owner');
+        expect(handles((await ports.admin.people(owner.id, { list: 'staff' }))?.rows).sort()).toEqual([admin.handle, coOwner.handle, owner.handle].sort());
+        expect((await ports.admin.note(coOwner.id, admin.handle, { text: 'A co-owner writes on an admin' }))?.handle).toBe(admin.handle);
+        expect(await word(ports.admin.note(admin.id, coOwner.handle, { text: 'An admin writes on a co-owner' }))).toBe('409 staff-rank');
+        expect(await word(ports.admin.note(coOwner.id, owner.handle, { text: 'A co-owner writes on the owner' }))).toBe('409 staff-rank');
+        expect((await ports.admin.note(owner.id, coOwner.handle, { text: 'The owner writes on a co-owner' }))?.handle).toBe(coOwner.handle);
     });
 
     it('lists everybody newest first, a page at a time, each once, through rows made in one millisecond', async () =>

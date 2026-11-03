@@ -25,7 +25,7 @@ describe.skipIf(!active)('housekeeping, against a real database', () =>
         db = new DataSource({ type: 'postgres', uuidExtension: 'pgcrypto', url, entities, synchronize: false, logging: ['error'] });
         await db.initialize();
         await syncSchema(db);
-        ports = buildPorts(db, { secret: 'a-test-secret-that-is-long-enough-to-use', origin: 'http://localhost:1', env: 'test' } as Parameters<typeof buildPorts>[1]);
+        ports = buildPorts(db, { secret: 'a-test-secret-that-is-long-enough-to-use', origin: 'http://localhost:1', env: 'test', adminWallet: '' } as Parameters<typeof buildPorts>[1]);
     }, 60_000);
 
     afterAll(async () =>

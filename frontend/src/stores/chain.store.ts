@@ -30,7 +30,7 @@ export type RecordSync = 'off' | 'none' | 'current' | 'stale';
  */
 export type PublishOutcome =
     | 'published' | 'rejected' | 'reverted' | 'pending' | 'unavailable' | 'wrong-chain'
-    | 'locked' | 'asking' | 'no-wallet' | 'wrong-account' | 'wallet-failed';
+    | 'locked' | 'asking' | 'no-wallet' | 'wrong-account' | 'wallet-failed' | 'sponsor-limit';
 
 export const PUBLISH_COPY: Record<PublishOutcome, MessageKey> = {
     published: 'chain.published',
@@ -43,7 +43,8 @@ export const PUBLISH_COPY: Record<PublishOutcome, MessageKey> = {
     asking: 'chain.asking',
     'no-wallet': 'chain.noWallet',
     'wrong-account': 'chain.wrongAccount',
-    'wallet-failed': 'chain.walletFailed'
+    'wallet-failed': 'chain.walletFailed',
+    'sponsor-limit': 'chain.sponsorLimit'
 };
 
 const REFUSAL: Record<WalletFailure, PublishOutcome> = {
@@ -128,6 +129,35 @@ export const useChain = createStore((): ChainApi =>
         }
 
         return Number.parseInt(held, 16) === Number(wanted);
+    };
+
+    /**
+     * Sends one write: with the reader's own wallet, or, when it holds too little NURA for the gas,
+     * signed by them for nothing and sent by the server, which pays. What the server pays for is
+     * the write it builds itself, so the call here is only ever what it would have sent anyway.
+     */
+    const sent = async (call: { to: string; data: string }): Promise<string | PublishOutcome> =>
+    {
+        const asked = await client.chain.sponsor().catch(() => null);
+
+        if (asked === null || !asked.sponsored)
+        {
+            if (asked?.why === 'limit')
+            {
+                return 'sponsor-limit';
+            }
+
+            return await wallet.send(call.to, call.data) ?? REFUSAL[wallet.failure() ?? 'unknown'];
+        }
+
+        const signature = await wallet.signTyped(asked.typedData);
+
+        if (signature === null)
+        {
+            return REFUSAL[wallet.failure() ?? 'unknown'];
+        }
+
+        return (await client.chain.sponsored({ input: { gas: asked.gas, deadline: asked.deadline, signature } })).hash;
     };
 
     const settled = (hash: string): Promise<boolean | null> =>
@@ -249,10 +279,10 @@ export const useChain = createStore((): ChainApi =>
 
                     for (const call of calls)
                     {
-                        const hash = await wallet.send(call.to, call.data);
-                        if (hash === null)
+                        const hash = await sent(call);
+                        if (!hash.startsWith('0x'))
                         {
-                            return REFUSAL[wallet.failure() ?? 'unknown'];
+                            return hash as PublishOutcome;
                         }
 
                         const ok = await settled(hash);

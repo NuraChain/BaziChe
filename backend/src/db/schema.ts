@@ -1,4 +1,4 @@
-import type { DataSource } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 
 export const REQUIRED_EXTENSIONS = ['citext', 'pgcrypto'] as const;
 
@@ -96,7 +96,7 @@ export async function createUnexpressibleIndexes(db: DataSource)
  * `not valid` is deliberately NOT used. A constraint that is not validated is one that lets the
  * rows it was added to stop obeying it, which is the opposite of why any of these exist.
  */
-export async function rewriteChecks(db: DataSource)
+export async function rewriteChecks(db: DataSource, runner: DataSource | EntityManager = db)
 {
     for (const entity of db.entityMetadatas)
     {
@@ -107,8 +107,8 @@ export async function rewriteChecks(db: DataSource)
                 continue;
             }
 
-            await db.query(`alter table ${ entity.tablePath } drop constraint if exists "${ check.name }"`);
-            await db.query(`alter table ${ entity.tablePath } add constraint "${ check.name }" check (${ check.expression })`);
+            await runner.query(`alter table ${ entity.tablePath } drop constraint if exists "${ check.name }"`);
+            await runner.query(`alter table ${ entity.tablePath } add constraint "${ check.name }" check (${ check.expression })`);
         }
     }
 }
@@ -126,8 +126,7 @@ export const behindTheEntities = (error: unknown) => ['42P01', '42703'].includes
 
 /**
  * Whether the database holds none of the entities' tables: one nothing was built in yet, which a
- * production start builds without losing anything. One that holds any of them is changed only by
- * `npm run schema:sync`, which can drop a column with its data, so it waits for a person and a dump.
+ * start builds whole. One that holds any of them is changed version by version (`migrate.ts`).
  */
 export async function holdsNothing(db: DataSource)
 {

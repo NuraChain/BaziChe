@@ -6,7 +6,7 @@ import type { Asked, Vault } from '../../chain/vault.ts';
 import { Escrow } from '../../entities/escrow.entity.ts';
 import type { AdminVault } from '../../schemas.ts';
 import { tableRefusal } from '../table/service.ts';
-import { ESCROW_STATES, MAX_FEE_BPS, MIN_FEE_BPS, weiOf, type EscrowState } from './policy.ts';
+import { ESCROW_STATES, MAX_FEE_BPS, MAX_SHARE_BPS, MIN_FEE_BPS, MIN_SHARE_BPS, weiOf, type EscrowState } from './policy.ts';
 import { notAmount, notOpen, wireCall } from './service.ts';
 
 const GAME_GAS = 1_100_000n;
@@ -42,6 +42,8 @@ interface StuckRow
 
 const outOfRange = () => tableRefusal('vault-fee', 'A fee is from 1% to 15%.');
 
+const noShare = () => tableRefusal('vault-share', 'An inviter is paid from 1% to 75% of a fee.');
+
 const notGame = () => tableRefusal('vault-game', 'No game by that name is played for NURA.');
 
 const notReferee = () => tableRefusal('vault-referee', 'That is not an address the vault can name.');
@@ -49,6 +51,7 @@ const notReferee = () => tableRefusal('vault-referee', 'That is not an address t
 const REFUSED: Partial<Record<string, () => HttpError>> = {
     AccessControlUnauthorizedAccount: () => tableRefusal('vault-role', 'This wallet does not hold that role on the vault.'),
     FeeOutOfRange: outOfRange,
+    ReferralShareOutOfRange: noShare,
     InsufficientFees: () => tableRefusal('vault-fees', 'The vault does not hold that much in fees.'),
     EnforcedPause: () => tableRefusal('vault-paused', 'The vault is already paused.'),
     ExpectedPause: () => tableRefusal('vault-running', 'The vault is not paused.'),
@@ -148,6 +151,9 @@ export function createVaultAdmin(db: DataSource, vault: Vault, catalogue: readon
                 fee: ledger.terms.fee,
                 minFee: MIN_FEE_BPS,
                 maxFee: MAX_FEE_BPS,
+                share: ledger.referralShare,
+                minShare: MIN_SHARE_BPS,
+                maxShare: MAX_SHARE_BPS,
                 games: Object.entries(ledger.terms.games).map(([game, fee]) => ({ game, fee, own: (ledger.ownFees[game] ?? 0) !== 0 })),
                 maxStake: ledger.terms.maxStake.toString(),
                 reclaimAfter: Number(ledger.terms.reclaimAfter),
@@ -197,6 +203,21 @@ export function createVaultAdmin(db: DataSource, vault: Vault, catalogue: readon
             }
 
             return answered(admin, await vault.feeCall(admin, feeBps));
+        },
+
+        async share(admin: Address, shareBps: number)
+        {
+            if (!vault.configured)
+            {
+                throw notOpen();
+            }
+
+            if (!Number.isInteger(shareBps) || shareBps < MIN_SHARE_BPS || shareBps > MAX_SHARE_BPS)
+            {
+                throw noShare();
+            }
+
+            return answered(admin, await vault.shareCall(admin, shareBps));
         },
 
         async gameFee(admin: Address, game: string, feeBps: number)

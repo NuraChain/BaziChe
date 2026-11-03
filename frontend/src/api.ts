@@ -54,6 +54,8 @@ export type {
     ChannelPost,
     ChannelSummary,
     InviteBoard,
+    InviteEarnings,
+    ProfileSponsorAsk,
     InvitedPeople,
     InviteListed,
     InviteSummary,

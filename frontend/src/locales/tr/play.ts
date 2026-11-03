@@ -200,6 +200,7 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'tables.refused.paid-done': 'Bu oyunun bahisleri artık kilitli değil.',
     'tables.refused.vault-role': 'Bu cüzdanın kasada böyle bir rolü yok.',
     'tables.refused.vault-fee': 'Ücret %1 ile %15 arasında olmalı.',
+    'tables.refused.vault-share': 'Davet edene bir komisyonun %1 ile %75 arası ödenir.',
     'tables.refused.vault-fees': 'Kasada o kadar ücret birikmiş değil.',
     'tables.refused.vault-game': 'Bu adda NURA ile oynanan bir oyun yok.',
     'tables.refused.vault-referee': 'Bu, kasanın kabul edebileceği bir adres değil.',

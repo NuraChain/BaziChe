@@ -1,6 +1,6 @@
 import { createResource, useHead } from 'azerothjs';
 
-import { GRANTED_ROLES, outranks, type GrantedRole } from '../../../../backend/src/domains/admin/roles.ts';
+import { GRANTED_ROLES, STAFF_ROLES, outranks, type GrantedRole } from '../../../../backend/src/domains/admin/roles.ts';
 import type { StaffList } from '../../../../backend/src/schemas.ts';
 import { client } from '../../api.ts';
 import AdminEmpty from '../../components/admin/admin-empty.component.azeroth';
@@ -30,6 +30,7 @@ type Choice = GrantedRole | 'none';
 const DONE: Record<Choice, MessageKey> = {
     moderator: 'admin.staff.done.moderator',
     admin: 'admin.staff.done.admin',
+    'co-owner': 'admin.staff.done.co-owner',
     none: 'admin.staff.done.none'
 };
 
@@ -38,7 +39,7 @@ const REASON_MIN = 3;
 const placed = (members: readonly StaffMember[], member: StaffMember) =>
 {
     const rest = members.filter((one) => one.handle !== member.handle);
-    const at = member.role === 'admin' ? rest.filter((one) => one.role === 'admin').length : rest.length;
+    const at = rest.filter((one) => STAFF_ROLES.indexOf(one.role) >= STAFF_ROLES.indexOf(member.role)).length;
 
     return [...rest.slice(0, at), member, ...rest.slice(at)];
 };
@@ -237,6 +238,9 @@ export default component StaffPage()
                     <div class="flex flex-col gap-1">
                         <h2 id="admin-staff-form" class="text-ui-lg font-semibold text-text">{ locale.t('admin.staff.form') }</h2>
                         <p class="text-ui-sm text-muted">{ locale.t('admin.staff.formLead') }</p>
+                        <Show when={ role === 'owner' }>
+                            <p class="text-ui-sm text-muted">{ locale.t('admin.staff.coOwnerLead') }</p>
+                        </Show>
                     </div>
                     <Field id="admin-staff-handle" label={ locale.t('admin.staff.handle') } error={ handleTold }>
                         <Input

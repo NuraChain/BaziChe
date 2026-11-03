@@ -240,5 +240,6 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'chain.asking': 'Sua carteira já está te pedindo outra coisa. Abra e responda.',
     'chain.noWallet': 'Sua carteira não está conectada a este site. Abra, conecte este site e tente de novo.',
     'chain.wrongAccount': 'Sua carteira está numa conta diferente da que você usou para entrar. Mude para essa conta e tente de novo.',
-    'chain.walletFailed': 'Sua carteira não conseguiu enviar, quase sempre porque não tem saldo suficiente para o gas. Confira sua carteira e tente de novo.'
+    'chain.walletFailed': 'Sua carteira não conseguiu enviar, quase sempre porque não tem saldo suficiente para o gas. Confira sua carteira e tente de novo.',
+    'chain.sponsorLimit': 'Sua carteira tem pouco NURA para o gás, e o servidor já pagou hoje todos os salvamentos que paga. Ponha um pouco de NURA na carteira ou salve de novo amanhã.'
 };

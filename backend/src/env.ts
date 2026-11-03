@@ -133,6 +133,13 @@ export function loadServerConfig()
             achievementsAddress: optional('NURA_ACHIEVEMENTS_ADDRESS'),
             minterKey: optional('NURA_MINTER_KEY', { secret: true }),
 
+            /**
+             * The key of a wallet of its own that pays the gas of a write to somebody's Nura Profile
+             * when their wallet holds none, through the forwarder the profile proxy trusts. Never
+             * the referee's or the minter's. Nothing is paid for while it is empty.
+             */
+            sponsorKey: optional('NURA_SPONSOR_KEY', { secret: true }),
+
             /** The explorer's Etherscan-compatible api, where a wallet's NFT transfers are read. */
             explorerApi: optional('NURA_EXPLORER_API'),
 
@@ -206,7 +213,6 @@ export function loadServerConfig()
     return Object.assign(config, {
         env,
         servePages: env === 'production',
-        databaseSync: env === 'development',
         ...(env === 'development' ? { origin: DEV_ORIGIN } : {})
     });
 }

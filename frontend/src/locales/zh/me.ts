@@ -240,5 +240,6 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'chain.asking': '你的钱包已经在向你请求别的操作了。打开它并作出回应。',
     'chain.noWallet': '你的钱包尚未连接此网站。打开钱包，连接此网站后重试。',
     'chain.wrongAccount': '你的钱包当前账户与你登录时使用的不同。切换到那个账户后重试。',
-    'chain.walletFailed': '你的钱包无法发送，最常见的原因是 Gas 不足。检查你的钱包后重试。'
+    'chain.walletFailed': '你的钱包无法发送，最常见的原因是 Gas 不足。检查你的钱包后重试。',
+    'chain.sponsorLimit': '你的钱包里的 NURA 不够支付 gas，而服务器今天能代付的保存次数已经用完。往钱包里加一点 NURA，或明天再保存。'
 };

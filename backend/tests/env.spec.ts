@@ -9,7 +9,7 @@ const NAMES = [
     'NURA_RPC_URL', 'NURA_PROFILE_ADDRESS', 'NURA_PROFILE_LENS_ADDRESS', 'NURA_EXPLORER_API', 'ADMIN_WALLET_ADDRESS',
     'API_RATE_MAX', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT',
     'NURA_VAULT_ADDRESS', 'NURA_REFEREE_KEY', 'NURA_SHOP_ADDRESS', 'NURA_TIPS_ADDRESS',
-    'NURA_MARKETS_ADDRESS', 'NURA_LOOKS_ADDRESS', 'NURA_ACHIEVEMENTS_ADDRESS', 'NURA_MINTER_KEY', 'METRICS_TOKEN'
+    'NURA_MARKETS_ADDRESS', 'NURA_LOOKS_ADDRESS', 'NURA_ACHIEVEMENTS_ADDRESS', 'NURA_MINTER_KEY', 'NURA_SPONSOR_KEY', 'METRICS_TOKEN'
 ];
 
 const NEEDED: Record<string, string> = {
@@ -72,17 +72,17 @@ describe('the environment the server boots from', () =>
         expect(config.env).toBe('production');
         expect(config.origin).toBe('https://play.example.com');
         expect([config.port, config.apiRateMax, config.databasePoolMax]).toEqual([4900, 600, 10]);
-        expect([config.servePages, config.databaseSync]).toEqual([true, false]);
+        expect(config.servePages).toBe(true);
         expect([config.vapidPublicKey, config.chainId, config.adminWallet]).toEqual(['', '', '']);
     });
 
-    it('takes development from the command: no pages, the schema built, and a short secret allowed', () =>
+    it('takes development from the command: no pages, and a short secret allowed', () =>
     {
         use({ ...NEEDED, NODE_ENV: 'development', SESSION_SECRET: 'short', PUBLIC_ORIGIN: 'http://localhost:3100' });
         const config = loadServerConfig();
 
         expect(config.env).toBe('development');
-        expect([config.servePages, config.databaseSync]).toEqual([false, true]);
+        expect(config.servePages).toBe(false);
         expect(config.secret).toBe('short');
     });
 

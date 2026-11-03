@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ABILITIES, GRANTED_ROLES, OWNER_WALLET, STAFF_ROLES, may, ownersOf, outranks, shownOwnersOf, type Ability, type StaffRole } from '../src/domains/admin/roles.ts';
+import { ABILITIES, GRANTED_ROLES, STAFF_ROLES, may, ownersOf, outranks, type Ability, type StaffRole } from '../src/domains/admin/roles.ts';
 import { STAFF_REFUSALS, isStaffRefusal } from '../src/domains/admin/refusals.ts';
 
 const ROLES: (StaffRole | null)[] = [null, ...STAFF_ROLES];
@@ -14,10 +14,11 @@ describe('who on the staff may do what', () =>
         expect(reach(null)).toEqual([]);
         expect(reach('moderator')).toEqual(['live', 'overview', 'people', 'reports']);
         expect(reach('admin')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'shop', 'staff']);
+        expect(reach('co-owner'), 'a co-owner signs for no contract').toEqual(reach('admin'));
         expect(reach('owner')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'shop', 'staff', 'wallet']);
     });
 
-    it('puts the owner above an admin, an admin above a moderator, and every role above somebody who is none', () =>
+    it('puts the owner above a co-owner, a co-owner above an admin, an admin above a moderator, and every role above somebody who is none', () =>
     {
         const above = ROLES.map((actor) => ROLES.filter((other) => outranks(actor, other)));
 
@@ -25,7 +26,8 @@ describe('who on the staff may do what', () =>
             [],
             [null],
             [null, 'moderator'],
-            [null, 'moderator', 'admin']
+            [null, 'moderator', 'admin'],
+            [null, 'moderator', 'admin', 'co-owner']
         ]);
     });
 
@@ -37,36 +39,23 @@ describe('who on the staff may do what', () =>
         }
     });
 
-    it('grants in the page only the roles below the owner, whom the server names', () =>
+    it('grants in the page only the roles below the owner, whom the server names, and a co-owner only by the owner', () =>
     {
-        expect([...GRANTED_ROLES]).toEqual(['moderator', 'admin']);
+        expect([...GRANTED_ROLES]).toEqual(['moderator', 'admin', 'co-owner']);
         expect(GRANTED_ROLES.every((role) => outranks('owner', role))).toBe(true);
+        expect(GRANTED_ROLES.filter((role) => outranks('co-owner', role))).toEqual(['moderator', 'admin']);
     });
 });
 
-describe('who the owners are', () =>
+describe('who the owner is', () =>
 {
     const NAMED = '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc';
 
-    it('is the wallet written into the server, and beside it the one .env names, lowercase and once each', () =>
+    it('is the wallet .env names, lowercase, and nobody when it names nobody: no wallet is written into the server', () =>
     {
-        expect(ownersOf('')).toEqual([OWNER_WALLET]);
-        expect(ownersOf('   ')).toEqual([OWNER_WALLET]);
-        expect(ownersOf(` ${ NAMED.toUpperCase().replace('0X', '0x') } `)).toEqual([OWNER_WALLET, NAMED]);
-        expect(ownersOf(OWNER_WALLET.toUpperCase().replace('0X', '0x'))).toEqual([OWNER_WALLET]);
-    });
-
-    it('shows the staff the one .env names alone, lowercase, and nobody when it names nobody', () =>
-    {
-        expect(shownOwnersOf('')).toEqual([]);
-        expect(shownOwnersOf('   ')).toEqual([]);
-        expect(shownOwnersOf(` ${ NAMED.toUpperCase().replace('0X', '0x') } `)).toEqual([NAMED]);
-        expect(shownOwnersOf(OWNER_WALLET.toUpperCase().replace('0X', '0x'))).toEqual([OWNER_WALLET]);
-    });
-
-    it('writes the server\'s own owner as an address, lowercase', () =>
-    {
-        expect(OWNER_WALLET).toMatch(/^0x[0-9a-f]{40}$/);
+        expect(ownersOf('')).toEqual([]);
+        expect(ownersOf('   ')).toEqual([]);
+        expect(ownersOf(` ${ NAMED.toUpperCase().replace('0X', '0x') } `)).toEqual([NAMED]);
     });
 });
 
@@ -74,7 +63,7 @@ describe('what the staff are refused in words', () =>
 {
     it('lists each word once with its status, and answers a word it does not have as none', () =>
     {
-        expect(STAFF_REFUSALS).toEqual({ 'staff-nobody': 404, 'staff-owner': 409, 'staff-self': 409, 'staff-rank': 409, 'staff-not-suspended': 409, 'staff-match-over': 409, 'staff-in-game': 409, 'staff-seated': 409, 'staff-table-closed': 409, 'staff-table-playing': 409, 'staff-no-notice': 409, 'staff-check-closed': 409, 'staff-shop-one': 422, 'staff-shop-sale': 409, 'staff-look-kept': 409, 'staff-shop-off': 409, 'staff-order-unpaid': 409, 'staff-shop-share': 422, 'staff-shop-address': 422, 'staff-shop-amount': 422, 'staff-shop-role': 409, 'staff-shop-paused': 409, 'staff-shop-running': 409, 'staff-shop-revenue': 409, 'staff-shop-refunded': 409, 'staff-shop-refused': 409, 'staff-markets-off': 409, 'staff-markets-address': 422, 'staff-markets-role': 409, 'staff-markets-refused': 409, 'staff-campaign-empty': 422, 'staff-campaign-look': 422, 'staff-campaign-milestone': 422, 'staff-campaign-window': 422, 'staff-campaign-running': 409, 'staff-campaign-move': 409, 'staff-campaign-ended': 409, 'staff-campaign-gave': 409, 'staff-reward-move': 409, 'staff-reward-suspended': 409 });
+        expect(STAFF_REFUSALS).toEqual({ 'staff-nobody': 404, 'staff-owner': 409, 'staff-self': 409, 'staff-rank': 409, 'staff-not-suspended': 409, 'staff-match-over': 409, 'staff-in-game': 409, 'staff-seated': 409, 'staff-table-closed': 409, 'staff-table-playing': 409, 'staff-no-notice': 409, 'staff-check-closed': 409, 'staff-shop-one': 422, 'staff-shop-sale': 409, 'staff-look-kept': 409, 'staff-shop-off': 409, 'staff-order-unpaid': 409, 'staff-shop-share': 422, 'staff-shop-address': 422, 'staff-shop-amount': 422, 'staff-shop-role': 409, 'staff-shop-paused': 409, 'staff-shop-running': 409, 'staff-shop-revenue': 409, 'staff-shop-refunded': 409, 'staff-shop-refused': 409, 'staff-shop-percent': 422, 'staff-markets-off': 409, 'staff-markets-address': 422, 'staff-markets-role': 409, 'staff-markets-refused': 409, 'staff-campaign-empty': 422, 'staff-campaign-look': 422, 'staff-campaign-milestone': 422, 'staff-campaign-window': 422, 'staff-campaign-running': 409, 'staff-campaign-move': 409, 'staff-campaign-ended': 409, 'staff-campaign-gave': 409, 'staff-reward-move': 409, 'staff-reward-suspended': 409 });
         expect(isStaffRefusal('staff-rank')).toBe(true);
         expect(isStaffRefusal('toString')).toBe(false);
         expect(isStaffRefusal('not-found')).toBe(false);

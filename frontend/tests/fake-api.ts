@@ -47,6 +47,8 @@ import type {
     DonationsState,
     DonationView,
     InviteBoard,
+    InviteEarnings,
+    ProfileSponsorAsk,
     InvitedPeople,
     InviteSummary,
     MarketPositionView,
@@ -72,6 +74,7 @@ import type {
     WalletCall
 } from '../../backend/src/schemas.ts';
 import { BUNDLES, FEATURED_FIRST, LOOKS, SHOP_COLLECTIONS, bundleOf, lookOf } from '../../backend/src/domains/shop/catalogue.ts';
+import { repriced } from '../../backend/src/domains/shop/reprice.ts';
 import { ESCROW_STATES, STAKE_LADDER } from '../../backend/src/domains/stake/policy.ts';
 import { STAFF_REFUSALS, type StaffRefusal } from '../../backend/src/domains/admin/refusals.ts';
 import { CHECKS_PAGE, type CheckFamily, type CheckList } from '../../backend/src/domains/reconcile/kinds.ts';
@@ -621,6 +624,9 @@ export const adminState = (): AdminVault => ({
     fee: 500,
     minFee: 100,
     maxFee: 1500,
+    share: 2000,
+    minShare: 100,
+    maxShare: 7500,
     games: [
         { game: 'hokm', fee: 700, own: true },
         { game: 'poker', fee: 500, own: false },
@@ -1218,11 +1224,19 @@ const invitesFresh = () => ({
     /** Whether the reader lets themselves be shown among the top inviters. */
     listed: true,
 
+    /** What the reader's invites earned at the tables, as the vault says. */
+    earnings: { tables: true, share: 2000, fee: 500, earned: '0' } as InviteEarnings,
+
     /** A read that fails, so a page can be shown and either part of it refused. */
-    refuse: null as 'summary' | 'people' | 'renew' | 'board' | 'listed' | 'list' | null,
+    refuse: null as 'summary' | 'people' | 'renew' | 'board' | 'listed' | 'list' | 'earnings' | null,
 
     /** A promise every read and the renewal wait on before they are answered. */
     hold: null as Promise<void> | null
+});
+
+const sponsorFresh = () => ({
+    ask: { sponsored: false, why: 'off' } as ProfileSponsorAsk,
+    sent: [] as { gas: string; deadline: number; signature: string }[]
 });
 
 const INVITED_PAGE = 20;
@@ -1371,6 +1385,9 @@ export const server =
     suspension: {} as Record<string, string>,
     uploaded: null as string | null,
     chain: { configured: false, profile: null as ChainProfile | null },
+
+    /** Whether the server pays the gas of the profile's next write, and what it was sent to pay for. */
+    sponsor: sponsorFresh(),
     nfts: { configured: false, items: [] as NftItem[] },
     chainFaces: {} as Record<string, { username: string; displayName: string; bio: string; avatar: string }>,
     calls: [] as string[],
@@ -1728,6 +1745,7 @@ export const server =
         server.seen = {};
         server.invites = {};
         server.myInvites = invitesFresh();
+        server.sponsor = sponsorFresh();
         server.visits = [];
         server.asked = [];
         server.sought = [];
@@ -2040,6 +2058,12 @@ export const client =
             server.calls.push(`admin.fee ${ input.bps }`);
             adminRefusal();
             return { ...server.nura.call, data: '0xfee' };
+        },
+        async share({ input }: { input: { bps: number } })
+        {
+            server.calls.push(`admin.share ${ input.bps }`);
+            adminRefusal();
+            return { ...server.nura.call, data: '0xshare' };
         },
         async gameFee({ input }: { input: { game: string; bps: number } })
         {
@@ -2761,6 +2785,24 @@ export const client =
                 log({ field: 'status', from: held.status, to: input.status });
                 held.status = input.status;
             }
+
+            return structuredClone(server.shopAdmin.shop);
+        },
+
+        async shopReprice({ input }: { input: { percent: number; reason: string } })
+        {
+            server.calls.push(`admin.shopReprice ${ input.percent } ${ input.reason }`);
+            staffGate('shop');
+
+            const prices = new Map(server.shopAdmin.shop.items.map((one) => [one.id, { price: BigInt(one.price), sale: one.sale === undefined ? null : BigInt(one.sale.price) }]));
+            const next = repriced(prices, input.percent);
+
+            server.shopAdmin.shop.items = server.shopAdmin.shop.items.map((one) =>
+            {
+                const moved = next.get(one.id);
+
+                return moved === undefined ? one : { ...one, price: moved.price.toString() };
+            });
 
             return structuredClone(server.shopAdmin.shop);
         },
@@ -3495,6 +3537,19 @@ export const client =
             return structuredClone({ ...server.myInvites.board, listed: server.myInvites.listed });
         },
 
+        async earnings()
+        {
+            server.calls.push('invites.earnings');
+            await server.myInvites.hold;
+
+            if (server.myInvites.refuse === 'earnings')
+            {
+                throw new ApiError(503, 'chain-unreachable', 'We could not reach the network. Try again in a moment.', undefined);
+            }
+
+            return structuredClone(server.myInvites.earnings);
+        },
+
         async listed()
         {
             server.calls.push('invites.listed');
@@ -3590,6 +3645,19 @@ export const client =
                 record: '',
                 ...(server.chain.profile === null ? {} : { profile: server.chain.profile })
             };
+        },
+
+        async sponsor()
+        {
+            server.calls.push('chain.sponsor');
+            return structuredClone(server.sponsor.ask);
+        },
+
+        async sponsored({ input }: { input: { gas: string; deadline: number; signature: string } })
+        {
+            server.calls.push('chain.sponsored');
+            server.sponsor.sent.push(input);
+            return { hash: '0xfee5' };
         },
 
         async publish()

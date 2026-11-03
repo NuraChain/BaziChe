@@ -29,6 +29,7 @@ import { booksOf, boundedClient, boundedTransport, reached, refusedByContract, u
 export const VAULT_ABI = parseAbi([
     'struct Seat { address player; bytes32 commit; bytes32 nonce; uint64 deadline; bytes signature; }',
     'function deposit() payable',
+    'function deposit(address referrer) payable',
     'function withdraw(uint256 amount)',
     'function cancel(bytes32 nonce)',
     'function open(bytes32 id, string game, uint256 amount, uint16 feeBps, Seat[] seats)',
@@ -50,7 +51,10 @@ export const VAULT_ABI = parseAbi([
     'function totalLocked() view returns (uint256)',
     'function solvent() view returns (bool)',
     'function hasRole(bytes32 role, address account) view returns (bool)',
+    'function referralShare() view returns (uint16)',
+    'function referralEarned(address referrer) view returns (uint256)',
     'function setFee(uint16 newFee)',
+    'function setReferralShare(uint16 newShare)',
     'function setGameFee(string game, uint16 newFee)',
     'function setReferee(address newReferee)',
     'function setMaxStake(uint256 newMaxStake)',
@@ -77,6 +81,7 @@ export const VAULT_ABI = parseAbi([
     'error EnforcedPause()',
     'error ExpectedPause()',
     'error FeeOutOfRange(uint16 feeBps)',
+    'error ReferralShareOutOfRange(uint16 shareBps)',
     'error InsufficientFees(uint256 available, uint256 required)',
     'error AccessControlUnauthorizedAccount(address account, bytes32 neededRole)'
 ]);
@@ -192,6 +197,9 @@ export interface VaultLedger
     ownFees: Record<string, number>;
     adminAllowed: boolean;
     pauserAllowed: boolean;
+
+    /** The part of each seat's fee its inviter is paid, in basis points of the fee. */
+    referralShare: number;
 }
 
 export type Asked = { ok: true; call: VaultCall } | { ok: false; refusal: Refusal };
@@ -217,7 +225,9 @@ export interface Vault
     terms(): Promise<VaultTerms>;
     game(id: Hex): Promise<VaultGame>;
     clock(): Promise<bigint>;
-    depositCall(amount: bigint): Promise<VaultCall>;
+
+    /** A deposit; one that names `referrer` makes them the player's inviter on the vault, if nobody is yet, paid a share of each fee the player's seats pay from then on. */
+    depositCall(amount: bigint, referrer: Address | null): Promise<VaultCall>;
     withdrawCall(amount: bigint): Promise<VaultCall>;
     reclaimCall(id: Hex): Promise<VaultCall>;
     open(id: Hex, game: string, amount: bigint, feeBps: number, seats: readonly SignedSeat[]): Promise<Sent>;
@@ -231,6 +241,13 @@ export interface Vault
     books(): Promise<Books>;
     ledger(admin: Address): Promise<VaultLedger>;
     feeCall(admin: Address, feeBps: number): Promise<Asked>;
+    shareCall(admin: Address, shareBps: number): Promise<Asked>;
+
+    /** Everything the vault has paid `referrer` for the seats of the people they brought in, ever: already in their balance there. */
+    earned(referrer: Address): Promise<bigint>;
+
+    /** The share of each fee an inviter is paid now, which a game keeps from the moment it opened. */
+    share(): Promise<number>;
     gameFeeCall(admin: Address, game: string, feeBps: number): Promise<Asked>;
     refereeCall(admin: Address, referee: Address): Promise<Asked>;
     ceilingCall(admin: Address, amount: bigint): Promise<Asked>;
@@ -571,7 +588,12 @@ export function createVault(settings: VaultSettings): Vault
             return (await reached(reader().getBlock({ blockTag: 'latest' }))).timestamp;
         },
 
-        depositCall: (amount) => callTo(encodeFunctionData({ abi: VAULT_ABI, functionName: 'deposit' }), amount),
+        depositCall: (amount, referrer) => callTo(
+            referrer === null
+                ? encodeFunctionData({ abi: VAULT_ABI, functionName: 'deposit', args: [] })
+                : encodeFunctionData({ abi: VAULT_ABI, functionName: 'deposit', args: [referrer] }),
+            amount
+        ),
 
         withdrawCall: (amount) => callTo(encodeFunctionData({ abi: VAULT_ABI, functionName: 'withdraw', args: [amount] }), 0n),
 
@@ -642,7 +664,7 @@ export function createVault(settings: VaultSettings): Vault
             const { vault: at, account } = ready();
             const client = reader();
             const role = (id: Hex, holder: Address) => client.readContract({ address: at, abi: VAULT_ABI, functionName: 'hasRole', args: [id, holder] });
-            const [fee, maxStake, reclaimAfter, paused, fees, free, locked, solvent, holds, gas, price, refereeAllowed, adminAllowed, pauserAllowed, games, chainReferee, own] = await reached(Promise.all([
+            const [fee, maxStake, reclaimAfter, paused, fees, free, locked, solvent, holds, gas, price, refereeAllowed, adminAllowed, pauserAllowed, games, chainReferee, own, referralShare] = await reached(Promise.all([
                 client.readContract({ address: at, abi: VAULT_ABI, functionName: 'fee' }),
                 client.readContract({ address: at, abi: VAULT_ABI, functionName: 'maxStake' }),
                 client.readContract({ address: at, abi: VAULT_ABI, functionName: 'reclaimAfter' }),
@@ -659,7 +681,8 @@ export function createVault(settings: VaultSettings): Vault
                 role(VAULT_ROLES.pauser, admin),
                 gameFees(at),
                 client.readContract({ address: at, abi: VAULT_ABI, functionName: 'referee' }),
-                ownFees(at)
+                ownFees(at),
+                client.readContract({ address: at, abi: VAULT_ABI, functionName: 'referralShare' })
             ]));
             const terms = { fee, maxStake, reclaimAfter, paused, games };
 
@@ -678,11 +701,19 @@ export function createVault(settings: VaultSettings): Vault
                 chainReferee,
                 ownFees: own,
                 adminAllowed,
-                pauserAllowed
+                pauserAllowed,
+                referralShare
             };
         },
 
+        earned: async (referrer) =>
+            await reached(reader().readContract({ address: ready().vault, abi: VAULT_ABI, functionName: 'referralEarned', args: [referrer] })),
+
+        share: async () => await reached(reader().readContract({ address: ready().vault, abi: VAULT_ABI, functionName: 'referralShare' })),
+
         feeCall: (admin, feeBps) => asked(admin, encodeFunctionData({ abi: VAULT_ABI, functionName: 'setFee', args: [feeBps] })),
+
+        shareCall: (admin, shareBps) => asked(admin, encodeFunctionData({ abi: VAULT_ABI, functionName: 'setReferralShare', args: [shareBps] })),
 
         gameFeeCall: (admin, game, feeBps) => asked(admin, encodeFunctionData({ abi: VAULT_ABI, functionName: 'setGameFee', args: [game, feeBps] })),
 

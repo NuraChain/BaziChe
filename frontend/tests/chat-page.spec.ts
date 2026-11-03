@@ -161,6 +161,7 @@ beforeEach(() =>
     useChat().reset();
     useSettings().reset();
     useToasts().reset();
+    useOverlay().reset();
 });
 
 afterEach(() =>

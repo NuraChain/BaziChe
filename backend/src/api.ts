@@ -587,6 +587,9 @@ export function buildApi(ports: Ports)
             fee: routes.post('/vault/fee', { input: adminFeeInput, output: walletCall },
                 async (context) => onlyAdmin(await ports.admin.fee(context.principal.userId, context.input.bps))),
 
+            share: routes.post('/vault/share', { input: adminFeeInput, output: walletCall },
+                async (context) => onlyAdmin(await ports.admin.share(context.principal.userId, context.input.bps))),
+
             gameFee: routes.post('/vault/game-fee', { input: adminGameFeeInput, output: walletCall },
                 async (context) => onlyAdmin(await ports.admin.gameFee(context.principal.userId, context.input.game, context.input.bps))),
 

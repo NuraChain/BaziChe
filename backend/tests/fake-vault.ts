@@ -44,8 +44,10 @@ export function fakeVault(configured = true)
             chainReferee: '0x0000000000000000000000000000000000000000' as Address,
             ownFees: {} as Record<string, number>,
             adminAllowed: true,
-            pauserAllowed: true
+            pauserAllowed: true,
+            referralShare: 2_000
         },
+        earned: new Map<string, bigint>(),
         adminRefuse: null as Refusal | null,
         mine: 'success' as Mined,
         refuse: null as Refusal | null,
@@ -177,7 +179,18 @@ export function fakeVault(configured = true)
             reach();
             return { terms: state.terms, ...state.ledger };
         },
+        async earned(referrer)
+        {
+            reach();
+            return state.earned.get(referrer.toLowerCase()) ?? 0n;
+        },
+        async share()
+        {
+            reach();
+            return state.ledger.referralShare;
+        },
         feeCall: async (admin, feeBps) => asked('setFee', admin, [feeBps]),
+        shareCall: async (admin, shareBps) => asked('setReferralShare', admin, [shareBps]),
         gameFeeCall: async (admin, game, feeBps) => asked('setGameFee', admin, [game, feeBps]),
         refereeCall: async (admin, referee) => asked('setReferee', admin, [referee]),
         ceilingCall: async (admin, amount) => asked('setMaxStake', admin, [amount]),

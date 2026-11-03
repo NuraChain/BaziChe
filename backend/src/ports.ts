@@ -881,6 +881,9 @@ export interface AdminPort
 
     fee(me: string, feeBps: number): Promise<WalletCall | null>;
 
+    /** The part of each seat's fee its inviter is paid, as a call for the owner's wallet to send. */
+    share(me: string, shareBps: number): Promise<WalletCall | null>;
+
     gameFee(me: string, game: string, feeBps: number): Promise<WalletCall | null>;
 
     referee(me: string, address: string): Promise<WalletCall | null>;

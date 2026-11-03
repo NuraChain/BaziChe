@@ -2383,6 +2383,13 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 return actor === null || actor.address === null ? null : await vaultAdmin.fee(actor.address, feeBps);
             },
 
+            async share(me, shareBps)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null || actor.address === null ? null : await vaultAdmin.share(actor.address, shareBps);
+            },
+
             async gameFee(me, game, feeBps)
             {
                 const actor = await ableTo(me, 'wallet');

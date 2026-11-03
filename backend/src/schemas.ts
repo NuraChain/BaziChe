@@ -528,6 +528,11 @@ export const adminVault = union([
         minFee: number(),
         maxFee: number(),
 
+        /** The part of each seat's fee its inviter is paid, in basis points of the fee, and the bounds the vault holds it to. */
+        share: number(),
+        minShare: number(),
+        maxShare: number(),
+
         /** Every game with the fee it is played at, and whether that is a fee of its own. */
         games: array(object({ game: string(), fee: number(), own: boolean() })),
         maxStake: string(),

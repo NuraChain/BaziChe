@@ -42,8 +42,12 @@ const SSR_ASSETS = join(ROOT, '.dist-server', 'assets');
 
 const KB = 1024;
 
-/** The landing page's whole JavaScript payload: the entry plus everything it preloads. */
-const INITIAL_BUDGET = 60 * KB;
+/**
+ * The landing page's whole JavaScript payload: the entry plus everything it preloads. It was 60 KB
+ * until the footer of every public page took its links to the community, the source and the chain
+ * (1.6 KB), which have to be in the prerendered page and so in the script that draws it.
+ */
+const INITIAL_BUDGET = 62 * KB;
 
 /** The `/app` layout chunk, which every signed-in route waits on. */
 const SHELL_BUDGET = 12 * KB;

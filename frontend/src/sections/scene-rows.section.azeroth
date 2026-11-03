@@ -16,7 +16,7 @@ export default component SceneRows(props: { beat: string; title: MessageKey; lea
 {
     const locale = useLocale();
 
-    <section data-beat={ props.beat } class="relative flex min-h-svh flex-col pt-15" aria-labelledby={ `${ props.beat }-title` }>
+    <section id={ props.beat } data-beat={ props.beat } class="relative flex min-h-svh flex-col pt-15" aria-labelledby={ `${ props.beat }-title` }>
         <div class="mt-auto page-pad beside:my-auto copy-plate pb-16">
             <div class="scene-column @container max-w-[40rem] beside:max-w-[36rem] sideways:max-w-[min(26rem,44vw)]">
                 <div class="scroll-driven:animate-[reveal_linear_both] scroll-driven:[animation-timeline:view()] scroll-driven:[animation-range:entry_0%_entry_60%] flex flex-col gap-2">

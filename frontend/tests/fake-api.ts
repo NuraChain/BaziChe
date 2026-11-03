@@ -46,6 +46,7 @@ import type {
     DonationView,
     InviteBoard,
     InviteEarnings,
+    ProfileSponsorAsk,
     InvitedPeople,
     InviteSummary,
     MarketPositionView,
@@ -1196,6 +1197,11 @@ const invitesFresh = () => ({
     hold: null as Promise<void> | null
 });
 
+const sponsorFresh = () => ({
+    ask: { sponsored: false, why: 'off' } as ProfileSponsorAsk,
+    sent: [] as { gas: string; deadline: number; signature: string }[]
+});
+
 const INVITED_PAGE = 20;
 
 const donateRefusal = () =>
@@ -1342,6 +1348,9 @@ export const server =
     suspension: {} as Record<string, string>,
     uploaded: null as string | null,
     chain: { configured: false, profile: null as ChainProfile | null },
+
+    /** Whether the server pays the gas of the profile's next write, and what it was sent to pay for. */
+    sponsor: sponsorFresh(),
     nfts: { configured: false, items: [] as NftItem[] },
     chainFaces: {} as Record<string, { username: string; displayName: string; bio: string; avatar: string }>,
     calls: [] as string[],
@@ -1685,6 +1694,7 @@ export const server =
         server.seen = {};
         server.invites = {};
         server.myInvites = invitesFresh();
+        server.sponsor = sponsorFresh();
         server.visits = [];
         server.asked = [];
         server.sought = [];
@@ -3584,6 +3594,19 @@ export const client =
                 record: '',
                 ...(server.chain.profile === null ? {} : { profile: server.chain.profile })
             };
+        },
+
+        async sponsor()
+        {
+            server.calls.push('chain.sponsor');
+            return structuredClone(server.sponsor.ask);
+        },
+
+        async sponsored({ input }: { input: { gas: string; deadline: number; signature: string } })
+        {
+            server.calls.push('chain.sponsored');
+            server.sponsor.sent.push(input);
+            return { hash: '0xfee5' };
         },
 
         async publish()

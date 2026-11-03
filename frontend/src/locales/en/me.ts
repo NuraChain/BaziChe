@@ -237,5 +237,6 @@ export const me = {
     'chain.asking': 'Your wallet is already asking you something. Open it and answer.',
     'chain.noWallet': 'Your wallet is not connected to this site. Open it, connect this site and try again.',
     'chain.wrongAccount': 'Your wallet is on a different account from the one you signed in with. Switch to that account and try again.',
-    'chain.walletFailed': 'Your wallet could not send it, most often because there is not enough for gas. Check your wallet and try again.'
+    'chain.walletFailed': 'Your wallet could not send it, most often because there is not enough for gas. Check your wallet and try again.',
+    'chain.sponsorLimit': 'Your wallet holds too little NURA for the gas, and the server has already paid for as many saves as it does today. Add a little NURA to your wallet, or save again tomorrow.'
 };

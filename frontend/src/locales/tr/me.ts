@@ -240,5 +240,6 @@ export const me: Pick<Dictionary, keyof typeof reference> = {
     'chain.asking': 'Cüzdanın sana zaten bir şey soruyor. Aç ve yanıtla.',
     'chain.noWallet': 'Cüzdanın bu siteye bağlı değil. Aç, bu siteyi bağla ve tekrar dene.',
     'chain.wrongAccount': 'Cüzdanın giriş yaptığın hesaptan farklı bir hesapta. O hesaba geçip tekrar dene.',
-    'chain.walletFailed': 'Cüzdanın gönderemedi; çoğu zaman gas için yeterli bakiye olmadığından. Cüzdanını kontrol edip tekrar dene.'
+    'chain.walletFailed': 'Cüzdanın gönderemedi; çoğu zaman gas için yeterli bakiye olmadığından. Cüzdanını kontrol edip tekrar dene.',
+    'chain.sponsorLimit': 'Cüzdanında gaz için çok az NURA var ve sunucu bugün ödediği kadar kaydı zaten ödedi. Cüzdanına biraz NURA ekle ya da yarın yeniden kaydet.'
 };

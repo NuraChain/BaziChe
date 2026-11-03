@@ -468,7 +468,7 @@ two behind different routers are carried by this server, so every call works. An
 more calls on direct lines can give coturn's address and shared secret (`VOICE_TURN_URLS`,
 `VOICE_TURN_SECRET`, both or neither, written empty by default); the server then hands each joining
 credentials that end in six hours (coturn's REST scheme), never the secret. `docs/operations/
-self-hosting.md` says how to run it.
+self-hosting.md` says how to run it. (Not built: see MS-D56.)
 
 ### What a call promises (MS-D37)
 
@@ -554,6 +554,20 @@ goes nowhere. The page says calls are "encrypted on the way, not end to end".
 | MS-D48 | Attachments | the paperclip's menu: photo or video (several, and the camera on a phone) and file; a sheet that orders, removes and captions |
 | MS-D49 | A reported photo or video on the staff's page | behind its thumb, blurred, until a member of the staff asks for it, and fetched only then; judged by its bytes as a reader's browser judges it |
 
+## Calls, as built
+
+The calls were built as Part 3 says, with these decisions taken on the way.
+
+| | Decision | As built |
+|---|---|---|
+| MS-D50 | A ring of a group's room | begins its voice chat when none runs and joins the one running when one does, so the head's Voice chat is one button whatever is going on there |
+| MS-D51 | Joining a voice chat | a participant's row is kept when they go, so what was decided about them holds when they come back: held while the group lets members speak no more, or while they are muted in the group; taken out, never back into that voice chat (`call-removed`); fifty in its room at most (`call-full`) |
+| MS-D52 | Ending a voice chat | for whoever holds the calls right; anybody else leaves it, and it ends by itself two minutes after its room empties |
+| MS-D53 | A voice chat in the browser | always carried by this server: the voice frame says `carried`, so no line is tried, and a frame names one listener while the hub fans it out; in its own thread the strip under the head is its bar (a thread draws no strips), and the card steps aside whenever the reader's call is that voice chat |
+| MS-D54 | Somebody taken out | told so on the strip, under the count, in the refusal's own words, and offered no Join: the room's read says it to them alone (`removed`); somebody who left of their own accord is still offered Join |
+| MS-D55 | The Calls tab | the reader's calls once they are over (`GET /api/calls/history`), newest first, thirty a page by the microsecond keyset over when each began, in rooms the reader is still in; a call with somebody suspended or whose account is gone left out; each row the person or the group, in, out or missed, its line's words, the time, and Call back for a friend; the last tab of the chat list, a chunk of its own |
+| MS-D56 | A TURN server (C8) | not built: the owner had STUN and TURN taken out before this work, and this server carries every call that has no direct line (MS-D53, and a table's calls before it), so MS-D36's optional coturn would be two `.env` names for nothing the product needs; nothing hands a browser an ICE server |
+
 ## Not in this work
 
 Video calls and screen sharing; recording a call; files past 50 MiB, sealed and uploaded in chunks; scheduled voice chats; streaming a sealed video while
@@ -583,7 +597,7 @@ Calls: **C1** a voice frame names its room; **C2** the schema; **C3** direct cal
 states, the ring, the sweep, lines, notices, push); **C4** direct calls in the browser (the call store,
 the cards, the bar, the call view, the sounds); **C5** group calls on the server (rooms carried only,
 held, hands, the controls); **C6** group calls in the browser; **C7** the Calls tab; **C8** the optional
-TURN server.
+TURN server, not built (MS-D56).
 
 Proof: **P1** `tools/qa/media-pass.mjs`, `call-pass.mjs` and `group-pass.mjs`, and the garbage pass
 taught every route; **P2** the notes, the self-hosting guide, the full gates and the report.

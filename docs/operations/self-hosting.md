@@ -103,6 +103,17 @@ the top level). The server itself takes up to 4,000 realtime connections and tur
 away; how it was measured is in
 [the socket audit](../design/2026-10-28-socket-audit.md).
 
+## Calls and voice
+
+Voice needs nothing set up: no STUN or TURN server is used, and none is asked for. Two people whose
+browsers can reach each other talk on a direct line; everybody else is carried by this server over
+the realtime connection they already have, and so is every group's voice chat, whoever is in it.
+What that costs is bandwidth: about 40 kbps for each speaker to each listener in Opus (up to 64 at
+the best quality a reader chooses, less while their connection cannot keep up), and about 180 in the
+plainer code a browser without Opus falls back to. A voice chat of ten where three talk at once is
+about 1.2 Mbps out of the server. Nothing said in a call is kept, and a call this server carries is
+encrypted to the proxy and not end to end, as the app says.
+
 ## Watching it
 
 The server watches itself and says in its log when something crosses a line a person should act

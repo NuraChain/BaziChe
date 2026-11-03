@@ -113,8 +113,9 @@ flowchart LR
   that will see it.
 - **The wire is declared once**, in `backend/src/schemas.ts`, and the browser's client is typed from
   that declaration.
-- **The schema is the entities.** TypeORM entities are the only description of the database, and
-  `syncSchema()` builds it from them; there are no migrations until something ships.
+- **The schema is the entities.** TypeORM entities are the only description of the database. Every
+  start brings the database to them by itself and writes each change down as a version, keeping
+  what a change would lose beside it (`docs/operations/rollout.md`).
 - **The browser** uses AzerothJS single-file components with signals and no virtual DOM. Pages load
   as they are needed, the landing page is prerendered in every language, and the build fails when a
   page outgrows its budget.

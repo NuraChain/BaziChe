@@ -35,37 +35,48 @@ npm run setup                                  # adds any name the update put in
 curl -s http://127.0.0.1:4900/api/healthz      # {"status":"ok","database":true}
 ```
 
-Every start brings the database to its version by itself (`backend/src/db/migrate.ts`): each
-migration the update brought (`backend/src/db/migrations/`) runs once, in order, in a transaction of
-its own, and the first that fails is rolled back and stops the start, with the reason in the log and
-nothing half done. The server then refuses to start rather than serve a database it does not match.
-Two servers on one database migrate once. The dump still comes first, every time: a migration is
-code, and code can be wrong. `DATABASE_URL` is the one in the server's `.env`.
+Every start brings the database to the entities by itself (`backend/src/db/migrate.ts`), and
+nobody runs a command for it. First each migration file the update brought
+(`backend/src/db/migrations/`) runs once, in order, in a transaction of its own. Then whatever still
+differs from the entities is applied in one transaction and written down as the next version, in
+`schema_versions` (its number, when, and every statement it ran). The first thing that fails is
+rolled back and stops the start, with the reason in the log and nothing half done: the server
+refuses to start rather than serve a database it does not match. Two servers on one database
+migrate once. The dump still comes first, every time: a change is code, and code can be wrong.
+`DATABASE_URL` is the one in the server's `.env`.
+
+**Nothing a start does loses a row.** Before a column is dropped or retyped, its values are copied,
+with the row's key, into a table beside it named `kept_<version>_<table>__<column>`; a dropped table
+is copied whole to `kept_<version>_<table>`. The start's log names them in a warning. Once the
+update is known good, drop them by hand.
 
 ### The first start of a database from before versions
 
-A database built before migrations existed is adopted at its first start: when it already matches
-the entities, or only lacks what can be added without losing anything, it is brought to them and
-versioned from then on. When matching them would drop a column or a table with what is in it, the
-start stops and says which: take a dump, run `npm run schema:sync` once (it drops them), and start
-again. That happens once, and never after.
+A database built before migrations existed is adopted at its first start: versioned from then on,
+and brought to the entities like any other, what it would lose kept beside it.
 
 ### Changing an entity
 
-Change the entity, then write its migration against the development database and read it:
+Change the entity and start the server: it changes the database to match, as the next version, and
+every other database does the same at its next start. A CHECK whose rule changed is the same:
+every start compares the rules and rewrites them when they moved.
 
-```sh
-npm run migration:new -- AddChannelTopic     # writes backend/src/db/migrations/<time>-AddChannelTopic.ts
-```
+Two changes need a person, because the entities cannot say them:
 
-It refuses while a migration is still pending there, and refuses one that would lose data unless
-`--allow-loss` says that was meant. Start the server to apply it, and commit it with the entity. A
-start that finds the entities and the database still apart says so in a warning naming the
-statements: an entity changed with no migration for it. A CHECK whose rule changed needs no
-migration: every start compares the rules and rewrites them when they moved.
+- **A NOT NULL column added to a table that has rows** needs a default in its entity, or the start
+  stops (rolled back, nothing moved) and says so.
+- **Rows that must move** (a column renamed with its values, a value rewritten) need a migration
+  file, which runs before the start's own change:
+
+  ```sh
+  npm run migration:new -- RenameChannelTopic   # writes backend/src/db/migrations/<time>-RenameChannelTopic.ts
+  ```
+
+  It writes the difference as a starting point: edit it to move the rows, read it, and commit it
+  with the entity.
 
 `npm run migrate` does what a start does, without starting; `npm run schema:sync` is still there for
-a development database to be reset to the entities, and for the one-time adoption above.
+a development database to be reset to the entities.
 
 After the restart: Admin › Overview should say nothing needs you, and the server's log should hold
 no `error` line from the start.

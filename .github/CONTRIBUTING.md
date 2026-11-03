@@ -26,13 +26,23 @@ accounts, and with another in a second browser profile you can play against your
 
 ## The checks
 
-Every change passes these:
+While you work, the quick ones:
 
 ```sh
-npm run check          # typechecks and lints both workspaces, then the server's specs
+npm run check          # typechecks and lints both workspaces side by side, keeping what it can
+npm run test:changed   # only the specs that what is not yet pushed can change
+```
+
+Every change passes these before it is pushed:
+
+```sh
+npm run check:full     # the same checks with nothing kept, then the server's specs
 npm test               # every unit spec, with no database
 npm run test:shuffle   # the same in random order, which finds specs that lean on each other
 ```
+
+`npm run check` can pass where `check:full` does not: ESLint's cache does not see that an edit to
+one file changed what a type-aware rule says of another.
 
 And where they apply:
 

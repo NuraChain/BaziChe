@@ -291,7 +291,7 @@ export function createHub(deps: HubDeps): Hub
                 opus: other.opus
             }));
 
-            emit(member.socket, (n) => voice(n, member.room, true, member.join, peers));
+            emit(member.socket, (n) => voice(n, member.room, true, member.join, peers, !member.lines));
         }
     };
 

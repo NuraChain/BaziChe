@@ -187,6 +187,8 @@ describe.skipIf(!active)('calls between two people, against Postgres', () =>
 
             expect(mine).toMatchObject({ room, kind: 'direct', state: 'ringing', out: true, person: b.handle, rung: false });
             expect(mine.ending).toBeUndefined();
+            expect(mine, 'a voice chat\'s people and rights belong to a group').not.toHaveProperty('people');
+            expect(mine).not.toHaveProperty('may');
             expect(mine.remainingMs).toBeGreaterThan((RING_SECONDS - 5) * 1000);
             expect(mine.remainingMs).toBeLessThanOrEqual(RING_SECONDS * 1000);
             expect(heardBy(mine.id)).toEqual([[a.id, b.id].sort()]);

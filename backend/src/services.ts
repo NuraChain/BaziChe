@@ -1165,6 +1165,23 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
      */
     const rung = new Map<string, number>();
 
+    /** Who is in a group's voice chat with their place in the group, and whether the reader may run it. */
+    const voiceChatOf = (me: string, row: CallRow) =>
+    {
+        const self = row.people.find((one) => one.id === me);
+
+        return {
+            people: row.people.filter((one) => !one.gone).map((one) => ({
+                who: one.handle,
+                held: one.held,
+                hand: one.hand,
+                here: one.here,
+                ...(one.role === null ? {} : { role: one.role })
+            })),
+            may: { calls: self !== undefined && row.switches !== null && mayIn({ role: self.role, rights: self.rights }, row.switches, 'calls') }
+        };
+    };
+
     const asCall = (me: string, row: CallRow): CallView =>
     {
         const person = row.people.find((one) => one.id !== me);
@@ -1177,9 +1194,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             ...(row.ending === null ? {} : { ending: row.ending }),
             out: row.startedBy === me,
             ...(row.kind === 'direct' && person !== undefined ? { person: person.handle } : {}),
-            ...(row.kind === 'group'
-                ? { people: row.people.filter((one) => !one.gone).map((one) => ({ who: one.handle, held: one.held, hand: one.hand, here: one.here })) }
-                : {}),
+            ...(row.kind === 'group' ? voiceChatOf(me, row) : {}),
             rung: row.state === 'ringing' && rung.has(row.id),
             ...(row.state === 'ringing' ? { remainingMs: row.remainingMs } : {}),
             at: row.at.toISOString(),

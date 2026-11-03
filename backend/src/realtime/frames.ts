@@ -48,7 +48,7 @@ export type ServerFrame =
     | { v: 1; t: 'presence'; n: number; full: boolean; people: PresenceEntry[]; gone?: string[] }
     | { v: 1; t: 'nudge'; n: number; scope: NudgeScope; id?: string; at: number }
     | { v: 1; t: 'typing'; n: number; who: string; id: string }
-    | { v: 1; t: 'voice'; n: number; room: string; joined: boolean; mine: string; peers: VoicePeer[] }
+    | { v: 1; t: 'voice'; n: number; room: string; joined: boolean; mine: string; peers: VoicePeer[]; carried?: true }
     | { v: 1; t: 'signal'; n: number; room: string; from: string; join: string; kind: SignalKind; data: string }
     | { v: 1; t: 'sound'; n: number; room: string; join: string; codec: Codec; at: number; data: string }
     | { v: 1; t: 'game'; n: number; at: number; match: MatchView; events: MatchEvent[] }
@@ -111,8 +111,9 @@ export const nudge = (n: number, scope: NudgeScope, at: number, id?: string): Se
 export const typing = (n: number, who: string, id: string): ServerFrame =>
     ({ v: 1, t: 'typing', n, who, id });
 
-export const voice = (n: number, room: string, joined: boolean, mine: string, peers: VoicePeer[]): ServerFrame =>
-    ({ v: 1, t: 'voice', n, room, joined, mine, peers });
+/** `carried`: a room this server alone carries, where no line between two in it is tried. */
+export const voice = (n: number, room: string, joined: boolean, mine: string, peers: VoicePeer[], carried = false): ServerFrame =>
+    ({ v: 1, t: 'voice', n, room, joined, mine, peers, ...(carried ? { carried: true as const } : {}) });
 
 export const signal = (n: number, room: string, from: string, join: string, kind: SignalKind, data: string): ServerFrame =>
     ({ v: 1, t: 'signal', n, room, from, join, kind, data });

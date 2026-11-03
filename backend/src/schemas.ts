@@ -2719,13 +2719,15 @@ export const partyInput = object({
 
 /**
  * Somebody in a group's voice chat (MS-D33): held until somebody lets them speak, with a hand up,
- * and in its room now.
+ * in its room now, and their place in the group, which the page asks before it offers to hold or
+ * take them out.
  */
 export const callPerson = object({
     who: string(),
     held: boolean(),
     hand: boolean(),
-    here: boolean()
+    here: boolean(),
+    role: groupRole.optional()
 });
 
 /**
@@ -2733,7 +2735,8 @@ export const callPerson = object({
  * absent once their account is gone; `rung` says a page of the callee's has it, which is when the
  * caller's card says Ringing rather than Calling; `remainingMs` is what is left of a ring by the
  * server's clock, counted from when the answer arrives. `people` is everybody in a group's voice
- * chat who has not left it.
+ * chat who has not left it, and `may.calls` whether the reader holds the calls right there, which
+ * holding, letting speak, taking out and ending need.
  */
 export const callView = object({
     id: string(),
@@ -2744,6 +2747,7 @@ export const callView = object({
     out: boolean(),
     person: string().optional(),
     people: array(callPerson).optional(),
+    may: object({ calls: boolean() }).optional(),
     rung: boolean(),
     remainingMs: number({ int: true, min: 0 }).optional(),
     at: string(),

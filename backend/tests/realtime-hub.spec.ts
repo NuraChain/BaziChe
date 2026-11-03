@@ -2166,6 +2166,33 @@ describe('a group\'s voice chat', () =>
         world.carried.add(ROOM);
     });
 
+    it('tells everybody in it that this server alone carries the room, and nobody at a table', async () =>
+    {
+        seat('alex', 'sara.k');
+        world.seated.add('mina@t1');
+        world.seated.add('omid.k@t1');
+        const alex = await connect('alex');
+        const sara = await connect('sara.k');
+        const mina = await connect('mina');
+        const omid = await connect('omid.k');
+
+        for (const [wire, room] of [[alex, ROOM], [sara, ROOM], [mina, 't1'], [omid, 't1']] as const)
+        {
+            world.hub.voice(wire.connection, room, true, false, true);
+            await rest();
+        }
+
+        expect([lastVoice(alex.wire)?.carried, lastVoice(sara.wire)?.carried]).toEqual([true, true]);
+        expect(lastVoice(mina.wire), 'a table tries a line between two').not.toHaveProperty('carried');
+        expect(lastVoice(omid.wire)).not.toHaveProperty('carried');
+
+        world.hub.voice(alex.connection, ROOM, false, true, true);
+        await rest();
+
+        expect(lastVoice(alex.wire), 'let go').toMatchObject({ joined: false });
+        expect(lastVoice(alex.wire)).not.toHaveProperty('carried');
+    });
+
     it('carries nobody held, says them muted to everybody, and carries them once somebody lets them speak', async () =>
     {
         seat('alex', 'sara.k');

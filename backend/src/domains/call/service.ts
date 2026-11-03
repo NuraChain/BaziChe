@@ -8,7 +8,7 @@ import { CallParticipant } from '../../entities/call-participant.entity.ts';
 import { Conversation } from '../../entities/conversation.entity.ts';
 import { ConversationMember } from '../../entities/conversation-member.entity.ts';
 import { User } from '../../entities/user.entity.ts';
-import { FACES, mayIn, outranks, type GroupStanding, type GroupSwitches } from '../group/roles.ts';
+import { FACES, mayIn, outranks, type GroupRight, type GroupRole, type GroupStanding, type GroupSwitches } from '../group/roles.ts';
 import type { SocialService } from '../social/service.ts';
 import { CALL_REFUSALS, type CallRefusal } from './refusals.ts';
 import { callMoved } from './rooms.ts';
@@ -87,6 +87,7 @@ interface Raw
     answered_at: Date | null;
     ended_at: Date | null;
     remaining_ms: number;
+    switches: GroupSwitches | null;
 }
 
 export interface CallPerson
@@ -103,6 +104,10 @@ export interface CallPerson
 
     /** Left a group's voice chat on purpose, or was taken out of it. */
     gone: boolean;
+
+    /** Their place in the group whose voice chat it is, and the rights an admin holds; none in a direct call. */
+    role: GroupRole | null;
+    rights: GroupRight[] | null;
 }
 
 export interface CallRow
@@ -120,6 +125,9 @@ export interface CallRow
     /** What is left of its ring by Postgres's clock, nought once it stopped ringing. */
     remainingMs: number;
     people: CallPerson[];
+
+    /** What the members of the group whose voice chat it is may do; none for a direct call. */
+    switches: GroupSwitches | null;
 }
 
 /** A change asked of a call: which call, whether it was this request that changed it, and whether it began a group's voice chat. */
@@ -170,6 +178,12 @@ export function createCallService(db: DataSource, social: SocialService, groups:
             .addSelect(`case when c.state = 'ringing'
                              then greatest(0, ceil(extract(epoch from c.created_at + make_interval(secs => :ring) - now()) * 1000))
                              else 0 end::int`, 'remaining_ms')
+            .addSelect(`(select json_build_object(
+                                'send', g.members_send, 'media', g.members_media, 'add', g.members_add, 'pin', g.members_pin,
+                                'info', g.members_info, 'call', g.members_call, 'joinCall', g.members_join_call,
+                                'speak', g.members_speak)
+                           from conversations v join groups g on g.id = v.group_id
+                          where v.id = c.conversation_id and c.kind = 'group')`, 'switches')
             .where('c.id in (:...ids)', { ids, ring: RING_SECONDS })
             .getRawMany<Raw>();
 
@@ -182,10 +196,26 @@ export function createCallService(db: DataSource, social: SocialService, groups:
             .addSelect('p.hand_at is not null', 'hand')
             .addSelect('p.left_at is null', 'here')
             .addSelect('p.gone_at is not null', 'gone')
+            .addSelect(`(select gm.role from calls c join conversations v on v.id = c.conversation_id
+                           join group_members gm on gm.group_id = v.group_id and gm.user_id = p.user_id
+                          where c.id = p.call_id)`, 'role')
+            .addSelect(`(select gm.rights from calls c join conversations v on v.id = c.conversation_id
+                           join group_members gm on gm.group_id = v.group_id and gm.user_id = p.user_id
+                          where c.id = p.call_id)`, 'rights')
             .where('p.call_id in (:...ids)', { ids })
             .orderBy('p.joined_at')
             .addOrderBy('p.user_id')
-            .getRawMany<{ call_id: string; user_id: string; handle: string; held: boolean; hand: boolean; here: boolean; gone: boolean }>();
+            .getRawMany<{
+                call_id: string;
+                user_id: string;
+                handle: string;
+                held: boolean;
+                hand: boolean;
+                here: boolean;
+                gone: boolean;
+                role: GroupRole | null;
+                rights: GroupRight[] | null;
+            }>();
 
         const byId = new Map(calls.map((row) => [row.id, row]));
 
@@ -215,8 +245,11 @@ export function createCallService(db: DataSource, social: SocialService, groups:
                     held: one.held,
                     hand: one.hand,
                     here: one.here,
-                    gone: one.gone
-                }))
+                    gone: one.gone,
+                    role: one.role,
+                    rights: one.rights
+                })),
+                switches: row.switches
             }];
         });
     };

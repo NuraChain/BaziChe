@@ -1081,6 +1081,24 @@ describe('calls', () =>
         expect(told).toEqual([['state', 'somebody'], ['view', 'somebody', CALL]]);
     });
 
+    it('hands the page everybody\'s place in a voice chat and whether the reader may run it, which the page asks before offering to', async () =>
+    {
+        const voiceChat = {
+            ...view,
+            kind: 'group',
+            state: 'live',
+            person: undefined,
+            remainingMs: undefined,
+            people: [{ who: 'mina', held: false, hand: true, here: true, role: 'admin' }, { who: 'sara.k', held: true, hand: false, here: true, role: 'member' }],
+            may: { calls: true }
+        };
+        const app = calledAs([], () => Promise.resolve(voiceChat));
+        const read = await (await call(app, `/api/calls/${ CALL }`)).json() as typeof voiceChat;
+
+        expect(read.people).toEqual(voiceChat.people);
+        expect(read.may).toEqual({ calls: true });
+    });
+
     it('rings the room it is given, and is not passed on until it names one', async () =>
     {
         const told: unknown[][] = [];

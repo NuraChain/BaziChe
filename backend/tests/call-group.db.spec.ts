@@ -190,7 +190,7 @@ describe.skipIf(!active)('a group\'s voice chat, against a real database', () =>
             expect(started).toMatchObject({ room, kind: 'group', state: 'live', out: true, rung: false });
             expect(started.answeredAt, 'answered at its start').toBeDefined();
             expect(started.person, 'nobody is the other one of a voice chat').toBeUndefined();
-            expect(started.people).toEqual([{ who: a.handle, held: false, hand: false, here: false }]);
+            expect(started.people).toEqual([{ who: a.handle, held: false, hand: false, here: false, role: 'member' }]);
             expect((await rowOf(started.id, a)).leftAt, 'out of its room').not.toBeNull();
 
             expect(await lines(room)).toEqual([{ key: 'chat.line.voice.started', params: { who: a.handle }, by: a.id }]);
@@ -547,7 +547,7 @@ describe.skipIf(!active)('a group\'s voice chat, against a real database', () =>
 
             const back = await ports.calls.join(a.id, started.id);
 
-            expect(back.people?.find((one) => one.who === a.handle)).toEqual({ who: a.handle, held: true, hand: true, here: false });
+            expect(back.people?.find((one) => one.who === a.handle)).toEqual({ who: a.handle, held: true, hand: true, here: false, role: 'member' });
             expect((await rowOf(started.id, a)).goneAt).toBeNull();
         });
 
@@ -744,6 +744,33 @@ describe.skipIf(!active)('a group\'s voice chat, against a real database', () =>
 
         const personIn = async (reader: Person, callId: string, who: Person) =>
             (await ports.calls.view(reader.id, callId)).people?.find((one) => one.who === who.handle);
+
+        it('tells each reader everybody\'s place in the group, and whether the reader holds the calls right there', async () =>
+        {
+            const { owner, admin, plain, moderator, member, other, slug, callId } = await staffed();
+            const roles = (view: Awaited<ReturnType<typeof ports.calls.view>>) =>
+                Object.fromEntries((view.people ?? []).map((one) => [one.who, one.role ?? null]));
+
+            expect(roles(await ports.calls.view(member.id, callId))).toEqual({
+                [owner.handle]: 'owner',
+                [admin.handle]: 'admin',
+                [plain.handle]: 'admin',
+                [moderator.handle]: 'moderator',
+                [member.handle]: 'member',
+                [other.handle]: 'member'
+            });
+
+            for (const [reader, calls] of [[owner, true], [admin, true], [plain, false], [moderator, false], [member, false]] as const)
+            {
+                expect((await ports.calls.view(reader.id, callId)).may, reader.handle).toEqual({ calls });
+            }
+
+            await ports.group.role(owner.id, slug, { id: plain.handle, role: 'admin', rights: ['pin', 'calls'] });
+            await ports.group.role(owner.id, slug, { id: member.handle, role: 'moderator' });
+
+            expect((await ports.calls.view(plain.id, callId)).may, 'given the right in the middle of it').toEqual({ calls: true });
+            expect(roles(await ports.calls.view(owner.id, callId))[member.handle], 'a role changed in the middle of it').toBe('moderator');
+        });
 
         it('puts a hand up and down for whoever is in it, once each way', async () =>
         {

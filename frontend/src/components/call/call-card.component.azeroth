@@ -1,0 +1,202 @@
+import type { CallView } from '../../api.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { callRoomOf, useCalls } from '../../stores/calls.store.ts';
+import { useDevice } from '../../stores/device.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import { useRealtime } from '../../stores/realtime.store.ts';
+import { useVoice } from '../../stores/voice.store.ts';
+import { voiceClock } from '../chat/gist.ts';
+import Avatar from '../ui/avatar.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+
+/**
+ * The call this page is part of (MS-D38): one ringing for the reader, with Accept and Decline and
+ * the whole screen on a phone; one the reader is ringing, Calling and then Ringing once a page of
+ * theirs has it; one that is live, with its time, the microphone and the way out; and, for a
+ * moment, how one ended.
+ */
+export default component CallCard()
+{
+    const calls = useCalls();
+    const people = usePeople();
+    const locale = useLocale();
+    const voice = useVoice();
+    const device = useDevice();
+    const realtime = useRealtime();
+
+    state now = runtime().clock.now();
+
+    derived call = calls.current();
+
+    derived shown = call !== null;
+
+    derived person = call?.person ?? '';
+
+    derived name = people.byHandle(person)?.displayName ?? person;
+
+    derived incoming = call !== null && call.state === 'ringing' && !call.out;
+
+    derived outgoing = call !== null && call.state === 'ringing' && call.out;
+
+    derived live = call !== null && call.state === 'live';
+
+    derived ended = call !== null && call.state === 'ended';
+
+    derived here = calls.here();
+
+    derived heard = live && here && voice.table() === callRoomOf(call?.id ?? '') && !voice.joining() && voice.people().some((one) => !one.me);
+
+    derived full = incoming && device.posture() === 'phone';
+
+    derived lasted = (() =>
+    {
+        if (call === null || call.answeredAt === undefined)
+        {
+            return 0;
+        }
+
+        const until = call.endedAt === undefined ? now : realtime.toLocal(Date.parse(call.endedAt));
+
+        return Math.max(0, (until - realtime.toLocal(Date.parse(call.answeredAt))) / 1000);
+    })();
+
+    const endingOf = (one: CallView) =>
+    {
+        switch (one.ending)
+        {
+            case 'answered':
+                return locale.t('call.ended.answered', { duration: voiceClock(lasted, locale.n) });
+            case 'missed':
+                return locale.t(one.out ? 'call.ended.noAnswer' : 'call.ended.missed');
+            case 'declined':
+                return one.out ? locale.t('call.ended.declinedBy', { name }) : locale.t('call.ended.declined');
+            case 'busy':
+                return one.out ? locale.t('call.ended.busy', { name }) : locale.t('call.ended.missed');
+            case 'cancelled':
+                return locale.t(one.out ? 'call.ended.cancelled' : 'call.ended.missed');
+            default:
+                return locale.t('call.ended.failed');
+        }
+    };
+
+    derived calling = locale.t('call.incoming', { name });
+
+    derived status = (() =>
+    {
+        if (call === null)
+        {
+            return '';
+        }
+
+        if (incoming)
+        {
+            return locale.t('call.onTheWay');
+        }
+
+        if (outgoing)
+        {
+            return locale.t(call.rung ? 'call.ringing' : 'call.calling');
+        }
+
+        if (live)
+        {
+            return !here ? locale.t('call.elsewhere') : (heard ? voiceClock(lasted, locale.n) : locale.t('call.connecting'));
+        }
+
+        return endingOf(call);
+    })();
+
+    derived id = call?.id ?? '';
+
+    mount
+    {
+        let stop: (() => void) | null = null;
+
+        const tick = () =>
+        {
+            now = runtime().clock.now();
+            stop = runtime().clock.after(1000, tick);
+        };
+
+        tick();
+
+        return () => stop?.();
+    }
+
+    <Show when={ shown }>
+        <div
+            class={ () => [
+                'fixed z-(--z-toast) flex justify-center',
+                full ? 'inset-0 items-center bg-void/95 backdrop-blur-xl' : 'inset-x-0 inset-bs-[calc(env(safe-area-inset-top,0px)+0.5rem)] px-3 pointer-events-none'
+            ].join(' ') }
+            data-call={ id }
+            data-call-state={ call?.state ?? '' }
+            data-full={ full ? '' : undefined }
+            role="region"
+            aria-label={ locale.t('call.region') }
+            aria-live={ incoming ? 'assertive' : 'polite' }
+        >
+            <div
+                class={ () => [
+                    'pointer-events-auto relative flex inline-full max-inline-[26rem] rounded-panel border border-line bg-lifted p-3 [box-shadow:var(--shadow-3)] animate-toast-in',
+                    full ? 'flex-col items-center gap-6 border-0 bg-transparent p-6 [box-shadow:none]' : 'flex-wrap items-center gap-3'
+                ].join(' ') }
+                data-call-card
+            >
+                <span class="flex shrink-0" aria-hidden="true">
+                    <Avatar person={ people.byHandle(person) } size={ full ? '2xl' : 'md' } />
+                </span>
+                <span class={ () => [ 'flex min-w-0 flex-col', full ? 'items-center text-center' : 'flex-1 basis-40' ].join(' ') }>
+                    <span class={ () => [ 'break-words font-semibold text-text', full ? 'text-ui-xl' : 'text-ui-base' ].join(' ') } dir={ locale.dir() } data-call-heading>
+                        <Show when={ incoming } fallback={ <bdi>{ name }</bdi> }>
+                            { calling }
+                        </Show>
+                    </span>
+                    <span class="text-balance text-ui-sm text-muted" data-call-status>{ status }</span>
+                </span>
+                <span class={ () => [ 'flex shrink-0 items-center', full ? 'gap-10' : 'ms-auto gap-2' ].join(' ') }>
+                    <Show when={ incoming }>
+                        <span class="contents" data-call-decline>
+                            <Button variant="destructive" size={ full ? 'lg' : 'sm' } leading="hang-up" onClick={ () => void calls.decline(id) }>
+                                { locale.t('call.decline') }
+                            </Button>
+                        </span>
+                        <span class="contents" data-call-accept>
+                            <Button variant="live" size={ full ? 'lg' : 'sm' } leading="call" onClick={ () => void calls.accept(id) }>
+                                { locale.t('call.accept') }
+                            </Button>
+                        </span>
+                    </Show>
+                    <Show when={ outgoing }>
+                        <span class="contents" data-call-cancel>
+                            <Button variant="destructive" size="sm" leading="hang-up" onClick={ () => void calls.hangUp(id) }>
+                                { locale.t('call.cancel') }
+                            </Button>
+                        </span>
+                    </Show>
+                    <Show when={ live }>
+                        <Show when={ here }>
+                            <IconButton
+                                icon={ voice.muted() ? 'voice-off' : 'voice' }
+                                label={ locale.t(voice.muted() ? 'call.unmute' : 'call.mute') }
+                                variant="ghost"
+                                pressed={ voice.muted() }
+                                onClick={ () => voice.toggleMute() }
+                            />
+                        </Show>
+                        <span class="contents" data-call-hang-up>
+                            <Button variant="destructive" size="sm" leading="hang-up" onClick={ () => void calls.hangUp(id) }>
+                                { locale.t('call.hangUp') }
+                            </Button>
+                        </span>
+                    </Show>
+                    <Show when={ ended }>
+                        <IconButton icon="close" label={ locale.t('call.close') } variant="ghost" onClick={ () => calls.dismiss(id) } />
+                    </Show>
+                </span>
+            </div>
+        </div>
+    </Show>
+}

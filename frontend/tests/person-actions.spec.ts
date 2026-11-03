@@ -340,7 +340,7 @@ describe('what can be done about a person', () =>
     {
         const container = await sheet('sara.k');
 
-        expect(offered(container).slice(0, 3)).toEqual(['View profile', 'Play with Sara', 'Message']);
+        expect(offered(container).slice(0, 4)).toEqual(['View profile', 'Play with Sara', 'Call Sara', 'Message']);
 
         fire(action(container, 'Play with Sara')!, 'click');
 
@@ -350,6 +350,27 @@ describe('what can be done about a person', () =>
         expect(useOverlay().items().find((one) => one.id === 'play-with')?.props, 'the game is chosen for somebody else, or alone').toMatchObject({ personId: 'sara.k', teamable: true });
         expect(closed, 'the sheet about Sara stayed open under the one that chooses a game').toEqual([undefined]);
     }, 15_000);
+
+    it('offers a call to a friend and to nobody else, and a call pressed rings their conversation', async () =>
+    {
+        for (const who of ['mina', 'maya.c', 'mahsa'])
+        {
+            expect(offered(await sheet(who)).filter((one) => one.startsWith('Call ')), `${ who } was offered a call as a friend`).toEqual([]);
+
+            cleanup();
+        }
+
+        const container = await sheet('sara.k');
+
+        server.calls = [];
+        fire(action(container, 'Call Sara')!, 'click');
+
+        await vi.waitFor(() => expect(server.calls).toContain('calls.ring'), { timeout: 8000 });
+
+        expect(server.calls.indexOf('chat.direct'), 'the conversation first').toBeLessThan(server.calls.indexOf('calls.ring'));
+        expect(server.phone.map((one) => [one.person, one.state, one.out])).toEqual([['sara.k', 'ringing', true]]);
+        expect(closed).toEqual([undefined]);
+    }, 10_000);
 
     it('offers a game together to a friend and to nobody else', async () =>
     {

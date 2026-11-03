@@ -17,6 +17,8 @@ export type {
     ChainPerson,
     ChainProfile,
     ChainProfileState,
+    CallView,
+    CallsState,
     ChatMessage,
     ConversationDevices,
     ConversationSigners,

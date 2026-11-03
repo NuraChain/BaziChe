@@ -14,6 +14,7 @@ describe('counting an invite after a finish', () =>
 
         expect(established).toBeGreaterThan(-1);
         expect(established).toBeLessThan(counting.indexOf('invites.countedBy(matchId)'));
-        expect(SERVICES).toContain('createInviteService(db, () => ownersOf(config.adminWallet))');
+        expect(SERVICES).toContain('const owners = () => ownersOf(config.adminWallet);');
+        expect(SERVICES).toContain('createInviteService(db, owners)');
     });
 });

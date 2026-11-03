@@ -146,7 +146,7 @@ export const me = {
     'settings.notifications.turns': 'Games: your turn, and a game starting',
     'settings.notifications.gifts': 'Gifts and NURA sent to you',
     'settings.notifications.inviting': 'Friends you invited',
-    'settings.notifications.calls': 'Calls: one ringing, and one you missed',
+    'settings.notifications.calls': 'Calls: one ringing, one you missed, and a group’s voice chat starting',
     'settings.notifications.haptics': 'Vibration',
     'settings.notifications.hapticsHint': 'A short buzz when a table is ready, a hand is won, or a gesture lands.',
 

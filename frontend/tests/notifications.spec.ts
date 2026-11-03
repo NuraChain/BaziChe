@@ -175,6 +175,21 @@ describe('where a notice leads', () =>
         useLocale().setLocale('en');
     });
 
+    it.each([
+        ['en', 'Maya started a voice chat in a group'],
+        ['fa', 'Maya توی یه گروه چت صوتی راه انداخت']
+    ] as const)('sends a group\'s voice chat starting to the group\'s conversation, and says it in %s', (language, started) =>
+    {
+        useLocale().setLocale(language);
+
+        const voice = notice('group-call', { actor: 'maya.c', ref: { conversationId: 'c-9' } });
+
+        expect(targetOf(voice)).toBe('/app/chats/c-9');
+        expect(sayOf(voice, 'Maya', useLocale())).toBe(started);
+        expect(wordsOf(language).says, 'the worker says what the page says').toMatchObject({ 'group-call': messageOf(language, 'notify.groupCall') });
+        useLocale().setLocale('en');
+    });
+
     it('sends somebody a host took out of a table to the games, not back to a table with no chair for them', () =>
     {
         expect(targetOf(notice('table-removed', { actor: 'maya.c', ref: { tableId: 't-1', game: 'ludo' } }))).toBe('/app/games');

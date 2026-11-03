@@ -24,7 +24,8 @@ export const NOTIFICATION_ICON: Record<NotificationKind, IconName> = {
     'channel-invite': 'megaphone',
     'group-report': 'report',
     'call': 'call',
-    'call-missed': 'call-missed'
+    'call-missed': 'call-missed',
+    'group-call': 'call'
 };
 
 const SAYS: Record<NotificationKind, MessageKey> = {
@@ -46,7 +47,8 @@ const SAYS: Record<NotificationKind, MessageKey> = {
     'channel-invite': 'notify.channelInvite',
     'group-report': 'notify.groupReport',
     'call': 'notify.call',
-    'call-missed': 'notify.callMissed'
+    'call-missed': 'notify.callMissed',
+    'group-call': 'notify.groupCall'
 };
 
 export function sayOf(item: Notification, who: string, locale: Pick<LocaleApi, 't' | 'plural' | 'n'>)

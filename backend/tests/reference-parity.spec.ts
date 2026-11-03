@@ -211,9 +211,9 @@ describe('notices: the kinds a person can switch off hold together', () =>
         expect(Object.entries(NOTICE_OF).filter(([, notice]) => notice === 'groups').map(([kind]) => kind).sort()).toEqual(['channel-invite', 'group-added', 'group-approved', 'group-owner', 'group-report', 'group-request']);
     });
 
-    it('puts a call ringing and one missed under a notice of their own, and nothing else there', () =>
+    it('puts a call ringing, one missed and a group\'s voice chat starting under a notice of their own, and nothing else there', () =>
     {
-        expect(Object.entries(NOTICE_OF).filter(([, notice]) => notice === 'calls').map(([kind]) => kind).sort()).toEqual(['call', 'call-missed']);
+        expect(Object.entries(NOTICE_OF).filter(([, notice]) => notice === 'calls').map(([kind]) => kind).sort()).toEqual(['call', 'call-missed', 'group-call']);
     });
 
     it('lets onto the wire exactly the kinds the column holds', () =>

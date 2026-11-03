@@ -160,6 +160,20 @@ describe('the background behind a table\'s page', () =>
         expect(fake.wants.at(-1)).toEqual(music());
     });
 
+    it('sits under a call to somebody, wherever the reader is', async () =>
+    {
+        hold('t1');
+        call.set('call:c-1');
+        await flush();
+
+        expect(fake.wants.at(-1)).toEqual(music({ ducked: true }));
+
+        call.set(null);
+        await flush();
+
+        expect(fake.wants.at(-1)).toEqual(music());
+    });
+
     it('is held while the tab is hidden and comes back when it is seen', async () =>
     {
         hold('t1');

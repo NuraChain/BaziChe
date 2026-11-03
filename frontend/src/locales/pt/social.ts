@@ -482,6 +482,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.call.declined': 'Chamada recusada',
     'chat.call.cancelled': 'Chamada cancelada',
     'chat.call.busy': 'Ocupado',
+    'chat.call.again': '{line}. Ligar de novo',
     'call.region': 'Chamada',
     'call.action': 'Ligar para {name}',
     'call.incoming': '{name} está te ligando',
@@ -510,6 +511,10 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'call.refused.call-friends': 'Você só pode ligar para seus amigos.',
     'call.refused.in-call': 'Você já está em uma chamada.',
     'call.refused.call-over': 'Essa chamada não está mais tocando.',
+    'call.bar.open': 'Abrir a chamada com {name}',
+    'call.view.label': 'Sua chamada',
+    'call.view.title': 'Chamada com {name}',
+    'call.view.muted': '{name} silenciou o microfone',
 
     'expiry.title': 'Mensagens temporárias',
     'expiry.off': 'Desligado',

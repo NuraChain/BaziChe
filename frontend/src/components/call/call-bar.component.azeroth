@@ -1,0 +1,91 @@
+import Button from '../ui/button.component.azeroth';
+import Icon from '../../icons/icon.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
+import { openCallView } from '../../lib/call-view.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { useCalls } from '../../stores/calls.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import { useRealtime } from '../../stores/realtime.store.ts';
+import { useVoice } from '../../stores/voice.store.ts';
+import { heardIn, lastedOf, liveSaid, ticking } from './said.ts';
+
+/**
+ * The live call across the top of every page the strips are drawn on (MS-D38): who it is with and
+ * for how long, pressed for the call's view, with the microphone and the way out beside it. While
+ * it is drawn the call's card leaves the live call to it.
+ */
+export default component CallBar()
+{
+    const calls = useCalls();
+    const locale = useLocale();
+    const people = usePeople();
+    const voice = useVoice();
+    const realtime = useRealtime();
+
+    state now = runtime().clock.now();
+
+    derived call = calls.current();
+
+    derived live = call !== null && call.state === 'live';
+
+    derived here = calls.here();
+
+    derived person = call?.person ?? '';
+
+    derived name = people.byHandle(person)?.displayName ?? person;
+
+    derived heard = heardIn(call, here, voice);
+
+    derived lasted = lastedOf(call, now, realtime.toLocal);
+
+    derived status = liveSaid(here, heard, lasted, locale);
+
+    derived muted = voice.muted();
+
+    derived id = call?.id ?? '';
+
+    mount
+    {
+        const release = calls.bar();
+        const stop = ticking((at) => now = at);
+
+        return () =>
+        {
+            stop();
+            release();
+        };
+    }
+
+    <Show when={ live }>
+        <div class="z-banner flex items-center gap-2 bg-live/15 px-3 py-1.5 text-ui-sm" role="region" aria-label={ locale.t('call.region') } data-call-bar={ id }>
+            <button
+                type="button"
+                class="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-control px-1 text-start"
+                aria-haspopup="dialog"
+                aria-label={ locale.t('call.bar.open', { name }) }
+                onClick={ () => openCallView() }
+            >
+                <Icon name="call" size={ 16 } class="shrink-0 text-live" />
+                <span class="min-w-0 truncate font-semibold text-text"><bdi>{ name }</bdi></span>
+                <span class="shrink-0 text-live" data-call-bar-status>{ status }</span>
+            </button>
+            <Show when={ here }>
+                <span class="contents" data-call-bar-mute>
+                    <IconButton
+                        icon={ muted ? 'voice-off' : 'voice' }
+                        label={ locale.t(muted ? 'call.unmute' : 'call.mute') }
+                        variant="ghost"
+                        pressed={ muted }
+                        onClick={ () => voice.toggleMute() }
+                    />
+                </span>
+            </Show>
+            <span class="contents" data-call-bar-hang-up>
+                <Button variant="destructive" size="sm" leading="hang-up" onClick={ () => void calls.hangUp(id) }>
+                    { locale.t('call.hangUp') }
+                </Button>
+            </span>
+        </div>
+    </Show>
+}

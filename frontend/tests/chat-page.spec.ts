@@ -1544,6 +1544,34 @@ describe('a call from the head of a thread', () =>
         expect(button(stranger), 'a thread with somebody who is no longer a friend').toBeNull();
     }, 12_000);
 
+    it('calls again from a call\'s line in a friend\'s thread, and is words alone where they can no longer be called', async () =>
+    {
+        server.messages.push({ id: 'm-call', conversationId: 'c-reza', kind: 'system', payload: { key: 'chat.line.call', params: { who: 'reza.t', ending: 'missed' } }, at: new Date(runtime().clock.now()).toISOString() });
+
+        const container = opened('c-reza', 'sidebar');
+        const again = (within: HTMLElement) => within.querySelector<HTMLButtonElement>('[data-call-again]');
+
+        await vi.waitFor(() => expect(again(container)?.getAttribute('aria-label')).toBe('Missed call. Call again'), { timeout: 4000 });
+
+        server.calls = [];
+        fire(again(container)!, 'click');
+
+        await vi.waitFor(() => expect(server.calls).toContain('calls.ring'), { timeout: 8000 });
+        expect(server.phone.map((one) => [one.room, one.out])).toEqual([['c-reza', true]]);
+
+        cleanup();
+        server.phone = [];
+        server.calls = [];
+        server.friends = server.friends.filter((one) => one !== 'reza.t');
+        useSocial().reset();
+
+        const stranger = opened('c-reza', 'sidebar');
+
+        await read(stranger, 'chat.messages', 'social.graph');
+        expect(stranger.textContent).toContain('Missed call');
+        expect(again(stranger), 'a call offered to somebody who is a friend no longer').toBeNull();
+    }, 14_000);
+
     it('says a conversation that could not be opened, once, and rings nothing', async () =>
     {
         const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);

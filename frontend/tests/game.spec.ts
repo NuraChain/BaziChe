@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BLOCK, CELL, GOAL_REACH, GRID, HOME_SCALE, HOME_SLOTS, MARGIN, NEST, NEST_RADIUS, RIM, STACKS, aimNear, centreOf, tokenRadius } from '../src/game/layout.ts';
 import { FINISHED, YARD, pathBetween } from '../src/game/board/path.ts';
-import { createSound, createVoices, endCue, offsetOf, onBed, resetSound } from '../src/game/sound.ts';
+import { createRinger, createSound, createVoices, endCue, offsetOf, onBed, resetSound } from '../src/game/sound.ts';
 import { CUES, PACKS, SAMPLED, TABLE_PACKS, unpack, VOICE_PACKS, type Pack } from '../src/game/sound-files.ts';
 import { ENTRY, RING_CELLS, cellAt } from '../../backend/src/domains/match/ludo/board.ts';
 import { chairsOf, ludoOf, type LudoSeat } from '../src/data/match.ts';
@@ -166,6 +166,12 @@ describe('the sound layer', () =>
         levels: () => number[];
         starts: () => number[];
         last: () => FakeContext | null;
+
+        /** Every buffer source started, newest last, with what it was handed. */
+        sources: () => Record<string, unknown>[];
+
+        /** Every buffer made in the page, as long as it was made and with what was copied into it. */
+        loops: () => { length: number; sampleRate: number; copied: number[] }[];
     }
 
     interface FakeContext
@@ -189,7 +195,8 @@ describe('the sound layer', () =>
             setValueAtTime: (value: number, at: number) => steps.push(['set', value, at]),
             exponentialRampToValueAtTime: () => undefined,
             linearRampToValueAtTime: (value: number, at: number) => steps.push(['ramp', value, at]),
-            cancelScheduledValues: (at: number) => steps.push(['cancel', at])
+            cancelScheduledValues: (at: number) => steps.push(['cancel', at]),
+            setTargetAtTime: (value: number, at: number, tau: number) => steps.push(['target', value, at, tau])
         };
     };
 
@@ -200,6 +207,7 @@ describe('the sound layer', () =>
         let buffers = 0;
         const played: Record<string, unknown>[] = [];
         const contexts: FakeContext[] = [];
+        const loops: { length: number; sampleRate: number; copied: number[] }[] = [];
 
         const node = () =>
         {
@@ -217,7 +225,10 @@ describe('the sound layer', () =>
                 {
                     one.to = to;
                 },
-                stop: () => undefined
+                stop: (when?: number) =>
+                {
+                    one.stopped = when ?? 0;
+                }
             };
 
             return one;
@@ -311,13 +322,32 @@ describe('the sound layer', () =>
                 return source;
             }
 
-            public decodeAudioData(): Promise<unknown>
+            /** A take's samples: a little silence, a sound, then each byte of the take a hundredth, so two takes are told apart. */
+            public decodeAudioData(bytes: ArrayBuffer): Promise<unknown>
             {
-                return Promise.resolve({ sampleRate: 1000, getChannelData: () => new Float32Array([0, 0, 0.5, 0.2]) });
+                return Promise.resolve({ sampleRate: 1000, getChannelData: () => new Float32Array([0, 0, 0.5, 0.2, ...[...new Uint8Array(bytes)].map((byte) => byte / 100)]) });
+            }
+
+            public createBuffer(_channels: number, length: number, sampleRate: number)
+            {
+                const made = { length, sampleRate, copied: [] as number[], copyToChannel: (from: Float32Array) => made.copied = [...from] };
+
+                loops.push(made);
+
+                return made;
             }
         });
 
-        return { made: () => made, oscillators: () => oscillators, buffers: () => buffers, levels: () => played.map(busOf), starts: () => played.map((source) => source.when as number), last: () => contexts.at(-1) ?? null };
+        return {
+            made: () => made,
+            oscillators: () => oscillators,
+            buffers: () => buffers,
+            levels: () => played.map(busOf),
+            starts: () => played.map((source) => source.when as number),
+            last: () => contexts.at(-1) ?? null,
+            sources: () => played,
+            loops: () => loops
+        };
     };
 
     const pack = (takes: Record<string, number[][]>) =>
@@ -358,12 +388,12 @@ describe('the sound layer', () =>
         expect(unpack(new TextEncoder().encode('RIFF0000').buffer, SAMPLED).size).toBe(0);
     });
 
-    it('puts every cue in exactly one pack, and every pack in some table', () =>
+    it('puts every cue in exactly one pack, and every pack in some table but a call\'s, which its ringer plays', () =>
     {
         const packs = Object.keys(CUES) as Pack[];
 
         expect(new Set(SAMPLED).size, 'a cue in two packs').toBe(SAMPLED.length);
-        expect(packs.filter((one) => !Object.values(TABLE_PACKS).some((played) => played.includes(one))), 'a pack no table plays').toEqual([]);
+        expect(packs.filter((one) => !Object.values(TABLE_PACKS).some((played) => played.includes(one))), 'a pack no table plays').toEqual(['calls']);
         expect(Object.values(TABLE_PACKS).every((played) => played[0] === 'common')).toBe(true);
     });
 
@@ -1401,6 +1431,196 @@ describe('the sound layer', () =>
 
                 [voices, chimes].forEach((one) => one.dispose());
             });
+        });
+    });
+
+    describe('a call\'s ringer', () =>
+    {
+        /** The calls pack, each of its cues a take of its own, held until `until` lets it through; any other pack is empty. */
+        const calling = (until: Promise<void> = Promise.resolve()) =>
+        {
+            const asked: string[] = [];
+
+            vi.stubGlobal('fetch', (url: string) =>
+            {
+                asked.push(url);
+                const body = url === PACKS.calls ? pack({ 'ring': [[1, 2, 3]], 'ringback': [[4, 5]], 'call-end': [[6]] }) : pack({});
+
+                return until.then(() => ({ ok: true, arrayBuffer: () => Promise.resolve(body) }));
+            });
+
+            return asked;
+        };
+
+        const landed = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+        const rounded = (samples: number[]) => samples.map((sample) => Math.round(sample * 100) / 100);
+
+        /** A ringer whose pack has come, on a page whose audio runs. */
+        const ready = async () =>
+        {
+            const ringer = createRinger();
+
+            await tap();
+            await flush();
+            await landed();
+
+            return ringer;
+        };
+
+        it('fetches the calls pack and no table\'s', async () =>
+        {
+            stub();
+            const asked = calling();
+            const ringer = await ready();
+
+            expect(asked).toEqual([PACKS.calls]);
+
+            ringer.dispose();
+        });
+
+        it('rings on a loop three seconds long, laid from where its take begins, on the jingles\' bus, and falls silent when quieted', async () =>
+        {
+            const fake = stub();
+            calling();
+            const ringer = await ready();
+
+            ringer.ring('ring');
+
+            const [loop] = fake.loops();
+            const [source] = fake.sources();
+
+            expect([loop.length, loop.sampleRate]).toEqual([3000, 1000]);
+            expect(rounded(loop.copied), 'not laid from where its sound begins').toEqual([0.5, 0.2, 0.01, 0.02, 0.03]);
+            expect(source.loop).toBe(true);
+            expect(fake.levels()).toEqual([0.6]);
+
+            ringer.quiet();
+
+            expect((source.to as { gain: { steps: unknown[][] } }).gain.steps.at(-1), 'cut where it stood').toEqual(['target', 0, 1, 0.02]);
+            expect(source.stopped).toBeCloseTo(1.16, 6);
+
+            ringer.dispose();
+        });
+
+        it('rings on as it was when asked again for the same ring, and lays the other in its place', async () =>
+        {
+            const fake = stub();
+            calling();
+            const ringer = await ready();
+
+            ringer.ring('ring');
+            ringer.ring('ring');
+
+            expect(fake.sources(), 'a ring asked for again started over').toHaveLength(1);
+
+            ringer.ring('ringback');
+
+            const [ring, ringback] = fake.sources();
+
+            expect(ring.stopped).toBeCloseTo(1.16, 6);
+            expect(ringback.loop).toBe(true);
+            expect(rounded(fake.loops()[1].copied)).toEqual([0.5, 0.2, 0.04, 0.05]);
+
+            ringer.dispose();
+        });
+
+        it('rings what it was asked for once its pack is in and the page\'s audio runs, and not before', async () =>
+        {
+            const fake = stub();
+            let land: () => void = () => undefined;
+
+            calling(new Promise<void>((resolve) =>
+            {
+                land = resolve;
+            }));
+
+            const ringer = createRinger();
+
+            ringer.ring('ringback');
+            await flush();
+
+            expect(fake.sources(), 'rang with no audio running').toHaveLength(0);
+
+            await tap();
+            await flush();
+
+            expect(fake.sources(), 'rang with no take').toHaveLength(0);
+
+            land();
+            await flush();
+            await landed();
+
+            expect(rounded(fake.loops()[0]?.copied ?? [])).toEqual([0.5, 0.2, 0.04, 0.05]);
+            expect(fake.sources()).toHaveLength(1);
+
+            ringer.dispose();
+        });
+
+        it('rings what it was asked for while the page\'s audio was stopped, once it runs again', async () =>
+        {
+            const fake = stub();
+            calling();
+            const ringer = await ready();
+            const context = fake.last() as FakeContext & { resume: () => Promise<void> };
+
+            context.state = 'suspended';
+            ringer.ring('ring');
+
+            expect(fake.sources(), 'rang on audio that was stopped').toHaveLength(0);
+
+            await context.resume();
+            await flush();
+
+            expect(fake.sources()).toHaveLength(1);
+            expect(fake.sources()[0].loop).toBe(true);
+
+            ringer.dispose();
+        });
+
+        it('rings in a hidden tab, and ends there, where a table\'s cue is not heard', async () =>
+        {
+            const fake = stub();
+            calling();
+            const ringer = await ready();
+            const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+
+            ringer.ring('ring');
+
+            expect(fake.sources()).toHaveLength(1);
+
+            ringer.quiet();
+            ringer.end();
+
+            const end = fake.sources()[1];
+
+            expect(end, 'the end was not heard in a hidden tab').toBeDefined();
+            expect(end.loop, 'the end rang on').not.toBe(true);
+            expect(fake.levels()).toEqual([0.6, 0.6]);
+
+            visibility.mockRestore();
+            ringer.dispose();
+        });
+
+        it('falls silent and rings no more once it is let go of, while the page\'s audio goes on for a table', async () =>
+        {
+            const fake = stub();
+            calling();
+            const table = createSound(true);
+            const ringer = await ready();
+
+            ringer.ring('ring');
+            ringer.dispose();
+
+            expect(fake.sources()[0].stopped).toBeCloseTo(1.16, 6);
+            expect(fake.last()?.state, 'the table\'s audio was put to sleep with the ringer').toBe('running');
+
+            ringer.ring('ringback');
+            ringer.end();
+
+            expect(fake.sources()).toHaveLength(1);
+
+            table.dispose();
         });
     });
 

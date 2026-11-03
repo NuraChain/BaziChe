@@ -1,12 +1,14 @@
 import type { CallView } from '../../api.ts';
+import { openCallView } from '../../lib/call-view.ts';
 import { runtime } from '../../lib/runtime.ts';
-import { callRoomOf, useCalls } from '../../stores/calls.store.ts';
+import { useCalls } from '../../stores/calls.store.ts';
 import { useDevice } from '../../stores/device.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useRealtime } from '../../stores/realtime.store.ts';
 import { useVoice } from '../../stores/voice.store.ts';
 import { voiceClock } from '../chat/gist.ts';
+import { heardIn, lastedOf, liveSaid, ticking } from './said.ts';
 import Avatar from '../ui/avatar.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
@@ -14,8 +16,8 @@ import IconButton from '../ui/icon-button.component.azeroth';
 /**
  * The call this page is part of (MS-D38): one ringing for the reader, with Accept and Decline and
  * the whole screen on a phone; one the reader is ringing, Calling and then Ringing once a page of
- * theirs has it; one that is live, with its time, the microphone and the way out; and, for a
- * moment, how one ended.
+ * theirs has it; one that is live, with its time, the microphone and the way out, wherever no bar
+ * across the top of the page shows it (a table); and, for a moment, how one ended.
  */
 export default component CallCard()
 {
@@ -30,7 +32,9 @@ export default component CallCard()
 
     derived call = calls.current();
 
-    derived shown = call !== null;
+    derived barred = calls.barred() && call !== null && call.state === 'live';
+
+    derived shown = call !== null && !barred;
 
     derived person = call?.person ?? '';
 
@@ -46,21 +50,11 @@ export default component CallCard()
 
     derived here = calls.here();
 
-    derived heard = live && here && voice.table() === callRoomOf(call?.id ?? '') && !voice.joining() && voice.people().some((one) => !one.me);
+    derived heard = heardIn(call, here, voice);
 
     derived full = incoming && device.posture() === 'phone';
 
-    derived lasted = (() =>
-    {
-        if (call === null || call.answeredAt === undefined)
-        {
-            return 0;
-        }
-
-        const until = call.endedAt === undefined ? now : realtime.toLocal(Date.parse(call.endedAt));
-
-        return Math.max(0, (until - realtime.toLocal(Date.parse(call.answeredAt))) / 1000);
-    })();
+    derived lasted = lastedOf(call, now, realtime.toLocal);
 
     const endingOf = (one: CallView) =>
     {
@@ -102,7 +96,7 @@ export default component CallCard()
 
         if (live)
         {
-            return !here ? locale.t('call.elsewhere') : (heard ? voiceClock(lasted, locale.n) : locale.t('call.connecting'));
+            return liveSaid(here, heard, lasted, locale);
         }
 
         return endingOf(call);
@@ -112,17 +106,7 @@ export default component CallCard()
 
     mount
     {
-        let stop: (() => void) | null = null;
-
-        const tick = () =>
-        {
-            now = runtime().clock.now();
-            stop = runtime().clock.after(1000, tick);
-        };
-
-        tick();
-
-        return () => stop?.();
+        return ticking((at) => now = at);
     }
 
     <Show when={ shown }>
@@ -177,6 +161,7 @@ export default component CallCard()
                         </span>
                     </Show>
                     <Show when={ live }>
+                        <IconButton icon="expand" label={ locale.t('call.bar.open', { name }) } variant="ghost" onClick={ () => openCallView() } />
                         <Show when={ here }>
                             <IconButton
                                 icon={ voice.muted() ? 'voice-off' : 'voice' }

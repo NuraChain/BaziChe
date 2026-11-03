@@ -482,6 +482,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.call.declined': 'Reddedilen arama',
     'chat.call.cancelled': 'İptal edilen arama',
     'chat.call.busy': 'Meşgul',
+    'chat.call.again': '{line}. Tekrar ara',
     'call.region': 'Arama',
     'call.action': '{name} kişisini ara',
     'call.incoming': '{name} arıyor',
@@ -510,6 +511,10 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'call.refused.call-friends': 'Yalnızca arkadaşlarını arayabilirsin.',
     'call.refused.in-call': 'Zaten bir aramadasın.',
     'call.refused.call-over': 'Bu arama artık çalmıyor.',
+    'call.bar.open': '{name} ile aramayı aç',
+    'call.view.label': 'Araman',
+    'call.view.title': '{name} ile arama',
+    'call.view.muted': '{name} mikrofonunu kapattı',
 
     'expiry.title': 'Kaybolan mesajlar',
     'expiry.off': 'Kapalı',

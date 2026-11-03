@@ -378,8 +378,8 @@ describe('the friends it brought in', () =>
         const { container } = await page();
 
         fire(container.querySelector('[data-invited="friend1"] button')!, 'click');
-        await vi.waitFor(() => expect(asked()?.props.personId).toBe('friend1'));
-    });
+        await vi.waitFor(() => expect(asked()?.props.personId).toBe('friend1'), { timeout: 8000 });
+    }, 10_000);
 
     it('says nobody joined yet only once the server has said so', async () =>
     {

@@ -21,6 +21,8 @@ const credits = readFileSync(new URL('LICENSE.txt', sources), 'utf8');
 
 const builder = readFileSync(new URL('../../tools/art/sound.mjs', import.meta.url), 'utf8');
 
+const caller = readFileSync(new URL('../../tools/art/call-sounds.mjs', import.meta.url), 'utf8');
+
 describe('the sound packs the tables play from', () =>
 {
     it('are one file a pack, each holding takes of every cue it is named with and of nothing else', () =>
@@ -37,11 +39,13 @@ describe('the sound packs the tables play from', () =>
         }
     });
 
-    it('are built by a table that names the pack of every take, and no pack the tables do not have', () =>
+    it('are built by a table that names the pack of every take, and a call\'s by a generator of its own, and no pack the engine does not have', () =>
     {
         const named = [...new Set([...builder.matchAll(/^\s+\['(\w+)', '[\w-]+', /gm)].map((found) => found[1]))].sort();
 
-        expect(named).toEqual([...packs].sort());
+        expect(named).toEqual(packs.filter((pack) => pack !== 'calls').sort());
+        expect(caller).toContain('CUES.calls.map(');
+        expect(caller).toContain('join(SOUND, \'calls.cues\')');
     });
 
     it('are built from sources that are all in the tree, and name every one that is not Kenney\'s beside its licence', () =>

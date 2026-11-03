@@ -482,6 +482,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.call.declined': 'अस्वीकार की गई कॉल',
     'chat.call.cancelled': 'रद्द की गई कॉल',
     'chat.call.busy': 'व्यस्त',
+    'chat.call.again': '{line}. फिर से कॉल करें',
     'call.region': 'कॉल',
     'call.action': '{name} को कॉल करें',
     'call.incoming': '{name} कॉल कर रहे हैं',
@@ -510,6 +511,10 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'call.refused.call-friends': 'आप सिर्फ़ अपने दोस्तों को कॉल कर सकते हैं।',
     'call.refused.in-call': 'आप पहले से एक कॉल में हैं।',
     'call.refused.call-over': 'वह कॉल अब बज नहीं रही।',
+    'call.bar.open': '{name} के साथ कॉल खोलें',
+    'call.view.label': 'आपकी कॉल',
+    'call.view.title': '{name} के साथ कॉल',
+    'call.view.muted': '{name} ने अपना माइक्रोफ़ोन म्यूट किया है',
 
     'expiry.title': 'गायब होने वाले मैसेज',
     'expiry.off': 'बंद',

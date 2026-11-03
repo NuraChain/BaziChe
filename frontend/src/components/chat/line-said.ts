@@ -14,6 +14,14 @@ const CALL_SAID = {
 const said = (ending: string | readonly string[] | undefined): ending is Exclude<CallEnding, 'failed'> =>
     typeof ending === 'string' && ending !== 'failed' && (CALL_ENDINGS as readonly string[]).includes(ending);
 
+/** Whether a line is a call that rang for the reader and nobody took up: the one said "Missed call" to them. */
+export function callMissed(line: MessageLine, me: string)
+{
+    const { who, ending } = line.params;
+
+    return line.key === 'chat.line.call' && typeof who === 'string' && said(ending) && who.toLowerCase() !== me.toLowerCase() && CALL_SAID.in[ending] === 'chat.call.missed';
+}
+
 /**
  * A line the server wrote, in the reader's words, or nothing for a key this client does not know.
  * A call's line is said from the reader's own side: the one who rang reads "Outgoing call", the

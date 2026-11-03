@@ -1,5 +1,6 @@
 import { createEffect, createRoot, createSignal, createStore, untrack } from 'azerothjs';
 
+import { CALL_ROOM } from '../../../backend/src/domains/call/rules.ts';
 import type { GameId } from '../data/games.ts';
 import { BEDS } from '../game/bed-files.ts';
 import { createBed, type BedState, type BedWant } from '../game/bed.ts';
@@ -20,8 +21,8 @@ const same = (a: BedWant | null, b: BedWant | null) =>
 /**
  * The background behind a table's page. `hold` plays it for that table and its game until its answer is called,
  * and a later hold takes over from an earlier one, because a page that is leaving lets go after the next one has
- * opened. It follows the reader's switch, choice and volume, sits under the call at that table and is held
- * while the tab is hidden; `said` hears what it is doing.
+ * opened. It follows the reader's switch, choice and volume, sits under the call at that table and under a call
+ * to somebody, and is held while the tab is hidden; `said` hears what it is doing.
  */
 export const useBed = createStore((): BedApi =>
 {
@@ -55,7 +56,7 @@ export const useBed = createStore((): BedApi =>
                 {
                     const current = settings.settings();
                     const next: BedWant | null = current.background
-                        ? { url: bedOf(current.backgroundKind, game), volume: current.backgroundVolume, ducked: voice.table() === table, hidden: hidden() }
+                        ? { url: bedOf(current.backgroundKind, game), volume: current.backgroundVolume, ducked: voice.table() === table || (voice.table()?.startsWith(CALL_ROOM) ?? false), hidden: hidden() }
                         : null;
 
                     if (!same(next, wanted))

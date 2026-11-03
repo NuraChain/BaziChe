@@ -482,6 +482,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.call.declined': 'تماس رد شد',
     'chat.call.cancelled': 'تماس لغو شد',
     'chat.call.busy': 'مشغول بود',
+    'chat.call.again': '{line}. دوباره زنگ بزن',
     'call.region': 'تماس',
     'call.action': 'زنگ زدن به {name}',
     'call.incoming': '{name} داره زنگ می‌زنه',
@@ -510,6 +511,10 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'call.refused.call-friends': 'فقط به دوستات می‌تونی زنگ بزنی.',
     'call.refused.in-call': 'الان سر یه تماس دیگه‌ای.',
     'call.refused.call-over': 'این تماس دیگه زنگ نمی‌خوره.',
+    'call.bar.open': 'باز کردن تماس با {name}',
+    'call.view.label': 'تماست',
+    'call.view.title': 'تماس با {name}',
+    'call.view.muted': '{name} میکروفونش رو بسته',
 
     'expiry.title': 'پیام‌های ناپدیدشونده',
     'expiry.off': 'خاموش',

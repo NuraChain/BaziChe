@@ -39,6 +39,12 @@ export interface CallsApi
     /** Whether this tab is the one in the call's room; another device or tab may hold the call. */
     here: Getter<boolean>;
 
+    /** Whether a bar across the top of the page shows the live call, so the card need not. */
+    barred: Getter<boolean>;
+
+    /** Says a bar shows the live call, for as long as the answer is not called. */
+    bar(): () => void;
+
     ring(room: string): Promise<boolean>;
     accept(callId: string): Promise<boolean>;
     decline(callId: string): Promise<boolean>;
@@ -94,6 +100,7 @@ export const useCalls = createStore((): CallsApi =>
     const [hereId, setHereId] = createSignal<string | null>(keptHere());
     const [shown, setShown] = createSignal<ReadonlySet<string>>(new Set());
     const [gone, setGone] = createSignal<ReadonlySet<string>>(new Set());
+    const [bars, setBars] = createSignal(0);
 
     let asked = 0;
     let running = false;
@@ -101,6 +108,17 @@ export const useCalls = createStore((): CallsApi =>
     let unhold: (() => void) | null = null;
     let unshow: (() => void) | null = null;
     let inFlight: Promise<void> = Promise.resolve();
+
+    /**
+     * Now on the server's clock, which a call's times are written in: `toLocal` takes the clocks'
+     * difference away, so adding back what it took gives it.
+     */
+    const serverNow = () =>
+    {
+        const local = runtime().clock.now();
+
+        return local + (local - useRealtime().toLocal(local));
+    };
 
     const placeHere = (callId: string | null) =>
     {
@@ -234,6 +252,24 @@ export const useCalls = createStore((): CallsApi =>
 
         here: () => hereId() !== null,
 
+        barred: () => bars() > 0,
+
+        bar()
+        {
+            let held = true;
+
+            setBars((count) => count + 1);
+
+            return () =>
+            {
+                if (held)
+                {
+                    held = false;
+                    setBars((count) => Math.max(0, count - 1));
+                }
+            };
+        },
+
         async ring(room)
         {
             try
@@ -285,7 +321,9 @@ export const useCalls = createStore((): CallsApi =>
                 voice.leave();
             }
 
-            return await act(() => client.calls.hangUp({ params: { id: callId } }), changed(callId, { state: 'ended', ending }));
+            const ended = ending === 'answered' ? { endedAt: new Date(serverNow()).toISOString() } : {};
+
+            return await act(() => client.calls.hangUp({ params: { id: callId } }), changed(callId, { state: 'ended', ending, ...ended }));
         },
 
         dismiss(callId)

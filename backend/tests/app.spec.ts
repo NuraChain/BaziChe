@@ -217,6 +217,7 @@ describe('inviting friends', () =>
 
         expect(Object.entries(manifest.invites).map(([name, route]) => `${ name } ${ route.method } ${ route.path }`).sort()).toEqual([
             'board GET /invites/top',
+            'earnings GET /invites/earnings',
             'list POST /invites/listed',
             'listed GET /invites/listed',
             'people GET /invites/people',

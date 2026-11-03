@@ -1627,6 +1627,32 @@ describe('what the browser is told when nobody is looking at the page', () =>
         expect(browser.shown[0].options).toMatchObject({ tag: 'chat:c-reza', lang: 'en', dir: 'ltr', data: { target: '/app/chats/c-reza' } });
     });
 
+    it('is told a call rang or was missed, while the page shows no toast for either, which the call\'s own card says', async () =>
+    {
+        useSettings().update({ sound: true });
+        await armed();
+        chimed.heard.length = 0;
+
+        server.notify({ kind: 'call', actor: 'reza.t', ref: { conversationId: 'c-reza' }, dedupeKey: 'call:call-1' });
+        await useNotifications().refresh();
+        await settle();
+
+        expect(useToasts().items(), 'a page that is looked at has the card').toEqual([]);
+        expect(browser.shown).toEqual([]);
+        await vi.waitFor(() => expect(chimed.heard, 'a call arriving still rings').toEqual(['chime']));
+
+        browser.hide(true);
+        server.notify({ kind: 'call-missed', actor: 'reza.t', ref: { conversationId: 'c-reza' }, dedupeKey: 'call:call-2' });
+        await useNotifications().refresh();
+        await settle();
+
+        expect(browser.shown.map((one) => [one.title, one.options.tag])).toEqual([['You missed a call from Reza Tehrani', 'call-missed:c-reza']]);
+        expect(useToasts().items()).toEqual([]);
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(chimed.heard, 'a missed call rings nothing').toEqual(['chime']);
+    });
+
     it('is told nothing while the page is being looked at, and nothing with the switch for this device off', async () =>
     {
         await armed();

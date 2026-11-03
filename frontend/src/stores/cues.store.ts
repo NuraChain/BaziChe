@@ -39,6 +39,9 @@ const SAID_ELSEWHERE: ReadonlySet<NotificationKind> = new Set(['friend-request',
 
 const LEADS_NOWHERE: ReadonlySet<NotificationKind> = new Set(['table-removed']);
 
+/** Said on the page by the call's own card, so a page is told of them only while nobody looks at it. */
+const SAID_BY_CARD: ReadonlySet<NotificationKind> = new Set(['call', 'call-missed']);
+
 /**
  * What arrival looks like when nobody is looking at the page it changes.
  *
@@ -287,9 +290,19 @@ export const useCues = createStore((): CuesApi =>
                     const told = { kind: 'live' as const, icon: NOTIFICATION_ICON[item.kind], text: sayOf(item, who, locale) };
                     const action = { label: locale.t(item.ref.tableId === undefined ? 'cue.view' : 'quickMatch.go'), run: () => go.current?.(targetOf(item) ?? '/app/notifications') };
 
-                    toasts.show(LEADS_NOWHERE.has(item.kind) ? { ...told, dedupe: 'cue.told' } : { ...told, action, dedupe: 'cue.notice' });
+                    const carded = SAID_BY_CARD.has(item.kind);
+
+                    if (!carded)
+                    {
+                        toasts.show(LEADS_NOWHERE.has(item.kind) ? { ...told, dedupe: 'cue.told' } : { ...told, action, dedupe: 'cue.notice' });
+                    }
+
                     system(told.text, rowTag(item), targetOf(item) ?? '/app/notifications', true);
-                    chime();
+
+                    if (!carded || item.kind === 'call')
+                    {
+                        chime();
+                    }
                 });
             }
             noticeSeeded = true;

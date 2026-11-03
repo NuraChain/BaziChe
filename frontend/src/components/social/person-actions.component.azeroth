@@ -21,6 +21,7 @@ import ReportSheet from './report-sheet.component.azeroth';
 import { copyText } from '../../lib/clipboard.ts';
 import { attempt } from '../../lib/attempt.ts';
 import { playWith } from '../../lib/play-with.ts';
+import { placeCall } from '../../lib/place-call.ts';
 import { giveTo } from '../../lib/donate-sheet.ts';
 
 interface Action
@@ -168,6 +169,11 @@ export default component PersonActions(props: OverlayProps & {
                 icon: 'play',
                 label: locale.t('party.sheet.title', { name }),
                 run: () => playWith(props.personId, true)
+            }, {
+                id: 'call',
+                icon: 'call',
+                label: locale.t('call.action', { name }),
+                run: () => void placeCall(chat.openDirect(props.personId))
             }]
             : [];
         const message: Action[] = relation === 'blocked'

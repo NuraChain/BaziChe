@@ -2,6 +2,7 @@ import { ErrorBoundary, Outlet, untrack, useHead, useMatch, useNavigate, useRout
 
 import { startCues, type CuesHand } from '../../stores/cues-loader.ts';
 import { startParty } from '../../stores/party-loader.ts';
+import { startCalls } from '../../stores/call-loader.ts';
 
 import '../../icons/all.ts';
 import '../../locales/app-catalogue.ts';
@@ -115,6 +116,7 @@ export default component AppShell(props: { children?: MountNode })
         startCues(cues, navigate, stops);
         loadStrips(strips, () => stripped = true, stops);
         startParty(stops);
+        startCalls(stops);
 
         return () =>
         {

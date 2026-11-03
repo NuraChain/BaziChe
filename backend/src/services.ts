@@ -1197,7 +1197,9 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
      * whoever may no longer be in it. The callee's bell says a call is ringing, says it was missed
      * under the same key when nobody answered it, and lets go of it once it was answered or declined
      * (MS-D35); a push wakes them as every notice does. And a call that ended says so in its room
-     * (MS-D34), unless it failed. The bell and the line are courtesies to a change already made.
+     * (MS-D34), unless it failed, as the caller's line: never unread for whoever rang, and its time
+     * in whole seconds as every clock here says it. The bell and the line are courtesies to a
+     * change already made.
      */
     const afterCall = async (row: CallRow) =>
     {
@@ -1227,11 +1229,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         {
             const seconds = row.answeredAt === null || row.endedAt === null
                 ? undefined
-                : String(Math.max(0, Math.round((row.endedAt.getTime() - row.answeredAt.getTime()) / 1000)));
+                : String(Math.max(0, Math.floor((row.endedAt.getTime() - row.answeredAt.getTime()) / 1000)));
 
             await courtesy('call line', async () =>
             {
-                await chat.post(row.room, 'system', { key: 'chat.line.call', params: { who: caller.handle, ending: row.ending, ...(seconds === undefined ? {} : { seconds }) } }, null);
+                await chat.post(row.room, 'system', { key: 'chat.line.call', params: { who: caller.handle, ending: row.ending, ...(seconds === undefined ? {} : { seconds }) } }, caller.id);
                 live?.chatChanged(row.room);
             });
         }

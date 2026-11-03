@@ -582,18 +582,19 @@ describe.skipIf(!active)('calls between two people, against Postgres', () =>
             expect(await bell(b), 'answered').toEqual([]);
             expect(await lines(room), 'nothing said while it goes on').toEqual([]);
 
-            await db.query(`update calls set answered_at = answered_at - interval '312 seconds', created_at = created_at - interval '312 seconds' where id = $1`, [call.id]);
-            await db.query(`update call_participants set joined_at = joined_at - interval '312 seconds', left_at = left_at - interval '312 seconds' where call_id = $1`, [call.id]);
+            await db.query(`update calls set answered_at = answered_at - interval '312.6 seconds', created_at = created_at - interval '312.6 seconds' where id = $1`, [call.id]);
+            await db.query(`update call_participants set joined_at = joined_at - interval '312.6 seconds', left_at = left_at - interval '312.6 seconds' where call_id = $1`, [call.id]);
             chats = [];
             await ports.calls.hangUp(a.id, call.id);
 
             const [said] = await lines(room);
+            const unread = async (person: Person) => (await ports.chat.list(person.id)).conversations.find((one) => one.id === room)?.unread;
 
             expect(chats, 'the room is rung for its line').toEqual([room]);
 
-            expect(said.params).toMatchObject({ who: a.handle, ending: 'answered' });
-            expect(Number(said.params.seconds)).toBeGreaterThanOrEqual(312);
-            expect(Number(said.params.seconds)).toBeLessThan(330);
+            expect(said.params, 'its time in whole seconds, as every clock here says it').toEqual({ who: a.handle, ending: 'answered', seconds: '312' });
+            expect(await unread(a), 'the caller\'s own line').toBe(0);
+            expect(await unread(b)).toBe(1);
         });
 
         it('says a call nobody answered was missed, under the key it rang with, unread, and tells the room', async () =>

@@ -6,6 +6,7 @@ import ChatPage from '../src/pages/app/chat.page.azeroth';
 import ChatsPage from '../src/pages/app/chats.page.azeroth';
 import { QUICK_REACTIONS } from '../src/data/emoji.ts';
 import { manualClock, type ManualClock } from '../src/lib/clock.ts';
+import { placeCall } from '../src/lib/place-call.ts';
 import { resetRuntime, runtime, setRuntime } from '../src/lib/runtime.ts';
 import '../src/locales/app-catalogue.ts';
 import { useCatalogue } from '../src/stores/catalogue.store.ts';
@@ -1495,6 +1496,68 @@ describe('the head of a thread with one other person, and when they were last se
 
         expect(line(container)).not.toContain('Last seen');
         expect(looks()).toBe(0);
+    });
+});
+
+describe('a call from the head of a thread', () =>
+{
+    const button = (container: HTMLElement) => container.querySelector<HTMLButtonElement>('header [data-head-call] button');
+
+    const read = async (container: HTMLElement, ...asked: string[]) =>
+    {
+        await vi.waitFor(() => expect(container.querySelector('header h1')?.textContent).not.toBe(''), { timeout: 4000 });
+        await vi.waitFor(() => expect(server.calls).toEqual(expect.arrayContaining(asked)), { timeout: 4000 });
+        await settle();
+    };
+
+    it('is offered in a friend’s direct thread, named for them, and a press rings that thread', async () =>
+    {
+        const container = opened('c-reza', 'sidebar');
+
+        await vi.waitFor(() => expect(button(container)?.getAttribute('aria-label')).toBe('Call Reza Tehrani'), { timeout: 4000 });
+
+        server.calls = [];
+        fire(button(container)!, 'click');
+
+        await vi.waitFor(() => expect(server.calls).toContain('calls.ring'), { timeout: 8000 });
+
+        expect(server.phone.map((one) => [one.room, one.person, one.out])).toEqual([['c-reza', 'reza.t', true]]);
+        expect(server.calls, 'the room is the thread on screen, nothing opened for it').not.toContain('chat.direct');
+    }, 10_000);
+
+    it('is offered nowhere else: not in a group, and not to somebody who is a friend no longer', async () =>
+    {
+        const group = server.conversations.find((row) => row.kind === 'group' && row.members.includes('alex'))!;
+        const container = opened(group.id, 'sidebar');
+
+        await read(container, 'chat.messages');
+        expect(button(container), 'a group').toBeNull();
+
+        cleanup();
+        server.calls = [];
+        server.friends = server.friends.filter((one) => one !== 'reza.t');
+        useSocial().reset();
+
+        const stranger = opened('c-reza', 'sidebar');
+
+        await read(stranger, 'chat.messages', 'social.graph');
+        expect(button(stranger), 'a thread with somebody who is no longer a friend').toBeNull();
+    }, 12_000);
+
+    it('says a conversation that could not be opened, once, and rings nothing', async () =>
+    {
+        const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        try
+        {
+            expect(await placeCall(Promise.reject(new TypeError('Failed to fetch')))).toBe(false);
+            expect(useToasts().items().map((one) => one.text)).toEqual([useLocale().t('failure.unreached')]);
+            expect(server.calls).not.toContain('calls.ring');
+        }
+        finally
+        {
+            quiet.mockRestore();
+        }
     });
 });
 

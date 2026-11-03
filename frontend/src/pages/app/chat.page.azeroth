@@ -31,6 +31,7 @@ import { deleteAsked, type LineHandlers, type MenuPoint } from '../../components
 import type { Message } from '../../data/chat.ts';
 import { gistOf } from '../../components/chat/gist.ts';
 import { attempt } from '../../lib/attempt.ts';
+import { placeCall } from '../../lib/place-call.ts';
 import Avatar from '../../components/ui/avatar.component.azeroth';
 import AvatarGroup from '../../components/ui/avatar-group.component.azeroth';
 import Badge from '../../components/ui/badge.component.azeroth';
@@ -992,6 +993,10 @@ export default component ChatPage()
 
     derived other = others.length === 1 ? others[0] : null;
 
+    derived callable = conversation?.kind === 'direct' && other !== null && social.relation(other.id) === 'friend';
+
+    derived callee = other?.displayName ?? '';
+
     <Page padded={ false } fill label={ title } class="flex">
         <div class="flex h-full min-h-0 w-full">
             <Show when={ split }>
@@ -1044,6 +1049,11 @@ export default component ChatPage()
                                     <h1 class="truncate text-ui-md font-semibold text-text" dir="auto">{ title }</h1>
                                     <span class={ () => [ 'line-clamp-2 break-words text-balance text-ui-xs', typing.length > 0 ? 'text-live' : 'text-muted' ].join(' ') } dir="auto">{ subtitle }</span>
                                 </span>
+                                <Show when={ callable }>
+                                    <span class="contents" data-head-call>
+                                        <IconButton icon="call" label={ locale.t('call.action', { name: callee }) } variant="ghost" onClick={ () => void placeCall(id) } />
+                                    </span>
+                                </Show>
                                 <span ref={ (element) => opener = element } class="contents">
                                     <IconButton
                                         icon="search"

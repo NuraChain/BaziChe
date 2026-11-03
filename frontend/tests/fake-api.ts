@@ -11,12 +11,14 @@ import { handleFromAddress } from '../../backend/src/domains/identity/handle.ts'
 import { createParties, type Parties, type PartyWhy } from '../../backend/src/domains/party/parties.ts';
 import { createRegistry } from '../../backend/src/domains/party/registry.ts';
 import { PARTY_REFUSALS } from '../../backend/src/domains/party/rules.ts';
+import { CALL_REFUSALS, type CallRefusal } from '../../backend/src/domains/call/refusals.ts';
 import { chairFor, quickOf, type QuickAsk } from '../../backend/src/domains/table/quick.ts';
 import { TABLE_REFUSALS, type TableRefusal } from '../../backend/src/domains/table/refusals.ts';
 import { guestChairs, teamsOf } from '../../backend/src/domains/table/teams.ts';
 import type { VoiceScope } from '../../backend/src/domains/table/voices.ts';
 import type {
     Account,
+    CallView,
     AdminCampaignInput,
     AdminInviteCampaign,
     AdminInviteReward,
@@ -274,6 +276,41 @@ function restate(table: TableWire)
 }
 
 const noTable = () => new ApiError(404, 'not-found', 'No table there.', undefined);
+
+/** Waits at the door while a test holds the calls, then refuses with the word it was told to. */
+const phoned = async () =>
+{
+    await server.phoneHeld;
+
+    const word = server.phoneRefusal;
+
+    if (word !== null)
+    {
+        server.phoneRefusal = null;
+        throw new ApiError(CALL_REFUSALS[word], word, 'That call was refused.', undefined);
+    }
+};
+
+/** A call of the reader's moved as the server moves it, from the state it expects, or answered as it is. */
+const moved = (callId: string, change: (call: CallView) => Partial<CallView> | null) =>
+{
+    const at = server.phone.findIndex((one) => one.id === callId);
+
+    if (at < 0)
+    {
+        throw new ApiError(CALL_REFUSALS['call-missing'], 'call-missing', 'No call there.', undefined);
+    }
+
+    const next = change(server.phone[at]);
+
+    if (next !== null)
+    {
+        server.phone[at] = { ...server.phone[at], ...next };
+        delete server.phone[at].remainingMs;
+    }
+
+    return { ...server.phone[at] };
+};
 
 const keptOut = (table: TableWire, who: string) => (server.keptOut[table.id] ?? []).includes(who);
 
@@ -1576,6 +1613,16 @@ export const server =
 
     parties: formParties(),
     partyRung: [] as string[],
+
+    /**
+     * The calls the reader is in, as the server answers them: a test puts a call ringing for the
+     * reader here, and the routes move them as the server does. `phoneRefusal` is the word the next
+     * verb is refused with, and `phoneHeld` holds every verb at the door until it is let go.
+     */
+    phone: [] as CallView[],
+    phoneRefusal: null as CallRefusal | null,
+    phoneHeld: null as Promise<void> | null,
+    phoneSeq: 0,
     refusals: {} as Record<string, 'blocked' | 'strangers-off' | 'minor-safety'>,
 
     /** The profile look each person wears, by handle, carried on their profile and their public face as the server carries it. */
@@ -1671,6 +1718,10 @@ export const server =
         server.keptOut = {};
         server.parties = formParties();
         server.partyRung = [];
+        server.phone = [];
+        server.phoneRefusal = null;
+        server.phoneHeld = null;
+        server.phoneSeq = 0;
         server.refusals = {};
         server.themes = {};
         server.effects = {};
@@ -5168,6 +5219,94 @@ export const client =
 
             table.voice = input.voice;
             return table;
+        }
+    },
+
+    calls:
+    {
+        async state()
+        {
+            server.calls.push('calls.state');
+
+            return { calls: server.phone.map((one) => ({ ...one })) };
+        },
+
+        async view({ params }: { params: { id: string } })
+        {
+            server.calls.push('calls.view');
+
+            const found = server.phone.find((one) => one.id === params.id);
+
+            if (found === undefined)
+            {
+                throw new ApiError(CALL_REFUSALS['call-missing'], 'call-missing', 'No call there.', undefined);
+            }
+
+            return { ...found };
+        },
+
+        async ring({ input }: { input: { room: string } })
+        {
+            server.calls.push('calls.ring');
+            await phoned();
+
+            const room = server.conversations.find((one) => one.id === input.room && one.kind === 'direct');
+
+            if (room === undefined)
+            {
+                throw new ApiError(CALL_REFUSALS['call-room'], 'call-room', 'Nobody can be called here.', undefined);
+            }
+
+            const open = server.phone.find((one) => one.room === input.room && one.state !== 'ended');
+
+            if (open !== undefined)
+            {
+                return { ...open };
+            }
+
+            server.phoneSeq += 1;
+
+            const call: CallView = {
+                id: `call-${ server.phoneSeq }`,
+                room: input.room,
+                kind: 'direct',
+                state: 'ringing',
+                out: true,
+                person: room.members.find((one) => one !== server.me) ?? '',
+                rung: false,
+                remainingMs: 45_000,
+                at: new Date(0).toISOString()
+            };
+
+            server.phone.push(call);
+
+            return { ...call };
+        },
+
+        async accept({ params }: { params: { id: string } })
+        {
+            server.calls.push('calls.accept');
+            await phoned();
+
+            return moved(params.id, (call) => (call.state === 'ringing' ? { state: 'live', answeredAt: new Date(0).toISOString() } : null));
+        },
+
+        async decline({ params }: { params: { id: string } })
+        {
+            server.calls.push('calls.decline');
+            await phoned();
+
+            return moved(params.id, (call) => (call.state === 'ringing' ? { state: 'ended', ending: 'declined', endedAt: new Date(0).toISOString() } : null));
+        },
+
+        async hangUp({ params }: { params: { id: string } })
+        {
+            server.calls.push('calls.hangUp');
+            await phoned();
+
+            return moved(params.id, (call) => (call.state === 'ended'
+                ? null
+                : { state: 'ended', ending: call.state === 'live' ? 'answered' : (call.out ? 'cancelled' : 'declined'), endedAt: new Date(0).toISOString() }));
         }
     },
 

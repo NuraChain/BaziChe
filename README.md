@@ -2,9 +2,11 @@
 
 <img src="frontend/public/icon-192.png" width="64" height="64" alt="" />
 
-# Baziche
+# BaziChe — Social Multiplayer Game Platform
 
 **Chess, Hokm, Poker, Backgammon and Ludo at live tables,<br />with friends, groups, voice, and chat that is encrypted end to end.**
+
+[Website](https://baziche.com) · [Source code](https://github.com/NuraChain/BaziChe) · [Nura Chain](https://nurachain.net)
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js 24.11 or newer](https://img.shields.io/badge/node-24.11%2B-339933.svg)](package.json)

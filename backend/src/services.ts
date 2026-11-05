@@ -5188,19 +5188,13 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             /**
              * Claims the next epoch for this conversation.
              *
-             * The minting device has to be the one this session is signed in on, for the same
-             * reason a message has to name its own sender: the commitment is a signature by a
-             * device, and a session speaking for a device it is not on is a claim nobody checked.
+             * Wallet sign-in does not bind a session to an existing device. The epoch service
+             * instead verifies that the named device belongs to this account and signed the
+             * commitment, proving possession of its private key.
              */
-            async mint(me, sessionId, conversationId, input)
+            async mint(me, conversationId, input)
             {
                 await chat.mustBeMember(me, conversationId);
-
-                const mine = await device.deviceOfSession(sessionId);
-                if (mine === null || mine !== input.mintedBy)
-                {
-                    throw new ForbiddenError('An epoch has to be minted by the device that is asking.');
-                }
 
                 const minted = await epochs.mint(me, conversationId, input);
 

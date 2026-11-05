@@ -599,12 +599,11 @@ export interface ChatPort
     signers(me: string, conversationId: string): Promise<ConversationSigners>;
 
     /**
-     * Where the key schedule has got to, from the device this session is signed in on.
+     * Where the key schedule has got to, from a device this account owns.
      *
-     * The session decides which device is asking rather than the caller naming one. A device's
-     * wrapped key is unreadable to anybody else whichever way it is fetched, but who holds a key
-     * for which epoch is still a fact about somebody's devices, and the session already knows the
-     * answer without being told.
+     * A caller may name a device explicitly; otherwise the session's bound device is used when
+     * present. Sessions created by wallet sign-in can be unbound while the browser still holds
+     * previously enrolled keys.
      */
     epoch(
         me: string,
@@ -614,8 +613,13 @@ export interface ChatPort
         device: string | undefined
     ): Promise<EpochState>;
 
-    /** Claims the next epoch, or reports that somebody else claimed it first. */
-    mint(me: string, sessionId: string, conversationId: string, input: {
+    /**
+     * Claims the next epoch, or reports that somebody else claimed it first.
+     *
+     * The signing device is authenticated by its signature and ownership, not by a session binding:
+     * sessions created by wallet sign-in are intentionally not bound to an existing device.
+     */
+    mint(me: string, conversationId: string, input: {
         epoch: number;
         mintedBy: string;
         recipients: string[];

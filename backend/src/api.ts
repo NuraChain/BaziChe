@@ -1770,7 +1770,7 @@ export function buildApi(ports: Ports)
              * was going to mint already minted.
              */
             mint: routes.post('/:id/epoch', { input: mintEpochInput, output: mintResult },
-                (context) => ports.chat.mint(context.principal.userId, context.principal.sessionId, context.params.id, context.input)),
+                (context) => ports.chat.mint(context.principal.userId, context.params.id, context.input)),
 
             messages: routes.get(
                 '/:id/messages',

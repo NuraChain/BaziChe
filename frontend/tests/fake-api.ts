@@ -40,6 +40,7 @@ import type {
     AdminShopMoney,
     AdminShopOrders,
     AdminVault,
+    AdminMinters,
     ChainProfile,
     ChatMessage,
     ConversationDevices,
@@ -720,8 +721,21 @@ export const adminState = (): AdminVault => ({
     stuck: []
 });
 
+const mintersFresh = (): AdminMinters => ({
+    configured: true,
+    chainId: 31337,
+    minter: '0x7f21c8c503F28897C16b20614e1312b9f53c77E7',
+    admin: '0x71c7656ec7ab88b098defb751b7401b5f6d8976f',
+    contracts: [
+        { key: 'looks', name: 'Baziche Looks', address: '0x5FbDB2315678afecb367f032d93F642f64180aa3', state: 'ready', role: `0x${ '1'.repeat(64) }`, minter: false, admin: true },
+        { key: 'achievements', name: 'Baziche Achievements', address: '0x8A791620dd6260079BF849Dc5567aDC3F2FdC318', state: 'ready', role: `0x${ '2'.repeat(64) }`, minter: false, admin: true }
+    ],
+    changes: []
+});
+
 const adminFresh = () => ({
     state: adminState(),
+    minters: mintersFresh(),
     owner: true,
     refuse: null as { status: number; code: string } | null
 });
@@ -2140,6 +2154,30 @@ export const client =
 {
     admin:
     {
+        async minters()
+        {
+            server.calls.push('admin.minters');
+            adminRefusal();
+            return structuredClone(server.admin.minters);
+        },
+        async minterGrant({ params }: { params: { contract: string } })
+        {
+            server.calls.push(`admin.minterGrant ${ params.contract }`);
+            adminRefusal();
+            return { change: '00000000-0000-4000-8000-000000000001', call: server.nura.call };
+        },
+        async minterRevoke({ params }: { params: { contract: string } })
+        {
+            server.calls.push(`admin.minterRevoke ${ params.contract }`);
+            adminRefusal();
+            return { change: '00000000-0000-4000-8000-000000000002', call: server.nura.call };
+        },
+        async minterSent()
+        {
+            server.calls.push('admin.minterSent');
+            adminRefusal();
+            return structuredClone(server.admin.minters);
+        },
         async vault()
         {
             server.calls.push('admin.vault');

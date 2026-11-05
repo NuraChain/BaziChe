@@ -1,0 +1,161 @@
+import { createResource } from 'azerothjs';
+
+import { client } from '../../api.ts';
+import { lastOf, type MinterCard as MinterContract } from '../../lib/minter-words.ts';
+import { ownerSends } from '../../lib/owner-call.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import { useSession } from '../../stores/session.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+import { useVault } from '../../stores/vault.store.ts';
+import MinterCard from './minter-card.component.azeroth';
+import ReasonSheet from './reason-sheet.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Panel from '../ui/panel.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+
+export default component AdminMinters()
+{
+    const locale = useLocale();
+    const overlay = useOverlay();
+    const session = useSession();
+    const toasts = useToasts();
+    const vaults = useVault();
+    const board = createResource(() => true, () => client.admin.minters(), { name: 'admin.minters' });
+
+    state working = null as { contract: string; operation: 'grant' | 'revoke' } | null;
+
+    derived held = board.data() ?? null;
+
+    derived trouble = board.error();
+
+    derived waiting = held === null && trouble === null;
+
+    derived failed = held === null && trouble !== null;
+
+    derived off = held !== null && !held.configured;
+
+    derived open = held !== null && held.configured ? held : null;
+
+    derived owner = session.account()?.staff === 'owner';
+
+    const ask = async (contract: MinterContract, operation: 'grant' | 'revoke') =>
+    {
+        const reason = await overlay.open(
+            ReasonSheet,
+            {
+                title: locale.t(operation === 'grant' ? 'admin.minters.askGrant' : 'admin.minters.askRevoke', { name: contract.name }),
+                lead: locale.t('admin.minters.askLead'),
+                confirm: locale.t(operation === 'grant' ? 'admin.minters.grant' : 'admin.minters.revoke'),
+                destructive: operation === 'revoke'
+            },
+            { label: locale.t('admin.section.minters') }
+        ).closed;
+
+        if (typeof reason !== 'string')
+        {
+            return;
+        }
+
+        working = { contract: contract.key, operation };
+
+        try
+        {
+            let change = '';
+
+            const answer = await ownerSends(
+                vaults,
+                async () =>
+                {
+                    const asked = operation === 'grant'
+                        ? await client.admin.minterGrant({ params: { contract: contract.key }, input: { reason } })
+                        : await client.admin.minterRevoke({ params: { contract: contract.key }, input: { reason } });
+
+                    change = asked.change;
+
+                    return asked.call;
+                },
+                (hash) => client.admin.minterSent({ params: { id: change }, input: { hash } })
+            );
+
+            await board.refetch();
+
+            if (answer !== null)
+            {
+                toasts.show({ kind: 'error', text: locale.t(answer) });
+                return;
+            }
+
+            toasts.show({ kind: 'success', text: locale.t(operation === 'grant' ? 'admin.minters.doneGrant' : 'admin.minters.doneRevoke') });
+        }
+        finally
+        {
+            working = null;
+        }
+    };
+
+        <section class="flex flex-col gap-4 pt-8" aria-labelledby="admin-minters" data-minters>
+            <div class="flex flex-col gap-1">
+                <h2 id="admin-minters" class="title text-ui-2xl text-text">{ locale.t('admin.minters.title') }</h2>
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-ui-md text-muted">{ locale.t('admin.minters.lead') }</p>
+                    <Button variant="ghost" size="sm" leading="refresh" loading={ board.loading() } onClick={ () => void board.refetch() }>
+                        { locale.t('admin.minters.read') }
+                    </Button>
+                </div>
+            </div>
+
+            <Show when={ waiting }>
+                { () => <Skeleton lines={ 2 } /> }
+            </Show>
+
+            <Show when={ failed }>
+                { () => <ErrorState error={ trouble } title={ locale.t('admin.minters.failed') } onRetry={ () => void board.refetch() } /> }
+            </Show>
+
+            <Show when={ off }>
+                <Panel pad="md" stack="sm">
+                    <h3 class="text-ui-md font-semibold text-text">{ locale.t('admin.minters.off') }</h3>
+                    <p class="text-ui-sm text-muted">{ locale.t('admin.minters.offLead') }</p>
+                </Panel>
+            </Show>
+
+            <Show when={ open }>
+                { () => <>
+                    <Panel pad="md" stack="sm">
+                        <p class="text-ui-sm text-muted">{ locale.t('admin.minters.how') }</p>
+                        <dl class="grid gap-3 @lg:grid-cols-2">
+                            <div class="rounded-tile border border-line bg-sunk p-3">
+                                <dt class="text-ui-xs text-muted">{ locale.t('admin.minters.minter') }</dt>
+                                <dd class="break-all text-ui-sm text-text" dir="ltr" data-minter>{ open!.minter }</dd>
+                            </div>
+                            <div class="rounded-tile border border-line bg-sunk p-3">
+                                <dt class="text-ui-xs text-muted">{ locale.t('admin.minters.chain') }</dt>
+                                <dd class="text-ui-sm text-text" data-chain>{ locale.n(open!.chainId, { useGrouping: false }) }</dd>
+                            </div>
+                        </dl>
+                    </Panel>
+                    <Show when={ !owner }>
+                        <p class="text-ui-sm text-muted" data-owner-only>{ locale.t('admin.minters.ownerOnly') }</p>
+                    </Show>
+                    <div class="flex flex-col gap-3">
+                        <For each={ open!.contracts } key={ (contract) => contract.key } let={ contract }>
+                            <div>
+                                <MinterCard
+                                    card={ contract }
+                                    last={ lastOf(open!, contract.key) }
+                                    chainId={ open!.chainId }
+                                    owner={ owner }
+                                    locked={ vaults.busy() }
+                                    working={ working?.contract === contract.key ? working.operation : null }
+                                    onGrant={ () => void ask(contract, 'grant') }
+                                    onRevoke={ () => void ask(contract, 'revoke') }
+                                />
+                            </div>
+                        </For>
+                    </div>
+                </> }
+            </Show>
+        </section>
+}

@@ -324,4 +324,17 @@ describe('the admin', () =>
         expect(container.querySelector('[data-more-tab]')?.textContent?.trim()).toBe('بیشتر');
         expect(container.querySelector('#admin-main h1')?.textContent).toBe('پول');
     });
+
+    it('lets only the owner open the minter-role controls and shows missing roles per contract', async () =>
+    {
+        signIn('owner');
+        const { router, container } = await opened('/admin/money');
+        await arrived(router, container, '[data-minters] [data-fact="minter"]');
+
+        expect(container.querySelector('#admin-main h1')?.textContent).toBe('Money');
+        expect(container.querySelectorAll('[data-minters] [data-fact="minter"]')).toHaveLength(2);
+        expect([...container.querySelectorAll('[data-minters] [data-fact="minter"] dd')].map((fact) => fact.textContent)).toEqual(['No', 'No']);
+        expect([...container.querySelectorAll('[data-minters] [data-actions] button')].map((button) => button.textContent?.trim())).toEqual(['Grant MINTER_ROLE', 'Grant MINTER_ROLE']);
+        expect(server.calls).toContain('admin.minters');
+    });
 });

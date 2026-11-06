@@ -101,6 +101,33 @@ export function setVoiceMedia(next: (() => MediaDevices | null) | null)
     media = next ?? (() => (typeof navigator === 'undefined' ? null : navigator.mediaDevices ?? null));
 }
 
+/**
+ * Whether this browser is WebKit's own - Safari, and every browser on an iPhone or an iPad, which all
+ * are - where a call is sent the microphone as it is rather than through the page's audio graph.
+ *
+ * The voice input (`voice.input.ts`) gates and levels the microphone in an AudioWorklet and hands
+ * the call a MediaStreamAudioDestinationNode's track. Chrome and Firefox send that track; Safari
+ * connected the call and sent silence through it, so an iPhone could hear and not be heard. Safari's
+ * own echo cancelling and noise suppression still shape the raw track, the graph still runs beside it
+ * for the speaking ring, and muting and push-to-talk work on the track itself. Only the page's own
+ * voice gate is not heard there.
+ */
+const webkitOnly = () =>
+{
+    const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent;
+    const touchMac = agent.includes('Macintosh') && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1;
+
+    return /iPhone|iPad|iPod/.test(agent) || touchMac || (/AppleWebKit.*Safari\//.test(agent) && !/Chrome|Chromium|Edg|OPR|Android/.test(agent));
+};
+
+let sendsRawMicrophone: () => boolean = webkitOnly;
+
+/** For a spec: whether a call sends the microphone untouched, or `null` for what this browser is. */
+export function setRawMicrophone(next: boolean | null)
+{
+    sendsRawMicrophone = next === null ? webkitOnly : () => next;
+}
+
 let makeCall: (deps: VoiceCallDeps) => VoiceCall = createVoiceCall;
 
 export function setVoiceCall(next: ((deps: VoiceCallDeps) => VoiceCall) | null)
@@ -208,7 +235,7 @@ export const useVoice = createStore((): VoiceApi =>
         input?.set(options());
     };
 
-    const processed = () => input !== null && context?.state === 'running';
+    const processed = () => input !== null && context?.state === 'running' && !sendsRawMicrophone();
 
     const sending = () => (processed() ? input!.stream : stream);
 
@@ -450,7 +477,29 @@ export const useVoice = createStore((): VoiceApi =>
         }
         catch (error)
         {
-            setMic((error as { name?: string }).name === 'NotAllowedError' ? 'denied' : 'absent');
+            const name = (error as { name?: string } | null)?.name;
+
+            // A refusal, or no microphone at all, is the answer. Anything else may be these choices,
+            // which Safari on iOS turns down whole: the call would connect with nothing to send, so it
+            // is asked once more for any microphone, as a voice message is.
+            if (name !== 'NotAllowedError' && name !== 'SecurityError' && name !== 'NotFoundError')
+            {
+                try
+                {
+                    const plain = await devices.getUserMedia({ audio: true });
+
+                    setMic('live');
+                    void survey();
+                    return plain;
+                }
+                catch (again)
+                {
+                    setMic((again as { name?: string } | null)?.name === 'NotAllowedError' ? 'denied' : 'absent');
+                    return null;
+                }
+            }
+
+            setMic(name === 'NotAllowedError' || name === 'SecurityError' ? 'denied' : 'absent');
             return null;
         }
     };

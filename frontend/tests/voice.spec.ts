@@ -8,7 +8,7 @@ import { keyName } from '../src/lib/talk-key.ts';
 import { IDLE_MS, SOUND_BACKLOG, useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useSettings } from '../src/stores/settings.store.ts';
-import { ANNOUNCE_MS, LINES_MS, LOUDEST, SPEAKING_HOLD_MS, UNREACHED_MS, setVoiceCall, setVoiceMedia, useVoice } from '../src/stores/voice.store.ts';
+import { ANNOUNCE_MS, LINES_MS, LOUDEST, SPEAKING_HOLD_MS, UNREACHED_MS, setRawMicrophone, setVoiceCall, setVoiceMedia, useVoice } from '../src/stores/voice.store.ts';
 import { setDenoiseKit } from '../src/services/voice.denoise.ts';
 import { socket } from './fake-realtime.ts';
 import '../src/locales/app-catalogue.ts';
@@ -158,6 +158,30 @@ describe('voice at a table', () =>
 
         expect(useVoice().muted()).toBe(true);
         expect(voiceFrames().at(-1)).toMatchObject({ on: true, muted: true });
+    });
+
+    it('asks for any microphone when the browser turns down the chosen settings, so the call is heard', async () =>
+    {
+        const asked: MediaStreamConstraints[] = [];
+
+        setVoiceMedia(() => ({
+            getUserMedia: async (constraints: MediaStreamConstraints) =>
+            {
+                asked.push(constraints);
+
+                if (asked.length === 1)
+                {
+                    throw Object.assign(new Error('not with those'), { name: 'TypeError' });
+                }
+                return stream;
+            }
+        }) as unknown as MediaDevices);
+
+        await useVoice().join(TABLE);
+
+        expect(asked.at(-1)).toEqual({ audio: true });
+        expect(useVoice().mic()).toBe('live');
+        expect(calls[0].mic.at(-1)).toBe(stream);
     });
 
     it('joins listening only when the microphone is refused', async () =>
@@ -1316,6 +1340,33 @@ describe('the microphone, prepared before anybody hears it', () =>
         await settle();
 
         expect(calls[0].mic.at(-1)).toBe(processed);
+    });
+
+    it('sends Safari the microphone itself, never the prepared voice it would send as silence, and still mutes it', async () =>
+    {
+        setRawMicrophone(true);
+
+        try
+        {
+            sound(true);
+
+            await useVoice().join(TABLE);
+            await settle();
+
+            expect(calls[0].mic.at(-1), 'the prepared voice went to a WebKit call').not.toBe(processed);
+            expect(calls[0].mic.at(-1)).not.toBeNull();
+
+            window.dispatchEvent(new Event('pointerdown'));
+            await settle();
+            expect(calls[0].mic.at(-1)).not.toBe(processed);
+
+            useVoice().toggleMute();
+            expect(calls[0].muted.at(-1), 'muted on the track itself').toBe(true);
+        }
+        finally
+        {
+            setRawMicrophone(null);
+        }
     });
 
     it('holds the talk key in the gate, so the voice fades in and out instead of the microphone cutting', async () =>

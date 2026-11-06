@@ -618,6 +618,19 @@ describe('the composer’s microphone', () =>
         expect(named(composer({ editing: 'old words' }), 'Record a voice message')).toBeNull();
     });
 
+    it('asks for the microphone within the press itself, as Safari needs, once the composer has fetched the recorder', async () =>
+    {
+        const container = composer();
+
+        // The composer fetches the recorder as it appears; by the press it is here.
+        await import('../src/stores/voice-recorder.store.ts');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        fire(named(container, 'Record a voice message')!, 'click');
+
+        expect(browser.asked, 'asked before anything was awaited').toHaveLength(1);
+    });
+
     it('turns the composer into the recorder at the press: recording, paused with what was said, and the field again once sent', async () =>
     {
         const sendVoice = vi.spyOn(useChat(), 'sendVoice').mockResolvedValue(undefined);

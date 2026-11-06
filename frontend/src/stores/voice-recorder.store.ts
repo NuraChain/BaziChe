@@ -68,12 +68,17 @@ const browser: RecorderEnv = {
 
     listener()
     {
-        if (typeof AudioContext === 'undefined')
+        // Safari before 14.1 names it with its prefix alone.
+        const Context = typeof AudioContext === 'undefined'
+            ? (globalThis as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+            : AudioContext;
+
+        if (Context === undefined)
         {
             return null;
         }
 
-        const context = new AudioContext();
+        const context = new Context();
         const analyser = context.createAnalyser();
         const samples = new Float32Array(analyser.fftSize);
         let source: MediaStreamAudioSourceNode | null = null;

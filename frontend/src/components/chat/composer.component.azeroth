@@ -12,6 +12,36 @@ import ContextMenu from './context-menu.component.azeroth';
 import LazyEmojiPicker from './lazy-emoji-picker.component.azeroth';
 import LazyVoiceRecorder from './lazy-voice-recorder.component.azeroth';
 
+type RecorderModule = typeof import('../../stores/voice-recorder.store.ts');
+
+/**
+ * The recorder, fetched once a composer that can record is on screen and kept, so a press on the
+ * microphone reaches it in the same moment.
+ *
+ * Fetching it at the press put a network round trip between the press and `getUserMedia`. Chrome
+ * forgives that; Safari does not: past the press, the AudioContext the recorder opens stays
+ * suspended and the microphone may never be granted, so on Safari the button did nothing. The
+ * press now starts the recording itself, and only a press before the chunk has come waits for it.
+ */
+let recorderModule: RecorderModule | null = null;
+
+let recorderComing: Promise<RecorderModule> | null = null;
+
+const fetchRecorder = () =>
+{
+    recorderComing ??= import('../../stores/voice-recorder.store.ts').then((module) =>
+    {
+        recorderModule = module;
+        return module;
+    }, (error: unknown) =>
+    {
+        recorderComing = null;
+        throw error;
+    });
+
+    return recorderComing;
+};
+
 export default component Composer(props: {
     value: string;
     disabled?: boolean;
@@ -163,10 +193,22 @@ export default component Composer(props: {
         docked = false;
         pop.close();
         rooms.set(room, true);
-        void import('../../stores/voice-recorder.store.ts')
-            .then((module) => module.useVoiceRecorder().start(room))
-            .catch(() => rooms.set(room, false));
+
+        // Within the press when it can be: Safari grants the microphone and starts audio only there.
+        const started = recorderModule === null
+            ? fetchRecorder().then((module) => module.useVoiceRecorder().start(room))
+            : recorderModule.useVoiceRecorder().start(room);
+
+        void started.catch(() => rooms.set(room, false));
     };
+
+    mount
+    {
+        if (props.record !== undefined)
+        {
+            void fetchRecorder().catch(() => undefined);
+        }
+    }
 
     /**
      * Files picked, pasted or dropped together open the sheet that shows what is about to go, with the

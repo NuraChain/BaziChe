@@ -1,0 +1,141 @@
+import { GuestFileError, guestFileAddress, openGuest } from '../../lib/guest.ts';
+import { shortAddress } from '../../lib/wallet.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+
+/** A guest account file is a few hundred bytes; anything far bigger is not one, and is not read. */
+const FILE_MOST = 16 * 1024;
+
+/**
+ * Takes a guest account file back: the file `sealGuest` wrote, and the password that locks it.
+ *
+ * The file is read and its address shown before the password is asked for, so somebody holding
+ * three files can see which one they chose. The key it opens goes to `onOpened` and nowhere else;
+ * the caller signs in with it.
+ */
+export default component GuestImport(props: { idPrefix: string; onOpened: (secret: string) => Promise<void>; replaces?: boolean })
+{
+    const locale = useLocale();
+
+    state text = '';
+    state address = '';
+    state password = '';
+    state busy = false;
+    state refusal = null as MessageKey | null;
+
+    let chooser: HTMLInputElement | null = null;
+
+    derived chosen = address !== '';
+
+    derived refusalWords = refusal === null ? null : locale.t(refusal);
+
+    const choose = async (file: File | undefined) =>
+    {
+        refusal = null;
+        text = '';
+        address = '';
+
+        if (file === undefined)
+        {
+            return;
+        }
+
+        const read = file.size > FILE_MOST ? '' : await file.text().catch(() => '');
+        const found = guestFileAddress(read);
+
+        if (found === null)
+        {
+            refusal = 'guest.error.notAFile';
+            return;
+        }
+
+        text = read;
+        address = found;
+    };
+
+    const open = async () =>
+    {
+        if (!chosen || busy)
+        {
+            return;
+        }
+
+        busy = true;
+        refusal = null;
+
+        try
+        {
+            await props.onOpened(await openGuest(text, password));
+        }
+        catch (error)
+        {
+            refusal = error instanceof GuestFileError
+                ? error.why === 'wrong-password' ? 'guest.error.wrongPassword' : 'guest.error.notAFile'
+                : 'wallet.error.unknown';
+        }
+        finally
+        {
+            busy = false;
+        }
+    };
+
+    <div class="flex flex-col gap-3" data-guest-import>
+        <p class="text-ui-sm text-muted">{ locale.t('guest.importLead') }</p>
+        <Show when={ props.replaces === true }>
+            { () => <p class="text-ui-xs text-faint">{ locale.t('guest.importReplaces') }</p> }
+        </Show>
+
+        <Field id={ `${ props.idPrefix }-file` } label={ locale.t('guest.file') } error={ chosen ? null : refusalWords }>
+            <div class="flex flex-wrap items-center gap-3">
+                <input
+                    id={ `${ props.idPrefix }-file` }
+                    ref={ (element) => chooser = element }
+                    type="file"
+                    accept="application/json,.json"
+                    class="sr-only"
+                    tabindex="-1"
+                    onChange={ (event) =>
+                    {
+                        const input = event.currentTarget as HTMLInputElement;
+                        void choose(input.files?.[0]);
+                        input.value = '';
+                    } }
+                />
+                <Button variant="outline" size="sm" leading="file" disabled={ busy } onClick={ () => chooser?.click() }>
+                    { locale.t('guest.fileChoose') }
+                </Button>
+                <Show when={ chosen }>
+                    { () => <code class="tally text-ui-sm text-muted">{ locale.t('guest.fileOf', { address: shortAddress(address) }) }</code> }
+                </Show>
+            </div>
+        </Field>
+
+        <Show when={ chosen }>
+            { () =>
+                <div class="flex flex-col gap-3">
+                    <Field id={ `${ props.idPrefix }-password` } label={ locale.t('guest.password') } error={ refusalWords }>
+                        <Input
+                            id={ `${ props.idPrefix }-password` }
+                            type="password"
+                            autocomplete="current-password"
+                            value={ password }
+                            invalid={ refusal !== null }
+                            onInput={ (value) =>
+                            {
+                                password = value;
+                                refusal = null;
+                            } }
+                            onEnter={ () => void open() }
+                        />
+                    </Field>
+                    <Button variant="primary" leading="key" loading={ busy } disabled={ password === '' } onClick={ () => void open() }>
+                        { locale.t('guest.importGo') }
+                    </Button>
+                </div>
+            }
+        </Show>
+    </div>
+}

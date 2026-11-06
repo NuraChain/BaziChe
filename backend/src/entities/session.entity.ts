@@ -57,6 +57,17 @@ export class Session
     @Column({ name: 'user_agent', type: 'varchar', length: 256, default: '' })
     userAgent!: string;
 
+    /**
+     * Signed in with a guest key: one this browser made and holds itself, rather than a wallet.
+     *
+     * A guest key signs messages and nothing else, so everything on chain - the vault, the shop,
+     * gifts, markets, the profile registry - is off for this session (`offChain` in `api.ts`).
+     * On the SESSION, not the account: the same key exported and imported into a real wallet signs
+     * in as a wallet, and that session has the chain.
+     */
+    @Column({ type: 'boolean', default: false })
+    guest!: boolean;
+
     @ManyToOne(() => Device, { onDelete: 'SET NULL', nullable: true })
     @JoinColumn({ name: 'device_id', referencedColumnName: 'id' })
     device!: Device | null;

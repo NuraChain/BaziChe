@@ -45,6 +45,9 @@ export interface AccountApi
     user: Getter<Person | null>;
     address: Getter<string | null>;
 
+    /** Signed in as a guest, with everything on chain off (`lib/guest.ts`). */
+    guest: Getter<boolean>;
+
     /**
      * Writes the display name and the bio, and adopts what the server answers with.
      *
@@ -73,6 +76,7 @@ export const useAccount = createStore((): AccountApi =>
     return {
         user: () => personFor(session.account()),
         address: () => session.account()?.address ?? null,
+        guest: () => session.account()?.guest === true,
 
         adoptWallet(account)
         {

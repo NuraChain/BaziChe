@@ -112,22 +112,23 @@ export function createIdentityService(db: DataSource, config: IdentityConfig)
         throw new ConflictError('That name is taken. Try another.');
     };
 
-    const principalOf = (row: UserRow, sessionId: string): Principal => ({
+    const principalOf = (row: UserRow, sessionId: string, guest: boolean): Principal => ({
         userId: row.id,
         handle: row.handle,
         isMinor: row.is_minor,
-        sessionId
+        sessionId,
+        ...(guest ? { guest: true } : {})
     });
 
     /** Mints a session row and returns the bearer token, which is never stored anywhere. */
-    const openSession = async (userId: string, userAgent: string): Promise<{ token: string; sessionId: string }> =>
+    const openSession = async (userId: string, userAgent: string, guest: boolean): Promise<{ token: string; sessionId: string }> =>
     {
         const token = mintToken();
         const inserted = await db.query(
-            `insert into sessions (user_id, token_hash, expires_at, user_agent)
-             values ($1, $2, now() + ($3 || ' seconds')::interval, $4)
+            `insert into sessions (user_id, token_hash, expires_at, user_agent, guest)
+             values ($1, $2, now() + ($3 || ' seconds')::interval, $4, $5)
              returning id`,
-            [userId, hashToken(token), String(config.sessionTtlSeconds), userAgent.slice(0, 256)]
+            [userId, hashToken(token), String(config.sessionTtlSeconds), userAgent.slice(0, 256), guest]
         );
         return { token, sessionId: rowsOf<{ id: string }>(inserted)[0].id };
     };
@@ -150,7 +151,7 @@ export function createIdentityService(db: DataSource, config: IdentityConfig)
             const rows = await db.query(
                 `with found as (
                      select u.id, u.handle, u.display_name, u.bio, u.hue, u.is_minor,
-                            u.is_suspended, s.id as session_id
+                            u.is_suspended, s.id as session_id, s.guest
                      from sessions s
                      join users u on u.id = s.user_id
                      where s.token_hash = $1
@@ -165,17 +166,17 @@ export function createIdentityService(db: DataSource, config: IdentityConfig)
                       where id = (select session_id from found)
                         and (last_used_at is null or last_used_at < now() - interval '1 hour')
                  )
-                 select id, handle, display_name, bio, hue, is_minor, is_suspended, session_id from found`,
+                 select id, handle, display_name, bio, hue, is_minor, is_suspended, session_id, guest from found`,
                 [hashToken(token), String(config.sessionTtlSeconds)]
             );
 
-            const found = firstRow<UserRow & { session_id: string }>(rows);
+            const found = firstRow<UserRow & { session_id: string; guest: boolean }>(rows);
             if (found === null)
             {
                 return null;
             }
 
-            return principalOf(found, found.session_id);
+            return principalOf(found, found.session_id, found.guest === true);
         },
 
         /**
@@ -217,6 +218,9 @@ export function createIdentityService(db: DataSource, config: IdentityConfig)
             signature: string;
             providerRdns?: string;
             userAgent: string;
+
+            /** Signed by a guest key the browser holds, which keeps this session off chain. */
+            guest?: boolean;
         }): Promise<SignedIn & { proof: WalletProof; created: boolean }>
         {
             const address = normalizeAddress(input.address);
@@ -299,10 +303,11 @@ export function createIdentityService(db: DataSource, config: IdentityConfig)
                 await db.query('update wallets set last_used_at = now() where address = $1', [address]);
             }
 
-            const { token, sessionId } = await openSession(user.id, input.userAgent);
+            const guest = input.guest === true;
+            const { token, sessionId } = await openSession(user.id, input.userAgent, guest);
             return {
                 token,
-                principal: principalOf(user, sessionId),
+                principal: principalOf(user, sessionId, guest),
                 proof: { attested: verdict.attestation, address, message: challenge.message, signature: input.signature },
                 created
             };

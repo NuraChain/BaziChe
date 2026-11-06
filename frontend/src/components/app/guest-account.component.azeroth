@@ -1,0 +1,161 @@
+import Icon from '../../icons/icon.component.azeroth';
+import { guestAddress, guestFileName, heldGuest, sealGuest } from '../../lib/guest.ts';
+import { leaveReach } from '../../lib/push.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import { useAccount } from '../../stores/account.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useSession } from '../../stores/session.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+import { useWallet } from '../../stores/wallet.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import GuestImport from './guest-import.component.azeroth';
+
+/** Long enough that the file is not opened by guessing, short enough to type on a phone. */
+const PASSWORD_LEAST = 8;
+
+/**
+ * A guest's account, in settings: what it is, the file to keep it in, and a file to switch to.
+ *
+ * The export is the guest's only way to survive a cleared browser, so it is here beside the rest
+ * of what keeps an account safe rather than buried. It is locked with a password typed twice,
+ * because a file with a mistyped password is a file that never opens.
+ */
+export default component GuestAccount()
+{
+    const locale = useLocale();
+    const account = useAccount();
+    const wallet = useWallet();
+    const toasts = useToasts();
+
+    state password = '';
+    state repeat = '';
+    state tried = false;
+    state exporting = false;
+    state importing = false;
+
+    derived held = (() =>
+    {
+        const key = heldGuest();
+        const mine = account.address();
+
+        return key !== null && mine !== null && guestAddress(key) === mine.toLowerCase() ? key : null;
+    })();
+
+    derived passwordKey = ((): MessageKey | null =>
+    {
+        if (password.length < PASSWORD_LEAST)
+        {
+            return 'guest.error.short';
+        }
+        return password === repeat ? null : 'guest.error.mismatch';
+    })();
+
+    derived passwordError = tried && passwordKey === 'guest.error.short' ? locale.t(passwordKey) : null;
+
+    derived repeatError = tried && passwordKey === 'guest.error.mismatch' ? locale.t(passwordKey) : null;
+
+    const download = async () =>
+    {
+        tried = true;
+
+        if (held === null || passwordKey !== null || exporting)
+        {
+            return;
+        }
+
+        exporting = true;
+
+        try
+        {
+            const file = new Blob([await sealGuest(held, password)], { type: 'application/json' });
+            const link = document.createElement('a');
+
+            link.href = URL.createObjectURL(file);
+            link.download = guestFileName(held);
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(link.href), 0);
+
+            password = '';
+            repeat = '';
+            tried = false;
+            toasts.show({ kind: 'success', text: locale.t('guest.exported') });
+        }
+        catch
+        {
+            toasts.show({ kind: 'error', text: locale.t('wallet.error.unknown') });
+        }
+        finally
+        {
+            exporting = false;
+        }
+    };
+
+    /** Another guest, from its file: this session ends, and the page reloads signed in as that one. */
+    const switchTo = async (secret: string) =>
+    {
+        wallet.disconnect();
+        await leaveReach();
+        await useSession().signOut();
+
+        const signedIn = await wallet.connectAsGuest(secret);
+
+        window.location.replace(signedIn === null ? '/sign-in' : '/app');
+    };
+
+    <div class="flex flex-col gap-5" data-guest-account>
+        <div class="flex items-start gap-3">
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+                <Icon name="me" size={ 18 } />
+            </span>
+            <span class="flex min-w-0 flex-col gap-1">
+                <span class="text-ui-md font-semibold text-text">{ locale.t('guest.title') }</span>
+                <span class="text-ui-sm text-muted">{ locale.t('guest.settingsLead') }</span>
+                <span class="flex items-start gap-1.5 text-ui-xs text-faint">
+                    <Icon name="wifi-off" size={ 13 } class="mt-0.5 shrink-0" />
+                    { locale.t('guest.offline') }
+                </span>
+            </span>
+        </div>
+
+        <div class="flex flex-col gap-3">
+            <p class="label text-ui-sm text-text">{ locale.t('guest.export') }</p>
+            <Show
+                when={ held !== null }
+                fallback={ <p class="text-ui-sm text-faint">{ locale.t('guest.error.noKey') }</p> }
+            >
+                { () =>
+                    <div class="flex flex-col gap-3">
+                        <p class="text-ui-xs text-muted">{ locale.t('guest.exportLead') }</p>
+                        <div class="grid gap-3 @md:grid-cols-2">
+                            <Field id="guest-export-password" label={ locale.t('guest.password') } error={ passwordError }>
+                                <Input id="guest-export-password" type="password" autocomplete="new-password" value={ password } invalid={ passwordError !== null } onInput={ (value) => password = value } />
+                            </Field>
+                            <Field id="guest-export-repeat" label={ locale.t('guest.passwordRepeat') } error={ repeatError }>
+                                <Input id="guest-export-repeat" type="password" autocomplete="new-password" value={ repeat } invalid={ repeatError !== null } onInput={ (value) => repeat = value } onEnter={ () => void download() } />
+                            </Field>
+                        </div>
+                        <Button variant="primary" leading="download" loading={ exporting } class="self-start" onClick={ () => void download() }>
+                            { locale.t('guest.exportGo') }
+                        </Button>
+                    </div>
+                }
+            </Show>
+        </div>
+
+        <div class="flex flex-col gap-3">
+            <p class="label text-ui-sm text-text">{ locale.t('guest.import') }</p>
+            <Show
+                when={ importing }
+                fallback={
+                    <Button variant="outline" leading="file" class="self-start" onClick={ () => importing = true }>
+                        { locale.t('guest.import') }
+                    </Button>
+                }
+            >
+                { () => <GuestImport idPrefix="settings-guest" replaces onOpened={ switchTo } /> }
+            </Show>
+        </div>
+    </div>
+}

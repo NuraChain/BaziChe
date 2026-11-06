@@ -1,4 +1,4 @@
-import { expireCookie, parseCookies, serializeCookie, UnauthorizedError } from '@azerothjs/http';
+import { expireCookie, HttpError, parseCookies, serializeCookie, UnauthorizedError } from '@azerothjs/http';
 import { guard } from '@azerothjs/http/api';
 
 /**
@@ -56,6 +56,22 @@ export interface Principal
     handle: string;
     isMinor: boolean;
     sessionId: string;
+
+    /** A guest session: signed in with a browser-held key, with everything on chain off. */
+    guest?: boolean;
+}
+
+/**
+ * Refuses anything on chain for a guest session, before a call is composed for a wallet it does
+ * not have. The `state` reads answer "off" for a guest instead, so the UI never offers these; this
+ * is the enforcement behind that courtesy, exactly as `requireSession` is behind `lib/guards.ts`.
+ */
+export function offChain(principal: Principal)
+{
+    if (principal.guest === true)
+    {
+        throw new HttpError(403, 'Guest accounts are offline from the blockchain. Sign in with a wallet to use this.', { code: 'guest-offline' });
+    }
 }
 
 export interface PrincipalLookup

@@ -1,7 +1,7 @@
 import { NotFoundError } from '@azerothjs/http';
 import { feature, reply } from '@azerothjs/http/api';
 
-import { clearSessionCookie, readSessionToken, requireSession, sessionCookie } from './http/auth.ts';
+import { clearSessionCookie, offChain, readSessionToken, requireSession, sessionCookie } from './http/auth.ts';
 import type { Ports } from './ports.ts';
 import {
     achievementLadder,
@@ -300,6 +300,15 @@ function rankAfter(raw: string | undefined): number | undefined
     return Number.isSafeInteger(after) && after >= 0 && after <= 1_000_000 ? after : undefined;
 }
 
+/** Whether a table's stake, as it arrives, asks for any NURA at all. */
+const staked = (stake: string | undefined) => stake !== undefined && /[1-9]/.test(stake);
+
+/** The account as its own session sees it: a guest session says so, and nothing else does. */
+function asSignedIn<T extends object>(found: T, guest: boolean): T & { guest?: true }
+{
+    return guest ? { ...found, guest: true } : found;
+}
+
 export function buildApi(ports: Ports)
 {
     const session = requireSession((request) => ports.identity.principal(request));
@@ -366,11 +375,12 @@ export function buildApi(ports: Ports)
                     const ended = await ports.identity.ended(context.request);
                     return ended === null ? {} : { ended };
                 }
-                const account = await ports.identity.me(principal.userId);
-                if (account === null)
+                const found = await ports.identity.me(principal.userId);
+                if (found === null)
                 {
                     return {};
                 }
+                const account = asSignedIn(found, principal.guest === true);
 
                 // The cookie is sent again, a whole lifetime from now, as the session row slides:
                 // a cookie that ran out on day thirty would sign a daily player out all the same.
@@ -404,11 +414,12 @@ export function buildApi(ports: Ports)
                         signature: context.input.signature,
                         providerRdns: context.input.providerRdns,
                         userAgent: context.request.headers.get('user-agent') ?? '',
+                        guest: context.input.guest,
                         invite: context.input.invite,
                         device: context.input.device
                     });
 
-                    return reply(200, { account: established.account }, {
+                    return reply(200, { account: asSignedIn(established.account, context.input.guest === true) }, {
                         'set-cookie': sessionCookie(established.token, ports.identity.secureCookies)
                     });
                 }
@@ -461,7 +472,7 @@ export function buildApi(ports: Ports)
             profile: routes.with(session).post(
                 '/profile',
                 { input: profileInput, output: account },
-                (context) => ports.identity.setProfile(context.principal.userId, context.input)
+                async (context) => asSignedIn(await ports.identity.setProfile(context.principal.userId, context.input), context.principal.guest === true)
             ),
 
             avatar: routes.with(session).post(
@@ -562,6 +573,11 @@ export function buildApi(ports: Ports)
         chain: feature('/chain', [session], (routes) => ({
             profile: routes.get('/profile', { output: chainProfileState, query: langQuery }, async (context) =>
             {
+                if (context.principal.guest === true)
+                {
+                    return { configured: false, registry: '', chainId: '', record: '' };
+                }
+
                 const profile = await ports.chain.profile(context.principal.userId, context.query.lang ?? '');
                 return {
                     configured: ports.chain.configured,
@@ -582,17 +598,27 @@ export function buildApi(ports: Ports)
                 return { configured: ports.chain.configured, ...(face === null ? {} : { profile: face }) };
             }),
 
-            publish: routes.post('/profile/publish', { output: chainPublish }, async (context) => ({
-                calls: await ports.chain.publish(context.principal.userId)
-            })),
+            publish: routes.post('/profile/publish', { output: chainPublish }, async (context) =>
+            {
+                offChain(context.principal);
+                return { calls: await ports.chain.publish(context.principal.userId) };
+            }),
 
-            sponsor: routes.post('/profile/sponsor', { output: profileSponsorAsk }, (context) => ports.chain.sponsor(context.principal.userId)),
+            sponsor: routes.post('/profile/sponsor', { output: profileSponsorAsk }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.chain.sponsor(context.principal.userId);
+            }),
 
-            sponsored: routes.post('/profile/sponsor/send', { input: profileSponsorInput, output: profileSponsored },
-                (context) => ports.chain.sponsored(context.principal.userId, context.input)),
+            sponsored: routes.post('/profile/sponsor/send', { input: profileSponsorInput, output: profileSponsored }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.chain.sponsored(context.principal.userId, context.input);
+            }),
 
-            nfts: routes.get('/nfts', { output: nftPage, query: nftQuery }, (context) =>
-                ports.chain.nfts(
+            nfts: routes.get('/nfts', { output: nftPage, query: nftQuery }, (context) => context.principal.guest === true
+                ? { configured: false, total: 0, items: [] }
+                : ports.chain.nfts(
                     context.principal.userId,
                     Math.max(0, Number.parseInt(context.query.offset ?? '0', 10) || 0),
                     Math.min(48, Math.max(0, Number.parseInt(context.query.limit ?? '24', 10) || 0))
@@ -789,25 +815,43 @@ export function buildApi(ports: Ports)
         })),
 
         vault: feature('/vault', [session], (routes) => ({
-            state: routes.get('/', { output: vaultState }, (context) => ports.vault.state(context.principal.userId)),
+            // A guest session is told the vault is not here at all, so no stake is ever offered to it.
+            state: routes.get('/', { output: vaultState }, (context) => context.principal.guest === true
+                ? { configured: false as const }
+                : ports.vault.state(context.principal.userId)),
 
-            accept: routes.post('/terms', { input: vaultTermsInput, output: vaultState },
-                (context) => ports.vault.accept(context.principal.userId)),
+            accept: routes.post('/terms', { input: vaultTermsInput, output: vaultState }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.vault.accept(context.principal.userId);
+            }),
 
-            rest: routes.post('/break', { input: vaultBreakInput, output: vaultState },
-                (context) => ports.vault.rest(context.principal.userId, context.input.days)),
+            rest: routes.post('/break', { input: vaultBreakInput, output: vaultState }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.vault.rest(context.principal.userId, context.input.days);
+            }),
 
-            deposit: routes.post('/deposit', { input: vaultAmountInput, output: walletCall },
-                (context) => ports.vault.deposit(context.principal.userId, context.input.amount)),
+            deposit: routes.post('/deposit', { input: vaultAmountInput, output: walletCall }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.vault.deposit(context.principal.userId, context.input.amount);
+            }),
 
-            withdraw: routes.post('/withdraw', { input: vaultAmountInput, output: walletCall },
-                (context) => ports.vault.withdraw(context.principal.userId, context.input.amount)),
+            withdraw: routes.post('/withdraw', { input: vaultAmountInput, output: walletCall }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.vault.withdraw(context.principal.userId, context.input.amount);
+            }),
 
             games: routes.get('/games', { query: vaultGamesQuery, output: vaultGames },
                 (context) => ports.vault.games(context.principal.userId, context.query.cursor ?? null)),
 
-            reclaim: routes.post('/reclaim', { input: reclaimInput, output: walletCall },
-                (context) => ports.vault.reclaim(context.principal.userId, context.input.id))
+            reclaim: routes.post('/reclaim', { input: reclaimInput, output: walletCall }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.vault.reclaim(context.principal.userId, context.input.id);
+            })
         })),
 
         /**
@@ -826,14 +870,24 @@ export function buildApi(ports: Ports)
 
             listed: routes.get('/listed', { output: inviteListed }, (context) => ports.invites.listed(context.principal.userId)),
 
-            earnings: routes.get('/earnings', { output: inviteEarnings }, (context) => ports.invites.earnings(context.principal.userId)),
+            earnings: routes.get('/earnings', { output: inviteEarnings }, (context) => context.principal.guest === true
+                ? { tables: false as const }
+                : ports.invites.earnings(context.principal.userId)),
 
             list: routes.post('/listed', { input: inviteListedInput, output: inviteListed },
                 (context) => ports.invites.list(context.principal.userId, context.input.on))
         })),
 
         shop: feature('/shop', [session], (routes) => ({
-            state: routes.get('/', { output: shopState }, (context) => ports.shop.state(context.principal.userId)),
+            // A guest browses the shop as it does a closed one: the looks and their prices, nothing to pay with.
+            state: routes.get('/', { output: shopState }, async (context) =>
+            {
+                const state = await ports.shop.state(context.principal.userId);
+
+                return context.principal.guest === true && state.open
+                    ? { open: false as const, items: state.items, featured: state.featured, may: state.may, ...(state.free === true ? { free: true as const } : {}) }
+                    : state;
+            }),
 
             balance: routes.get('/balance', { output: shopBalance }, (context) => ports.shop.balance(context.principal.userId)),
 
@@ -847,8 +901,11 @@ export function buildApi(ports: Ports)
              * for the answer: the look arrives when `ArcadeShop` says the order was paid. The one
              * wallet whose own looks are free is given the look in the answer, and pays nothing.
              */
-            order: routes.post('/orders', { input: shopOrderInput, output: shopPurchase },
-                (context) => ports.shop.purchase(context.principal.userId, context.input.item, context.input.for)),
+            order: routes.post('/orders', { input: shopOrderInput, output: shopPurchase }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.shop.purchase(context.principal.userId, context.input.item, context.input.for);
+            }),
 
             orders: routes.get('/orders', { query: shopOrdersQuery, output: shopOrders },
                 (context) => ports.shop.orders(context.principal.userId, context.query.cursor ?? null)),
@@ -860,14 +917,23 @@ export function buildApi(ports: Ports)
 
             earnings: routes.get('/earnings', { output: shopEarnings }, (context) => ports.shop.earnings(context.principal.userId)),
 
-            claim: routes.post('/earnings/claim', { output: walletCall }, (context) => ports.shop.claim(context.principal.userId))
+            claim: routes.post('/earnings/claim', { output: walletCall }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.shop.claim(context.principal.userId);
+            })
         })),
 
         donations: feature('/donations', [session], (routes) => ({
-            state: routes.get('/', { output: donationsState }, (context) => ports.donate.state(context.principal.userId)),
+            state: routes.get('/', { output: donationsState }, (context) => context.principal.guest === true
+                ? { open: false as const }
+                : ports.donate.state(context.principal.userId)),
 
-            accept: routes.post('/accepting', { input: donationsAcceptInput, output: donationsAccepting },
-                (context) => ports.donate.accept(context.principal.userId, context.input.on)),
+            accept: routes.post('/accepting', { input: donationsAcceptInput, output: donationsAccepting }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.donate.accept(context.principal.userId, context.input.on);
+            }),
 
             players: routes.get('/players', { query: donationPlayersQuery, output: donationPlayers },
                 (context) => ports.donate.players(context.principal.userId, context.query.match)),
@@ -876,8 +942,11 @@ export function buildApi(ports: Ports)
              * A gift, and the call the reader's wallet sends to make it. Nothing is confirmed for the
              * answer: the gift is the player's when `ArcadeTips` holds it under the giver and its id.
              */
-            give: routes.post('/', { input: donationInput, output: donationPaying },
-                (context) => ports.donate.prepare(context.principal.userId, context.input)),
+            give: routes.post('/', { input: donationInput, output: donationPaying }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.donate.prepare(context.principal.userId, context.input);
+            }),
 
             history: routes.get('/history', { query: donationsQuery, output: donations },
                 (context) => ports.donate.history(context.principal.userId, context.query.side, context.query.cursor ?? null)),
@@ -889,11 +958,15 @@ export function buildApi(ports: Ports)
         })),
 
         markets: feature('/markets', [session], (routes) => ({
-            state: routes.get('/', { output: marketsState }, (context) =>
-                ports.markets.state(context.principal.userId)),
+            state: routes.get('/', { output: marketsState }, (context) => context.principal.guest === true
+                ? { open: false as const }
+                : ports.markets.state(context.principal.userId)),
 
             disclose: routes.post('/disclosure', { output: marketsState }, (context) =>
-                ports.markets.disclose(context.principal.userId)),
+            {
+                offChain(context.principal);
+                return ports.markets.disclose(context.principal.userId);
+            }),
 
             /** The market on a game the reader may watch, opened the first time anybody asks while it may take positions; none where there is none. */
             game: routes.get('/matches/:match', { output: marketLook }, (context) =>
@@ -904,7 +977,10 @@ export function buildApi(ports: Ports)
              * answer: the position counts once `ArcadeMarkets` holds it under its ticket.
              */
             place: routes.post('/:id/positions', { input: marketPositionInput, output: marketPaying }, (context) =>
-                ports.markets.place(context.principal.userId, context.params.id, context.input)),
+            {
+                offChain(context.principal);
+                return ports.markets.place(context.principal.userId, context.params.id, context.input);
+            }),
 
             positions: routes.get('/positions', { query: marketPositionsQuery, output: marketPositions },
                 (context) => ports.markets.positions(context.principal.userId, context.query.cursor ?? null)),
@@ -914,8 +990,11 @@ export function buildApi(ports: Ports)
             sent: routes.post('/positions/:id/sent', { input: marketSentInput, output: marketPosition },
                 (context) => ports.markets.sent(context.principal.userId, context.params.id, context.input.hash)),
 
-            claim: routes.post('/claims', { input: marketClaimInput, output: walletCall },
-                (context) => ports.markets.claim(context.principal.userId, context.input.positions)),
+            claim: routes.post('/claims', { input: marketClaimInput, output: walletCall }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.markets.claim(context.principal.userId, context.input.positions);
+            }),
 
             claimSent: routes.post('/claims/sent', { input: marketClaimSentInput, output: marketPositions },
                 (context) => ports.markets.claimSent(context.principal.userId, context.input.hash, context.input.positions))
@@ -1352,14 +1431,30 @@ export function buildApi(ports: Ports)
                 tables: await ports.table.mine(context.principal.userId)
             })),
 
-            create: routes.post('/', { input: tableCreateInput, output: tableSummary },
-                (context) => ports.table.create(context.principal.userId, context.input)),
+            // A stake is NURA in the vault, signed for with the wallet, so a guest plays for nothing.
+            create: routes.post('/', { input: tableCreateInput, output: tableSummary }, (context) =>
+            {
+                if (staked(context.input.stake))
+                {
+                    offChain(context.principal);
+                }
+                return ports.table.create(context.principal.userId, context.input);
+            }),
 
-            quick: routes.post('/quick', { input: tableQuickInput, output: tableSummary },
-                (context) => ports.table.quick(context.principal.userId, context.input)),
+            quick: routes.post('/quick', { input: tableQuickInput, output: tableSummary }, (context) =>
+            {
+                if (staked(context.input.stake))
+                {
+                    offChain(context.principal);
+                }
+                return ports.table.quick(context.principal.userId, context.input);
+            }),
 
-            quickStake: routes.post('/quick/stake', { input: quickStakeInput, output: stakeTerms },
-                (context) => ports.table.quickStake(context.principal.userId, context.input.game, context.input.stake)),
+            quickStake: routes.post('/quick/stake', { input: quickStakeInput, output: stakeTerms }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.table.quickStake(context.principal.userId, context.input.game, context.input.stake);
+            }),
 
             /** Resolves the short code somebody pasted into a chat. */
             byCode: routes.get('/code/:code', { output: tableSummary }, async (context) =>
@@ -1406,8 +1501,11 @@ export function buildApi(ports: Ports)
             ready: routes.post('/:id/ready', { input: readyInput, output: tableSummary },
                 (context) => ports.table.setReady(context.principal.userId, context.params.id, context.input.ready, context.input.signature)),
 
-            stake: routes.post('/:id/stake', { output: stakeTerms },
-                (context) => ports.table.stake(context.principal.userId, context.params.id)),
+            stake: routes.post('/:id/stake', { output: stakeTerms }, (context) =>
+            {
+                offChain(context.principal);
+                return ports.table.stake(context.principal.userId, context.params.id);
+            }),
 
             /**
              * Tables with a game running on them, declared BEFORE `/:id` so the literal is not

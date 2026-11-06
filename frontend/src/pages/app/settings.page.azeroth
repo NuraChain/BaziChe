@@ -21,6 +21,7 @@ import Icon from '../../icons/icon.component.azeroth';
 import type { IconName } from '../../icons/registry.ts';
 import DeviceNotices from '../../components/app/device-notices.component.azeroth';
 import FeatureOff from '../../components/app/feature-off.component.azeroth';
+import GuestAccount from '../../components/app/guest-account.component.azeroth';
 import VoiceInputSettings from '../../components/voice/voice-input-settings.component.azeroth';
 import VoiceOutputSettings from '../../components/voice/voice-output-settings.component.azeroth';
 import { signOut } from '../../components/app/sign-out.ts';
@@ -94,6 +95,8 @@ export default component SettingsPage()
     derived bedHint = locale.t(`settings.sound.kindHint.${ current.backgroundKind }`);
 
     derived vaulted = vaults.open();
+
+    derived guest = account.guest();
 
     const hear = async (notice: Notice) =>
     {
@@ -295,9 +298,9 @@ export default component SettingsPage()
                                     <Icon name="key" size={ 18 } />
                                 </span>
                                 <span class="flex min-w-0 flex-1 flex-col">
-                                    <span class="text-ui-md font-semibold text-text">{ locale.t('settings.account.wallet', { wallet: wallet.name() ?? locale.t('wallet.unnamed') }) }</span>
+                                    <span class="text-ui-md font-semibold text-text">{ locale.t('settings.account.wallet', { wallet: guest ? locale.t('guest.title') : wallet.name() ?? locale.t('wallet.unnamed') }) }</span>
                                     <code class="tally truncate text-ui-sm text-muted">{ shortAddress(account.address() ?? '') }</code>
-                                    <span class="mt-1 text-ui-xs text-faint">{ locale.t('settings.account.network') }: { NURA_CHAIN.name }</span>
+                                    <span class="mt-1 text-ui-xs text-faint">{ locale.t('settings.account.network') }: { guest ? locale.t('guest.offlineShort') : NURA_CHAIN.name }</span>
                                 </span>
                             </div>
                             <div class="flex flex-col gap-2 @md:flex-row @2xl:shrink-0">
@@ -336,6 +339,11 @@ export default component SettingsPage()
 
                     <section id="settings-safety" class="scroll-mt-16 @4xl:scroll-mt-4" aria-labelledby="settings-safety-title">
                         <SectionHeading id="settings-safety-title" title={ locale.t('settings.safety') } />
+                        <Show when={ guest }>
+                            <Panel stack="md" class="mb-4">
+                                <GuestAccount />
+                            </Panel>
+                        </Show>
                         <Panel stack="md">
                             <div class="flex flex-col gap-4">
                                 <Toggle

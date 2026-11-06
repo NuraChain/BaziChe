@@ -333,7 +333,13 @@ export const account = object({
     deco: string().optional(),
     nameplate: string().optional(),
     theme: string().optional(),
-    effect: string().optional()
+    effect: string().optional(),
+
+    /**
+     * True while this SESSION signed in with a guest key the browser holds. Everything on chain is
+     * off for it, and the settings offer the key's export instead of the vault.
+     */
+    guest: literal(true).optional()
 });
 
 export type Account = Infer<typeof account>;
@@ -372,6 +378,12 @@ export const walletSignIn = object({
     nonce: string(),
     signature: string(),
     providerRdns: string().optional(),
+
+    /**
+     * Signed by a guest key this browser made, not a wallet. Self-declared, and it only ever takes
+     * away: a guest session has nothing on chain, so claiming it falsely costs the claimer alone.
+     */
+    guest: boolean().optional(),
 
     /** The code in the invite link somebody followed here, kept by the browser until a wallet signs in. Anything that is no code is let go of. */
     invite: string({ max: 32 }).optional(),

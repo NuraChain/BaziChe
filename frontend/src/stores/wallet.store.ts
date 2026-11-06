@@ -2,6 +2,7 @@ import { createStore, createSignal, untrack, type Getter } from 'azerothjs';
 
 import { NURA_CHAIN, chainIsConfigured } from '../data/chain.ts';
 import { keyStore, type DeviceKeys } from '../lib/device-keys.ts';
+import { GUEST_RDNS, guestAddress, guestKey, guestProvider, heldGuest, isGuestProvider, keepGuest } from '../lib/guest.ts';
 import { keptInvite, letInviteGo } from '../lib/invite.ts';
 import {
     detect,
@@ -46,7 +47,23 @@ export interface WalletApi
     failure: Getter<WalletFailure | null>;
     suspension: Getter<Suspended | null>;
     onNuraChain: Getter<boolean>;
+
+    /** Whether the provider in use is this browser's guest key rather than a wallet (`lib/guest.ts`). */
+    guest: Getter<boolean>;
     connect(): Promise<Account | null>;
+
+    /**
+     * Signs in as a guest: with `secret` when one was imported, otherwise with the key this browser
+     * already holds, made now if it holds none. Null when nothing can be kept here to sign with.
+     */
+    connectAsGuest(secret?: string): Promise<Account | null>;
+
+    /**
+     * Takes the guest key back up after a reload, for a guest session on `address`: the session
+     * outlives the page, and the device messages it signs later need the key in hand. False when
+     * this browser holds no key for that address.
+     */
+    resumeGuest(address: string): boolean;
 
     /**
      * Asks the connected wallet to sign a message the SERVER composed.
@@ -122,7 +139,7 @@ function suspensionOf(error: unknown)
     return held;
 }
 
-export const useWallet = createStore((): WalletApi =>
+export const useWallet = createStore(() =>
 {
     const [status, setStatus] = createSignal<WalletStatus>('idle');
     const [address, setAddress] = createSignal<string | null>(null);
@@ -130,8 +147,20 @@ export const useWallet = createStore((): WalletApi =>
     const [failure, setFailure] = createSignal<WalletFailure | null>(null);
     const [suspension, setSuspension] = createSignal<Suspended | null>(null);
     const [present, setPresent] = createSignal(detect() !== null);
+    const [guest, setGuest] = createSignal(false);
 
     let injected: Eip1193Provider | null = detect();
+
+    /** An extension announcing itself later must not take the place of a guest key that was chosen. */
+    const rediscover = () =>
+    {
+        if (isGuestProvider(injected))
+        {
+            return;
+        }
+        injected = detect();
+        setPresent(injected !== null);
+    };
     let listening: (() => void) | null = null;
     let late: (() => void) | null = null;
     let discovery: (() => void) | null = null;
@@ -247,7 +276,7 @@ export const useWallet = createStore((): WalletApi =>
         }
     };
 
-    return {
+    const api: WalletApi = {
         status,
         address,
         chainId,
@@ -255,6 +284,7 @@ export const useWallet = createStore((): WalletApi =>
         name: () => walletName(untrack(() => (present() ? injected : null))),
         failure,
         suspension,
+        guest,
 
         onNuraChain: () => !chainIsConfigured() || chainId().toLowerCase() === NURA_CHAIN.chainId.toLowerCase(),
 
@@ -418,7 +448,10 @@ export const useWallet = createStore((): WalletApi =>
             setAddress(account);
             setChainId(await readChainId(wallet).catch(() => ''));
 
-            if (chainIsConfigured())
+            const asGuest = isGuestProvider(wallet);
+
+            // A guest key is on no chain, so there is nothing to switch.
+            if (chainIsConfigured() && !asGuest)
             {
                 if (!(await switchChain(wallet, NURA_CHAIN)))
                 {
@@ -479,7 +512,8 @@ export const useWallet = createStore((): WalletApi =>
                         address: account,
                         nonce: challenge.nonce,
                         signature,
-                        providerRdns: rdnsOf(wallet),
+                        providerRdns: asGuest ? GUEST_RDNS : rdnsOf(wallet),
+                        ...(asGuest ? { guest: true } : {}),
                         ...(invite === null ? {} : { invite }),
                         ...(keys === null ? {} : { device: { ...keys, label } })
                     }
@@ -526,9 +560,52 @@ export const useWallet = createStore((): WalletApi =>
             }
         },
 
+        async connectAsGuest(secret)
+        {
+            const key = secret ?? guestKey();
+
+            if (key === null || (secret !== undefined && !keepGuest(secret)))
+            {
+                why('guest', 'this browser keeps nothing, so a guest key would be gone on the next visit');
+                setFailure('unknown');
+                setStatus('error');
+                return null;
+            }
+
+            api.adopt(guestProvider(key));
+            return api.connect();
+        },
+
+        resumeGuest(signedIn)
+        {
+            const held = heldGuest();
+
+            if (held === null || guestAddress(held) !== signedIn.toLowerCase())
+            {
+                return false;
+            }
+
+            if (!isGuestProvider(injected))
+            {
+                api.adopt(guestProvider(held));
+            }
+            setAddress(guestAddress(held));
+            setStatus('connected');
+            return true;
+        },
+
         adopt(next)
         {
+            const asGuest = isGuestProvider(next);
+
+            // An extension's listeners are let go of, so its account changing says nothing about a guest.
+            if (asGuest)
+            {
+                listening?.();
+            }
+
             injected = next;
+            setGuest(asGuest);
             setPresent(next !== null);
             setStatus('idle');
             setAddress(null);
@@ -570,11 +647,7 @@ export const useWallet = createStore((): WalletApi =>
         start()
         {
             discovery?.();
-            discovery = discoverWallets(() =>
-            {
-                injected = detect();
-                setPresent(injected !== null);
-            });
+            discovery = discoverWallets(rediscover);
 
             const undiscover = () =>
             {
@@ -587,11 +660,7 @@ export const useWallet = createStore((): WalletApi =>
             {
                 if (typeof window !== 'undefined' && late === null)
                 {
-                    late = () =>
-                    {
-                        injected = null;
-                        provider();
-                    };
+                    late = rediscover;
                     window.addEventListener('ethereum#initialized', late, { once: true });
                 }
                 return () =>
@@ -646,6 +715,7 @@ export const useWallet = createStore((): WalletApi =>
         {
             release();
             injected = detect();
+            setGuest(false);
             setPresent(injected !== null);
             setStatus('idle');
             setAddress(null);
@@ -654,4 +724,6 @@ export const useWallet = createStore((): WalletApi =>
             setSuspension(null);
         }
     };
+
+    return api;
 });

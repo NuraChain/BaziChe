@@ -182,6 +182,7 @@ export interface IdentityPort
         signature: string;
         providerRdns?: string | undefined;
         userAgent: string;
+        guest?: boolean | undefined;
         invite?: string | undefined;
         device?: { id: string; exchangeKey: string; signingKey: string; label: string } | undefined;
     }): Promise<Established>;

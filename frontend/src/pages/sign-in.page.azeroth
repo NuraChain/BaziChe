@@ -2,6 +2,7 @@ import { useHead, useNavigate, useQuery, type MountNode } from 'azerothjs';
 
 import '../icons/all.ts';
 import type { SignedOutWhy } from '../components/app/sign-out.ts';
+import GuestPanel from '../components/app/guest-panel.component.azeroth';
 import WalletPanel from '../components/app/wallet-panel.component.azeroth';
 import SiteFooter from '../components/layout/site-footer.component.azeroth';
 import SiteHeader from '../components/layout/site-header.component.azeroth';
@@ -94,6 +95,15 @@ export default component SignInPage()
                 onChoose={ openChooser }
             />
 
+            <p class="my-4 text-center text-ui-xs font-semibold uppercase tracking-wide text-faint" aria-hidden="true">{ locale.t('guest.or') }</p>
+
+            <GuestPanel
+                onConnected={ (established) =>
+                {
+                    account.adoptWallet(established);
+                    leave();
+                } }
+            />
 
             <Show when={ chooserOpen && chooserLoaded }>
                 { () => Chooser!({ close: () => chooserOpen = false, navigate: () => leave() }) }

@@ -1,0 +1,77 @@
+import type { Account } from '../../api.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { guestAddress, heldGuest } from '../../lib/guest.ts';
+import { shortAddress } from '../../lib/wallet.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useWallet } from '../../stores/wallet.store.ts';
+import Button from '../ui/button.component.azeroth';
+import { PANEL_TONE } from '../ui/variants.ts';
+import GuestImport from './guest-import.component.azeroth';
+
+/**
+ * The way in for somebody with no wallet: a guest, whose key this browser makes and keeps.
+ *
+ * A browser that already holds a guest key says whose, so "continue" is plainly the same account
+ * as last time; and a file exported from settings brings one from another device. Either way the
+ * offer says up front what a guest cannot do, because finding out at the vault is worse.
+ */
+export default component GuestPanel(props: { onConnected: (account: Account) => void })
+{
+    const locale = useLocale();
+    const wallet = useWallet();
+
+    state held = heldGuest();
+    state importing = false;
+    state going = false;
+
+    derived busy = going || wallet.status() === 'connecting' || wallet.status() === 'signing';
+
+    derived label = held === null
+        ? locale.t('guest.continue')
+        : locale.t('guest.resume', { address: shortAddress(guestAddress(held)) });
+
+    const go = async (secret?: string) =>
+    {
+        going = true;
+
+        try
+        {
+            const account = await wallet.connectAsGuest(secret);
+
+            if (account !== null)
+            {
+                props.onConnected(account);
+            }
+        }
+        finally
+        {
+            going = false;
+            held = heldGuest();
+        }
+    };
+
+    <section class={ `relative flex flex-col gap-3 rounded-panel p-5 sm:p-6 ${ PANEL_TONE.field }` } aria-labelledby="guest-heading" data-guest>
+        <h2 id="guest-heading" class="text-ui-md font-semibold text-text">{ locale.t('guest.title') }</h2>
+        <p class="text-ui-sm text-muted">{ locale.t('guest.lead') }</p>
+
+        <Button variant="outline" size="lg" block leading="me" loading={ busy } onClick={ () => void go() }>
+            { label }
+        </Button>
+
+        <p class="flex items-start gap-1.5 text-ui-xs text-faint" data-guest-offline>
+            <Icon name="wifi-off" size={ 13 } class="mt-0.5 shrink-0" />
+            { locale.t('guest.offline') }
+        </p>
+
+        <Show
+            when={ importing }
+            fallback={
+                <button type="button" class="self-start text-ui-sm font-semibold text-accent hover:underline" onClick={ () => importing = true }>
+                    { locale.t('guest.import') }
+                </button>
+            }
+        >
+            { () => <GuestImport idPrefix="sign-in-guest" replaces={ held !== null } onOpened={ (secret) => go(secret) } /> }
+        </Show>
+    </section>
+}

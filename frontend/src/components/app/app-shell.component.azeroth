@@ -113,6 +113,17 @@ export default component AppShell(props: { children?: MountNode })
 
         void useDevices().look();
 
+        // A guest session outlives the page; its key, which signs the device messages, is taken back up.
+        void useSession().ready().then(() =>
+        {
+            const signedIn = useSession().account();
+
+            if (signedIn?.guest === true && signedIn.address !== undefined)
+            {
+                useWallet().resumeGuest(signedIn.address);
+            }
+        });
+
         startCues(cues, navigate, stops);
         loadStrips(strips, () => stripped = true, stops);
         startParty(stops);

@@ -80,5 +80,10 @@ export const wallet: Pick<Dictionary, keyof typeof reference> = {
     'guest.error.wrongPassword': 'Bu parola bu dosyayı açmıyor.',
     'guest.error.short': 'En az 8 karakter kullan.',
     'guest.error.mismatch': 'İki parola aynı değil.',
-    'guest.error.noKey': 'Bu tarayıcıda bu hesabın anahtarı yok, bu yüzden burada dışa aktarılamaz.'
+    'guest.error.noKey': 'Bu tarayıcıda bu hesabın anahtarı yok, bu yüzden burada dışa aktarılamaz.',
+
+    'wallet.nuraGet': 'Nura Wallet’ı edin',
+    'wallet.nuraApk': '{platform} (APK)',
+    'wallet.nuraAll': 'Tüm sürümler',
+    'wallet.nuraSoon': '{platforms}: yakında'
 };

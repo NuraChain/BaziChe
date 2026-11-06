@@ -18,6 +18,7 @@ import '../../locales/wallet-catalogue.ts';
 import { useAccount } from '../../stores/account.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useWallet } from '../../stores/wallet.store.ts';
+import NuraWalletLinks from './nura-wallet-links.component.azeroth';
 import SuspendedNotice from './suspended-notice.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
@@ -40,12 +41,12 @@ interface Choice
 }
 
 /**
- * Nura Wallet has no install page on purpose.
+ * Nura Wallet has no single install page.
  *
- * It injects its provider only into pages loaded inside its OWN in-app browser, and it registers
- * no url scheme, so there is nothing a desktop browser can be sent to. A row that offered to
- * "install" it, or that called connect and waited, would be a button that lies. It expands into a
- * panel explaining how to reach it instead.
+ * It is on several platforms, each with its own store or download, and its phone app injects its
+ * provider only into pages loaded inside its OWN in-app browser. A row that called connect and
+ * waited would be a button that lies, so it expands into a panel instead: where to get it for each
+ * platform (`data/nura-wallet.ts`), and how to open this site from inside it.
  */
 const CHOICES: Choice[] = [
     { rdns: NURA_RDNS, name: 'Nura Wallet', glyph: 'games', site: '' },
@@ -347,22 +348,29 @@ export default component ConnectDialog(props: { close: () => void; navigate: (to
                             </For>
                         </ul>
 
-                        <Show when={ showNura && code !== null }>
+                        <Show when={ showNura }>
                             { () =>
-                                <Panel tone="sunk" stack="sm" class="items-center text-center">
-                                    <p class="max-w-[38ch] text-ui-sm text-muted">{ locale.t('wallet.nuraOnly') }</p>
-                                    <svg
-                                        viewBox={ `-2 -2 ${ code!.size + 4 } ${ code!.size + 4 }` }
-                                        class="h-40 w-40 rounded-control bg-white p-1"
-                                        role="img"
-                                        aria-label={ locale.t('wallet.qrOf', { url: here }) }
-                                    >
-                                        <path d={ code!.path } fill="#000000" />
-                                    </svg>
-                                    <p class="w-full truncate text-ui-xs text-faint" dir="ltr">{ here }</p>
-                                    <Button variant="outline" size="sm" leading="copy" onClick={ () => void copyLink() }>
-                                        { locale.t(copied ? 'wallet.linkCopied' : 'wallet.copyLink') }
-                                    </Button>
+                                <Panel tone="sunk" stack="md">
+                                    <NuraWalletLinks />
+                                    <Show when={ code !== null }>
+                                        { () =>
+                                            <div class="flex flex-col items-center gap-2 border-t border-line pt-4 text-center">
+                                                <p class="max-w-[38ch] text-ui-sm text-muted">{ locale.t('wallet.nuraOnly') }</p>
+                                                <svg
+                                                    viewBox={ `-2 -2 ${ code!.size + 4 } ${ code!.size + 4 }` }
+                                                    class="h-40 w-40 rounded-control bg-white p-1"
+                                                    role="img"
+                                                    aria-label={ locale.t('wallet.qrOf', { url: here }) }
+                                                >
+                                                    <path d={ code!.path } fill="#000000" />
+                                                </svg>
+                                                <p class="w-full truncate text-ui-xs text-faint" dir="ltr">{ here }</p>
+                                                <Button variant="outline" size="sm" leading="copy" onClick={ () => void copyLink() }>
+                                                    { locale.t(copied ? 'wallet.linkCopied' : 'wallet.copyLink') }
+                                                </Button>
+                                            </div>
+                                        }
+                                    </Show>
                                 </Panel>
                             }
                         </Show>

@@ -80,5 +80,10 @@ export const wallet: Pick<Dictionary, keyof typeof reference> = {
     'guest.error.wrongPassword': 'كلمة المرور هذه لا تفتح هذا الملف.',
     'guest.error.short': 'استخدم 8 أحرف على الأقل.',
     'guest.error.mismatch': 'كلمتا المرور غير متطابقتين.',
-    'guest.error.noKey': 'لا يحمل هذا المتصفح مفتاح هذا الحساب، لذا لا يمكن تصديره هنا.'
+    'guest.error.noKey': 'لا يحمل هذا المتصفح مفتاح هذا الحساب، لذا لا يمكن تصديره هنا.',
+
+    'wallet.nuraGet': 'احصل على محفظة نورا',
+    'wallet.nuraApk': '{platform} (ملف APK)',
+    'wallet.nuraAll': 'كل الإصدارات والنسخ',
+    'wallet.nuraSoon': '{platforms}: قريبًا'
 };

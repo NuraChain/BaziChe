@@ -3,6 +3,7 @@ import { cleanup, fire, renderTest } from '@azerothjs/testing';
 
 import WalletPanel from '../src/components/app/wallet-panel.component.azeroth';
 import ConnectDialog from '../src/components/layout/connect-dialog.component.azeroth';
+import { NURA_WALLET_LINKS, NURA_WALLET_RELEASES } from '../src/data/nura-wallet.ts';
 import { manualClock } from '../src/lib/clock.ts';
 import { qrOf } from '../src/lib/qr.ts';
 import { keyStore } from '../src/lib/device-keys.ts';
@@ -171,12 +172,20 @@ describe('the wallet chooser', () =>
         expect(install.getAttribute('target')).toBe('_blank');
     });
 
-    it('offers no download for Nura Wallet, because there is nowhere to send a desktop browser', () =>
+    it('offers Nura Wallet for every platform it is on once its row is opened, each leaving in a new tab', () =>
     {
         open();
-        const links = [...dialog().querySelectorAll('a')].map((link) => link.getAttribute('href') ?? '');
 
-        expect(links.some((href) => href.includes('nurachain'))).toBe(false);
+        expect(dialog().querySelector('[data-nura-links]')).toBeNull();
+
+        fire(dialog().querySelector<HTMLButtonElement>('button[aria-expanded]')!, 'click');
+
+        const links = [...dialog().querySelectorAll<HTMLAnchorElement>('[data-nura-links] a')];
+
+        expect(links.map((link) => link.getAttribute('href'))).toEqual([...NURA_WALLET_LINKS.map((link) => link.url), NURA_WALLET_RELEASES]);
+        expect(links.every((link) => link.target === '_blank' && link.rel.includes('noopener'))).toBe(true);
+        expect(dialog().querySelector('[data-platform="apk"]')?.textContent).toContain('Android (APK)');
+        expect(dialog().querySelector('[data-soon]')?.textContent).toBe('iOS · macOS: coming soon');
     });
 
     it('explains how to reach Nura Wallet, with a scannable link to this page', () =>

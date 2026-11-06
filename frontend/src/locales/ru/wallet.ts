@@ -80,5 +80,10 @@ export const wallet: Pick<Dictionary, keyof typeof reference> = {
     'guest.error.wrongPassword': 'Этот пароль не открывает файл.',
     'guest.error.short': 'Используйте не меньше 8 символов.',
     'guest.error.mismatch': 'Пароли не совпадают.',
-    'guest.error.noKey': 'В этом браузере нет ключа от этого аккаунта, поэтому экспортировать его здесь нельзя.'
+    'guest.error.noKey': 'В этом браузере нет ключа от этого аккаунта, поэтому экспортировать его здесь нельзя.',
+
+    'wallet.nuraGet': 'Скачать Nura Wallet',
+    'wallet.nuraApk': '{platform} (APK)',
+    'wallet.nuraAll': 'Все сборки и версии',
+    'wallet.nuraSoon': '{platforms}: скоро'
 };

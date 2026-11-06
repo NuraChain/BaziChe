@@ -80,5 +80,10 @@ export const wallet: Pick<Dictionary, keyof typeof reference> = {
     'guest.error.wrongPassword': 'این رمز این فایل را باز نمی‌کند.',
     'guest.error.short': 'دست‌کم ۸ نویسه بنویسید.',
     'guest.error.mismatch': 'دو رمز یکسان نیستند.',
-    'guest.error.noKey': 'کلید این حساب در این مرورگر نیست، پس اینجا نمی‌شود از آن خروجی گرفت.'
+    'guest.error.noKey': 'کلید این حساب در این مرورگر نیست، پس اینجا نمی‌شود از آن خروجی گرفت.',
+
+    'wallet.nuraGet': 'دریافت کیف پول نورا',
+    'wallet.nuraApk': '{platform} (فایل APK)',
+    'wallet.nuraAll': 'همه‌ی نسخه‌ها و ساخت‌ها',
+    'wallet.nuraSoon': '{platforms}: به‌زودی'
 };

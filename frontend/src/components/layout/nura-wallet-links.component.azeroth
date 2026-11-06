@@ -1,0 +1,38 @@
+import { NURA_WALLET_LINKS, NURA_WALLET_RELEASES, NURA_WALLET_SOON } from '../../data/nura-wallet.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { useLocale } from '../../stores/locale.store.ts';
+
+const LINK = 'flex min-h-11 items-center gap-2 rounded-control border border-line bg-field px-3 py-2 text-ui-sm font-semibold text-text transition-colors duration-150 hover:border-accent/60 hover:text-accent';
+
+/**
+ * Nura Wallet for every platform it is on, each a link that leaves for the store or the download.
+ *
+ * Shown where somebody is choosing a wallet, because "not in this browser" with nowhere to go is a
+ * dead end. Product and platform names are not translated - Windows is Windows in Persian too.
+ */
+export default component NuraWalletLinks(props: { class?: string })
+{
+    const locale = useLocale();
+
+    derived soon = NURA_WALLET_SOON.join(' · ');
+
+    <section class={ [ 'flex flex-col gap-2.5', props.class ?? '' ].filter(Boolean).join(' ') } aria-label={ locale.t('wallet.nuraGet') } data-nura-links>
+        <h3 class="text-ui-sm font-semibold text-text">{ locale.t('wallet.nuraGet') }</h3>
+        <ul class="grid grid-cols-2 gap-2">
+            <For each={ [...NURA_WALLET_LINKS] } key={ (link) => link.id } let={ link }>
+                <li>
+                    <a href={ link.url } target="_blank" rel="noreferrer noopener" class={ LINK } data-platform={ link.id }>
+                        <Icon name="download" size={ 15 } class="shrink-0 text-accent" />
+                        <span class="min-w-0 truncate" dir="ltr">{ link.kind === 'apk' ? locale.t('wallet.nuraApk', { platform: link.platform }) : link.platform }</span>
+                    </a>
+                </li>
+            </For>
+        </ul>
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-ui-xs">
+            <a href={ NURA_WALLET_RELEASES } target="_blank" rel="noreferrer noopener" class="font-semibold text-accent hover:underline" data-releases>
+                { locale.t('wallet.nuraAll') }
+            </a>
+            <span class="text-faint" data-soon>{ locale.t('wallet.nuraSoon', { platforms: soon }) }</span>
+        </div>
+    </section>
+}

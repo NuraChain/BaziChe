@@ -80,5 +80,10 @@ export const wallet: Pick<Dictionary, keyof typeof reference> = {
     'guest.error.wrongPassword': '此密码无法打开这个文件。',
     'guest.error.short': '请至少使用 8 个字符。',
     'guest.error.mismatch': '两次输入的密码不一致。',
-    'guest.error.noKey': '此浏览器没有这个账户的密钥，因此无法在这里导出。'
+    'guest.error.noKey': '此浏览器没有这个账户的密钥，因此无法在这里导出。',
+
+    'wallet.nuraGet': '获取 Nura 钱包',
+    'wallet.nuraApk': '{platform}（APK）',
+    'wallet.nuraAll': '所有版本',
+    'wallet.nuraSoon': '{platforms}：即将推出'
 };

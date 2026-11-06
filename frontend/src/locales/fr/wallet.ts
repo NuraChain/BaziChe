@@ -80,5 +80,10 @@ export const wallet: Pick<Dictionary, keyof typeof reference> = {
     'guest.error.wrongPassword': 'Ce mot de passe n’ouvre pas ce fichier.',
     'guest.error.short': 'Utilisez au moins 8 caractères.',
     'guest.error.mismatch': 'Les deux mots de passe ne correspondent pas.',
-    'guest.error.noKey': 'Ce navigateur ne détient pas la clé de ce compte : il ne peut pas être exporté ici.'
+    'guest.error.noKey': 'Ce navigateur ne détient pas la clé de ce compte : il ne peut pas être exporté ici.',
+
+    'wallet.nuraGet': 'Obtenir Nura Wallet',
+    'wallet.nuraApk': '{platform} (APK)',
+    'wallet.nuraAll': 'Toutes les versions',
+    'wallet.nuraSoon': '{platforms} : bientôt'
 };

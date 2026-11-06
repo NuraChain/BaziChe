@@ -4,6 +4,7 @@ import Icon from '../../icons/icon.component.azeroth';
 import type { MessageKey } from '../../locales/en.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useWallet } from '../../stores/wallet.store.ts';
+import NuraWalletLinks from '../layout/nura-wallet-links.component.azeroth';
 import SuspendedNotice from '../layout/suspended-notice.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import Spinner from '../ui/spinner.component.azeroth';
@@ -156,6 +157,8 @@ export default component WalletPanel(props: { onConnected: (account: Account) =>
                     </li>
                 </For>
             </ul>
+
+            <NuraWalletLinks class="mt-2 border-t border-line pt-4" />
         </div>
 
         <Show when={ busy }>

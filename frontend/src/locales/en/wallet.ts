@@ -77,5 +77,10 @@ export const wallet = {
     'guest.error.wrongPassword': 'That password does not open this file.',
     'guest.error.short': 'Use at least 8 characters.',
     'guest.error.mismatch': 'The two passwords are not the same.',
-    'guest.error.noKey': 'This browser does not hold the key for this account, so it cannot be exported here.'
+    'guest.error.noKey': 'This browser does not hold the key for this account, so it cannot be exported here.',
+
+    'wallet.nuraGet': 'Get Nura Wallet',
+    'wallet.nuraApk': '{platform} (APK)',
+    'wallet.nuraAll': 'All builds and versions',
+    'wallet.nuraSoon': '{platforms}: coming soon'
 };

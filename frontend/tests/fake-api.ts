@@ -1467,7 +1467,7 @@ export const server =
     /** Why the cookie this browser sent no longer signs anybody in, when the session was ended rather than run out. */
     ended: undefined as 'revoked' | undefined,
     issued: null as { nonce: string; message: string; address: string; device?: string } | null,
-    received: null as { address: string; nonce: string; signature: string; providerRdns?: string; invite?: string; device?: { id: string; exchangeKey: string; signingKey: string; label: string } } | null,
+    received: null as { address: string; nonce: string; signature: string; providerRdns?: string; guest?: boolean; invite?: string; device?: { id: string; exchangeKey: string; signingKey: string; label: string } } | null,
     refuse: null as Refusal | null,
     suspension: {} as Record<string, string>,
     uploaded: null as string | null,

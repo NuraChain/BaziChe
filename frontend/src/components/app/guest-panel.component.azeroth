@@ -15,10 +15,12 @@ import GuestImport from './guest-import.component.azeroth';
  * as last time; and a file exported from settings brings one from another device. Either way the
  * offer says up front what a guest cannot do, because finding out at the vault is worse.
  */
-export default component GuestPanel(props: { onConnected: (account: Account) => void })
+export default component GuestPanel(props: { onConnected: (account: Account) => void; idPrefix?: string })
 {
     const locale = useLocale();
     const wallet = useWallet();
+
+    derived prefix = props.idPrefix ?? 'sign-in-guest';
 
     state held = heldGuest();
     state importing = false;
@@ -50,8 +52,8 @@ export default component GuestPanel(props: { onConnected: (account: Account) => 
         }
     };
 
-    <section class={ `relative flex flex-col gap-3 rounded-panel p-5 sm:p-6 ${ PANEL_TONE.field }` } aria-labelledby="guest-heading" data-guest>
-        <h2 id="guest-heading" class="text-ui-md font-semibold text-text">{ locale.t('guest.title') }</h2>
+    <section class={ `relative flex flex-col gap-3 rounded-panel p-5 sm:p-6 ${ PANEL_TONE.field }` } aria-labelledby={ `${ prefix }-heading` } data-guest>
+        <h2 id={ `${ prefix }-heading` } class="text-ui-md font-semibold text-text">{ locale.t('guest.title') }</h2>
         <p class="text-ui-sm text-muted">{ locale.t('guest.lead') }</p>
 
         <Button variant="outline" size="lg" block leading="me" loading={ busy } onClick={ () => void go() }>
@@ -71,7 +73,7 @@ export default component GuestPanel(props: { onConnected: (account: Account) => 
                 </button>
             }
         >
-            { () => <GuestImport idPrefix="sign-in-guest" replaces={ held !== null } onOpened={ (secret) => go(secret) } /> }
+            { () => <GuestImport idPrefix={ prefix } replaces={ held !== null } onOpened={ (secret) => go(secret) } /> }
         </Show>
     </section>
 }

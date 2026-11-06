@@ -18,6 +18,7 @@ import '../../locales/wallet-catalogue.ts';
 import { useAccount } from '../../stores/account.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useWallet } from '../../stores/wallet.store.ts';
+import GuestPanel from '../app/guest-panel.component.azeroth';
 import NuraWalletLinks from './nura-wallet-links.component.azeroth';
 import SuspendedNotice from './suspended-notice.component.azeroth';
 import Button from '../ui/button.component.azeroth';
@@ -374,6 +375,17 @@ export default component ConnectDialog(props: { close: () => void; navigate: (to
                                 </Panel>
                             }
                         </Show>
+
+                        <p class="text-center text-ui-xs font-semibold uppercase tracking-wide text-faint" aria-hidden="true">{ locale.t('guest.or') }</p>
+
+                        <GuestPanel
+                            idPrefix="chooser-guest"
+                            onConnected={ (established) =>
+                            {
+                                account.adoptWallet(established);
+                                props.navigate('/app');
+                            } }
+                        />
                     </div>
                 </div>
             </div>

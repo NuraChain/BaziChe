@@ -4,6 +4,7 @@ import { cleanup, fire, renderTest } from '@azerothjs/testing';
 import WalletPanel from '../src/components/app/wallet-panel.component.azeroth';
 import ConnectDialog from '../src/components/layout/connect-dialog.component.azeroth';
 import { NURA_WALLET_LINKS, NURA_WALLET_RELEASES } from '../src/data/nura-wallet.ts';
+import { forgetGuest, guestAddress, heldGuest } from '../src/lib/guest.ts';
 import { manualClock } from '../src/lib/clock.ts';
 import { qrOf } from '../src/lib/qr.ts';
 import { keyStore } from '../src/lib/device-keys.ts';
@@ -206,6 +207,22 @@ describe('the wallet chooser', () =>
         expect(code.getAttribute('aria-label')).toContain(window.location.origin);
         expect(code.querySelector('path')!.getAttribute('d')!.length).toBeGreaterThan(100);
         expect(dialog().textContent).toContain('Copy link');
+    });
+
+    it('lets somebody with no wallet come in as a guest from the chooser, then goes to the app', async () =>
+    {
+        forgetGuest();
+
+        const { navigate } = open();
+        const guest = dialog().querySelector<HTMLElement>('[data-guest] button')!;
+
+        expect(dialog().querySelector('[data-guest]')?.textContent).toContain('offline from the blockchain');
+
+        fire(guest, 'click');
+        await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith('/app'), { timeout: 4000 });
+
+        expect(server.received?.guest).toBe(true);
+        expect(server.received?.address).toBe(guestAddress(heldGuest()!));
     });
 
     it('connects through the wallet that announced itself, then goes to the app', async () =>

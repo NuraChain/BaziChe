@@ -1278,5 +1278,10 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.log.kind.season': 'Sezonlar',
     'admin.log.line.season': '{staff}, sezon {number}’i başlattı.',
     'admin.log.line.seasonNamed': '{staff}, sezon {number}’i başlattı: {name}.',
-    'admin.refused.staff-season-running': 'Zaten süren bir sezon var.'
+    'admin.refused.staff-season-running': 'Zaten süren bir sezon var.',
+
+    'admin.log.kind.minter-grant': 'Minter rolü verildi',
+    'admin.log.kind.minter-revoke': 'Minter rolü alındı',
+    'admin.log.line.minter.grant': '{staff}, {minter} adresine NFT minter rolünü verdi.',
+    'admin.log.line.minter.revoke': '{staff}, {minter} adresinden NFT minter rolünü aldı.'
 };

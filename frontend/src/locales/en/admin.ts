@@ -1343,5 +1343,10 @@ export const admin = {
     'admin.log.kind.season': 'Seasons',
     'admin.log.line.season': '{staff} started season {number}.',
     'admin.log.line.seasonNamed': '{staff} started season {number}: {name}.',
-    'admin.refused.staff-season-running': 'A season is already running.'
+    'admin.refused.staff-season-running': 'A season is already running.',
+
+    'admin.log.kind.minter-grant': 'Minter granted',
+    'admin.log.kind.minter-revoke': 'Minter revoked',
+    'admin.log.line.minter.grant': '{staff} gave {minter} the NFT minter role.',
+    'admin.log.line.minter.revoke': '{staff} took the NFT minter role from {minter}.'
 };

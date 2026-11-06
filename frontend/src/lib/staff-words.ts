@@ -10,6 +10,7 @@ import type { MessageKey } from '../locales/en.ts';
 import type { LocaleApi } from '../stores/locale.store.ts';
 import { nuraOf } from './nura.ts';
 import { collectionName, itemName } from './shop.ts';
+import { shortAddress } from './wallet.ts';
 
 export type LogRow = StaffLog['rows'][number];
 
@@ -258,11 +259,16 @@ const said = (row: LogRow, locale: LocaleApi) =>
         return locale.t(CAMPAIGN_LINES[row.details.to ?? ''] ?? 'admin.log.line.invite.changed', { ...slots, campaign: row.details.name ?? '' });
     }
 
+    if (row.kind === 'minter-grant' || row.kind === 'minter-revoke')
+    {
+        return locale.t(row.kind === 'minter-grant' ? 'admin.log.line.minter.grant' : 'admin.log.line.minter.revoke', { ...slots, minter: shortAddress(row.details.minter ?? '') });
+    }
+
     if (row.kind === 'season')
     {
         const name = row.details.name ?? '';
 
-        return locale.t(name === '' ? 'admin.log.line.season' : 'admin.log.line.seasonNamed', { ...slots, number: row.details.number ?? '', name });
+        return locale.t(name === '' ? 'admin.log.line.season' : 'admin.log.line.seasonNamed', { ...slots, number: locale.n(Number(row.details.number ?? '0')), name });
     }
 
     if (row.kind === 'invite-reward')

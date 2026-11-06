@@ -436,6 +436,35 @@ describe('the log', () =>
         expect(lines(container)).toEqual(['alex، reza.t رو بزرگ‌سال ثبت کرد.', 'mina، reza.t رو زیر ۱۸ ثبت کرد.']);
     });
 
+    it('says who started a season, by its number and its name when it has one, in both languages', async () =>
+    {
+        staffLogged({ at: hoursAgo(2), staff: 'alex', staffRole: 'owner', kind: 'season', reason: 'The first season.', details: { number: '1', name: '', days: '45', ratings: '12' } });
+        staffLogged({ at: hoursAgo(1), staff: 'mina', staffRole: 'admin', kind: 'season', reason: 'Spring is here.', details: { number: '2', name: 'Nowruz', days: '45', ratings: '30' } });
+
+        const { container } = await opened('/admin/log?kind=season');
+
+        expect(lines(container)).toEqual(['mina started season 2: Nowruz.', 'alex started season 1.']);
+        expect(container.querySelector('[aria-pressed="true"]')?.textContent?.trim()).toBe('Seasons');
+        expect(container.querySelector('[data-mark="season"]')).not.toBeNull();
+
+        useLocale().setLocale('fa');
+        await settle();
+
+        expect(lines(container)).toEqual(['mina فصل ۲ رو شروع کرد: Nowruz.', 'alex فصل ۱ رو شروع کرد.']);
+    });
+
+    it('says who gave the NFT minter role and who took it back, the address shortened', async () =>
+    {
+        const minter = '0x1234567890abcdef1234567890abcdef12345678';
+
+        staffLogged({ at: hoursAgo(2), staff: 'alex', staffRole: 'owner', kind: 'minter-grant', reason: 'The new minting service.', details: { contract: '0xc', minter, signer: '0xs', hash: '0xh', result: 'confirmed' } });
+        staffLogged({ at: hoursAgo(1), staff: 'alex', staffRole: 'owner', kind: 'minter-revoke', reason: 'Its key leaked.', details: { contract: '0xc', minter, signer: '0xs', hash: '0xh', result: 'confirmed' } });
+
+        const { container } = await opened();
+
+        expect(lines(container)).toEqual(['alex took the NFT minter role from 0x1234…5678.', 'alex gave 0x1234…5678 the NFT minter role.']);
+    });
+
     it('gives the exact moment of each change under a pointer, in the reader\'s own calendar', async () =>
     {
         story();
@@ -681,7 +710,7 @@ describe('the log', () =>
             'alex، mina رو از ناظر کرد ادمین.',
             'alex، mina رو ناظر کرد.'
         ]);
-        expect([...container.querySelectorAll('[aria-pressed]')].map((one) => one.textContent?.trim())).toEqual(['همه', 'اضافه شده', 'عوض شده', 'برداشته شده', 'یادداشت‌ها', 'تعلیق‌ها', 'رفع تعلیق', 'پایان تعلیق', 'پاک شده', 'خارج شده', 'گزارش‌ها', 'بازی‌ها', 'بازی‌های تموم‌شده', 'میزهای بسته‌شده', 'سن', 'اطلاعیه‌ها', 'بررسی‌ها', 'فروشگاه', 'بالای فروشگاه', 'استایل‌های داده‌شده', 'استایل‌های پس‌گرفته', 'برگشت پول‌ها', 'کمپین‌های دعوت', 'جایزه‌های دعوت']);
+        expect([...container.querySelectorAll('[aria-pressed]')].map((one) => one.textContent?.trim())).toEqual(['همه', 'اضافه شده', 'عوض شده', 'برداشته شده', 'یادداشت‌ها', 'تعلیق‌ها', 'رفع تعلیق', 'پایان تعلیق', 'پاک شده', 'خارج شده', 'گزارش‌ها', 'بازی‌ها', 'بازی‌های تموم‌شده', 'میزهای بسته‌شده', 'سن', 'اطلاعیه‌ها', 'بررسی‌ها', 'فروشگاه', 'بالای فروشگاه', 'استایل‌های داده‌شده', 'استایل‌های پس‌گرفته', 'برگشت پول‌ها', 'کمپین‌های دعوت', 'جایزه‌های دعوت', 'دادن نقش مینتر', 'گرفتن نقش مینتر', 'فصل‌ها']);
         expect(isolated(entry(container, 1), ':scope')).toEqual(['alex', 'mina']);
     });
 

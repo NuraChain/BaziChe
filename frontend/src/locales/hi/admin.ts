@@ -1278,5 +1278,10 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.log.kind.season': 'सीज़न',
     'admin.log.line.season': '{staff} ने सीज़न {number} शुरू किया।',
     'admin.log.line.seasonNamed': '{staff} ने सीज़न {number} शुरू किया: {name}।',
-    'admin.refused.staff-season-running': 'एक सीज़न पहले से चल रहा है।'
+    'admin.refused.staff-season-running': 'एक सीज़न पहले से चल रहा है।',
+
+    'admin.log.kind.minter-grant': 'मिंटर भूमिका दी गई',
+    'admin.log.kind.minter-revoke': 'मिंटर भूमिका हटाई गई',
+    'admin.log.line.minter.grant': '{staff} ने {minter} को NFT मिंटर भूमिका दी।',
+    'admin.log.line.minter.revoke': '{staff} ने {minter} से NFT मिंटर भूमिका हटाई।'
 };

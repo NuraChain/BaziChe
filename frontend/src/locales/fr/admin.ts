@@ -1302,5 +1302,10 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.log.kind.season': 'Saisons',
     'admin.log.line.season': '{staff} a lancé la saison {number}.',
     'admin.log.line.seasonNamed': '{staff} a lancé la saison {number} : {name}.',
-    'admin.refused.staff-season-running': 'Une saison est déjà en cours.'
+    'admin.refused.staff-season-running': 'Une saison est déjà en cours.',
+
+    'admin.log.kind.minter-grant': 'Rôle de minter accordé',
+    'admin.log.kind.minter-revoke': 'Rôle de minter retiré',
+    'admin.log.line.minter.grant': '{staff} a donné à {minter} le rôle de minter NFT.',
+    'admin.log.line.minter.revoke': '{staff} a retiré le rôle de minter NFT à {minter}.'
 };

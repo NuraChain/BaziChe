@@ -33,6 +33,8 @@ const MARKS: Record<ActionKind, { icon: IconName; tone: string }> = {
     'shop-refund': { icon: 'coins', tone: 'bg-gold/15 text-gold' },
     'invite-campaign': { icon: 'invite', tone: 'bg-accent/15 text-accent' },
     'invite-reward': { icon: 'gift', tone: 'bg-gold/15 text-gold' },
+    'minter-grant': { icon: 'key', tone: 'bg-accent/15 text-accent' },
+    'minter-revoke': { icon: 'key', tone: 'bg-danger/15 text-danger' },
     season: { icon: 'trophy', tone: 'bg-accent/15 text-accent' }
 };
 

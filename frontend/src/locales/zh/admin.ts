@@ -1254,5 +1254,10 @@ export const admin: Pick<Dictionary, keyof typeof reference> = {
     'admin.log.kind.season': '赛季',
     'admin.log.line.season': '{staff} 开启了第 {number} 赛季。',
     'admin.log.line.seasonNamed': '{staff} 开启了第 {number} 赛季：{name}。',
-    'admin.refused.staff-season-running': '已有赛季在进行中。'
+    'admin.refused.staff-season-running': '已有赛季在进行中。',
+
+    'admin.log.kind.minter-grant': '授予铸造角色',
+    'admin.log.kind.minter-revoke': '撤销铸造角色',
+    'admin.log.line.minter.grant': '{staff} 授予 {minter} NFT 铸造角色。',
+    'admin.log.line.minter.revoke': '{staff} 撤销了 {minter} 的 NFT 铸造角色。'
 };

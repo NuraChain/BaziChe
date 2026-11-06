@@ -6,6 +6,8 @@ import { canDenoise, createDenoiser } from '../services/voice.denoise.ts';
 import { createVoiceInput, type InputOptions, type VoiceInput } from '../services/voice.input.ts';
 import { hearsOpus } from '../services/voice.relay.ts';
 import { createVoiceCall, type LineFacts, type PeerLink, type VoiceCall, type VoiceCallDeps } from '../services/voice.rtc.ts';
+import { primeVoice, takePrimedVoice } from '../lib/primed-voice.ts';
+import { isWebKit } from '../lib/webkit.ts';
 import { useAccount } from './account.store.ts';
 import { useRealtime, type SignalFrame, type SoundFrame, type VoiceFrame } from './realtime.store.ts';
 import { useSettings, type VoiceNoise, type VoiceQuality } from './settings.store.ts';
@@ -102,8 +104,8 @@ export function setVoiceMedia(next: (() => MediaDevices | null) | null)
 }
 
 /**
- * Whether this browser is WebKit's own - Safari, and every browser on an iPhone or an iPad, which all
- * are - where a call is sent the microphone as it is rather than through the page's audio graph.
+ * Whether a call is sent the microphone as it is rather than through the page's audio graph: on
+ * WebKit (`lib/webkit.ts`).
  *
  * The voice input (`voice.input.ts`) gates and levels the microphone in an AudioWorklet and hands
  * the call a MediaStreamAudioDestinationNode's track. Chrome and Firefox send that track; Safari
@@ -112,20 +114,12 @@ export function setVoiceMedia(next: (() => MediaDevices | null) | null)
  * for the speaking ring, and muting and push-to-talk work on the track itself. Only the page's own
  * voice gate is not heard there.
  */
-const webkitOnly = () =>
-{
-    const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent;
-    const touchMac = agent.includes('Macintosh') && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1;
-
-    return /iPhone|iPad|iPod/.test(agent) || touchMac || (/AppleWebKit.*Safari\//.test(agent) && !/Chrome|Chromium|Edg|OPR|Android/.test(agent));
-};
-
-let sendsRawMicrophone: () => boolean = webkitOnly;
+let sendsRawMicrophone: () => boolean = isWebKit;
 
 /** For a spec: whether a call sends the microphone untouched, or `null` for what this browser is. */
 export function setRawMicrophone(next: boolean | null)
 {
-    sendsRawMicrophone = next === null ? webkitOnly : () => next;
+    sendsRawMicrophone = next === null ? isWebKit : () => next;
 }
 
 let makeCall: (deps: VoiceCallDeps) => VoiceCall = createVoiceCall;
@@ -504,6 +498,23 @@ export const useVoice = createStore((): VoiceApi =>
         }
     };
 
+    /** The microphone a press already asked for; asked for again, as ever, when that press was turned down. */
+    const primedMicrophone = async (asked: Promise<MediaStream>) =>
+    {
+        try
+        {
+            const got = await asked;
+
+            setMic('live');
+            void survey();
+            return got;
+        }
+        catch
+        {
+            return microphone();
+        }
+    };
+
     const people = (): VoicePerson[] =>
     {
         const self = mine();
@@ -799,6 +810,9 @@ export const useVoice = createStore((): VoiceApi =>
                 return;
             }
 
+            // Before anything is awaited, so a press on Join voice is still the press when WebKit is asked;
+            // a call answered earlier keeps the microphone its own press asked for.
+            primeVoice();
             stopTest();
 
             if (untrack(table) !== null)
@@ -822,8 +836,10 @@ export const useVoice = createStore((): VoiceApi =>
 
             opus = hears;
 
+            // What the press that started this call asked for, on WebKit: a woken context and its microphone.
+            const ready = takePrimedVoice();
             const Context = typeof AudioContext === 'undefined' ? null : AudioContext;
-            const made = Context === null ? null : new Context({ latencyHint: 'interactive' });
+            const made = ready?.context ?? (Context === null ? null : new Context({ latencyHint: 'interactive' }));
 
             context = made;
 
@@ -892,7 +908,7 @@ export const useVoice = createStore((): VoiceApi =>
                 call.setSink(speaker);
             }
 
-            const got = await microphone();
+            const got = ready === null ? await microphone() : await primedMicrophone(ready.microphone);
 
             if (round !== joins || untrack(table) !== next)
             {

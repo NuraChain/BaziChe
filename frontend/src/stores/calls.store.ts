@@ -7,6 +7,7 @@ import { outranks } from '../../../backend/src/domains/group/roles.ts';
 import { attempt } from '../lib/attempt.ts';
 import { createGuesses } from '../lib/guess.ts';
 import { joinVoice } from '../lib/join-voice.ts';
+import { forgetPrimedVoice, primeVoice } from '../lib/primed-voice.ts';
 import { runtime } from '../lib/runtime.ts';
 import type { MessageKey } from '../locales/en.ts';
 import { useAccount } from './account.store.ts';
@@ -384,6 +385,9 @@ export const useCalls = createStore((): CallsApi =>
 
         async join(callId, room)
         {
+            // The voice is joined once the server says so; the microphone is asked for now, inside the press (`primed-voice.ts`).
+            primeVoice();
+
             const before = untrack(hereId);
             const at = new Date(serverNow()).toISOString();
             const arriving: CallView = { id: callId, room, kind: 'group', state: 'live', out: false, rung: false, at, answeredAt: at, people: [] };
@@ -407,6 +411,8 @@ export const useCalls = createStore((): CallsApi =>
 
         async accept(callId)
         {
+            primeVoice();
+
             const before = untrack(hereId);
 
             placeHere(callId);
@@ -418,13 +424,25 @@ export const useCalls = createStore((): CallsApi =>
                 placeHere(before);
             }
 
+            if (!went)
+            {
+                forgetPrimedVoice();
+            }
+
             return went;
         },
 
-        decline: (callId) => act(() => client.calls.decline({ params: { id: callId } }), changed(callId, { state: 'ended', ending: 'declined' })),
+        decline: (callId) =>
+        {
+            forgetPrimedVoice();
+
+            return act(() => client.calls.decline({ params: { id: callId } }), changed(callId, { state: 'ended', ending: 'declined' }));
+        },
 
         async hangUp(callId)
         {
+            forgetPrimedVoice();
+
             const call = untrack(listed).find((one) => one.id === callId);
             const ending = call?.state === 'live' ? 'answered' : (call?.out === true ? 'cancelled' : 'declined');
 

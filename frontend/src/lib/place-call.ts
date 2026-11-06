@@ -1,4 +1,5 @@
 import { attempt } from './attempt.ts';
+import { primeVoice } from './primed-voice.ts';
 
 /**
  * Rings a conversation's room from wherever a call is offered: the other person of a direct one, from
@@ -9,6 +10,9 @@ import { attempt } from './attempt.ts';
  */
 export async function placeCall(room: string | Promise<string>)
 {
+    // Inside the press, before the calls' chunk is fetched: Safari grants the microphone nowhere else.
+    primeVoice();
+
     try
     {
         const [{ useCalls }, id] = await Promise.all([import('../stores/calls.store.ts'), room]);

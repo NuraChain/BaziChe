@@ -9,6 +9,7 @@ import { IDLE_MS, SOUND_BACKLOG, useRealtime } from '../src/stores/realtime.stor
 import { useSession } from '../src/stores/session.store.ts';
 import { useSettings } from '../src/stores/settings.store.ts';
 import { ANNOUNCE_MS, LINES_MS, LOUDEST, SPEAKING_HOLD_MS, UNREACHED_MS, setRawMicrophone, setVoiceCall, setVoiceMedia, useVoice } from '../src/stores/voice.store.ts';
+import { primeVoice, setPrimedVoice } from '../src/lib/primed-voice.ts';
 import { setDenoiseKit } from '../src/services/voice.denoise.ts';
 import { socket } from './fake-realtime.ts';
 import '../src/locales/app-catalogue.ts';
@@ -182,6 +183,44 @@ describe('voice at a table', () =>
         expect(asked.at(-1)).toEqual({ audio: true });
         expect(useVoice().mic()).toBe('live');
         expect(calls[0].mic.at(-1)).toBe(stream);
+    });
+
+    it('joins with the microphone the press asked for on WebKit, and asks for no other', async () =>
+    {
+        const pressed = { getTracks: () => [track], getAudioTracks: () => [track] } as unknown as MediaStream;
+        const later: MediaStreamConstraints[] = [];
+        const held = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
+
+        Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: async () => pressed } });
+        setVoiceMedia(() => ({ getUserMedia: async (constraints: MediaStreamConstraints) =>
+        {
+            later.push(constraints);
+            return stream;
+        } }) as unknown as MediaDevices);
+        setPrimedVoice(true);
+
+        try
+        {
+            primeVoice();
+            await useVoice().join(TABLE);
+
+            expect(calls[0].mic.at(-1), 'the microphone the press was granted').toBe(pressed);
+            expect(later, 'asked again after the press, which Safari refuses').toEqual([]);
+            expect(useVoice().mic()).toBe('live');
+        }
+        finally
+        {
+            setPrimedVoice(null);
+
+            if (held === undefined)
+            {
+                Reflect.deleteProperty(navigator, 'mediaDevices');
+            }
+            else
+            {
+                Object.defineProperty(navigator, 'mediaDevices', held);
+            }
+        }
     });
 
     it('joins listening only when the microphone is refused', async () =>

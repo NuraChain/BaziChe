@@ -3,7 +3,7 @@ import { batch, createEffect, createRoot, createSignal, createStore, untrack } f
 import { VOICE_FILE_MOST, VOICE_MOST_MS } from '../../../backend/src/domains/chat/voice.ts';
 import { runtime } from '../lib/runtime.ts';
 import { onForgotten } from '../lib/voice-held.ts';
-import { recordingType, seekable, typeSaid, VOICE_BITRATE, VOICE_LEAST_MS, waveOf, waveOfLevels } from '../lib/voice-note.ts';
+import { recordingType, seekable, typeSaid, VOICE_BITRATE, VOICE_LEAST_MS, VOICE_TYPES, waveOf, waveOfLevels } from '../lib/voice-note.ts';
 import type { MessageKey } from '../locales/en.ts';
 import { useChat } from './chat.store.ts';
 import { useLocale } from './locale.store.ts';
@@ -19,7 +19,7 @@ export interface RecorderLike
     readonly state: string;
     ondataavailable: ((event: { data: Blob }) => void) | null;
     onstop: (() => void) | null;
-    onerror: (() => void) | null;
+    onerror: ((event?: { error?: unknown }) => void) | null;
     start(timeslice?: number): void;
     pause(): void;
     resume(): void;
@@ -222,6 +222,30 @@ interface Session
     handed: (() => void)[];
 }
 
+/** What the browser called the error it threw, said as it is so a report can name it; never anything a page wrote. */
+export const errorName = (error: unknown) =>
+{
+    const name: unknown = typeof error === 'object' && error !== null ? Reflect.get(error, 'name') : undefined;
+
+    return typeof name === 'string' && /^[A-Za-z]{1,40}$/.test(name) ? name : 'Error';
+};
+
+/**
+ * What a MediaRecorder is asked for, most wanted first: the type chosen at the bitrate a voice is
+ * kept at, the same type at the browser's own bitrate, every other type it says it makes, and at
+ * the last nothing, which is whatever it makes by itself.
+ *
+ * One ask was all there was, and Safari on iOS says yes to types and bitrates it will then not record
+ * in: the recorder threw as it was made or failed as it started, and the reader was told the microphone
+ * would not start. Each ask after the first is a way to still record.
+ */
+export const recorderAsks = (type: string, also: readonly string[]): MediaRecorderOptions[] => [
+    { mimeType: type, audioBitsPerSecond: VOICE_BITRATE },
+    { mimeType: type },
+    ...also.filter((one) => one !== type).map((mimeType) => ({ mimeType })),
+    {}
+];
+
 const FAULTS: Record<string, MessageKey> = {
     NotAllowedError: 'chat.voice.denied',
     SecurityError: 'chat.voice.denied',
@@ -279,7 +303,23 @@ export const useVoiceRecorder = createStore((): RecorderApi =>
         return { ...all, [room]: { ...now, ...change } };
     });
 
-    const say = (key: MessageKey) => toasts.show({ kind: 'error', text: locale.t(key), dedupe: 'voice-record' });
+    const say = (key: MessageKey, vars?: Record<string, string>) => toasts.show({ kind: 'error', text: locale.t(key, vars), dedupe: 'voice-record' });
+
+    /** A fault with words of its own says them; any other names what the browser threw, for whoever reads the report. */
+    const sayFault = (error: unknown) =>
+    {
+        const name = errorName(error);
+        const known = FAULTS[name];
+
+        if (known === undefined)
+        {
+            say('chat.voice.micFailedWhy', { why: name });
+        }
+        else
+        {
+            say(known);
+        }
+    };
 
     const still = (session: Session) =>
     {
@@ -568,12 +608,28 @@ export const useVoiceRecorder = createStore((): RecorderApi =>
             }
             catch (error)
             {
-                if (sessions.get(room) === session)
+                // A refusal or a missing microphone is the answer. Anything else may be the choices of
+                // Settings › Voice, which a browser can turn down whole: it is asked once more for any microphone.
+                const plain = !(errorName(error) in FAULTS) || errorName(error) === 'OverconstrainedError';
+
+                try
                 {
-                    drop(room);
-                    say(FAULTS[(error as { name?: string }).name ?? ''] ?? 'chat.voice.micFailed');
+                    if (!plain || sessions.get(room) !== session)
+                    {
+                        throw error;
+                    }
+
+                    stream = await env.microphone({ audio: true });
                 }
-                return;
+                catch (again)
+                {
+                    if (sessions.get(room) === session)
+                    {
+                        drop(room);
+                        sayFault(again);
+                    }
+                    return;
+                }
             }
 
             // Deleted while the browser asked, or the reader went elsewhere meanwhile: nothing was said, so nothing is kept.
@@ -591,42 +647,102 @@ export const useVoiceRecorder = createStore((): RecorderApi =>
             session.stream = stream;
             session.listener?.hear(stream);
 
-            let recorder: RecorderLike;
+            const asks = recorderAsks(type, VOICE_TYPES.filter((one) => env.supported(one)));
 
-            try
+            /**
+             * Records with the first ask this browser will make AND start, and moves to the next when one
+             * fails before a byte of it arrived: a recorder made with an ask it then cannot keep says so
+             * at its first slice, and the reader has said nothing into it yet. Once something was
+             * recorded, an error ends the recording, as it always did.
+             */
+            const begin = (from: number, refused: unknown): boolean =>
             {
-                recorder = env.recorder(stream, { mimeType: type, audioBitsPerSecond: VOICE_BITRATE });
-            }
-            catch
-            {
-                drop(room);
-                say('chat.voice.micFailed');
-                return;
-            }
-
-            session.recorder = recorder;
-            recorder.ondataavailable = (event) =>
-            {
-                if (event.data.size > 0)
+                for (let at = from; at < asks.length; at += 1)
                 {
-                    session.chunks.push(event.data);
-                    session.bytes += event.data.size;
+                    let recorder: RecorderLike;
+
+                    try
+                    {
+                        recorder = env.recorder(stream, asks[at]);
+                    }
+                    catch (error)
+                    {
+                        refused = error;
+                        continue;
+                    }
+
+                    session.recorder = recorder;
+                    session.type = typeSaid(recorder.mimeType, asks[at].mimeType ?? type);
+                    recorder.ondataavailable = (event) =>
+                    {
+                        if (session.recorder !== recorder)
+                        {
+                            return;
+                        }
+
+                        if (event.data.size > 0)
+                        {
+                            session.chunks.push(event.data);
+                            session.bytes += event.data.size;
+                        }
+
+                        for (const handed of session.handed.splice(0))
+                        {
+                            handed();
+                        }
+                    };
+                    recorder.onerror = (event) =>
+                    {
+                        if (sessions.get(room) !== session || session.recorder !== recorder)
+                        {
+                            return;
+                        }
+
+                        if (session.bytes === 0)
+                        {
+                            try
+                            {
+                                recorder.stop();
+                            }
+                            catch
+                            {
+                                // Already stopped by its own failure.
+                            }
+
+                            // The next ask records, or says why none would.
+                            begin(at + 1, event?.error ?? event);
+                            return;
+                        }
+
+                        drop(room);
+                        sayFault(event?.error ?? event);
+                    };
+
+                    try
+                    {
+                        recorder.start(SLICE_MS);
+                        return true;
+                    }
+                    catch (error)
+                    {
+                        refused = error;
+                        session.recorder = null;
+                    }
                 }
 
-                for (const handed of session.handed.splice(0))
-                {
-                    handed();
-                }
-            };
-            recorder.onerror = () =>
-            {
                 if (sessions.get(room) === session)
                 {
                     drop(room);
-                    say('chat.voice.micFailed');
+                    sayFault(refused);
                 }
+                return false;
             };
-            recorder.start(SLICE_MS);
+
+            if (!begin(0, null))
+            {
+                return;
+            }
+
             session.since = runtime().clock.now();
             tick(session);
             viewOf(room, { phase: 'recording' });

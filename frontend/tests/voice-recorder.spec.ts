@@ -38,7 +38,7 @@ class FakeRecorder implements RecorderLike
     public slice: number | undefined = undefined;
     public ondataavailable: ((event: { data: Blob }) => void) | null = null;
     public onstop: (() => void) | null = null;
-    public onerror: (() => void) | null = null;
+    public onerror: ((event?: { error?: unknown }) => void) | null = null;
     public readonly stream: MediaStream;
     public readonly options: MediaRecorderOptions;
     public readonly mimeType: string;
@@ -104,6 +104,12 @@ const browser = {
     types: ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4'],
     says: 'audio/webm;codecs=opus',
     refuse: null as string | null,
+
+    /** Thrown by the first ask for the microphone only, as a browser turning down its choices. */
+    refuseFirst: null as string | null,
+
+    /** Thrown, one each, by the recorders made next: what Safari does with a type it said it could make. */
+    unmade: [] as string[],
     door: null as Promise<void> | null,
     level: 0.25,
     decoded: { samples: new Float32Array(8000).map((_, at) => Math.sin(at / 3) * 0.4), seconds: 3 } as Decoded | null,
@@ -162,6 +168,8 @@ beforeEach(async () =>
         types: ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4'],
         says: 'audio/webm;codecs=opus',
         refuse: null,
+        refuseFirst: null,
+        unmade: [],
         door: null,
         level: 0.25,
         decoded: { samples: new Float32Array(8000).map((_, at) => Math.sin(at / 3) * 0.4), seconds: 3 },
@@ -197,6 +205,14 @@ beforeEach(async () =>
                 throw new DOMException('No.', browser.refuse);
             }
 
+            if (browser.refuseFirst !== null)
+            {
+                const name = browser.refuseFirst;
+
+                browser.refuseFirst = null;
+                throw new DOMException('Not with those choices.', name);
+            }
+
             const track = { stopped: false, stop: () => undefined as void };
 
             track.stop = () =>
@@ -208,7 +224,17 @@ beforeEach(async () =>
 
             return { getTracks: () => [track] } as unknown as MediaStream;
         },
-        recorder: (stream, options) => new FakeRecorder(stream, options, browser.says),
+        recorder(stream, options)
+        {
+            const unmade = browser.unmade.shift();
+
+            if (unmade !== undefined)
+            {
+                throw new DOMException('Not that type.', unmade);
+            }
+
+            return new FakeRecorder(stream, options, browser.says);
+        },
         decode: async () => browser.decoded
     });
 
@@ -531,6 +557,54 @@ describe('a recording the browser will not make', () =>
 
         expect(await refused()).toContain('Microphone access is off for this site. Allow it in your browser’s settings to record.');
         expect(useVoiceRooms().has('c-reza')).toBe(false);
+    });
+
+    it('records all the same where the browser will not make the first recorder it is asked for, as Safari on iOS does', async () =>
+    {
+        browser.types = ['audio/webm;codecs=opus', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4'];
+        browser.unmade = ['NotSupportedError', 'NotSupportedError'];
+
+        await recording();
+
+        expect(recorder().options, 'the next type, with nothing more asked of it').toEqual({ mimeType: 'audio/mp4;codecs=mp4a.40.2' });
+        expect(toasts()).toEqual([]);
+    });
+
+    it('moves to the next way to record when the first fails before anything was recorded into it', async () =>
+    {
+        browser.types = ['audio/webm;codecs=opus', 'audio/mp4'];
+
+        await recording();
+
+        const first = recorder();
+
+        first.onerror?.({ error: new DOMException('Cannot encode that.', 'NotSupportedError') });
+
+        expect(recorder()).not.toBe(first);
+        expect(recorder().options).toEqual({ mimeType: 'audio/webm;codecs=opus' });
+        expect(recorder().state).toBe('recording');
+        expect(take()?.phase).toBe('recording');
+        expect(toasts()).toEqual([]);
+    });
+
+    it('asks for any microphone at all when the browser turns down the choices of Settings › Voice', async () =>
+    {
+        useSettings().update({ voiceMic: 'mic-gone' });
+        browser.refuseFirst = 'TypeError';
+
+        await recording();
+
+        expect(browser.asked.at(-1)).toEqual({ audio: true });
+        expect(browser.asked).toHaveLength(2);
+    });
+
+    it('names what the browser threw when no way to record would start, so a report can say it', async () =>
+    {
+        browser.types = ['audio/mp4'];
+        browser.unmade = ['NotSupportedError', 'NotSupportedError', 'NotSupportedError'];
+
+        expect(await refused()).toContain('The microphone could not be started (NotSupportedError).');
+        expect(browser.stopped, 'the microphone let go').toBe(1);
     });
 
     it('says there is no microphone, or that another app has it', async () =>

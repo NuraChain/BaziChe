@@ -434,6 +434,7 @@ export const social = {
     'chat.voice.busyMic': 'Another app is using the microphone.',
     'chat.voice.cannot': 'This browser cannot record audio here.',
     'chat.voice.micFailed': 'The microphone could not be started.',
+    'chat.voice.micFailedWhy': 'The microphone could not be started ({why}).',
     'emoji.title': 'Emoji',
     'emoji.search': 'Search emoji',
     'emoji.groups': 'Emoji groups',

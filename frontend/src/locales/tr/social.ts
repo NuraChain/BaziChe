@@ -437,6 +437,7 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'chat.voice.busyMic': 'Mikrofonu başka bir uygulama kullanıyor.',
     'chat.voice.cannot': 'Bu tarayıcı burada ses kaydedemiyor.',
     'chat.voice.micFailed': 'Mikrofon başlatılamadı.',
+    'chat.voice.micFailedWhy': 'Mikrofon başlatılamadı ({why}).',
     'emoji.title': 'Emoji',
     'emoji.search': 'Emoji ara',
     'emoji.groups': 'Emoji grupları',

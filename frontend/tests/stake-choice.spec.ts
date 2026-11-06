@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fire, renderTest } from '@azerothjs/testing';
 import { RouterProvider, Routes, createMemoryHistory, createRouter } from 'azerothjs';
 
-import { STAKE_LADDER } from '../../backend/src/domains/stake/policy.ts';
+import { MAX_STAKE_WEI, STAKE_LADDER } from '../../backend/src/domains/stake/policy.ts';
 import CreateGameForm from '../src/components/games/create-game-form.component.azeroth';
 import LobbyPanel from '../src/components/games/lobby-panel.component.azeroth';
 import QuickFinder from '../src/components/games/quick-finder.component.azeroth';
@@ -127,10 +127,11 @@ describe('a table opened at a stake', () =>
 
     it('offers a free table and every stake on the vault\'s ladder at a live table, with free chosen', async () =>
     {
+        await vaultWith({ maxStake: MAX_STAKE_WEI.toString(), ladder: [...STAKE_LADDER] });
         const { container } = form();
         await settle();
 
-        expect(offered(container, 'Played for')).toEqual(['Free', '1 NURA', '5 NURA', '10 NURA', '25 NURA', '50 NURA', '100 NURA', '250 NURA']);
+        expect(offered(container, 'Played for')).toEqual(['Free', '1 NURA', '5 NURA', '10 NURA', '25 NURA', '50 NURA', '100 NURA', '250 NURA', '500 NURA', '1,000 NURA', '2,500 NURA', '5,000 NURA', '10,000 NURA', '25,000 NURA', '50,000 NURA', '100,000 NURA', '250,000 NURA', '500,000 NURA', '1,000,000 NURA', '2,500,000 NURA', '5,000,000 NURA', '10,000,000 NURA']);
         expect(chosen(container, 'Played for')).toEqual(['Free']);
     });
 

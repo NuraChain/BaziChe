@@ -17,9 +17,10 @@ it.
   money is allowed where I live" (`paid-terms`). This is a declaration: nothing verifies the age or
   the country.
 - Not on a break (`paid-break`, below), not suspended.
-- Live tables only; the stake from a ladder of 1, 5, 10, 25, 50, 100 or 250 NURA, under the vault's
-  ceiling on a stake (1,000 NURA as deployed). The vault's fee, signed by every player for their own
-  game, is 5% of the pot as deployed.
+- Live tables only; the stake from a ladder of 1, 5, 10, 25, 50, 100, 250, 500, 1,000, 2,500,
+  5,000, 10,000, 25,000, 50,000, 100,000, 250,000, 500,000, 1,000,000, 2,500,000, 5,000,000 or
+  10,000,000 NURA, under both the vault's ceiling and the application's 10,000,000 NURA hard cap.
+  The vault's fee, signed by every player for their own game, is 5% of the pot as deployed.
 - **Offered in every region the server can be reached from.** Paid tables do not ask where a reader
   is. If counsel says they must be limited to some countries, that gate has to be built before real
   value.

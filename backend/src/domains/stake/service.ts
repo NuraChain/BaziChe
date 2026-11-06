@@ -18,7 +18,7 @@ import { inviterWalletOf } from '../invite/inviter.ts';
 import { audited, AUDIT_PAGE, nothing, RECENT, type AuditAsk, type Finding } from '../reconcile/audit.ts';
 import { escrowVerdict } from '../reconcile/verdicts.ts';
 import { gameOff, gameOn, lockTable, lockingAt, stillLocking, tableRefusal } from '../table/service.ts';
-import { CONSENT_MS, eligibilityOf, feeFor, onLadder, potOf, seatsOfMask, shareOf, STAKE_LADDER, weiOf, type BreakDays, type Eligibility, type EscrowState } from './policy.ts';
+import { CONSENT_MS, eligibilityOf, feeFor, MAX_STAKE_WEI, onLadder, potOf, seatsOfMask, shareOf, STAKE_LADDER, weiOf, type BreakDays, type Eligibility, type EscrowState } from './policy.ts';
 
 interface StandingRow
 {
@@ -293,7 +293,7 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
             throw unsigned();
         }
 
-        if (stake.amount > terms.maxStake)
+        if (stake.amount > terms.maxStake || stake.amount > MAX_STAKE_WEI)
         {
             throw notStake();
         }
@@ -895,7 +895,7 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
                 maxStake: terms.maxStake.toString(),
                 reclaimAfter: Number(terms.reclaimAfter),
                 paused: terms.paused,
-                ladder: STAKE_LADDER.filter((amount) => BigInt(amount) <= terms.maxStake),
+                ladder: STAKE_LADDER.filter((amount) => onLadder(amount, terms.maxStake)),
                 may: eligibilityOf(standing),
                 ...(standing.breakUntil === null ? {} : { breakUntil: standing.breakUntil.toISOString() }),
                 ...(held === null ? {} : { balances: held })

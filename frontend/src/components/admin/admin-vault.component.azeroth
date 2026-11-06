@@ -1,6 +1,7 @@
 import { createResource } from 'azerothjs';
 
 import { may } from '../../../../backend/src/domains/admin/roles.ts';
+import { MAX_STAKE_NURA, MAX_STAKE_WEI } from '../../../../backend/src/domains/stake/policy.ts';
 import { client, type WalletCall } from '../../api.ts';
 import type { GameId } from '../../data/games.ts';
 import { bpsOf, explorerTx, nuraOf, parseNura, typedNura } from '../../lib/nura.ts';
@@ -319,6 +320,12 @@ export default component AdminVault()
         if (wei === null)
         {
             ceilingTold = locale.t('vault.amountBad');
+            return;
+        }
+
+        if (wei > MAX_STAKE_WEI)
+        {
+            ceilingTold = locale.t('admin.vault.ceilingHigh', { amount: locale.n(MAX_STAKE_NURA) });
             return;
         }
 

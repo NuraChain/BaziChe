@@ -251,7 +251,7 @@ product is offered.
 | D4 | A 5% fee held by the contract, at most 10%, signed by every player for their game | 0, 2.5 or 10% |
 | D5 | Leaving, giving up or missing three turns loses the stake, as the game scores it | Refunding an early leaver |
 | D6 | Live tables only, every game, size and format | Turn-based tables, whose stakes would be locked for weeks |
-| D7 | A ladder of 1, 5, 10, 25, 50, 100 and 250 NURA; a ceiling of 1,000 at deploy | A stake typed in |
+| D7 | A ladder from 1 NURA up to 10,000,000 NURA; a ceiling of 1,000 at deploy | A stake typed in |
 | D8 | Wallet accounts only, never a minor, 18+ and the terms once, a break on request | |
 | D9 | One signature for every paid game, good for thirty minutes | One signature for several games |
 | D10 | Fair dice and cards at paid tables, checked by the contract and in the browser | Trusting the server's dice |

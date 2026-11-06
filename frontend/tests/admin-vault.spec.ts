@@ -289,6 +289,20 @@ describe('the vault, as its owner sees it', () =>
         expect(toasts()).toEqual(['success A seat can now stake up to 500 NURA.']);
     });
 
+    it('does not ask the wallet to set a ceiling above 10,000,000 NURA', async () =>
+    {
+        const container = await shown();
+
+        sending();
+        typeInto(container.querySelector<HTMLInputElement>('#admin-ceiling')!, '10000001');
+        await settle();
+        fire(button(container, 'Change the ceiling')!, 'click');
+        await settle();
+
+        expect(server.calls).not.toContain('admin.ceiling 10000001000000000000000000');
+        expect(said(container, '#admin-ceiling-error')).toBe('The maximum ceiling is 10,000,000 NURA.');
+    });
+
     it('takes out all of the fees the vault holds, and no more', async () =>
     {
         const container = await shown();

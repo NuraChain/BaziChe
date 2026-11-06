@@ -670,7 +670,7 @@ export const nuraState = (): VaultState => ({
     maxStake: '1000000000000000000000',
     reclaimAfter: 259_200,
     paused: false,
-    ladder: [...STAKE_LADDER],
+    ladder: STAKE_LADDER.filter((amount) => BigInt(amount) <= 1_000n * 10n ** 18n),
     may: 'yes',
     balances: {
         address: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',

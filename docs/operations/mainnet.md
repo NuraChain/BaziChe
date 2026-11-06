@@ -77,9 +77,10 @@ with it). So the one switch is the address itself:
   SmartContract project, and an adversarial read was made here; neither is an audit.
 - **The legal review** in `compliance.md`, for every region the product is opened to.
 - **The fees and limits** as the owner wants them, from the admin: the vault's fee (`setFee`, 1% to
-  15%, 5% at deploy) and its ceiling on a stake (`setMaxStake`, 1,000 NURA at deploy); the shop's
-  inviters' share (`setReferralBps`, up to 30%, 10% at deploy). Paid tables offer stakes from a
-  ladder in the code (1, 5, 10, 25, 50, 100 and 250 NURA).
+  15%, 5% at deploy) and its ceiling on a stake (`setMaxStake`, 1,000 NURA at deploy, with the
+  application capping each seat at 10,000,000 NURA); the shop's inviters' share (`setReferralBps`,
+  up to 30%, 10% at deploy). Paid tables offer stakes from 1 NURA up to 10,000,000 NURA on the
+  application's fixed ladder, subject to the vault's ceiling.
 - **A restore that was tested**: `docs/operations/rollout.md`.
 - **Somebody watching**: the alerts in `docs/operations/runbooks.md`, read from the log or from
   `GET /api/metrics`, reaching a person who can act on the money's alerts within minutes.

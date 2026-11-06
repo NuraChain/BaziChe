@@ -6,7 +6,7 @@ import type { Asked, Vault } from '../../chain/vault.ts';
 import { Escrow } from '../../entities/escrow.entity.ts';
 import type { AdminVault } from '../../schemas.ts';
 import { tableRefusal } from '../table/service.ts';
-import { ESCROW_STATES, MAX_FEE_BPS, MAX_SHARE_BPS, MIN_FEE_BPS, MIN_SHARE_BPS, weiOf, type EscrowState } from './policy.ts';
+import { ESCROW_STATES, MAX_FEE_BPS, MAX_SHARE_BPS, MAX_STAKE_WEI, MIN_FEE_BPS, MIN_SHARE_BPS, weiOf, type EscrowState } from './policy.ts';
 import { notAmount, notOpen, wireCall } from './service.ts';
 
 const GAME_GAS = 1_100_000n;
@@ -255,9 +255,16 @@ export function createVaultAdmin(db: DataSource, vault: Vault, catalogue: readon
             return answered(admin, await vault.refereeCall(admin, getAddress(address)));
         },
 
-        async ceiling(admin: Address, amount: string)
+        async ceiling(admin: Address, text: string)
         {
-            return answered(admin, await vault.ceilingCall(admin, amountOf(amount)));
+            const amount = amountOf(text);
+
+            if (amount > MAX_STAKE_WEI)
+            {
+                throw notAmount();
+            }
+
+            return answered(admin, await vault.ceilingCall(admin, amount));
         },
 
         async fees(admin: Address, amount: string)

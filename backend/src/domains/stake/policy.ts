@@ -1,6 +1,10 @@
 export const WEI_PER_NURA = 10n ** 18n;
 
-export const LADDER_NURA = [1, 5, 10, 25, 50, 100, 250] as const;
+export const MAX_STAKE_NURA = 10_000_000;
+
+export const MAX_STAKE_WEI = BigInt(MAX_STAKE_NURA) * WEI_PER_NURA;
+
+export const LADDER_NURA = [1, 5, 10, 25, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000, MAX_STAKE_NURA] as const;
 
 export const STAKE_LADDER: readonly string[] = LADDER_NURA.map((nura) => (BigInt(nura) * WEI_PER_NURA).toString());
 
@@ -70,7 +74,7 @@ export function weiOf(text: string)
 
 export function onLadder(amount: string, ceiling: bigint)
 {
-    return STAKE_LADDER.includes(amount) && BigInt(amount) <= ceiling;
+    return STAKE_LADDER.includes(amount) && BigInt(amount) <= ceiling && BigInt(amount) <= MAX_STAKE_WEI;
 }
 
 export function potOf(amount: bigint, seats: number)

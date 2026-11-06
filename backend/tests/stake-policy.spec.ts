@@ -5,6 +5,8 @@ import {
     CONSENT_MS,
     ELIGIBILITIES,
     LADDER_NURA,
+    MAX_STAKE_NURA,
+    MAX_STAKE_WEI,
     STAKE_LADDER,
     WEI_PER_NURA,
     cutOf,
@@ -67,8 +69,10 @@ describe('the stakes a table may be played for', () =>
 {
     it('are the ladder, in NURA, written in wei', () =>
     {
-        expect(LADDER_NURA).toEqual([1, 5, 10, 25, 50, 100, 250]);
+        expect(LADDER_NURA).toEqual([1, 5, 10, 25, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000, 10_000_000]);
         expect(STAKE_LADDER).toEqual(LADDER_NURA.map((nura) => `${ nura }000000000000000000`));
+        expect(MAX_STAKE_NURA).toBe(10_000_000);
+        expect(MAX_STAKE_WEI).toBe(10_000_000n * WEI_PER_NURA);
     });
 
     it('are only the ladder, and only up to the vault\'s ceiling', () =>
@@ -81,6 +85,8 @@ describe('the stakes a table may be played for', () =>
         expect(onLadder('2000000000000000000', fifty)).toBe(false);
         expect(onLadder('1000000000000000001', fifty)).toBe(false);
         expect(onLadder('01000000000000000000', fifty)).toBe(false);
+        expect(onLadder((MAX_STAKE_WEI + WEI_PER_NURA).toString(), MAX_STAKE_WEI * 2n)).toBe(false);
+        expect(onLadder(MAX_STAKE_WEI.toString(), MAX_STAKE_WEI * 2n)).toBe(true);
     });
 });
 

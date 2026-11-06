@@ -325,7 +325,7 @@ describe.skipIf(!active)('a player\'s NURA in the vault, against a real database
 
         it('offers the whole ladder under a ceiling above it, and none of it under one below the first rung', async () =>
         {
-            const { vault, set } = fakeVault({ maxStake: 1_000n * WEI_PER_NURA });
+            const { vault, set } = fakeVault({ maxStake: 20_000_000n * WEI_PER_NURA });
             const stakes = createStakeService(db, vault, idle);
             const me = await makeUser([DANA]);
 
@@ -334,6 +334,16 @@ describe.skipIf(!active)('a player\'s NURA in the vault, against a real database
             set({ maxStake: WEI_PER_NURA - 1n });
 
             expect(await stakes.state(me)).toMatchObject({ ladder: [] });
+        });
+
+        it('never offers rungs above the application stake limit, even if the contract ceiling is higher', async () =>
+        {
+            const { vault } = fakeVault({ maxStake: 20_000_000n * WEI_PER_NURA });
+            const stakes = createStakeService(db, vault, idle);
+            const me = await makeUser([DANA]);
+
+            expect(await stakes.state(me)).toMatchObject({ ladder: STAKE_LADDER, maxStake: (20_000_000n * WEI_PER_NURA).toString() });
+            expect(STAKE_LADDER.at(-1)).toBe((10_000_000n * WEI_PER_NURA).toString());
         });
 
         it('hands the wallet a deposit from the reader\'s own address, its value as a quantity', async () =>

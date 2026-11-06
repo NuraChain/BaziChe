@@ -10,6 +10,7 @@ export const STAFF_REFUSALS = {
     'staff-table-closed': 409,
     'staff-table-playing': 409,
     'staff-no-notice': 409,
+    'staff-season-running': 409,
     'staff-check-closed': 409,
     'staff-shop-one': 422,
     'staff-shop-sale': 409,

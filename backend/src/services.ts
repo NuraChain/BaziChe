@@ -55,6 +55,7 @@ import { createPeopleService } from './domains/admin/people.ts';
 import { createLiveService, type Call, type Online } from './domains/admin/live.ts';
 import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play.ts';
 import { createNoticeService } from './domains/admin/notice.ts';
+import { createSeasonService } from './domains/admin/seasons.ts';
 import { createShopAdmin } from './domains/admin/shop.ts';
 import { createInviteAdmin } from './domains/admin/invites.ts';
 import { createMarketsMoney } from './domains/admin/markets-money.ts';
@@ -1543,6 +1544,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const onlineNow = createLiveService(db, shownOwners);
 
     const notices = createNoticeService(db);
+    const seasons = createSeasonService(db);
 
     const shopAdmin = createShopAdmin(db);
 
@@ -2987,6 +2989,18 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 live?.catalogueChanged();
 
                 return standing;
+            },
+
+            async seasons(me)
+            {
+                return await ableTo(me, 'seasons') === null ? null : await seasons.read();
+            },
+
+            async startSeason(me, input)
+            {
+                const actor = await ableTo(me, 'seasons');
+
+                return actor === null ? null : await seasons.start(actor, input);
             },
 
             async shop(me)

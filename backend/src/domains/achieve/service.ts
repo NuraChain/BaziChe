@@ -7,6 +7,7 @@ import { measure, reached, rungId, scopeOf, type Family, type GlobalFacts, type 
 import { levelOf } from '../match/levels.ts';
 import { markOf, nftsOf, unlinked, type NftMark } from '../nft/read.ts';
 import { PROFILE_LOOKS, chosenIn, worn, type ProfileLooks } from '../shop/looks.ts';
+import { runningSeason } from '../admin/seasons.ts';
 
 interface Facts
 {
@@ -340,8 +341,11 @@ function page(game: string, window: LeaderboardWindow, rows: BoardRow[]): Leader
     };
 }
 
-/** What each window truncates to. `all` is not here, because it reads a different table entirely. */
-const SPANS: Record<Exclude<LeaderboardWindow, 'all'>, string> = {
+/**
+ * What each window truncates to. `all` is not here, because it reads a different table entirely,
+ * and nor is `season`, whose bounds are the running season's own rather than the calendar's.
+ */
+const SPANS: Record<Exclude<LeaderboardWindow, 'all' | 'season'>, string> = {
     today: 'day',
     month: 'month',
     year: 'year'
@@ -496,7 +500,22 @@ export function createAchieveService(db: DataSource)
              * board, and a pooled connection could in principle answer a different one from its
              * neighbour. Stated in UTC it is a documented limitation - somebody in Tehran sees a
              * board that turns over at UTC midnight - rather than an accident of configuration.
+             *
+             * A season is bounded by its own row instead, which Postgres wrote, so the comparison
+             * stays on one clock. Between seasons the board is empty rather than the last one's:
+             * the last one's standings are a finished season, and this window is the running one.
              */
+            const season = window === 'season' ? await runningSeason(db) : null;
+
+            if (window === 'season' && season === null)
+            {
+                return page(game, window, []);
+            }
+
+            const within = season === null
+                ? { where: `m.finished_at >= (date_trunc(:span, (now() at time zone 'utc')) at time zone 'utc')`, values: { span: SPANS[window as keyof typeof SPANS] } }
+                : { where: 'm.finished_at >= :from and m.finished_at < :until', values: { from: season.startedAt, until: season.endsAt } };
+
             const rows = await db.createQueryBuilder()
                 .select('board.*')
                 .from((inner) => inner
@@ -517,10 +536,7 @@ export function createAchieveService(db: DataSource)
                     .where('m.game = :game', { game })
                     .andWhere('m.finished_at is not null')
                     .andWhere(COUNTED)
-                    .andWhere(
-                        `m.finished_at >= (date_trunc(:span, (now() at time zone 'utc')) at time zone 'utc')`,
-                        { span: SPANS[window] }
-                    )
+                    .andWhere(within.where, within.values)
                     .groupBy('u.id')
                     .having('sum(p.xp) > 0'),
                 'board')
@@ -529,7 +545,11 @@ export function createAchieveService(db: DataSource)
                 .limit(BOARD_SIZE + 1)
                 .getRawMany<BoardRow>();
 
-            return page(game, window, rows);
+            const board = page(game, window, rows);
+
+            return season === null
+                ? board
+                : { ...board, season: { number: season.number, name: season.name, startedAt: season.startedAt.toISOString(), endsAt: season.endsAt.toISOString() } };
         },
 
         async recordOf(handle: string): Promise<PersonRecord | null>

@@ -27,7 +27,7 @@ export const GRANTED_ROLES = ['moderator', 'admin', 'co-owner'] as const;
 
 export type GrantedRole = (typeof GRANTED_ROLES)[number];
 
-export const ACTION_KINDS = ['grant', 'change', 'revoke', 'note', 'suspend', 'lift', 'expire', 'clear', 'sign-out', 'report', 'game', 'void', 'close', 'minor', 'notice', 'check', 'shop-item', 'shop-feature', 'shop-grant', 'shop-revoke', 'shop-refund', 'invite-campaign', 'invite-reward', 'minter-grant', 'minter-revoke'] as const;
+export const ACTION_KINDS = ['grant', 'change', 'revoke', 'note', 'suspend', 'lift', 'expire', 'clear', 'sign-out', 'report', 'game', 'void', 'close', 'minor', 'notice', 'check', 'shop-item', 'shop-feature', 'shop-grant', 'shop-revoke', 'shop-refund', 'invite-campaign', 'invite-reward', 'minter-grant', 'minter-revoke', 'season'] as const;
 
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
@@ -143,6 +143,7 @@ export const ABILITIES = {
     shop: 'admin',
     invites: 'admin',
     notice: 'admin',
+    seasons: 'admin',
     money: 'admin',
     staff: 'admin',
     log: 'admin',
@@ -159,3 +160,17 @@ const rankOf = (role: StaffRole | null) => (role === null ? -1 : STAFF_ROLES.ind
 export const may = (role: StaffRole | null, ability: Ability) => rankOf(role) >= rankOf(ABILITIES[ability]);
 
 export const outranks = (actor: StaffRole | null, other: StaffRole | null) => actor !== null && rankOf(actor) > rankOf(other);
+
+/** How long a season runs, from the moment the staff start it. */
+export const SEASON_DAYS = 45;
+
+/** Where every rating begins, and where a new season pulls them back toward. */
+export const RATING_HOME = 1200;
+
+/**
+ * How much of the distance from `RATING_HOME` a rating keeps when a season starts: half. A 1800
+ * becomes 1500 and an 1000 becomes 1100, so the order of the board survives and its spread shrinks.
+ */
+export const SEASON_KEEPS = 0.5;
+
+export const SEASON_NAME_MOST = 60;

@@ -725,5 +725,11 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'voice.line.lost': '丢包 {share}',
     'voice.line.rate': '{kbps} kbps',
     'voice.line.measuring': '正在测量线路…',
-    'voice.privacy': '通话开始时经由本服务器，它通过每位玩家的安全连接转发声音，不保存任何内容。一旦两位玩家的连接能直接互通，他们的声音就改为在彼此之间直接传输，由浏览器加密；如果直连断开，再回到经由服务器。'
+    'voice.privacy': '通话开始时经由本服务器，它通过每位玩家的安全连接转发声音，不保存任何内容。一旦两位玩家的连接能直接互通，他们的声音就改为在彼此之间直接传输，由浏览器加密；如果直连断开，再回到经由服务器。',
+
+    'board.season': '赛季',
+    'board.seasonNumber': '第 {number} 赛季',
+    'board.seasonNamed': '第 {number} 赛季：{name}',
+    'board.seasonLeft': { other: '剩余 {count} 天' },
+    'board.seasonNone': '当前没有进行中的赛季。下个赛季开始时排行榜将开放。'
 };

@@ -246,6 +246,25 @@ describe('the leaderboard page', () =>
             expect(router.location().fullPath).toBe('/app/leaderboard?game=hokm');
         });
 
+        it('names the running season on its board, and how many days it has left', async () =>
+        {
+            server.boardSeason = { number: 3, name: 'Nowruz', startedAt: new Date(0).toISOString(), endsAt: new Date(5000 + (10 * 86_400_000)).toISOString() };
+
+            const { container } = await at('/app/leaderboard?game=ludo&window=season');
+
+            expect(server.boardsAsked).toEqual(['ludo season']);
+            expect(container.querySelector('[data-season]')?.textContent).toContain('Season 3: Nowruz');
+            expect(container.querySelector('[data-season]')?.textContent).toContain('10 days left');
+        });
+
+        it('says no season is running between seasons, rather than showing an empty board', async () =>
+        {
+            const { container } = await at('/app/leaderboard?game=ludo&window=season');
+
+            expect(container.querySelector('[data-season]')).toBeNull();
+            expect(container.textContent).toContain(useLocale().t('board.seasonNone'));
+        });
+
         it('shows the first game and a month for words it does not have', async () =>
         {
             const { container } = await at('/app/leaderboard?game=chess&window=decade');

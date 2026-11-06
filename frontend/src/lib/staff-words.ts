@@ -258,6 +258,13 @@ const said = (row: LogRow, locale: LocaleApi) =>
         return locale.t(CAMPAIGN_LINES[row.details.to ?? ''] ?? 'admin.log.line.invite.changed', { ...slots, campaign: row.details.name ?? '' });
     }
 
+    if (row.kind === 'season')
+    {
+        const name = row.details.name ?? '';
+
+        return locale.t(name === '' ? 'admin.log.line.season' : 'admin.log.line.seasonNamed', { ...slots, number: row.details.number ?? '', name });
+    }
+
     if (row.kind === 'invite-reward')
     {
         return locale.t(REWARD_LINES[row.details.to ?? ''] ?? 'admin.log.line.invite.given', { ...slots, look: itemName(row.details.item ?? '', locale) });

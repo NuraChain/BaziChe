@@ -64,6 +64,7 @@ import { RecoveryNonce } from './recovery-nonce.entity.ts';
 import { RecoveryVault } from './recovery-vault.entity.ts';
 import { Referral } from './referral.entity.ts';
 import { Report } from './report.entity.ts';
+import { Season } from './season.entity.ts';
 import { Session } from './session.entity.ts';
 import { ShopCollection } from './shop-collection.entity.ts';
 import { ShopItem } from './shop-item.entity.ts';
@@ -85,7 +86,7 @@ export {
     EpochArchive, FriendRequest, Friendship,
     Game, GameRule, Group, GroupBan, GroupEvent, GroupInvite, GroupMember, GroupMute, GroupReport, GroupRequest, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, MinterChange, Mute,
     NftToken, Notice, Notification, OwnedItem, PaidAccount, PlayerStats, ProfileSponsorship, PushSubscription,
-    QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, Session, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
+    QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, Season, Session, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
     UserAchievement, VoiceNote, VoicePlay, Wallet
 };
 
@@ -112,7 +113,7 @@ export const entities: Function[] = [
     Match, MatchPlayer, MatchAction, PlayerStats, UserAchievement,
     Notification, PushSubscription,
     PaidAccount, TableStake, StakeConsent, Escrow, EscrowSeat,
-    StaffMember, StaffAction, Suspension, Notice,
+    StaffMember, StaffAction, Suspension, Notice, Season,
     ShopItem, ShopCollection, ShopOrder, OwnedItem, EquippedItem, NftToken, MinterChange,
     Donation, DonationsOff,
     Market, MarketPosition, MarketDisclosure,

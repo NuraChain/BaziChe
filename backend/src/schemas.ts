@@ -1,5 +1,5 @@
 import { array, boolean, enumOf, literal, number, object, record, string as text, union, type Infer, type StringOptions } from '@azerothjs/schema';
-import { ACTION_KINDS, CLEAR_PARTS, GRANTED_ROLES, MATCH_LISTS, MINTER_CONTRACT_STATES, MINTER_OPERATIONS, MINTER_STATES, NOTICE_HOURS, NOTICE_MAX, PEOPLE_LISTS, REPORT_LISTS, REPORT_OUTCOMES, REPORT_STATUSES, SALE_HOURS, STAFF_ROLES, STUCK_KINDS, SUSPEND_CATEGORIES, SUSPEND_DAYS, CAMPAIGN_MOST, CAMPAIGN_MOVES, MILESTONE_MOST, MILESTONES_MOST, REWARD_LISTS, REWARD_MOVES } from './domains/admin/roles.ts';
+import { ACTION_KINDS, CLEAR_PARTS, GRANTED_ROLES, MATCH_LISTS, MINTER_CONTRACT_STATES, MINTER_OPERATIONS, MINTER_STATES, NOTICE_HOURS, NOTICE_MAX, PEOPLE_LISTS, REPORT_LISTS, REPORT_OUTCOMES, REPORT_STATUSES, SALE_HOURS, STAFF_ROLES, STUCK_KINDS, SUSPEND_CATEGORIES, SUSPEND_DAYS, CAMPAIGN_MOST, CAMPAIGN_MOVES, MILESTONE_MOST, MILESTONES_MOST, REWARD_LISTS, REWARD_MOVES, SEASON_NAME_MOST } from './domains/admin/roles.ts';
 import { RARITY_IDS } from './domains/achieve/rarity.ts';
 import { PARTY_ENDS, PARTY_STAGES } from './domains/party/rules.ts';
 import { CALL_ENDINGS, CALL_KINDS, CALL_STATES } from './domains/call/rules.ts';
@@ -1502,7 +1502,7 @@ export const standing = object({
  */
 export type Standing = Infer<typeof standing>;
 
-export const leaderboardWindow = enumOf(['today', 'month', 'year', 'all']);
+export const leaderboardWindow = enumOf(['today', 'month', 'year', 'all', 'season']);
 
 export type LeaderboardWindow = Infer<typeof leaderboardWindow>;
 
@@ -1536,7 +1536,10 @@ export const leaderboard = object({
     standings: array(standing),
 
     /** Absent when this is the last page, exactly as the history cursor is. */
-    cursor: number().optional()
+    cursor: number().optional(),
+
+    /** On the `season` window, the season it ranks; absent between seasons, when that board is empty. */
+    season: object({ number: number(), name: string(), startedAt: string(), endsAt: string() }).optional()
 });
 
 export type Leaderboard = Infer<typeof leaderboard>;
@@ -2130,6 +2133,29 @@ export const adminNoticeInput = object({
 });
 
 export const adminNoticeEnd = object({ id: string({ max: 36 }), reason: said() });
+
+/** One season as the staff read it: its number, name and window, who started it and how many ratings it pulled back. */
+export const seasonView = object({
+    number: number(),
+    name: string(),
+    startedAt: string(),
+    endsAt: string(),
+    ratingsReset: number(),
+    by: string().optional()
+});
+
+export type SeasonView = Infer<typeof seasonView>;
+
+/** Every season, newest first, with the running one beside them when there is one, and how long one lasts. */
+export const adminSeasons = object({
+    days: number(),
+    current: seasonView.optional(),
+    seasons: array(seasonView)
+});
+
+export type AdminSeasons = Infer<typeof adminSeasons>;
+
+export const adminSeasonStart = object({ name: string({ trim: true, max: SEASON_NAME_MOST }), reason: said() });
 
 /**
  * The two switches an account controls, and the one it does not.

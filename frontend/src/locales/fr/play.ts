@@ -725,5 +725,11 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'voice.line.lost': 'Perdu {share}',
     'voice.line.rate': '{kbps} kbit/s',
     'voice.line.measuring': 'Mesure de la ligne…',
-    'voice.privacy': 'Un appel commence via ce serveur, qui transmet le son sur la connexion sécurisée de chaque joueur et n’en garde rien. Dès que les connexions de deux joueurs peuvent se joindre, leur son passe directement entre eux, chiffré par le navigateur, et repasse par le serveur si ce lien tombe.'
+    'voice.privacy': 'Un appel commence via ce serveur, qui transmet le son sur la connexion sécurisée de chaque joueur et n’en garde rien. Dès que les connexions de deux joueurs peuvent se joindre, leur son passe directement entre eux, chiffré par le navigateur, et repasse par le serveur si ce lien tombe.',
+
+    'board.season': 'Saison',
+    'board.seasonNumber': 'Saison {number}',
+    'board.seasonNamed': 'Saison {number} : {name}',
+    'board.seasonLeft': { one: '1 jour restant', other: '{count} jours restants' },
+    'board.seasonNone': 'Aucune saison n’est en cours. Le classement s’ouvrira au début de la prochaine.'
 };

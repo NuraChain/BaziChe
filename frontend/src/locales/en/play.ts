@@ -722,5 +722,11 @@ export const play = {
     'voice.line.lost': 'Lost {share}',
     'voice.line.rate': '{kbps} kbps',
     'voice.line.measuring': 'Measuring the line…',
-    'voice.privacy': 'A call starts through this server, which passes the sound on over each player’s secure connection and keeps none of it. As soon as two players’ connections reach each other, their sound goes straight between them instead, encrypted by the browser, and back through the server if that link drops.'
+    'voice.privacy': 'A call starts through this server, which passes the sound on over each player’s secure connection and keeps none of it. As soon as two players’ connections reach each other, their sound goes straight between them instead, encrypted by the browser, and back through the server if that link drops.',
+
+    'board.season': 'Season',
+    'board.seasonNumber': 'Season {number}',
+    'board.seasonNamed': 'Season {number}: {name}',
+    'board.seasonLeft': { one: '1 day left', other: '{count} days left' },
+    'board.seasonNone': 'No season is running right now. The board opens when the next one starts.'
 };

@@ -1,0 +1,229 @@
+import { Link, createResource, useHead } from 'azerothjs';
+
+import { SEASON_NAME_MOST } from '../../../../backend/src/domains/admin/roles.ts';
+import type { SeasonView } from '../../../../backend/src/schemas.ts';
+import { client } from '../../api.ts';
+import AdminEmpty from '../../components/admin/admin-empty.component.azeroth';
+import AdminHead from '../../components/admin/admin-head.component.azeroth';
+import When from '../../components/admin/when.component.azeroth';
+import ConfirmSheet from '../../components/app/confirm-sheet.component.azeroth';
+import Badge from '../../components/ui/badge.component.azeroth';
+import Button from '../../components/ui/button.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
+import Field from '../../components/ui/field.component.azeroth';
+import Input from '../../components/ui/input.component.azeroth';
+import Panel from '../../components/ui/panel.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
+import TextArea from '../../components/ui/text-area.component.azeroth';
+import { ROW_LINK } from '../../components/ui/variants.ts';
+import { attempt } from '../../lib/attempt.ts';
+import { focusFirstInvalid } from '../../lib/form.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { whyStaffRefused } from '../../lib/staff-words.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+
+const REASON_MIN = 3;
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Seasons: forty-five days each, started here by hand.
+ *
+ * Starting one cannot be taken back - every rating moves halfway home in the same moment - so the
+ * button asks first and says so, and it is not offered at all while a season runs. Between seasons
+ * nothing runs, which is the state this page is most often in, and it says that plainly too.
+ */
+export default component SeasonsPage()
+{
+    const locale = useLocale();
+    const overlay = useOverlay();
+
+    useHead({ title: () => locale.t('admin.section.seasons') });
+
+    const read = createResource(() => client.admin.seasons(), { name: 'admin.seasons' });
+
+    state name = '';
+
+    state why = '';
+
+    state whyTold = null as string | null;
+
+    state starting = false;
+
+    let form: HTMLElement | null = null;
+
+    derived held = read.data() ?? null;
+
+    derived trouble = read.error();
+
+    derived waiting = held === null && trouble === null;
+
+    derived failed = held === null && trouble !== null;
+
+    derived known = held !== null;
+
+    derived days = held?.days ?? 45;
+
+    derived current = held?.current ?? null;
+
+    derived running = current !== null;
+
+    derived idle = known && current === null;
+
+    derived past = (held?.seasons ?? []).filter((one) => one.number !== current?.number);
+
+    derived hasPast = past.length > 0;
+
+    derived nextNumber = (held?.seasons[0]?.number ?? 0) + 1;
+
+    derived left = current === null ? 0 : Math.max(0, Math.ceil((Date.parse(current.endsAt) - runtime().clock.now()) / DAY_MS));
+
+    derived gone = current === null ? 0 : Math.min(100, Math.round(((days - left) / days) * 100));
+
+    const titleOf = (season: SeasonView) => season.name === ''
+        ? locale.t('admin.seasons.numbered', { number: locale.n(season.number) })
+        : locale.t('admin.seasons.named', { number: locale.n(season.number), name: season.name });
+
+    const start = async () =>
+    {
+        const reason = why.trim();
+
+        whyTold = reason.length < REASON_MIN ? locale.t('admin.staff.reasonShort') : null;
+
+        if (whyTold !== null)
+        {
+            focusFirstInvalid(form);
+            return;
+        }
+
+        const yes = await overlay.open(
+            ConfirmSheet,
+            {
+                title: locale.t('admin.seasons.ask', { number: locale.n(nextNumber) }),
+                lead: locale.t('admin.seasons.askLead', { days: locale.n(days) }),
+                confirm: locale.t('admin.seasons.confirm')
+            },
+            { label: locale.t('admin.section.seasons') }
+        ).closed;
+
+        if (yes !== true)
+        {
+            return;
+        }
+
+        starting = true;
+
+        const sent = client.admin.startSeason({ input: { name: name.trim(), reason } }).then(() => read.refetch());
+
+        if (await attempt(sent, locale.t('admin.seasons.done'), whyStaffRefused))
+        {
+            name = '';
+            why = '';
+        }
+        else
+        {
+            void read.refetch();
+        }
+
+        starting = false;
+    };
+
+    <div class="flex flex-col gap-6 @container">
+        <AdminHead title={ locale.t('admin.section.seasons') } lead={ locale.t('admin.seasons.lead', { days: locale.n(days) }) } how={ locale.t('admin.seasons.how') } />
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 3 } /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState error={ trouble } title={ locale.t('admin.seasons.failed') } onRetry={ () => void read.refetch() } /> }
+        </Show>
+
+        <div class="grid items-start gap-6 @4xl:grid-cols-2" data-split>
+            <div class="flex min-w-0 flex-col gap-4">
+                <Show when={ current } let={ season }>
+                    <Panel pad="md" stack="md" labelledBy="admin-season-now">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h2 id="admin-season-now" class="text-ui-md font-semibold text-text" dir="auto">{ titleOf(season) }</h2>
+                            <Badge dot text={ locale.t('admin.seasons.live') } tone="live" />
+                        </div>
+                        <div class="flex flex-col gap-1.5" data-progress>
+                            <div class="h-2 overflow-hidden rounded-full bg-raised" role="progressbar" aria-valuemin={ 0 } aria-valuemax={ 100 } aria-valuenow={ gone } aria-label={ locale.t('admin.seasons.progress') }>
+                                <div class="h-full rounded-full bg-accent" style={ `width: ${ gone }%` }></div>
+                            </div>
+                            <p class="text-ui-sm text-muted">{ locale.plural('admin.seasons.left', left) }</p>
+                        </div>
+                        <p class="facts text-ui-xs text-faint" data-facts>
+                            <span><span>{ locale.t('admin.seasons.started') }</span> <When at={ season.startedAt } /></span>
+                            <span><span>{ locale.t('admin.seasons.ends') }</span> <When at={ season.endsAt } /></span>
+                            <span>{ locale.plural('admin.seasons.reset', season.ratingsReset) }</span>
+                            <span hidden={ season.by === undefined }><span>{ locale.t('admin.seasons.by') }</span> <bdi class="font-semibold text-muted" dir="ltr">{ season.by ?? '' }</bdi></span>
+                        </p>
+                    </Panel>
+                </Show>
+
+                <Show when={ idle }>
+                    { () => <AdminEmpty icon="trophy" title={ locale.t('admin.seasons.none') } lead={ locale.t('admin.seasons.noneLead') } /> }
+                </Show>
+
+                <Show when={ hasPast }>
+                    { () =>
+                        <Panel pad="none" labelledBy="admin-season-past">
+                            <h2 id="admin-season-past" class="px-4 pt-4 text-ui-md font-semibold text-text">{ locale.t('admin.seasons.past') }</h2>
+                            <ul class="flex flex-col divide-y divide-line" data-past>
+                                <For each={ past } key={ (one) => String(one.number) } let={ one }>
+                                    <li class="flex flex-col gap-0.5 px-4 py-3">
+                                        <span class="text-ui-sm font-semibold text-text" dir="auto">{ titleOf(one) }</span>
+                                        <span class="facts text-ui-xs text-faint">
+                                            <When at={ one.startedAt } />
+                                            <span>{ locale.t('admin.seasons.until') } <When at={ one.endsAt } /></span>
+                                            <span>{ locale.plural('admin.seasons.reset', one.ratingsReset) }</span>
+                                        </span>
+                                    </li>
+                                </For>
+                            </ul>
+                        </Panel>
+                    }
+                </Show>
+
+                <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui-sm text-muted">
+                    <span>{ locale.t('admin.seasons.history') }</span>
+                    <Link to="/admin/log?kind=season" class={ ROW_LINK } data-history>{ locale.t('admin.seasons.historyLink') }</Link>
+                </p>
+            </div>
+
+            <Show when={ known }>
+                <div ref={ (element) => form = element } class="@4xl:sticky @4xl:top-8" data-form>
+                    <Panel pad="md" stack="md" labelledBy="admin-season-new">
+                        <div class="flex flex-col gap-1">
+                            <h2 id="admin-season-new" class="text-ui-md font-semibold text-text">{ locale.t('admin.seasons.form', { number: locale.n(nextNumber) }) }</h2>
+                            <p class="text-ui-sm text-muted">{ running ? locale.t('admin.seasons.formRunning') : locale.t('admin.seasons.formLead', { days: locale.n(days) }) }</p>
+                        </div>
+                        <Field id="admin-season-name" label={ locale.t('admin.seasons.name') } hint={ locale.t('admin.seasons.nameHint') } optional>
+                            <Input id="admin-season-name" value={ name } maxlength={ SEASON_NAME_MOST } disabled={ running } onInput={ (value) => name = value } />
+                        </Field>
+                        <Field id="admin-season-why" label={ locale.t('admin.staff.reason') } hint={ locale.t('admin.staff.reasonHint') } error={ whyTold }>
+                            <TextArea
+                                id="admin-season-why"
+                                value={ why }
+                                maxlength={ 500 }
+                                disabled={ running }
+                                invalid={ whyTold !== null }
+                                describedBy={ whyTold !== null ? 'admin-season-why-error' : 'admin-season-why-hint' }
+                                onInput={ (value) =>
+                                {
+                                    why = value;
+                                    whyTold = null;
+                                } }
+                            />
+                        </Field>
+                        <Button variant="primary" leading="trophy" class="self-start" disabled={ running } loading={ starting } onClick={ () => void start() }>
+                            { locale.t('admin.seasons.start') }
+                        </Button>
+                    </Panel>
+                </div>
+            </Show>
+        </div>
+    </div>
+}

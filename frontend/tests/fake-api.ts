@@ -1496,6 +1496,9 @@ export const server =
 
     /** A game's leaderboard. Empty by default, which is what a game nobody has played looks like. */
     standings: [] as Standing[],
+
+    /** The season a `season` board ranks, or null between seasons. */
+    boardSeason: null as { number: number; name: string; startedAt: string; endsAt: string } | null,
     boardsAsked: [] as string[],
     history: [] as MatchHistoryEntry[],
 
@@ -1797,6 +1800,7 @@ export const server =
         server.progress = { xp: 0, level: 1, into: 0, span: 100 };
         server.ladders = {};
         server.standings = [];
+        server.boardSeason = null;
         server.boardsAsked = [];
         server.history = [];
         server.groups = GROUP_FIXTURES.map((group) => ({
@@ -3864,7 +3868,9 @@ export const client =
         {
             server.calls.push('catalogue.leaderboard');
             server.boardsAsked.push(`${ input.params.game } ${ input.query?.window ?? '' }`);
-            return { game: input.params.game, standings: server.standings.map((row) => ({ ...row })) };
+            const season = input.query?.window === 'season' ? server.boardSeason : null;
+
+            return { game: input.params.game, standings: server.standings.map((row) => ({ ...row })), ...(season === null ? {} : { season: { ...season } }) };
         }
     },
 

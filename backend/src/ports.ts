@@ -18,6 +18,7 @@ import type {
     AdminMatches,
     AdminLive,
     AdminNotice,
+    AdminSeasons,
     AdminOverview,
     AdminPlay,
     AdminShop,
@@ -111,7 +112,7 @@ import type {
     StaffLog
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
-import type { adminMinterInput, adminMinterSentInput, adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
+import type { adminMinterInput, adminMinterSentInput, adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminSeasonStart, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
 import type { ShopSlot } from './domains/shop/catalogue.ts';
 import type { QuickAsk } from './domains/table/quick.ts';
@@ -1003,6 +1004,11 @@ export interface AdminPort
     putNotice(me: string, input: Infer<typeof adminNoticeInput>): Promise<AdminNotice | null>;
 
     endNotice(me: string, input: Infer<typeof adminNoticeEnd>): Promise<AdminNotice | null>;
+
+    seasons(me: string): Promise<AdminSeasons | null>;
+
+    /** Starts the next 45-day season and pulls every rating halfway home; refused while one runs. */
+    startSeason(me: string, input: Infer<typeof adminSeasonStart>): Promise<AdminSeasons | null>;
 
     shop(me: string): Promise<AdminShop | null>;
 

@@ -725,5 +725,11 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'voice.line.lost': 'Kayıp {share}',
     'voice.line.rate': '{kbps} kbps',
     'voice.line.measuring': 'Hat ölçülüyor…',
-    'voice.privacy': 'Bir görüşme bu sunucu üzerinden başlar; sunucu sesi her oyuncunun güvenli bağlantısı üzerinden iletir ve hiçbirini saklamaz. İki oyuncunun bağlantısı birbirine ulaşır ulaşmaz sesleri doğrudan aralarında, tarayıcı tarafından şifrelenerek gider; bu bağlantı koparsa yeniden sunucu üzerinden geçer.'
+    'voice.privacy': 'Bir görüşme bu sunucu üzerinden başlar; sunucu sesi her oyuncunun güvenli bağlantısı üzerinden iletir ve hiçbirini saklamaz. İki oyuncunun bağlantısı birbirine ulaşır ulaşmaz sesleri doğrudan aralarında, tarayıcı tarafından şifrelenerek gider; bu bağlantı koparsa yeniden sunucu üzerinden geçer.',
+
+    'board.season': 'Sezon',
+    'board.seasonNumber': 'Sezon {number}',
+    'board.seasonNamed': 'Sezon {number}: {name}',
+    'board.seasonLeft': { one: '1 gün kaldı', other: '{count} gün kaldı' },
+    'board.seasonNone': 'Şu an süren bir sezon yok. Tablo bir sonraki başladığında açılır.'
 };

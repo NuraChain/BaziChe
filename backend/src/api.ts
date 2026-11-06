@@ -105,6 +105,8 @@ import {
     adminChecks,
     adminChecksQuery,
     adminNotice,
+    adminSeasons,
+    adminSeasonStart,
     adminNoticeEnd,
     adminNoticeInput,
     adminLive,
@@ -740,6 +742,12 @@ export function buildApi(ports: Ports)
 
             endNotice: routes.post('/notice/end', { input: adminNoticeEnd, output: adminNotice },
                 async (context) => onlyAdmin(await ports.admin.endNotice(context.principal.userId, context.input))),
+
+            seasons: routes.get('/seasons', { output: adminSeasons },
+                async (context) => onlyAdmin(await ports.admin.seasons(context.principal.userId))),
+
+            startSeason: routes.post('/seasons', { input: adminSeasonStart, output: adminSeasons },
+                async (context) => onlyAdmin(await ports.admin.startSeason(context.principal.userId, context.input))),
 
             shop: routes.get('/shop', { output: adminShop },
                 async (context) => onlyAdmin(await ports.admin.shop(context.principal.userId))),

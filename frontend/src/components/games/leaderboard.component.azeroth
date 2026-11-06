@@ -11,13 +11,15 @@ import type { Standing } from '../../api.ts';
 import { client } from '../../api.ts';
 import { plateOf } from '../../game/looks/plates.ts';
 import { useAddress } from '../../lib/page-param.ts';
+import { runtime } from '../../lib/runtime.ts';
 import { aboutPerson } from '../../lib/person-menu.ts';
 import { useAccount } from '../../stores/account.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { GameId } from '../../data/games.ts';
 import type { LeaderboardWindow } from '../../api.ts';
 
-const WINDOWS: { id: LeaderboardWindow; key: 'board.today' | 'board.month' | 'board.year' | 'board.all' }[] = [
+const WINDOWS: { id: LeaderboardWindow; key: 'board.season' | 'board.today' | 'board.month' | 'board.year' | 'board.all' }[] = [
+    { id: 'season', key: 'board.season' },
     { id: 'today', key: 'board.today' },
     { id: 'month', key: 'board.month' },
     { id: 'year', key: 'board.year' },
@@ -104,7 +106,17 @@ export default component Leaderboard(props: { game: GameId; titled?: boolean; se
 
     derived ranked = standings.length > 0;
 
-    derived empty = locale.t(showing === 'all' ? 'board.empty' : 'board.emptyWindow');
+    derived season = showing === 'season' ? board.data()?.season ?? null : null;
+
+    derived betweenSeasons = showing === 'season' && board.data() !== undefined && season === null;
+
+    derived seasonLeft = season === null ? 0 : Math.max(0, Math.ceil((Date.parse(season.endsAt) - runtime().clock.now()) / 86_400_000));
+
+    derived seasonTitle = season === null
+        ? ''
+        : season.name === '' ? locale.t('board.seasonNumber', { number: locale.n(season.number) }) : locale.t('board.seasonNamed', { number: locale.n(season.number), name: season.name });
+
+    derived empty = locale.t(betweenSeasons ? 'board.seasonNone' : showing === 'all' ? 'board.empty' : 'board.emptyWindow');
 
     const nameOf = (row: { handle: string; person: { displayName: string } }) =>
         row.person.displayName === '' ? row.handle : locale.text(row.person.displayName);
@@ -123,6 +135,15 @@ export default component Leaderboard(props: { game: GameId; titled?: boolean; se
                 onChange={ (id) => address.write({ window: id === 'month' ? '' : id }) }
             />
         </div>
+
+        <Show when={ season !== null }>
+            { () =>
+                <p class="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-tile bg-accent/10 px-3 py-2 text-ui-sm" data-season>
+                    <span class="font-semibold text-text" dir="auto">{ seasonTitle }</span>
+                    <span class="text-ui-xs text-muted">{ locale.plural('board.seasonLeft', seasonLeft) }</span>
+                </p>
+            }
+        </Show>
 
         <Show when={ waiting }>
             { () => <Skeleton class="h-32 w-full rounded-panel" /> }

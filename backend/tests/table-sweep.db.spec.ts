@@ -23,7 +23,7 @@ const ROUNDS = 10;
 
 const EVERY_CHAIR = 500;
 
-const NOTHING_DONE = { stoodUp: 0, closed: 0, failed: [] };
+const NOTHING_DONE = { stoodUp: 0, closed: 0, idle: 0, failed: [] };
 
 interface Hands
 {
@@ -319,7 +319,7 @@ describe.skipIf(!active)('a waiting chair whose occupant is not here, against a 
             expect(await chairOf(guest, tableId)).toMatchObject({ seat: 1, ready: true });
             expect(await inThread(guest, tableId)).toBe(true);
 
-            expect(await jobs.sweepTables()).toEqual({ stoodUp: 1, closed: 0, failed: [] });
+            expect(await jobs.sweepTables()).toEqual({ stoodUp: 1, closed: 0, idle: 0, failed: [] });
             expect(await db.getRepository(TableSeat).findOneByOrFail({ tableId, seat: 1 })).toMatchObject({ userId: null, ready: false, joinedAt: null });
             expect(await inThread(guest, tableId)).toBe(false);
             expect(await sitting(tableId)).toEqual([host]);
@@ -357,7 +357,7 @@ describe.skipIf(!active)('a waiting chair whose occupant is not here, against a 
             expect(await jobs.sweepTables()).toEqual(NOTHING_DONE);
             expect((await identity.principal(hosting))?.userId).toBe(host);
             clock.at += SEEN_MS - 1;
-            expect(await jobs.sweepTables(), 'the guest stopped asking two sweeps ago').toEqual({ stoodUp: 1, closed: 0, failed: [] });
+            expect(await jobs.sweepTables(), 'the guest stopped asking two sweeps ago').toEqual({ stoodUp: 1, closed: 0, idle: 0, failed: [] });
             expect(await sitting(tableId)).toEqual([host]);
         });
 
@@ -394,7 +394,7 @@ describe.skipIf(!active)('a waiting chair whose occupant is not here, against a 
             [alone, host, friend].forEach((who) => away.add(who));
             await jobs.sweepTables();
 
-            expect(await jobs.sweepTables()).toEqual({ stoodUp: 3, closed: 2, failed: [] });
+            expect(await jobs.sweepTables()).toEqual({ stoodUp: 3, closed: 2, idle: 0, failed: [] });
 
             for (const tableId of [empty, theirs])
             {
@@ -451,7 +451,7 @@ describe.skipIf(!active)('a waiting chair whose occupant is not here, against a 
 
             await jobs.sweepTables();
 
-            expect(await jobs.sweepTables()).toEqual({ stoodUp: 2, closed: 2, failed: [] });
+            expect(await jobs.sweepTables()).toEqual({ stoodUp: 2, closed: 2, idle: 0, failed: [] });
             expect(await jobs.sweepTables()).toEqual(NOTHING_DONE);
 
             for (const [who, tableId] of kept)
@@ -495,7 +495,7 @@ describe.skipIf(!active)('a waiting chair whose occupant is not here, against a 
 
             expect(await live(tableId)).toBe(0);
             expect(await jobs.sweepTables()).toEqual(NOTHING_DONE);
-            expect(await jobs.sweepTables()).toEqual({ stoodUp: 2, closed: 1, failed: [] });
+            expect(await jobs.sweepTables()).toEqual({ stoodUp: 2, closed: 1, idle: 0, failed: [] });
             expect(await sitting(tableId)).toEqual([]);
             expect(await results()).toEqual(recorded);
             expect(await db.getRepository(MatchAction).countBy({ matchId: match.id, kind: 'forfeit' })).toBe(1);
@@ -593,7 +593,7 @@ describe.skipIf(!active)('a waiting chair whose occupant is not here, against a 
             away.add(guest);
 
             expect(await jobs.sweepTables()).toEqual(NOTHING_DONE);
-            expect(await jobs.sweepTables()).toEqual({ stoodUp: 1, closed: 0, failed: [] });
+            expect(await jobs.sweepTables()).toEqual({ stoodUp: 1, closed: 0, idle: 0, failed: [] });
             expect(await chairOf(guest, tableId)).toBeNull();
         }, 30_000);
     });
@@ -652,7 +652,7 @@ describe.skipIf(!active)('a waiting chair whose occupant is not here, against a 
 
             try
             {
-                expect(await jobs.sweepTables()).toEqual({ stoodUp: 2, closed: 2, failed: [] });
+                expect(await jobs.sweepTables()).toEqual({ stoodUp: 2, closed: 2, idle: 0, failed: [] });
                 expect(said.mock.calls.map((call) => String(call[0])).join('')).toContain('table ring failed: the bell fell off');
             }
             finally
@@ -689,6 +689,7 @@ describe.skipIf(!active)('a waiting chair whose occupant is not here, against a 
                 expect(await jobs.sweepTables()).toEqual({
                     stoodUp: 1,
                     closed: 1,
+                    idle: 0,
                     failed: [{ tableId: stuck, reason: expect.stringContaining('lock timeout') }]
                 });
                 expect(await sitting(stuck)).toEqual([stuckHost]);
@@ -697,7 +698,7 @@ describe.skipIf(!active)('a waiting chair whose occupant is not here, against a 
                 await holder.rollbackTransaction();
 
                 expect(await jobs.sweepTables()).toEqual(NOTHING_DONE);
-                expect(await jobs.sweepTables()).toEqual({ stoodUp: 1, closed: 1, failed: [] });
+                expect(await jobs.sweepTables()).toEqual({ stoodUp: 1, closed: 1, idle: 0, failed: [] });
                 expect(await sitting(stuck)).toEqual([]);
             }
             finally
@@ -768,5 +769,62 @@ describe.skipIf(!active)('a waiting chair whose occupant is not here, against a 
 
             expect(broken).toBe('');
         }, 120_000);
+    });
+
+    describe('which tables a sweep closes for sitting idle an hour', () =>
+    {
+        const openedAgo = async (tableId: string, minutes: number) =>
+        {
+            await db.query(`update tables set created_at = now() - make_interval(mins => $2) where id = $1`, [tableId, minutes]);
+        };
+
+        it('closes a table opened over an hour ago at which no game ever started, and leaves a newer one open', async () =>
+        {
+            const [host, other] = await crowd(2);
+            const stale = await opened(host);
+            const fresh = await opened(other);
+            const { jobs } = door(whoIsHere);
+
+            await openedAgo(stale, 61);
+            await openedAgo(fresh, 59);
+
+            expect(await jobs.sweepTables()).toEqual({ ...NOTHING_DONE, idle: 1 });
+            expect((await row(stale)).status).toBe('closed');
+            expect((await row(stale)).closedAt).not.toBeNull();
+            expect((await row(fresh)).status).toBe('open');
+            expect(await here.tables.mine(host)).toEqual([]);
+
+            expect(await jobs.sweepTables()).toEqual(NOTHING_DONE);
+        });
+
+        it('never closes a table with a game on, however old', async () =>
+        {
+            const { tableId, players: [host] } = await seated(2);
+            const { jobs } = door(whoIsHere);
+
+            await here.matches.start(host, tableId);
+            await openedAgo(tableId, 600);
+
+            expect(await jobs.sweepTables()).toEqual(NOTHING_DONE);
+            expect((await row(tableId)).status).toBe('open');
+        });
+
+        it('gives a table an hour from the end of its last game, then closes it', async () =>
+        {
+            const { tableId, players: [host] } = await seated(2);
+            const { jobs } = door(whoIsHere);
+
+            await here.matches.start(host, tableId);
+            await openedAgo(tableId, 600);
+            await db.query(`update matches set finished_at = now() - interval '30 minutes', deadline_at = null, outcome = 'abandoned' where table_id = $1`, [tableId]);
+
+            expect(await jobs.sweepTables()).toEqual(NOTHING_DONE);
+            expect((await row(tableId)).status).toBe('open');
+
+            await db.query(`update matches set finished_at = now() - interval '61 minutes' where table_id = $1`, [tableId]);
+
+            expect(await jobs.sweepTables()).toEqual({ ...NOTHING_DONE, idle: 1 });
+            expect((await row(tableId)).status).toBe('closed');
+        });
     });
 });

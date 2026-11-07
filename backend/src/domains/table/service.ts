@@ -349,6 +349,18 @@ export const lockingAt = (tx: EntityManager, tableId: string) =>
 
 const NOT_LOCKING = `not exists (select 1 from escrows e where e.table_id = t.id and e.state = 'locking')`;
 
+/**
+ * An open table nobody has played at for an hour: opened over an hour ago, no game running, none
+ * ended within the hour, and no stake on its way to or from NuraChain. Read under the table's lock
+ * as well as by the sweep that finds it, so a game that starts in between keeps the table.
+ */
+const IDLE = `t.status = 'open'
+    and t.created_at < now() - interval '1 hour'
+    and not exists (select 1 from matches m where m.table_id = t.id
+                      and (m.finished_at is null or m.finished_at > now() - interval '1 hour'))
+    and not exists (select 1 from escrows e where e.table_id = t.id
+                      and e.state in ('locking', 'open', 'settling', 'refunding'))`;
+
 const standUp = async (tx: EntityManager, tableId: string, userId: string) =>
 {
     const freed = await tx.getRepository(TableSeat)
@@ -1369,6 +1381,43 @@ export function createTableService(db: DataSource, social: SocialService)
                 const stood = await standUp(tx, tableId, userId);
 
                 return stood.left ? { closed: stood.closed, conversationId: waiting.conversation_id } : null;
+            });
+        },
+
+        /** Tables idle for an hour, oldest first: empty, never started, or left after a game. */
+        async idle(limit: number)
+        {
+            const rows = await db.getRepository(Table).createQueryBuilder('t')
+                .select('t.id', 'id')
+                .where(IDLE)
+                .orderBy('t.created_at', 'ASC')
+                .limit(limit)
+                .getRawMany<{ id: string }>();
+
+            return rows.map((row) => row.id);
+        },
+
+        /** Closes a table that is still idle once it is locked; null when it is not, or is gone. */
+        async retire(tableId: string)
+        {
+            return await db.transaction(async (tx) =>
+            {
+                await lockTable(tx, tableId);
+
+                const closed = await tx.getRepository(Table).createQueryBuilder()
+                    .update(Table)
+                    .set({ status: 'closed', closedAt: () => 'now()' })
+                    .where(`id = :tableId and exists (select 1 from tables t where t.id = :tableId and ${ IDLE })`, { tableId })
+                    .execute();
+
+                if ((closed.affected ?? 0) === 0)
+                {
+                    return null;
+                }
+
+                const thread = await tx.getRepository(Conversation).findOne({ select: { id: true }, where: { tableId, kind: 'game' } });
+
+                return { conversationId: thread?.id ?? null };
             });
         },
 

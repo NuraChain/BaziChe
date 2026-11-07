@@ -158,6 +158,9 @@ export interface TableSweep
 {
     stoodUp: number;
     closed: number;
+
+    /** Tables closed because nobody had played at them for an hour. */
+    idle: number;
     failed: { tableId: string; reason: string }[];
 }
 
@@ -205,6 +208,8 @@ const PAID_GAMES = GAME_SEEDS.map((game) => game.id);
 const WATCHABLE_MAX = 48;
 
 const WAITING_SEATS = 500;
+
+const IDLE_TABLES = 200;
 
 export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain, tipsChain?: TipsChain, marketsChain?: MarketsChain, nftChain?: NftChain, sponsorChain?: ProfileSponsor): Services
 {
@@ -1969,7 +1974,35 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             });
         }
 
-        return { stoodUp, closed, failed };
+        let idle = 0;
+
+        for (const tableId of await table.idle(IDLE_TABLES))
+        {
+            const shut = await table.retire(tableId).catch((error: unknown) =>
+            {
+                failed.push({ tableId, reason: error instanceof Error ? error.message : String(error) });
+
+                return null;
+            });
+
+            if (shut === null)
+            {
+                continue;
+            }
+
+            idle += 1;
+
+            await courtesy('table ring', async () =>
+            {
+                if (shut.conversationId !== null)
+                {
+                    live?.chatChanged(shut.conversationId);
+                }
+                live?.tableChanged(tableId, await table.peopleAt(tableId));
+            });
+        }
+
+        return { stoodUp, closed, idle, failed };
     };
 
     const peers = createPeerDevices(db);

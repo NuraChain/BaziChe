@@ -441,11 +441,16 @@ let crowded = false;
 const sweepTables = () =>
 {
     void ports.jobs.sweepTables()
-        .then(({ stoodUp, closed, failed }) =>
+        .then(({ stoodUp, closed, idle, failed }) =>
         {
             if (stoodUp > 0)
             {
                 log.info('absent players stood up', { stoodUp, closed });
+            }
+
+            if (idle > 0)
+            {
+                log.info('idle tables closed', { idle });
             }
 
             for (const one of failed)

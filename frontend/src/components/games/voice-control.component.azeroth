@@ -32,7 +32,7 @@ export default component VoiceControl(props: { table: string })
     const join = () =>
     {
         haptic('select');
-        void joinVoice(props.table);
+        void joinVoice(props.table, true);
     };
 
     <Show

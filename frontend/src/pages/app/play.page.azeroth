@@ -280,7 +280,7 @@ export default component PlayPage()
                 kind: 'info',
                 icon: 'voice',
                 text: locale.t(untrack(lobby.table)?.voice === 'team' ? 'voice.offeredTeam' : 'voice.offered'),
-                action: { label: locale.t('voice.join'), run: () => void joinVoice(id) },
+                action: { label: locale.t('voice.join'), run: () => void joinVoice(id, true) },
                 dedupe: `voice-offer-${ id }`
             });
         }

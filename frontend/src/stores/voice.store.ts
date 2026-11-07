@@ -6,7 +6,7 @@ import { canDenoise, createDenoiser } from '../services/voice.denoise.ts';
 import { createVoiceInput, type InputOptions, type VoiceInput } from '../services/voice.input.ts';
 import { hearsOpus } from '../services/voice.relay.ts';
 import { createVoiceCall, type LineFacts, type PeerLink, type VoiceCall, type VoiceCallDeps } from '../services/voice.rtc.ts';
-import { primeVoice, takePrimedVoice } from '../lib/primed-voice.ts';
+import { takePrimedVoice } from '../lib/primed-voice.ts';
 import { isWebKit } from '../lib/webkit.ts';
 import { useAccount } from './account.store.ts';
 import { useRealtime, type SignalFrame, type SoundFrame, type VoiceFrame } from './realtime.store.ts';
@@ -810,9 +810,6 @@ export const useVoice = createStore((): VoiceApi =>
                 return;
             }
 
-            // Before anything is awaited, so a press on Join voice is still the press when WebKit is asked;
-            // a call answered earlier keeps the microphone its own press asked for.
-            primeVoice();
             stopTest();
 
             if (untrack(table) !== null)

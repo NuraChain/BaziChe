@@ -41,7 +41,7 @@ export default component VoiceManager(props: OverlayProps & { table: string })
             fallback={
                 <Panel stack="md">
                     <p class="text-ui-sm text-muted">{ locale.t('voice.manager.out') }</p>
-                    <Button variant="primary" leading="voice" class="self-start" onClick={ () => void joinVoice(props.table) }>{ locale.t('voice.join') }</Button>
+                    <Button variant="primary" leading="voice" class="self-start" onClick={ () => void joinVoice(props.table, true) }>{ locale.t('voice.join') }</Button>
                 </Panel>
             }
         >

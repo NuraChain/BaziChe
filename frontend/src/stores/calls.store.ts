@@ -404,6 +404,11 @@ export const useCalls = createStore((): CallsApi =>
                 placeHere(before);
             }
 
+            if (!went)
+            {
+                forgetPrimedVoice();
+            }
+
             rereadRoom();
 
             return went;

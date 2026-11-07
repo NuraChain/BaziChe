@@ -598,6 +598,20 @@ describe('a recording the browser will not make', () =>
         expect(browser.asked).toHaveLength(2);
     });
 
+    it('asks for a fresh microphone, once, when Safari ended the one it granted before the recorder could start', async () =>
+    {
+        browser.types = ['audio/mp4'];
+        browser.unmade = ['InvalidStateError', 'InvalidStateError', 'InvalidStateError'];
+
+        await recording();
+
+        expect(browser.asked, 'asked again').toHaveLength(2);
+        expect(browser.asked.at(-1)).toEqual({ audio: true });
+        expect(browser.stopped, 'the dead stream let go').toBe(1);
+        expect(recorder().state).toBe('recording');
+        expect(toasts()).toEqual([]);
+    });
+
     it('names what the browser threw when no way to record would start, so a report can say it', async () =>
     {
         browser.types = ['audio/mp4'];

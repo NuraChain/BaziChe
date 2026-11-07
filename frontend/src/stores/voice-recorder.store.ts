@@ -3,6 +3,7 @@ import { batch, createEffect, createRoot, createSignal, createStore, untrack } f
 import { VOICE_FILE_MOST, VOICE_MOST_MS } from '../../../backend/src/domains/chat/voice.ts';
 import { runtime } from '../lib/runtime.ts';
 import { onForgotten } from '../lib/voice-held.ts';
+import { forgetPrimedVoice } from '../lib/primed-voice.ts';
 import { recordingType, seekable, typeSaid, VOICE_BITRATE, VOICE_LEAST_MS, VOICE_TYPES, waveOf, waveOfLevels } from '../lib/voice-note.ts';
 import type { MessageKey } from '../locales/en.ts';
 import { useChat } from './chat.store.ts';
@@ -602,6 +603,10 @@ export const useVoiceRecorder = createStore((): RecorderApi =>
 
             let stream: MediaStream;
 
+            // A microphone a call's press asked for and nothing took yet is let go of first: on iOS a
+            // second capture ends the one before it, and the recording would start on a dead stream.
+            forgetPrimedVoice();
+
             try
             {
                 stream = await env.microphone(microphoneOf(untrack(settings.settings)));
@@ -655,7 +660,9 @@ export const useVoiceRecorder = createStore((): RecorderApi =>
              * at its first slice, and the reader has said nothing into it yet. Once something was
              * recorded, an error ends the recording, as it always did.
              */
-            const begin = (from: number, refused: unknown): boolean =>
+            let lastRefusal: unknown = null;
+
+            const begin = (from: number, refused: unknown, settle = true): boolean =>
             {
                 for (let at = from; at < asks.length; at += 1)
                 {
@@ -730,7 +737,9 @@ export const useVoiceRecorder = createStore((): RecorderApi =>
                     }
                 }
 
-                if (sessions.get(room) === session)
+                lastRefusal = refused;
+
+                if (settle && sessions.get(room) === session)
                 {
                     drop(room);
                     sayFault(refused);
@@ -738,9 +747,58 @@ export const useVoiceRecorder = createStore((): RecorderApi =>
                 return false;
             };
 
-            if (!begin(0, null))
+            if (!begin(0, null, false))
             {
-                return;
+                // Safari says InvalidStateError when the stream it granted was ended before the recorder
+                // could start on it - another capture on the page took the microphone. A fresh one is
+                // asked for, once; anything else is said as it was.
+                const ended = errorName(lastRefusal) === 'InvalidStateError'
+                    || stream.getTracks().every((one) => one.readyState === 'ended');
+
+                if (!ended || sessions.get(room) !== session)
+                {
+                    if (sessions.get(room) === session)
+                    {
+                        drop(room);
+                        sayFault(lastRefusal);
+                    }
+                    return;
+                }
+
+                stopTracks(stream);
+
+                try
+                {
+                    stream = await env.microphone({ audio: true });
+                }
+                catch (error)
+                {
+                    if (sessions.get(room) === session)
+                    {
+                        drop(room);
+                        sayFault(error);
+                    }
+                    return;
+                }
+
+                if (sessions.get(room) !== session || untrack(chat.openId) !== room)
+                {
+                    stopTracks(stream);
+
+                    if (sessions.get(room) === session)
+                    {
+                        drop(room);
+                    }
+                    return;
+                }
+
+                session.stream = stream;
+                session.listener?.hear(stream);
+
+                if (!begin(0, null))
+                {
+                    return;
+                }
             }
 
             session.since = runtime().clock.now();

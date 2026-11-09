@@ -5,6 +5,7 @@ import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/k
 import type { AdminMatches, AdminPlay, AdminTables } from '../../schemas.ts';
 import { PLAY_PAGE, STUCK_KINDS, outranks, type MatchList, type StaffRole, type StuckKind } from './roles.ts';
 import { record, staffRefusal, type Actor } from './staff.ts';
+import type { Advanced } from '../tournament/service.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -394,6 +395,22 @@ export function createPlayService(db: DataSource, owners: () => readonly string[
             }
 
             return done;
+        },
+
+        /** Calls a tournament off and logs why, in one transaction; games already at a table finish as ordinary games. */
+        async haltTournament(actor: Actor, code: string, reason: string, halt: (tx: EntityManager, code: string) => Promise<Advanced | null>)
+        {
+            return await db.transaction(async (tx) =>
+            {
+                const done = await halt(tx, code);
+
+                if (done !== null)
+                {
+                    await record(tx, actor, { kind: 'close', reason, details: { id: done.id, table: done.code, game: done.game } });
+                }
+
+                return done;
+            });
         },
 
         async closeTable(actor: Actor, tableId: string, reason: string, shut: (tx: EntityManager, tableId: string) => Promise<Shut | 'closed' | 'playing' | null>)

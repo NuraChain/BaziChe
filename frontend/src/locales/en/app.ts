@@ -1,5 +1,10 @@
 export const app = {
     'app.title': 'Baziche',
+    'app.nav.tournaments': 'Tournaments',
+    'notify.tournamentStart': 'A tournament you are in has started',
+    'notify.tournamentGame': 'Your tournament game is ready',
+    'notify.tournamentCancelled': 'A tournament you were in was cancelled',
+    'notify.tournamentOver': 'A tournament you were in has finished',
 
     'app.nav.home': 'Home',
     'app.nav.games': 'Games',

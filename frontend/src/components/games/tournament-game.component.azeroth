@@ -1,0 +1,74 @@
+import type { TournamentDetail } from '../../../../backend/src/schemas.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { usePeople } from '../../stores/people.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Avatar from '../ui/avatar.component.azeroth';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+
+export type TournamentGameRow = TournamentDetail['games'][number];
+
+/** One game: who is in it, where the series stands, and the way to its table while there is one. */
+export default component TournamentGame(props: { game: TournamentGameRow; series: boolean })
+{
+    const locale = useLocale();
+    const people = usePeople();
+
+    derived game = props.game;
+
+    derived sides = [
+        { id: 'a', who: game.a, score: game.scoreA },
+        { id: 'b', who: game.b, score: game.scoreB }
+    ];
+
+    derived watching = game.tableId !== undefined && (game.live || game.how === undefined);
+
+    derived note = game.how === 'bye' ? locale.t('tournaments.bye')
+        : game.how === 'draw' ? locale.t('tournaments.draw')
+            : game.how === 'seed' ? locale.t('tournaments.seedThrough')
+                : '';
+
+    derived noted = note !== '';
+
+    derived scored = game.how === 'played' || game.how === 'draw' || game.how === 'seed' || game.live;
+
+    const nameOf = (handle: string | undefined) =>
+    {
+        if (handle === undefined)
+        {
+            return locale.t('tournaments.tbd');
+        }
+
+        const person = people.byHandle(handle);
+
+        return person === null ? handle : locale.text(person.displayName);
+    };
+
+    <article class={ [ 'flex min-w-0 flex-col gap-1 rounded-tile border bg-field p-2', game.live ? 'border-accent' : 'border-line' ].join(' ') }>
+        <For each={ sides } key={ (side) => side.id } let={ side }>
+            <div class={ [ 'flex min-w-0 items-center gap-2 rounded-control px-1 py-0.5', game.winner === side.id ? 'bg-accent-fill text-accent-ink font-semibold' : (game.winner !== undefined ? 'text-faint' : 'text-text') ].join(' ') }>
+                <Avatar person={ side.who === undefined ? null : people.byHandle(side.who) } size="xs" />
+                <span class="min-w-0 flex-1 truncate text-ui-sm" dir="auto">{ nameOf(side.who) }</span>
+                <Show when={ game.winner === side.id }>
+                    { () => <Icon name="selected" size={ 14 } class="shrink-0" /> }
+                </Show>
+                <Show when={ scored && props.series }>
+                    { () => <span class="shrink-0 tabular-nums text-ui-sm">{ locale.n(side.score) }</span> }
+                </Show>
+            </div>
+        </For>
+
+        <Show when={ game.live || noted || watching }>
+            { () =>
+                <div class="flex min-h-7 items-center justify-between gap-2 ps-1">
+                    <Show when={ game.live } fallback={ <span class="truncate text-ui-2xs text-muted">{ note }</span> }>
+                        <Badge text={ locale.t('tournaments.live') } tone="live" size="sm" />
+                    </Show>
+                    <Show when={ watching }>
+                        { () => <Button variant="ghost" size="xs" leading="watch" to={ `/app/play/${ game.tableId }` }>{ locale.t('tournaments.watch') }</Button> }
+                    </Show>
+                </div>
+            }
+        </Show>
+    </article>
+}

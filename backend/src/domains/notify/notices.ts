@@ -22,7 +22,11 @@ export const NOTICE_OF: Readonly<Record<string, Notice>> = {
     'group-report': 'groups',
     'call': 'calls',
     'call-missed': 'calls',
-    'group-call': 'calls'
+    'group-call': 'calls',
+    'tournament-start': 'turns',
+    'tournament-game': 'turns',
+    'tournament-cancelled': 'turns',
+    'tournament-over': 'turns'
 };
 
 export const isNotice = (value: string): value is Notice => (NOTICES as readonly string[]).includes(value);

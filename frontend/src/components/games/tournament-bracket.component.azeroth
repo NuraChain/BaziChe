@@ -1,0 +1,139 @@
+import { useDevice } from '../../stores/device.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import FilterBar from '../ui/filter-bar.component.azeroth';
+import TournamentGame, { type TournamentGameRow } from './tournament-game.component.azeroth';
+
+interface Column
+{
+    round: number;
+    label: string;
+    games: TournamentGameRow[];
+
+    /** Whether this round's games meet two by two in the next, so its lines join up. */
+    merges: boolean;
+}
+
+/**
+ * One tree of a knockout: a round per column on a wide screen, and one round at a time on a phone,
+ * where a whole bracket would be too small to read.
+ *
+ * Every cell in a column takes an equal share of its height, so a game sits level with the two that
+ * feed it without measuring anything, and logical properties turn the whole tree round for a
+ * language read right to left.
+ */
+export default component TournamentBracket(props: { stage: string; title?: string; games: readonly TournamentGameRow[]; series: boolean })
+{
+    const locale = useLocale();
+    const device = useDevice();
+
+    const roundName = (round: number, last: number) =>
+    {
+        if (props.stage === 'losers' || props.stage === 'final')
+        {
+            return props.stage === 'final' ? locale.t('tournaments.stage.final') : locale.t('tournaments.round', { n: round });
+        }
+
+        if (round === last)
+        {
+            return locale.t('tournaments.stage.final');
+        }
+
+        if (round === last - 1)
+        {
+            return locale.t('tournaments.roundSemi');
+        }
+
+        return round === last - 2 ? locale.t('tournaments.roundQuarter') : locale.t('tournaments.round', { n: round });
+    };
+
+    derived columns = (() =>
+    {
+        const rounds = [...new Set(props.games.map((game) => game.round))].sort((one, other) => one - other);
+        const last = rounds[rounds.length - 1] ?? 1;
+        const inRound = (round: number) => props.games.filter((game) => game.round === round).sort((one, other) => one.slot - other.slot);
+
+        return rounds.map((round, index): Column =>
+        {
+            const next = rounds[index + 1];
+
+            return {
+                round,
+                label: roundName(round, last),
+                games: inRound(round),
+                merges: next !== undefined && inRound(next).length < inRound(round).length
+            };
+        });
+    })();
+
+    state chosen = null as number | null;
+
+    /** The round in play, unless the reader has picked another. */
+    derived shownRound = chosen ?? columns.find((column) => column.games.some((game) => game.how === undefined && game.a !== undefined && game.b !== undefined))?.round ?? columns[0]?.round ?? 1;
+
+    derived shown = columns.find((column) => column.round === shownRound) ?? null;
+
+    derived chips = columns.map((column) => ({ id: String(column.round), label: column.label }));
+
+    derived phone = device.posture() === 'phone';
+
+    derived titled = props.title !== undefined;
+
+    derived several = columns.length > 1;
+
+    const lineOf = (column: Column, slot: number) =>
+    {
+        if (!column.merges)
+        {
+            return 'after:absolute after:end-0 after:top-1/2 after:w-3 after:border-t after:border-line-strong';
+        }
+
+        return slot % 2 === 0
+            ? 'after:absolute after:end-0 after:top-1/2 after:h-1/2 after:w-3 after:rounded-se after:border-t after:border-e after:border-line-strong'
+            : 'after:absolute after:end-0 after:bottom-1/2 after:h-1/2 after:w-3 after:rounded-ee after:border-b after:border-e after:border-line-strong';
+    };
+
+    <section class="flex min-w-0 flex-col gap-3">
+        <Show when={ titled }>
+            { () => <h3 class="text-ui-sm font-semibold text-text">{ props.title }</h3> }
+        </Show>
+
+        <Show
+            when={ phone }
+            fallback={
+                <div class="overflow-x-auto pb-2" tabindex="0" role="group" aria-label={ props.title ?? locale.t('tournaments.tab.bracket') }>
+                    <div class="flex min-w-max">
+                        <For each={ columns } key={ (column) => column.round } let={ column }>
+                            <div class="flex w-60 flex-col">
+                                <p class="label mb-2 px-3 text-ui-xs text-faint">{ column.label }</p>
+                                <div class="flex flex-1 flex-col">
+                                    <For each={ column.games } key={ (game) => game.slot } let={ game }>
+                                        <div class={ [ 'relative flex flex-1 items-center py-1.5 pe-3 ps-3', column === columns[columns.length - 1] ? '' : lineOf(column, game.slot), column.round === columns[0].round ? '' : 'before:absolute before:start-0 before:top-1/2 before:w-3 before:border-t before:border-line-strong' ].join(' ') }>
+                                            <div class="min-w-0 flex-1">
+                                                <TournamentGame game={ game } series={ props.series } />
+                                            </div>
+                                        </div>
+                                    </For>
+                                </div>
+                            </div>
+                        </For>
+                    </div>
+                </div>
+            }
+        >
+            <div class="flex flex-col gap-3">
+                <Show when={ several }>
+                    { () => <FilterBar items={ chips } value={ String(shownRound) } label={ locale.t('tournaments.tab.bracket') } onChange={ (id) => chosen = Number(id) } /> }
+                </Show>
+                <Show when={ shown !== null }>
+                    { () =>
+                        <div class="flex flex-col gap-2">
+                            <For each={ shown?.games ?? [] } key={ (game) => `${ game.round }:${ game.slot }` } let={ game }>
+                                <div class="min-w-0"><TournamentGame game={ game } series={ props.series } /></div>
+                            </For>
+                        </div>
+                    }
+                </Show>
+            </div>
+        </Show>
+    </section>
+}

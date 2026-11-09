@@ -1,0 +1,69 @@
+import type { TournamentDetail } from '../../../../backend/src/schemas.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import Avatar from '../ui/avatar.component.azeroth';
+
+type Rows = TournamentDetail['standings'];
+
+/** A table of results. `qualify` marks how many from the top go through; a knockout's table has none. */
+export default component TournamentStandings(props: { rows: Rows; qualify?: number; title?: string; caption: string })
+{
+    const locale = useLocale();
+    const people = usePeople();
+
+    derived titled = props.title !== undefined;
+
+    derived rows = props.rows.map((row, index) => ({ row, index }));
+
+    const nameOf = (handle: string | undefined) =>
+    {
+        if (handle === undefined)
+        {
+            return locale.t('tournaments.tbd');
+        }
+
+        const person = people.byHandle(handle);
+
+        return person === null ? handle : locale.text(person.displayName);
+    };
+
+    <section class="flex min-w-0 flex-col gap-2">
+        <Show when={ titled }>
+            { () => <h3 class="text-ui-sm font-semibold text-text">{ props.title }</h3> }
+        </Show>
+        <div class="overflow-x-auto rounded-panel border border-line bg-field">
+            <table class="w-full border-collapse text-ui-sm">
+                <caption class="sr-only">{ props.caption }</caption>
+                <thead>
+                    <tr class="text-ui-xs text-faint">
+                        <th scope="col" class="px-3 py-2 text-start font-medium">#</th>
+                        <th scope="col" class="px-2 py-2 text-start font-medium">{ locale.t('tournaments.col.player') }</th>
+                        <th scope="col" class="px-2 py-2 text-end font-medium">{ locale.t('tournaments.col.played') }</th>
+                        <th scope="col" class="px-2 py-2 text-end font-medium">{ locale.t('tournaments.col.won') }</th>
+                        <th scope="col" class="px-2 py-2 text-end font-medium">{ locale.t('tournaments.col.drawn') }</th>
+                        <th scope="col" class="px-2 py-2 text-end font-medium">{ locale.t('tournaments.col.lost') }</th>
+                        <th scope="col" class="px-3 py-2 text-end font-medium">{ locale.t('tournaments.col.points') }</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <For each={ rows } key={ (one) => one.row.seed } let={ one }>
+                        <tr class={ [ 'border-t border-line', one.index < (props.qualify ?? 0) ? 'bg-accent-fill/40' : '' ].join(' ') }>
+                            <td class="px-3 py-2 tabular-nums text-muted">{ locale.n(one.row.place ?? one.index + 1) }</td>
+                            <td class="max-w-[12rem] px-2 py-2">
+                                <span class="flex min-w-0 items-center gap-2">
+                                    <Avatar person={ one.row.who === undefined ? null : people.byHandle(one.row.who) } size="xs" />
+                                    <span class="truncate" dir="auto">{ nameOf(one.row.who) }</span>
+                                </span>
+                            </td>
+                            <td class="px-2 py-2 text-end tabular-nums text-muted">{ locale.n(one.row.played) }</td>
+                            <td class="px-2 py-2 text-end tabular-nums text-muted">{ locale.n(one.row.wins) }</td>
+                            <td class="px-2 py-2 text-end tabular-nums text-muted">{ locale.n(one.row.draws) }</td>
+                            <td class="px-2 py-2 text-end tabular-nums text-muted">{ locale.n(one.row.losses) }</td>
+                            <td class="px-3 py-2 text-end font-semibold tabular-nums text-text">{ locale.n(one.row.points) }</td>
+                        </tr>
+                    </For>
+                </tbody>
+            </table>
+        </div>
+    </section>
+}

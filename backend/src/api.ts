@@ -7,6 +7,11 @@ import {
     achievementLadder,
     leaderboard,
     leaderboardQuery,
+    adminTournaments,
+    tournamentCreateInput,
+    tournamentDetail,
+    tournamentList,
+    tournamentsQuery,
     liveCounts,
     matchHistory,
     personRecord,
@@ -718,6 +723,12 @@ export function buildApi(ports: Ports)
 
             voidMatch: routes.post('/play/matches/:id/void', { input: adminVoidInput, output: adminPlay },
                 async (context) => onlyAdmin(await ports.admin.voidMatch(context.principal.userId, context.params.id, context.input))),
+
+            tournaments: routes.get('/play/tournaments', { output: adminTournaments },
+                async (context) => onlyAdmin(await ports.admin.tournaments(context.principal.userId))),
+
+            cancelTournament: routes.post('/play/tournaments/:code/cancel', { input: adminCloseInput, output: adminTournaments },
+                async (context) => onlyAdmin(await ports.admin.cancelTournament(context.principal.userId, context.params.code, context.input))),
 
             closeTable: routes.post('/play/tables/:id/close', { input: adminCloseInput, output: adminPlay },
                 async (context) => onlyAdmin(await ports.admin.closeTable(context.principal.userId, context.params.id, context.input))),
@@ -1433,6 +1444,39 @@ export function buildApi(ports: Ports)
          * Guarded at the feature. Reads are open to any signed-in account for a public table,
          * and a table this caller cannot see answers exactly as one that does not exist.
          */
+        tournaments: feature('/tournaments', [session], (routes) =>
+        {
+            const found = <T>(view: T | null) =>
+            {
+                if (view === null)
+                {
+                    throw new NotFoundError('No tournament there.');
+                }
+
+                return view;
+            };
+
+            return {
+                list: routes.get('/', { query: tournamentsQuery, output: tournamentList }, (context) =>
+                    ports.tournament.list(context.principal.userId, context.query)),
+
+                create: routes.post('/', { input: tournamentCreateInput, output: tournamentDetail }, async (context) =>
+                    found(await ports.tournament.create(context.principal.userId, context.input))),
+
+                view: routes.get('/:code', { output: tournamentDetail }, async (context) =>
+                    found(await ports.tournament.detail(context.principal.userId, context.params.code))),
+
+                join: routes.post('/:code/join', { output: tournamentDetail }, async (context) =>
+                    found(await ports.tournament.join(context.principal.userId, context.params.code))),
+
+                leave: routes.post('/:code/leave', { output: tournamentDetail }, async (context) =>
+                    found(await ports.tournament.leave(context.principal.userId, context.params.code))),
+
+                cancel: routes.post('/:code/cancel', { output: tournamentDetail }, async (context) =>
+                    found(await ports.tournament.cancel(context.principal.userId, context.params.code)))
+            };
+        }),
+
         tables: feature('/tables', [session], (routes) => ({
             /** Where this account is already sitting. Survives a reload and a second device. */
             mine: routes.get('/mine', { output: tableList }, async (context) => ({

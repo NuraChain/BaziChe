@@ -3,6 +3,11 @@ import type { app as reference } from '../en/app.ts';
 
 export const app: Pick<Dictionary, keyof typeof reference> = {
     'app.title': 'Baziche',
+    'app.nav.tournaments': 'Torneios',
+    'notify.tournamentStart': 'Um torneio em que estás começou',
+    'notify.tournamentGame': 'O teu jogo do torneio está pronto',
+    'notify.tournamentCancelled': 'Um torneio em que estavas foi cancelado',
+    'notify.tournamentOver': 'Um torneio em que estavas terminou',
 
     'app.nav.home': 'Início',
     'app.nav.games': 'Jogos',

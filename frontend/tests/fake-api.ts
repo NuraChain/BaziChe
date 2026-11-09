@@ -179,7 +179,7 @@ interface GroupLogWire
 interface NotificationWire
 {
     id: string;
-    kind: 'friend-request' | 'friend-accepted' | 'group-added' | 'table-invite' | 'table-removed' | 'message' | 'turn' | 'invite-joined' | 'invite-played' | 'invite-reward' | 'gift' | 'donation' | 'group-request' | 'group-approved' | 'group-owner' | 'channel-invite' | 'group-report' | 'call' | 'call-missed' | 'group-call';
+    kind: 'friend-request' | 'friend-accepted' | 'group-added' | 'table-invite' | 'table-removed' | 'message' | 'turn' | 'invite-joined' | 'invite-played' | 'invite-reward' | 'gift' | 'donation' | 'group-request' | 'group-approved' | 'group-owner' | 'channel-invite' | 'group-report' | 'call' | 'call-missed' | 'group-call' | 'tournament-start' | 'tournament-game' | 'tournament-cancelled' | 'tournament-over';
     actor?: string;
     ref: Record<string, string>;
     count: number;

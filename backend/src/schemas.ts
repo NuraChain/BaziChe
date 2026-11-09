@@ -2687,6 +2687,9 @@ export const tableSummary = object({
 
     closedBy: literal('staff').optional(),
 
+    /** The code of the tournament this game belongs to. */
+    tournament: string().optional(),
+
     quick: boolean().optional(),
 
     keptOut: array(string()).optional(),
@@ -3620,10 +3623,161 @@ export const notificationKind = enumOf([
     'call-missed',
 
     /** Somebody started a voice chat in a group the reader is in; taken back once it ends. */
-    'group-call'
+    'group-call',
+
+    /** A tournament the reader has a place in has started, and its first games are dealt soon. */
+    'tournament-start',
+
+    /** A game of a tournament is ready at its table, with the clock running. */
+    'tournament-game',
+
+    'tournament-cancelled',
+
+    'tournament-over'
 ]);
 
 export type NotificationKind = Infer<typeof notificationKind>;
+
+/* ----------------------------------------------------------------- tournaments */
+
+export const tournamentFormat = enumOf(['single', 'double', 'round-robin', 'swiss', 'groups']);
+
+export const tournamentStatus = enumOf(['open', 'running', 'finished', 'cancelled']);
+
+export const tournamentCreateInput = object({
+    name: string({ trim: true, nonempty: true, max: 60 }),
+    game: string({ max: 32 }),
+    format: tournamentFormat,
+    size: number({ int: true, min: 4, max: 32 }),
+    bestOf: number({ int: true, min: 1, max: 5 }),
+    listed: boolean(),
+    startsAt: string({ max: 40 })
+});
+
+export const tournamentsQuery = object({
+    status: enumOf(['open', 'running', 'finished', 'mine']).optional(),
+    game: string({ max: 32 }).optional()
+});
+
+export const tournamentSummary = object({
+    code: string(),
+    name: string(),
+    game: string(),
+    format: tournamentFormat,
+    size: number(),
+    bestOf: number(),
+    listed: boolean(),
+    status: tournamentStatus,
+    entered: number(),
+    startsAt: string(),
+    createdAt: string(),
+    startedAt: string().optional(),
+    finishedAt: string().optional(),
+    creator: string().optional(),
+    champion: string().optional(),
+
+    /** The reader's own place, once they have confirmed one. */
+    spot: number().optional()
+});
+
+export type TournamentSummary = Infer<typeof tournamentSummary>;
+
+export const tournamentList = object({ tournaments: array(tournamentSummary) });
+
+const tournamentStanding = object({
+    seed: number(),
+    who: string().optional(),
+
+    /** Absent while there is still something for them to play for. */
+    place: number().optional(),
+    played: number(),
+    wins: number(),
+    losses: number(),
+    draws: number(),
+    points: number(),
+    diff: number()
+});
+
+const tournamentGame = object({
+    stage: string(),
+    round: number(),
+    slot: number(),
+    phase: number(),
+    a: string().optional(),
+    b: string().optional(),
+    aSeed: number().optional(),
+    bSeed: number().optional(),
+    scoreA: number(),
+    scoreB: number(),
+    winner: enumOf(['a', 'b']).optional(),
+    how: enumOf(['played', 'bye', 'seed', 'draw', 'void']).optional(),
+    attempt: number(),
+    live: boolean(),
+
+    /** The table of its latest game, while that table can still be opened. */
+    tableId: string().optional()
+});
+
+export const tournamentDetail = object({
+    code: string(),
+    name: string(),
+    game: string(),
+    format: tournamentFormat,
+    size: number(),
+    bestOf: number(),
+    listed: boolean(),
+    status: tournamentStatus,
+    entered: number(),
+    startsAt: string(),
+    createdAt: string(),
+    startedAt: string().optional(),
+    finishedAt: string().optional(),
+    creator: string().optional(),
+    champion: string().optional(),
+    spot: number().optional(),
+    id: string(),
+    rounds: number(),
+
+    /** When the games now waiting are dealt, as the server has it. */
+    nextRoundAt: string().optional(),
+    entrants: array(object({
+        spot: number(),
+        who: string().optional(),
+        seed: number().optional(),
+        place: number().optional()
+    })),
+    games: array(tournamentGame),
+    standings: array(tournamentStanding),
+    tables: array(object({
+        group: number().optional(),
+        qualify: number(),
+        rows: array(tournamentStanding)
+    })),
+    can: enumOf(['join', 'leave', 'none']),
+    mayCancel: boolean(),
+
+    /** The table of the game the reader is playing right now. */
+    myGame: string().optional()
+});
+
+export type TournamentDetail = Infer<typeof tournamentDetail>;
+
+export const adminTournaments = object({
+    tournaments: array(object({
+        code: string(),
+        name: string(),
+        game: string(),
+        format: string(),
+        status: tournamentStatus,
+        size: number(),
+        entered: number(),
+        live: number(),
+        startsAt: string(),
+        creator: string().optional()
+    }))
+});
+
+export type AdminTournaments = Infer<typeof adminTournaments>;
 
 /**
  * What a notification points at, as a closed set.
@@ -3641,6 +3795,9 @@ export const notificationRef = object({
     personId: string().optional(),
     game: string().optional(),
     item: string().optional(),
+
+    /** A tournament, by the code its link carries. */
+    tournament: string().optional(),
 
     /** Wei: what a donation gave. */
     amount: string({ pattern: /^[0-9]{1,40}$/ }).optional()

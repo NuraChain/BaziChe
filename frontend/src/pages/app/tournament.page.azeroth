@@ -1,0 +1,497 @@
+import { createResource, untrack, useHead, useParams } from 'azerothjs';
+
+import type { TournamentDetail } from '../../../../backend/src/schemas.ts';
+import { ApiError, client } from '../../api.ts';
+import Page from '../../components/app/page.component.azeroth';
+import PageHeader from '../../components/app/page-header.component.azeroth';
+import TournamentBracket from '../../components/games/tournament-bracket.component.azeroth';
+import TournamentGame from '../../components/games/tournament-game.component.azeroth';
+import TournamentStandings from '../../components/games/tournament-standings.component.azeroth';
+import Avatar from '../../components/ui/avatar.component.azeroth';
+import Badge from '../../components/ui/badge.component.azeroth';
+import Button from '../../components/ui/button.component.azeroth';
+import EmptyState from '../../components/ui/empty-state.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
+import FilterBar from '../../components/ui/filter-bar.component.azeroth';
+import Panel from '../../components/ui/panel.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
+import Tabs from '../../components/ui/tabs.component.azeroth';
+import type { GameId } from '../../data/games.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import '../../locales/tournament-catalogue.ts';
+import { copyText } from '../../lib/clipboard.ts';
+import { runtime } from '../../lib/runtime.ts';
+import { whyTournament } from '../../lib/tournament-refusal.ts';
+import { whileSeen } from '../../lib/while-seen.ts';
+import { useCatalogue } from '../../stores/catalogue.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import { useRealtime } from '../../stores/realtime.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+
+type Tab = 'overview' | 'bracket' | 'games' | 'standings' | 'players';
+
+const TONE = { open: 'accent', running: 'live', finished: 'neutral', cancelled: 'neutral' } as const;
+
+/** The trees a knockout format draws, in the order a reader follows them. */
+const TREES = ['main', 'winners', 'losers', 'final', 'playoff'] as const;
+
+const SECOND_MS = 1000;
+
+export default component TournamentPage()
+{
+    const locale = useLocale();
+    const catalogue = useCatalogue();
+    const people = usePeople();
+    const realtime = useRealtime();
+    const toasts = useToasts();
+    const params = useParams();
+
+    const code = untrack(() => params().code ?? '');
+
+    const read = createResource(
+        () => code,
+        async (asked) =>
+        {
+            try
+            {
+                return await client.tournaments.view({ params: { code: asked } });
+            }
+            catch (error)
+            {
+                if (error instanceof ApiError && error.status === 404)
+                {
+                    return null;
+                }
+
+                throw error;
+            }
+        },
+        { name: 'tournaments.view' }
+    );
+
+    state said = null as TournamentDetail | null;
+    state tab = 'overview' as Tab;
+    state asking = false;
+    state pending = false;
+    state now = runtime().clock.now();
+    state chosenGroup = '0';
+    state chosenRound = null as string | null;
+
+    derived tournament = read.data() ?? said ?? null;
+
+    derived gone = read.data() === null && said === null;
+
+    derived failed = tournament === null && !gone && read.error() !== null;
+
+    derived loading = tournament === null && !gone && !failed;
+
+    derived name = tournament?.name ?? '';
+
+    derived series = (tournament?.bestOf ?? 1) > 1;
+
+    derived games = tournament?.games ?? [];
+
+    derived started = games.length > 0;
+
+    derived trees = TREES
+        .map((stage) => ({ stage, games: games.filter((game) => game.stage === stage) }))
+        .filter((tree) => tree.games.length > 0);
+
+    derived treed = trees.length > 0;
+
+    derived titled = trees.length > 1;
+
+    derived leagueGames = games.filter((game) => game.stage === 'league' || /^group\d+$/.test(game.stage));
+
+    derived groups = [...new Set(leagueGames.map((game) => game.stage).filter((stage) => stage !== 'league'))];
+
+    derived grouped = groups.length > 0;
+
+    derived groupChips = groups.map((_, index) => ({ id: String(index), label: locale.t('tournaments.stage.group', { n: locale.n(index + 1) }) }));
+
+    derived groupStage = groups[Number(chosenGroup)] ?? groups[0];
+
+    derived listedGames = grouped ? leagueGames.filter((game) => game.stage === groupStage) : leagueGames;
+
+    derived rounds = [...new Set(listedGames.map((game) => game.round))].sort((one, other) => one - other);
+
+    derived roundChips = rounds.map((round) => ({ id: String(round), label: locale.t('tournaments.round', { n: locale.n(round) }) }));
+
+    derived currentRound = chosenRound ?? String(listedGames.find((game) => game.how === undefined)?.round ?? rounds[rounds.length - 1] ?? 1);
+
+    derived roundGames = listedGames.filter((game) => String(game.round) === currentRound).sort((one, other) => one.slot - other.slot);
+
+    derived leagued = leagueGames.length > 0;
+
+    derived tableList = (tournament?.tables ?? []).map((table) => ({ table, key: table.group ?? -1 }));
+
+    derived liveGames = games.filter((game) => game.live);
+
+    derived hasLive = liveGames.length > 0;
+
+    /** Whatever has two players, what is being played first and then the latest. */
+    derived allGames = games
+        .filter((game) => game.a !== undefined && game.b !== undefined)
+        .sort((one, other) => Number(other.live) - Number(one.live) || other.phase - one.phase || one.slot - other.slot);
+
+    derived noGames = allGames.length === 0;
+
+    derived entrants = tournament?.entrants ?? [];
+
+    derived slots = Array.from({ length: tournament?.size ?? 0 }, (_, index) => ({
+        spot: index + 1,
+        entry: entrants.find((entry) => entry.spot === index + 1)
+    }));
+
+    derived mine = tournament?.spot;
+
+    derived joinable = tournament?.can === 'join';
+
+    derived leavable = tournament?.can === 'leave';
+
+    derived cancellable = tournament?.mayCancel === true;
+
+    derived myGame = tournament?.myGame;
+
+    derived champion = tournament?.champion;
+
+    derived nextAt = tournament?.nextRoundAt;
+
+    derived untilNext = nextAt === undefined ? 0 : Math.max(0, Math.ceil((Date.parse(nextAt) - now) / SECOND_MS));
+
+    derived countdown = nextAt !== undefined && tournament?.status === 'running';
+
+    derived tabs = [
+        { id: 'overview', label: locale.t('tournaments.tab.overview') },
+        { id: 'bracket', label: locale.t('tournaments.tab.bracket') },
+        { id: 'games', label: locale.t('tournaments.tab.games') },
+        { id: 'standings', label: locale.t('tournaments.tab.standings') },
+        { id: 'players', label: locale.t('tournaments.tab.players') }
+    ];
+
+    derived facts = tournament === null ? [] : [
+        { key: 'game', label: locale.t('tournaments.fact.game'), value: locale.t(catalogue.byId(tournament.game as GameId).nameKey) },
+        { key: 'format', label: locale.t('tournaments.fact.format'), value: locale.t(`tournaments.format.${ tournament.format }`) },
+        { key: 'places', label: locale.t('tournaments.fact.places'), value: locale.t('tournaments.places', { entered: locale.n(tournament.entered), size: locale.n(tournament.size) }) },
+        { key: 'length', label: locale.t('tournaments.fact.length'), value: locale.t('tournaments.bestOf', { n: locale.n(tournament.bestOf) }) },
+        { key: 'starts', label: locale.t('tournaments.fact.starts'), value: locale.date(new Date(tournament.startsAt), { dateStyle: 'medium', timeStyle: 'short' }) },
+        { key: 'entry', label: locale.t('tournaments.fact.entry'), value: locale.t('tournaments.free') }
+    ];
+
+    effect
+    {
+        const handles = entrants.flatMap((entry) => entry.who === undefined ? [] : [entry.who]);
+
+        if (handles.length > 0)
+        {
+            void people.want(handles);
+        }
+    }
+
+    mount
+    {
+        const unpoll = whileSeen(() => void read.refetch());
+        const untick = runtime().clock.every(SECOND_MS, () => now = runtime().clock.now());
+        const unring = realtime.onNudge((scope, id) =>
+        {
+            if (scope === 'table' && id !== undefined && id === untrack(() => tournament?.id))
+            {
+                void read.refetch();
+            }
+        });
+
+        return () =>
+        {
+            unpoll();
+            untick();
+            unring();
+        };
+    }
+
+    useHead({ title: () => name === '' ? locale.t('tournaments.title') : name });
+
+    const act = async (press: () => Promise<TournamentDetail>, done?: string) =>
+    {
+        if (pending)
+        {
+            return;
+        }
+
+        pending = true;
+
+        try
+        {
+            said = await press();
+            asking = false;
+            await read.refetch();
+
+            if (done !== undefined)
+            {
+                toasts.show({ kind: 'success', text: done, dedupe: 'tournament' });
+            }
+        }
+        catch (error)
+        {
+            toasts.show({ kind: 'warning', text: locale.t(whyTournament(error)), dedupe: 'tournament' });
+            void read.refetch();
+        }
+        finally
+        {
+            pending = false;
+        }
+    };
+
+    const join = () => act(() => client.tournaments.join({ params: { code } }), locale.t('tournaments.joined'));
+
+    const leave = () => act(() => client.tournaments.leave({ params: { code } }));
+
+    const cancel = () => act(() => client.tournaments.cancel({ params: { code } }));
+
+    const share = () => void copyText(`${ location.origin }/app/tournaments/${ code }`, 'tournaments.copied', { dedupe: 'tournament-link' });
+
+    const nameOf = (handle: string | undefined) =>
+    {
+        if (handle === undefined)
+        {
+            return locale.t('tournaments.tbd');
+        }
+
+        const person = people.byHandle(handle);
+
+        return person === null ? handle : locale.text(person.displayName);
+    };
+
+    <Page label={ name || locale.t('tournaments.title') }>
+        <Show when={ loading }>
+            { () =>
+                <div class="flex flex-col gap-3" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                    <Skeleton class="h-24 w-full rounded-panel" />
+                    <Skeleton class="h-64 w-full rounded-panel" />
+                </div>
+            }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState error={ read.error() } onRetry={ () => void read.refetch() } class="py-10" /> }
+        </Show>
+
+        <Show when={ gone }>
+            { () => <EmptyState icon="medal" title={ locale.t('tournaments.gone') } action={ locale.t('tournaments.title') } to="/app/tournaments" class="py-10" /> }
+        </Show>
+
+        <Show when={ tournament !== null }>
+            { () =>
+                <div class="flex flex-col gap-4">
+                    <PageHeader
+                        flush
+                        title={ name }
+                        lead={ `${ locale.t(catalogue.byId(tournament?.game as GameId).nameKey) } · ${ locale.t(`tournaments.format.${ tournament?.format as 'single' }`) }` }
+                        actions={
+                            <div class="flex items-center gap-2">
+                                <Badge text={ locale.t(`tournaments.status.${ tournament?.status as 'open' }`) } tone={ TONE[tournament?.status as 'open'] } size="sm" />
+                                <Button variant="outline" size="sm" leading="share" onClick={ share }>{ locale.t('tournaments.share') }</Button>
+                            </div>
+                        }
+                    />
+
+                    <Show when={ myGame !== undefined }>
+                        { () =>
+                            <Panel tone="accent">
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <p class="text-ui-sm font-semibold text-text">{ locale.t('tournaments.yourGame') }</p>
+                                    <Button variant="primary" size="sm" leading="play" to={ `/app/play/${ myGame }` }>{ locale.t('tournaments.playNow') }</Button>
+                                </div>
+                            </Panel>
+                        }
+                    </Show>
+
+                    <Show when={ champion !== undefined }>
+                        { () =>
+                            <Panel tone="accent">
+                                <div class="flex items-center gap-3">
+                                    <Icon name="trophy" size={ 28 } class="shrink-0 text-accent" />
+                                    <Avatar person={ people.byHandle(champion as string) } size="md" />
+                                    <div class="min-w-0">
+                                        <p class="label text-ui-xs text-faint">{ locale.t('tournaments.champion') }</p>
+                                        <p class="truncate text-ui-md font-semibold text-text" dir="auto">{ nameOf(champion) }</p>
+                                    </div>
+                                </div>
+                            </Panel>
+                        }
+                    </Show>
+
+                    <Show when={ countdown }>
+                        { () => <p class="text-ui-sm text-muted" role="status">{ locale.t('tournaments.nextGames', { n: locale.n(untilNext) }) }</p> }
+                    </Show>
+
+                    <Show when={ joinable || leavable || cancellable }>
+                        { () =>
+                            <Panel>
+                                <div class="flex flex-col gap-3">
+                                    <Show when={ mine !== undefined }>
+                                        { () => <p class="text-ui-sm font-semibold text-text">{ locale.t('tournaments.yourPlace', { spot: locale.n(mine as number) }) }</p> }
+                                    </Show>
+
+                                    <Show when={ asking }>
+                                        { () =>
+                                            <div class="flex flex-col gap-2" role="group" aria-label={ locale.t('tournaments.joinTitle') }>
+                                                <p class="text-ui-sm font-semibold text-text">{ locale.t('tournaments.joinTitle') }</p>
+                                                <p class="text-ui-sm text-muted">{ locale.t('tournaments.joinLead') }</p>
+                                                <div class="flex gap-2">
+                                                    <Button variant="primary" size="sm" loading={ pending } onClick={ () => void join() }>{ locale.t('tournaments.confirm') }</Button>
+                                                    <Button variant="ghost" size="sm" onClick={ () => asking = false }>{ locale.t('tournaments.notNow') }</Button>
+                                                </div>
+                                            </div>
+                                        }
+                                    </Show>
+
+                                    <div class="flex flex-wrap gap-2">
+                                        <Show when={ joinable && !asking }>
+                                            { () => <Button variant="primary" size="md" leading="add" onClick={ () => asking = true }>{ locale.t('tournaments.join') }</Button> }
+                                        </Show>
+                                        <Show when={ leavable }>
+                                            { () => <Button variant="outline" size="sm" loading={ pending } onClick={ () => void leave() }>{ locale.t('tournaments.leave') }</Button> }
+                                        </Show>
+                                        <Show when={ cancellable }>
+                                            { () => <Button variant="ghost" size="sm" loading={ pending } onClick={ () => void cancel() }>{ locale.t('tournaments.cancel') }</Button> }
+                                        </Show>
+                                    </div>
+                                </div>
+                            </Panel>
+                        }
+                    </Show>
+
+                    <Tabs items={ tabs } value={ tab } label={ name } onChange={ (id) => tab = id as Tab } />
+
+                    <Show when={ tab === 'overview' }>
+                        { () =>
+                            <div class="flex flex-col gap-4">
+                                <dl class="grid grid-cols-2 gap-3 rounded-panel border border-line bg-field p-4 md:grid-cols-3">
+                                    <For each={ facts } key={ (fact) => fact.key } let={ fact }>
+                                        <div class="min-w-0">
+                                            <dt class="text-ui-xs text-faint">{ fact.label }</dt>
+                                            <dd class="truncate text-ui-sm font-semibold text-text">{ fact.value }</dd>
+                                        </div>
+                                    </For>
+                                </dl>
+                                <p class="text-ui-sm text-muted">{ locale.t(`tournaments.formatHint.${ tournament?.format as 'single' }`) }</p>
+                                <Show when={ hasLive }>
+                                    { () =>
+                                        <section class="flex flex-col gap-2">
+                                            <h3 class="text-ui-sm font-semibold text-text">{ locale.t('tournaments.liveNow') }</h3>
+                                            <div class="grid gap-2 md:grid-cols-2">
+                                                <For each={ liveGames } key={ (game) => `${ game.stage }:${ game.round }:${ game.slot }` } let={ game }>
+                                                    <div class="min-w-0"><TournamentGame game={ game } series={ series } /></div>
+                                                </For>
+                                            </div>
+                                        </section>
+                                    }
+                                </Show>
+                            </div>
+                        }
+                    </Show>
+
+                    <Show when={ tab === 'bracket' }>
+                        { () =>
+                            <div class="flex flex-col gap-6">
+                                <Show when={ !started }>
+                                    { () => <EmptyState icon="medal" title={ locale.t('tournaments.noGames') } class="py-10" /> }
+                                </Show>
+                                <Show when={ leagued }>
+                                    { () =>
+                                        <section class="flex flex-col gap-3">
+                                            <Show when={ grouped }>
+                                                { () => <FilterBar items={ groupChips } value={ chosenGroup } label={ locale.t('tournaments.tab.bracket') } onChange={ (id) => { chosenGroup = id; chosenRound = null; } } /> }
+                                            </Show>
+                                            <FilterBar items={ roundChips } value={ currentRound } label={ locale.t('tournaments.tab.games') } onChange={ (id) => chosenRound = id } />
+                                            <div class="grid gap-2 md:grid-cols-2">
+                                                <For each={ roundGames } key={ (game) => `${ game.stage }:${ game.round }:${ game.slot }` } let={ game }>
+                                                    <div class="min-w-0"><TournamentGame game={ game } series={ series } /></div>
+                                                </For>
+                                            </div>
+                                        </section>
+                                    }
+                                </Show>
+                                <Show when={ treed }>
+                                    { () =>
+                                        <For each={ trees } key={ (tree) => tree.stage } let={ tree }>
+                                            <div class="min-w-0">
+                                                <TournamentBracket
+                                                    stage={ tree.stage }
+                                                    games={ tree.games }
+                                                    series={ series }
+                                                    title={ titled ? locale.t(`tournaments.stage.${ tree.stage as 'winners' }`) : undefined }
+                                                />
+                                            </div>
+                                        </For>
+                                    }
+                                </Show>
+                            </div>
+                        }
+                    </Show>
+
+                    <Show when={ tab === 'games' }>
+                        { () =>
+                            <Show when={ !noGames } fallback={ <EmptyState icon="medal" title={ locale.t('tournaments.noGames') } class="py-10" /> }>
+                                <div class="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                                    <For each={ allGames } key={ (game) => `${ game.stage }:${ game.round }:${ game.slot }` } let={ game }>
+                                        <div class="min-w-0"><TournamentGame game={ game } series={ series } /></div>
+                                    </For>
+                                </div>
+                            </Show>
+                        }
+                    </Show>
+
+                    <Show when={ tab === 'standings' }>
+                        { () =>
+                            <div class="flex flex-col gap-4">
+                                <Show
+                                    when={ tableList.length > 0 }
+                                    fallback={
+                                        <Show when={ started } fallback={ <EmptyState icon="medal" title={ locale.t('tournaments.noGames') } class="py-10" /> }>
+                                            <TournamentStandings rows={ tournament?.standings ?? [] } caption={ locale.t('tournaments.tab.standings') } />
+                                        </Show>
+                                    }
+                                >
+                                    <div class="grid gap-4 lg:grid-cols-2">
+                                        <For each={ tableList } key={ (one) => one.key } let={ one }>
+                                            <div class="min-w-0">
+                                                <TournamentStandings
+                                                    rows={ one.table.rows }
+                                                    qualify={ one.table.group === undefined ? 0 : one.table.qualify }
+                                                    title={ one.table.group === undefined ? undefined : locale.t('tournaments.stage.group', { n: locale.n(one.table.group + 1) }) }
+                                                    caption={ locale.t('tournaments.tab.standings') }
+                                                />
+                                            </div>
+                                        </For>
+                                    </div>
+                                </Show>
+                            </div>
+                        }
+                    </Show>
+
+                    <Show when={ tab === 'players' }>
+                        { () =>
+                            <ul class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label={ locale.t('tournaments.tab.players') }>
+                                <For each={ slots } key={ (slot) => slot.spot } let={ slot }>
+                                    <li class="flex min-w-0 items-center gap-2 rounded-tile border border-line bg-field px-3 py-2">
+                                        <span class="w-6 shrink-0 text-ui-xs tabular-nums text-faint">{ locale.n(slot.spot) }</span>
+                                        <Avatar person={ slot.entry?.who === undefined ? null : people.byHandle(slot.entry.who) } size="xs" />
+                                        <span class={ [ 'min-w-0 flex-1 truncate text-ui-sm', slot.entry === undefined ? 'text-faint' : 'text-text' ].join(' ') } dir="auto">
+                                            { slot.entry === undefined ? locale.t('tournaments.freePlace') : nameOf(slot.entry.who) }
+                                        </span>
+                                        <Show when={ slot.entry?.place !== undefined }>
+                                            { () => <Badge text={ locale.n(slot.entry?.place as number) } tone="neutral" size="sm" /> }
+                                        </Show>
+                                    </li>
+                                </For>
+                            </ul>
+                        }
+                    </Show>
+                </div>
+            }
+        </Show>
+    </Page>
+}

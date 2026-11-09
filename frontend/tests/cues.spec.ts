@@ -2314,7 +2314,11 @@ describe('the worker and the page, of the same thing', () =>
         'group-report': { ref: { groupId: 'g-1' } },
         'call': { actor: 'sara.k', ref: { conversationId: 'c-reza' } },
         'call-missed': { actor: 'sara.k', ref: { conversationId: 'c-reza' } },
-        'group-call': { actor: 'sara.k', ref: { conversationId: 'c-reza' } }
+        'group-call': { actor: 'sara.k', ref: { conversationId: 'c-reza' } },
+        'tournament-start': { ref: { tournament: 'FRIDAY1' } },
+        'tournament-game': { ref: { tournament: 'FRIDAY1', tableId: 't-1' } },
+        'tournament-cancelled': { ref: { tournament: 'FRIDAY1' } },
+        'tournament-over': { ref: { tournament: 'FRIDAY1' } }
     };
 
     for (const lang of ['en', 'fa'] as const)

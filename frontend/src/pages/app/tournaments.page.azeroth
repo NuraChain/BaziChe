@@ -1,0 +1,115 @@
+import { createResource, useHead } from 'azerothjs';
+
+import type { TournamentSummary } from '../../../../backend/src/schemas.ts';
+import { client } from '../../api.ts';
+import Page from '../../components/app/page.component.azeroth';
+import PageHeader from '../../components/app/page-header.component.azeroth';
+import GameIcon from '../../components/games/game-icon.component.azeroth';
+import Badge from '../../components/ui/badge.component.azeroth';
+import Button from '../../components/ui/button.component.azeroth';
+import EmptyState from '../../components/ui/empty-state.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
+import FilterBar from '../../components/ui/filter-bar.component.azeroth';
+import Panel from '../../components/ui/panel.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
+import type { GameId } from '../../data/games.ts';
+import '../../locales/tournament-catalogue.ts';
+import { whileSeen } from '../../lib/while-seen.ts';
+import { useCatalogue } from '../../stores/catalogue.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+
+type Filter = 'all' | 'open' | 'running' | 'finished' | 'mine';
+
+const TONE = { open: 'accent', running: 'live', finished: 'neutral', cancelled: 'neutral' } as const;
+
+export default component TournamentsPage()
+{
+    const locale = useLocale();
+    const catalogue = useCatalogue();
+
+    state filter = 'all' as Filter;
+
+    const list = createResource(
+        () => filter,
+        (status) => client.tournaments.list({ query: status === 'all' ? {} : { status } }),
+        { name: 'tournaments.list' }
+    );
+
+    derived rows = list.data()?.tournaments ?? [];
+
+    derived loading = list.loading() && list.data() === undefined;
+
+    derived failed = list.error() !== null && rows.length === 0;
+
+    derived listed = rows.length > 0;
+
+    derived nobody = !loading && !failed && !listed;
+
+    derived chips = (['all', 'open', 'running', 'finished', 'mine'] as const).map((id) => ({ id, label: locale.t(`tournaments.filter.${ id }`) }));
+
+    mount
+    {
+        return whileSeen(() => void list.refetch());
+    }
+
+    useHead({ title: () => locale.t('tournaments.title') });
+
+    const when = (row: TournamentSummary) => locale.date(new Date(row.startsAt), { dateStyle: 'medium', timeStyle: 'short' });
+
+    <Page label={ locale.t('tournaments.title') }>
+        <PageHeader
+            title={ locale.t('tournaments.title') }
+            lead={ locale.t('tournaments.lead') }
+            actions={ <Button variant="primary" size="sm" leading="add" to="/app/tournaments/new">{ locale.t('tournaments.create') }</Button> }
+        />
+
+        <div class="flex flex-col gap-4">
+            <FilterBar items={ chips } value={ filter } label={ locale.t('tournaments.filter') } onChange={ (id) => filter = id as Filter } />
+
+            <Show when={ loading }>
+                { () =>
+                    <div class="flex flex-col gap-2" data-reading>
+                        <span class="sr-only">{ locale.t('common.loading') }</span>
+                        <Skeleton class="h-24 w-full rounded-panel" />
+                        <Skeleton class="h-24 w-full rounded-panel" />
+                    </div>
+                }
+            </Show>
+
+            <Show when={ failed }>
+                { () => <ErrorState error={ list.error() } onRetry={ () => void list.refetch() } class="py-10" /> }
+            </Show>
+
+            <Show when={ nobody }>
+                { () => <EmptyState icon="medal" title={ locale.t('tournaments.empty') } lead={ locale.t('tournaments.emptyLead') } action={ locale.t('tournaments.create') } to="/app/tournaments/new" class="py-10" /> }
+            </Show>
+
+            <Show when={ listed }>
+                { () =>
+                    <ul class="grid gap-3 md:grid-cols-2" aria-label={ locale.t('tournaments.title') }>
+                        <For each={ rows } key={ (row) => row.code } let={ row }>
+                            <li class="min-w-0">
+                                <Panel to={ `/app/tournaments/${ row.code }` } label={ row.name }>
+                                    <div class="flex min-w-0 items-start gap-3">
+                                        <GameIcon game={ row.game as GameId } class="h-12 w-12 shrink-0" />
+                                        <div class="flex min-w-0 flex-1 flex-col gap-1">
+                                            <div class="flex min-w-0 items-center justify-between gap-2">
+                                                <h2 class="min-w-0 truncate text-ui-md font-semibold text-text" dir="auto">{ row.name }</h2>
+                                                <Badge text={ locale.t(`tournaments.status.${ row.status }`) } tone={ TONE[row.status] } size="sm" />
+                                            </div>
+                                            <p class="truncate text-ui-xs text-muted">{ locale.t(catalogue.byId(row.game as GameId).nameKey) } · { locale.t(`tournaments.format.${ row.format }`) }</p>
+                                            <p class="truncate text-ui-xs text-muted">{ locale.t('tournaments.places', { entered: locale.n(row.entered), size: locale.n(row.size) }) } · { when(row) }</p>
+                                            <Show when={ row.champion !== undefined }>
+                                                { () => <p class="truncate text-ui-xs font-semibold text-accent" dir="auto">{ locale.t('tournaments.champion') }: { row.champion }</p> }
+                                            </Show>
+                                        </div>
+                                    </div>
+                                </Panel>
+                            </li>
+                        </For>
+                    </ul>
+                }
+            </Show>
+        </div>
+    </Page>
+}

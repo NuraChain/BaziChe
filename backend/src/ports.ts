@@ -112,7 +112,7 @@ import type {
     StaffLog
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
-import type { adminMinterInput, adminMinterSentInput, adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminSeasonStart, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
+import type { tournamentCreateInput, tournamentList, tournamentsQuery, AdminTournaments, TournamentDetail, adminMinterInput, adminMinterSentInput, adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminSeasonStart, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
 import type { ShopSlot } from './domains/shop/catalogue.ts';
 import type { QuickAsk } from './domains/table/quick.ts';
@@ -373,6 +373,16 @@ export interface ChannelPort
  * Every route names people by handle and the table by its uuid - except `byCode`, which is how a
  * link somebody pasted into a chat resolves. Every write answers with the table as it now stands.
  */
+export interface TournamentPort
+{
+    list(me: string, query: Infer<typeof tournamentsQuery>): Promise<Infer<typeof tournamentList>>;
+    detail(me: string, code: string): Promise<TournamentDetail | null>;
+    create(me: string, input: Infer<typeof tournamentCreateInput>): Promise<TournamentDetail | null>;
+    join(me: string, code: string): Promise<TournamentDetail | null>;
+    leave(me: string, code: string): Promise<TournamentDetail | null>;
+    cancel(me: string, code: string): Promise<TournamentDetail | null>;
+}
+
 export interface TablePort
 {
     quick(me: string, input: QuickAsk & { game: string; voice: VoiceScope; stake?: string; signature?: string }): Promise<TableSummary>;
@@ -987,6 +997,10 @@ export interface AdminPort
 
     voidMatch(me: string, id: string, input: Infer<typeof adminVoidInput>): Promise<AdminPlay | null>;
 
+    tournaments(me: string): Promise<AdminTournaments | null>;
+
+    cancelTournament(me: string, code: string, input: Infer<typeof adminCloseInput>): Promise<AdminTournaments | null>;
+
     closeTable(me: string, id: string, input: Infer<typeof adminCloseInput>): Promise<AdminPlay | null>;
 
     overview(me: string): Promise<AdminOverview | null>;
@@ -1086,6 +1100,7 @@ export interface Ports
     group: GroupPort;
     channels: ChannelPort;
     table: TablePort;
+    tournament: TournamentPort;
     party: PartyPort;
     calls: CallPort;
     match: MatchPort;

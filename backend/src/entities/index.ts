@@ -1,3 +1,6 @@
+import { Tournament } from './tournament.entity.ts';
+import { TournamentEntry } from './tournament-entry.entity.ts';
+import { TournamentGame } from './tournament-game.entity.ts';
 import { Achievement } from './achievement.entity.ts';
 import { Avatar } from './avatar.entity.ts';
 import { Block } from './block.entity.ts';
@@ -84,6 +87,7 @@ import { Wallet } from './wallet.entity.ts';
 export {
     Achievement, Avatar, Block, Call, CallParticipant, Channel, ChannelMember, ChannelPost, ChannelVote, ChatFile, Conversation, ConversationEpoch, ConversationMember, ConversationPin, Device, Discrepancy, Donation, DonationsOff, EpochKey, EquippedItem, Escrow, EscrowSeat, EstablishedPlayer,
     EpochArchive, FriendRequest, Friendship,
+    Tournament, TournamentEntry, TournamentGame,
     Game, GameRule, Group, GroupBan, GroupEvent, GroupInvite, GroupMember, GroupMute, GroupReport, GroupRequest, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, MinterChange, Mute,
     NftToken, Notice, Notification, OwnedItem, PaidAccount, PlayerStats, ProfileSponsorship, PushSubscription,
     QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, Season, Session, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
@@ -109,6 +113,7 @@ export const entities: Function[] = [
     Group, GroupMember, GroupBan, GroupMute, GroupInvite, GroupRequest, GroupEvent, GroupReport,
     Channel, ChannelMember, ChannelPost, ChannelVote,
     Call, CallParticipant,
+    Tournament, TournamentEntry, TournamentGame,
     Table, TableSeat, TableRemoval, QuickTable,
     Match, MatchPlayer, MatchAction, PlayerStats, UserAchievement,
     Notification, PushSubscription,

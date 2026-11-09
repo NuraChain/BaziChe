@@ -25,7 +25,11 @@ export const NOTIFICATION_ICON: Record<NotificationKind, IconName> = {
     'group-report': 'report',
     'call': 'call',
     'call-missed': 'call-missed',
-    'group-call': 'call'
+    'group-call': 'call',
+    'tournament-start': 'medal',
+    'tournament-game': 'medal',
+    'tournament-cancelled': 'medal',
+    'tournament-over': 'trophy'
 };
 
 const SAYS: Record<NotificationKind, MessageKey> = {
@@ -48,7 +52,11 @@ const SAYS: Record<NotificationKind, MessageKey> = {
     'group-report': 'notify.groupReport',
     'call': 'notify.call',
     'call-missed': 'notify.callMissed',
-    'group-call': 'notify.groupCall'
+    'group-call': 'notify.groupCall',
+    'tournament-start': 'notify.tournamentStart',
+    'tournament-game': 'notify.tournamentGame',
+    'tournament-cancelled': 'notify.tournamentCancelled',
+    'tournament-over': 'notify.tournamentOver'
 };
 
 export function sayOf(item: Notification, who: string, locale: Pick<LocaleApi, 't' | 'plural' | 'n'>)
@@ -98,6 +106,10 @@ export function targetOf(item: Notification): string | null
     if (item.kind === 'donation')
     {
         return '/app/me/wallet';
+    }
+    if (item.ref.tournament !== undefined && item.kind !== 'tournament-game')
+    {
+        return `/app/tournaments/${ item.ref.tournament }`;
     }
     if (item.ref.tableId !== undefined)
     {

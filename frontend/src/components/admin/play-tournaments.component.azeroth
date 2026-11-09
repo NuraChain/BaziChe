@@ -1,0 +1,90 @@
+import { createResource } from 'azerothjs';
+
+import type { AdminTournaments } from '../../../../backend/src/schemas.ts';
+import { client } from '../../api.ts';
+import { attempt } from '../../lib/attempt.ts';
+import { whyStaffRefused } from '../../lib/staff-words.ts';
+import '../../locales/tournament-catalogue.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import AdminEmpty from './admin-empty.component.azeroth';
+import ReasonSheet from './reason-sheet.component.azeroth';
+
+type Row = AdminTournaments['tournaments'][number];
+
+/** The tournaments open or running now, and the one thing staff do to them: call one off, with a reason in the log. */
+export default component PlayTournaments()
+{
+    const locale = useLocale();
+    const overlay = useOverlay();
+
+    const list = createResource(() => client.admin.tournaments(), { name: 'admin.play.tournaments' });
+
+    derived rows = list.data()?.tournaments ?? [];
+
+    derived waiting = list.data() === undefined && list.error() === null;
+
+    derived failed = list.data() === undefined && list.error() !== null;
+
+    derived none = list.data() !== undefined && rows.length === 0;
+
+    derived some = rows.length > 0;
+
+    const cancel = async (row: Row) =>
+    {
+        const reason = await overlay.open(
+            ReasonSheet,
+            { title: locale.t('tournaments.admin.ask', { name: row.name }), lead: locale.t('tournaments.admin.askLead'), confirm: locale.t('tournaments.admin.cancel'), destructive: true },
+            { label: locale.t('tournaments.admin.title') }
+        ).closed;
+
+        if (typeof reason !== 'string')
+        {
+            return;
+        }
+
+        await attempt(client.admin.cancelTournament({ params: { code: row.code }, input: { reason } }), locale.t('tournaments.admin.done', { name: row.name }), whyStaffRefused);
+        await list.refetch();
+    };
+
+    <section class="flex flex-col gap-3 pt-6" aria-label={ locale.t('tournaments.admin.title') }>
+        <h2 class="text-ui-md font-semibold text-text">{ locale.t('tournaments.admin.title') }</h2>
+        <p class="text-ui-sm text-muted">{ locale.t('tournaments.admin.lead') }</p>
+
+        <Show when={ waiting }>
+            { () => <Skeleton class="h-16 w-full rounded-panel" /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState error={ list.error() } compact onRetry={ () => void list.refetch() } /> }
+        </Show>
+
+        <Show when={ none }>
+            { () => <AdminEmpty icon="medal" title={ locale.t('tournaments.admin.empty') } /> }
+        </Show>
+
+        <Show when={ some }>
+            { () =>
+                <ul class="flex flex-col divide-y divide-line overflow-hidden rounded-panel border border-line bg-field">
+                    <For each={ rows } key={ (row) => row.code } let={ row }>
+                        <li class="flex min-w-0 flex-wrap items-center justify-between gap-3 px-3 py-2.5">
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-ui-sm font-semibold text-text" dir="auto">{ row.name }</p>
+                                <p class="truncate text-ui-xs text-muted">
+                                    { locale.t(`tournaments.status.${ row.status }`) } · { locale.t('tournaments.places', { entered: locale.n(row.entered), size: locale.n(row.size) }) } · { locale.t('tournaments.admin.live', { n: locale.n(row.live) }) }
+                                </p>
+                            </div>
+                            <div class="flex shrink-0 items-center gap-2">
+                                <Button variant="ghost" size="sm" to={ `/app/tournaments/${ row.code }` }>{ locale.t('tournaments.tab.overview') }</Button>
+                                <Button variant="outline" size="sm" onClick={ () => void cancel(row) }>{ locale.t('tournaments.admin.cancel') }</Button>
+                            </div>
+                        </li>
+                    </For>
+                </ul>
+            }
+        </Show>
+    </section>
+}

@@ -1,6 +1,7 @@
 import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { Conversation } from './conversation.entity.ts';
 import { Game } from './game.entity.ts';
+import { Tournament } from './tournament.entity.ts';
 import { User } from './user.entity.ts';
 import type { VoiceScope } from '../domains/table/voices.ts';
 
@@ -143,6 +144,14 @@ export class Table
     @ManyToOne(() => Conversation, { onDelete: 'SET NULL', nullable: true })
     @JoinColumn({ name: 'room_id', referencedColumnName: 'id' })
     room!: Conversation | null;
+
+    /** The tournament this table was dealt for. Nobody sits down at one of these or plays again at it. */
+    @Column({ name: 'tournament_id', type: 'uuid', nullable: true })
+    tournamentId!: string | null;
+
+    @ManyToOne(() => Tournament, { onDelete: 'SET NULL', nullable: true })
+    @JoinColumn({ name: 'tournament_id', referencedColumnName: 'id' })
+    tournament!: Tournament | null;
 
     @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
     @JoinColumn({ name: 'host_id', referencedColumnName: 'id' })

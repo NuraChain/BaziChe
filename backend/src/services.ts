@@ -32,6 +32,7 @@ import { createParties, type PartyWhy } from './domains/party/parties.ts';
 import { partyRefused } from './domains/party/refusal.ts';
 import { createRegistry } from './domains/party/registry.ts';
 import { createTableService, noInvitee, type TableRow } from './domains/table/service.ts';
+import { createTournamentService, type Advanced, type TournamentCreate } from './domains/tournament/service.ts';
 import { strikes } from './domains/table/sweep.ts';
 import { isClock } from './domains/table/clocks.ts';
 import { teamsOf } from './domains/table/teams.ts';
@@ -172,6 +173,9 @@ export interface Services extends Ports
     jobs: {
         sweepTurns(forMs: number): Promise<TurnSweep>;
         sweepTables(): Promise<TableSweep>;
+
+        /** Starts what is due and moves every running tournament on; each is its own transaction. */
+        sweepTournaments(): Promise<{ failed: { tournamentId: string; reason: string }[] }>;
         sweepStakes(forMs: number): Promise<StakeSweep>;
         sweepShop(forMs: number): Promise<ShopSweep>;
         sweepDonations(forMs: number): Promise<DonateSweep>;
@@ -210,6 +214,8 @@ const WATCHABLE_MAX = 48;
 const WAITING_SEATS = 500;
 
 const IDLE_TABLES = 200;
+
+const ADMIN_TOURNAMENTS = 100;
 
 export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain, tipsChain?: TipsChain, marketsChain?: MarketsChain, nftChain?: NftChain, sponsorChain?: ProfileSponsor): Services
 {
@@ -895,6 +901,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 summary.conversationId = row.conversation_id;
             }
         }
+        if (row.tournament !== null)
+        {
+            summary.tournament = row.tournament;
+        }
         if (row.match_id !== null)
         {
             summary.matchId = row.match_id;
@@ -962,6 +972,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     };
 
     const match = createMatchService(db, achieve, ENGINES, shop.looksAt);
+
+    const tournaments = createTournamentService(db, { seat: table.seatForTournament, deal: match.dealTournament });
 
     /**
      * The board as a client is allowed to see it.
@@ -1451,10 +1463,76 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         }
     };
 
+    /** What a tournament moving on owes everybody, once it is written. A courtesy: the rows are the fact. */
+    const tournamentFollowUp = async (done: Advanced | null) =>
+    {
+        if (done === null || !done.changed)
+        {
+            return;
+        }
+
+        for (const one of done.dealt)
+        {
+            await courtesy('game push', async () =>
+            {
+                const load = await match.peek(one.matchId);
+
+                if (load !== null)
+                {
+                    await pushMatch(one.matchId, load.match.rev - 1);
+                }
+            });
+            live?.tableChanged(one.tableId, one.players);
+        }
+
+        for (const notice of done.notices)
+        {
+            for (const userId of notice.userIds)
+            {
+                await courtesy('tournament notice', () => tell({
+                    userId,
+                    kind: notice.kind,
+                    actorId: null,
+                    ref: { tournament: done.code, game: done.game, ...(notice.tableId === undefined ? {} : { tableId: notice.tableId }) },
+                    dedupeKey: `${ notice.kind }:${ done.id }:${ notice.tableId ?? '' }`
+                }));
+            }
+        }
+
+        live?.tableChanged(done.id, done.entrants);
+    };
+
+    /** Only a nudge, so a bracket does not wait for the sweep: the sweep is what guarantees it moves. */
+    const nudgeTournament = async (matchId: string) =>
+    {
+        const tournamentId = await tournaments.ofMatch(matchId);
+
+        if (tournamentId !== null)
+        {
+            await tournamentFollowUp(await tournaments.advance(tournamentId));
+        }
+    };
+
+    const sweepTournaments = async () =>
+    {
+        const failed: { tournamentId: string; reason: string }[] = [];
+
+        for (const tournamentId of await tournaments.sweep())
+        {
+            await tournaments.advance(tournamentId).then(tournamentFollowUp).catch((error: unknown) =>
+            {
+                failed.push({ tournamentId, reason: error instanceof Error ? error.message : String(error) });
+            });
+        }
+
+        return { failed };
+    };
+
     const finished = async (matchId: string) =>
     {
         await courtesy('result line', () => declareResult(matchId));
         await courtesy('invite counted', () => countInvites(matchId));
+        await courtesy('tournament', () => nudgeTournament(matchId));
     };
 
     /**
@@ -2295,6 +2373,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         jobs: {
             sweepTurns,
             sweepTables,
+            sweepTournaments,
             sweepStakes: (forMs) => stakes.sweep(forMs),
             sweepShop: (forMs) => orders.sweep(forMs),
             sweepDonations: (forMs) => donations.sweep(forMs),
@@ -2904,6 +2983,26 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 await afterVoid(id, ended);
 
                 return await playNow();
+            },
+
+            async tournaments(me)
+            {
+                return await ableTo(me, 'play') === null ? null : { tournaments: await tournaments.running(ADMIN_TOURNAMENTS) };
+            },
+
+            async cancelTournament(me, code, input)
+            {
+                const actor = await ableTo(me, 'play');
+                const done = actor === null ? null : await plays.haltTournament(actor, code, input.reason, tournaments.halt);
+
+                if (done === null)
+                {
+                    return null;
+                }
+
+                await tournamentFollowUp(done);
+
+                return { tournaments: await tournaments.running(ADMIN_TOURNAMENTS) };
             },
 
             async closeTable(me, id, input)
@@ -4451,6 +4550,40 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     await ring(after, me);
                 }
                 return asGroup(after);
+            }
+        },
+
+        tournament: {
+            async list(me, query)
+            {
+                return { tournaments: await tournaments.list(me, query) };
+            },
+
+            detail: (me, code) => tournaments.detail(me, code),
+
+            async create(me, input)
+            {
+                return await tournaments.create(me, input as TournamentCreate);
+            },
+
+            async join(me, code)
+            {
+                const { started, view } = await tournaments.join(me, code);
+
+                await tournamentFollowUp(started);
+
+                return view;
+            },
+
+            leave: (me, code) => tournaments.leave(me, code),
+
+            async cancel(me, code)
+            {
+                const { done, view } = await tournaments.cancel(me, code);
+
+                await tournamentFollowUp(done);
+
+                return view;
             }
         },
 

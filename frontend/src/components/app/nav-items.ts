@@ -23,7 +23,7 @@ const CHATS: NavItem = { tab: 'chats', lights: [], to: '/app/chats', icon: 'chat
 
 export const NAV: NavItem[] = [
     HOME,
-    { ...GAMES, lights: ['watch', 'leaderboard', 'shop'] },
+    { ...GAMES, lights: ['watch', 'tournaments', 'leaderboard', 'shop'] },
     { ...FRIENDS, lights: ['discover'] },
     CHATS,
     { tab: 'me', lights: ['settings'], to: '/app/me', icon: 'me', labelKey: 'app.nav.profile' }
@@ -33,6 +33,7 @@ export const RAIL: NavItem[] = [
     HOME,
     GAMES,
     { tab: 'watch', lights: [], to: '/app/watch', icon: 'watch', labelKey: 'app.nav.watch' },
+    { tab: 'tournaments', lights: [], to: '/app/tournaments', icon: 'medal', labelKey: 'app.nav.tournaments' },
     FRIENDS,
     CHATS,
     { tab: 'notifications', lights: [], to: '/app/notifications', icon: 'bell', labelKey: 'app.nav.notifications' },

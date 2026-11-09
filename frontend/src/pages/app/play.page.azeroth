@@ -10,6 +10,7 @@ import ErrorState from '../../components/ui/error-state.component.azeroth';
 import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import type { GameId } from '../../data/games.ts';
 import { inPlay } from '../../data/match.ts';
+import Button from '../../components/ui/button.component.azeroth';
 import Icon from '../../icons/icon.component.azeroth';
 import Badge from '../../components/ui/badge.component.azeroth';
 import { runtime } from '../../lib/runtime.ts';
@@ -689,7 +690,7 @@ export default component PlayPage()
         match,
         events: board.events(),
         starting,
-        onAgain: seated ? () => void again() : undefined,
+        onAgain: seated && table?.tournament === undefined ? () => void again() : undefined,
         rematch,
         stake: staked,
         speech,
@@ -972,6 +973,14 @@ export default component PlayPage()
                     to="/app/games"
                     class="py-12"
                 />
+            }
+        </Show>
+
+        <Show when={ table?.tournament !== undefined && table.matchId === undefined }>
+            { () =>
+                <div class="pointer-events-none fixed inset-x-0 bottom-6 z-overlay flex justify-center safe-b">
+                    <Button class="pointer-events-auto" variant="primary" size="md" leading="medal" to={ `/app/tournaments/${ table?.tournament }` }>{ locale.t('app.nav.tournaments') }</Button>
+                </div>
             }
         </Show>
 

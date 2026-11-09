@@ -65,6 +65,9 @@ export const routes: PageRoute[] = [
         children: [
             { path: '', lazy: chunk(() => import('./pages/app/home.page.azeroth')), meta: defineMeta({ title: 'app.nav.home', tab: 'home' }) },
             { path: 'games', lazy: chunk(() => import('./pages/app/games.page.azeroth')), meta: defineMeta({ title: 'app.nav.games', tab: 'games' }) },
+            { path: 'tournaments', lazy: chunk(() => import('./pages/app/tournaments.page.azeroth')), meta: defineMeta({ title: 'app.nav.tournaments', tab: 'tournaments', parent: '/app/games' }) },
+            { path: 'tournaments/new', lazy: chunk(() => import('./pages/app/tournament-create.page.azeroth')), meta: defineMeta({ title: 'tournaments.new.title', tab: 'tournaments', parent: '/app/tournaments' }) },
+            { path: 'tournaments/:code', lazy: chunk(() => import('./pages/app/tournament.page.azeroth')), meta: defineMeta({ tab: 'tournaments', parent: '/app/tournaments' }) },
             { path: 'watch', lazy: chunk(() => import('./pages/app/watch.page.azeroth')), meta: defineMeta({ title: 'watch.page.title', tab: 'watch', parent: '/app/games' }) },
             { path: 'games/:slug', lazy: chunk(() => import('./pages/app/game.page.azeroth')), meta: defineMeta({ tab: 'games', parent: '/app/games' }) },
             { path: 'games/:slug/create', lazy: chunk(() => import('./pages/app/create-game.page.azeroth')), meta: defineMeta({ title: 'create.title', tab: 'games', parent: '/app/games/:slug' }) },

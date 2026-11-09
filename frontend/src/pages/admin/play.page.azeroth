@@ -5,6 +5,7 @@ import { client } from '../../api.ts';
 import GameSwitch, { GAME_COLUMNS } from '../../components/admin/game-switch.component.azeroth';
 import PlayMatches from '../../components/admin/play-matches.component.azeroth';
 import PlayTables from '../../components/admin/play-tables.component.azeroth';
+import PlayTournaments from '../../components/admin/play-tournaments.component.azeroth';
 import ReasonSheet from '../../components/admin/reason-sheet.component.azeroth';
 import AdminHead from '../../components/admin/admin-head.component.azeroth';
 import ErrorState from '../../components/ui/error-state.component.azeroth';
@@ -158,6 +159,7 @@ export default component PlayPage()
 
         <Show when={ onTables }>
             <PlayTables reader={ reader } onClosed={ () => read.refetch() } />
+            <PlayTournaments />
         </Show>
     </div>
 }

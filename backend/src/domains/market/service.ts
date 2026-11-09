@@ -554,7 +554,7 @@ export function createMarketService(
             .addSelect(`extract(epoch from date_trunc('second', m.started_at + make_interval(secs => :window)))::bigint::text`, 'closes_s')
             .addSelect('m.started_at + make_interval(secs => :window) > now() + make_interval(secs => :margin)', 'taking')
             .where('m.id = :matchId and m.finished_at is null')
-            .andWhere(`t.privacy = 'public' and t.mode = 'live' and t.status <> 'closed'`)
+            .andWhere(`t.privacy = 'public' and t.mode = 'live' and t.status <> 'closed' and t.tournament_id is null`)
             .setParameters({ matchId, window: MARKET_WINDOW_MS / 1000, margin: CLOSE_MARGIN_S })
             .getRawOne<{ table_id: string; game: string; seats: number; variant: 'standard' | 'teams'; closes_s: string; taking: boolean }>();
         const engine = engines.find((one) => one.id === found?.game);

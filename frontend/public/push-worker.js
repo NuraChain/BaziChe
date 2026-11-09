@@ -124,6 +124,11 @@ const leadOf = (row) =>
         return '/app/me/wallet';
     }
 
+    if (row.ref.tournament !== undefined && row.kind !== 'tournament-game')
+    {
+        return `/app/tournaments/${ row.ref.tournament }`;
+    }
+
     if (row.ref.tableId !== undefined)
     {
         return `/app/play/${ row.ref.tableId }`;

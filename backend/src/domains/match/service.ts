@@ -629,7 +629,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                     return live.id;
                 }
 
-                if (table.status === 'closed')
+                if (table.status === 'closed' || table.tournamentId !== null)
                 {
                     throw tableRefusal('table-closed', 'That table has closed.');
                 }
@@ -681,6 +681,17 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             }
 
             return dealtIn(me, matchId);
+        },
+
+        /** Deals a tournament's game in the transaction that opened its table. Nobody pressed anything. */
+        dealTournament: async (tx: EntityManager, tableId: string) =>
+        {
+            await lockTable(tx, tableId);
+
+            const table = await tx.getRepository(Table).findOneOrFail({ where: { id: tableId } });
+            const chairs = await tx.getRepository(TableSeat).find({ where: { tableId }, order: { seat: 'ASC' } });
+
+            return await deal(tx, table, chairs, draws);
         },
 
         begin: async (escrowId: string) =>

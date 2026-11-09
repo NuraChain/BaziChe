@@ -490,6 +490,34 @@ const sweepTables = () =>
 tables = setTimeout(sweepTables, TABLE_SWEEP_MS);
 tables.unref();
 
+const TOURNAMENT_SWEEP_MS = 5_000;
+
+let tournamentSweep: NodeJS.Timeout | null = null;
+
+const sweepTournaments = () =>
+{
+    void ports.jobs.sweepTournaments()
+        .then(({ failed }) =>
+        {
+            for (const one of failed)
+            {
+                log.error('tournament did not advance', one);
+            }
+        })
+        .catch((error: unknown) => log.error('tournament sweep failed', { error }))
+        .finally(() =>
+        {
+            if (tournamentSweep !== null)
+            {
+                tournamentSweep = setTimeout(sweepTournaments, TOURNAMENT_SWEEP_MS);
+                tournamentSweep.unref();
+            }
+        });
+};
+
+tournamentSweep = setTimeout(sweepTournaments, TOURNAMENT_SWEEP_MS);
+tournamentSweep.unref();
+
 const CALL_SWEEP_MS = 5_000;
 
 let calling: NodeJS.Timeout | null = null;
@@ -846,6 +874,11 @@ handleShutdownSignals(served, {
         {
             clearTimeout(tables);
             tables = null;
+        }
+        if (tournamentSweep !== null)
+        {
+            clearTimeout(tournamentSweep);
+            tournamentSweep = null;
         }
         if (calling !== null)
         {

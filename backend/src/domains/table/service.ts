@@ -96,6 +96,9 @@ export interface TableRow
     status: TableStatus;
     host: string | null;
     created_at: Date;
+
+    /** The code of the tournament this table was dealt for, if any. */
+    tournament: string | null;
     chairs: SeatRow[];
     taken: number;
 
@@ -188,6 +191,7 @@ const tableQuery = (db: DataSource, me: string) => db.getRepository(Table)
     .addSelect('t.teams', 'teams')
     .addSelect('t.room_id', 'room_id')
     .addSelect('t.created_at', 'created_at')
+    .addSelect('(select k.code::text from tournaments k where k.id = t.tournament_id)', 'tournament')
 
     /**
      * Derived, never stored. A closed table is a decision somebody made and lives in the column;
@@ -320,7 +324,9 @@ const watchable = (viewer: string) => `t.status <> 'closed' and ${ visibleTo(vie
                       where (b.user_id = ${ viewer } and b.blocked_id = t.host_id)
                          or (b.user_id = t.host_id and b.blocked_id = ${ viewer }))`;
 
-const ON_SHOW = `t.status <> 'closed' and t.privacy = 'public'`;
+/** A game of a link-only tournament is for whoever holds the link, so the list of live games leaves it out. */
+const ON_SHOW = `t.status <> 'closed' and t.privacy = 'public'
+    and not exists (select 1 from tournaments k where k.id = t.tournament_id and not k.listed)`;
 
 export const SEATED_MAX = 50;
 
@@ -458,7 +464,7 @@ const passedOver = (away: number, missed: number) => away + missed === 0 ? {} : 
 
 const compatible = (tx: EntityManager, lead: string, game: string, filter: QuickFilter, stake: string | null) => tx.getRepository(Table)
     .createQueryBuilder('t')
-    .where(`t.game = :game and t.status = 'open' and t.mode = :mode`, { game, mode: filter.mode })
+    .where(`t.game = :game and t.status = 'open' and t.mode = :mode and t.tournament_id is null`, { game, mode: filter.mode })
     .andWhere(
         `(t.privacy = 'public'
           or (t.privacy = 'friends' and exists (select 1 from friendships f
@@ -488,7 +494,7 @@ const compatible = (tx: EntityManager, lead: string, game: string, filter: Quick
 
 const waitingChairs = (from: DataSource | EntityManager) => from.getRepository(TableSeat)
     .createQueryBuilder('s')
-    .innerJoin(Table, 't', `t.id = s.table_id and t.status = 'open' and t.mode = 'live' and t.privacy in ('public', 'friends')`)
+    .innerJoin(Table, 't', `t.id = s.table_id and t.status = 'open' and t.mode = 'live' and t.privacy in ('public', 'friends') and t.tournament_id is null`)
     .where('s.user_id is not null')
     .andWhere('not exists (select 1 from matches m where m.table_id = t.id and m.finished_at is null)')
     .andWhere(NOT_LOCKING);
@@ -1198,6 +1204,11 @@ export function createTableService(db: DataSource, social: SocialService)
                 throw tableRefusal('playing', 'A game is being played at that table.');
             }
 
+            if (table.tournament !== null)
+            {
+                throw tableRefusal('table-closed', 'That table is part of a tournament.');
+            }
+
             await mustHaveRoom(me);
 
             if (table.host !== null)
@@ -1333,7 +1344,7 @@ export function createTableService(db: DataSource, social: SocialService)
         {
             return await db.getRepository(TableSeat)
                 .createQueryBuilder('s')
-                .innerJoin(Table, 't', `t.id = s.table_id and t.status = 'open' and t.privacy in ('public', 'friends')`)
+                .innerJoin(Table, 't', `t.id = s.table_id and t.status = 'open' and t.privacy in ('public', 'friends') and t.tournament_id is null`)
                 .select('t.game', 'game')
                 .addSelect('t.mode', 'mode')
                 .addSelect('count(*)::int', 'players')
@@ -1382,6 +1393,49 @@ export function createTableService(db: DataSource, social: SocialService)
 
                 return stood.left ? { closed: stood.closed, conversationId: waiting.conversation_id } : null;
             });
+        },
+
+        /**
+         * Opens the table a tournament game is played at, with both players already sitting and
+         * ready, inside the transaction that deals it, so it is never a waiting table a sweep could
+         * stand somebody up from. Public so anybody can watch; no chat and no voice, because the
+         * two were paired by a draw and may have blocked one another.
+         */
+        async seatForTournament(tx: EntityManager, tournamentId: string, game: string, players: readonly [string, string])
+        {
+            const rules = await rulesOf(game);
+
+            if (rules === null)
+            {
+                throw new ValidationError({ game: 'No such game.' }, 'That game cannot be opened.');
+            }
+
+            const inserted = await tx.getRepository(Table).insert({
+                code: codeFrom(Math.random),
+                game,
+                seats: 2,
+                mode: 'live',
+                privacy: 'public',
+                target: rules.targets[0] ?? 0,
+                cube: false,
+                blinds: 'low',
+                clock: clockFor(rules.clocks, 'live'),
+                chat: false,
+                voice: 'off',
+                teams: false,
+                hostId: null,
+                roomId: null,
+                tournamentId
+            });
+            const id = inserted.identifiers[0].id as string;
+
+            await tx.getRepository(TableSeat).insert(players.map((userId, seat) => ({ tableId: id, seat, userId, joinedAt: () => 'now()', ready: true })));
+
+            const conversation = await tx.getRepository(Conversation).insert({ kind: 'game', tableId: id, game });
+
+            await tx.getRepository(ConversationMember).insert(players.map((userId) => ({ conversationId: conversation.identifiers[0].id as string, userId })));
+
+            return id;
         },
 
         /** Tables idle for an hour, oldest first: empty, never started, or left after a game. */

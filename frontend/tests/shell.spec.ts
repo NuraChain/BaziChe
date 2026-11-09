@@ -1035,9 +1035,9 @@ describe('which destination every page belongs to', () =>
 
 describe('the shell’s destinations', () =>
 {
-    it('lists the design’s seven in the sidebar, plus notifications and the shop, Tournaments not among them', () =>
+    it('lists the design’s seven in the sidebar, plus tournaments, notifications and the shop', () =>
     {
-        expect(RAIL.map((item) => item.to)).toEqual(['/app', '/app/games', '/app/watch', '/app/friends', '/app/chats', '/app/notifications', '/app/leaderboard', '/app/discover', '/app/shop', '/app/me/settings']);
+        expect(RAIL.map((item) => item.to)).toEqual(['/app', '/app/games', '/app/watch', '/app/tournaments', '/app/friends', '/app/chats', '/app/notifications', '/app/leaderboard', '/app/discover', '/app/shop', '/app/me/settings']);
     });
 
     it('calls the fifth phone tab Profile', async () =>
@@ -1572,7 +1572,7 @@ describe('routes', () =>
     {
         expect(routes.find((route) => route.path === '/')?.render).toBe('static');
         expect(routes.find((route) => route.path === '/app')?.render).toBe('client');
-        expect(routes.find((route) => route.path === '/app')?.children?.length).toBe(28);
+        expect(routes.find((route) => route.path === '/app')?.children?.length).toBe(31);
     });
 });
 

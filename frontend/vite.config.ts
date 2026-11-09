@@ -170,6 +170,10 @@ export default defineConfig(({ command, isSsrBuild, mode }) =>
         {
             environment: 'happy-dom',
 
+            // Every core, where the default leaves one idle. Files stay isolated: these specs share
+            // stores, and sharing a process between them fails differently from run to run.
+            maxWorkers: '100%',
+
             // No unit test may reach the network. src/api.ts fetches the route manifest at module
             // load, so importing any store from a spec would otherwise open a real socket to a port
             // nothing is listening on - and bury a genuine failure in connection noise.

@@ -10,6 +10,13 @@ import base, { DB_SPECS } from './vitest.config.ts';
 //
 // `exclude` is set after the merge, not inside it: `mergeConfig` concatenates arrays, so the base
 // config's exclusion of exactly these files would otherwise survive and leave nothing to run.
+// Without a database every one of these skips itself, but only after each file has loaded the whole
+// server, one at a time: a quarter of an hour to report that nothing ran.
+if ((process.env.TEST_DATABASE_URL ?? '') === '')
+{
+    throw new Error('TEST_DATABASE_URL is not set: name a database you do not mind losing, then run this again.');
+}
+
 const merged = mergeConfig(base, defineConfig({
     test:
     {

@@ -479,7 +479,7 @@ export default component TournamentPage()
                                     <li class="flex min-w-0 items-center gap-2 rounded-tile border border-line bg-field px-3 py-2">
                                         <span class="w-6 shrink-0 text-ui-xs tabular-nums text-faint">{ locale.n(slot.spot) }</span>
                                         <Avatar person={ slot.entry?.who === undefined ? null : people.byHandle(slot.entry.who) } size="xs" />
-                                        <span class={ [ 'min-w-0 flex-1 truncate text-ui-sm', slot.entry === undefined ? 'text-faint' : 'text-text' ].join(' ') } dir="auto">
+                                        <span class={ () => [ 'min-w-0 flex-1 truncate text-ui-sm', slot.entry === undefined ? 'text-faint' : 'text-text' ].join(' ') } dir="auto">
                                             { slot.entry === undefined ? locale.t('tournaments.freePlace') : nameOf(slot.entry.who) }
                                         </span>
                                         <Show when={ slot.entry?.place !== undefined }>

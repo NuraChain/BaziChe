@@ -107,7 +107,7 @@ export default component TournamentBracket(props: { stage: string; title?: strin
                                 <p class="label mb-2 px-3 text-ui-xs text-faint">{ column.label }</p>
                                 <div class="flex flex-1 flex-col">
                                     <For each={ column.games } key={ (game) => game.slot } let={ game }>
-                                        <div class={ [ 'relative flex flex-1 items-center py-1.5 pe-3 ps-3', column === columns[columns.length - 1] ? '' : lineOf(column, game.slot), column.round === columns[0].round ? '' : 'before:absolute before:start-0 before:top-1/2 before:w-3 before:border-t before:border-line-strong' ].join(' ') }>
+                                        <div class={ () => [ 'relative flex flex-1 items-center py-1.5 pe-3 ps-3', column === columns[columns.length - 1] ? '' : lineOf(column, game.slot), column.round === columns[0].round ? '' : 'before:absolute before:start-0 before:top-1/2 before:w-3 before:border-t before:border-line-strong' ].join(' ') }>
                                             <div class="min-w-0 flex-1">
                                                 <TournamentGame game={ game } series={ props.series } />
                                             </div>

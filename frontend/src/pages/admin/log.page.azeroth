@@ -63,7 +63,8 @@ const KIND_WORDS: Record<ActionKind | 'all', MessageKey> = {
     'minter-grant': 'admin.log.kind.minter-grant',
     'minter-revoke': 'admin.log.kind.minter-revoke',
     season: 'admin.log.kind.season',
-    tournament: 'admin.log.kind.tournament'
+    tournament: 'admin.log.kind.tournament',
+    rate: 'admin.log.kind.rate'
 };
 
 const queryOf = (asked: Asked) => ({

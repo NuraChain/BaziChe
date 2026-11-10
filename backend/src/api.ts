@@ -7,6 +7,8 @@ import {
     achievementLadder,
     leaderboard,
     leaderboardQuery,
+    adminRate,
+    adminRateInput,
     adminTournament,
     adminTournamentRemove,
     adminTournamentSwitch,
@@ -770,6 +772,12 @@ export function buildApi(ports: Ports)
 
             notice: routes.get('/notice', { output: adminNotice },
                 async (context) => onlyAdmin(await ports.admin.notice(context.principal.userId))),
+
+            stakeRate: routes.get('/money/rate', { output: adminRate },
+                async (context) => onlyAdmin(await ports.admin.stakeRate(context.principal.userId))),
+
+            setStakeRate: routes.post('/money/rate', { input: adminRateInput, output: adminRate },
+                async (context) => onlyAdmin(await ports.admin.setStakeRate(context.principal.userId, context.input))),
 
             putNotice: routes.post('/notice', { input: adminNoticeInput, output: adminNotice },
                 async (context) => onlyAdmin(await ports.admin.putNotice(context.principal.userId, context.input))),

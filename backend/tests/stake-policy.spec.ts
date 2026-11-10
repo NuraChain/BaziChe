@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { rateOf } from '../src/domains/stake/rate.ts';
+
 import {
     BREAK_DAYS,
     CONSENT_MS,
@@ -13,6 +15,8 @@ import {
     eligibilityOf,
     maskOf,
     onLadder,
+    fitsVault,
+    STAKE_STEP_WEI,
     potOf,
     seatsOfMask,
     shareOf,
@@ -69,24 +73,52 @@ describe('the stakes a table may be played for', () =>
 {
     it('are the ladder, in NURA, written in wei', () =>
     {
-        expect(LADDER_NURA).toEqual([1, 5, 10, 25, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000, 10_000_000]);
+        expect(LADDER_NURA).toEqual([5_000, 500_000, 1_000_000, 2_500_000]);
         expect(STAKE_LADDER).toEqual(LADDER_NURA.map((nura) => `${ nura }000000000000000000`));
         expect(MAX_STAKE_NURA).toBe(10_000_000);
         expect(MAX_STAKE_WEI).toBe(10_000_000n * WEI_PER_NURA);
     });
 
+    it('a table is opened with may be any amount from 100 to 10,000,000 NURA the vault holds, to a ten-thousandth of a NURA', () =>
+    {
+        const ceiling = 500n * WEI_PER_NURA;
+        const hundred = 100n * WEI_PER_NURA;
+
+        expect(fitsVault((250n * WEI_PER_NURA + STAKE_STEP_WEI * 5n).toString(), ceiling), 'off the ladder').toBe(true);
+        expect(fitsVault(hundred.toString(), ceiling), 'the least').toBe(true);
+        expect(fitsVault((hundred - STAKE_STEP_WEI).toString(), ceiling), 'under the least').toBe(false);
+        expect(fitsVault(ceiling.toString(), ceiling), 'the ceiling itself').toBe(true);
+        expect(fitsVault((ceiling + STAKE_STEP_WEI).toString(), ceiling), 'past the vault').toBe(false);
+        expect(fitsVault((hundred + 1n).toString(), ceiling), 'finer than anybody is shown').toBe(false);
+        expect(fitsVault('0', ceiling)).toBe(false);
+        expect(fitsVault('-1', ceiling)).toBe(false);
+        expect(fitsVault('1.5', ceiling)).toBe(false);
+        expect(fitsVault(MAX_STAKE_WEI.toString(), MAX_STAKE_WEI * 4n), 'the app\'s most').toBe(true);
+        expect(fitsVault((MAX_STAKE_WEI + STAKE_STEP_WEI).toString(), MAX_STAKE_WEI * 4n), 'past the app\'s most').toBe(false);
+    });
+
+    it('take a dollar the staff set only as a whole number of steps, so every shortcut is a stake a table may take', () =>
+    {
+        expect(rateOf('2500000000000000000')).toBe(25n * WEI_PER_NURA / 10n);
+        expect(rateOf(STAKE_STEP_WEI.toString())).toBe(STAKE_STEP_WEI);
+        expect(rateOf((STAKE_STEP_WEI + 1n).toString())).toBeNull();
+        expect(rateOf('0')).toBeNull();
+        expect(rateOf('2.5')).toBeNull();
+    });
+
     it('are only the ladder, and only up to the vault\'s ceiling', () =>
     {
-        const fifty = 50n * WEI_PER_NURA;
+        const ceiling = 1_000_000n * WEI_PER_NURA;
 
-        expect(onLadder(STAKE_LADDER[0], fifty)).toBe(true);
-        expect(onLadder(STAKE_LADDER[4], fifty)).toBe(true);
-        expect(onLadder(STAKE_LADDER[5], fifty)).toBe(false);
-        expect(onLadder('2000000000000000000', fifty)).toBe(false);
-        expect(onLadder('1000000000000000001', fifty)).toBe(false);
-        expect(onLadder('01000000000000000000', fifty)).toBe(false);
+        expect(onLadder(STAKE_LADDER[0], ceiling)).toBe(true);
+        expect(onLadder(STAKE_LADDER[2], ceiling)).toBe(true);
+        expect(onLadder(STAKE_LADDER[3], ceiling)).toBe(false);
+        expect(onLadder('2000000000000000000000', ceiling)).toBe(false);
+        expect(onLadder('5000000000000000000001', ceiling)).toBe(false);
+        expect(onLadder('05000000000000000000000', ceiling)).toBe(false);
         expect(onLadder((MAX_STAKE_WEI + WEI_PER_NURA).toString(), MAX_STAKE_WEI * 2n)).toBe(false);
-        expect(onLadder(MAX_STAKE_WEI.toString(), MAX_STAKE_WEI * 2n)).toBe(true);
+        expect(onLadder(STAKE_LADDER[3], MAX_STAKE_WEI * 2n)).toBe(true);
+        expect(onLadder(MAX_STAKE_WEI.toString(), MAX_STAKE_WEI * 2n), 'the most is no rung').toBe(false);
     });
 });
 

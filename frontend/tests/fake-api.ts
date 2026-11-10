@@ -670,7 +670,7 @@ export const nuraState = (): VaultState => ({
     maxStake: '1000000000000000000000',
     reclaimAfter: 259_200,
     paused: false,
-    ladder: STAKE_LADDER.filter((amount) => BigInt(amount) <= 1_000n * 10n ** 18n),
+    ladder: STAKE_LADDER.filter((amount) => BigInt(amount) <= 10_000n * 10n ** 18n),
     may: 'yes',
     balances: {
         address: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
@@ -1632,6 +1632,9 @@ export const server =
     notice: null as NoticeShown | null,
     noticeSeq: 0,
 
+    /** NURA per dollar in wei, as the staff set it for the shortcuts that open a paid table: none until set. */
+    usdRate: null as string | null,
+
     archive: [] as { conversationId: string; epoch: number; wrapped: string }[],
 
     /**
@@ -1886,6 +1889,7 @@ export const server =
         server.invitesAdmin = invitesAdminFresh();
         server.notice = null;
         server.noticeSeq = 0;
+        server.usdRate = null;
         server.archive = [];
         server.devices = [];
         server.currentDevice = null;
@@ -2780,6 +2784,35 @@ export const client =
             staffLogged({ at: new Date(runtime().clock.now()).toISOString(), staff: server.me, ...(actor === null ? {} : { staffRole: actor }), kind: 'close', reason: input.reason, details: { id: held.id, table: held.code, game: held.game } });
 
             return structuredClone(server.play);
+        },
+
+        async stakeRate(): Promise<{ usd?: string }>
+        {
+            server.calls.push('admin.stakeRate');
+            staffGate('money');
+
+            return server.usdRate === null ? {} : { usd: server.usdRate };
+        },
+
+        async setStakeRate({ input }: { input: { usd?: string; reason: string } }): Promise<{ usd?: string }>
+        {
+            server.calls.push(`admin.setStakeRate ${ input.usd ?? 'off' } ${ input.reason }`);
+            staffGate('money');
+
+            const actor = staffRoleOf(server.me);
+            const before = server.usdRate;
+
+            server.usdRate = input.usd ?? null;
+            staffLogged({
+                at: new Date(runtime().clock.now()).toISOString(),
+                staff: server.me,
+                ...(actor === null ? {} : { staffRole: actor }),
+                kind: 'rate',
+                reason: input.reason,
+                details: { ...(before === null ? {} : { from: before }), ...(input.usd === undefined ? {} : { to: input.usd }) }
+            });
+
+            return server.usdRate === null ? {} : { usd: server.usdRate };
         },
 
         async notice(): Promise<AdminNotice>

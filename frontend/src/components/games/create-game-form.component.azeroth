@@ -6,11 +6,11 @@ import type { Game } from '../../data/games.ts';
 import type { Person } from '../../data/person.ts';
 import { cubeLive } from '../../../../backend/src/domains/match/backgammon/cube.ts';
 import { teamsOf } from '../../../../backend/src/domains/table/teams.ts';
-import { STAKE_LADDER, cutOf, feeFor, potOf, shareOf } from '../../../../backend/src/domains/stake/policy.ts';
+import { MAX_STAKE_WEI, MIN_TABLE_STAKE_WEI, STAKE_STEP_WEI, cutOf, feeFor, potOf, shareOf } from '../../../../backend/src/domains/stake/policy.ts';
 import { TEAMS_HINT, formatsOf, isValidTable, type Blinds, type TableConfig, type TableFormat, type TableMode, type TablePrivacy } from '../../data/tables.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { faceOf, paceOf } from '../../lib/clocks.ts';
-import { nuraOf } from '../../lib/nura.ts';
+import { amountOf, nuraOf } from '../../lib/nura.ts';
 import { useSocial } from '../../stores/social.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useAccount } from '../../stores/account.store.ts';
@@ -24,10 +24,14 @@ import FeatureOff from '../app/feature-off.component.azeroth';
 import Avatar from '../ui/avatar.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import Chip from '../ui/chip.component.azeroth';
+import Input from '../ui/input.component.azeroth';
 import SearchInput from '../ui/search-input.component.azeroth';
 import Segmented from '../ui/segmented.component.azeroth';
 import Toggle from '../ui/switch.component.azeroth';
 import { PANEL_TONE } from '../ui/variants.ts';
+
+/** The dollar shortcuts a paid table is offered, once the staff have said what a dollar is in NURA. */
+const USD_SHORTCUTS = [1, 3, 10];
 
 export default component CreateGameForm(props: { game: Game; onCreated: (tableId: string) => void })
 {
@@ -57,7 +61,9 @@ export default component CreateGameForm(props: { game: Game; onCreated: (tableId
     state invitees = [] as string[];
     state query = '';
     state pending = false;
-    state stake = null as string | null;
+    /** Free, one of the dollar shortcuts by how many dollars, or an amount typed in NURA. */
+    state pick = 'free' as 'free' | 'custom' | number;
+    state typed = '';
 
     derived hasCube = rules.hasCube;
 
@@ -91,9 +97,29 @@ export default component CreateGameForm(props: { game: Game; onCreated: (tableId
 
     derived payable = vault?.may === 'yes';
 
-    derived ladder = vault?.ladder ?? (paidOff ? [...STAKE_LADDER] : []);
+    /** The least of the vault's ceiling and the app's own: a table is never opened past either. */
+    derived most = vault === null ? '0' : (BigInt(vault.maxStake) < MAX_STAKE_WEI ? vault.maxStake : MAX_STAKE_WEI.toString());
 
-    derived wager = paying && payable && stake !== null && ladder.includes(stake) ? stake : null;
+    /** What the staff say a dollar is, rounded down to a step a stake can be: a guide, never the amount signed for. */
+    derived perDollar = vault?.usd ?? null;
+
+    derived shortcuts = perDollar === null
+        ? []
+        : USD_SHORTCUTS
+            .map((usd) => ({ usd, wei: (BigInt(perDollar) * BigInt(usd) / STAKE_STEP_WEI * STAKE_STEP_WEI).toString() }))
+            .filter((one) => BigInt(one.wei) >= MIN_TABLE_STAKE_WEI && BigInt(one.wei) <= BigInt(most));
+
+    derived customWei = amountOf(typed, MIN_TABLE_STAKE_WEI.toString(), most);
+
+    derived chosen = pick === 'custom' ? customWei : (shortcuts.find((one) => one.usd === pick)?.wei ?? null);
+
+    derived wager = paying && payable ? chosen : null;
+
+    derived typing = pick === 'custom' && offering;
+
+    derived mistyped = pick === 'custom' && typed.trim() !== '' && customWei === null;
+
+    derived mistypedLine = locale.t('create.stake.amountBad', { min: locale.n(nuraOf(MIN_TABLE_STAKE_WEI.toString())), max: locale.n(nuraOf(most), { maximumFractionDigits: 4 }) });
 
     derived staked = wager !== null;
 
@@ -123,7 +149,7 @@ export default component CreateGameForm(props: { game: Game; onCreated: (tableId
 
     derived tooMany = invitees.length > seats - 1;
 
-    derived valid = isValidTable(config, rules) && !tooMany;
+    derived valid = isValidTable(config, rules) && !tooMany && !(paying && pick !== 'free' && wager === null);
 
     derived friends = ((): Person[] =>
     {
@@ -241,18 +267,29 @@ export default component CreateGameForm(props: { game: Game; onCreated: (tableId
                 <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('create.stake') }</legend>
                 <ul class="flex flex-wrap gap-2">
                     <li>
-                        <Chip selected={ !staked } onClick={ () => stake = null }>
+                        <Chip selected={ pick === 'free' } onClick={ () => pick = 'free' }>
                             <span>{ locale.t('create.stake.free') }</span>
                         </Chip>
                     </li>
-                    <For each={ ladder } key={ (amount) => amount } let={ amount }>
+                    <For each={ shortcuts } key={ (one) => one.usd } let={ one }>
                         <li>
-                            <Chip icon="coins" selected={ wager === amount } disabled={ !payable } onClick={ () => stake = amount }>
-                                <span><span class="tally">{ locale.n(nuraOf(amount)) }</span> NURA</span>
+                            <Chip icon="coins" selected={ pick === one.usd } disabled={ !payable } onClick={ () => pick = one.usd }>
+                                <span>{ locale.t('create.stake.usd', { usd: locale.n(one.usd), nura: locale.n(nuraOf(one.wei), { maximumFractionDigits: 4 }) }) }</span>
                             </Chip>
                         </li>
                     </For>
+                    <li>
+                        <Chip icon="edit" selected={ pick === 'custom' } disabled={ !payable } onClick={ () => pick = 'custom' }>
+                            <span>{ locale.t('create.stake.custom') }</span>
+                        </Chip>
+                    </li>
                 </ul>
+                <Show when={ typing }>
+                    <Input id="create-stake-amount" inputmode="decimal" value={ typed } onInput={ (value) => typed = value } placeholder="0.0" label={ locale.t('create.stake.amount') } invalid={ mistyped } autofocus />
+                </Show>
+                <Show when={ mistyped }>
+                    <p class="text-ui-xs font-semibold text-danger" role="alert">{ mistypedLine }</p>
+                </Show>
                 <Show when={ paidOff }>
                     <FeatureOff feature="paid" brief />
                 </Show>

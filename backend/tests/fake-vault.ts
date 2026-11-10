@@ -31,7 +31,7 @@ export function fakeVault(configured = true)
     const refunded: Hex[] = [];
     const adminCalls: { name: string; admin: Address; args: unknown[] }[] = [];
     const state = {
-        terms: { fee: 500, maxStake: 1_000n * 10n ** 18n, reclaimAfter: 259_200n, paused: false, games: {} } as VaultTerms,
+        terms: { fee: 500, maxStake: 10_000n * 10n ** 18n, reclaimAfter: 259_200n, paused: false, games: {} } as VaultTerms,
         ledger: {
             fees: 0n,
             free: 0n,

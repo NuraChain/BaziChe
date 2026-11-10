@@ -1,0 +1,123 @@
+import { createResource } from 'azerothjs';
+
+import { STAKE_STEP_WEI } from '../../../../backend/src/domains/stake/policy.ts';
+import { client } from '../../api.ts';
+import { attempt } from '../../lib/attempt.ts';
+import { amountOf, nuraOf } from '../../lib/nura.ts';
+import { whyStaffRefused } from '../../lib/staff-words.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import ReasonSheet from './reason-sheet.component.azeroth';
+
+/** Well past any stake: this only bounds what can be typed, the vault's own ceiling still bounds a table. */
+const RATE_MOST = (10n ** 30n).toString();
+
+/** What a dollar is in NURA, for the shortcuts on the screen that opens a paid table. */
+export default component AdminStakeRate()
+{
+    const locale = useLocale();
+    const overlay = useOverlay();
+
+    const read = createResource(() => client.admin.stakeRate(), { name: 'admin.rate' });
+
+    state typed = '';
+
+    state told = null as string | null;
+
+    derived held = read.data() ?? null;
+
+    derived waiting = held === null && read.error() === null;
+
+    derived failed = held === null && read.error() !== null;
+
+    derived shown = held !== null;
+
+    derived set = held?.usd !== undefined;
+
+    derived now = held?.usd === undefined ? '' : locale.n(nuraOf(held.usd), { maximumFractionDigits: 4 });
+
+    derived standing = set ? locale.t('admin.rate.now', { amount: now }) : locale.t('admin.rate.none');
+
+    const change = async (usd: string | null) =>
+    {
+        const asked = usd === null
+            ? locale.t('admin.rate.askOff')
+            : locale.t('admin.rate.ask', { amount: locale.n(nuraOf(usd), { maximumFractionDigits: 4 }) });
+        const reason = await overlay.open(ReasonSheet, { title: asked, confirm: locale.t(usd === null ? 'admin.rate.off' : 'admin.rate.save'), destructive: usd === null }, { label: locale.t('admin.rate.title') }).closed;
+
+        if (typeof reason !== 'string')
+        {
+            return;
+        }
+
+        if (await attempt(client.admin.setStakeRate({ input: { ...(usd === null ? {} : { usd }), reason } }), locale.t('admin.rate.done'), whyStaffRefused))
+        {
+            typed = '';
+        }
+
+        await read.refetch();
+    };
+
+    const save = () =>
+    {
+        const wei = amountOf(typed, STAKE_STEP_WEI.toString(), RATE_MOST);
+
+        if (wei === null)
+        {
+            told = locale.t('admin.rate.bad');
+            return;
+        }
+
+        void change(wei);
+    };
+
+    <section class="flex flex-col gap-4" aria-labelledby="admin-rate">
+        <div class="flex flex-col gap-1">
+            <h2 id="admin-rate" class="title text-ui-2xl text-text">{ locale.t('admin.rate.title') }</h2>
+            <p class="text-ui-md text-muted">{ locale.t('admin.rate.lead') }</p>
+        </div>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 2 } /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState error={ read.error() } compact onRetry={ () => void read.refetch() } /> }
+        </Show>
+
+        <Show when={ shown }>
+            <div class="flex flex-col gap-3 rounded-panel border border-line bg-field p-4" data-rate>
+                <p class="text-ui-sm font-semibold text-text" data-rate-now>{ standing }</p>
+                <Field id="admin-rate-amount" label={ locale.t('admin.rate.label') } hint={ locale.t('vault.amountHint') } error={ told }>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <Input
+                            id="admin-rate-amount"
+                            class="min-w-40 flex-1"
+                            value={ typed }
+                            inputmode="decimal"
+                            autocomplete="off"
+                            enterkeyhint="send"
+                            invalid={ told !== null }
+                            describedBy={ told !== null ? 'admin-rate-amount-error' : 'admin-rate-amount-hint' }
+                            onInput={ (value) =>
+                            {
+                                typed = value;
+                                told = null;
+                            } }
+                            onEnter={ save }
+                        />
+                        <Button variant="outline" onClick={ save }>{ locale.t('admin.rate.save') }</Button>
+                        <Show when={ set }>
+                            <Button variant="destructive-ghost" onClick={ () => void change(null) }>{ locale.t('admin.rate.off') }</Button>
+                        </Show>
+                    </div>
+                </Field>
+            </div>
+        </Show>
+    </section>
+}

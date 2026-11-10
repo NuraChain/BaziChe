@@ -18,7 +18,8 @@ import { inviterWalletOf } from '../invite/inviter.ts';
 import { audited, AUDIT_PAGE, nothing, RECENT, type AuditAsk, type Finding } from '../reconcile/audit.ts';
 import { escrowVerdict } from '../reconcile/verdicts.ts';
 import { gameOff, gameOn, lockTable, lockingAt, stillLocking, tableRefusal } from '../table/service.ts';
-import { CONSENT_MS, eligibilityOf, feeFor, MAX_STAKE_WEI, onLadder, potOf, seatsOfMask, shareOf, STAKE_LADDER, weiOf, type BreakDays, type Eligibility, type EscrowState } from './policy.ts';
+import { CONSENT_MS, eligibilityOf, feeFor, fitsVault, onLadder, potOf, seatsOfMask, shareOf, STAKE_LADDER, weiOf, type BreakDays, type Eligibility, type EscrowState } from './policy.ts';
+import { usdRate } from './rate.ts';
 
 interface StandingRow
 {
@@ -293,7 +294,7 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
             throw unsigned();
         }
 
-        if (stake.amount > terms.maxStake || stake.amount > MAX_STAKE_WEI)
+        if (stake.amount > terms.maxStake)
         {
             throw notStake();
         }
@@ -876,8 +877,9 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
 
             const standing = await standingOf(me);
             const owner = standing.address === null ? null : getAddress(standing.address);
-            const [terms, held] = await Promise.all([
+            const [terms, rate, held] = await Promise.all([
                 vault.terms(),
+                usdRate(db),
                 owner === null ? null : vault.balances(owner).then((money) => ({
                     address: owner,
                     free: money.free.toString(),
@@ -896,6 +898,7 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
                 reclaimAfter: Number(terms.reclaimAfter),
                 paused: terms.paused,
                 ladder: STAKE_LADDER.filter((amount) => onLadder(amount, terms.maxStake)),
+                ...(rate === null ? {} : { usd: rate.toString() }),
                 may: eligibilityOf(standing),
                 ...(standing.breakUntil === null ? {} : { breakUntil: standing.breakUntil.toISOString() }),
                 ...(held === null ? {} : { balances: held })
@@ -1119,7 +1122,7 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
                 throw halted();
             }
 
-            if (!onLadder(stake, terms.maxStake))
+            if (!fitsVault(stake, terms.maxStake))
             {
                 throw notStake();
             }

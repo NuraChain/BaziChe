@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fire, renderTest } from '@azerothjs/testing';
 import { RouterProvider, Routes, createMemoryHistory, createRouter } from 'azerothjs';
 
-import { MAX_STAKE_WEI, STAKE_LADDER } from '../../backend/src/domains/stake/policy.ts';
+import { MAX_STAKE_WEI } from '../../backend/src/domains/stake/policy.ts';
 import CreateGameForm from '../src/components/games/create-game-form.component.azeroth';
 import LobbyPanel from '../src/components/games/lobby-panel.component.azeroth';
 import QuickFinder from '../src/components/games/quick-finder.component.azeroth';
@@ -26,6 +26,8 @@ import { socket } from './fake-realtime.ts';
 
 const WEI = 10n ** 18n;
 const TEN = (10n * WEI).toString();
+const HUNDRED = (100n * WEI).toString();
+const RUNG = (5_000n * WEI).toString();
 const SIGNED = `0x${ 'cd'.repeat(65) }`;
 
 const settle = async () =>
@@ -125,23 +127,78 @@ describe('a table opened at a stake', () =>
         await settle();
     };
 
-    it('offers a free table and every stake on the vault\'s ladder at a live table, with free chosen', async () =>
+    /** Chooses an amount of one's own and types it, as a reader would. */
+    const stake = async (container: HTMLElement, amount: string, legend = 'Played for', custom = 'Custom') =>
     {
-        await vaultWith({ maxStake: MAX_STAKE_WEI.toString(), ladder: [...STAKE_LADDER] });
+        await press(container, legend, custom);
+
+        const field = container.querySelector<HTMLInputElement>('#create-stake-amount');
+
+        expect(field, 'no amount to type into').not.toBeNull();
+        field!.value = amount;
+        fire(field!, 'input');
+        await settle();
+    };
+
+    const PER_DOLLAR = (100n * WEI).toString();
+
+    it('offers a free table, the dollar shortcuts at the staff\'s rate and an amount of one\'s own, with free chosen', async () =>
+    {
+        await vaultWith({ maxStake: MAX_STAKE_WEI.toString(), usd: PER_DOLLAR });
         const { container } = form();
         await settle();
 
-        expect(offered(container, 'Played for')).toEqual(['Free', '1 NURA', '5 NURA', '10 NURA', '25 NURA', '50 NURA', '100 NURA', '250 NURA', '500 NURA', '1,000 NURA', '2,500 NURA', '5,000 NURA', '10,000 NURA', '25,000 NURA', '50,000 NURA', '100,000 NURA', '250,000 NURA', '500,000 NURA', '1,000,000 NURA', '2,500,000 NURA', '5,000,000 NURA', '10,000,000 NURA']);
+        expect(offered(container, 'Played for')).toEqual(['Free', '≈ $1 · 100 NURA', '≈ $3 · 300 NURA', '≈ $10 · 1,000 NURA', 'Custom']);
         expect(chosen(container, 'Played for')).toEqual(['Free']);
+
+        await press(container, 'Played for', '≈ $3 · 300 NURA');
+        await submit(container);
+
+        expect(server.tables.at(-1)?.stake, 'the amount signed for is NURA, never dollars').toBe((300n * WEI).toString());
     });
 
-    it('offers only the stakes under the vault\'s ceiling', async () =>
+    it('offers no shortcuts until the staff say what a dollar is, and none under 100 NURA or past the vault\'s ceiling', async () =>
     {
-        await vaultWith({ ladder: [WEI.toString(), (5n * WEI).toString()] });
         const { container } = form();
         await settle();
 
-        expect(offered(container, 'Played for')).toEqual(['Free', '1 NURA', '5 NURA']);
+        expect(offered(container, 'Played for')).toEqual(['Free', 'Custom']);
+
+        cleanup();
+        await vaultWith({ usd: (50n * WEI).toString(), maxStake: (200n * WEI).toString() });
+        const capped = form();
+        await settle();
+
+        expect(offered(capped.container, 'Played for')).toEqual(['Free', '≈ $3 · 150 NURA', 'Custom']);
+    });
+
+    it('opens a table at any amount typed from 100 NURA, off every ladder, and refuses one under it, finer than four places or past the vault', async () =>
+    {
+        const { container } = form();
+        await settle();
+
+        await stake(container, '250.5');
+        await submit(container);
+
+        expect(server.tables.at(-1)?.stake).toBe((2505n * WEI / 10n).toString());
+
+        const opened = server.tables.length;
+
+        await stake(container, '99.9999');
+
+        expect(container.textContent).toContain('Write an amount from 100 to 1,000 NURA, to four places at most.');
+
+        await submit(container);
+
+        expect(server.tables).toHaveLength(opened);
+
+        await stake(container, '5000');
+
+        expect(container.textContent).toContain('Write an amount from 100 to 1,000 NURA, to four places at most.');
+
+        await stake(container, '100.00001');
+
+        expect(container.textContent).toContain('Write an amount from 100 to 1,000 NURA, to four places at most.');
     });
 
     it('takes the fee of the game being opened when it has one of its own', async () =>
@@ -151,9 +208,9 @@ describe('a table opened at a stake', () =>
         await settle();
 
         await press(container, 'Seats', '2 players');
-        await press(container, 'Played for', '10 NURA');
+        await stake(container, '100');
 
-        expect(container.textContent).toContain('The pot is 20 NURA. A 2 NURA fee comes out of it and the winner takes 18 NURA.');
+        expect(container.textContent).toContain('The pot is 200 NURA. A 20 NURA fee comes out of it and the winner takes 180 NURA.');
     });
 
     it('says what the pot comes to and what the winner takes, alone and as a pair, and opens the table at that stake', async () =>
@@ -162,17 +219,17 @@ describe('a table opened at a stake', () =>
         await settle();
 
         await press(container, 'Seats', '2 players');
-        await press(container, 'Played for', '10 NURA');
+        await stake(container, '100');
 
-        expect(container.textContent).toContain('The pot is 20 NURA. A 1 NURA fee comes out of it and the winner takes 19 NURA.');
+        expect(container.textContent).toContain('The pot is 200 NURA. A 10 NURA fee comes out of it and the winner takes 190 NURA.');
 
         await press(container, 'Seats', '2 v 2');
 
-        expect(container.textContent).toContain('The pot is 40 NURA. A 2 NURA fee comes out of it and each of the winning pair takes 19 NURA.');
+        expect(container.textContent).toContain('The pot is 400 NURA. A 20 NURA fee comes out of it and each of the winning pair takes 190 NURA.');
 
         await submit(container);
 
-        expect(server.tables.at(-1)?.stake).toBe(TEN);
+        expect(server.tables.at(-1)?.stake).toBe(HUNDRED);
     });
 
     it('opens a free table with no stake at all', async () =>
@@ -190,7 +247,7 @@ describe('a table opened at a stake', () =>
         const { container } = form();
         await settle();
 
-        await press(container, 'Played for', '10 NURA');
+        await stake(container, '100');
         fire(button(container, 'Turn-based')!, 'click');
         await settle();
 
@@ -203,18 +260,18 @@ describe('a table opened at a stake', () =>
 
     it('says when the vault holds less than the stake, and where to put more in', async () =>
     {
-        await vaultWith({ balances: { address: '0x71c7656ec7ab88b098defb751b7401b5f6d8976f', free: (5n * WEI).toString(), locked: '0', wallet: '0' } });
+        await vaultWith({ balances: { address: '0x71c7656ec7ab88b098defb751b7401b5f6d8976f', free: (150n * WEI).toString(), locked: '0', wallet: '0' } });
         const { container } = form();
         await settle();
 
         expect(container.querySelector('a[href="/app/me/wallet"]')).toBeNull();
 
-        await press(container, 'Played for', '10 NURA');
+        await stake(container, '200');
 
-        expect(container.textContent).toContain('You have 5 NURA free in the vault, less than the stake.');
+        expect(container.textContent).toContain('You have 150 NURA free in the vault, less than the stake.');
         expect(container.querySelector('a[href="/app/me/wallet"]')?.textContent).toBe('Your NURA');
 
-        await press(container, 'Played for', '5 NURA');
+        await stake(container, '100');
 
         expect(container.textContent).not.toContain('less than the stake');
         expect(container.querySelector('a[href="/app/me/wallet"]')).toBeNull();
@@ -246,7 +303,7 @@ describe('a table opened at a stake', () =>
         const played = group(container, 'Played for');
 
         expect(chosen(container, 'Played for')).toEqual(['Free']);
-        expect(offered(container, 'Played for')).toHaveLength(STAKE_LADDER.length + 1);
+        expect(offered(container, 'Played for')).toEqual(['Free', 'Custom']);
         expect([...played!.querySelectorAll<HTMLButtonElement>('button')].filter((one) => !one.disabled).map((one) => one.textContent?.trim()), 'a stake was offered where nothing can be staked').toEqual(['Free']);
         expect(played?.querySelector('[data-off="paid"]')?.textContent).toContain('Playing for NURA is turned off right now');
     });
@@ -258,7 +315,7 @@ describe('a table opened at a stake', () =>
 
         expect(container.textContent).toContain(useLocale().t('games.stakes.playMoneyHint'));
 
-        await press(container, 'Played for', '10 NURA');
+        await stake(container, '100');
 
         expect(container.textContent).toContain('The chips only keep the score. The table is played for its stake in NURA.');
         expect(container.textContent).not.toContain(useLocale().t('games.stakes.playMoneyHint'));
@@ -272,9 +329,9 @@ describe('a table opened at a stake', () =>
         const locale = useLocale();
 
         await press(container, locale.t('create.seats'), locale.plural('common.players', 2));
-        await press(container, locale.t('create.stake'), `${ locale.n(10) } NURA`);
+        await stake(container, '۱۰۰', locale.t('create.stake'), locale.t('create.stake.custom'));
 
-        expect(container.textContent).toContain('کل پات می‌شه ۲۰ NURA. ۱ NURA کارمزد ازش کم می‌شه و برنده ۱۹ NURA می‌بره.');
+        expect(container.textContent).toContain('کل پات می‌شه ۲۰۰ NURA. ۱۰ NURA کارمزد ازش کم می‌شه و برنده ۱۹۰ NURA می‌بره.');
     });
 });
 
@@ -296,16 +353,16 @@ describe('quick play at a stake', () =>
         const { container, router } = finder();
         await settle();
 
-        await press(container, 'Played for', '10 NURA');
+        await press(container, 'Played for', '5,000 NURA');
 
         expect(container.textContent).toContain(useLocale().t('quickMatch.stakeHint'));
 
         fire(find(container), 'click');
         await vi.waitFor(() => expect(router.location().pathname).toMatch(/^\/app\/play\//));
 
-        expect(sign).toHaveBeenCalledWith('ludo', TEN);
-        expect(server.sought.at(-1)).toMatchObject({ game: 'ludo', stake: TEN, signature: SIGNED });
-        expect(server.tables.at(-1)?.stake).toBe(TEN);
+        expect(sign).toHaveBeenCalledWith('ludo', RUNG);
+        expect(server.sought.at(-1)).toMatchObject({ game: 'ludo', stake: RUNG, signature: SIGNED });
+        expect(server.tables.at(-1)?.stake).toBe(RUNG);
     });
 
     it('looks for nothing when the wallet would not sign, says why, and can be asked again', async () =>
@@ -314,7 +371,7 @@ describe('quick play at a stake', () =>
         const { container } = finder();
         await settle();
 
-        await press(container, 'Played for', '10 NURA');
+        await press(container, 'Played for', '5,000 NURA');
         fire(find(container), 'click');
         await settle();
 
@@ -330,7 +387,7 @@ describe('quick play at a stake', () =>
         const { container, router } = finder();
         await settle();
 
-        await press(container, 'Played for', '10 NURA');
+        await press(container, 'Played for', '5,000 NURA');
         fire(find(container), 'click');
         await settle();
 

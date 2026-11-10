@@ -276,6 +276,13 @@ const said = (row: LogRow, locale: LocaleApi) =>
         return locale.t(REWARD_LINES[row.details.to ?? ''] ?? 'admin.log.line.invite.given', { ...slots, look: itemName(row.details.item ?? '', locale) });
     }
 
+    if (row.kind === 'rate')
+    {
+        return row.details.to === undefined
+            ? locale.t('admin.log.line.rateOff', slots)
+            : locale.t('admin.log.line.rate', { ...slots, amount: nuraIn(row.details.to, locale) });
+    }
+
     if (row.kind === 'tournament')
     {
         // A name is what somebody typed; braces in it must not read as somebody else's handle.

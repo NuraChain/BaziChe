@@ -518,6 +518,9 @@ export const vaultState = union([
         reclaimAfter: number(),
         paused: boolean(),
         ladder: array(string()),
+
+        /** NURA per dollar in wei, as the staff set it, for the shortcuts that open a table; absent while none is set. */
+        usd: string().optional(),
         may: enumOf(ELIGIBILITIES),
         breakUntil: string().optional(),
         balances: vaultBalances.optional()
@@ -2116,6 +2119,13 @@ export const adminGameInput = object({ on: boolean(), reason: said() });
 export const adminVoidInput = object({ reason: said() });
 
 export const adminCloseInput = object({ reason: said() });
+
+/** NURA per dollar in wei; with no `usd` the shortcuts are turned off. */
+export const adminRateInput = object({ usd: string({ max: 40 }).optional(), reason: said() });
+
+export const adminRate = object({ usd: string().optional() });
+
+export type AdminRate = Infer<typeof adminRate>;
 
 const noticeLine = () => string({ trim: true, min: 3, max: NOTICE_MAX, pattern: SAYS_SOMETHING });
 

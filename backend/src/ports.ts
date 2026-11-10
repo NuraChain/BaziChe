@@ -112,7 +112,7 @@ import type {
     StaffLog
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
-import type { tournamentCreateInput, tournamentList, tournamentsQuery, AdminTournament, AdminTournaments, TournamentDetail, adminTournamentRemove, adminTournamentSwitch, adminTournamentTime, adminTournamentsQuery, adminMinterInput, adminMinterSentInput, adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminSeasonStart, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
+import type { tournamentCreateInput, tournamentList, tournamentsQuery, AdminRate, adminRateInput, AdminTournament, AdminTournaments, TournamentDetail, adminTournamentRemove, adminTournamentSwitch, adminTournamentTime, adminTournamentsQuery, adminMinterInput, adminMinterSentInput, adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminSeasonStart, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
 import type { ShopSlot } from './domains/shop/catalogue.ts';
 import type { QuickAsk } from './domains/table/quick.ts';
@@ -1026,6 +1026,10 @@ export interface AdminPort
     live(me: string, query: Infer<typeof adminLiveQuery>): Promise<AdminLive | null>;
 
     notice(me: string): Promise<AdminNotice | null>;
+
+    stakeRate(me: string): Promise<AdminRate | null>;
+
+    setStakeRate(me: string, input: Infer<typeof adminRateInput>): Promise<AdminRate | null>;
 
     putNotice(me: string, input: Infer<typeof adminNoticeInput>): Promise<AdminNotice | null>;
 

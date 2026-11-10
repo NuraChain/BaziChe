@@ -35,7 +35,7 @@ const WALLETS = [
     '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc'
 ];
 
-const TEN = (10n * WEI_PER_NURA).toString();
+const TEN = (5_000n * WEI_PER_NURA).toString();
 
 const listener: WriteListener = {
     chatChanged: () => undefined,
@@ -101,7 +101,7 @@ const makeUser = async (wallet: number | null, overrides: Partial<Pick<User, 'is
             await db.getRepository(PaidAccount).insert({ userId: made.id, acceptedAt: new Date() });
         }
 
-        fake.fund(address, 50n);
+        fake.fund(address, 5_000_000n);
     }
 
     return { id: made.id, handle: made.handle, address };
@@ -253,23 +253,32 @@ describe.skipIf(!active)('a table played for NURA, against a real database', () 
             expect(await db.getRepository(TableStake).count()).toBe(0);
         });
 
-        it('refuses a stake off the ladder or over the vault\'s ceiling, a turn-based table, and a host who may not play', async () =>
+        it('opens a table for any amount the vault holds, off the ladder too', async () =>
+        {
+            const host = await makeUser(0);
+            const table = await ports.table.create(host.id, live('250500000000000000000'));
+
+            expect(table.stake).toBe('250500000000000000000');
+            expect(await db.getRepository(TableStake).findOneBy({ tableId: table.id })).toMatchObject({ amount: '250500000000000000000' });
+        });
+
+        it('refuses a stake finer than a ten-thousandth or over the vault\'s ceiling, a turn-based table, and a host who may not play', async () =>
         {
             const host = await makeUser(0);
             const guest = await makeUser(null);
             const unsworn = await makeUser(1, {}, false);
 
-            expect(await word(ports.table.create(host.id, live('2000000000000000000')))).toBe('422 paid-stake');
+            expect(await word(ports.table.create(host.id, live('100000000000000000001')))).toBe('422 paid-stake');
 
-            fake.state.terms = { ...fake.state.terms, maxStake: 5n * WEI_PER_NURA };
-            expect(await word(ports.table.create(host.id, live(TEN)))).toBe('422 paid-stake');
+            fake.state.terms = { ...fake.state.terms, maxStake: 50n * WEI_PER_NURA };
+            expect(await word(ports.table.create(host.id, live((100n * WEI_PER_NURA).toString())))).toBe('422 paid-stake');
 
-            expect(await word(ports.table.create(host.id, live((5n * WEI_PER_NURA).toString(), 'turns')))).toBe('422 paid-pace');
-            expect(await word(ports.table.create(guest.id, live((5n * WEI_PER_NURA).toString())))).toBe('409 paid-wallet');
-            expect(await word(ports.table.create(unsworn.id, live((5n * WEI_PER_NURA).toString())))).toBe('409 paid-terms');
+            expect(await word(ports.table.create(host.id, live((100n * WEI_PER_NURA).toString(), 'turns')))).toBe('422 paid-pace');
+            expect(await word(ports.table.create(guest.id, live((100n * WEI_PER_NURA).toString())))).toBe('409 paid-wallet');
+            expect(await word(ports.table.create(unsworn.id, live((100n * WEI_PER_NURA).toString())))).toBe('409 paid-terms');
 
             fake.state.terms = { ...fake.state.terms, paused: true };
-            expect(await word(ports.table.create(host.id, live((5n * WEI_PER_NURA).toString())))).toBe('409 paid-paused');
+            expect(await word(ports.table.create(host.id, live((100n * WEI_PER_NURA).toString())))).toBe('409 paid-paused');
 
             expect(await db.getRepository(Table).count()).toBe(0);
         });
@@ -380,13 +389,13 @@ describe.skipIf(!active)('a table played for NURA, against a real database', () 
             fake.state.terms = { ...fake.state.terms, fee: 500, games: { ludo: 700 } };
             expect(await word(ports.table.setReady(guest.id, tableId, true, signFor(guest, terms.typedData))), 'the game was given a fee of its own').toBe('422 paid-consent');
             fake.state.terms = { ...fake.state.terms, games: { hokm: 700 } };
-            fake.fund(guest.address, 9n);
+            fake.fund(guest.address, 4_999n);
             expect(await word(ports.table.setReady(guest.id, tableId, true, signFor(guest, terms.typedData))), 'another game\'s fee is not this one\'s').toBe('409 paid-funds');
             fake.state.terms = { ...fake.state.terms, games: {} };
 
-            fake.fund(guest.address, 9n);
+            fake.fund(guest.address, 4_999n);
             expect(await word(ports.table.setReady(guest.id, tableId, true, signFor(guest, terms.typedData)))).toBe('409 paid-funds');
-            fake.fund(guest.address, 50n);
+            fake.fund(guest.address, 5_000_000n);
 
             await db.query(`update stake_consents set deadline = now() + interval '1 minute' where table_id = $1`, [tableId]);
             expect(await word(ports.table.setReady(guest.id, tableId, true, signFor(guest, terms.typedData)))).toBe('422 paid-consent');
@@ -465,7 +474,7 @@ describe.skipIf(!active)('a table played for NURA, against a real database', () 
             const seats = await db.getRepository(EscrowSeat).find({ where: { escrowId: escrow.id }, order: { seat: 'ASC' } });
 
             expect(fake.opened).toHaveLength(1);
-            expect(fake.opened[0]).toMatchObject({ id: vaultIdOf(escrow.id), game: 'ludo', amount: 10n * WEI_PER_NURA, feeBps: 500 });
+            expect(fake.opened[0]).toMatchObject({ id: vaultIdOf(escrow.id), game: 'ludo', amount: 5_000n * WEI_PER_NURA, feeBps: 500 });
             expect(fake.opened[0].seats.map((seat) => seat.player)).toEqual([getAddress(host.address), getAddress(guest.address)]);
             expect(fake.opened[0].seats.map((seat) => seat.nonce)).toEqual(seats.map((seat) => seat.nonce));
             expect(fake.opened[0].seats[0].nonce).toBe(JSON.parse(hostTerms.typedData).message.nonce);
@@ -1190,7 +1199,7 @@ describe.skipIf(!active)('a table played for NURA, against a real database', () 
                 seat: 1,
                 state: 'settled',
                 won: true,
-                share: (19n * WEI_PER_NURA).toString(),
+                share: (9_500n * WEI_PER_NURA).toString(),
                 openTx: expect.stringMatching(/^0x[0-9a-f]{64}$/),
                 closeTx: expect.stringMatching(/^0x[0-9a-f]{64}$/),
                 match: first.matchId,
@@ -1316,7 +1325,7 @@ describe.skipIf(!active)('a table played for NURA, against a real database', () 
 
     describe('quick play at a stake', () =>
     {
-        const FIVE = (5n * WEI_PER_NURA).toString();
+        const FIVE = (500_000n * WEI_PER_NURA).toString();
 
         const search = async (person: Person, stake?: string) =>
         {
@@ -1569,7 +1578,7 @@ describe.skipIf(!active)('a table played for NURA, against a real database', () 
                 minFee: 100,
                 maxFee: 1500,
                 games: [{ game: 'ludo', fee: 500, own: false }, { game: 'hokm', fee: 700, own: true }],
-                maxStake: (1_000n * WEI_PER_NURA).toString(),
+                maxStake: (10_000n * WEI_PER_NURA).toString(),
                 paused: false,
                 held: '57',
                 free: '20',

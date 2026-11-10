@@ -73,7 +73,8 @@ import { createReconciler, type ReconcileSweep } from './domains/reconcile/servi
 import type { Books } from './chain/rpc.ts';
 import { createShopService } from './domains/shop/service.ts';
 import { createReportsService } from './domains/admin/reports.ts';
-import { createStaffService, type Actor } from './domains/admin/staff.ts';
+import { createStaffService, record, staffRefusal, type Actor } from './domains/admin/staff.ts';
+import { rateOf, setUsdRate, usdRate } from './domains/stake/rate.ts';
 import { createTournamentStaff } from './domains/admin/tournaments.ts';
 import { createVaultAdmin } from './domains/stake/admin.ts';
 import { avatarHashOf } from './domains/identity/avatar.ts';
@@ -3143,6 +3144,48 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             async notice(me)
             {
                 return await ableTo(me, 'notice') === null ? null : await notices.standing();
+            },
+
+            async stakeRate(me)
+            {
+                if (await ableTo(me, 'money') === null)
+                {
+                    return null;
+                }
+
+                const rate = await usdRate(db);
+
+                return rate === null ? {} : { usd: rate.toString() };
+            },
+
+            async setStakeRate(me, input)
+            {
+                const actor = await ableTo(me, 'money');
+
+                if (actor === null)
+                {
+                    return null;
+                }
+
+                const wei = input.usd === undefined ? null : rateOf(input.usd);
+
+                if (input.usd !== undefined && wei === null)
+                {
+                    throw staffRefusal('staff-rate', 'A dollar has to be worth a positive amount of NURA, to a ten-thousandth.');
+                }
+
+                await db.transaction(async (tx) =>
+                {
+                    const before = await setUsdRate(tx, wei, actor.id);
+
+                    await record(tx, actor, {
+                        kind: 'rate',
+                        reason: input.reason,
+                        details: { ...(before === null ? {} : { from: before.toString() }), ...(wei === null ? {} : { to: wei.toString() }) }
+                    });
+                });
+
+                return wei === null ? {} : { usd: wei.toString() };
             },
 
             async putNotice(me, input)

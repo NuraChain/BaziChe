@@ -4,7 +4,7 @@ export const MAX_STAKE_NURA = 10_000_000;
 
 export const MAX_STAKE_WEI = BigInt(MAX_STAKE_NURA) * WEI_PER_NURA;
 
-export const LADDER_NURA = [1, 5, 10, 25, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000, MAX_STAKE_NURA] as const;
+export const LADDER_NURA = [5_000, 500_000, 1_000_000, 2_500_000] as const;
 
 export const STAKE_LADDER: readonly string[] = LADDER_NURA.map((nura) => (BigInt(nura) * WEI_PER_NURA).toString());
 
@@ -70,6 +70,26 @@ export function weiOf(text: string)
 
     const wei = BigInt(text);
     return wei > 0n ? wei : null;
+}
+
+/**
+ * The finest a table's stake can be: a ten-thousandth of a NURA, the most a reader is shown. Below it
+ * the house's cut of a pot rounds to nothing, and a player would sign for digits they never saw.
+ */
+export const STAKE_STEP_WEI = 10n ** 14n;
+
+/** The least a table may be opened for: 100 NURA. */
+export const MIN_TABLE_STAKE_WEI = 100n * WEI_PER_NURA;
+
+/**
+ * A stake somebody chose for a table they open: from 100 NURA to the app's most (10,000,000), and never
+ * past what the vault itself will hold. Quick play keeps to the ladder, where two people have to ask for the same one.
+ */
+export function fitsVault(amount: string, ceiling: bigint)
+{
+    const wei = weiOf(amount);
+
+    return wei !== null && wei % STAKE_STEP_WEI === 0n && wei >= MIN_TABLE_STAKE_WEI && wei <= ceiling && wei <= MAX_STAKE_WEI;
 }
 
 export function onLadder(amount: string, ceiling: bigint)

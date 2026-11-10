@@ -36,7 +36,8 @@ const MARKS: Record<ActionKind, { icon: IconName; tone: string }> = {
     'minter-grant': { icon: 'key', tone: 'bg-accent/15 text-accent' },
     'minter-revoke': { icon: 'key', tone: 'bg-danger/15 text-danger' },
     season: { icon: 'trophy', tone: 'bg-accent/15 text-accent' },
-    tournament: { icon: 'medal', tone: 'bg-accent/15 text-accent' }
+    tournament: { icon: 'medal', tone: 'bg-accent/15 text-accent' },
+    rate: { icon: 'coins', tone: 'bg-gold/15 text-gold' }
 };
 
 export default component LogEntry(props: { row: LogRow; report?: string })

@@ -308,10 +308,10 @@ describe.skipIf(!active)('a player\'s NURA in the vault, against a real database
                 chainId: 31337,
                 fee: 500,
                 games: {},
-                maxStake: (50n * WEI_PER_NURA).toString(),
+                maxStake: (50_000n * WEI_PER_NURA).toString(),
                 reclaimAfter: 259_200,
                 paused: false,
-                ladder: STAKE_LADDER.slice(0, 5),
+                ladder: STAKE_LADDER.slice(0, 1),
                 may: 'paid-terms',
                 balances: {
                     address: getAddress(DANA),
@@ -331,7 +331,7 @@ describe.skipIf(!active)('a player\'s NURA in the vault, against a real database
 
             expect(await stakes.state(me)).toMatchObject({ ladder: STAKE_LADDER });
 
-            set({ maxStake: WEI_PER_NURA - 1n });
+            set({ maxStake: 5_000n * WEI_PER_NURA - 1n });
 
             expect(await stakes.state(me)).toMatchObject({ ladder: [] });
         });

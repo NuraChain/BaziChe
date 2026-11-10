@@ -1,6 +1,7 @@
 import { Link, useHead } from 'azerothjs';
 
 import AdminVault from '../../components/admin/admin-vault.component.azeroth';
+import AdminStakeRate from '../../components/admin/admin-stake-rate.component.azeroth';
 import AdminHead from '../../components/admin/admin-head.component.azeroth';
 import AdminMinters from '../../components/admin/admin-minters.component.azeroth';
 import AdminMarketsMoney from '../../components/admin/admin-markets-money.component.azeroth';
@@ -25,6 +26,7 @@ export default component MoneyPage()
             ) }
         />
         <AdminVault />
+        <AdminStakeRate />
         <AdminShopMoney />
         <AdminMarketsMoney />
         <AdminMinters />

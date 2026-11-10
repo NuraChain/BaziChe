@@ -227,7 +227,7 @@ const tableQuery = (db: DataSource, me: string) => db.getRepository(Table)
         `(select s.seat from table_seats s where s.table_id = t.id and s.user_id = :me)`,
         'mine'
     )
-    .addSelect('(t.host_id = :me)', 'is_host')
+    .addSelect('coalesce(t.host_id = :me, false)', 'is_host')
     .addSelect('(exists (select 1 from quick_tables q where q.table_id = t.id))', 'quick')
     .addSelect(
         `(select count(*)::int from table_seats s where s.table_id = t.id and s.user_id is not null)`,
@@ -279,7 +279,7 @@ const tableQuery = (db: DataSource, me: string) => db.getRepository(Table)
                        'who',     (select u.handle::text from users u where u.id = s.user_id),
                        'invited', (select u.handle::text from users u where u.id = s.invited_id),
                        'ready',   s.ready,
-                       'host',    s.user_id is not null and s.user_id = t.host_id
+                       'host',    coalesce(s.user_id = t.host_id, false)
                    ) order by s.seat),
                    '[]'::jsonb)
             from table_seats s where s.table_id = t.id)`,

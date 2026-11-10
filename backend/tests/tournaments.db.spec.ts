@@ -6,6 +6,7 @@ import { DataSource } from 'typeorm';
 import { Conversation, Match, StaffMember, StaffAction, Table, TableSeat, Tournament, TournamentEntry, TournamentGame, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
+import { tableList, tableSummary } from '../src/schemas.ts';
 import { buildPorts, type Services } from '../src/services.ts';
 
 const url = process.env.TEST_DATABASE_URL;
@@ -212,6 +213,23 @@ describe.skipIf(!active)('a tournament, against a real database', () =>
         await ports.jobs.sweepTournaments();
 
         expect((await games(code)).filter((game) => game.round === 1).every((game) => game.how === 'seed')).toBe(true);
+    });
+
+    it('shows its players a tournament table, which has no host, in the shape the api promises', async () =>
+    {
+        const { code } = await filled();
+
+        await breakOver(code);
+        await ports.jobs.sweepTournaments();
+
+        const [game] = await games(code);
+        const tableId = game.tableId as string;
+        const player = (await db.getRepository(TableSeat).findBy({ tableId })).find((chair) => chair.userId !== null)!.userId as string;
+        const table = await ports.table.byId(player, tableId);
+
+        expect(table.chairs.map((chair) => chair.host), 'a chair of a hostless table said null rather than no').toEqual(table.chairs.map(() => false));
+        expect(tableSummary.safeParse(table).ok).toBe(true);
+        expect(tableList.safeParse({ tables: await ports.table.mine(player) }).ok).toBe(true);
     });
 
     it('will not let anybody take a chair or play again at a tournament table', async () =>

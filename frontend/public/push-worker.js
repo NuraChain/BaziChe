@@ -14,6 +14,9 @@ const SHELF = 'nura-offline';
 
 const PICTURES = { icon: '/apple-touch-icon.png', badge: '/favicon-32.png' };
 
+// An iPhone or an iPad, which says Macintosh with a touch screen when it asks for the desktop site.
+const APPLE = /iPhone|iPad|iPod/.test(self.navigator?.userAgent ?? '') || ((self.navigator?.userAgent ?? '').includes('Macintosh') && (self.navigator?.maxTouchPoints ?? 0) > 1);
+
 const PLAIN = { lang: 'en', tag: 'en-US', dir: 'ltr', general: 'Something new in Baziche', says: {}, games: {} };
 
 const HOLE = /\{([a-zA-Z0-9_]+)\}/g;
@@ -208,6 +211,18 @@ const pushed = async () =>
 
     if (watched)
     {
+        // An iPhone or an iPad takes a push that shows nothing as a broken promise and, after a few,
+        // ends the subscription: there it is shown quietly and put away at once, so the page that is
+        // open stays the only thing that says it.
+        if (APPLE)
+        {
+            await show(fill(words.general, {}, words.tag), words, { tag: 'baziche-seen', silent: true, data: { target: LIST } });
+            for (const notice of await self.registration.getNotifications({ tag: 'baziche-seen' }))
+            {
+                notice.close();
+            }
+        }
+
         return;
     }
 

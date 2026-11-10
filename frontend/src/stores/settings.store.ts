@@ -41,6 +41,8 @@ export interface Settings
     hintRules: boolean;
     quickAsks: Record<string, unknown>;
     notify: boolean;
+    /** Whether this device was asked, once, to turn notifications on (`notify-ask-strip`). */
+    notifyAsked: boolean;
     noticeSeen: string;
 }
 
@@ -95,6 +97,7 @@ export function defaultSettings(): Settings
         hintRules: true,
         quickAsks: {},
         notify: false,
+        notifyAsked: false,
         noticeSeen: ''
     };
 }

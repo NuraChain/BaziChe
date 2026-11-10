@@ -34,7 +34,7 @@ import { NO_EVENTS, useBoard } from '../src/stores/match.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
 import { usePeople } from '../src/stores/people.store.ts';
 import { usePresence } from '../src/stores/presence.store.ts';
-import { IDLE_MS, NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.store.ts';
+import { NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.store.ts';
 import { useConnection } from '../src/stores/connection.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useSettings } from '../src/stores/settings.store.ts';
@@ -47,6 +47,9 @@ import { leaveLead } from '../src/lib/open-table.ts';
 import { inPlay } from '../src/data/match.ts';
 import { ApiError, client, nuraState, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
+
+/** Longer than anybody leaves a tab, since a hidden tab now keeps its socket however long. */
+const HOURS = 3 * 60 * 60_000;
 
 type Rendered = HTMLElement;
 
@@ -2367,7 +2370,7 @@ describe('PlayPage', () =>
         });
     });
 
-    describe('the socket of somebody waiting for a game', () =>
+    describe('the socket of somebody at a table, in a hidden tab', () =>
     {
         let visibility: DocumentVisibilityState = 'visible';
 
@@ -2411,128 +2414,46 @@ describe('PlayPage', () =>
             server.me = 'alex';
         });
 
-        it('is kept through a hidden tab while they sit ready at a live table that has not started', async () =>
+        for (const [what, patch, viewer, ready] of [
+            ['sitting ready at a live table', {}, 'alex', true],
+            ['sitting there not ready', {}, 'alex', false],
+            ['only looking at the table', {}, 'omid.k', true],
+            ['at a table played a move a day', { mode: 'turns' as const }, 'alex', true]
+        ] as const)
         {
-            await opened({});
+            it(`is kept however long the tab is hidden, for somebody ${ what }`, async () =>
+            {
+                await opened(patch, viewer, ready);
 
-            hidden(IDLE_MS * 3);
+                hidden(HOURS);
 
-            expect(socket.closed, 'a hidden tab dropped a waiting player’s socket').toEqual([]);
-        });
+                expect(socket.closed, 'a hidden tab let go of the socket').toEqual([]);
+            });
+        }
 
-        it('is let go for somebody sitting there who is not ready', async () =>
-        {
-            await opened({}, 'alex', false);
-
-            hidden(IDLE_MS + 1000);
-
-            expect(socket.closed, 'a seat that is not waiting for a game kept its socket').toHaveLength(1);
-        });
-
-        it('is let go a minute after a finished game has taken their readiness back, in a tab that was already hidden', async () =>
-        {
-            const held = await opened({});
-
-            hidden(IDLE_MS * 3);
-            held.chairs[0].ready = false;
-            await useLobby().refresh();
-            await settle();
-
-            expect(socket.closed).toEqual([]);
-
-            clock.advance(IDLE_MS - 1000);
-
-            expect(socket.closed).toEqual([]);
-
-            clock.advance(2000);
-
-            expect(socket.closed).toHaveLength(1);
-        });
-
-        it('is kept after they have left the page, for as long as they still sit ready at that table', async () =>
-        {
-            await opened({});
-
-            cleanup();
-            await settle();
-            hidden(IDLE_MS * 3);
-
-            expect(socket.closed, 'somebody looking for a game lost their socket by looking at another page').toEqual([]);
-        });
-
-        it('is kept by a search from wherever it was made, with no table page ever opened, and let go once the chair is given back', async () =>
+        it('is kept after they have left the page, and after the chair is given back', async () =>
         {
             const id = await useLobby().quick('ludo');
 
             await settle();
-            hidden(IDLE_MS * 3);
-
-            expect(socket.closed).toEqual([]);
-
+            hidden(HOURS);
             await useLobby().leave(id, false);
             await settle();
-            clock.advance(IDLE_MS + 1000);
-
-            expect(socket.closed, 'a chair that was given back still held the socket').toHaveLength(1);
-        });
-
-        it('is kept while a live game of theirs is on, whatever page they are on', async () =>
-        {
-            const held = await opened({}, 'alex', false);
-
-            cleanup();
-            held.matchId = 'match-on';
-            await useLobby().refresh();
-            await settle();
-            hidden(IDLE_MS * 3);
+            clock.advance(HOURS);
 
             expect(socket.closed).toEqual([]);
-
-            delete held.matchId;
-            await useLobby().refresh();
-            await settle();
-            clock.advance(IDLE_MS + 1000);
-
-            expect(socket.closed).toHaveLength(1);
         });
 
-        it('is let go at a table that plays a move a day, ready or not', async () =>
-        {
-            await opened({ mode: 'turns' });
-
-            hidden(IDLE_MS + 1000);
-
-            expect(socket.closed).toHaveLength(1);
-        });
-
-        it('is let go for somebody only looking at the table', async () =>
-        {
-            await opened({}, 'omid.k');
-
-            hidden(IDLE_MS + 1000);
-
-            expect(socket.closed).toHaveLength(1);
-        });
-
-        it('is let go at a table played a turn a day', async () =>
-        {
-            await opened({ mode: 'turns' });
-
-            hidden(IDLE_MS + 1000);
-
-            expect(socket.closed).toHaveLength(1);
-        });
-
-        it('is let go once the table has closed', async () =>
+        it('is kept once the table has closed', async () =>
         {
             const held = await opened({});
 
             held.status = 'closed';
             await useLobby().refresh();
             await settle();
-            hidden(IDLE_MS + 1000);
+            hidden(HOURS);
 
-            expect(socket.closed).toHaveLength(1);
+            expect(socket.closed).toEqual([]);
         });
     });
 

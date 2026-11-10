@@ -41,22 +41,6 @@ export const BACKOFF_MS = [1000, 2000, 4000, 8000, 15000];
  */
 export const STEADY_MS = 30_000;
 
-/**
- * How long a tab may sit hidden before its socket is let go.
- *
- * The store already refused to OPEN while hidden, and never closed one that was already open - so a
- * backgrounded tab kept taking every frame the server sent, and every store subscribed to the
- * doorbell kept refetching behind a window nobody was looking at. On a machine with the app left
- * open in a tab that is the whole day's traffic for nothing.
- *
- * Not immediate, and the delay is the whole design. Alt-tabbing to check something and coming
- * straight back is the common case, and a socket that closed and reopened on every one of those
- * would cost a handshake, a full re-read and a visible "reconnecting" each time - which is worse
- * than the thing it fixes. A minute is long enough that a glance costs nothing and short enough
- * that a tab left behind stops working within a minute of being abandoned.
- */
-export const IDLE_MS = 60_000;
-
 export const PROBE_MS = 10_000;
 
 export const PROBE_GRACE_MS = 4000;
@@ -227,12 +211,9 @@ export const useRealtime = createStore((): RealtimeApi =>
     let connectedAt = 0;
     let suppressUntil = 0;
 
-    /** Cancels the pending "the tab has been hidden long enough" timer, if one is armed. */
-    let cancelSleep: (() => void) | null = null;
     let holds = 0;
     let seeing: readonly string[] = [];
     let era = 0;
-    let arm: (() => void) | null = null;
     let wanted = false;
     let watching: (() => void) | null = null;
 
@@ -568,10 +549,6 @@ export const useRealtime = createStore((): RealtimeApi =>
         {
             return;
         }
-        if (typeof document !== 'undefined' && document.visibilityState === 'hidden' && holds === 0)
-        {
-            return;
-        }
         if (typeof navigator !== 'undefined' && navigator.onLine === false)
         {
             return;
@@ -633,12 +610,15 @@ export const useRealtime = createStore((): RealtimeApi =>
     }
 
     /**
-     * Two signals that a wait is pointless, wired to one handler.
+     * Two signals that a wait is pointless, wired to one handler: coming back to the tab, and the
+     * network coming back. Either is the moment to try again rather than the moment the old backoff
+     * happened to expire.
      *
-     * A hidden tab is not reconnected at all - a backgrounded phone would otherwise spend its
-     * battery reopening a socket nobody is looking at - and coming back is the moment to try
-     * again rather than the moment the old backoff happened to expire. `online` is the same
-     * argument for a laptop leaving a tunnel.
+     * A hidden tab keeps its socket, and reconnects one that dropped, as a shown one does: somebody
+     * who switched to another tab or app is still in Baziche, and is still told when it is their turn
+     * or a friend writes. Only the presence says they are away. A phone that suspends a page in the
+     * background closes the socket itself, which no page can stop; it is opened again the moment
+     * the page is shown.
      *
      * It is deliberately idempotent: the browser fires `online` more than once, and `close` is
      * already assigned by the time `open()` returns, so a second event finds a connection in
@@ -653,7 +633,7 @@ export const useRealtime = createStore((): RealtimeApi =>
 
         const resume = () =>
         {
-            if (!wanted || (document.visibilityState === 'hidden' && holds === 0))
+            if (!wanted)
             {
                 return;
             }
@@ -670,40 +650,11 @@ export const useRealtime = createStore((): RealtimeApi =>
             open();
         };
 
-        /**
-         * Lets an open socket go once the tab has been hidden for a while, and never before.
-         *
-         * `announce('idle')` rather than `'down'`: nothing is wrong and nobody is looking, so the
-         * connection banner must not claim the network is broken - `connection.store.ts` turns
-         * `down` into a reconnecting strip, which would be waiting on the screen when somebody
-         * comes back to a tab that was working perfectly.
-         */
-        const sleep = () =>
-        {
-            if (close === null || document.visibilityState !== 'hidden' || holds > 0)
-            {
-                return;
-            }
-
-            clearRetry();
-            close();
-            close = null;
-            announce('idle');
-        };
-
         const watchVisibility = () =>
         {
-            cancelSleep?.();
-            cancelSleep = null;
-
             if (document.visibilityState === 'hidden')
             {
                 paced({ t: 'presence', state: 'away' });
-                cancelSleep = runtime().clock.after(IDLE_MS, () =>
-                {
-                    cancelSleep = null;
-                    sleep();
-                });
                 return;
             }
 
@@ -713,13 +664,9 @@ export const useRealtime = createStore((): RealtimeApi =>
 
         document.addEventListener('visibilitychange', watchVisibility);
         window.addEventListener('online', resume);
-        arm = watchVisibility;
 
         watching = () =>
         {
-            arm = null;
-            cancelSleep?.();
-            cancelSleep = null;
             document.removeEventListener('visibilitychange', watchVisibility);
             window.removeEventListener('online', resume);
             watching = null;
@@ -731,8 +678,6 @@ export const useRealtime = createStore((): RealtimeApi =>
         wanted = false;
         cancelProbe();
         clearRetry();
-        cancelSleep?.();
-        cancelSleep = null;
         coalesce?.();
         coalesce = null;
         pending.clear();
@@ -837,11 +782,6 @@ export const useRealtime = createStore((): RealtimeApi =>
                 if (holds === 0)
                 {
                     cancelProbe();
-                }
-
-                if (holds === 0 && typeof document !== 'undefined' && document.visibilityState === 'hidden')
-                {
-                    arm?.();
                 }
             };
         },

@@ -1,0 +1,89 @@
+import Icon from '../../icons/icon.component.azeroth';
+import { keepReach } from '../../lib/push.ts';
+import { allowNotices, noticesAllowed, noticesBlocked, noticesSupported } from '../../lib/system-notice.ts';
+import { isAppleMobile } from '../../lib/webkit.ts';
+import { useDevice } from '../../stores/device.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useSettings } from '../../stores/settings.store.ts';
+import Button from '../ui/button.component.azeroth';
+
+/**
+ * Asks once, on this device, to be told things while Baziche is closed.
+ *
+ * Only a tap may ask a browser for permission, so this is a strip with a button rather than a
+ * prompt on arrival. A browser that already lets this site notify, as one that was told yes before
+ * does, is not asked again: it is simply turned on. Turned on, the device subscribes to the server's
+ * push, which is what reaches it with every tab closed; "Not now" is remembered and never asked again
+ * here, and the switch in Settings stays the way to change it either way.
+ *
+ * Android's browsers notify from a tab and from the installed app alike. An iPhone or an iPad
+ * notifies only from the app added to the Home Screen, so in a Safari tab, where there is nothing
+ * to ask, the strip says how to add it instead; opened from the Home Screen, it asks as anywhere.
+ */
+export default component NotifyAskStrip()
+{
+    const locale = useLocale();
+    const settings = useSettings();
+    const device = useDevice();
+
+    state busy = false;
+
+    derived homeScreen = isAppleMobile() && !device.standalone() && !noticesSupported() && !settings.settings().notifyAsked;
+
+    derived asking = noticesSupported() && !noticesBlocked() && !settings.settings().notify && !settings.settings().notifyAsked;
+
+    const turnOn = async () =>
+    {
+        busy = true;
+
+        try
+        {
+            if (await allowNotices())
+            {
+                settings.update({ notify: true, notifyAsked: true });
+                await keepReach(true);
+            }
+            else
+            {
+                settings.update({ notifyAsked: true });
+            }
+        }
+        catch
+        {
+            settings.update({ notifyAsked: true });
+        }
+        finally
+        {
+            busy = false;
+        }
+    };
+
+    mount
+    {
+        if (asking && noticesAllowed())
+        {
+            void turnOn();
+        }
+    }
+
+    <div class="contents">
+        <Show when={ homeScreen }>
+            <div class="z-banner flex flex-wrap items-center gap-x-3 gap-y-1 bg-accent/15 py-1 ps-4 pe-2 text-ui-sm text-text" role="region" aria-label={ locale.t('notify.device.title') } data-notify-home>
+                <Icon name="bell" size={ 16 } class="shrink-0 text-accent" />
+                <p class="min-w-0 flex-1 py-1 font-semibold">{ locale.t('notify.ask.ios') }</p>
+                <Button variant="ghost" size="sm" class="shrink-0" onClick={ () => settings.update({ notifyAsked: true }) }>{ locale.t('notice.gotIt') }</Button>
+            </div>
+        </Show>
+
+        <Show when={ asking }>
+            <div class="z-banner flex flex-wrap items-center gap-x-3 gap-y-1 bg-accent/15 py-1 ps-4 pe-2 text-ui-sm text-text" role="region" aria-label={ locale.t('notify.device.title') } data-notify-ask>
+                <Icon name="bell" size={ 16 } class="shrink-0 text-accent" />
+                <p class="min-w-0 flex-1 py-1 font-semibold">{ locale.t('notify.ask.lead') }</p>
+                <span class="flex shrink-0 items-center gap-1">
+                    <Button variant="ghost" size="sm" disabled={ busy } onClick={ () => settings.update({ notifyAsked: true }) }>{ locale.t('notify.ask.later') }</Button>
+                    <Button variant="primary" size="sm" leading="bell" loading={ busy } onClick={ () => void turnOn() }>{ locale.t('notify.ask.on') }</Button>
+                </span>
+            </div>
+        </Show>
+    </div>
+}

@@ -882,6 +882,10 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.device.closed': 'Baziche kapalıyken de.',
     'notify.device.open': 'Baziche bir sekmede açıkken.',
     'notify.device.denied': 'Bu tarayıcı bildirimleri engelliyor. Önce site ayarlarından izin ver.',
+    'notify.ask.lead': 'Sıra sana geldiğinde ya da bir arkadaşın yazdığında, Baziche kapalıyken de haber verelim.',
+    'notify.ask.on': 'Aç',
+    'notify.ask.later': 'Şimdi değil',
+    'notify.ask.ios': 'Bu iPhone’da bildirim almak için Paylaş’a, sonra “Ana Ekrana Ekle”ye dokun ve Baziche’yi oradan aç.',
 
     'seal.noDevice': 'Buraya henüz kimse yazamaz. {who} hiçbir tarayıcısına anahtar vermedi, bu yüzden mesajı şifreleyecek bir şey yok.',
     'seal.noDeviceMine': 'Buraya henüz yazamazsın. Tarayıcılarından hiçbirine anahtar verilmedi, bu yüzden mesajı şifreleyecek bir şey yok.',

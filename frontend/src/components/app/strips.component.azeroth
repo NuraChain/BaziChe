@@ -1,6 +1,7 @@
 import ConnectionBanner from './connection-banner.component.azeroth';
 import LookingStrip from './looking-strip.component.azeroth';
 import NoticeStrip from './notice-strip.component.azeroth';
+import NotifyAskStrip from './notify-ask-strip.component.azeroth';
 import { callBar } from '../../stores/call-bar.ts';
 
 export default component Strips()
@@ -13,6 +14,7 @@ export default component Strips()
         </Show>
         <ConnectionBanner />
         <NoticeStrip />
+        <NotifyAskStrip />
         <LookingStrip />
     </div>
 }

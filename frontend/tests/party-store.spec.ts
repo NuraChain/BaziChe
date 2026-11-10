@@ -8,13 +8,16 @@ import { useLocale } from '../src/stores/locale.store.ts';
 import { useOverlay } from '../src/stores/overlay.store.ts';
 import { EXPIRY_SLACK_MS, useParty, whyParty } from '../src/stores/party.store.ts';
 import { usePeople } from '../src/stores/people.store.ts';
-import { IDLE_MS, NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.store.ts';
+import { NUDGE_WINDOW_MS, useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useSocial } from '../src/stores/social.store.ts';
 import { useToasts } from '../src/stores/toasts.store.ts';
 import { COOLDOWN_MS, INVITE_MS, PARTY_REFUSALS } from '../../backend/src/domains/party/rules.ts';
 import { ApiError, client, server } from './fake-api.ts';
 import { socket } from './fake-realtime.ts';
+
+/** Longer than anybody leaves a tab, since a hidden tab now keeps its socket however long. */
+const HOURS = 3 * 60 * 60_000;
 
 const NOWHERE = '3f0e3c2a-1111-4222-8333-444455556666';
 
@@ -732,15 +735,15 @@ describe('the socket of somebody in a team', () =>
 
             visibility = 'hidden';
             document.dispatchEvent(new Event('visibilitychange'));
-            clock.advance(IDLE_MS * 2);
+            clock.advance(HOURS);
 
             expect(socket.closed, 'a hidden tab let go of the socket of somebody in a team').toEqual([]);
 
             server.parties.leave('sara.k', id);
             await party.refresh();
-            clock.advance(IDLE_MS + 1000);
+            clock.advance(HOURS);
 
-            expect(socket.closed).toHaveLength(1);
+            expect(socket.closed, 'a hidden tab let go of the socket once the team ended').toEqual([]);
             stop();
         }
         finally
@@ -749,7 +752,7 @@ describe('the socket of somebody in a team', () =>
         }
     });
 
-    it('is let go when the store is stopped with a team still standing', async () =>
+    it('is kept when the store is stopped with a team still standing, as any hidden tab keeps it', async () =>
     {
         let visibility: DocumentVisibilityState = 'visible';
 
@@ -767,9 +770,9 @@ describe('the socket of somebody in a team', () =>
 
             visibility = 'hidden';
             document.dispatchEvent(new Event('visibilitychange'));
-            clock.advance(IDLE_MS + 1000);
+            clock.advance(HOURS);
 
-            expect(socket.closed).toHaveLength(1);
+            expect(socket.closed).toEqual([]);
         }
         finally
         {

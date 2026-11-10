@@ -882,6 +882,10 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.device.closed': 'También con Baziche cerrado.',
     'notify.device.open': 'Mientras Baziche esté abierto en una pestaña.',
     'notify.device.denied': 'Este navegador está bloqueando las notificaciones. Permítelas primero en los ajustes del sitio.',
+    'notify.ask.lead': 'Te avisamos cuando sea tu turno o te escriba un amigo, incluso con Baziche cerrado.',
+    'notify.ask.on': 'Activar',
+    'notify.ask.later': 'Ahora no',
+    'notify.ask.ios': 'Para recibir avisos en este iPhone, toca Compartir, luego «Añadir a pantalla de inicio», y abre Baziche desde allí.',
 
     'seal.noDevice': 'Aquí todavía no puede escribir nadie. {who} no ha dado claves a ninguno de sus navegadores, así que no hay nada para lo que cifrar un mensaje.',
     'seal.noDeviceMine': 'Todavía no puedes escribir aquí. Ninguno de tus navegadores tiene claves, así que no hay nada para lo que cifrar un mensaje.',

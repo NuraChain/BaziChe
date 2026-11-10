@@ -5,7 +5,7 @@ import { manualClock, type ManualClock } from '../src/lib/clock.ts';
 import { resetRuntime, runtime, setRuntime } from '../src/lib/runtime.ts';
 import type { LineFacts, VoiceCall, VoiceCallDeps, VoiceSignal } from '../src/services/voice.rtc.ts';
 import { keyName } from '../src/lib/talk-key.ts';
-import { IDLE_MS, SOUND_BACKLOG, useRealtime } from '../src/stores/realtime.store.ts';
+import { SOUND_BACKLOG, useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useSettings } from '../src/stores/settings.store.ts';
 import { ANNOUNCE_MS, LINES_MS, LOUDEST, SPEAKING_HOLD_MS, UNREACHED_MS, setRawMicrophone, setVoiceCall, setVoiceMedia, useVoice } from '../src/stores/voice.store.ts';
@@ -13,6 +13,9 @@ import { primeVoice, setPrimedVoice } from '../src/lib/primed-voice.ts';
 import { setDenoiseKit } from '../src/services/voice.denoise.ts';
 import { socket } from './fake-realtime.ts';
 import '../src/locales/app-catalogue.ts';
+
+/** Longer than anybody leaves a tab, since a hidden tab now keeps its socket however long. */
+const HOURS = 3 * 60 * 60_000;
 
 const TABLE = 'table-1';
 
@@ -834,12 +837,12 @@ describe('voice at a table', () =>
 
             visibility = 'hidden';
             document.dispatchEvent(new Event('visibilitychange'));
-            clock.advance(IDLE_MS * 2);
+            clock.advance(HOURS);
             expect(socket.closed, 'a hidden tab hung up a voice call').toEqual([]);
 
             useVoice().leave();
-            clock.advance(IDLE_MS + 1000);
-            expect(socket.closed).toHaveLength(1);
+            clock.advance(HOURS);
+            expect(socket.closed, 'leaving the call let go of the socket of a hidden tab').toEqual([]);
         }
         finally
         {

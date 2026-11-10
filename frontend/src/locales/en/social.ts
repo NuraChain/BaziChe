@@ -879,6 +879,10 @@ export const social = {
     'notify.device.closed': 'Also when Baziche is closed.',
     'notify.device.open': 'While Baziche is open in a tab.',
     'notify.device.denied': 'This browser is blocking notifications. Allow them in its site settings first.',
+    'notify.ask.lead': 'Get told when it is your turn or a friend writes, even with Baziche closed.',
+    'notify.ask.on': 'Turn on',
+    'notify.ask.later': 'Not now',
+    'notify.ask.ios': 'To get notifications on this iPhone, tap Share, then Add to Home Screen, and open Baziche from there.',
 
     'seal.noDevice': 'Nobody can write here yet. {who} has not given any of their browsers keys, so there is nothing to seal a message to.',
     'seal.noDeviceMine': 'You cannot write here yet. None of your browsers has been given keys, so there is nothing to seal a message to.',

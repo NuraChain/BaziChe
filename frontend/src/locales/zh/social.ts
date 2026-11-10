@@ -882,6 +882,10 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.device.closed': 'Baziche 关闭时也会通知。',
     'notify.device.open': '仅在 Baziche 于标签页中打开时通知。',
     'notify.device.denied': '此浏览器屏蔽了通知。请先在它的网站设置中允许通知。',
+    'notify.ask.lead': '轮到你或朋友发来消息时通知你，即使 Baziche 已关闭。',
+    'notify.ask.on': '开启',
+    'notify.ask.later': '以后再说',
+    'notify.ask.ios': '要在这台 iPhone 上收到通知，请点“分享”，再点“添加到主屏幕”，然后从那里打开 Baziche。',
 
     'seal.noDevice': '这里还没有人能写消息。{who} 还没有给任何浏览器设置密钥，所以消息没有可以加密发送的对象。',
     'seal.noDeviceMine': '你还不能在这里写消息。你的浏览器都还没有设置密钥，所以消息没有可以加密发送的对象。',

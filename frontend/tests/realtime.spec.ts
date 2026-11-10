@@ -7,13 +7,15 @@ import {
     BACKOFF_MS,
     CHECK_FLOOR_MS,
     FLOOR_MARGIN_MS,
-    IDLE_MS,
     NUDGE_WINDOW_MS,
     PROBE_GRACE_MS,
     STEADY_MS,
     useRealtime
 } from '../src/stores/realtime.store.ts';
 import { socket } from './fake-realtime.ts';
+
+/** Longer than anybody leaves a tab, since a hidden tab now keeps its socket however long. */
+const HOURS = 3 * 60 * 60_000;
 
 let clock: ManualClock;
 let visibility: DocumentVisibilityState = 'visible';
@@ -167,7 +169,7 @@ describe('the realtime store', () =>
         });
     }
 
-    it('holds still while the tab is hidden and reconnects the moment it is shown', () =>
+    it('reconnects a socket that drops while the tab is hidden, without waiting to be looked at', () =>
     {
         const live = useRealtime();
         live.start();
@@ -177,68 +179,36 @@ describe('the realtime store', () =>
         expect(socket.opens).toBe(1);
 
         socket.drop();
-        clock.advance(BACKOFF_MS[0] * 1.11);
+        clock.advance(BACKOFF_MS[0] * 1.2);
 
-        /*
-         * The retry fired into a hidden tab and declined to open anything. There IS still a timer
-         * armed - hiding the tab starts the one that lets an idle socket go - and it is deliberately
-         * not asserted away here: what this test is about is that no RETRY is queued behind a hidden
-         * tab, and the socket count is what says so.
-         */
-        expect(socket.opens).toBe(1);
-
-        show();
-        expect(socket.opens).toBe(2);
+        expect(socket.opens, 'a hidden tab stayed hung up').toBe(2);
         expect(live.status()).toBe('connecting');
     });
 
     /**
-     * A tab nobody is looking at eventually stops working.
-     *
-     * The store refused to OPEN while hidden from the beginning and never closed one that was
-     * already open, so a backgrounded tab kept taking every frame and every store subscribed to the
-     * doorbell kept refetching behind a window nobody could see.
-     *
-     * The delay is the part worth pinning. Alt-tabbing away and straight back is the common case,
-     * and a socket that closed on every one of those would cost a handshake, a full re-read and a
-     * visible reconnecting strip each time - so a glance has to cost nothing.
+     * Somebody who switched to another tab or app is still in Baziche, and is still told when it is
+     * their turn or a friend writes: the socket stays however long the tab is hidden.
      */
-    it('lets an idle socket go once the tab has been hidden a while, and not before', () =>
+    it('keeps the socket however long the tab is hidden, held or not', () =>
     {
         const live = useRealtime();
         live.start();
         socket.accept();
 
         hide();
-
-        clock.advance(IDLE_MS - 1000);
-        expect(socket.closed.length, 'a glance away closed the socket').toBe(0);
-
-        clock.advance(2000);
-        expect(socket.closed.length, 'a tab left hidden kept its socket').toBe(1);
-
-        /* Idle, not down: nothing is wrong, so the connection banner must not say the network is. */
-        expect(live.status()).toBe('idle');
-
-        show();
-        expect(socket.opens, 'coming back did not reconnect').toBe(2);
-    });
-
-    it('keeps the socket through a hidden tab while something holds it, and lets it go after', () =>
-    {
-        const live = useRealtime();
-        live.start();
-        socket.accept();
+        clock.advance(HOURS);
+        expect(socket.closed.length, 'a hidden tab lost its socket').toBe(0);
+        expect(live.status()).toBe('connected');
 
         const release = live.hold();
-        hide();
-        clock.advance(IDLE_MS * 3);
-        expect(socket.closed.length, 'a voice call lost its socket to a hidden tab').toBe(0);
+        clock.advance(HOURS);
+        release();
+        release();
+        clock.advance(HOURS);
+        expect(socket.closed.length, 'letting go of a hold let go of the socket').toBe(0);
 
-        release();
-        release();
-        clock.advance(IDLE_MS + 1000);
-        expect(socket.closed.length).toBe(1);
+        show();
+        expect(socket.opens, 'coming back opened a second socket').toBe(1);
     });
 
     it('does not let a release from before a reset undo a hold taken since', () =>
@@ -257,7 +227,7 @@ describe('the realtime store', () =>
         live.hold();
         stale();
         hide();
-        clock.advance(IDLE_MS * 3);
+        clock.advance(HOURS);
 
         expect(socket.closed.length, 'a hold was let go by a release that belonged to the connection before it').toBe(0);
     });
@@ -310,7 +280,7 @@ describe('the realtime store', () =>
         expect(heard.sort()).toEqual(['call:', 'chat:', 'game:', 'me:', 'social:', 'table:']);
     });
 
-    it('rings every doorbell once when it comes back from idle, so nothing missed while away stays missed', () =>
+    it('rings every doorbell once when it stands up again after a drop in a hidden tab, so nothing missed while away stays missed', () =>
     {
         const live = useRealtime();
         const heard: string[] = [];
@@ -321,7 +291,8 @@ describe('the realtime store', () =>
         heard.length = 0;
 
         hide();
-        clock.advance(IDLE_MS + 1000);
+        socket.drop();
+        clock.advance(BACKOFF_MS[0] * 1.2);
         show();
         socket.accept();
         clock.advance(NUDGE_WINDOW_MS);

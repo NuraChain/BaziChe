@@ -1,8 +1,12 @@
 {
+    "id": "/app",
     "name": "Baziche",
     "short_name": "Baziche",
+    "description": "Play Hokm, Poker, Backgammon and Ludo with friends or new faces.",
     "start_url": "/app",
+    "scope": "/",
     "display": "standalone",
+    "categories": ["games", "entertainment", "social"],
     "background_color": "#0B1220",
     "theme_color": "#0B1220",
     "icons": [

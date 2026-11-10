@@ -8,7 +8,7 @@ import { compressResponse, containedFile, contentTypeFor } from '@azerothjs/http
 
 const PACKED = [['br', '.br'], ['gzip', '.gz']] as const;
 
-const TYPES: Record<string, string> = { '.glb': 'model/gltf-binary' };
+const TYPES: Record<string, string> = { '.glb': 'model/gltf-binary', '.webmanifest': 'application/manifest+json' };
 
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 
@@ -84,6 +84,29 @@ export function precompressed(root: string, prefixes: readonly string[]): Handle
         }
     });
 }
+
+/**
+ * Names the types the static server does not know, which it sends as `application/octet-stream`.
+ * A browser reads a manifest whatever it is called; an install check or an app store does not.
+ */
+export const ownTypes: HandlerWrapper = (next) => ({
+    async handle(request)
+    {
+        const response = await next.handle(request);
+        const type = TYPES[extname(new URL(request.url).pathname).toLowerCase()];
+
+        if (type === undefined || !response.ok || response.headers.get('content-type') === type)
+        {
+            return response;
+        }
+
+        const headers = new Headers(response.headers);
+
+        headers.set('content-type', type);
+
+        return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    }
+});
 
 export const gzipOnTheWay: HandlerWrapper = (next) => ({
     async handle(request)

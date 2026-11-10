@@ -6,7 +6,7 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { App, json, pipeline, text } from '@azerothjs/http';
 
-import { accepts, gzipOnTheWay, precompressed } from '../src/http/compression.ts';
+import { accepts, gzipOnTheWay, ownTypes, precompressed } from '../src/http/compression.ts';
 
 let root = '';
 
@@ -91,5 +91,31 @@ describe('what a reader is sent compressed', () =>
         const response = await get(handler, '/api/big', { 'accept-encoding': 'br, gzip' });
         expect(response.headers.get('content-encoding')).toBe('gzip');
         expect(JSON.parse(gunzipSync(Buffer.from(await response.arrayBuffer())).toString()).words).toContain('a sentence');
+    });
+});
+
+describe('the types the static server does not know', () =>
+{
+    const typed = () =>
+    {
+        const app = new App();
+        app.get('/site.webmanifest', () => new Response('{"name":"Baziche"}', { headers: { 'content-type': 'application/octet-stream', 'cache-control': 'no-cache' } }));
+        app.get('/gone.webmanifest', () => new Response('missing', { status: 404, headers: { 'content-type': 'text/plain' } }));
+        app.get('/app.js', () => new Response('let a = 1;', { headers: { 'content-type': 'text/javascript' } }));
+        return pipeline(app, ownTypes);
+    };
+
+    it('names a manifest as one, and keeps everything else it was sent with', async () =>
+    {
+        const response = await typed().handle(new Request('http://local/site.webmanifest'));
+        expect(response.headers.get('content-type')).toBe('application/manifest+json');
+        expect(response.headers.get('cache-control')).toBe('no-cache');
+        expect(await response.json()).toEqual({ name: 'Baziche' });
+    });
+
+    it('leaves alone a refusal, and a type it has nothing to say about', async () =>
+    {
+        expect((await typed().handle(new Request('http://local/gone.webmanifest'))).headers.get('content-type')).toBe('text/plain');
+        expect((await typed().handle(new Request('http://local/app.js'))).headers.get('content-type')).toBe('text/javascript');
     });
 });

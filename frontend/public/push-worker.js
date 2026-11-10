@@ -8,6 +8,10 @@ const MARK = '/notice-mark.json';
 
 const MOST = 3;
 
+const OFFLINE = '/offline.html';
+
+const SHELF = 'nura-offline';
+
 const PICTURES = { icon: '/apple-touch-icon.png', badge: '/favicon-32.png' };
 
 const PLAIN = { lang: 'en', tag: 'en-US', dir: 'ltr', general: 'Something new in Baziche', says: {}, games: {} };
@@ -276,7 +280,63 @@ self.addEventListener('notificationclick', (event) =>
     event.waitUntil(goTo(targetOf(event.notification)));
 });
 
+const shelve = async () =>
+{
+    try
+    {
+        const page = await fetch(OFFLINE, { cache: 'reload' });
+
+        if (page.ok)
+        {
+            await (await caches.open(SHELF)).put(OFFLINE, page);
+        }
+    }
+    catch
+    {
+        return;
+    }
+};
+
+const offline = async () =>
+{
+    try
+    {
+        return await (await caches.open(SHELF)).match(OFFLINE) ?? Response.error();
+    }
+    catch
+    {
+        return Response.error();
+    }
+};
+
+// Only a page being opened, and only from the network: a cached page or api answer would outlive the
+// deploy that replaced it. The offline page is what a browser's own install prompt asks a worker for.
+const opened = async (event) =>
+{
+    try
+    {
+        return await event.preloadResponse ?? await fetch(event.request);
+    }
+    catch
+    {
+        return await offline();
+    }
+};
+
 self.addEventListener('install', (event) =>
 {
-    event.waitUntil(self.skipWaiting());
+    event.waitUntil(Promise.all([self.skipWaiting(), shelve()]));
+});
+
+self.addEventListener('activate', (event) =>
+{
+    event.waitUntil(Promise.resolve(self.registration.navigationPreload?.enable()).catch(() => undefined));
+});
+
+self.addEventListener('fetch', (event) =>
+{
+    if (event.request.mode === 'navigate')
+    {
+        event.respondWith(opened(event));
+    }
 });

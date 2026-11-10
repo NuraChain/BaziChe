@@ -19,7 +19,7 @@ import { migrate, migrationSource, targetOf } from './db/migrate.ts';
 import { behindTheEntities } from './db/schema.ts';
 import { loadServerConfig } from './env.ts';
 import { watchBuild } from './http/build-watch.ts';
-import { gzipOnTheWay, precompressed } from './http/compression.ts';
+import { gzipOnTheWay, ownTypes, precompressed } from './http/compression.ts';
 import { headersFor } from './http/headers.ts';
 import { metricsAt } from './http/metrics.ts';
 import { createOps } from './http/ops.ts';
@@ -309,6 +309,7 @@ const app = buildApp({
 
 const handler = pipeline(
     app,
+    ownTypes,
     requestId(),
     headersFor(config.env === 'production'),
     gzipOnTheWay,

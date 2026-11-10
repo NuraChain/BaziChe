@@ -22,6 +22,27 @@ export interface PushSubscriptionKeys
     auth: string;
 }
 
+/**
+ * The worker on every visit, not only once notices are allowed: a browser offers to install the app
+ * only on a page that a worker with a fetch handler looks after.
+ */
+export function keepWorker()
+{
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator))
+    {
+        return;
+    }
+
+    try
+    {
+        void navigator.serviceWorker.register(WORKER).catch(() => undefined);
+    }
+    catch
+    {
+        return;
+    }
+}
+
 export function pushSupported()
 {
     return typeof navigator !== 'undefined'

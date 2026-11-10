@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Notification } from '../src/api.ts';
 import { WORDS, wordsOf } from '../src/lib/notice-words.ts';
 import { wentTo } from '../src/lib/system-notice.ts';
+import { LOCALE_TAG } from '../src/stores/locale.store.ts';
 import { fakeWorker, Refused, tabAt, type WorkerNotice } from './fake-worker.ts';
 import { PEOPLE_FIXTURES } from './fixtures.ts';
 import '../src/locales/app-catalogue.ts';
@@ -10,6 +11,11 @@ import '../src/locales/app-catalogue.ts';
 const SOURCE = Object.values(import.meta.glob('../public/push-worker.js', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)[0];
 
 const SERVED = Object.keys(import.meta.glob('../public/*.{png,jpg,svg,webp}')).map((path) => path.replace('../public', ''));
+
+const noNetwork = () =>
+{
+    throw new Error('no network');
+};
 
 const clicked = (target?: unknown) => ({ data: target === undefined ? undefined : { target } });
 
@@ -108,6 +114,58 @@ describe('a new worker', () =>
         const worker = fakeWorker(SOURCE, [tabAt('/app')]);
 
         expect(await worker.install()).toBe(1);
+    });
+
+    it('keeps the offline page as it installs, and installs all the same when that page cannot be had', async () =>
+    {
+        const kept = new Map<string, string>();
+        const worker = fakeWorker(SOURCE, [], { kept, answer: (url) => url === '/offline.html' ? 'the offline page' : undefined });
+
+        expect(await worker.install()).toBe(1);
+        expect(kept.has('/offline.html')).toBe(true);
+
+        expect(await fakeWorker(SOURCE, [], { answer: noNetwork }).install()).toBe(1);
+    });
+});
+
+describe('a page being opened', () =>
+{
+    it('comes from the network whenever the network answers', async () =>
+    {
+        const kept = new Map([['/offline.html', 'the offline page']]);
+        const worker = fakeWorker(SOURCE, [], { kept, answer: (url) => url === '/app/games' ? 'the games page' : undefined });
+
+        const answer = await worker.request('/app/games', 'navigate');
+
+        expect(answer?.status).toBe(200);
+        expect(await answer?.text()).toBe('"the games page"');
+    });
+
+    it('is the offline page when the network does not answer', async () =>
+    {
+        const kept = new Map([['/offline.html', 'the offline page']]);
+        const worker = fakeWorker(SOURCE, [], { kept, answer: noNetwork });
+
+        expect(await (await worker.request('/app/games', 'navigate'))?.text()).toBe('the offline page');
+    });
+
+    it('is left to the browser for anything that is not a page, so no answer is ever kept from the api or a script', async () =>
+    {
+        const worker = fakeWorker(SOURCE, [], { answer: () => 'anything' });
+
+        expect(await worker.request('/api/notifications/', 'cors')).toBeNull();
+        expect(await worker.request('/assets/app.js', 'no-cors')).toBeNull();
+        expect(worker.asked).toEqual([]);
+    });
+
+    it('has its offline words in every language the app speaks', () =>
+    {
+        const page = Object.values(import.meta.glob('../public/offline.html', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)[0];
+
+        for (const lang of Object.keys(LOCALE_TAG))
+        {
+            expect(page, `the offline page has nothing to say in ${ lang }`).toMatch(new RegExp(`\\n\\s+${ lang }: \\['(ltr|rtl)', `));
+        }
     });
 });
 

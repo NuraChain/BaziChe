@@ -7,6 +7,7 @@ import { startCalls } from '../../stores/call-loader.ts';
 import '../../icons/all.ts';
 import '../../locales/app-catalogue.ts';
 import { setHaptics } from '../../lib/haptics.ts';
+import { keepWorker } from '../../lib/push.ts';
 import { parentOf, routeMeta } from '../../lib/route-meta.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useChat } from '../../stores/chat.store.ts';
@@ -112,6 +113,7 @@ export default component AppShell(props: { children?: MountNode })
         ];
 
         void useDevices().look();
+        keepWorker();
 
         // A guest session outlives the page; its key, which signs the device messages, is taken back up.
         void useSession().ready().then(() =>

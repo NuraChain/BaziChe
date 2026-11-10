@@ -29,6 +29,9 @@ export interface FakeWorker
     click(notice: { data?: unknown }): Promise<{ closed: number }>;
     install(): Promise<number>;
     push(): Promise<WorkerNotice[]>;
+
+    /** What the worker answers a request with, or null when it lets the browser fetch it itself. */
+    request(url: string, mode: string): Promise<Response | null>;
 }
 
 const ORIGIN = 'https://nura.example';
@@ -137,8 +140,10 @@ export function fakeWorker(source: string, tabs: FakeTab[], world: WorkerWorld =
         }
     };
 
-    const answers = async (url: string) =>
+    const answers = async (requested: string | { url: string }) =>
     {
+        const url = typeof requested === 'string' ? requested : new URL(requested.url).pathname;
+
         asked.push(url);
 
         try
@@ -205,6 +210,22 @@ export function fakeWorker(source: string, tabs: FakeTab[], world: WorkerWorld =
             await fire('push', {});
 
             return shown.filter((one) => !before.has(one));
+        },
+
+        async request(url, mode)
+        {
+            let answer: Promise<Response> | null = null;
+
+            await fire('fetch', {
+                request: { url: `${ ORIGIN }${ url }`, mode },
+                preloadResponse: Promise.resolve(undefined),
+                respondWith: (given: Promise<Response>) =>
+                {
+                    answer = given;
+                }
+            });
+
+            return answer === null ? null : await answer;
         }
     };
 }

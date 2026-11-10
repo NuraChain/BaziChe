@@ -3875,7 +3875,7 @@ export const notificationPage = object({
 
 export type NotificationPage = Infer<typeof notificationPage>;
 
-/** The VAPID public key, absent when this deployment has no push configured. */
+/** The server's push public key, absent only while it cannot reach the one it keeps. */
 export const pushKey = object({ key: string().optional() });
 
 export const pushSubscribeInput = object({

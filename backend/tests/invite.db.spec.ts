@@ -43,9 +43,6 @@ const CONFIG = {
     env: 'test',
     chainId: '',
     rpcUrl: '',
-    vapidPublicKey: '',
-    vapidPrivateKey: '',
-    vapidSubject: '',
     vaultAddress: '',
     adminWallet: ''
 } as Parameters<typeof buildPorts>[1];

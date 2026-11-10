@@ -494,8 +494,8 @@ export interface NotifyPort
     markAllRead(me: string): Promise<void>;
     dismiss(me: string, id: string): Promise<void>;
 
-    /** The VAPID public key a browser subscribes with, or nothing when push is not configured. */
-    pushKey(): string | undefined;
+    /** The public key a browser subscribes with, or nothing while the server cannot reach its own. */
+    pushKey(): Promise<string | undefined>;
 
     subscribe(me: string, input: { endpoint: string; p256dh: string; auth: string; userAgent: string }): Promise<void>;
     unsubscribe(me: string, endpoint: string): Promise<void>;

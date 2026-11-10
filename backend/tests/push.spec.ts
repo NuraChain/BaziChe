@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createVerify, generateKeyPairSync, createPublicKey } from 'node:crypto';
 
+import { makePushKeys, subjectOf } from '../src/domains/notify/push-keys.ts';
 import { sendPush, vapidToken, type VapidKeys } from '../src/domains/notify/push.ts';
 
 /**
@@ -108,9 +109,9 @@ describe('sending one', () =>
         expect(headers.Authorization).toContain(', k=');
     });
 
-    it('calls a dead subscription gone rather than failed, so the caller retires it', async () =>
+    it('calls a dead subscription gone rather than failed, so the caller retires it, and one made with keys this server no longer has too', async () =>
     {
-        for (const status of [404, 410])
+        for (const status of [404, 410, 401, 403])
         {
             const outcome = await sendPush('https://push.example.com/send/a', keys(), 1_700_000_000_000,
                 async () => new Response(null, { status }));
@@ -125,5 +126,37 @@ describe('sending one', () =>
 
         expect(await sendPush('https://push.example.com/send/a', keys(), 1_700_000_000_000,
             async () => { throw new Error('offline'); })).toBe('failed');
+    });
+});
+
+describe('the keys the server makes for itself', () =>
+{
+    it('are a P-256 pair a browser subscribes with and a token is signed by', () =>
+    {
+        const made = makePushKeys();
+        const pair = { ...made, subject: 'https://baziche.example' };
+        const [header, claims, signature] = vapidToken('https://push.example.com/send/a', pair, 1_700_000_000_000).split('.');
+        const point = Buffer.from(made.publicKey, 'base64url');
+
+        expect(point).toHaveLength(65);
+        expect(point[0]).toBe(4);
+        expect(Buffer.from(made.privateKey, 'base64url')).toHaveLength(32);
+
+        const verifier = createVerify('SHA256');
+        verifier.update(`${ header }.${ claims }`);
+        const publicKey = createPublicKey({ key: { kty: 'EC', crv: 'P-256', x: point.subarray(1, 33).toString('base64url'), y: point.subarray(33).toString('base64url') }, format: 'jwk' });
+
+        expect(verifier.verify({ key: publicKey, dsaEncoding: 'ieee-p1363' }, Buffer.from(signature, 'base64url'))).toBe(true);
+    });
+
+    it('are a new pair each time they are made, so each database keeps its own', () =>
+    {
+        expect(makePushKeys().publicKey).not.toBe(makePushKeys().publicKey);
+    });
+
+    it('name the site as who is sending, or an address nobody writes for a server on plain http', () =>
+    {
+        expect(subjectOf('https://baziche.app')).toBe('https://baziche.app');
+        expect(subjectOf('http://localhost:3100')).toBe('mailto:push@localhost');
     });
 });

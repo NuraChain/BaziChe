@@ -84,7 +84,7 @@ describe('key material in the repository', () =>
             .map((line) => /^([A-Z0-9_]*(?:SECRET|KEY|TOKEN)[A-Z0-9_]*)=(.*)$/.exec(line))
             .filter((written) => written !== null);
 
-        expect(secrets.map((written) => written[1])).toEqual(expect.arrayContaining(['SESSION_SECRET', 'NURA_REFEREE_KEY', 'VAPID_PRIVATE_KEY', 'METRICS_TOKEN']));
+        expect(secrets.map((written) => written[1])).toEqual(expect.arrayContaining(['SESSION_SECRET', 'NURA_REFEREE_KEY', 'NURA_SPONSOR_KEY', 'METRICS_TOKEN']));
         expect(secrets.filter((written) => written[2]!.trim() !== '').map((written) => written[1])).toEqual([]);
     });
 });

@@ -17,7 +17,9 @@
  * so "nobody is looking at the app" is a tab on a page outside it. And a push needs keys and a
  * push service this deployment does not have, so the push event is delivered to the real worker
  * through the devtools protocol (`ServiceWorker.deliverPushMessage`), which is what the Push
- * button in the browser's own tools does.
+ * button in the browser's own tools does. The server always has push keys now, its own, so this
+ * browser is answered as if it had none: the page then raises its notices itself, which is what
+ * this pass looks at.
  *
  * Not here: a chat message. One can only be posted sealed, by a browser that enrolled a device
  * (`chat-pass.mjs` does that), and its cue is held by `cues.spec.ts` with the contract between
@@ -220,6 +222,7 @@ const mina = await seat(browser, 'mina');
 const leila = await seat(browser, 'leila.a');
 
 await dana.context.grantPermissions(['notifications'], { origin: BASE });
+await dana.context.route('**/api/notifications/push', (route) => (route.request().method() === 'GET' ? route.fulfill({ json: {} }) : route.continue()));
 
 try
 {
@@ -227,7 +230,7 @@ try
 
     const keyed = typeof (await dana.api('GET', '/notifications/push')).body?.key === 'string';
 
-    check('the server publishes no push key, which is what this pass is written for', !keyed, keyed ? 'start the server without VAPID_*: with keys a hidden page leaves these to the push' : '');
+    check('the server publishes no push key, which is what this pass is written for', !keyed, keyed ? 'the push key was not held back from this browser: with one a hidden page leaves these to the push' : '');
 
     if (keyed)
     {

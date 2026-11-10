@@ -73,9 +73,6 @@ const door = (presence?: PresenceReader, from: DataSource = db, live: WriteListe
     secret: 'a-test-secret-that-is-long-enough-to-use',
     origin: 'http://localhost:1',
     env: 'test',
-    vapidPublicKey: '',
-    vapidPrivateKey: '',
-    vapidSubject: '',
     adminWallet: ''
 } as Parameters<typeof buildPorts>[1], live, presence);
 

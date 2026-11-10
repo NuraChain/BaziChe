@@ -22,6 +22,7 @@ import { LINK_HOURS, LINK_USES, MUTE_HOURS, mayIn } from './domains/group/roles.
 import { createNotifyService, type NotificationRow } from './domains/notify/service.ts';
 import { isNotice, NOTICE_OF, type Notice } from './domains/notify/notices.ts';
 import { sendPush, type VapidKeys } from './domains/notify/push.ts';
+import { pushKeys } from './domains/notify/push-keys.ts';
 import { createAchieveService } from './domains/achieve/service.ts';
 import { endingOf } from './domains/match/declare.ts';
 import { ENGINES, createMatchService, voidedOf, type MatchLoad } from './domains/match/service.ts';
@@ -272,14 +273,22 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const shop = createShopService(db);
 
     /**
-     * Push, if this deployment has it.
-     *
-     * All three variables together or none: a half-configured push is one that asks for permission
-     * and then never delivers, which is worse than not asking.
+     * The server's own push keys, made once and kept in the database (`push-keys.ts`), so push is
+     * always on and nothing about it is written in `.env`. Asked for the first time they are
+     * needed; a database that could not answer is asked again next time rather than never.
      */
-    const vapid: VapidKeys | null = config.vapidPublicKey !== '' && config.vapidPrivateKey !== '' && config.vapidSubject !== ''
-        ? { publicKey: config.vapidPublicKey, privateKey: config.vapidPrivateKey, subject: config.vapidSubject }
-        : null;
+    let vapid: Promise<VapidKeys> | null = null;
+
+    const keys = async () =>
+    {
+        vapid ??= pushKeys(db, config.origin).catch((error: unknown) =>
+        {
+            vapid = null;
+            throw error;
+        });
+
+        return await vapid;
+    };
 
     /**
      * Wakes somebody's browsers, and never makes a request wait for it.
@@ -295,7 +304,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
     const wake = (userId: string) =>
     {
-        if (vapid === null || pushing >= PUSH_AT_ONCE)
+        if (pushing >= PUSH_AT_ONCE)
         {
             return;
         }
@@ -304,9 +313,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
         void (async () =>
         {
+            const signing = await keys();
+
             for (const subscription of await notify.subscriptionsOf(userId))
             {
-                const outcome = await sendPush(subscription.endpoint, vapid, Date.now());
+                const outcome = await sendPush(subscription.endpoint, signing, Date.now());
                 if (outcome === 'gone')
                 {
                     await notify.retire(subscription.id);
@@ -5249,7 +5260,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 live?.selfChanged(me, 'notifications');
             },
 
-            pushKey: () => (vapid === null ? undefined : vapid.publicKey),
+            pushKey: async () => (await keys().catch(() => null))?.publicKey,
 
             subscribe: (me, input) => notify.subscribe(me, input),
             unsubscribe: (me, endpoint) => notify.unsubscribe(me, endpoint)

@@ -13,9 +13,8 @@ import { createSign, createPrivateKey } from 'node:crypto';
  * worker with an empty `push` event, the worker shows a generic notice, and the CONTENT comes
  * from the api when the person opens the app - over a session they are already authorised on.
  *
- * `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` are optional. With neither set this is inert and
- * `sendPush` refuses rather than pretending: a product that silently drops notifications is worse
- * than one that plainly does not have them yet.
+ * The keys are the server's own, made once and kept in the database (`push-keys.ts`), so nobody
+ * writes any into `.env`.
  */
 
 export interface VapidKeys
@@ -121,6 +120,9 @@ export const PUSH_TIMEOUT_MS = 10_000;
  *
  * 404 and 410 mean the subscription is over - the browser was reinstalled, the permission was
  * revoked, the endpoint expired - and the caller retires the row rather than retrying forever.
+ * 401 and 403 mean it was made with keys this server no longer signs with, as every one made
+ * under the keys once written in `.env` is: it can never be delivered to again, so it is over
+ * too, and that browser subscribes afresh to these keys the next time the app is opened there.
  */
 export async function sendPush(endpoint: string, keys: VapidKeys, now: number, fetcher = fetch): Promise<PushOutcome>
 {
@@ -145,7 +147,7 @@ export async function sendPush(endpoint: string, keys: VapidKeys, now: number, f
 
     await response.body?.cancel().catch(() => undefined);
 
-    if (response.status === 404 || response.status === 410)
+    if (response.status === 404 || response.status === 410 || response.status === 401 || response.status === 403)
     {
         return 'gone';
     }

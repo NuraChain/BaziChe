@@ -16,7 +16,7 @@ Verified in the code on 2026-10-12.
 | Kinds | `notificationKind` in `backend/src/schemas.ts` | `friend-request`, `friend-accepted`, `group-added`, `table-invite`, `table-removed`, `message`, `turn`. A `turn` is written only at a table that gives a day a move. |
 | Categories | `backend/src/domains/notify/notices.ts` | `invites`, `requests`, `messages`, `groups`, `turns`. A mute on a category (`subject_kind = 'notice'`) stops the row being written at all. |
 | The doorbell | `tell` in `backend/src/services.ts` | Writes the row, rings every open page of that account (`selfChanged(..., 'notifications')`) and wakes its push subscriptions. |
-| Push | `domains/notify/push.ts` | VAPID only, NO payload, and nothing at all unless the three `VAPID_*` values are set. |
+| Push | `domains/notify/push.ts` | VAPID only, NO payload. The keys are the server's own, made once and kept in `settings` (`push-keys.ts`). |
 | The worker | `frontend/public/push-worker.js` | Shows one notice for every push: "Nura Games / Something happened. Open Nura Games to see.", in English, and a click focuses any open tab or opens the list. |
 | In the page | `frontend/src/stores/cues.store.ts` | A toast and a chime at four points: a message in a thread that is not open, a friend request, any other unread notification, and a game starting at a table the reader is not looking at. The sentence and where it leads are `sayOf` and `targetOf` in `lib/notifications.ts`. |
 | Settings | `settings.page.azeroth`, `push-toggle.component.azeroth` | One switch for each category and, only when the server has push keys, a button for this device. |
@@ -127,8 +127,6 @@ Each with its specs, driven in a real browser, and the notes it makes false.
 
 ## 6. What it does not do
 
-- It does not make a phone ring when the app is closed on a server with no push keys. That
-  needs the three `VAPID_*` values in `.env`, which are the owner's.
 - It adds no email and no sound outside the page.
 
 ## 7. As built

@@ -52,9 +52,6 @@ const CONFIG = {
     env: 'test',
     chainId: '',
     rpcUrl: '',
-    vapidPublicKey: '',
-    vapidPrivateKey: '',
-    vapidSubject: '',
     vaultAddress: '',
     shopAddress: '',
     adminWallet: OWNER_ADDRESS

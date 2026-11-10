@@ -55,9 +55,6 @@ const door = (presence?: PresenceReader, note?: Note) => buildPorts(db, {
     secret: 'a-test-secret-that-is-long-enough-to-use',
     origin: 'http://localhost:1',
     env: 'test',
-    vapidPublicKey: '',
-    vapidPrivateKey: '',
-    vapidSubject: '',
     adminWallet: ''
 } as Parameters<typeof buildPorts>[1], listener, presence, note);
 

@@ -141,7 +141,7 @@ export interface ChainProfiles
  * Reading the registry, and composing the writes somebody else signs.
  *
  * Unconfigured is an ordinary state, not a failure: with no rpc url or no addresses the product
- * simply has no chain half and says so, the way it has no push without VAPID keys. What it never
+ * simply has no chain half and says so. What it never
  * does is answer "no profile" for a read it could not make - a dropped rpc throws and the page
  * renders the failure, because "nobody has one" and "I could not ask" are different answers.
  *

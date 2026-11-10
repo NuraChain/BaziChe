@@ -7,7 +7,7 @@ import { loadServerConfig } from '../src/env.ts';
 const NAMES = [
     'NODE_ENV', 'HOST', 'PORT', 'DATABASE_URL', 'DATABASE_POOL_MAX', 'SESSION_SECRET', 'PUBLIC_ORIGIN', 'NURA_CHAIN_ID',
     'NURA_RPC_URL', 'NURA_PROFILE_ADDRESS', 'NURA_PROFILE_LENS_ADDRESS', 'NURA_EXPLORER_API', 'ADMIN_WALLET_ADDRESS',
-    'API_RATE_MAX', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT',
+    'API_RATE_MAX',
     'NURA_VAULT_ADDRESS', 'NURA_REFEREE_KEY', 'NURA_SHOP_ADDRESS', 'NURA_TIPS_ADDRESS',
     'NURA_MARKETS_ADDRESS', 'NURA_LOOKS_ADDRESS', 'NURA_ACHIEVEMENTS_ADDRESS', 'NURA_MINTER_KEY', 'NURA_SPONSOR_KEY', 'METRICS_TOKEN'
 ];
@@ -73,7 +73,7 @@ describe('the environment the server boots from', () =>
         expect(config.origin).toBe('https://play.example.com');
         expect([config.port, config.apiRateMax, config.databasePoolMax]).toEqual([4900, 600, 10]);
         expect(config.servePages).toBe(true);
-        expect([config.vapidPublicKey, config.chainId, config.adminWallet]).toEqual(['', '', '']);
+        expect([config.chainId, config.adminWallet]).toEqual(['', '']);
     });
 
     it('takes development from the command: no pages, and a short secret allowed', () =>
@@ -130,10 +130,10 @@ describe('the environment the server boots from', () =>
 
     it('turns an optional feature on when its keys are written, and leaves it off when they are empty', () =>
     {
-        use({ ...NEEDED, VAPID_SUBJECT: 'mailto:ops@example.com', ADMIN_WALLET_ADDRESS: '' });
+        use({ ...NEEDED, METRICS_TOKEN: 'a-token-for-the-monitor-outside-0123456789', ADMIN_WALLET_ADDRESS: '' });
         const config = loadServerConfig();
 
-        expect(config.vapidSubject).toBe('mailto:ops@example.com');
+        expect(config.metricsToken).toBe('a-token-for-the-monitor-outside-0123456789');
         expect(config.adminWallet).toBe('');
     });
 

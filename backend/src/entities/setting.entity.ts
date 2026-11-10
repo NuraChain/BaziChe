@@ -2,11 +2,12 @@ import { Check, Column, Entity, JoinColumn, ManyToOne, PrimaryColumn, UpdateDate
 import { User } from './user.entity.ts';
 
 /**
- * One value the staff set for the whole site, by name. The names are a closed set, so a typo in
- * code is a refused write rather than a second setting nobody reads.
+ * One value for the whole site, by name: set by the staff, or made by the server for itself, as
+ * its push keys are. The names are a closed set, so a typo in code is a refused write rather than
+ * a second setting nobody reads.
  */
-@Check('settings_key_known', `key in ('usd-rate')`)
-@Check('settings_value_length', `char_length(value) between 1 and 80`)
+@Check('settings_key_known', `key in ('usd-rate', 'push-keys')`)
+@Check('settings_value_length', `char_length(value) between 1 and 400`)
 @Entity('settings')
 export class Setting
 {

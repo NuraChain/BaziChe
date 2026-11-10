@@ -1803,13 +1803,13 @@ export function buildApi(ports: Ports)
             /**
              * The key a browser subscribes with.
              *
-             * Absent when this deployment has no push configured, and the client then subscribes
-             * to nothing: what this device is told comes from a page that is open, and the
-             * settings panel says so.
+             * The server's own, made once and kept (`push-keys.ts`). Absent only while it cannot
+             * reach the one it keeps, and the client then subscribes to nothing this time and asks
+             * again on its next start.
              */
-            pushKey: routes.get('/push', { output: pushKey }, () =>
+            pushKey: routes.get('/push', { output: pushKey }, async () =>
             {
-                const key = ports.notify.pushKey();
+                const key = await ports.notify.pushKey();
                 return key === undefined ? {} : { key };
             }),
 

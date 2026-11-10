@@ -87,9 +87,6 @@ describe.skipIf(!active)('a list read a page at a time through rows made two to 
             secret: 'a-test-secret-that-is-long-enough-to-use',
             origin: 'http://localhost:1',
             env: 'test',
-            vapidPublicKey: '',
-            vapidPrivateKey: '',
-            vapidSubject: '',
             adminWallet: ''
         } as Parameters<typeof buildPorts>[1], listener);
     }, 60_000);

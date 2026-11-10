@@ -93,9 +93,6 @@ describe.skipIf(!active)('the game that ended last at a table, against a real da
             secret: 'a-test-secret-that-is-long-enough-to-use',
             origin: 'http://localhost:1',
             env: 'test',
-            vapidPublicKey: '',
-            vapidPrivateKey: '',
-            vapidSubject: '',
 adminWallet: ''
         } as Parameters<typeof buildPorts>[1], listener);
     }, 60_000);

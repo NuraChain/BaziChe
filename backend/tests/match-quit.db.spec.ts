@@ -137,9 +137,6 @@ describe.skipIf(!active)('a seat that has quit a game still being played, agains
             secret: 'a-test-secret-that-is-long-enough-to-use',
             origin: 'http://localhost:1',
             env: 'test',
-            vapidPublicKey: '',
-            vapidPrivateKey: '',
-            vapidSubject: '',
 adminWallet: ''
         } as Parameters<typeof buildPorts>[1], listener, { present: (userIds) => new Set(userIds), looking: () => [...lookers] });
     }, 60_000);

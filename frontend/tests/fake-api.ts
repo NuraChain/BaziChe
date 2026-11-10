@@ -1672,7 +1672,7 @@ export const server =
         return device;
     },
 
-    /** The VAPID key this fake server publishes. Null means push is not configured. */
+    /** The push key this fake server publishes. Null is a server that could not reach its own. */
     pushKey: null as string | null,
     pushSubscriptions: [] as { endpoint: string; p256dh: string; auth: string }[],
 

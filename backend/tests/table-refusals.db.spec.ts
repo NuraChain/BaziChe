@@ -160,9 +160,6 @@ describe.skipIf(!active)('what a table refuses, against a real database', () =>
             secret: 'a-test-secret-that-is-long-enough-to-use',
             origin: 'http://localhost:1',
             env: 'test',
-            vapidPublicKey: '',
-            vapidPrivateKey: '',
-            vapidSubject: '',
 adminWallet: ''
         } as Parameters<typeof buildPorts>[1], listener);
     }, 60_000);

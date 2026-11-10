@@ -156,18 +156,6 @@ export function loadServerConfig()
             apiRateMax: num('API_RATE_MAX'),
 
             /**
-             * Web Push, all three optional and all three needed together.
-             *
-             * With none set the product has no push and says so: `GET /notifications/push` answers
-             * with no key, the client subscribes to nothing and tells the reader that this device
-             * hears only while a tab is open, and nothing is silently dropped. A push from here
-             * carries NO payload, so there is no content key to hold.
-             */
-            vapidPublicKey: optional('VAPID_PUBLIC_KEY'),
-            vapidPrivateKey: optional('VAPID_PRIVATE_KEY', { secret: true }),
-            vapidSubject: optional('VAPID_SUBJECT'),
-
-            /**
              * The bearer token a monitor outside sends for `GET /api/metrics`. Written empty, the
              * endpoint is off, and nobody can tell it from an address nothing is served at.
              */

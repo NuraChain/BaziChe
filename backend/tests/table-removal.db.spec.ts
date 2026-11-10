@@ -287,9 +287,6 @@ describe.skipIf(!active)('a host taking somebody out of a chair, against a real 
             secret: 'a-test-secret-that-is-long-enough-to-use',
             origin: 'http://localhost:1',
             env: 'test',
-            vapidPublicKey: '',
-            vapidPrivateKey: '',
-            vapidSubject: '',
             adminWallet: ''
         } as Parameters<typeof buildPorts>[1], listener);
     }, 60_000);

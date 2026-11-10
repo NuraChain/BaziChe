@@ -145,6 +145,8 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'play.lobby.allReady': 'Todos están listos',
     'play.lobby.paused': 'Este juego está en pausa por ahora. Podrá empezar una partida aquí de nuevo cuando regrese.',
     'play.lobby.youNotReady': 'Cuando tú quieras',
+    'play.lobby.readyBy': 'Pulsa «Estoy listo» antes de {time} o pierdes esta partida.',
+    'play.lobby.readyByOthers': 'La partida empieza cuando los dos estén listos. Quien no lo esté en {time} la pierde.',
     'play.stake.each': 'Se juega por {stake} NURA cada uno. El ganador se lleva {share} NURA.',
     'play.stake.eachTeams': 'Se juega por {stake} NURA cada uno. Cada miembro de la pareja ganadora se lleva {share} NURA.',
     'play.stake.locking': 'Bloqueando las apuestas en NuraChain…',

@@ -1140,3 +1140,67 @@ describe('the lobby of a table where a game has ended', () =>
         useLocale().setLocale('en');
     });
 });
+
+describe('the lobby of a tournament table waiting for its two players', () =>
+{
+    const START = 600_000;
+
+    const tournament = (ready: boolean, watching = false) =>
+    {
+        const held = table({
+            game: 'backgammon',
+            seats: 2,
+            teams: false,
+            chairs: [{ seat: 0, who: 'alex', ready, host: false }, { seat: 1, who: 'sara.k', ready: false, host: false }] as TableSummary['chairs'],
+            taken: 2,
+            tournament: 'cup-1',
+            readyBy: new Date(START + 5 * 60_000).toISOString()
+        });
+
+        if (watching)
+        {
+            delete held.mine;
+        }
+
+        return held;
+    };
+
+    const line = (container: HTMLElement) => container.querySelector('[data-ready-by]')?.textContent?.trim() ?? null;
+
+    it('tells a player who is not ready how long they have, and counts it down to the second', () =>
+    {
+        const container = shown(tournament(false));
+
+        expect(line(container)).toBe('Press “I’m ready” within 5:00, or you lose this game.');
+
+        (runtime().clock as ManualClock).advance(61_000);
+
+        expect(line(container)).toBe('Press “I’m ready” within 3:59, or you lose this game.');
+
+        (runtime().clock as ManualClock).advance(10 * 60_000);
+
+        expect(line(container), 'the clock went below nothing').toBe('Press “I’m ready” within 0:00, or you lose this game.');
+    });
+
+    it('tells a player who is ready, and anybody watching, what happens to whoever is not', () =>
+    {
+        expect(line(shown(tournament(true)))).toBe('The game starts once both are ready. Whoever is not ready in 5:00 loses it.');
+
+        cleanup();
+
+        expect(line(shown(tournament(false, true)))).toBe('The game starts once both are ready. Whoever is not ready in 5:00 loses it.');
+    });
+
+    it('says nothing of it at a table that is not waiting', () =>
+    {
+        expect(line(shown(table()))).toBeNull();
+    });
+
+    it('says it in Persian, in its own digits', () =>
+    {
+        useLocale().setLocale('fa');
+
+        expect(line(shown(tournament(false)))).toBe('تا ۵:۰۰ دیگه «آماده‌م» رو بزن، وگرنه این بازی رو می‌بازی.');
+        useLocale().setLocale('en');
+    });
+});

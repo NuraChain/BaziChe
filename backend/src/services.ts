@@ -914,6 +914,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 summary.conversationId = row.conversation_id;
             }
         }
+        if (row.ready_by !== null)
+        {
+            summary.readyBy = new Date(row.ready_by).toISOString();
+        }
+
         if (row.tournament !== null)
         {
             summary.tournament = row.tournament;
@@ -1499,6 +1504,12 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             live?.tableChanged(one.tableId, one.players);
         }
 
+        // A table opened to wait for its players, or closed when the wait ran out.
+        for (const one of done.rung)
+        {
+            live?.tableChanged(one.tableId, one.players);
+        }
+
         for (const notice of done.notices)
         {
             for (const userId of notice.userIds)
@@ -1514,6 +1525,17 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         }
 
         live?.tableChanged(done.id, done.entrants);
+    };
+
+    /** A Ready at a tournament table deals its game at once, rather than at the next sweep. */
+    const nudgeTournamentTable = async (tableId: string) =>
+    {
+        const tournamentId = await tournaments.ofTable(tableId);
+
+        if (tournamentId !== null)
+        {
+            await tournamentFollowUp(await tournaments.advance(tournamentId));
+        }
     };
 
     /** Only a nudge, so a bracket does not wait for the sweep: the sweep is what guarantees it moves. */
@@ -4876,6 +4898,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 if (seen.stake === null)
                 {
                     await table.setReady(me, seen.id, ready);
+
+                    if (ready && seen.tournament !== null)
+                    {
+                        await courtesy('tournament ready', () => nudgeTournamentTable(seen.id));
+                    }
                 }
                 else if (ready)
                 {

@@ -145,6 +145,8 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'play.lobby.allReady': 'सब तैयार हैं',
     'play.lobby.paused': 'यह गेम अभी के लिए रुका हुआ है। इसके लौटने पर यहाँ फिर गेम शुरू हो सकता है।',
     'play.lobby.youNotReady': 'जब तुम तैयार हो',
+    'play.lobby.readyBy': '{time} के भीतर "मैं तैयार हूँ" दबाएँ, नहीं तो यह गेम आप हार जाएँगे।',
+    'play.lobby.readyByOthers': 'दोनों के तैयार होते ही गेम शुरू होगा। जो {time} में तैयार नहीं होगा, वह हार जाएगा।',
     'play.stake.each': 'हर किसी का दाँव {stake} NURA। जीतने वाले को {share} NURA मिलते हैं।',
     'play.stake.eachTeams': 'हर किसी का दाँव {stake} NURA। जीतने वाली जोड़ी के हर खिलाड़ी को {share} NURA मिलते हैं।',
     'play.stake.locking': 'NuraChain पर दाँव लॉक हो रहे हैं…',

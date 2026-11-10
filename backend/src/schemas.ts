@@ -2700,6 +2700,9 @@ export const tableSummary = object({
     /** The code of the tournament this game belongs to. */
     tournament: string().optional(),
 
+    /** Until when a tournament table waits for both players to say they are ready, before it is settled without them. */
+    readyBy: string().optional(),
+
     quick: boolean().optional(),
 
     keptOut: array(string()).optional(),

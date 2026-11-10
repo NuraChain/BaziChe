@@ -7,12 +7,14 @@ import { Game } from '../../entities/game.entity.ts';
 import { GameRule } from '../../entities/game-rule.entity.ts';
 import { Match } from '../../entities/match.entity.ts';
 import { Table } from '../../entities/table.entity.ts';
+import { TableSeat } from '../../entities/table-seat.entity.ts';
 import { TournamentEntry } from '../../entities/tournament-entry.entity.ts';
 import { TournamentGame } from '../../entities/tournament-game.entity.ts';
 import { Tournament, type TournamentStatus } from '../../entities/tournament.entity.ts';
 import { User } from '../../entities/user.entity.ts';
 import { lockTable } from '../table/service.ts';
 import { BEST_OF, FORMATS, MIN_ENTRANTS, type FormatId } from './engine/formats.ts';
+import { READY_MS } from './ready.ts';
 import { applyResult, dueGames, forfeitAbsent, shuffledSeeds, undecided, walkover, withoutAbsent, type Game as EngineGame, type Link, type Rules, type Side } from './engine/game.ts';
 
 export const TOURNAMENT_REFUSALS = {
@@ -137,10 +139,18 @@ const stillIn = (entries: readonly TournamentEntry[]) => entries
     .map((entry) => entry.userId)
     .filter((userId) => userId !== null);
 
+/** A game whose match was dealt, once both its players said they were ready. */
 export interface Dealt
 {
     tableId: string;
     matchId: string;
+    players: string[];
+}
+
+/** A table whose chairs changed for its players: opened to wait for them, or closed when the wait ran out. */
+export interface Rung
+{
+    tableId: string;
     players: string[];
 }
 
@@ -160,6 +170,7 @@ export interface Advanced
     entrants: string[];
     changed: boolean;
     dealt: Dealt[];
+    rung: Rung[];
     notices: Notice[];
 }
 
@@ -231,13 +242,41 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
     const entrantIds = async (tx: EntityManager, tournament: Tournament) =>
         stillIn(await tx.getRepository(TournamentEntry).find({ select: { userId: true, removedAt: true }, where: { tournamentId: tournament.id } }));
 
+    /**
+     * Closes the tables of games nobody plays any more while they still wait for their players:
+     * decided without them (a walkover, a player taken out) or no longer wanted (the tournament
+     * called off). A game already dealt is left to finish at its own table, as it always was.
+     */
+    const closeWaiting = async (tx: EntityManager, tableIds: readonly string[]) =>
+    {
+        if (tableIds.length === 0)
+        {
+            return [];
+        }
+
+        const closed: { id: string }[] = await tx.query(
+            `update tables set status = 'closed', closed_at = now()
+              where id = any($1::uuid[]) and status <> 'closed'
+                and not exists (select 1 from matches m where m.table_id = tables.id)
+              returning id`,
+            [tableIds]
+        );
+        const ids = closed.map((one) => one.id);
+        const chairs = ids.length === 0 ? [] : await tx.getRepository(TableSeat).find({ select: { tableId: true, userId: true }, where: { tableId: In(ids) } });
+
+        return ids.map((tableId) => ({ tableId, players: chairs.filter((chair) => chair.tableId === tableId && chair.userId !== null).map((chair) => chair.userId as string) }));
+    };
+
     const cancelled = async (tx: EntityManager, tournament: Tournament): Promise<Advanced> =>
     {
         await tx.getRepository(Tournament).update({ id: tournament.id }, { status: 'cancelled', finishedAt: () => 'now()', nextRoundAt: null });
 
+        const waiting = await tx.getRepository(TournamentGame).find({ select: { tableId: true, matchId: true }, where: { tournamentId: tournament.id } });
+        const rung = await closeWaiting(tx, waiting.filter((one) => one.tableId !== null && one.matchId === null).map((one) => one.tableId as string));
+
         const entrants = await entrantIds(tx, tournament);
 
-        return { id: tournament.id, code: tournament.code, game: tournament.game, entrants, changed: true, dealt: [], notices: [{ kind: 'tournament-cancelled', userIds: entrants }] };
+        return { id: tournament.id, code: tournament.code, game: tournament.game, entrants, changed: true, dealt: [], rung, notices: [{ kind: 'tournament-cancelled', userIds: entrants }] };
     };
 
     const begin = async (tx: EntityManager, tournament: Tournament): Promise<Advanced> =>
@@ -263,7 +302,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
 
         const entrants = entries.map((entry) => entry.userId).filter((userId) => userId !== null);
 
-        return { id: tournament.id, code: tournament.code, game: tournament.game, entrants, changed: true, dealt: [], notices: [{ kind: 'tournament-start', userIds: entrants }] };
+        return { id: tournament.id, code: tournament.code, game: tournament.game, entrants, changed: true, dealt: [], rung: [], notices: [{ kind: 'tournament-start', userIds: entrants }] };
     };
 
     /** Writes back only what the engine changed, so a pass with nothing to do writes nothing. */
@@ -302,9 +341,14 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
         );
     };
 
+    /**
+     * Opens a table for every game that is due and seats its two players, who then have `READY_MS`
+     * to say they are ready (`settleWaiting`): a game dealt the moment the table opened was lost on
+     * the clock by whoever had not yet got there.
+     */
     const dealRound = async (tx: EntityManager, tournament: Tournament, games: readonly EngineGame[], rows: readonly TournamentGame[], seats: ReadonlyMap<number, string | null>) =>
     {
-        const dealt: Dealt[] = [];
+        const opened: Rung[] = [];
         const held = new Map(rows.map((row) => [toEngine(row).key, row]));
         const next = new Map(games.map((game) => [game.key, game]));
 
@@ -320,27 +364,78 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             }
 
             const tableId = await helpers.seat(tx, tournament.id, tournament.game, [one, other]);
-            const matchId = await helpers.deal(tx, tableId);
-
-            if (matchId === null)
-            {
-                throw new Error(`a tournament table would not deal: ${ tableId }`);
-            }
 
             next.set(game.key, { ...game, dealt: true });
-            dealt.push({ tableId, matchId, players: [one, other] });
+            opened.push({ tableId, players: [one, other] });
 
             const row = held.get(game.key);
 
             if (row !== undefined)
             {
-                await tx.getRepository(TournamentGame).update({ id: row.id }, { tableId, matchId });
+                // The match of an earlier attempt goes: this one's is dealt once both are ready.
+                await tx.getRepository(TournamentGame).update({ id: row.id }, { tableId, matchId: null });
                 row.tableId = tableId;
-                row.matchId = matchId;
+                row.matchId = null;
             }
         }
 
-        return { dealt, games: [...next.values()] };
+        return { opened, games: [...next.values()] };
+    };
+
+    /**
+     * Every game whose table waits for its players: dealt the moment both are ready, and once
+     * `READY_MS` has gone by, won by whoever was, or, if nobody was, a game with no winner, which
+     * the format's own rule settles (once more, then the better seed in a knockout). A chair left
+     * empty is a player not ready.
+     */
+    const settleWaiting = async (tx: EntityManager, tournament: Tournament, rows: TournamentGame[], games: EngineGame[]) =>
+    {
+        const dealt: Dealt[] = [];
+        const lapsed: string[] = [];
+
+        for (const [index, row] of rows.entries())
+        {
+            const game = games[index];
+
+            if (!game.dealt || game.how !== null || row.tableId === null || row.matchId !== null)
+            {
+                continue;
+            }
+
+            const table = await tx.getRepository(Table).findOne({ select: { id: true, status: true, createdAt: true }, where: { id: row.tableId } });
+            const chairs = await tx.getRepository(TableSeat).find({ select: { seat: true, userId: true, ready: true }, where: { tableId: row.tableId } });
+            const readyAt = (seat: number) => chairs.some((chair) => chair.seat === seat && chair.userId !== null && chair.ready);
+            const aReady = readyAt(0);
+            const bReady = readyAt(1);
+            const open = table !== null && table.status !== 'closed';
+
+            if (open && aReady && bReady)
+            {
+                const matchId = await helpers.deal(tx, row.tableId);
+
+                if (matchId === null)
+                {
+                    throw new Error(`a tournament table would not deal: ${ row.tableId }`);
+                }
+
+                await tx.getRepository(TournamentGame).update({ id: row.id }, { matchId });
+                row.matchId = matchId;
+                dealt.push({ tableId: row.tableId, matchId, players: chairs.map((chair) => chair.userId).filter((userId) => userId !== null) });
+                continue;
+            }
+
+            if (open && table.createdAt.getTime() + READY_MS > Date.now())
+            {
+                continue;
+            }
+
+            games[index] = aReady !== bReady
+                ? walkover(game, (aReady ? game.a : game.b) as number)
+                : applyResult(game, null, tournament.bestOf);
+            lapsed.push(row.tableId);
+        }
+
+        return { dealt, lapsed };
     };
 
     /**
@@ -392,10 +487,20 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             return applyResult(game, side, tournament.bestOf);
         });
 
-        games = engine.advance(games, rules);
+        const waited = await settleWaiting(tx, tournament, rows, games);
+        const dealt: Dealt[] = waited.dealt;
+        let changed = waited.dealt.length > 0 || waited.lapsed.length > 0;
 
-        let dealt: Dealt[] = [];
-        let changed = false;
+        // A waiting game decided without its table, a walkover for somebody taken out, closes it too.
+        const unplayed = rows
+            .filter((one, index) => one.tableId !== null && one.matchId === null && (games[index].how !== null || !games[index].dealt))
+            .map((one) => one.tableId as string);
+        const rung = await closeWaiting(tx, [...new Set([...waited.lapsed, ...unplayed])]);
+
+        let opened: Rung[] = [];
+
+        changed = changed || rung.length > 0;
+        games = engine.advance(games, rules);
 
         if (undecided(games).length > 0 && dueGames(games).length > 0)
         {
@@ -410,7 +515,8 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             {
                 const round = await dealRound(tx, tournament, games, rows, seats);
 
-                dealt = round.dealt;
+                opened = round.opened;
+                rung.push(...round.opened);
                 games = engine.advance(round.games, rules);
                 changed = true;
                 await tx.getRepository(Tournament).update({ id: tournamentId }, { nextRoundAt: null });
@@ -419,7 +525,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
 
         changed = await persist(tx, tournamentId, rows, games) || changed;
 
-        const notices: Notice[] = dealt.map((one) => ({ kind: 'tournament-game', userIds: one.players, tableId: one.tableId }));
+        const notices: Notice[] = opened.map((one) => ({ kind: 'tournament-game', userIds: one.players, tableId: one.tableId }));
 
         if (undecided(games).length === 0)
         {
@@ -428,7 +534,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             changed = true;
         }
 
-        return { id: tournament.id, code: tournament.code, game: tournament.game, entrants, changed, dealt, notices };
+        return { id: tournament.id, code: tournament.code, game: tournament.game, entrants, changed, dealt, rung, notices };
     });
 
     const entryLock = async (tx: EntityManager, code: string) =>
@@ -581,6 +687,12 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
                 .getRawMany<{ id: string }>();
 
             return rows.map((row) => row.id);
+        },
+
+        /** The tournament a table waiting for its players belongs to, so a Ready need not wait for the sweep. */
+        async ofTable(tableId: string)
+        {
+            return (await db.getRepository(TournamentGame).findOne({ select: { tournamentId: true }, where: { tableId } }))?.tournamentId ?? null;
         },
 
         /** The tournament a finished match belongs to, if any, so its bracket need not wait for the sweep. */

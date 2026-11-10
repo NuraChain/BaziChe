@@ -145,6 +145,8 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'play.lobby.allReady': '所有人都准备好了',
     'play.lobby.paused': '这个游戏暂时停用。恢复后这里就能重新开局。',
     'play.lobby.youNotReady': '就等你准备了',
+    'play.lobby.readyBy': '请在 {time} 内点击“我准备好了”，否则判负。',
+    'play.lobby.readyByOthers': '双方都准备后对局开始。{time} 内未准备的一方判负。',
     'play.stake.each': '每人赌 {stake} NURA。赢家拿走 {share} NURA。',
     'play.stake.eachTeams': '每人赌 {stake} NURA。获胜的两人各拿 {share} NURA。',
     'play.stake.locking': '正在 NuraChain 上锁定赌注…',

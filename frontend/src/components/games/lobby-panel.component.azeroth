@@ -1,4 +1,4 @@
-import { Link, createResource } from 'azerothjs';
+import { Link, createResource, onCleanup, untrack } from 'azerothjs';
 
 import { sideOf } from '../../../../backend/src/domains/match/sides.ts';
 import { feeFor, potOf, shareOf } from '../../../../backend/src/domains/stake/policy.ts';
@@ -9,6 +9,7 @@ import Icon from '../../icons/icon.component.azeroth';
 import { attempt } from '../../lib/attempt.ts';
 import { explorerTx, nuraOf } from '../../lib/nura.ts';
 import { looking } from '../../lib/looking.ts';
+import { runtime } from '../../lib/runtime.ts';
 import { whyRefused } from '../../lib/open-table.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useLobby } from '../../stores/lobby.store.ts';
@@ -91,6 +92,37 @@ export default component LobbyPanel(props: {
      * it has to say so.
      */
     derived meNotReady = mine !== null && mine.who !== undefined && !mine.ready;
+
+    /*
+     * A tournament table waits a few minutes for both players to say they are ready, and then is
+     * settled without whoever has not: the time left is said, to the second, while it waits.
+     */
+    state beat = runtime().clock.now();
+
+    let stopBeat: () => void = () => undefined;
+
+    effect
+    {
+        const waiting = props.table.readyBy !== undefined;
+
+        untrack(() =>
+        {
+            stopBeat();
+            stopBeat = waiting ? runtime().clock.every(1000, () => beat = runtime().clock.now()) : () => undefined;
+        });
+    }
+
+    onCleanup(() => stopBeat());
+
+    derived readyLeft = props.table.readyBy === undefined ? null : Math.max(0, Date.parse(props.table.readyBy) - beat);
+
+    derived readyClock = readyLeft === null
+        ? ''
+        : `${ locale.n(Math.floor(readyLeft / 60_000)) }:${ locale.n(Math.floor(readyLeft / 1000) % 60, { minimumIntegerDigits: 2 }) }`;
+
+    derived readyLine = readyLeft === null
+        ? ''
+        : locale.t(meNotReady ? 'play.lobby.readyBy' : 'play.lobby.readyByOthers', { time: readyClock });
 
     derived searching = looking(props.table);
 
@@ -334,6 +366,12 @@ export default component LobbyPanel(props: {
             </p>
             <Show when={ room !== '' }>
                 { () => <p class="text-ui-sm text-faint">{ room }</p> }
+            </Show>
+            <Show when={ readyLine !== '' }>
+                <p class={ () => [ 'flex items-center justify-center gap-1.5 text-ui-sm font-semibold', meNotReady ? 'text-madder' : 'text-muted' ].join(' ') } data-ready-by>
+                    <Icon name="timer" size={ 14 } class="shrink-0" />
+                    <span class="tally">{ readyLine }</span>
+                </p>
             </Show>
             <Show when={ paid }>
                 <p class="flex items-center justify-center gap-1.5 text-ui-sm font-semibold text-madder" data-stake>

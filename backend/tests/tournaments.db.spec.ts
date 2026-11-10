@@ -51,8 +51,33 @@ const breakOver = async (code: string) =>
     await db.query(`update tournaments set next_round_at = now() - interval '1 second' where code = $1`, [code]);
 };
 
+/** The tables of this tournament still waiting for their players. */
+const waiting = async (code: string) => (await games(code)).filter((game) => game.dealt && game.how === null && game.tableId !== null && game.matchId === null);
+
+/** Both players at every waiting table say they are ready, and the next pass deals their games. */
+const readyAll = async (code: string) =>
+{
+    const tables = (await waiting(code)).map((game) => game.tableId as string);
+
+    if (tables.length > 0)
+    {
+        await db.query(`update table_seats set ready = true where table_id = any($1::uuid[])`, [tables]);
+        await ports.jobs.sweepTournaments();
+    }
+};
+
+/** As if the wait for the players had run out at every table still waiting. */
+const waitRunsOut = async (code: string) =>
+{
+    const tables = (await waiting(code)).map((game) => game.tableId as string);
+
+    await db.query(`update tables set created_at = now() - interval '6 minutes' where id = any($1::uuid[])`, [tables]);
+};
+
 const finishLive = async (code: string, winnerSeat: number | null) =>
 {
+    await readyAll(code);
+
     const live = (await games(code)).filter((game) => game.dealt && game.how === null);
 
     for (const game of live)
@@ -193,7 +218,12 @@ describe.skipIf(!active)('a tournament, against a real database', () =>
         await breakOver(code);
         await Promise.all([ports.jobs.sweepTournaments(), ports.jobs.sweepTournaments(), ports.jobs.sweepTournaments()]);
 
-        expect(await db.getRepository(Match).count()).toBe(2);
+        expect(await db.getRepository(Table).count(), 'a round opened twice').toBe(2);
+
+        await db.query(`update table_seats set ready = true`);
+        await Promise.all([ports.jobs.sweepTournaments(), ports.jobs.sweepTournaments(), ports.jobs.sweepTournaments()]);
+
+        expect(await db.getRepository(Match).count(), 'a game dealt twice').toBe(2);
     });
 
     it('plays a knockout game with no winner once more, then sends the better seed through', async () =>
@@ -213,6 +243,105 @@ describe.skipIf(!active)('a tournament, against a real database', () =>
         await ports.jobs.sweepTournaments();
 
         expect((await games(code)).filter((game) => game.round === 1).every((game) => game.how === 'seed')).toBe(true);
+    });
+
+    it('opens each table to wait for its players, says until when, and deals the game only once both are ready', async () =>
+    {
+        const { code } = await filled();
+
+        await breakOver(code);
+        await ports.jobs.sweepTournaments();
+
+        const [game] = await waiting(code);
+        const tableId = game.tableId as string;
+        const chairs = await db.getRepository(TableSeat).find({ where: { tableId }, order: { seat: 'ASC' } });
+        const first = chairs[0].userId as string;
+        const second = chairs[1].userId as string;
+
+        expect(chairs.map((chair) => chair.ready), 'a chair was ready before anybody said so').toEqual([false, false]);
+        expect(await db.getRepository(Match).count(), 'a game was dealt before its players were there').toBe(0);
+
+        const shown = await ports.table.byId(first, tableId);
+
+        expect(Date.parse(shown.readyBy as string) - Date.parse(shown.createdAt)).toBe(5 * 60_000);
+
+        await ports.table.setReady(first, tableId, true);
+        await ports.jobs.sweepTournaments();
+
+        expect((await games(code)).find((one) => one.id === game.id)?.matchId, 'one ready dealt the game').toBeNull();
+
+        await ports.table.setReady(second, tableId, true);
+
+        const dealt = await ports.table.byId(first, tableId);
+
+        expect(dealt.matchId, 'the second ready did not deal the game at once').toBeDefined();
+        expect(dealt).not.toHaveProperty('readyBy');
+    });
+
+    it('gives the game to whoever was ready when the wait runs out, and closes the table', async () =>
+    {
+        const { code } = await filled();
+
+        await breakOver(code);
+        await ports.jobs.sweepTournaments();
+
+        const [game] = await waiting(code);
+        const tableId = game.tableId as string;
+        const chairs = await db.getRepository(TableSeat).find({ where: { tableId }, order: { seat: 'ASC' } });
+
+        await db.query(`update table_seats set ready = true where table_id = $1 and seat = 1`, [tableId]);
+        await ports.jobs.sweepTournaments();
+
+        expect((await games(code)).find((one) => one.id === game.id)?.how, 'it was settled before the wait ran out').toBeNull();
+
+        await waitRunsOut(code);
+        await ports.jobs.sweepTournaments();
+
+        const settled = (await games(code)).find((one) => one.id === game.id) as TournamentGame;
+
+        expect(settled.how).toBe('seed');
+        expect(settled.winnerSeed).toBe(settled.seedB);
+        expect((await db.getRepository(Table).findOneByOrFail({ id: tableId })).status).toBe('closed');
+        expect(chairs.map((chair) => chair.userId)).toHaveLength(2);
+        expect(await db.getRepository(Match).countBy({ tableId }), 'a walked-over game was dealt').toBe(0);
+    });
+
+    it('treats a game nobody turned up to as one with no winner: once more, then the better seed', async () =>
+    {
+        const { code } = await filled();
+
+        await breakOver(code);
+        await ports.jobs.sweepTournaments();
+        await waitRunsOut(code);
+        await ports.jobs.sweepTournaments();
+
+        expect((await games(code)).filter((game) => game.round === 1).every((game) => game.attempt === 2 && !game.dealt && game.how === null)).toBe(true);
+
+        await breakOver(code);
+        await ports.jobs.sweepTournaments();
+
+        expect(await waiting(code), 'the second attempt opened no new tables').toHaveLength(2);
+
+        await waitRunsOut(code);
+        await ports.jobs.sweepTournaments();
+
+        expect((await games(code)).filter((game) => game.round === 1).every((game) => game.how === 'seed' && game.winnerSeed === Math.min(game.seedA as number, game.seedB as number))).toBe(true);
+        expect(await db.getRepository(Table).countBy({ status: 'open' }), 'a table nobody came to was left open').toBe(0);
+    });
+
+    it('closes the tables still waiting when the staff call the tournament off', async () =>
+    {
+        const { code } = await filled();
+        const admin = await staffed('admin');
+
+        await breakOver(code);
+        await ports.jobs.sweepTournaments();
+
+        expect(await waiting(code)).toHaveLength(2);
+
+        await ports.admin.cancelTournament(admin, code, { reason: 'Called off for the night.' });
+
+        expect(await db.getRepository(Table).countBy({ status: 'open' })).toBe(0);
     });
 
     it('shows its players a tournament table, which has no host, in the shape the api promises', async () =>

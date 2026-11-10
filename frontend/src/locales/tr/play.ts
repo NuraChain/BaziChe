@@ -145,6 +145,8 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'play.lobby.allReady': 'Herkes hazır',
     'play.lobby.paused': 'Bu oyun şimdilik duraklatıldı. Oyun geri gelince burada yeniden başlayabilir.',
     'play.lobby.youNotReady': 'Sen hazır olunca başlarız',
+    'play.lobby.readyBy': '{time} içinde “Hazırım”a bas, yoksa bu oyunu kaybedersin.',
+    'play.lobby.readyByOthers': 'Oyun ikiniz de hazır olunca başlar. {time} içinde hazır olmayan kaybeder.',
     'play.stake.each': 'Kişi başı {stake} NURA için oynanıyor. Kazanan {share} NURA alır.',
     'play.stake.eachTeams': 'Kişi başı {stake} NURA için oynanıyor. Kazanan eşlerin her biri {share} NURA alır.',
     'play.stake.locking': 'Bahisler NuraChain üzerinde kilitleniyor…',

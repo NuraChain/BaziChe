@@ -142,6 +142,8 @@ export const play = {
     'play.lobby.allReady': 'Everyone is ready',
     'play.lobby.paused': 'This game is paused for now. A game can start here again once it is back.',
     'play.lobby.youNotReady': 'Ready when you are',
+    'play.lobby.readyBy': 'Press “I’m ready” within {time}, or you lose this game.',
+    'play.lobby.readyByOthers': 'The game starts once both are ready. Whoever is not ready in {time} loses it.',
     'play.stake.each': 'Played for {stake} NURA each. The winner takes {share} NURA.',
     'play.stake.eachTeams': 'Played for {stake} NURA each. Each of the winning pair takes {share} NURA.',
     'play.stake.locking': 'Locking the stakes on NuraChain…',

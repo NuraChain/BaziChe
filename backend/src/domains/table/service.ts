@@ -26,6 +26,7 @@ import { TABLE_REFUSALS, type TableRefusal } from './refusals.ts';
 import { clockFor, isClock } from './clocks.ts';
 import { guestChairs, teamsOf, type Partners } from './teams.ts';
 import { scopeFor, type VoiceScope } from './voices.ts';
+import { readyBySql } from '../tournament/ready.ts';
 
 /**
  * What the catalogue says a table of this game may be.
@@ -99,6 +100,9 @@ export interface TableRow
 
     /** The code of the tournament this table was dealt for, if any. */
     tournament: string | null;
+
+    /** Until when a tournament table waits for its two players to say they are ready; null once dealt, and at any other table. */
+    ready_by: Date | null;
     chairs: SeatRow[];
     taken: number;
 
@@ -192,6 +196,12 @@ const tableQuery = (db: DataSource, me: string) => db.getRepository(Table)
     .addSelect('t.room_id', 'room_id')
     .addSelect('t.created_at', 'created_at')
     .addSelect('(select k.code::text from tournaments k where k.id = t.tournament_id)', 'tournament')
+    .addSelect(
+        `(case when t.tournament_id is not null and t.status <> 'closed'
+                 and not exists (select 1 from matches m where m.table_id = t.id)
+            then ${ readyBySql('t.created_at') } end)`,
+        'ready_by'
+    )
 
     /**
      * Derived, never stored. A closed table is a decision somebody made and lives in the column;
@@ -1397,9 +1407,9 @@ export function createTableService(db: DataSource, social: SocialService)
 
         /**
          * Opens the table a tournament game is played at, with both players already sitting and
-         * ready, inside the transaction that deals it, so it is never a waiting table a sweep could
-         * stand somebody up from. Public so anybody can watch; no chat and no voice, because the
-         * two were paired by a draw and may have blocked one another.
+         * neither ready: each says so, and the tournament deals the game once both have, or settles
+         * it when `READY_MS` runs out (`tournament/ready.ts`). Public so anybody can watch; no chat
+         * and no voice, because the two were paired by a draw and may have blocked one another.
          */
         async seatForTournament(tx: EntityManager, tournamentId: string, game: string, players: readonly [string, string])
         {
@@ -1429,7 +1439,7 @@ export function createTableService(db: DataSource, social: SocialService)
             });
             const id = inserted.identifiers[0].id as string;
 
-            await tx.getRepository(TableSeat).insert(players.map((userId, seat) => ({ tableId: id, seat, userId, joinedAt: () => 'now()', ready: true })));
+            await tx.getRepository(TableSeat).insert(players.map((userId, seat) => ({ tableId: id, seat, userId, joinedAt: () => 'now()', ready: false })));
 
             const conversation = await tx.getRepository(Conversation).insert({ kind: 'game', tableId: id, game });
 

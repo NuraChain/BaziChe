@@ -242,9 +242,61 @@ function emblem(palette, id, cx, cy, size)
  * A collection's sigil: its emblem in a medallion of its surface, ringed in its light, drawn at a
  * size that keeps a legendary emblem's flames, horns and whiskers inside the inner ring.
  */
+/**
+ * Royal Gold's own sign: a jewelled crown over a laurel, inside a beaded ring. Cast metal, so it is
+ * filled and lit from above, where the plain emblem every other collection without one gets is
+ * only lines.
+ */
+function crownSign(palette)
+{
+    const dark = '#5A3F0C';
+    const leaves = [];
+
+    for (let step = 0; step < 6; step += 1)
+    {
+        const angle = (112 + step * 11.5) * Math.PI / 180;
+        const x = 32 + Math.cos(angle) * 19.2;
+        const y = 31 + Math.sin(angle) * 19.2;
+        const turn = r2(112 + step * 11.5 + 55);
+
+        leaves.push(`<ellipse cx="${ r2(x) }" cy="${ r2(y) }" rx="2.5" ry="1.05" transform="rotate(${ turn } ${ r2(x) } ${ r2(y) })"/>`);
+        leaves.push(`<ellipse cx="${ r2(64 - x) }" cy="${ r2(y) }" rx="2.5" ry="1.05" transform="rotate(${ r2(-turn) } ${ r2(64 - x) } ${ r2(y) })"/>`);
+    }
+
+    const defs = [
+        `<linearGradient id="s-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${ palette.glint }"/><stop offset="0.38" stop-color="${ palette.pale[1] }"/><stop offset="0.72" stop-color="${ palette.piece[1] }"/><stop offset="1" stop-color="${ palette.piece[2] }"/></linearGradient>`,
+        `<linearGradient id="s-band" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${ palette.pale[1] }"/><stop offset="0.5" stop-color="${ palette.piece[2] }"/><stop offset="1" stop-color="${ palette.piece[1] }"/></linearGradient>`,
+        '<radialGradient id="s-ruby" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#FFB3B8"/><stop offset="0.45" stop-color="#D4213B"/><stop offset="1" stop-color="#5E0716"/></radialGradient>',
+        '<radialGradient id="s-pearl" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.6" stop-color="#FFF3BF"/><stop offset="1" stop-color="#B88C22"/></radialGradient>',
+        '<filter id="s-drop" x="-30%" y="-30%" width="160%" height="170%"><feGaussianBlur in="SourceAlpha" stdDeviation="0.9"/><feOffset dy="1.1"/><feComponentTransfer><feFuncA type="linear" slope="0.7"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    ];
+
+    const body = [
+        '<circle cx="32" cy="32" r="21" fill="url(#sigil-halo)" opacity="0.5"/>',
+        `<circle cx="32" cy="32" r="25.6" fill="none" stroke="${ palette.edge }" stroke-width="1.15" stroke-linecap="round" stroke-dasharray="0.01 2.671"/>`,
+        `<circle cx="32" cy="32" r="23.7" fill="none" stroke="${ palette.edge }" stroke-opacity="0.35" stroke-width="0.45"/>`,
+        `<g fill="url(#s-gold)" stroke="${ dark }" stroke-width="0.3" opacity="0.9">${ leaves.join('') }</g>`,
+        '<g filter="url(#s-drop)">',
+        `<path d="M20.4 38.2L17.6 24.6L25.4 30.4L32 19.4L38.6 30.4L46.4 24.6L43.6 38.2Z" fill="url(#s-gold)" stroke="${ dark }" stroke-width="0.7" stroke-linejoin="round"/>`,
+        '<path d="M32 19.4L38.6 30.4L46.4 24.6L43.6 38.2L32 38.2Z" fill="#3A2606" opacity="0.2"/>',
+        '<path d="M18.9 26.2L25.2 31.6L31.4 21.6" fill="none" stroke="#FFFFFF" stroke-opacity="0.75" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round"/>',
+        `<rect x="19.6" y="38.2" width="24.8" height="5" rx="1.5" fill="url(#s-band)" stroke="${ dark }" stroke-width="0.7"/>`,
+        '<path d="M21 39.5H43" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="0.5" stroke-linecap="round"/>',
+        `<path d="M32 38.7L34.1 40.7L32 42.7L29.9 40.7Z" fill="url(#s-ruby)" stroke="${ dark }" stroke-width="0.35"/>`,
+        `<g fill="url(#s-pearl)" stroke="${ dark }" stroke-width="0.3"><circle cx="24.6" cy="40.7" r="1"/><circle cx="39.4" cy="40.7" r="1"/></g>`,
+        `<g fill="url(#s-pearl)" stroke="${ dark }" stroke-width="0.45"><circle cx="17.6" cy="23.9" r="1.9"/><circle cx="46.4" cy="23.9" r="1.9"/></g>`,
+        `<circle cx="32" cy="18.4" r="2.5" fill="url(#s-ruby)" stroke="${ dark }" stroke-width="0.45"/>`,
+        '<circle cx="31.2" cy="17.6" r="0.7" fill="#FFFFFF" opacity="0.85"/>',
+        `<path d="M32 28.6L33.5 32L32 35.4L30.5 32Z" fill="${ dark }" opacity="0.55"/>`,
+        '</g>'
+    ];
+
+    return { defs, body, ring: true };
+}
+
 function sigil(palette)
 {
-    const sign = lineOf(palette)?.emblem(palette, 32, 32, 35, 's');
+    const sign = palette.pattern === 'filigree' ? crownSign(palette) : lineOf(palette)?.emblem(palette, 32, 32, 35, 's');
     const defs = [
         `<radialGradient id="disc" cx="0.4" cy="0.32" r="0.78"><stop offset="0" stop-color="${ palette.surface[0] }"/><stop offset="0.62" stop-color="${ palette.surface[1] }"/><stop offset="1" stop-color="${ palette.surface[2] }"/></radialGradient>`,
         `<linearGradient id="rim" x1="0.15" y1="0.1" x2="0.85" y2="0.95"><stop offset="0" stop-color="${ palette.glint }"/><stop offset="0.45" stop-color="${ palette.edge }"/><stop offset="1" stop-color="${ palette.deep[1] }"/></linearGradient>`,
@@ -255,7 +307,9 @@ function sigil(palette)
     const body = [
         '<circle cx="32" cy="32" r="30.5" fill="url(#disc)"/>',
         '<circle cx="32" cy="32" r="29.3" fill="none" stroke="url(#rim)" stroke-width="2.4"/>',
-        `<circle cx="32" cy="32" r="25.6" fill="none" stroke="${ palette.edge }" stroke-opacity="0.45" stroke-width="0.7"/>`,
+        ...(sign?.ring === true
+            ? ['<circle cx="32" cy="32" r="27.85" fill="none" stroke="#000000" stroke-opacity="0.55" stroke-width="0.6"/>', '<circle cx="32" cy="32" r="30.3" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="0.4"/>']
+            : [`<circle cx="32" cy="32" r="25.6" fill="none" stroke="${ palette.edge }" stroke-opacity="0.45" stroke-width="0.7"/>`]),
         ...(sign?.body ?? [emblem(palette, 'sigil', 32, 32, 14)]),
         '<path d="M9.5 24A23.5 23.5 0 0 1 40 8.6" fill="none" stroke="#FFFFFF" stroke-opacity="0.2" stroke-width="1.6" stroke-linecap="round"/>'
     ];

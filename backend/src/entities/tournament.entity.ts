@@ -6,7 +6,7 @@ export type TournamentStatus = 'open' | 'running' | 'finished' | 'cancelled';
 
 @Check('tournaments_status_known', `status in ('open', 'running', 'finished', 'cancelled')`)
 @Check('tournaments_format_known', `format in ('single', 'double', 'round-robin', 'swiss', 'groups')`)
-@Check('tournaments_size_known', `size in (4, 8, 16, 32)`)
+@Check('tournaments_size_known', `size in (4, 8, 16, 32, 64, 128)`)
 @Check('tournaments_best_of_known', `best_of in (1, 3, 5)`)
 @Index('tournaments_code', ['code'], { unique: true })
 @Index('tournaments_active', ['status', 'startsAt'], { where: `status in ('open', 'running')` })

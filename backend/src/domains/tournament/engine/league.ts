@@ -210,7 +210,7 @@ export const roundRobin: Format = {
 
 export const swiss: Format = {
     id: 'swiss',
-    sizes: [8, 16, 32],
+    sizes: [8, 16, 32, 64, 128],
     roundsFor: (entrants) => Math.ceil(Math.log2(entrants)),
     start: (rules) => settle(swissRound([], everySeed(rules), 1)),
 

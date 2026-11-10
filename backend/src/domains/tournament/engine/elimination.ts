@@ -192,7 +192,7 @@ const everySeed = (rules: Rules) => Array.from({ length: rules.entrants }, (_, i
 
 export const singleElimination: Format = {
     id: 'single',
-    sizes: [4, 8, 16, 32],
+    sizes: [4, 8, 16, 32, 64, 128],
     roundsFor: (entrants) => roundsIn(bracketSizeFor(entrants)),
     start: (rules) => withPhases(knockoutTree('main', rules.entrants)),
     advance: (games) => settle(games),
@@ -202,7 +202,7 @@ export const singleElimination: Format = {
 
 export const doubleElimination: Format = {
     id: 'double',
-    sizes: [4, 8, 16, 32],
+    sizes: [4, 8, 16, 32, 64, 128],
     roundsFor: (entrants) => roundsIn(bracketSizeFor(entrants)),
     start: (rules) => withPhases(doubleTree(rules.entrants)),
 

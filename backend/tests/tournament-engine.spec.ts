@@ -150,7 +150,7 @@ describe('double elimination', () =>
 
     it('plays 2n-2 games with no reset and 2n-1 with one', () =>
     {
-        for (const entrants of [2, 3, 4, 7, 8, 16, 31, 32, 64])
+        for (const entrants of [2, 3, 4, 7, 8, 16, 31, 32, 64, 127, 128])
         {
             const straight = playOut('double', entrants, better);
 
@@ -247,7 +247,7 @@ describe('round robin', () =>
 
 describe('Swiss', () =>
 {
-    it.each([4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 64])('plays %i entrants the rounds it promised, with no repeated pairing', (entrants) =>
+    it.each([4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 64, 65, 127, 128])('plays %i entrants the rounds it promised, with no repeated pairing', (entrants) =>
     {
         for (const seed of [11, 22, 33])
         {
@@ -301,7 +301,13 @@ describe('groups and playoffs', () =>
         expect(games.filter((game) => game.stage === 'playoff' && game.round === 1)).toHaveLength(8);
     });
 
-    it.each([2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 16, 20, 23, 24, 25, 31, 32])('runs %i entrants through groups into a playoff with one champion', (entrants) =>
+    it.each([[64, 16], [128, 32]])('keeps the groups at four with %i entrants, in %i groups', (entrants, count) =>
+    {
+        expect(groupsOf(entrants)).toHaveLength(count);
+        expect(groupsOf(entrants).every((group) => group.length === 4)).toBe(true);
+    });
+
+    it.each([2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 16, 20, 23, 24, 25, 31, 32, 47, 48, 64, 95, 96, 128])('runs %i entrants through groups into a playoff with one champion', (entrants) =>
     {
         const { games, standings } = playOut('groups', entrants, SIDES(entrants));
         const placed = standings.map((row) => row.seed).sort((one, other) => one - other);
@@ -317,7 +323,7 @@ describe('groups and playoffs', () =>
 
     it('puts every entrant in exactly one group, the groups within one of each other', () =>
     {
-        for (let entrants = 2; entrants <= 64; entrants += 1)
+        for (let entrants = 2; entrants <= 128; entrants += 1)
         {
             const groups = groupsOf(entrants);
             const sizes = groups.map((group) => group.length);
@@ -329,7 +335,7 @@ describe('groups and playoffs', () =>
 
     it('never pairs two from the same group in the first playoff round', () =>
     {
-        for (const entrants of [8, 16, 32])
+        for (const entrants of [8, 16, 32, 64, 128])
         {
             const { games, rules } = playOut('groups', entrants, SIDES(entrants + 1));
             const groupOf = new Map(groupsOf(rules.entrants).flatMap((seeds, group) => seeds.map((seed) => [seed, group])));
@@ -431,5 +437,26 @@ describe('the random draw', () =>
             expect(source.match(/from '([^']+)'/g)?.every((line) => line.startsWith("from './")) ?? true, file).toBe(true);
             expect(source, file).not.toMatch(/\bDate\b|setTimeout|setInterval|Math\.random/);
         }
+    });
+});
+
+describe('the sizes a tournament can be', () =>
+{
+    const offered = [...new Set(Object.values(FORMATS).flatMap((format) => format.sizes))].sort((one, other) => one - other);
+
+    it('are all allowed by the database', () =>
+    {
+        const entity = readFileSync(join(HERE, '..', 'src', 'entities', 'tournament.entity.ts'), 'utf8');
+        const allowed = /size in \(([^)]+)\)/.exec(entity)?.[1].split(',').map(Number);
+
+        expect(allowed).toEqual(offered);
+    });
+
+    it('are all allowed by the form the server reads', () =>
+    {
+        const schemas = readFileSync(join(HERE, '..', 'src', 'schemas.ts'), 'utf8');
+        const most = /tournamentCreateInput[\s\S]*?size: number\(\{ int: true, min: \d+, max: (\d+) \}\)/.exec(schemas)?.[1];
+
+        expect(Number(most)).toBe(offered[offered.length - 1]);
     });
 });

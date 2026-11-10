@@ -38,6 +38,10 @@ const TREES = ['main', 'winners', 'losers', 'final', 'playoff'] as const;
 
 const SECOND_MS = 1000;
 
+// Every finished game rings every entrant. At 128 players a first round is 64 rings to each of 128
+// pages, and each ring would otherwise fetch the whole bracket.
+const RING_GAP_MS = 5000;
+
 export default component TournamentPage()
 {
     const locale = useLocale();
@@ -192,12 +196,32 @@ export default component TournamentPage()
     mount
     {
         const unpoll = whileSeen(() => void read.refetch());
-        const untick = runtime().clock.every(SECOND_MS, () => now = runtime().clock.now());
+        let rung = false;
+        let readAt = 0;
+
+        const answerRing = () =>
+        {
+            const at = runtime().clock.now();
+
+            if (rung && at - readAt >= RING_GAP_MS)
+            {
+                rung = false;
+                readAt = at;
+                void read.refetch();
+            }
+        };
+
+        const untick = runtime().clock.every(SECOND_MS, () =>
+        {
+            now = runtime().clock.now();
+            answerRing();
+        });
         const unring = realtime.onNudge((scope, id) =>
         {
             if (scope === 'table' && id !== undefined && id === untrack(() => tournament?.id))
             {
-                void read.refetch();
+                rung = true;
+                answerRing();
             }
         });
 

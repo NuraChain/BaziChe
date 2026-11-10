@@ -7,6 +7,16 @@ const PLAYOFF = 'playoff';
 /** Groups of three to five wherever the field allows it, and always a number the playoff can halve. */
 export const groupCountFor = (entrants: number) =>
 {
+    if (entrants >= 96)
+    {
+        return 32;
+    }
+
+    if (entrants >= 48)
+    {
+        return 16;
+    }
+
     if (entrants >= 24)
     {
         return 8;
@@ -66,7 +76,7 @@ const everyGroupGame = (games: readonly Game[]) => games.filter((game) => game.s
 
 export const groupsAndPlayoffs: Format = {
     id: 'groups',
-    sizes: [8, 16, 32],
+    sizes: [8, 16, 32, 64, 128],
     roundsFor: (entrants) => entrants,
 
     start: (rules) => settle(groupsOf(rules.entrants).flatMap((seeds, group) => roundRobinGames(stageOf(group), seeds))),

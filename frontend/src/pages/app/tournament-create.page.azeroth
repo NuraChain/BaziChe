@@ -45,9 +45,9 @@ export default component TournamentCreatePage()
     state starts = localInput(runtime().clock.now() + HOUR_MS);
     state sending = false;
 
-    derived sizes = FORMATS[format].sizes.map((one) => ({ id: String(one), label: locale.n(one) }));
+    derived sizes = FORMATS[format].sizes.map((one) => ({ value: String(one), label: locale.n(one) }));
 
-    derived fittedSize = sizes.some((one) => one.id === size) ? size : sizes[0].id;
+    derived fittedSize = sizes.some((one) => one.value === size) ? size : sizes[0].value;
 
     derived gameOptions = games.map((one) => ({ value: one.id, label: locale.t(one.nameKey) }));
 
@@ -104,9 +104,7 @@ export default component TournamentCreatePage()
 
             <Select label={ locale.t('tournaments.new.format') } value={ format } options={ formatOptions } hint={ locale.t(`tournaments.formatHint.${ format }`) } onChange={ (value) => format = value as FormatId } />
 
-            <Field id="tournament-size" label={ locale.t('tournaments.new.size') }>
-                <Segmented block items={ sizes } value={ fittedSize } label={ locale.t('tournaments.new.size') } onChange={ (id) => size = id } />
-            </Field>
+            <Select label={ locale.t('tournaments.new.size') } value={ fittedSize } options={ sizes } onChange={ (value) => size = value } />
 
             <Field id="tournament-length" label={ locale.t('tournaments.new.length') }>
                 <Segmented block items={ [ { id: '1', label: locale.t('tournaments.bestOf', { n: locale.n(1) }) }, { id: '3', label: locale.t('tournaments.bestOf', { n: locale.n(3) }) }, { id: '5', label: locale.t('tournaments.bestOf', { n: locale.n(5) }) } ] } value={ bestOf } label={ locale.t('tournaments.new.length') } onChange={ (id) => bestOf = id } />

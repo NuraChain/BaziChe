@@ -3648,7 +3648,7 @@ export const tournamentCreateInput = object({
     name: string({ trim: true, nonempty: true, max: 60 }),
     game: string({ max: 32 }),
     format: tournamentFormat,
-    size: number({ int: true, min: 4, max: 32 }),
+    size: number({ int: true, min: 4, max: 128 }),
     bestOf: number({ int: true, min: 1, max: 5 }),
     listed: boolean(),
     startsAt: string({ max: 40 })

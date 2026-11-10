@@ -27,6 +27,13 @@ export class TournamentEntry
     @Column({ type: 'smallint', nullable: true })
     seed!: number | null;
 
+    /**
+     * Taken out by the staff after the draw. The row stays, so the bracket still names who held the
+     * seed; from then on every game of theirs is lost by walkover.
+     */
+    @Column({ name: 'removed_at', type: 'timestamptz', nullable: true })
+    removedAt!: Date | null;
+
     @CreateDateColumn({ name: 'joined_at', type: 'timestamptz' })
     joinedAt!: Date;
 

@@ -50,7 +50,12 @@ export const STAFF_REFUSALS = {
     'staff-minter-lacks': 409,
     'staff-minter-busy': 409,
     'staff-minter-refused': 409,
-    'staff-minter-change': 409
+    'staff-minter-change': 409,
+    'staff-tournament-over': 409,
+    'staff-tournament-started': 409,
+    'staff-tournament-few': 409,
+    'staff-tournament-time': 422,
+    'staff-tournament-player': 409
 } as const satisfies Record<string, 404 | 409 | 422>;
 
 export type StaffRefusal = keyof typeof STAFF_REFUSALS;

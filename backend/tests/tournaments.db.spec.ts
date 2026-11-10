@@ -3,7 +3,7 @@ import 'reflect-metadata';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DataSource } from 'typeorm';
 
-import { Conversation, Match, Table, TableSeat, Tournament, TournamentEntry, TournamentGame, User, entities } from '../src/entities/index.ts';
+import { Conversation, Match, StaffMember, StaffAction, Table, TableSeat, Tournament, TournamentEntry, TournamentGame, User, entities } from '../src/entities/index.ts';
 import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import { buildPorts, type Services } from '../src/services.ts';
@@ -76,6 +76,17 @@ const filled = async (patch: Parameters<typeof open>[1] = {}, size = 4) =>
 
     return { code, people };
 };
+
+const staffed = async (role: 'moderator' | 'admin') =>
+{
+    const id = await makeUser();
+
+    await db.getRepository(StaffMember).insert({ userId: id, role, grantedBy: null });
+
+    return id;
+};
+
+const handleOf = async (id: string) => (await db.getRepository(User).findOneByOrFail({ id })).handle;
 
 describe.skipIf(!active)('a tournament, against a real database', () =>
 {
@@ -253,5 +264,105 @@ describe.skipIf(!active)('a tournament, against a real database', () =>
 
             expect((await games(code)).some((game) => game.dealt), format).toBe(true);
         }
+    });
+
+    it('lets the staff take a player out mid-game: the game in hand is theirs to lose, and the rest plays on to a champion who is not them', async () =>
+    {
+        const { code, people } = await filled();
+        const admin = await staffed('admin');
+
+        await breakOver(code);
+        await ports.jobs.sweepTournaments();
+
+        const out = people[1];
+        const entries = await db.getRepository(TournamentEntry).findBy({ tournamentId: (await row(code)).id });
+        const seedOut = entries.find((entry) => entry.userId === out)?.seed as number;
+        const inHand = (await games(code)).find((game) => game.dealt && game.how === null && (game.seedA === seedOut || game.seedB === seedOut)) as TournamentGame;
+
+        const view = await ports.admin.removeFromTournament(admin, code, { player: await handleOf(out), reason: 'Left the game on purpose.' });
+
+        expect(view?.tournament.entrants.find((entry) => entry.seed === seedOut)?.removed).toBe(true);
+
+        const decided = (await games(code)).find((game) => game.id === inHand.id) as TournamentGame;
+
+        expect(decided.how).toBe('seed');
+        expect(decided.winnerSeed).toBe(decided.seedA === seedOut ? decided.seedB : decided.seedA);
+
+        for (let pass = 0; pass < 4 && (await row(code)).status === 'running'; pass += 1)
+        {
+            await finishLive(code, 0);
+            await ports.jobs.sweepTournaments();
+            await breakOver(code);
+            await ports.jobs.sweepTournaments();
+        }
+
+        const done = await row(code);
+
+        expect(done.status).toBe('finished');
+        expect(done.winnerId).not.toBe(out);
+        expect(await db.getRepository(StaffAction).countBy({ kind: 'tournament' })).toBe(1);
+    });
+
+    it('frees the place of somebody taken out before the start', async () =>
+    {
+        const [host, guest] = await crowd(2);
+        const admin = await staffed('admin');
+        const code = ((await open(host)) as { code: string }).code;
+
+        await ports.tournament.join(guest, code);
+        await ports.admin.removeFromTournament(admin, code, { player: await handleOf(guest), reason: 'Asked to be taken out.' });
+
+        expect(await db.getRepository(TournamentEntry).countBy({ tournamentId: (await row(code)).id })).toBe(1);
+        await expect(ports.admin.removeFromTournament(admin, code, { player: await handleOf(guest), reason: 'Twice over.' })).rejects.toMatchObject({ code: 'staff-tournament-player' });
+    });
+
+    it('starts one early with whoever is in, and refuses with fewer than four', async () =>
+    {
+        const [host, ...guests] = await crowd(4);
+        const admin = await staffed('admin');
+        const code = ((await open(host, { size: 8 })) as { code: string }).code;
+
+        for (const person of guests.slice(0, 2))
+        {
+            await ports.tournament.join(person, code);
+        }
+
+        await expect(ports.admin.startTournament(admin, code, { reason: 'Nobody else is coming.' })).rejects.toMatchObject({ code: 'staff-tournament-few' });
+        await ports.tournament.join(guests[2], code);
+
+        expect((await ports.admin.startTournament(admin, code, { reason: 'Nobody else is coming.' }))?.tournament.status).toBe('running');
+        await expect(ports.admin.moveTournament(admin, code, { startsAt: inAnHour(), reason: 'Too late now.' })).rejects.toMatchObject({ code: 'staff-tournament-started' });
+    });
+
+    it('hides one from the list without touching what its creator chose, and pins another to the top', async () =>
+    {
+        const [host, other, reader] = await crowd(3);
+        const admin = await staffed('admin');
+        const first = ((await open(host, { name: 'First' })) as { code: string }).code;
+        const second = ((await open(other, { name: 'Second', startsAt: new Date(Date.now() + 7_200_000).toISOString() })) as { code: string }).code;
+
+        await ports.admin.featureTournament(admin, second, { on: true, reason: 'The weekly cup.' });
+
+        expect((await ports.tournament.list(reader, {})).tournaments.map((one) => one.code)).toEqual([second, first]);
+
+        await ports.admin.hideTournament(admin, first, { on: true, reason: 'A rude name.' });
+
+        expect((await ports.tournament.list(reader, {})).tournaments.map((one) => one.code)).toEqual([second]);
+        expect((await row(first)).listed).toBe(true);
+
+        await ports.admin.hideTournament(admin, first, { on: false, reason: 'Renamed.' });
+
+        expect((await ports.tournament.list(reader, {})).tournaments).toHaveLength(2);
+    });
+
+    it('keeps all of it from a moderator', async () =>
+    {
+        const [host] = await crowd(1);
+        const moderator = await staffed('moderator');
+        const code = ((await open(host)) as { code: string }).code;
+
+        await expect(ports.admin.tournament(moderator, code)).resolves.toBeNull();
+        await expect(ports.admin.cancelTournament(moderator, code, { reason: 'Not mine to do.' })).resolves.toBeNull();
+        expect((await row(code)).status).toBe('open');
     });
 });

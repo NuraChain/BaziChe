@@ -73,7 +73,8 @@ import { createReconciler, type ReconcileSweep } from './domains/reconcile/servi
 import type { Books } from './chain/rpc.ts';
 import { createShopService } from './domains/shop/service.ts';
 import { createReportsService } from './domains/admin/reports.ts';
-import { createStaffService } from './domains/admin/staff.ts';
+import { createStaffService, type Actor } from './domains/admin/staff.ts';
+import { createTournamentStaff } from './domains/admin/tournaments.ts';
 import { createVaultAdmin } from './domains/stake/admin.ts';
 import { avatarHashOf } from './domains/identity/avatar.ts';
 import { maySeeOnline } from './domains/social/policy.ts';
@@ -974,6 +975,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const match = createMatchService(db, achieve, ENGINES, shop.looksAt);
 
     const tournaments = createTournamentService(db, { seat: table.seatForTournament, deal: match.dealTournament });
+    const tournamentStaff = createTournamentStaff(db, tournaments, owners);
 
     /**
      * The board as a client is allowed to see it.
@@ -1675,6 +1677,28 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         const actor = await staffOf(me);
 
         return actor !== null && may(actor.role, ability) ? actor : null;
+    };
+
+    const tournamentView = async (me: string, code: string) =>
+    {
+        const view = await tournaments.staff.view(me, code);
+
+        return view === null ? null : { ...view, log: await team.ofTournament(view.tournament.id) };
+    };
+
+    /** One thing the staff do to a tournament, answered with the page as it now stands. */
+    const staffOnTournament = async (me: string, code: string, work: (actor: Actor) => Promise<unknown>) =>
+    {
+        const actor = await ableTo(me, 'tournaments');
+
+        if (actor === null)
+        {
+            return null;
+        }
+
+        await work(actor);
+
+        return await tournamentView(me, code);
     };
 
     const stakes = createStakeService(db, vaults, {
@@ -2985,25 +3009,55 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 return await playNow();
             },
 
-            async tournaments(me)
+            async tournaments(me, query)
             {
-                return await ableTo(me, 'play') === null ? null : { tournaments: await tournaments.running(ADMIN_TOURNAMENTS) };
+                return await ableTo(me, 'tournaments') === null ? null : { tournaments: await tournaments.staff.list(query, ADMIN_TOURNAMENTS) };
             },
 
-            async cancelTournament(me, code, input)
+            async tournament(me, code)
             {
-                const actor = await ableTo(me, 'play');
-                const done = actor === null ? null : await plays.haltTournament(actor, code, input.reason, tournaments.halt);
+                return await ableTo(me, 'tournaments') === null ? null : await tournamentView(me, code);
+            },
 
-                if (done === null)
+            cancelTournament: (me, code, input) => staffOnTournament(me, code, async (actor) =>
+            {
+                await tournamentFollowUp(await tournamentStaff.cancel(actor, code, input.reason));
+            }),
+
+            startTournament: (me, code, input) => staffOnTournament(me, code, async (actor) =>
+            {
+                await tournamentFollowUp(await tournamentStaff.start(actor, code, input.reason));
+            }),
+
+            moveTournament: (me, code, input) => staffOnTournament(me, code, (actor) => tournamentStaff.move(actor, code, input.startsAt, input.reason)),
+
+            featureTournament: (me, code, input) => staffOnTournament(me, code, (actor) => tournamentStaff.feature(actor, code, input.on, input.reason)),
+
+            hideTournament: (me, code, input) => staffOnTournament(me, code, (actor) => tournamentStaff.hide(actor, code, input.on, input.reason)),
+
+            removeFromTournament: (me, code, input) => staffOnTournament(me, code, async (actor) =>
+            {
+                const out = await tournamentStaff.remove(actor, code, input.player, input.reason);
+
+                // The game they were in is already lost by walkover, so ending its table is a courtesy
+                // to the other player: one the staff may not be able to do, if they sit at it.
+                if (out.match !== null)
                 {
-                    return null;
+                    const matchId = out.match;
+
+                    await courtesy('tournament void', async () =>
+                    {
+                        const ended = await plays.voidMatch(actor, matchId, input.reason, match.voidIn);
+
+                        if (ended !== null)
+                        {
+                            await afterVoid(matchId, ended);
+                        }
+                    });
                 }
 
-                await tournamentFollowUp(done);
-
-                return { tournaments: await tournaments.running(ADMIN_TOURNAMENTS) };
-            },
+                await tournamentFollowUp(await tournaments.advance(out.id));
+            }),
 
             async closeTable(me, id, input)
             {

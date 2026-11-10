@@ -270,8 +270,44 @@ export const applyResult = (game: Game, side: Side | null, bestOf: number): Game
         : finish(Math.min(scored.a as number, scored.b as number), 'seed');
 };
 
-/** A game one side could not turn up to, because their account is gone. */
+/** A game one side could not turn up to, because their account is gone or the staff took them out. */
 export const walkover = (game: Game, winner: number): Game => ({ ...game, winner, how: 'seed', dealt: false });
+
+/**
+ * Settles every game already dealt to somebody who is no longer in it, before any table's result is
+ * read: a result that lands first would otherwise be replayed or decided by seed. Games not yet dealt
+ * are left to the deal, which walks over an empty seat the same way.
+ */
+export const forfeitAbsent = (games: readonly Game[], absent: ReadonlySet<number>) => games.map((game) =>
+{
+    if (!game.dealt || game.how !== null || game.a === null || game.b === null || (!absent.has(game.a) && !absent.has(game.b)))
+    {
+        return game;
+    }
+
+    return walkover(game, absent.has(game.a) ? game.b : game.a);
+});
+
+/**
+ * A league's table with those taken out moved to the bottom and given no place, so somebody removed
+ * late cannot finish first on the points they had. A knockout needs none of this: walked over, they
+ * are out like anybody who lost.
+ */
+export const withoutAbsent = (rows: readonly Standing[], absent: ReadonlySet<number>): Standing[] =>
+{
+    if (absent.size === 0)
+    {
+        return [...rows];
+    }
+
+    const kept = rows.filter((row) => !absent.has(row.seed));
+    const placed = kept.every((row) => row.place !== null);
+
+    return [
+        ...kept.map((row, index) => ({ ...row, place: placed ? index + 1 : null })),
+        ...rows.filter((row) => absent.has(row.seed)).map((row) => ({ ...row, place: null }))
+    ];
+};
 
 /** The seeds 1 to `count` in a random order, from a source of whole numbers below the one it is given. */
 export const shuffledSeeds = (count: number, below: (limit: number) => number) =>

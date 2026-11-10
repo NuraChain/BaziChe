@@ -48,6 +48,14 @@ export class Tournament
     @Column({ type: 'boolean' })
     listed!: boolean;
 
+    /** Taken off the list by the staff. Apart from `listed`, so showing it again cannot overrule the creator's own choice. */
+    @Column({ type: 'boolean', default: false })
+    hidden!: boolean;
+
+    /** Pinned to the top of the list by the staff, the most recently pinned first. */
+    @Column({ name: 'featured_at', type: 'timestamptz', nullable: true })
+    featuredAt!: Date | null;
+
     @Column({ type: 'varchar', length: 16, default: 'open' })
     status!: TournamentStatus;
 

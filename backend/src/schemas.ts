@@ -3667,6 +3667,9 @@ export const tournamentSummary = object({
     size: number(),
     bestOf: number(),
     listed: boolean(),
+
+    /** Pinned to the top of the list by the staff. */
+    featured: boolean(),
     status: tournamentStatus,
     entered: number(),
     startsAt: string(),
@@ -3726,6 +3729,7 @@ export const tournamentDetail = object({
     size: number(),
     bestOf: number(),
     listed: boolean(),
+    featured: boolean(),
     status: tournamentStatus,
     entered: number(),
     startsAt: string(),
@@ -3744,7 +3748,10 @@ export const tournamentDetail = object({
         spot: number(),
         who: string().optional(),
         seed: number().optional(),
-        place: number().optional()
+        place: number().optional(),
+
+        /** Taken out by the staff after the draw: still named, every game of theirs lost by walkover. */
+        removed: boolean().optional()
     })),
     games: array(tournamentGame),
     standings: array(tournamentStanding),
@@ -3762,6 +3769,11 @@ export const tournamentDetail = object({
 
 export type TournamentDetail = Infer<typeof tournamentDetail>;
 
+export const adminTournamentsQuery = object({
+    search: string({ trim: true, max: 60 }).optional(),
+    status: tournamentStatus.optional()
+});
+
 export const adminTournaments = object({
     tournaments: array(object({
         code: string(),
@@ -3770,6 +3782,9 @@ export const adminTournaments = object({
         format: string(),
         status: tournamentStatus,
         size: number(),
+        listed: boolean(),
+        hidden: boolean(),
+        featured: boolean(),
         entered: number(),
         live: number(),
         startsAt: string(),
@@ -3778,6 +3793,22 @@ export const adminTournaments = object({
 });
 
 export type AdminTournaments = Infer<typeof adminTournaments>;
+
+export const adminTournament = object({
+    tournament: tournamentDetail,
+
+    /** Taken off the list by the staff, whatever its creator chose. */
+    hidden: boolean(),
+    log: array(staffLogRow)
+});
+
+export type AdminTournament = Infer<typeof adminTournament>;
+
+export const adminTournamentTime = object({ startsAt: string({ max: 40 }), reason: said() });
+
+export const adminTournamentRemove = object({ player: string({ trim: true, min: 1, max: 42 }), reason: said() });
+
+export const adminTournamentSwitch = object({ on: boolean(), reason: said() });
 
 /**
  * What a notification points at, as a closed set.

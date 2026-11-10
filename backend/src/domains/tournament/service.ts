@@ -13,7 +13,7 @@ import { Tournament, type TournamentStatus } from '../../entities/tournament.ent
 import { User } from '../../entities/user.entity.ts';
 import { lockTable } from '../table/service.ts';
 import { BEST_OF, FORMATS, MIN_ENTRANTS, type FormatId } from './engine/formats.ts';
-import { applyResult, dueGames, shuffledSeeds, undecided, walkover, type Game as EngineGame, type Link, type Rules, type Side } from './engine/game.ts';
+import { applyResult, dueGames, forfeitAbsent, shuffledSeeds, undecided, walkover, withoutAbsent, type Game as EngineGame, type Link, type Rules, type Side } from './engine/game.ts';
 
 export const TOURNAMENT_REFUSALS = {
     'tournament-closed': 409,
@@ -115,6 +115,28 @@ const rulesOf = (tournament: Tournament): Rules => ({ entrants: tournament.entra
 
 const formatOf = (tournament: Tournament) => FORMATS[tournament.format as FormatId];
 
+/** The formats whose places come off a table of points, where somebody taken out could still be on top. */
+const RANKED: readonly string[] = ['round-robin', 'swiss'];
+
+/** Who is still in it, seed by seed: nobody for an account that is gone or a player the staff took out. */
+const seatsOf = (entries: readonly TournamentEntry[]) => new Map(entries
+    .filter((entry) => entry.seed !== null)
+    .map((entry) => [entry.seed as number, entry.removedAt === null ? entry.userId : null]));
+
+const absentOf = (seats: ReadonlyMap<number, string | null>) => new Set([...seats].filter(([, userId]) => userId === null).map(([seed]) => seed));
+
+const placesOf = (tournament: Tournament, games: readonly EngineGame[], absent: ReadonlySet<number>) =>
+{
+    const rows = formatOf(tournament).standings(games, rulesOf(tournament));
+
+    return RANKED.includes(tournament.format) ? withoutAbsent(rows, absent) : rows;
+};
+
+const stillIn = (entries: readonly TournamentEntry[]) => entries
+    .filter((entry) => entry.removedAt === null)
+    .map((entry) => entry.userId)
+    .filter((userId) => userId !== null);
+
 export interface Dealt
 {
     tableId: string;
@@ -171,6 +193,7 @@ interface SummaryRow
     size: number;
     best_of: number;
     listed: boolean;
+    featured: boolean;
     status: TournamentStatus;
     starts_at: Date;
     created_at: Date;
@@ -193,6 +216,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
         .addSelect('k.size', 'size')
         .addSelect('k.best_of', 'best_of')
         .addSelect('k.listed', 'listed')
+        .addSelect('k.featured_at is not null', 'featured')
         .addSelect('k.status', 'status')
         .addSelect('k.starts_at', 'starts_at')
         .addSelect('k.created_at', 'created_at')
@@ -205,9 +229,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
         .setParameter('me', me);
 
     const entrantIds = async (tx: EntityManager, tournament: Tournament) =>
-        (await tx.getRepository(TournamentEntry).find({ select: { userId: true }, where: { tournamentId: tournament.id } }))
-            .map((entry) => entry.userId)
-            .filter((userId) => userId !== null);
+        stillIn(await tx.getRepository(TournamentEntry).find({ select: { userId: true, removedAt: true }, where: { tournamentId: tournament.id } }));
 
     const cancelled = async (tx: EntityManager, tournament: Tournament): Promise<Advanced> =>
     {
@@ -272,7 +294,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
 
     const finish = async (tx: EntityManager, tournament: Tournament, games: readonly EngineGame[], seats: ReadonlyMap<number, string | null>) =>
     {
-        const champion = formatOf(tournament).standings(games, rulesOf(tournament)).find((row) => row.place === 1);
+        const champion = placesOf(tournament, games, absentOf(seats)).find((row) => row.place === 1);
 
         await tx.getRepository(Tournament).update(
             { id: tournament.id },
@@ -348,15 +370,15 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
 
         const rows = await tx.getRepository(TournamentGame).find({ where: { tournamentId } });
         const entries = await tx.getRepository(TournamentEntry).find({ where: { tournamentId } });
-        const seats = new Map(entries.filter((entry) => entry.seed !== null).map((entry) => [entry.seed as number, entry.userId]));
-        const entrants = entries.map((entry) => entry.userId).filter((userId) => userId !== null);
+        const seats = seatsOf(entries);
+        const entrants = stillIn(entries);
         const engine = formatOf(tournament);
         const rules = rulesOf(tournament);
         const matchIds = rows.filter((row) => row.dealt && row.how === null && row.matchId !== null).map((row) => row.matchId as string);
         const ended = matchIds.length === 0 ? [] : await tx.getRepository(Match).find({ select: { id: true, finishedAt: true, outcome: true, winnerSeat: true }, where: { id: In(matchIds) } });
         const results = new Map(ended.filter((match) => match.finishedAt !== null).map((match) => [match.id, match]));
 
-        let games = rows.map(toEngine).map((game, index) =>
+        let games = forfeitAbsent(rows.map(toEngine), absentOf(seats)).map((game, index) =>
         {
             const result = rows[index].matchId === null ? undefined : results.get(rows[index].matchId as string);
 
@@ -439,9 +461,10 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             .addSelect('e.seed', 'seed')
             .addSelect('e.user_id', 'user_id')
             .addSelect('u.handle::text', 'who')
+            .addSelect('e.removed_at is not null', 'removed')
             .where('e.tournament_id = :id', { id: summary.id })
             .orderBy('e.spot', 'ASC')
-            .getRawMany<{ spot: number; seed: number | null; user_id: string | null; who: string | null }>();
+            .getRawMany<{ spot: number; seed: number | null; user_id: string | null; who: string | null; removed: boolean }>();
         const rows = await db.getRepository(TournamentGame).createQueryBuilder('g')
             .leftJoin(Table, 't', 't.id = g.table_id')
             .leftJoin(Match, 'm', 'm.id = g.match_id')
@@ -477,7 +500,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
         }));
 
         const live = (row: typeof rows[number]) => row.match_id !== null && row.dealt && row.how === null && row.match_finished_at === null;
-        const myGame = mine?.seed === null || mine === undefined
+        const myGame = mine?.seed === null || mine === undefined || mine.removed
             ? undefined
             : rows.find((row) => live(row) && (row.seed_a === mine.seed || row.seed_b === mine.seed))?.table_id ?? undefined;
 
@@ -495,7 +518,8 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             diff: row.diff
         });
         const started = rows.length > 0;
-        const standings = started ? format.standings(engineGames, rules) : [];
+        const absent = new Set(entrants.filter((entry) => entry.seed !== null && (entry.removed || entry.user_id === null)).map((entry) => entry.seed as number));
+        const standings = started ? placesOf(tournament, engineGames, absent) : [];
         const placeOf = new Map(standings.map((row) => [row.seed, row.place]));
 
         return {
@@ -507,7 +531,8 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
                 spot: entry.spot,
                 ...(entry.who === null ? {} : { who: entry.who }),
                 ...(entry.seed === null ? {} : { seed: entry.seed }),
-                ...(entry.seed === null || placeOf.get(entry.seed) == null ? {} : { place: placeOf.get(entry.seed) as number })
+                ...(entry.seed === null || placeOf.get(entry.seed) == null ? {} : { place: placeOf.get(entry.seed) as number }),
+                ...(entry.removed ? { removed: true } : {})
             })),
             games: rows.map((row) => ({
                 stage: row.stage,
@@ -530,7 +555,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             tables: started ? format.tables(engineGames, rules).map((table) => ({
                 ...(table.group === null ? {} : { group: table.group }),
                 qualify: table.qualify,
-                rows: table.rows.map(named)
+                rows: (RANKED.includes(tournament.format) ? withoutAbsent(table.rows, absent) : table.rows).map(named)
             })) : [],
             can: (tournament.status === 'open'
                 ? (mine !== undefined ? 'leave' : summary.entered >= tournament.size ? 'none' : 'join')
@@ -566,7 +591,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
 
         async list(me: string, filter: { status?: 'open' | 'running' | 'finished' | 'mine'; game?: string })
         {
-            const query = summaries(me).where('(k.listed or k.creator_id = :me or exists (select 1 from tournament_entries e where e.tournament_id = k.id and e.user_id = :me))');
+            const query = summaries(me).where('((k.listed and not k.hidden) or k.creator_id = :me or exists (select 1 from tournament_entries e where e.tournament_id = k.id and e.user_id = :me))');
 
             if (filter.status === 'mine')
             {
@@ -587,7 +612,9 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             }
 
             const rows = await query
-                .orderBy(`case k.status when 'running' then 0 when 'open' then 1 else 2 end`, 'ASC')
+                .orderBy(`case when k.featured_at is not null and k.status in ('open', 'running') then 0 else 1 end`, 'ASC')
+                .addOrderBy('k.featured_at', 'DESC', 'NULLS LAST')
+                .addOrderBy(`case k.status when 'running' then 0 when 'open' then 1 else 2 end`, 'ASC')
                 .addOrderBy('k.starts_at', filter.status === 'finished' ? 'DESC' : 'ASC')
                 .limit(LIST_MAX)
                 .getRawMany<SummaryRow>();
@@ -695,7 +722,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
 
                 const entered = await tx.getRepository(TournamentEntry).createQueryBuilder('e')
                     .innerJoin(Tournament, 'k', `k.id = e.tournament_id and k.status in ('open', 'running')`)
-                    .where('e.user_id = :me', { me })
+                    .where('e.user_id = :me and e.removed_at is null', { me })
                     .getCount();
 
                 if (entered >= ENTERED_MAX)
@@ -758,44 +785,143 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             return { done, view: await detailOf(me, code) };
         },
 
-        /** Staff calling one off, at any point before it ends. The caller writes the log in the same transaction. */
-        async halt(tx: EntityManager, code: string)
-        {
-            const tournament = await entryLock(tx, code);
+        /**
+         * What the staff do to a tournament. Each runs in the caller's transaction, under the
+         * tournament's own lock, so the staff log is written with the change or not at all.
+         */
+        staff: {
+            lock: entryLock,
 
-            return ACTIVE.includes(tournament.status) ? await cancelled(tx, tournament) : null;
-        },
+            halt: (tx: EntityManager, tournament: Tournament) => cancelled(tx, tournament),
 
-        async running(limit: number)
-        {
-            const rows = await db.getRepository(Tournament).createQueryBuilder('k')
-                .select('k.code::text', 'code')
-                .addSelect('k.name', 'name')
-                .addSelect('k.game', 'game')
-                .addSelect('k.format', 'format')
-                .addSelect('k.status', 'status')
-                .addSelect('k.size', 'size')
-                .addSelect('k.starts_at', 'starts_at')
-                .addSelect('(select count(*)::int from tournament_entries e where e.tournament_id = k.id)', 'entered')
-                .addSelect('(select count(*)::int from tournament_games g join matches m on m.id = g.match_id where g.tournament_id = k.id and g.how is null and g.dealt and m.finished_at is null)', 'live')
-                .addSelect('(select u.handle::text from users u where u.id = k.creator_id)', 'creator')
-                .where(`k.status in ('open', 'running')`)
-                .orderBy('k.starts_at', 'ASC')
-                .limit(limit)
-                .getRawMany<{ code: string; name: string; game: string; format: string; status: TournamentStatus; size: number; starts_at: Date; entered: number; live: number; creator: string | null }>();
+            /** Starts an open one at once, with whoever has a place; 'few' if that is not enough. */
+            async startNow(tx: EntityManager, tournament: Tournament)
+            {
+                if (await tx.getRepository(TournamentEntry).countBy({ tournamentId: tournament.id }) < MIN_ENTRANTS)
+                {
+                    return 'few' as const;
+                }
 
-            return rows.map((row) => ({
-                code: row.code,
-                name: row.name,
-                game: row.game,
-                format: row.format,
-                status: row.status,
-                size: row.size,
-                entered: row.entered,
-                live: row.live,
-                startsAt: row.starts_at.toISOString(),
-                ...(row.creator === null ? {} : { creator: row.creator })
-            }));
+                await tx.getRepository(Tournament).update({ id: tournament.id }, { startsAt: () => 'now()' });
+
+                return await begin(tx, tournament);
+            },
+
+            async moveStart(tx: EntityManager, tournament: Tournament, startsAt: Date)
+            {
+                await tx.getRepository(Tournament).update({ id: tournament.id }, { startsAt });
+            },
+
+            async feature(tx: EntityManager, tournament: Tournament, on: boolean)
+            {
+                await tx.getRepository(Tournament).update({ id: tournament.id }, on ? { featuredAt: () => 'now()' } : { featuredAt: null });
+            },
+
+            async hide(tx: EntityManager, tournament: Tournament, hidden: boolean)
+            {
+                await tx.getRepository(Tournament).update({ id: tournament.id }, { hidden });
+            },
+
+            /**
+             * Takes somebody out. Before the draw their place is simply freed. After it the row stays
+             * and the game they are in is lost by walkover here, before anything reads its table, so
+             * no result that lands after can be applied to it; answers that game's match so the caller
+             * can end it, and null when there was none.
+             */
+            async remove(tx: EntityManager, tournament: Tournament, userId: string)
+            {
+                const entry = await tx.getRepository(TournamentEntry).findOne({ where: { tournamentId: tournament.id, userId } });
+
+                if (entry === null || entry.removedAt !== null)
+                {
+                    return 'none' as const;
+                }
+
+                if (tournament.status === 'open' || entry.seed === null)
+                {
+                    await tx.getRepository(TournamentEntry).delete({ id: entry.id });
+
+                    return { match: null };
+                }
+
+                await tx.getRepository(TournamentEntry).update({ id: entry.id }, { removedAt: () => 'now()' });
+
+                const rows = await tx.getRepository(TournamentGame).find({ where: { tournamentId: tournament.id } });
+                const before = rows.map(toEngine);
+                const after = forfeitAbsent(before, new Set([entry.seed]));
+                const forfeited = rows.find((row, index) => before[index].how === null && after[index].how !== null && row.matchId !== null);
+
+                await persist(tx, tournament.id, rows, after);
+
+                return { match: forfeited?.matchId ?? null };
+            },
+
+            async list(filter: { search?: string; status?: TournamentStatus }, limit: number)
+            {
+                const query = db.getRepository(Tournament).createQueryBuilder('k')
+                    .select('k.code::text', 'code')
+                    .addSelect('k.name', 'name')
+                    .addSelect('k.game', 'game')
+                    .addSelect('k.format', 'format')
+                    .addSelect('k.status', 'status')
+                    .addSelect('k.size', 'size')
+                    .addSelect('k.listed', 'listed')
+                    .addSelect('k.hidden', 'hidden')
+                    .addSelect('k.featured_at is not null', 'featured')
+                    .addSelect('k.starts_at', 'starts_at')
+                    .addSelect('(select count(*)::int from tournament_entries e where e.tournament_id = k.id and e.removed_at is null)', 'entered')
+                    .addSelect('(select count(*)::int from tournament_games g join matches m on m.id = g.match_id where g.tournament_id = k.id and g.how is null and g.dealt and m.finished_at is null)', 'live')
+                    .addSelect('(select u.handle::text from users u where u.id = k.creator_id)', 'creator');
+
+                const search = (filter.search ?? '').trim();
+
+                if (search !== '')
+                {
+                    query.andWhere(`(k.name ilike :pattern escape '\\' or k.code::text ilike :pattern escape '\\')`, { pattern: `%${ search.replace(/[\\%_]/g, (one) => `\\${ one }`) }%` });
+                }
+
+                if (filter.status !== undefined)
+                {
+                    query.andWhere('k.status = :status', { status: filter.status });
+                }
+
+                const rows = await query
+                    .orderBy(`case k.status when 'running' then 0 when 'open' then 1 else 2 end`, 'ASC')
+                    .addOrderBy('k.starts_at', 'DESC')
+                    .limit(limit)
+                    .getRawMany<{ code: string; name: string; game: string; format: string; status: TournamentStatus; size: number; listed: boolean; hidden: boolean; featured: boolean; starts_at: Date; entered: number; live: number; creator: string | null }>();
+
+                return rows.map((row) => ({
+                    code: row.code,
+                    name: row.name,
+                    game: row.game,
+                    format: row.format,
+                    status: row.status,
+                    size: row.size,
+                    listed: row.listed,
+                    hidden: row.hidden,
+                    featured: row.featured,
+                    entered: row.entered,
+                    live: row.live,
+                    startsAt: row.starts_at.toISOString(),
+                    ...(row.creator === null ? {} : { creator: row.creator })
+                }));
+            },
+
+            /** The page a reader sees, and the one fact about it only the staff see. */
+            async view(me: string, code: string)
+            {
+                const tournament = await detailOf(me, code);
+
+                if (tournament === null)
+                {
+                    return null;
+                }
+
+                const { hidden } = await db.getRepository(Tournament).findOneOrFail({ select: { hidden: true }, where: { id: tournament.id } });
+
+                return { tournament, hidden };
+            }
         }
     };
 }
@@ -808,6 +934,7 @@ const asSummary = (row: SummaryRow) => ({
     size: row.size,
     bestOf: row.best_of,
     listed: row.listed,
+    featured: row.featured,
     status: row.status,
     entered: row.entered,
     startsAt: row.starts_at.toISOString(),

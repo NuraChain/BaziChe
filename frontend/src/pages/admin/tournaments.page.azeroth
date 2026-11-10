@@ -1,0 +1,164 @@
+import { Link, createResource, untrack, useHead } from 'azerothjs';
+
+import type { AdminTournaments } from '../../../../backend/src/schemas.ts';
+import { client } from '../../api.ts';
+import AdminEmpty from '../../components/admin/admin-empty.component.azeroth';
+import AdminHead from '../../components/admin/admin-head.component.azeroth';
+import When from '../../components/admin/when.component.azeroth';
+import Badge from '../../components/ui/badge.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
+import FilterBar from '../../components/ui/filter-bar.component.azeroth';
+import SearchInput from '../../components/ui/search-input.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
+import { GAMES } from '../../data/games.ts';
+import { useAddress } from '../../lib/page-param.ts';
+import { runtime } from '../../lib/runtime.ts';
+import '../../locales/tournament-catalogue.ts';
+import { SEARCH_PAUSE_MS } from '../../services/search.service.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+
+type Row = AdminTournaments['tournaments'][number];
+
+const STATUSES = ['running', 'open', 'finished', 'cancelled'] as const;
+
+type Status = typeof STATUSES[number];
+
+/** Every tournament, searchable by name or code, the ones still going first. */
+export default component AdminTournamentsPage()
+{
+    const locale = useLocale();
+    const address = useAddress();
+
+    useHead({ title: () => locale.t('admin.section.tournaments') });
+
+    derived status = STATUSES.find((one) => one === address.text('status')) ?? null;
+
+    derived search = address.text('q').trim();
+
+    state typed = untrack(() => address.text('q'));
+
+    let pending: (() => void) | null = null;
+
+    const list = createResource(
+        () => ({ status, search }),
+        (asked: { status: Status | null; search: string }) => client.admin.tournaments({ query: { ...(asked.status === null ? {} : { status: asked.status }), ...(asked.search === '' ? {} : { search: asked.search }) } }),
+        { name: 'admin.tournaments' }
+    );
+
+    mount
+    {
+        return () =>
+        {
+            pending?.();
+            pending = null;
+        };
+    }
+
+    derived rows = list.data()?.tournaments ?? [];
+
+    derived waiting = list.data() === undefined && list.error() === null;
+
+    derived failed = list.data() === undefined && list.error() !== null;
+
+    derived narrowed = status !== null || search !== '';
+
+    derived empty = list.data() !== undefined && rows.length === 0;
+
+    derived some = rows.length > 0;
+
+    derived chips = [
+        { id: 'all', label: locale.t('tournaments.admin.all') },
+        ...STATUSES.map((one) => ({ id: one, label: locale.t(`tournaments.status.${ one }`) }))
+    ];
+
+    const apply = () =>
+    {
+        pending?.();
+        pending = null;
+        address.write({ q: typed.trim() });
+    };
+
+    const typing = (value: string) =>
+    {
+        typed = value;
+        pending?.();
+        pending = runtime().clock.after(SEARCH_PAUSE_MS, apply);
+    };
+
+    const everything = () =>
+    {
+        typed = '';
+        address.write({ q: '', status: '' });
+    };
+
+    const gameOf = (row: Row) =>
+    {
+        const game = GAMES.find((one) => one.id === row.game);
+
+        return game === undefined ? row.game : locale.t(game.nameKey);
+    };
+
+    <div class="flex flex-col gap-6 @container">
+        <AdminHead title={ locale.t('admin.section.tournaments') } lead={ locale.t('tournaments.admin.lead') } />
+
+        <div class="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:gap-4">
+            <SearchInput
+                class="@2xl:w-80 @2xl:shrink-0"
+                value={ typed }
+                label={ locale.t('tournaments.admin.search') }
+                placeholder={ locale.t('tournaments.admin.search') }
+                onInput={ typing }
+                onEnter={ apply }
+            />
+            <FilterBar class="min-w-0 @2xl:flex-1" items={ chips } value={ status ?? 'all' } label={ locale.t('tournaments.filter') } onChange={ (id) => address.write({ status: id === 'all' ? '' : id }) } />
+        </div>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 5 } /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState error={ list.error() } compact onRetry={ () => void list.refetch() } /> }
+        </Show>
+
+        <Show when={ empty }>
+            { () => <AdminEmpty icon="medal" title={ locale.t(narrowed ? 'tournaments.admin.noneFound' : 'tournaments.admin.empty') } action={ narrowed ? locale.t('tournaments.admin.all') : undefined } onAction={ everything } /> }
+        </Show>
+
+        <Show when={ some }>
+            <ul class="flex flex-col divide-y divide-line overflow-hidden rounded-panel border border-line bg-field" data-tournaments>
+                <For each={ rows } key={ (row) => row.code } let={ row }>
+                    <li>
+                        <Link to={ () => `/admin/tournaments/${ encodeURIComponent(row.code) }` } class="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3 transition-colors hover:bg-raised/60">
+                            <div class="flex min-w-0 flex-[1_1_16rem] flex-col gap-0.5">
+                                <span class="truncate text-ui-sm font-semibold text-text" dir="auto">{ row.name }</span>
+                                <span class="facts truncate text-ui-xs text-muted">
+                                    <span dir="ltr">{ row.code }</span>
+                                    <span>{ gameOf(row) }</span>
+                                    <span>{ locale.t(`tournaments.format.${ row.format as 'single' }`) }</span>
+                                    <span>{ locale.t('tournaments.places', { entered: locale.n(row.entered), size: locale.n(row.size) }) }</span>
+                                </span>
+                            </div>
+                            <div class="flex shrink-0 flex-wrap items-center gap-1.5">
+                                <Show when={ row.featured }>
+                                    <Badge text={ locale.t('tournaments.featured') } tone="gold" size="sm" />
+                                </Show>
+                                <Show when={ row.hidden }>
+                                    <Badge text={ locale.t('tournaments.admin.hidden') } tone="danger" size="sm" />
+                                </Show>
+                                <Show when={ !row.listed }>
+                                    <Badge text={ locale.t('tournaments.admin.linkOnly') } tone="neutral" size="sm" />
+                                </Show>
+                                <Show when={ row.live > 0 }>
+                                    <Badge text={ locale.t('tournaments.admin.live', { n: locale.n(row.live) }) } tone="live" size="sm" />
+                                </Show>
+                                <Badge text={ locale.t(`tournaments.status.${ row.status }`) } tone={ row.status === 'running' ? 'accent' : 'neutral' } size="sm" />
+                                <span class="text-ui-xs text-faint"><When at={ row.startsAt } /></span>
+                            </div>
+                        </Link>
+                    </li>
+                </For>
+            </ul>
+        </Show>
+    </div>
+}

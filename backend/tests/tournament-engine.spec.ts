@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { bracketSizeFor, seedOrder } from '../src/domains/tournament/engine/elimination.ts';
 import { FORMATS, type FormatId } from '../src/domains/tournament/engine/formats.ts';
-import { applyResult, currentPhase, dueGames, shuffledSeeds, type Game, type Rules, type Side } from '../src/domains/tournament/engine/game.ts';
+import { applyResult, currentPhase, dueGames, forfeitAbsent, shuffledSeeds, withoutAbsent, type Game, type Rules, type Side } from '../src/domains/tournament/engine/game.ts';
 import { groupCountFor, groupsOf } from '../src/domains/tournament/engine/groups.ts';
 import { rankLeague } from '../src/domains/tournament/engine/league.ts';
 
@@ -409,6 +409,67 @@ describe('a series, and a game with no winner', () =>
     it.each<[FormatId, number]>([['single', 16], ['double', 16], ['swiss', 16], ['groups', 16]])('finishes %s when every game is a best of five', (format, entrants) =>
     {
         expect(playOut(format, entrants, SIDES(3), 5).standings.filter((row) => row.place === 1).length).toBeGreaterThan(0);
+    });
+});
+
+describe('somebody taken out', () =>
+{
+    const dealtTo = (games: readonly Game[]) => dueGames(games).map((game) => ({ ...game, dealt: true }));
+
+    it('loses the game in hand to whoever faces them, and leaves every other game alone', () =>
+    {
+        const rules = rulesFor('single', 8);
+        const games = FORMATS.single.advance(FORMATS.single.start(rules), rules);
+        const playing = new Set(dealtTo(games).map((game) => game.key));
+        const dealt = games.map((game) => playing.has(game.key) ? { ...game, dealt: true } : game);
+        const held = dealt.find((game) => game.a === 3 || game.b === 3) as Game;
+        const after = forfeitAbsent(dealt, new Set([3]));
+
+        expect(after.find((game) => game.key === held.key)).toMatchObject({ how: 'seed', winner: held.a === 3 ? held.b : held.a });
+        expect(after.filter((game) => game.key !== held.key)).toEqual(dealt.filter((game) => game.key !== held.key));
+    });
+
+    it('touches no game that is not yet dealt, or already over', () =>
+    {
+        const rules = rulesFor('single', 8);
+        const games = FORMATS.single.advance(FORMATS.single.start(rules), rules);
+
+        expect(forfeitAbsent(games, new Set([3]))).toEqual(games);
+    });
+
+    it('goes out of a knockout like anybody beaten, and the bracket still ends with one champion', () =>
+    {
+        const rules = rulesFor('single', 8);
+        let games = FORMATS.single.advance(FORMATS.single.start(rules), rules);
+
+        for (let guard = 0; guard < 50 && currentPhase(games) !== null; guard += 1)
+        {
+            const playing = new Set(dueGames(games).map((game) => game.key));
+
+            games = forfeitAbsent(games.map((game) => playing.has(game.key) ? { ...game, dealt: true } : game), new Set([1]));
+            games = FORMATS.single.advance(games.map((game) => playing.has(game.key) && game.how === null ? applyResult(game, better(game), 1) : game), rules);
+        }
+
+        const standings = FORMATS.single.standings(games, rules);
+
+        expect(standings.find((row) => row.place === 1)?.seed).toBe(2);
+        expect(standings.find((row) => row.seed === 1)?.place).not.toBe(1);
+    });
+
+    it('cannot top a league on the points they had, and the rest close up behind the leader', () =>
+    {
+        const { standings } = playOut('round-robin', 8, better);
+        const kept = withoutAbsent(standings, new Set([1]));
+
+        expect(kept.map((row) => row.seed)).toEqual([2, 3, 4, 5, 6, 7, 8, 1]);
+        expect(kept.map((row) => row.place)).toEqual([1, 2, 3, 4, 5, 6, 7, null]);
+    });
+
+    it('leaves a table with nobody taken out exactly as it was', () =>
+    {
+        const { standings } = playOut('swiss', 8, SIDES(4));
+
+        expect(withoutAbsent(standings, new Set())).toEqual(standings);
     });
 });
 

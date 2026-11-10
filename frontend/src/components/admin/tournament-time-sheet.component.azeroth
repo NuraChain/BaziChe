@@ -1,0 +1,77 @@
+import { untrack } from 'azerothjs';
+
+import { focusFirstInvalid } from '../../lib/form.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import TextArea from '../ui/text-area.component.azeroth';
+
+const REASON_MIN = 3;
+
+export interface NewStart
+{
+    startsAt: string;
+    reason: string;
+}
+
+/** What a `datetime-local` field holds: the reader's own clock, with no zone written. */
+const localInput = (at: number) => new Date(at - new Date(at).getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+
+/** A new start for a tournament not yet begun, and the reason that goes in the log with it. */
+export default component TournamentTimeSheet(props: OverlayProps & { title: string; lead: string; from: string })
+{
+    const locale = useLocale();
+
+    state when = untrack(() => localInput(Date.parse(props.from)));
+
+    state why = '';
+
+    state told = null as string | null;
+
+    let sheet: HTMLElement | null = null;
+
+    const send = () =>
+    {
+        const reason = why.trim();
+        const at = new Date(when);
+
+        if (reason.length < REASON_MIN || Number.isNaN(at.getTime()))
+        {
+            told = locale.t('admin.staff.reasonShort');
+            focusFirstInvalid(sheet);
+            return;
+        }
+
+        props.close({ startsAt: at.toISOString(), reason } satisfies NewStart);
+    };
+
+    <div ref={ (element) => sheet = element } class="flex flex-col gap-5 p-5">
+        <div>
+            <h2 class="title text-ui-xl text-text">{ props.title }</h2>
+            <p class="mt-2 text-ui-base text-muted">{ props.lead }</p>
+        </div>
+        <Field id="tournament-new-start" label={ locale.t('tournaments.admin.moveWhen') }>
+            <Input id="tournament-new-start" type="datetime-local" value={ when } onInput={ (value) => when = value } />
+        </Field>
+        <Field id="tournament-move-reason" label={ locale.t('admin.staff.reason') } hint={ locale.t('admin.staff.reasonHint') } error={ told }>
+            <TextArea
+                id="tournament-move-reason"
+                value={ why }
+                maxlength={ 500 }
+                invalid={ told !== null }
+                describedBy={ told !== null ? 'tournament-move-reason-error' : 'tournament-move-reason-hint' }
+                onInput={ (value) =>
+                {
+                    why = value;
+                    told = null;
+                } }
+            />
+        </Field>
+        <div class="flex flex-col gap-2 sm:flex-row-reverse">
+            <Button variant="primary" block onClick={ send }>{ locale.t('tournaments.admin.move') }</Button>
+            <Button variant="ghost" block onClick={ () => props.close(null) }>{ locale.t('common.cancel') }</Button>
+        </div>
+    </div>
+}

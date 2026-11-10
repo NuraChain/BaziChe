@@ -236,6 +236,16 @@ export function createStaffService(db: DataSource, shown: () => readonly string[
             return { rows: rows.slice(0, LOG_PAGE).map(wire), ...cursorOf(rows, LOG_PAGE) };
         },
 
+        /** Everything the staff did to one tournament, the cancels logged before it had a kind of its own as well. */
+        async ofTournament(tournamentId: string)
+        {
+            const rows = await newestFirst(actions().where("a.kind in ('tournament', 'close') and a.details ->> 'id' = :tournamentId", { tournamentId }))
+                .limit(LOG_PAGE)
+                .getRawMany<LogRow>();
+
+            return rows.map(wire);
+        },
+
         async ofReport(reportId: string)
         {
             const rows = await newestFirst(actions().where("a.kind = 'report' and a.details ->> 'report' = :reportId", { reportId }))

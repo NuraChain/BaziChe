@@ -7,7 +7,12 @@ import {
     achievementLadder,
     leaderboard,
     leaderboardQuery,
+    adminTournament,
+    adminTournamentRemove,
+    adminTournamentSwitch,
+    adminTournamentTime,
     adminTournaments,
+    adminTournamentsQuery,
     tournamentCreateInput,
     tournamentDetail,
     tournamentList,
@@ -724,11 +729,29 @@ export function buildApi(ports: Ports)
             voidMatch: routes.post('/play/matches/:id/void', { input: adminVoidInput, output: adminPlay },
                 async (context) => onlyAdmin(await ports.admin.voidMatch(context.principal.userId, context.params.id, context.input))),
 
-            tournaments: routes.get('/play/tournaments', { output: adminTournaments },
-                async (context) => onlyAdmin(await ports.admin.tournaments(context.principal.userId))),
+            tournaments: routes.get('/tournaments', { query: adminTournamentsQuery, output: adminTournaments },
+                async (context) => onlyAdmin(await ports.admin.tournaments(context.principal.userId, context.query))),
 
-            cancelTournament: routes.post('/play/tournaments/:code/cancel', { input: adminCloseInput, output: adminTournaments },
+            tournament: routes.get('/tournaments/:code', { output: adminTournament },
+                async (context) => onlyAdmin(await ports.admin.tournament(context.principal.userId, context.params.code))),
+
+            cancelTournament: routes.post('/tournaments/:code/cancel', { input: adminCloseInput, output: adminTournament },
                 async (context) => onlyAdmin(await ports.admin.cancelTournament(context.principal.userId, context.params.code, context.input))),
+
+            startTournament: routes.post('/tournaments/:code/start', { input: adminCloseInput, output: adminTournament },
+                async (context) => onlyAdmin(await ports.admin.startTournament(context.principal.userId, context.params.code, context.input))),
+
+            moveTournament: routes.post('/tournaments/:code/time', { input: adminTournamentTime, output: adminTournament },
+                async (context) => onlyAdmin(await ports.admin.moveTournament(context.principal.userId, context.params.code, context.input))),
+
+            featureTournament: routes.post('/tournaments/:code/feature', { input: adminTournamentSwitch, output: adminTournament },
+                async (context) => onlyAdmin(await ports.admin.featureTournament(context.principal.userId, context.params.code, context.input))),
+
+            hideTournament: routes.post('/tournaments/:code/hide', { input: adminTournamentSwitch, output: adminTournament },
+                async (context) => onlyAdmin(await ports.admin.hideTournament(context.principal.userId, context.params.code, context.input))),
+
+            removeFromTournament: routes.post('/tournaments/:code/remove', { input: adminTournamentRemove, output: adminTournament },
+                async (context) => onlyAdmin(await ports.admin.removeFromTournament(context.principal.userId, context.params.code, context.input))),
 
             closeTable: routes.post('/play/tables/:id/close', { input: adminCloseInput, output: adminPlay },
                 async (context) => onlyAdmin(await ports.admin.closeTable(context.principal.userId, context.params.id, context.input))),

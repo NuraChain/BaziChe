@@ -112,7 +112,7 @@ import type {
     StaffLog
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
-import type { tournamentCreateInput, tournamentList, tournamentsQuery, AdminTournaments, TournamentDetail, adminMinterInput, adminMinterSentInput, adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminSeasonStart, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
+import type { tournamentCreateInput, tournamentList, tournamentsQuery, AdminTournament, AdminTournaments, TournamentDetail, adminTournamentRemove, adminTournamentSwitch, adminTournamentTime, adminTournamentsQuery, adminMinterInput, adminMinterSentInput, adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminSeasonStart, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
 import type { ShopSlot } from './domains/shop/catalogue.ts';
 import type { QuickAsk } from './domains/table/quick.ts';
@@ -997,9 +997,21 @@ export interface AdminPort
 
     voidMatch(me: string, id: string, input: Infer<typeof adminVoidInput>): Promise<AdminPlay | null>;
 
-    tournaments(me: string): Promise<AdminTournaments | null>;
+    tournaments(me: string, query: Infer<typeof adminTournamentsQuery>): Promise<AdminTournaments | null>;
 
-    cancelTournament(me: string, code: string, input: Infer<typeof adminCloseInput>): Promise<AdminTournaments | null>;
+    tournament(me: string, code: string): Promise<AdminTournament | null>;
+
+    cancelTournament(me: string, code: string, input: Infer<typeof adminCloseInput>): Promise<AdminTournament | null>;
+
+    startTournament(me: string, code: string, input: Infer<typeof adminCloseInput>): Promise<AdminTournament | null>;
+
+    moveTournament(me: string, code: string, input: Infer<typeof adminTournamentTime>): Promise<AdminTournament | null>;
+
+    featureTournament(me: string, code: string, input: Infer<typeof adminTournamentSwitch>): Promise<AdminTournament | null>;
+
+    hideTournament(me: string, code: string, input: Infer<typeof adminTournamentSwitch>): Promise<AdminTournament | null>;
+
+    removeFromTournament(me: string, code: string, input: Infer<typeof adminTournamentRemove>): Promise<AdminTournament | null>;
 
     closeTable(me: string, id: string, input: Infer<typeof adminCloseInput>): Promise<AdminPlay | null>;
 

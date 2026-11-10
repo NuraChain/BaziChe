@@ -276,6 +276,12 @@ const said = (row: LogRow, locale: LocaleApi) =>
         return locale.t(REWARD_LINES[row.details.to ?? ''] ?? 'admin.log.line.invite.given', { ...slots, look: itemName(row.details.item ?? '', locale) });
     }
 
+    if (row.kind === 'tournament')
+    {
+        // A name is what somebody typed; braces in it must not read as somebody else's handle.
+        return locale.t(TOURNAMENT_LINES[row.details.did ?? ''] ?? 'admin.log.line.tournament.cancel', { ...slots, name: (row.details.name ?? '').replace(/[{}]/g, '') });
+    }
+
     if (row.kind === 'void' || row.kind === 'close')
     {
         const game = GAMES.find((one) => one.id === row.details.game);
@@ -284,6 +290,17 @@ const said = (row: LogRow, locale: LocaleApi) =>
     }
 
     return locale.t('admin.log.line.revoke', slots);
+};
+
+export const TOURNAMENT_LINES: Record<string, MessageKey> = {
+    cancel: 'admin.log.line.tournament.cancel',
+    start: 'admin.log.line.tournament.start',
+    time: 'admin.log.line.tournament.time',
+    remove: 'admin.log.line.tournament.remove',
+    feature: 'admin.log.line.tournament.feature',
+    unfeature: 'admin.log.line.tournament.unfeature',
+    hide: 'admin.log.line.tournament.hide',
+    show: 'admin.log.line.tournament.show'
 };
 
 export const logParts = (row: LogRow, locale: LocaleApi) => handleParts(said(row, locale), { staff: row.staff ?? '', person: row.person ?? '', reporter: row.details.reporter ?? '', table: (row.details.table ?? '').toUpperCase() });

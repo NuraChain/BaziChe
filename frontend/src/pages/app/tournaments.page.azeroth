@@ -95,7 +95,12 @@ export default component TournamentsPage()
                                         <div class="flex min-w-0 flex-1 flex-col gap-1">
                                             <div class="flex min-w-0 items-center justify-between gap-2">
                                                 <h2 class="min-w-0 truncate text-ui-md font-semibold text-text" dir="auto">{ row.name }</h2>
-                                                <Badge text={ locale.t(`tournaments.status.${ row.status }`) } tone={ TONE[row.status] } size="sm" />
+                                                <span class="flex shrink-0 items-center gap-1.5">
+                                                    <Show when={ row.featured }>
+                                                        <Badge text={ locale.t('tournaments.featured') } tone="gold" size="sm" />
+                                                    </Show>
+                                                    <Badge text={ locale.t(`tournaments.status.${ row.status }`) } tone={ TONE[row.status] } size="sm" />
+                                                </span>
                                             </div>
                                             <p class="truncate text-ui-xs text-muted">{ locale.t(catalogue.byId(row.game as GameId).nameKey) } · { locale.t(`tournaments.format.${ row.format }`) }</p>
                                             <p class="truncate text-ui-xs text-muted">{ locale.t('tournaments.places', { entered: locale.n(row.entered), size: locale.n(row.size) }) } · { when(row) }</p>

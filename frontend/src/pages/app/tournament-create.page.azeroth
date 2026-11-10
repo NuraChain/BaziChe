@@ -1,14 +1,13 @@
 import { useHead, useNavigate } from 'azerothjs';
 
-import { FORMATS, FORMAT_IDS, type FormatId } from '../../../../backend/src/domains/tournament/engine/formats.ts';
+import { BEST_OF, FORMATS, FORMAT_IDS, type FormatId } from '../../../../backend/src/domains/tournament/engine/formats.ts';
 import { client } from '../../api.ts';
 import Page from '../../components/app/page.component.azeroth';
 import PageHeader from '../../components/app/page-header.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
-import Field from '../../components/ui/field.component.azeroth';
+import Chip from '../../components/ui/chip.component.azeroth';
 import Input from '../../components/ui/input.component.azeroth';
 import Segmented from '../../components/ui/segmented.component.azeroth';
-import Select from '../../components/ui/select.component.azeroth';
 import type { GameId } from '../../data/games.ts';
 import '../../locales/tournament-catalogue.ts';
 import { whyTournament } from '../../lib/tournament-refusal.ts';
@@ -27,6 +26,7 @@ const localInput = (at: number) =>
     return new Date(at - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 };
 
+/** Laid out as a table is opened: one choice to a group, its label above it and what it means below. */
 export default component TournamentCreatePage()
 {
     const locale = useLocale();
@@ -39,19 +39,17 @@ export default component TournamentCreatePage()
     state name = '';
     state game = 'chess' as string;
     state format = 'single' as FormatId;
-    state size = '8';
+    state size = 8;
     state bestOf = '1';
     state listed = 'yes';
     state starts = localInput(runtime().clock.now() + HOUR_MS);
     state sending = false;
 
-    derived sizes = FORMATS[format].sizes.map((one) => ({ value: String(one), label: locale.n(one) }));
+    derived sizes = FORMATS[format].sizes;
 
-    derived fittedSize = sizes.some((one) => one.value === size) ? size : sizes[0].value;
+    derived fittedSize = sizes.includes(size) ? size : sizes[0];
 
-    derived gameOptions = games.map((one) => ({ value: one.id, label: locale.t(one.nameKey) }));
-
-    derived formatOptions = FORMAT_IDS.map((id) => ({ value: id, label: locale.t(`tournaments.format.${ id }`) }));
+    derived fittedGame = games.some((one) => one.id === game) ? game : games[0]?.id ?? game;
 
     derived ready = name.trim() !== '' && starts !== '' && !sending;
 
@@ -71,9 +69,9 @@ export default component TournamentCreatePage()
             const made = await client.tournaments.create({
                 input: {
                     name: name.trim(),
-                    game: game as GameId,
+                    game: fittedGame as GameId,
                     format,
-                    size: Number(fittedSize),
+                    size: fittedSize,
                     bestOf: Number(bestOf),
                     listed: listed === 'yes',
                     startsAt: new Date(starts).toISOString()
@@ -92,33 +90,97 @@ export default component TournamentCreatePage()
         }
     };
 
-    <Page label={ locale.t('tournaments.new.title') }>
-        <PageHeader title={ locale.t('tournaments.new.title') } lead={ locale.t('tournaments.new.lead') } />
+    <Page width="narrow" label={ locale.t('tournaments.new.title') }>
+        <div class="flex flex-col gap-6">
+            <PageHeader eyebrow={ locale.t('tournaments.title') } title={ locale.t('tournaments.new.title') } lead={ locale.t('tournaments.new.lead') } flush />
 
-        <form class="flex max-w-xl flex-col gap-4" onSubmit={ (event) => { event.preventDefault(); void submit(); } }>
-            <Field id="tournament-name" label={ locale.t('tournaments.new.name') }>
-                <Input id="tournament-name" value={ name } onInput={ (value) => name = value } maxlength={ 60 } placeholder={ locale.t('tournaments.new.namePlaceholder') } autofocus />
-            </Field>
+            <form
+                class="flex flex-col gap-7"
+                onSubmit={ (event) =>
+                {
+                    event.preventDefault();
+                    void submit();
+                } }
+            >
+                <fieldset class="flex flex-col gap-2">
+                    <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('tournaments.new.name') }</legend>
+                    <Input id="tournament-name" value={ name } onInput={ (value) => name = value } maxlength={ 60 } placeholder={ locale.t('tournaments.new.namePlaceholder') } label={ locale.t('tournaments.new.name') } autofocus />
+                </fieldset>
 
-            <Select label={ locale.t('tournaments.new.game') } value={ game } options={ gameOptions } onChange={ (value) => game = value } />
+                <fieldset class="flex flex-col gap-2">
+                    <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('tournaments.new.game') }</legend>
+                    <ul class="flex flex-wrap gap-2">
+                        <For each={ games } key={ (one) => one.id } let={ one }>
+                            <li>
+                                <Chip icon="games" selected={ fittedGame === one.id } onClick={ () => game = one.id }>
+                                    <span>{ locale.t(one.nameKey) }</span>
+                                </Chip>
+                            </li>
+                        </For>
+                    </ul>
+                </fieldset>
 
-            <Select label={ locale.t('tournaments.new.format') } value={ format } options={ formatOptions } hint={ locale.t(`tournaments.formatHint.${ format }`) } onChange={ (value) => format = value as FormatId } />
+                <fieldset class="flex flex-col gap-2">
+                    <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('tournaments.new.format') }</legend>
+                    <ul class="flex flex-wrap gap-2">
+                        <For each={ [...FORMAT_IDS] } key={ (id) => id } let={ id }>
+                            <li>
+                                <Chip icon="medal" selected={ format === id } onClick={ () => format = id }>
+                                    <span>{ locale.t(`tournaments.format.${ id }`) }</span>
+                                </Chip>
+                            </li>
+                        </For>
+                    </ul>
+                    <p class="text-ui-xs text-faint">{ locale.t(`tournaments.formatHint.${ format }`) }</p>
+                </fieldset>
 
-            <Select label={ locale.t('tournaments.new.size') } value={ fittedSize } options={ sizes } onChange={ (value) => size = value } />
+                <fieldset class="flex flex-col gap-2">
+                    <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('tournaments.new.size') }</legend>
+                    <ul class="flex flex-wrap gap-2">
+                        <For each={ [...sizes] } key={ (one) => one } let={ one }>
+                            <li>
+                                <Chip icon="people" selected={ fittedSize === one } onClick={ () => size = one }>
+                                    <span class="tally">{ locale.n(one) }</span>
+                                </Chip>
+                            </li>
+                        </For>
+                    </ul>
+                </fieldset>
 
-            <Field id="tournament-length" label={ locale.t('tournaments.new.length') }>
-                <Segmented block items={ [ { id: '1', label: locale.t('tournaments.bestOf', { n: locale.n(1) }) }, { id: '3', label: locale.t('tournaments.bestOf', { n: locale.n(3) }) }, { id: '5', label: locale.t('tournaments.bestOf', { n: locale.n(5) }) } ] } value={ bestOf } label={ locale.t('tournaments.new.length') } onChange={ (id) => bestOf = id } />
-            </Field>
+                <fieldset class="flex flex-col gap-2">
+                    <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('tournaments.new.length') }</legend>
+                    <Segmented
+                        block
+                        label={ locale.t('tournaments.new.length') }
+                        value={ bestOf }
+                        items={ BEST_OF.map((n) => ({ id: String(n), label: locale.t('tournaments.bestOf', { n: locale.n(n) }) })) }
+                        onChange={ (id) => bestOf = id }
+                    />
+                </fieldset>
 
-            <Field id="tournament-starts" label={ locale.t('tournaments.new.starts') } hint={ locale.t('tournaments.new.startsHint') }>
-                <Input id="tournament-starts" type="datetime-local" value={ starts } onInput={ (value) => starts = value } />
-            </Field>
+                <fieldset class="flex flex-col gap-2">
+                    <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('tournaments.new.starts') }</legend>
+                    <Input id="tournament-starts" type="datetime-local" value={ starts } onInput={ (value) => starts = value } label={ locale.t('tournaments.new.starts') } />
+                    <p class="text-ui-xs text-faint">{ locale.t('tournaments.new.startsHint') }</p>
+                </fieldset>
 
-            <Field id="tournament-listed" label={ locale.t('tournaments.new.visibility') } hint={ locale.t(listed === 'yes' ? 'tournaments.new.listedHint' : 'tournaments.new.linkOnlyHint') }>
-                <Segmented block items={ [ { id: 'yes', label: locale.t('tournaments.new.listed') }, { id: 'no', label: locale.t('tournaments.new.linkOnly') } ] } value={ listed } label={ locale.t('tournaments.new.visibility') } onChange={ (id) => listed = id } />
-            </Field>
+                <fieldset class="flex flex-col gap-2">
+                    <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('tournaments.new.visibility') }</legend>
+                    <Segmented
+                        block
+                        label={ locale.t('tournaments.new.visibility') }
+                        value={ listed }
+                        items={ [
+                            { id: 'yes', label: locale.t('tournaments.new.listed'), icon: 'discover' },
+                            { id: 'no', label: locale.t('tournaments.new.linkOnly'), icon: 'lock' }
+                        ] }
+                        onChange={ (id) => listed = id }
+                    />
+                    <p class="text-ui-xs text-faint">{ locale.t(listed === 'yes' ? 'tournaments.new.listedHint' : 'tournaments.new.linkOnlyHint') }</p>
+                </fieldset>
 
-            <Button variant="primary" size="lg" block submit loading={ sending } disabled={ !ready }>{ locale.t('tournaments.create') }</Button>
-        </form>
+                <Button variant="primary" size="lg" block submit leading="add" loading={ sending } disabled={ !ready }>{ locale.t('tournaments.create') }</Button>
+            </form>
+        </div>
     </Page>
 }

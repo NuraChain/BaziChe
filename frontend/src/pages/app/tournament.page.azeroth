@@ -506,6 +506,9 @@ export default component TournamentPage()
                                         <span class={ () => [ 'min-w-0 flex-1 truncate text-ui-sm', slot.entry === undefined ? 'text-faint' : 'text-text' ].join(' ') } dir="auto">
                                             { slot.entry === undefined ? locale.t('tournaments.freePlace') : nameOf(slot.entry.who) }
                                         </span>
+                                        <Show when={ slot.entry?.removed === true }>
+                                            { () => <Badge text={ locale.t('tournaments.removed') } tone="danger" size="sm" /> }
+                                        </Show>
                                         <Show when={ slot.entry?.place !== undefined }>
                                             { () => <Badge text={ locale.n(slot.entry?.place as number) } tone="neutral" size="sm" /> }
                                         </Show>

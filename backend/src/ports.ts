@@ -384,6 +384,9 @@ export interface TournamentPort
 
     /** The creator, before the start only: frees the place and keeps that person out. */
     kick(me: string, code: string, handle: string): Promise<TournamentDetail | null>;
+
+    /** The creator starts it before its time, once enough players have a place. */
+    startNow(me: string, code: string): Promise<TournamentDetail | null>;
 }
 
 export interface TablePort

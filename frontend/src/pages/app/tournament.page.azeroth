@@ -160,6 +160,8 @@ export default component TournamentPage()
 
     derived cancellable = tournament?.mayCancel === true;
 
+    derived startable = tournament?.mayStart === true;
+
     derived myGame = tournament?.myGame;
 
     derived champion = tournament?.champion;
@@ -276,6 +278,21 @@ export default component TournamentPage()
 
     const cancel = () => act(() => client.tournaments.cancel({ params: { code } }));
 
+    /** Asks first: a start cannot be taken back, and the draw is made at once. */
+    const startNow = async () =>
+    {
+        const yes = await overlay.open(
+            ConfirmSheet,
+            { title: locale.t('tournaments.startAsk'), lead: locale.t('tournaments.startLead', { n: locale.n(tournament?.entered ?? 0) }), confirm: locale.t('tournaments.startNow') },
+            { label: locale.t('tournaments.startAsk') }
+        ).closed;
+
+        if (yes === true)
+        {
+            await act(() => client.tournaments.start({ params: { code } }), locale.t('tournaments.started'));
+        }
+    };
+
     const kick = async (handle: string) =>
     {
         const name = nameOf(handle);
@@ -373,7 +390,7 @@ export default component TournamentPage()
                         { () => <p class="text-ui-sm text-muted" role="status">{ locale.t('tournaments.nextGames', { n: locale.n(untilNext) }) }</p> }
                     </Show>
 
-                    <Show when={ joinable || leavable || cancellable }>
+                    <Show when={ joinable || leavable || cancellable || startable }>
                         { () =>
                             <Panel>
                                 <div class="flex flex-col gap-3">
@@ -395,6 +412,9 @@ export default component TournamentPage()
                                     </Show>
 
                                     <div class="flex flex-wrap gap-2">
+                                        <Show when={ startable }>
+                                            { () => <Button variant="primary" size="md" leading="play" loading={ pending } onClick={ () => void startNow() }>{ locale.t('tournaments.startNow') }</Button> }
+                                        </Show>
                                         <Show when={ joinable && !asking }>
                                             { () => <Button variant="primary" size="md" leading="add" onClick={ () => asking = true }>{ locale.t('tournaments.join') }</Button> }
                                         </Show>

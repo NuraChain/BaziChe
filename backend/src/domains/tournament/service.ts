@@ -27,6 +27,7 @@ export const TOURNAMENT_REFUSALS = {
     'tournament-format': 422,
     'tournament-game': 422,
     'tournament-kicked': 403,
+    'tournament-few': 409,
     'tournament-player': 404
 } as const;
 
@@ -669,6 +670,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
                 ? (mine !== undefined ? 'leave' : summary.entered >= tournament.size ? 'none' : 'join')
                 : 'none') as 'join' | 'leave' | 'none',
             mayCancel: tournament.status === 'open' && tournament.creatorId === me,
+            mayStart: tournament.status === 'open' && tournament.creatorId === me && summary.entered >= MIN_ENTRANTS,
             ...(myGame === undefined ? {} : { myGame })
         };
     };
@@ -920,6 +922,36 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             });
 
             return await detailOf(me, code);
+        },
+
+        /** The creator starts it before its time, with whoever has a place, once that is enough to play. */
+        async startNow(me: string, code: string)
+        {
+            const done = await db.transaction(async (tx) =>
+            {
+                const tournament = await entryLock(tx, code);
+
+                if (tournament.creatorId !== me)
+                {
+                    throw new NotFoundError('No tournament there.');
+                }
+
+                if (tournament.status !== 'open')
+                {
+                    throw refusal('tournament-closed', 'That tournament has already started.');
+                }
+
+                if (await tx.getRepository(TournamentEntry).countBy({ tournamentId: tournament.id }) < MIN_ENTRANTS)
+                {
+                    throw refusal('tournament-few', `It needs ${ MIN_ENTRANTS } players to start.`);
+                }
+
+                await tx.getRepository(Tournament).update({ id: tournament.id }, { startsAt: () => 'now()' });
+
+                return await begin(tx, tournament);
+            });
+
+            return { done, view: await detailOf(me, code) };
         },
 
         async cancel(me: string, code: string)

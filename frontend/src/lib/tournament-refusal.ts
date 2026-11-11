@@ -11,6 +11,7 @@ const KNOWN: Readonly<Record<string, MessageKey>> = {
     'tournament-format': 'tournaments.refused.format',
     'tournament-game': 'tournaments.refused.game',
     'tournament-kicked': 'tournaments.refused.kicked',
+    'tournament-few': 'tournaments.refused.few',
     'tournament-player': 'tournaments.refused.player'
 };
 

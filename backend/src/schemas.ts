@@ -3781,6 +3781,9 @@ export const tournamentDetail = object({
     can: enumOf(['join', 'leave', 'none']),
     mayCancel: boolean(),
 
+    /** The creator may start it now: still open, and enough players have a place. */
+    mayStart: boolean(),
+
     /** The table of the game the reader is playing right now. */
     myGame: string().optional()
 });

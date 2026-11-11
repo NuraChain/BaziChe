@@ -1508,7 +1508,10 @@ export function buildApi(ports: Ports)
                     found(await ports.tournament.cancel(context.principal.userId, context.params.code))),
 
                 kick: routes.post('/:code/kick', { input: tournamentKickInput, output: tournamentDetail }, async (context) =>
-                    found(await ports.tournament.kick(context.principal.userId, context.params.code, context.input.who)))
+                    found(await ports.tournament.kick(context.principal.userId, context.params.code, context.input.who))),
+
+                start: routes.post('/:code/start', { output: tournamentDetail }, async (context) =>
+                    found(await ports.tournament.startNow(context.principal.userId, context.params.code)))
             };
         }),
 

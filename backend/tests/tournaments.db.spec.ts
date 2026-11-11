@@ -8,6 +8,7 @@ import { syncSchema } from '../src/db/schema.ts';
 import { seedReference } from '../src/db/seed-reference.ts';
 import { tableList, tableSummary } from '../src/schemas.ts';
 import { buildPorts, type Services } from '../src/services.ts';
+import { createTournamentService } from '../src/domains/tournament/service.ts';
 
 const url = process.env.TEST_DATABASE_URL;
 
@@ -113,6 +114,39 @@ const staffed = async (role: 'moderator' | 'admin') =>
 };
 
 const handleOf = async (id: string) => (await db.getRepository(User).findOneByOrFail({ id })).handle;
+
+/** Every statement sent to the database while the work runs. */
+const statementsDuring = async (work: () => Promise<unknown>) =>
+{
+    const driver = db.driver as unknown as { createQueryRunner: (mode: unknown) => { query: (sql: string, ...rest: unknown[]) => Promise<unknown> } };
+    const create = driver.createQueryRunner.bind(driver);
+    const sent: string[] = [];
+
+    driver.createQueryRunner = (mode: unknown) =>
+    {
+        const runner = create(mode);
+        const query = runner.query.bind(runner);
+
+        runner.query = (sql: string, ...rest: unknown[]) =>
+        {
+            sent.push(sql);
+            return query(sql, ...rest);
+        };
+
+        return runner;
+    };
+
+    try
+    {
+        await work();
+    }
+    finally
+    {
+        driver.createQueryRunner = create;
+    }
+
+    return sent;
+};
 
 describe.skipIf(!active)('a tournament, against a real database', () =>
 {
@@ -277,6 +311,47 @@ describe.skipIf(!active)('a tournament, against a real database', () =>
 
         expect(dealt.matchId, 'the second ready did not deal the game at once').toBeDefined();
         expect(dealt).not.toHaveProperty('readyBy');
+    });
+
+    it('reads the tables waiting for their players in the same few statements, however many wait', async () =>
+    {
+        const refuse = () =>
+        {
+            throw new Error('nothing is seated or dealt while every table waits');
+        };
+        const tournaments = createTournamentService(db, { seat: refuse, deal: refuse });
+        const statementsAt = async (size: number) =>
+        {
+            const { code } = await filled({}, size);
+
+            await breakOver(code);
+            await ports.jobs.sweepTournaments();
+
+            expect(await waiting(code)).toHaveLength(size / 2);
+
+            const { id } = await row(code);
+
+            return (await statementsDuring(() => tournaments.advance(id))).length;
+        };
+
+        expect(await statementsAt(16)).toBe(await statementsAt(4));
+    });
+
+    it('writes the next swiss round whole, in one statement, the moment the one before it is decided', async () =>
+    {
+        const { code } = await filled({ format: 'swiss' }, 8);
+
+        await breakOver(code);
+        await ports.jobs.sweepTournaments();
+        await finishLive(code, 0);
+
+        const sent = await statementsDuring(() => ports.jobs.sweepTournaments());
+        const second = (await games(code)).filter((game) => game.round === 2);
+
+        expect(second).toHaveLength(4);
+        expect(second.every((game) => game.seedA !== null && game.seedB !== null && !game.dealt && game.how === null && game.tableId === null)).toBe(true);
+        expect(new Set(second.flatMap((game) => [game.seedA, game.seedB])).size, 'somebody was paired twice in one round').toBe(8);
+        expect(sent.filter((sql) => /^\s*INSERT INTO "tournament_games"/.test(sql)), 'the round was written a game at a time').toHaveLength(1);
     });
 
     it('gives the game to whoever was ready when the wait runs out, and closes the table', async () =>

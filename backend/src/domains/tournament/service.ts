@@ -309,6 +309,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
     const persist = async (tx: EntityManager, tournamentId: string, rows: readonly TournamentGame[], games: readonly EngineGame[]) =>
     {
         const held = new Map(rows.map((row) => [toEngine(row).key, row]));
+        const added = games.filter((game) => !held.has(game.key)).map((game) => ({ ...fromEngine(game), tournamentId }));
         let changed = false;
 
         for (const game of games)
@@ -316,16 +317,17 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             const row = held.get(game.key);
             const wanted = fromEngine(game);
 
-            if (row === undefined)
-            {
-                await tx.getRepository(TournamentGame).insert({ ...wanted, tournamentId });
-                changed = true;
-            }
-            else if (Object.entries(wanted).some(([field, value]) => row[field as keyof typeof wanted] !== value))
+            if (row !== undefined && Object.entries(wanted).some(([field, value]) => row[field as keyof typeof wanted] !== value))
             {
                 await tx.getRepository(TournamentGame).update({ id: row.id }, wanted);
                 changed = true;
             }
+        }
+
+        if (added.length > 0)
+        {
+            await tx.getRepository(TournamentGame).insert(added);
+            changed = true;
         }
 
         return changed;
@@ -392,35 +394,35 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
     {
         const dealt: Dealt[] = [];
         const lapsed: string[] = [];
+        const waiting = rows.flatMap((row, index) => games[index].dealt && games[index].how === null && row.tableId !== null && row.matchId === null
+            ? [{ row, index, tableId: row.tableId }]
+            : []);
+        const tableIds = waiting.map((one) => one.tableId);
+        const tables = tableIds.length === 0 ? [] : await tx.getRepository(Table).find({ select: { id: true, status: true, createdAt: true }, where: { id: In(tableIds) } });
+        const seated = tableIds.length === 0 ? [] : await tx.getRepository(TableSeat).find({ select: { tableId: true, seat: true, userId: true, ready: true }, where: { tableId: In(tableIds) } });
 
-        for (const [index, row] of rows.entries())
+        for (const { row, index, tableId } of waiting)
         {
             const game = games[index];
-
-            if (!game.dealt || game.how !== null || row.tableId === null || row.matchId !== null)
-            {
-                continue;
-            }
-
-            const table = await tx.getRepository(Table).findOne({ select: { id: true, status: true, createdAt: true }, where: { id: row.tableId } });
-            const chairs = await tx.getRepository(TableSeat).find({ select: { seat: true, userId: true, ready: true }, where: { tableId: row.tableId } });
+            const table = tables.find((one) => one.id === tableId);
+            const chairs = seated.filter((chair) => chair.tableId === tableId);
             const readyAt = (seat: number) => chairs.some((chair) => chair.seat === seat && chair.userId !== null && chair.ready);
             const aReady = readyAt(0);
             const bReady = readyAt(1);
-            const open = table !== null && table.status !== 'closed';
+            const open = table !== undefined && table.status !== 'closed';
 
             if (open && aReady && bReady)
             {
-                const matchId = await helpers.deal(tx, row.tableId);
+                const matchId = await helpers.deal(tx, tableId);
 
                 if (matchId === null)
                 {
-                    throw new Error(`a tournament table would not deal: ${ row.tableId }`);
+                    throw new Error(`a tournament table would not deal: ${ tableId }`);
                 }
 
                 await tx.getRepository(TournamentGame).update({ id: row.id }, { matchId });
                 row.matchId = matchId;
-                dealt.push({ tableId: row.tableId, matchId, players: chairs.map((chair) => chair.userId).filter((userId) => userId !== null) });
+                dealt.push({ tableId, matchId, players: chairs.map((chair) => chair.userId).filter((userId) => userId !== null) });
                 continue;
             }
 
@@ -432,7 +434,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             games[index] = aReady !== bReady
                 ? walkover(game, (aReady ? game.a : game.b) as number)
                 : applyResult(game, null, tournament.bestOf);
-            lapsed.push(row.tableId);
+            lapsed.push(tableId);
         }
 
         return { dealt, lapsed };

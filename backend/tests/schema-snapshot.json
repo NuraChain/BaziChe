@@ -1531,6 +1531,7 @@
         "tournament_entries CREATE UNIQUE INDEX ON public.tournament_entries USING btree (tournament_id, spot)",
         "tournament_entries CREATE UNIQUE INDEX ON public.tournament_entries USING btree (tournament_id, user_id)",
         "tournament_games CREATE INDEX ON public.tournament_games USING btree (match_id)",
+        "tournament_games CREATE INDEX ON public.tournament_games USING btree (table_id)",
         "tournament_games CREATE UNIQUE INDEX ON public.tournament_games USING btree (id)",
         "tournament_games CREATE UNIQUE INDEX ON public.tournament_games USING btree (tournament_id, stage, round, slot)",
         "tournaments CREATE INDEX ON public.tournaments USING btree (creator_id)",

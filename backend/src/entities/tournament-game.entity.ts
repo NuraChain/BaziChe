@@ -7,6 +7,7 @@ import type { Decided } from '../domains/tournament/engine/game.ts';
 @Check('tournament_games_how_known', `how is null or how in ('played', 'bye', 'seed', 'draw', 'void')`)
 @Index('tournament_games_place', ['tournamentId', 'stage', 'round', 'slot'], { unique: true })
 @Index('tournament_games_match', ['matchId'])
+@Index('tournament_games_table', ['tableId'])
 @Entity('tournament_games')
 export class TournamentGame
 {

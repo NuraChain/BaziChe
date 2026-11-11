@@ -164,6 +164,30 @@ const waitingOnLocks = async () =>
     rowsOf<{ count: number }>(await db.query(`select count(*)::int as count from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`))[0].count;
 
 /** Asks several things at once with every write to `table` held until all of them wait, so each has read what it reads before any has written. */
+/**
+ * Empties every account and what hangs off them. A reward given wakes its person in the background,
+ * and the first wake of a test writes the push keys into `settings`, which hangs off `users` too: a
+ * truncate that meets that write deadlocks with it, and is asked again once the write is done.
+ */
+const emptied = async () =>
+{
+    for (let attempt = 1; ; attempt += 1)
+    {
+        try
+        {
+            await db.query('truncate table users cascade');
+            return;
+        }
+        catch (error)
+        {
+            if ((error as { code?: string }).code !== '40P01' || attempt === 5)
+            {
+                throw error;
+            }
+        }
+    }
+};
+
 const crossing = async <T>(count: number, ask: (index: number) => Promise<T>, table: string) =>
 {
     const gate = db.createQueryRunner();
@@ -201,7 +225,7 @@ describe.skipIf(!active)('Admin › Invites, against a real database', () =>
     {
         if (db?.isInitialized)
         {
-            await db.query('truncate table users cascade');
+            await emptied();
             await db.query('delete from invite_campaigns');
             await db.destroy();
         }
@@ -211,7 +235,7 @@ describe.skipIf(!active)('Admin › Invites, against a real database', () =>
     {
         ports = buildPorts(db, CONFIG, listener);
         rung = [];
-        await db.query('truncate table users cascade');
+        await emptied();
         await db.query('delete from invite_campaigns');
     });
 

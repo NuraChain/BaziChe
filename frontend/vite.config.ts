@@ -68,7 +68,11 @@ export default defineConfig(({ command, isSsrBuild, mode }) =>
     const api = command === 'serve' && mode !== 'test' ? `127.0.0.1:${ apiPort(mode) }` : '';
 
     return {
-        plugins: [azeroth(), tailwindcss(), shareOrigin(), ...(isSsrBuild === true ? [] : [chunkModules()])],
+        // A test run is a dev server to the compiler, which then type-checks every component as it
+        // compiles it: most of a full `azeroth-tsc` pass, again on every run. Types are checked
+        // by `azeroth-tsc`; the tests check behaviour. No spec imports a stylesheet, so Tailwind
+        // is left out of them too.
+        plugins: [azeroth({ typeCheck: mode !== 'test' }), ...(mode === 'test' ? [] : [tailwindcss()]), shareOrigin(), ...(isSsrBuild === true ? [] : [chunkModules()])],
 
         cacheDir: '../node_modules/.vite',
 

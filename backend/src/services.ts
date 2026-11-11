@@ -4714,7 +4714,9 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 await tournamentFollowUp(done);
 
                 return view;
-            }
+            },
+
+            kick: (me, code, handle) => tournaments.kick(me, code, handle)
         },
 
         table: {

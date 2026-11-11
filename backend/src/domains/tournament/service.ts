@@ -25,7 +25,9 @@ export const TOURNAMENT_REFUSALS = {
     'tournament-created-max': 409,
     'tournament-time': 422,
     'tournament-format': 422,
-    'tournament-game': 422
+    'tournament-game': 422,
+    'tournament-kicked': 403,
+    'tournament-player': 404
 } as const;
 
 type TournamentRefusal = keyof typeof TOURNAMENT_REFUSALS;
@@ -827,6 +829,11 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
                     throw refusal('tournament-entered', 'You already have a place.');
                 }
 
+                if (tournament.kicked.includes(me))
+                {
+                    throw refusal('tournament-kicked', 'Whoever made this tournament took you out of it.');
+                }
+
                 if (entries.length >= tournament.size)
                 {
                     throw refusal('tournament-full', 'Every place has been taken.');
@@ -870,6 +877,46 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
                 }
 
                 await tx.getRepository(TournamentEntry).delete({ tournamentId: tournament.id, userId: me });
+            });
+
+            return await detailOf(me, code);
+        },
+
+        /**
+         * The creator takes somebody out before the start: their place is freed, and they may not
+         * take one in it again. After the draw it is the staff's to do, because a game lost by
+         * walkover is a result, and a creator playing in their own tournament would be handing it out.
+         */
+        async kick(me: string, code: string, handle: string)
+        {
+            await db.transaction(async (tx) =>
+            {
+                const tournament = await entryLock(tx, code);
+
+                if (tournament.creatorId !== me)
+                {
+                    throw new NotFoundError('No tournament there.');
+                }
+
+                if (tournament.status !== 'open')
+                {
+                    throw refusal('tournament-closed', 'That tournament has already started.');
+                }
+
+                const person = await tx.getRepository(User).createQueryBuilder('u')
+                    .select('u.id', 'id')
+                    .where('u.handle = :handle', { handle: handle.trim().replace(/^@/, '') })
+                    .getRawOne<{ id: string }>();
+                const removed = person === undefined || person.id === me
+                    ? 0
+                    : (await tx.getRepository(TournamentEntry).delete({ tournamentId: tournament.id, userId: person.id })).affected ?? 0;
+
+                if (person === undefined || removed === 0)
+                {
+                    throw refusal('tournament-player', 'Nobody by that name has a place in it.');
+                }
+
+                await tx.query(`update tournaments set kicked = array_append(kicked, $2::uuid) where id = $1 and not ($2::uuid = any(kicked))`, [tournament.id, person.id]);
             });
 
             return await detailOf(me, code);

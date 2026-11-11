@@ -3667,6 +3667,11 @@ export const tournamentCreateInput = object({
     startsAt: string({ max: 40 })
 });
 
+/** Whom the creator takes out before the start, by handle. */
+export const tournamentKickInput = object({
+    who: string({ trim: true, nonempty: true, max: 40 })
+});
+
 export const tournamentsQuery = object({
     status: enumOf(['open', 'running', 'finished', 'mine']).optional(),
     game: string({ max: 32 }).optional()

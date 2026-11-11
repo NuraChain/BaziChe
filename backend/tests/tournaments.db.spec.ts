@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { NotFoundError } from '@azerothjs/http';
 import { DataSource } from 'typeorm';
 
 import { Conversation, Match, StaffMember, StaffAction, Table, TableSeat, Tournament, TournamentEntry, TournamentGame, User, entities } from '../src/entities/index.ts';
@@ -168,6 +169,26 @@ describe.skipIf(!active)('a tournament, against a real database', () =>
         await Promise.allSettled(people.slice(1).map((person) => ports.tournament.join(person, code)));
 
         expect(await db.getRepository(TournamentEntry).countBy({ tournamentId: (await row(code)).id })).toBe(4);
+    });
+
+    it('lets its creator take a player out before the start, and keeps them out', async () =>
+    {
+        const people = await crowd(4);
+        const code = ((await open(people[0], { size: 8 })) as { code: string }).code;
+
+        await ports.tournament.join(people[1], code);
+        await ports.tournament.join(people[2], code);
+
+        await expect(ports.tournament.kick(people[1], code, await handleOf(people[2])), 'a player took another out').rejects.toBeInstanceOf(NotFoundError);
+        await expect(ports.tournament.kick(people[0], code, await handleOf(people[3])), 'took out somebody with no place').rejects.toMatchObject({ code: 'tournament-player' });
+        await expect(ports.tournament.kick(people[0], code, await handleOf(people[0])), 'the creator took themself out').rejects.toMatchObject({ code: 'tournament-player' });
+
+        const after = await ports.tournament.kick(people[0], code, `@${ await handleOf(people[2]) }`);
+
+        expect(after?.entered).toBe(2);
+        expect(after?.entrants.map((entry) => entry.who)).not.toContain(await handleOf(people[2]));
+        await expect(ports.tournament.join(people[2], code), 'came back in').rejects.toMatchObject({ code: 'tournament-kicked' });
+        expect(await ports.tournament.join(people[3], code), 'the freed place was not free').not.toBeNull();
     });
 
     it('starts the moment the last place is taken, with a break before the first games', async () =>

@@ -9,7 +9,9 @@ const KNOWN: Readonly<Record<string, MessageKey>> = {
     'tournament-created-max': 'tournaments.refused.createdMax',
     'tournament-time': 'tournaments.refused.time',
     'tournament-format': 'tournaments.refused.format',
-    'tournament-game': 'tournaments.refused.game'
+    'tournament-game': 'tournaments.refused.game',
+    'tournament-kicked': 'tournaments.refused.kicked',
+    'tournament-player': 'tournaments.refused.player'
 };
 
 export const whyTournament = (error: unknown): MessageKey =>

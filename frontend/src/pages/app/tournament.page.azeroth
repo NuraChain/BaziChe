@@ -3,6 +3,7 @@ import { createResource, untrack, useHead, useParams } from 'azerothjs';
 import type { TournamentDetail } from '../../../../backend/src/schemas.ts';
 import { ApiError, client } from '../../api.ts';
 import Page from '../../components/app/page.component.azeroth';
+import ConfirmSheet from '../../components/app/confirm-sheet.component.azeroth';
 import PageHeader from '../../components/app/page-header.component.azeroth';
 import TournamentBracket from '../../components/games/tournament-bracket.component.azeroth';
 import TournamentGame from '../../components/games/tournament-game.component.azeroth';
@@ -11,6 +12,7 @@ import TournamentStandings from '../../components/games/tournament-standings.com
 import Avatar from '../../components/ui/avatar.component.azeroth';
 import Badge from '../../components/ui/badge.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
+import IconButton from '../../components/ui/icon-button.component.azeroth';
 import EmptyState from '../../components/ui/empty-state.component.azeroth';
 import ErrorState from '../../components/ui/error-state.component.azeroth';
 import FilterBar from '../../components/ui/filter-bar.component.azeroth';
@@ -274,6 +276,21 @@ export default component TournamentPage()
 
     const cancel = () => act(() => client.tournaments.cancel({ params: { code } }));
 
+    const kick = async (handle: string) =>
+    {
+        const name = nameOf(handle);
+        const yes = await overlay.open(
+            ConfirmSheet,
+            { title: locale.t('tournaments.kickAsk', { name }), lead: locale.t('tournaments.kickLead'), confirm: locale.t('tournaments.kick'), destructive: true },
+            { label: locale.t('tournaments.kickAsk', { name }) }
+        ).closed;
+
+        if (yes === true)
+        {
+            await act(() => client.tournaments.kick({ params: { code }, input: { who: handle } }), locale.t('tournaments.kicked', { name }));
+        }
+    };
+
     const invite = () => void overlay.open(
         TournamentInvite,
         { code, name, entered: entrants.flatMap((entry) => entry.who === undefined ? [] : [entry.who]) },
@@ -517,6 +534,19 @@ export default component TournamentPage()
                                         </Show>
                                         <Show when={ slot.entry?.place !== undefined }>
                                             { () => <Badge text={ locale.n(slot.entry?.place as number) } tone="neutral" size="sm" /> }
+                                        </Show>
+                                        <Show when={ cancellable && slot.entry?.who !== undefined && slot.spot !== mine }>
+                                            { () =>
+                                                <IconButton
+                                                    icon="block"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    tone="danger"
+                                                    label={ locale.t('tournaments.kickAsk', { name: nameOf(slot.entry?.who) }) }
+                                                    disabled={ pending }
+                                                    onClick={ () => void kick(slot.entry?.who as string) }
+                                                />
+                                            }
                                         </Show>
                                     </li>
                                 </For>

@@ -381,6 +381,9 @@ export interface TournamentPort
     join(me: string, code: string): Promise<TournamentDetail | null>;
     leave(me: string, code: string): Promise<TournamentDetail | null>;
     cancel(me: string, code: string): Promise<TournamentDetail | null>;
+
+    /** The creator, before the start only: frees the place and keeps that person out. */
+    kick(me: string, code: string, handle: string): Promise<TournamentDetail | null>;
 }
 
 export interface TablePort

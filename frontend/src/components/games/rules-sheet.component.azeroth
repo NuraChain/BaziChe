@@ -1,0 +1,45 @@
+import { GAME_RULES } from '../../data/game-rules.ts';
+import type { GameId } from '../../data/games.ts';
+import '../../locales/rules-catalogue.ts';
+import { useCatalogue } from '../../stores/catalogue.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import SheetHeader from '../ui/sheet-header.component.azeroth';
+
+/** A game's full rules, section by section: opened from the game's page and from its table. */
+export default component RulesSheet(props: OverlayProps & { game: GameId })
+{
+    const locale = useLocale();
+    const catalogue = useCatalogue();
+
+    derived name = locale.t(catalogue.byId(props.game).nameKey);
+
+    derived sections = GAME_RULES[props.game].map((section) => ({
+        key: section.title,
+        title: locale.t(section.title),
+        points: locale.t(section.points).split('\n')
+    }));
+
+    <div class="flex max-h-[inherit] min-h-0 flex-col" data-rules={ props.game }>
+        <div class="px-5 pb-3 pt-4">
+            <SheetHeader title={ locale.t('rules.heading', { game: name }) } onClose={ () => props.close() } />
+        </div>
+        <div class="min-h-0 overflow-y-auto overscroll-contain [touch-action:pan-y] px-5 pb-6">
+            <div class="flex flex-col gap-5">
+                <For each={ sections } key={ (section) => section.key } let={ section }>
+                    <section class="flex flex-col gap-2">
+                        <h3 class="text-ui-md font-semibold text-text">{ section.title }</h3>
+                        <ul class="flex flex-col gap-2">
+                            <For each={ section.points } key={ (point) => point } let={ point }>
+                                <li class="flex items-start gap-2.5 text-ui-base leading-relaxed text-muted">
+                                    <span class="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true"></span>
+                                    <span class="min-w-0">{ point }</span>
+                                </li>
+                            </For>
+                        </ul>
+                    </section>
+                </For>
+            </div>
+        </div>
+    </div>
+}

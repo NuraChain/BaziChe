@@ -19,6 +19,7 @@ import { useLobby } from '../../stores/lobby.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { useShell } from '../../stores/shell.store.ts';
 import { findGame } from '../../lib/find-game.ts';
+import { openRules } from '../../lib/rules-sheet.ts';
 
 const RULE_CARDS: Record<GameId, MessageKey[]> = {
     hokm: ['game.rules.hokm.1', 'game.rules.hokm.2', 'game.rules.hokm.3'],
@@ -92,6 +93,7 @@ export default component GamePage()
                                         </li>
                                     </For>
                                 </ol>
+                                <Button variant="outline" size="sm" leading="info" class="mt-3 self-start" onClick={ () => void openRules(game!.id) }>{ locale.t('rules.open') }</Button>
                             </section>
 
                             <LazyGameLooks game={ game!.id } />

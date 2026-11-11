@@ -1019,6 +1019,7 @@ export default component PlayPage()
                                 </Show>
                                 <TableDock
                                     code={ shown.code }
+                                    game={ shown.game as GameId }
                                     animals={ playing === 'chess' }
                                     target={ arena }
                                     upright={ playing === 'ludo' }

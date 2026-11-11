@@ -69,6 +69,10 @@ export class Tournament
     @Column({ name: 'creator_id', type: 'uuid', nullable: true })
     creatorId!: string | null;
 
+    /** Whoever the creator took out before the start: they may not take a place in it again. */
+    @Column({ type: 'uuid', array: true, default: () => `'{}'` })
+    kicked!: string[];
+
     @Column({ name: 'winner_id', type: 'uuid', nullable: true })
     winnerId!: string | null;
 

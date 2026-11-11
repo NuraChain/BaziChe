@@ -1,0 +1,175 @@
+import type { Person } from '../../data/person.ts';
+import { copyText } from '../../lib/clipboard.ts';
+import { canShare, shareNatively, shareTargets } from '../../lib/share-link.ts';
+import { namesOf, narrowed, SEARCH_FROM } from '../../services/search.service.ts';
+import { useAccount } from '../../stores/account.store.ts';
+import { useChat } from '../../stores/chat.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import type { OverlayProps } from '../../stores/overlay.store.ts';
+import { usePeople } from '../../stores/people.store.ts';
+import { usePresence } from '../../stores/presence.store.ts';
+import { useSocial } from '../../stores/social.store.ts';
+import { useToasts } from '../../stores/toasts.store.ts';
+import Icon from '../../icons/icon.component.azeroth';
+import { sealSentenceOf } from '../chat/chat-title.ts';
+import Avatar from '../ui/avatar.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import EmptyState from '../ui/empty-state.component.azeroth';
+import SearchInput from '../ui/search-input.component.azeroth';
+import SheetHeader from '../ui/sheet-header.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import Spinner from '../ui/spinner.component.azeroth';
+
+/**
+ * Hands a tournament's link on: to a friend as a line in their chat with the reader, or through
+ * whatever app the reader likes. Whoever has a place already is not offered.
+ */
+export default component TournamentInvite(props: OverlayProps & { code: string; name: string; entered: string[] })
+{
+    const locale = useLocale();
+    const account = useAccount();
+    const chat = useChat();
+    const people = usePeople();
+    const presence = usePresence();
+    const social = useSocial();
+    const toasts = useToasts();
+
+    state query = '';
+    state sending = '';
+    state sent = [] as string[];
+
+    const url = `${ location.origin }/app/tournaments/${ encodeURIComponent(props.code) }`;
+
+    derived shared = { subject: props.name, text: locale.t('tournaments.invite.text', { name: props.name }), url };
+
+    derived targets = shareTargets(shared);
+
+    derived native = canShare(shared);
+
+    derived guest = account.guest();
+
+    derived everyone = social.friends()
+        .filter((handle) => !props.entered.includes(handle))
+        .map((handle) => people.byHandle(handle))
+        .filter((person): person is Person => person !== null)
+        .sort((one, other) => Number(presence.isOnline(other.id)) - Number(presence.isOnline(one.id)));
+
+    derived candidates = narrowed(everyone, query, namesOf);
+
+    derived graph = social.reading('graph');
+
+    derived reading = graph === 'reading' && everyone.length === 0;
+
+    derived nobody = !reading && candidates.length === 0;
+
+    const copy = () => void copyText(url, 'tournaments.copied', { dedupe: 'tournament-link' });
+
+    const share = async () =>
+    {
+        if (!await shareNatively(shared))
+        {
+            toasts.show({ kind: 'warning', text: locale.t('invite.page.shareFailed'), dedupe: 'tournament-share' });
+        }
+    };
+
+    const send = async (person: Person) =>
+    {
+        if (sending !== '')
+        {
+            return;
+        }
+
+        sending = person.id;
+
+        try
+        {
+            const room = await chat.openDirect(person.id);
+
+            await chat.send(room, `${ shared.text }\n${ url }`);
+            sent = [...sent, person.id];
+            toasts.show({ kind: 'success', text: locale.t('tournaments.invite.sent', { name: locale.text(person.displayName) }), dedupe: 'tournament-invite' });
+        }
+        catch (error)
+        {
+            toasts.show({ kind: 'warning', text: sealSentenceOf(error, locale.t), dedupe: 'tournament-invite' });
+        }
+        finally
+        {
+            sending = '';
+        }
+    };
+
+    <div class="flex max-h-[80dvh] min-h-0 flex-col gap-4 p-5" data-tournament-invite>
+        <SheetHeader title={ locale.t('tournaments.invite.title') } lead={ locale.t('tournaments.invite.lead', { name: props.name }) } onClose={ () => props.close() } />
+
+        <div class="flex flex-wrap gap-2">
+            <Button variant="primary" size="sm" leading="copy" onClick={ copy }>{ locale.t('tournaments.share') }</Button>
+            <Show when={ native }>
+                { () => <Button variant="outline" size="sm" leading="share" onClick={ () => void share() }>{ locale.t('invite.page.share') }</Button> }
+            </Show>
+            <Button variant="outline" size="sm" leading="chats" href={ targets.whatsapp } external>{ locale.t('invite.page.whatsapp') }</Button>
+            <Button variant="outline" size="sm" leading="send" href={ targets.telegram } external>{ locale.t('invite.page.telegram') }</Button>
+        </div>
+
+        <Show when={ !guest }>
+            { () =>
+                <section class="flex min-h-0 flex-col gap-2" aria-label={ locale.t('tournaments.invite.friends') }>
+                    <p class="label text-ui-xs text-faint">{ locale.t('tournaments.invite.friends') }</p>
+
+                    <Show when={ everyone.length > SEARCH_FROM }>
+                        { () => <SearchInput value={ query } onInput={ (value) => query = value } placeholder={ locale.t('create.search') } label={ locale.t('create.search') } /> }
+                    </Show>
+
+                    <Show when={ reading }>
+                        { () =>
+                            <div class="flex flex-col" data-reading>
+                                <span class="sr-only">{ locale.t('common.loading') }</span>
+                                <Skeleton avatar lines={ 2 } class="py-2" />
+                                <Skeleton avatar lines={ 2 } class="py-2" />
+                            </div>
+                        }
+                    </Show>
+
+                    <Show when={ nobody }>
+                        { () => <EmptyState icon="people" title={ locale.t(query.trim() !== '' ? 'create.noFriends' : (social.friends().length === 0 ? 'create.friendless' : 'tournaments.invite.none')) } class="py-6" /> }
+                    </Show>
+
+                    <Show when={ candidates.length > 0 }>
+                        { () =>
+                            <ul class="-mx-2 flex min-h-0 flex-col gap-0.5 overflow-y-auto overscroll-contain px-0">
+                                <For each={ candidates } key={ (person) => person.id } let={ person }>
+                                    <li>
+                                        <button
+                                            type="button"
+                                            class="flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-tile px-2 py-2 text-start transition-colors hover:bg-raised/70 disabled:cursor-default"
+                                            disabled={ sending !== '' || sent.includes(person.id) }
+                                            data-invitee={ person.id }
+                                            onClick={ () => void send(person) }
+                                        >
+                                            <Avatar person={ person } size="md" presence={ presence.dot(person.id) } />
+                                            <span class="flex min-w-0 flex-1 flex-col">
+                                                <span class="truncate text-ui-base font-semibold text-text" dir="auto">{ locale.text(person.displayName) }</span>
+                                                <span class="truncate text-ui-xs text-muted" dir="ltr">@{ person.handle }</span>
+                                            </span>
+                                            <Show
+                                                when={ sending === person.id }
+                                                fallback={
+                                                    <span class={ () => [ 'flex shrink-0 items-center gap-1 text-ui-sm font-semibold', sent.includes(person.id) ? 'text-muted' : 'text-accent' ].join(' ') }>
+                                                        <Icon name={ sent.includes(person.id) ? 'sent' : 'send' } size={ 15 } class="icon-flip" />
+                                                        { locale.t(sent.includes(person.id) ? 'tournaments.invite.done' : 'tournaments.invite.send') }
+                                                    </span>
+                                                }
+                                            >
+                                                { () => <Spinner size={ 16 } class="shrink-0 text-accent" /> }
+                                            </Show>
+                                        </button>
+                                    </li>
+                                </For>
+                            </ul>
+                        }
+                    </Show>
+                </section>
+            }
+        </Show>
+    </div>
+}

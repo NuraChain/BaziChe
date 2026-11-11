@@ -6,6 +6,7 @@ import Page from '../../components/app/page.component.azeroth';
 import PageHeader from '../../components/app/page-header.component.azeroth';
 import TournamentBracket from '../../components/games/tournament-bracket.component.azeroth';
 import TournamentGame from '../../components/games/tournament-game.component.azeroth';
+import TournamentInvite from '../../components/games/tournament-invite.component.azeroth';
 import TournamentStandings from '../../components/games/tournament-standings.component.azeroth';
 import Avatar from '../../components/ui/avatar.component.azeroth';
 import Badge from '../../components/ui/badge.component.azeroth';
@@ -19,12 +20,12 @@ import Tabs from '../../components/ui/tabs.component.azeroth';
 import type { GameId } from '../../data/games.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import '../../locales/tournament-catalogue.ts';
-import { copyText } from '../../lib/clipboard.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { whyTournament } from '../../lib/tournament-refusal.ts';
 import { whileSeen } from '../../lib/while-seen.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { useRealtime } from '../../stores/realtime.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
@@ -49,6 +50,7 @@ export default component TournamentPage()
     const people = usePeople();
     const realtime = useRealtime();
     const toasts = useToasts();
+    const overlay = useOverlay();
     const params = useParams();
 
     const code = untrack(() => params().code ?? '');
@@ -272,7 +274,11 @@ export default component TournamentPage()
 
     const cancel = () => act(() => client.tournaments.cancel({ params: { code } }));
 
-    const share = () => void copyText(`${ location.origin }/app/tournaments/${ code }`, 'tournaments.copied', { dedupe: 'tournament-link' });
+    const invite = () => void overlay.open(
+        TournamentInvite,
+        { code, name, entered: entrants.flatMap((entry) => entry.who === undefined ? [] : [entry.who]) },
+        { label: locale.t('tournaments.invite.title') }
+    );
 
     const nameOf = (handle: string | undefined) =>
     {
@@ -315,7 +321,7 @@ export default component TournamentPage()
                         actions={
                             <div class="flex items-center gap-2">
                                 <Badge text={ locale.t(`tournaments.status.${ tournament?.status as 'open' }`) } tone={ TONE[tournament?.status as 'open'] } size="sm" />
-                                <Button variant="outline" size="sm" leading="share" onClick={ share }>{ locale.t('tournaments.share') }</Button>
+                                <Button variant="outline" size="sm" leading="friend-add" onClick={ invite }>{ locale.t('tournaments.invite.button') }</Button>
                             </div>
                         }
                     />

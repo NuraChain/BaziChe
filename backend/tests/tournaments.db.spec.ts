@@ -140,6 +140,7 @@ describe.skipIf(!active)('a tournament, against a real database', () =>
 
     beforeEach(async () =>
     {
+        await db.getRepository(StaffAction).createQueryBuilder().delete().execute();
         await db.getRepository(Tournament).createQueryBuilder().delete().execute();
         await db.getRepository(Table).createQueryBuilder().delete().execute();
         await db.getRepository(Conversation).createQueryBuilder().delete().execute();
@@ -261,7 +262,7 @@ describe.skipIf(!active)('a tournament, against a real database', () =>
         expect(chairs.map((chair) => chair.ready), 'a chair was ready before anybody said so').toEqual([false, false]);
         expect(await db.getRepository(Match).count(), 'a game was dealt before its players were there').toBe(0);
 
-        const shown = await ports.table.byId(first, tableId);
+        const shown = (await ports.table.view(first, tableId))!;
 
         expect(Date.parse(shown.readyBy as string) - Date.parse(shown.createdAt)).toBe(5 * 60_000);
 
@@ -272,7 +273,7 @@ describe.skipIf(!active)('a tournament, against a real database', () =>
 
         await ports.table.setReady(second, tableId, true);
 
-        const dealt = await ports.table.byId(first, tableId);
+        const dealt = (await ports.table.view(first, tableId))!;
 
         expect(dealt.matchId, 'the second ready did not deal the game at once').toBeDefined();
         expect(dealt).not.toHaveProperty('readyBy');
@@ -354,7 +355,7 @@ describe.skipIf(!active)('a tournament, against a real database', () =>
         const [game] = await games(code);
         const tableId = game.tableId as string;
         const player = (await db.getRepository(TableSeat).findBy({ tableId })).find((chair) => chair.userId !== null)!.userId as string;
-        const table = await ports.table.byId(player, tableId);
+        const table = (await ports.table.view(player, tableId))!;
 
         expect(table.chairs.map((chair) => chair.host), 'a chair of a hostless table said null rather than no').toEqual(table.chairs.map(() => false));
         expect(tableSummary.safeParse(table).ok).toBe(true);

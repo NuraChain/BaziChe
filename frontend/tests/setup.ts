@@ -12,7 +12,12 @@ setRealtimeSource(createFakeSource());
 
 registerCatalogue({ en: {}, fa: faLanding });
 
-const fake = await import('./fake-api.ts');
+/**
+ * The fake server, read on first use. It is thousands of lines and half the backend's rules, and
+ * a spec of pure functions never asks for a key: loading it there was a second or more of every
+ * such file's setup, for nothing.
+ */
+const fakeApi = () => import('./fake-api.ts');
 
 /**
  * The keys of whoever the fake server is signed in as, followed live.
@@ -30,6 +35,7 @@ setKeyStore({
 
     async load()
     {
+        const fake = await fakeApi();
         const device = fake.fixtureDevice(fake.server.me);
 
         return device === null
@@ -39,6 +45,8 @@ setKeyStore({
 
     async secrets()
     {
+        const fake = await fakeApi();
+
         return fake.fixtureDevice(fake.server.me)?.secrets ?? null;
     },
 

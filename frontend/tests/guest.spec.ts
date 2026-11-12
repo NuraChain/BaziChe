@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import { signInText, verifySignature } from '../../backend/src/domains/identity/signature.ts';
@@ -16,12 +16,20 @@ import {
     signAsGuest
 } from '../src/lib/guest.ts';
 import { failureOf, personalSign, sendTransaction, signTypedData } from '../src/lib/wallet.ts';
+import { memoryStorage } from './memory-storage.ts';
 
-const SECRET = '0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318';
+const SECRET = '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a';
+const storage = memoryStorage();
 
 describe('the guest key', () =>
 {
-    beforeEach(() => forgetGuest());
+    beforeEach(() =>
+    {
+        storage.fresh();
+        forgetGuest();
+    });
+
+    afterEach(() => storage.restore());
 
     it('is the address a wallet holding the same key would be', () =>
     {

@@ -35,7 +35,6 @@
         "@azerothjs/compiler": "2.1.0",
         "@azerothjs/devtools": "2.1.0",
         "@azerothjs/language-server": "2.1.0",
-        "@azerothjs/testing": "2.1.0",
         "@azerothjs/typescript-plugin": "2.1.0",
         "@tailwindcss/vite": "^4.0.0",
         "@types/three": "0.186.0",

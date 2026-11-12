@@ -10,13 +10,10 @@ import { attachStick, centreOn, isNearBottom, JOURNEY_MS, STICK_SLACK } from '..
  * The chat decided this with `messages.length + typing.length >= 0` - a sum of two lengths, so
  * always true. The guard was dead code and the behaviour was "jump to the bottom on every change",
  * including when somebody merely started typing and including while the reader was part way up the
- * history. Nothing saw it: `npm run qa` checks overflow, hit targets, a landmark and a clean
- * console, and a list confidently scrolled to the bottom is none of those.
+ * history, and a list confidently scrolled to the bottom looks like any other.
  *
  * Split out as arithmetic because **jsdom has no layout** - `scrollTop`, `scrollHeight` and
- * `clientHeight` are ordinary properties there, so they can be installed and driven directly. That
- * is the same shape `shell.spec.ts` uses to model the rule that a detached element reports
- * `scrollTop` as zero.
+ * `clientHeight` are ordinary properties there, so they can be installed and driven directly.
  */
 const view = (scrollTop: number, scrollHeight = 1000, clientHeight = 400): {
     scrollTop: number;

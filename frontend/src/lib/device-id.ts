@@ -45,8 +45,8 @@ export function cryptoAvailable()
  *
  * The server computes exactly this from the keys an enrolment publishes and refuses a mismatch,
  * so an id can only be claimed by whoever holds those keys. `backend/src/domains/device/id.ts` is
- * the other half, and `tests/devices.spec.ts` runs both over the same vectors - two independent
- * implementations of one formula are two chances to disagree, and the test is what stops them.
+ * the other half: two implementations of one formula are two chances to disagree, and a
+ * disagreement refuses every enrolment, so a change to one is a change to both.
  */
 export async function deviceIdFrom(exchangeKey: string, signingKey: string)
 {

@@ -159,11 +159,10 @@ painted for the first time.
 `vfx-engine.spec.ts` (the canvas, the pool, nothing drawn while idle, the ceiling, a stream let go,
 less motion, on the manual clock with a counting context), `vfx-motion.spec.ts`, `vfx-families.spec.ts`
 (every family and stream played to its end, seeds, the device's share, a signature's layers, less
-motion, the pointer, and the cap every canvas of a page shares), `aura.spec.ts`,
-`avatar-looks.spec.ts`, `themes.spec.ts`, `equip.spec.ts`, `look-identity.spec.ts`,
-`ludo-board.spec.ts`, `hokm-looks.spec.ts`, `poker-looks.spec.ts`, `backgammon-looks.spec.ts`,
-`chess-moments.spec.ts`, `entrances.spec.ts`, `moments.spec.ts` and `lab-tables.spec.ts`; and the
-build, for the chunk's ceiling and where it may not be.
+motion, the pointer, and the cap every canvas of a page shares), `aura.spec.ts`, `themes.spec.ts`,
+`equip.spec.ts`, `look-identity.spec.ts`, `ludo-board.spec.ts`, `backgammon-looks.spec.ts`,
+`chess-moments.spec.ts`, `entrances.spec.ts` and `moments.spec.ts`; and the build, for the chunk's
+ceiling and where it may not be.
 
 Recipes were first tuned in throwaway previews, each looked at mid-flight at 2x or 3x. The way to
 tune one now is the fitting room's playground (`/app/shop/lab`, Tune), which plays any moment with

@@ -11,7 +11,7 @@ purchase works is the shop's design (`docs/design/2026-10-27-shop-design.md`); t
 | Part | Where | Held by |
 |---|---|---|
 | What is sold: its id, its line, its names and its blurb | `backend/src/domains/shop/catalogue.ts`: `SHOP_COLLECTIONS`, `LEGENDARY_COLLECTIONS`, `COLLECTION_NAMES`, `COLLECTION_BLURBS` | it is the catalogue, and the seed writes its rows at every boot |
-| The collections the browser draws | `frontend/src/game/looks/frames.ts` (`FRAMES`) | `avatar-looks.spec.ts` holds it equal to `SHOP_COLLECTIONS` |
+| The collections the browser draws | `frontend/src/game/looks/frames.ts` (`FRAMES`) | `satisfies readonly ShopCollection[]`; that it names every one is kept by hand |
 | Its colours | `game/looks/palette.ts` (`PALETTES`) | `satisfies Record<ShopCollection, Palette>`, and `look-palette.spec.ts` |
 | Its light and its moments | `game/looks/`, a table a moment (*The motion*, below) | a `satisfies Record<…>` over the collections on every table, and `look-identity.spec.ts` |
 | Its voice | `tools/art/voices/<collection>.mjs`, written into `frontend/src/game/sound/looks/` | `VOICES` in `voices/index.mjs`, `LOOK_PACKS` in `game/sound-files.ts`, the build and `look-pack.spec.ts` |

@@ -69,11 +69,8 @@ export default component Page(props: { children?: Child; padded?: boolean; width
      * reports `scrollTop` as zero. So the old save wrote 0 for every page on every navigation and
      * the restore then dutifully put every list back at the top.
      *
-     * Nothing could see it. `npm run qa` checks overflow, hit targets, a `main` landmark and a
-     * clean console; a page confidently scrolled to the top passes all four. `jsdom` has no layout,
-     * so `scrollTop` there is an ordinary property that survives detachment and the bug is invisible
-     * in a spec that does not model the real rule - which is why `shell.spec.ts` installs that rule
-     * on the element before it navigates.
+     * Nothing could see it: a page confidently scrolled to the top looks like any other, and
+     * `jsdom` has no layout, so `scrollTop` there is an ordinary property that survives detachment.
      */
     let depth = 0;
 

@@ -155,8 +155,8 @@ describe('achievements: the server definitions hold together', () =>
             }
         }
 
-        // And the two languages must actually differ - a Persian field holding the English string
-        // is the failure `tests/data.spec.ts` already guards on the client side.
+        // And the two languages must actually differ: a Persian field holding the English string is
+        // one nobody translated.
         for (const seed of RUNGS)
         {
             expect(seed.nameFa).not.toBe(seed.nameEn);

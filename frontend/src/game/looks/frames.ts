@@ -2,7 +2,7 @@ import type { ShopCollection } from '../../../../backend/src/domains/shop/catalo
 
 /**
  * The collections a frame is drawn for (`public/frames/<collection>.svg`), named here so a picture
- * can wear one without the shell carrying the catalogue; `avatar-looks.spec.ts` holds the list to it.
+ * can wear one without the shell carrying the catalogue. A collection added there is added here.
  */
 export const FRAMES = ['glow', 'shiraz', 'neon', 'gold', 'inferno', 'storm', 'astral', 'void', 'jade', 'frost', 'phoenix', 'oni'] as const satisfies readonly ShopCollection[];
 

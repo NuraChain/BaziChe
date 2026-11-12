@@ -426,8 +426,7 @@ reports.
   a star stand side by side. A win throws confetti in the colour of every seat that won.
 - **The result** is read by side, as at any table of two sides.
 
-`helpers-ludo.spec.ts` (*two against two*), `ludo-table.spec.ts` (*the ludo table, two against
-two*) and `game.spec.ts` hold the browser's half, `engine-seam.spec.ts` the board on the wire, and
+`helpers-ludo.spec.ts` (*two against two*) and `game.spec.ts` hold the browser's half, `engine-seam.spec.ts` the board on the wire, and
 `tools/qa/ludo-pass.mjs` plays a whole game of two against two over the api: both partners win,
 nothing is sent home by its own side, no roll is offered a move onto a pair of the other side or
 past one (T7), a pair of two colours holds a token back with nothing else in its way, no square

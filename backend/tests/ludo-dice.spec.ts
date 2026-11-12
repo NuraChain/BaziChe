@@ -11,10 +11,8 @@ import { rollDie, pickBelow } from '../src/lib/crypto.ts';
  *
  * The wire has no field to put one in and the engine has no randomness to subvert, so supplying a
  * dice result would take a change in three places - `schemas.ts`, `api.ts` and `service.ts` - and
- * this spec reads the first two as text and fails on the first of them.
- *
- * The sibling of the assertion in `tests/lib.spec.ts` that the `fairness` key is ABSENT: a claim a
- * mechanism does not support should be impossible to reintroduce quietly.
+ * this spec reads the first two as text and fails on the first of them. A claim a mechanism does
+ * not support should be impossible to reintroduce quietly.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));

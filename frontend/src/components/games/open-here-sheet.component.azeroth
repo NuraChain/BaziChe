@@ -99,9 +99,8 @@ export default component OpenHereSheet(props: OverlayProps & { conversationId: s
      * How many people play it, as a range or as one number.
      *
      * Built here rather than in the catalogue, because it is interpolation and punctuation and
-     * nothing else - `tests/data.spec.ts` fails on a key whose English and Persian are the same
-     * string, which is exactly what a `'{min}-{max}'` entry would be. It wears `tally` so the range
-     * does not reverse inside a Persian line.
+     * nothing else: a `'{min}-{max}'` entry would be the same string in every language. It wears
+     * `tally` so the range does not reverse inside a Persian line.
      */
     const playersOf = (entry: Game) =>
     {

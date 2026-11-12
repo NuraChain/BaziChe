@@ -45,9 +45,14 @@ const KB = 1024;
 /**
  * The landing page's whole JavaScript payload: the entry plus everything it preloads. It was 60 KB
  * until the footer of every public page took its links to the community, the source and the chain
- * (1.6 KB), which have to be in the prerendered page and so in the script that draws it.
+ * (1.6 KB), which have to be in the prerendered page and so in the script that draws it. It was
+ * 62 KB until the route table grew the tournament pages, staff and players' (63,493 bytes against
+ * 63,488 on 2026-11-12): routes are in the entry by design, every lazy page a line of it.
+ *
+ * Where a real saving is: the framework's server renderers (`azerothjs/dist/renderer/ssr.js`,
+ * `reactivity/ssr.js`) are in the browser's entry, which only a hydrating client should need.
  */
-const INITIAL_BUDGET = 62 * KB;
+const INITIAL_BUDGET = 63 * KB;
 
 /** The `/app` layout chunk, which every signed-in route waits on. */
 const SHELL_BUDGET = 12 * KB;

@@ -32,7 +32,7 @@ export default component Tabs(props: {
      * The strip has always scrolled - `overflow-x-auto` with the scrollbar hidden - and that is
      * exactly why nothing said it did: five tabs at 390 put the last two past the edge with no
      * scrollbar, no fade and no hint, so a page opened on its fifth tab showed a strip whose
-     * selected item was somewhere to the right. Nothing overflows the PAGE, so the matrix passes.
+     * selected item was somewhere to the right, though nothing overflows the PAGE.
      *
      * A tab already in view is left where it is: scrolling a strip that did not need scrolling is its
      * own small confusion. Sideways only, because `scrollIntoView` moves the page as well. And once the

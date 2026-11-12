@@ -16,9 +16,9 @@
  * compiles to a bare `setProp`, not a `createEffect`, so the class is written once and never again:
  * correct on first render and stale forever after. Both segmented controls shipped that way - the
  * selected pill stayed on whichever option was chosen when the control mounted, while `aria-pressed`
- * moved correctly, so the markup was right and only the paint was wrong. Nothing could see it:
- * `npm run qa` reads overflow, hit targets, a landmark and the console, and an accessibility check
- * reads the aria. This reads the emitted bundle, which is the only place the difference exists.
+ * moved correctly, so the markup was right and only the paint was wrong. Nothing could see it: an
+ * accessibility check reads the aria. This reads the emitted bundle, which is the only place the
+ * difference exists.
  * It reads each binding whole: the bundle prints a class array over several lines, and a check that
  * read the line holding `setProp(` saw only its opening bracket. And it reads the class handed to an
  * element built inside a branch (`h("span", { class: [ ... ] })`), which is bound once the same way:

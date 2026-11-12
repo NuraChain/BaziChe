@@ -1,7 +1,6 @@
 # Poker — No-Limit Texas Hold'em, played as a Sit & Go
 
-**Status:** playable. The engine, the table, `tools/qa/poker-pass.mjs` and the matrix route are
-built, and `games.status` is `available`.
+**Status:** playable. The engine and the table are built, and `games.status` is `available`.
 
 Free to play. Chips are virtual and have no monetary value. No deposits, no withdrawals, no
 cash-out, no wagering. Nothing here creates any of those.
@@ -220,12 +219,6 @@ with `layers` once the betting is complete.
 they gave the cards up, and a server that sends what the reader no longer holds is the pattern this
 product refuses everywhere else. `poker-pass.mjs` found it.
 
-`tools/qa/poker-pass.mjs` plays whole Sit & Gos at 2, 6 and 9 over the real api and checks, at every
-turn, that every chip is accounted for, that no card is ever in two places at once, and that nobody
-holds a card after folding or busting.
-
 ## What is left
 
-Cash tables, rebuys, PLO and hand replay are not built. A two-browser play pass
-through the interface, like `play-pass.mjs` for ludo, is not written yet; the moves were played by
-hand in the browser at 390 (Persian and English), 844x390 and 1280.
+Cash tables, rebuys, PLO and hand replay are not built.

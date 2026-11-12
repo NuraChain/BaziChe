@@ -48,10 +48,6 @@ tools/blender/out/
 tools/blender/preview.png
 *-browser.png
 
-# The matrix's screenshots and reports, the browser passes' recordings, and the one-off checks
-# that import the repository's own packages.
-tools/qa/out/
-
 # The register of AzerothJS defects found while building this. It is notes ABOUT a dependency,
 # not part of this product, and it is kept in the framework's own checkout.
 framework-bugs.md

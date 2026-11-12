@@ -29,7 +29,6 @@
         "assets": "node tools/blender/build.mjs",
         "poster": "node tools/art/poster.mjs",
         "art": "node tools/art/chess.mjs && node tools/art/games.mjs && node tools/art/boards.mjs && node tools/art/poker.mjs && node tools/art/deck.mjs && node tools/art/raster.mjs",
-        "qa": "node tools/qa/matrix.mjs",
         "sound": "node tools/art/sound.mjs",
         "voices": "node tools/art/look-sounds.mjs",
         "call-sounds": "node tools/art/call-sounds.mjs",

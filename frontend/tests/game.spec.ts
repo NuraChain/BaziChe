@@ -15,10 +15,9 @@ import { RANKS as SERVER_RANKS, SUITS as SERVER_SUITS, rankOf as serverRank, sui
 /**
  * The board, from the three angles a rendering test cannot reach.
  *
- * `npm run qa` reads overflow, hit targets, a landmark and the console, and every one of those
- * passes over a canvas drawing the wrong thing - so the numbers that decide WHERE a token lands,
- * WHICH squares it walks over on the way, and whether the sound layer can fail a matrix cell all
- * have to be asserted here or nowhere.
+ * A canvas drawing the wrong thing looks like one drawing the right thing, so the numbers that
+ * decide WHERE a token lands, WHICH squares it walks over on the way, and whether the sound layer
+ * can fail all have to be asserted here or nowhere.
  */
 
 describe('where the grid sits inside the plate', () =>

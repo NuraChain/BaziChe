@@ -56,8 +56,8 @@ interface GameSeed
  * `available` is a claim about a mechanism, and this product deletes those rather than shipping
  * them - the same judgement that removed `game_rules.fairness` and the invented win rates. Each one
  * flips back in the commit that lands its engine, which is what hokm just did: `engines/hokm.ts`
- * deals it, `hokm-pass.mjs` plays whole matches at two, three and four over the real api, and
- * `table.create` joins `games` on this status, so the flip is the thing that opens the door.
+ * deals it, and `table.create` joins `games` on this status, so the flip is the thing that opens
+ * the door.
  *
  * `status` is never overwritten on conflict (see below), so changing it here reaches a database
  * built from nothing and not one that already holds the row. Nothing has shipped, so the answer is

@@ -16,8 +16,8 @@ import { whyFailed } from './failure.ts';
  *     navigate(`/app/play/${ lobby.quick(game) }`)
  *
  * which is perfectly legal TypeScript - a template literal will happily call `toString` on anything -
- * and sends every Play button in the product to `/app/play/[object%20Promise]`. Every gate passed:
- * `npm run qa` tours routes by url and never presses a button, and no spec rendered one.
+ * and sends every Play button in the product to `/app/play/[object%20Promise]`. Every gate passed,
+ * because none of them pressed a button.
  *
  * Taking the promise as an argument is what makes the broken version impossible to write here: the
  * id cannot be interpolated before it exists, because the caller never holds the id at all.

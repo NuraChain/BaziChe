@@ -10,5 +10,4 @@
 .playwright-mcp
 docs
 tools/blender
-tools/qa/out
 coverage

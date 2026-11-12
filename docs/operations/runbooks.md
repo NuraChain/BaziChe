@@ -33,8 +33,8 @@ by why an upgrade was refused (`ceiling`).
 
 **Do** check that one server serves this database: a second process on the same database splits
 the players and each turns people away on its own (the server says `another server is using this
-database` in its log when it finds one). Raise the ceiling only after a load run on this machine
-(`tools/qa/crowd-pass.mjs`), because a socket costs memory and every move costs every watcher.
+database` in its log when it finds one). Raise the ceiling only after a load run on this machine,
+because a socket costs memory and every move costs every watcher.
 
 ### `sockets-behind`
 

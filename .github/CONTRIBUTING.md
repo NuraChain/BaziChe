@@ -45,16 +45,8 @@ And where they apply:
 
 - **The build:** `npm run build`, which also fails when the first load or any page outgrows its
   budget.
-- **Anything a page draws:** the responsive matrix, against the built server on a port of its own
-  with the rate limit raised, on a database a development start has seeded (it signs in as
-  `dana.w`):
-
-  ```sh
-  PORT=5300 PUBLIC_ORIGIN=http://localhost:5300 API_RATE_MAX=20000 npm start
-  QA_BASE=http://localhost:5300 npm run qa
-  ```
-
-  The other passes in `tools/qa/` run the same way, and most say at their top what they need.
+- **Anything a page draws:** the page itself, in a browser, at a phone's width and a desktop's, in
+  English and in Persian.
 
 Never build in a folder a server you care about is serving from: a build deletes the files that
 server's pages name. A server that sees a new build finished under it stops with exit code 75, for

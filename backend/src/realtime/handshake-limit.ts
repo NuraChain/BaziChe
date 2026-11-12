@@ -25,8 +25,7 @@ export interface HandshakeLimit
  * why it has its own spec.
  *
  * Deliberately generous. A refused handshake writes a console error the page cannot suppress,
- * and `npm run qa` fails on a dirty console - so the budget is set where ordinary use, including
- * a matrix run, never reaches it.
+ * so the budget is set where ordinary use never reaches it.
  */
 const HELD_MAX = 4096;
 

@@ -379,8 +379,7 @@ export function buildApi(ports: Ports)
              *
              * Answers 200 with an absent account rather than 401, because "signed out" is a
              * normal state for this route and the client asks it on every boot. A 401 here would
-             * make a perfectly healthy first visit look like a failure in the console - and
-             * `npm run qa` fails on a dirty console.
+             * make a perfectly healthy first visit look like a failure in the console.
              */
             me: routes.get('/me', { output: sessionState }, async (context) =>
             {

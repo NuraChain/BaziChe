@@ -312,19 +312,6 @@ describe('inviting friends', () =>
         expect(api).toContain('invite: context.input.invite,');
         expect(api).not.toContain('ref: context.input.ref');
     });
-
-    it('is sent garbage by the pass that sends every route garbage, or named there as spared', () =>
-    {
-        const pass = readFileSync(fileURLToPath(new URL('../../tools/qa/garbage-pass.mjs', import.meta.url)), 'utf8');
-        const bodies = pass.slice(pass.indexOf('const BODIES ='), pass.indexOf('const WOULD_ACT ='));
-
-        expect(bodies).toContain(`'/public/invites/:code/visit': (bad) => [`);
-        expect(bodies).toContain('invite: bad.slice(0, 32)');
-        expect(pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='))).toContain(`'/invites/code'`);
-        expect(pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='))).toContain(`'/invites/listed'`);
-        expect(pass).toContain(`'/public/invites/':`);
-        expect(pass.slice(pass.indexOf('const QUERIES ='), pass.indexOf('const message ='))).toContain(`'/invites/people': ['cursor']`);
-    });
 });
 
 describe('health', () =>
@@ -689,18 +676,6 @@ describe('a table played for NURA', () =>
 
         expect(told).toEqual([['ready', 'somebody', TABLE, true, '0xab'], ['ready', 'somebody', TABLE, false, undefined]]);
     });
-
-    it('is sent garbage by the pass that sends every route garbage, or named there as spared', () =>
-    {
-        const pass = readFileSync(fileURLToPath(new URL('../../tools/qa/garbage-pass.mjs', import.meta.url)), 'utf8');
-        const bodies = pass.slice(pass.indexOf('const BODIES ='), pass.indexOf('const WOULD_ACT ='));
-        const spared = pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='));
-
-        expect(bodies).toContain(`'/tables/:id/ready': (bad) => [`);
-        expect(bodies).toContain(`'/tables/quick/stake': (bad) => [`);
-        expect(spared).not.toContain(`'/tables/:id/ready'`);
-        expect(spared).toContain(`'/tables/:id/stake'`);
-    });
 });
 
 describe('a write from a page on another site', () =>
@@ -1013,20 +988,6 @@ describe('teaming up', () =>
             'state GET /parties'
         ]);
     });
-
-    it('is sent garbage by the pass that sends every route garbage, or named there as spared', () =>
-    {
-        const pass = readFileSync(fileURLToPath(new URL('../../tools/qa/garbage-pass.mjs', import.meta.url)), 'utf8');
-        const bodies = pass.slice(pass.indexOf('const BODIES ='), pass.indexOf('const WOULD_ACT ='));
-        const spared = pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='));
-
-        expect(bodies).toMatch(/'\/parties': \(bad\) => \[/);
-
-        for (const path of ['/parties/:id/accept', '/parties/:id/decline', '/parties/:id/leave'])
-        {
-            expect(spared, path).toContain(`'${ path }'`);
-        }
-    });
 });
 
 describe('calls', () =>
@@ -1278,25 +1239,6 @@ describe('calls', () =>
             'view GET /calls/:id'
         ]);
     });
-
-    it('is sent garbage by the pass that sends every route garbage, or named there as spared', () =>
-    {
-        const pass = readFileSync(fileURLToPath(new URL('../../tools/qa/garbage-pass.mjs', import.meta.url)), 'utf8');
-        const bodies = pass.slice(pass.indexOf('const BODIES ='), pass.indexOf('const WOULD_ACT ='));
-        const spared = pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='));
-
-        expect(bodies).toMatch(/'\/calls': \(bad\) => \[/);
-
-        for (const path of ['/calls/:id/hand', '/calls/:id/hold', '/calls/:id/remove'])
-        {
-            expect(bodies, path).toContain(`'${ path }': (bad) => [`);
-        }
-
-        for (const path of ['/calls/:id/join', '/calls/:id/accept', '/calls/:id/decline', '/calls/:id/hang-up', '/calls/:id/end', '/calls/:id/hold-all'])
-        {
-            expect(spared, path).toContain(`'${ path }'`);
-        }
-    });
 });
 
 describe('the vault', () =>
@@ -1455,19 +1397,6 @@ describe('the vault', () =>
         }
 
         expect(told).toEqual([]);
-    });
-
-    it('is sent garbage by the pass that sends every route garbage, or named there as spared', () =>
-    {
-        const pass = readFileSync(fileURLToPath(new URL('../../tools/qa/garbage-pass.mjs', import.meta.url)), 'utf8');
-        const bodies = pass.slice(pass.indexOf('const BODIES ='), pass.indexOf('const WOULD_ACT ='));
-        const spared = pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='));
-
-        expect(bodies).toContain(`'/vault/deposit': (bad) => [`);
-        expect(bodies).toContain(`'/vault/withdraw': (bad) => [`);
-        expect(bodies).toContain(`'/vault/reclaim': (bad) => [`);
-        expect(spared).toContain(`'/vault/terms'`);
-        expect(spared).toContain(`'/vault/break'`);
     });
 });
 
@@ -1681,17 +1610,6 @@ describe('the shop', () =>
         expect(await read('/social/people/dana.w')).toEqual({ person: dana, relation: 'friend', mutual: 0, joinedAt, ...page });
         expect(await read('/public/people/dana.w')).toEqual({ person: face, joinedAt, ...page });
         expect(await read('/catalogue/games/ludo/leaderboard')).toEqual({ game: 'ludo', window: 'all', standings });
-    });
-
-    it('is sent garbage by the pass that sends every route garbage', () =>
-    {
-        const pass = readFileSync(fileURLToPath(new URL('../../tools/qa/garbage-pass.mjs', import.meta.url)), 'utf8');
-        const bodies = pass.slice(pass.indexOf('const BODIES ='), pass.indexOf('const WOULD_ACT ='));
-
-        expect(bodies).toContain(`'/shop/chosen': (bad) => [`);
-        expect(bodies).toContain(`'/shop/orders': (bad) => [`);
-        expect(bodies).toContain(`'/shop/orders/:id/sent': (bad) => [`);
-        expect(pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='))).toContain(`'/shop/earnings/claim'`);
     });
 });
 
@@ -2185,54 +2103,6 @@ describe('the owner\'s view of the vault', () =>
         expect((await sent(app, '/staff', { handle: 'mina', role: 'admin', reason: 'x'.repeat(501) })).status).toBe(422);
         expect((await sent(app, '/log?kind=delete')).status).toBe(422);
         expect(told).toEqual([]);
-    });
-
-    it('is sent garbage by the pass that sends every route garbage, or named there as spared', () =>
-    {
-        const pass = readFileSync(fileURLToPath(new URL('../../tools/qa/garbage-pass.mjs', import.meta.url)), 'utf8');
-        const bodies = pass.slice(pass.indexOf('const BODIES ='), pass.indexOf('const WOULD_ACT ='));
-        const spared = pass.slice(pass.indexOf('const SPARED ='), pass.indexOf('const SIGNED_OUT ='));
-        const queries = pass.slice(pass.indexOf('const QUERIES ='), pass.indexOf('const message ='));
-
-        expect(bodies).toContain(`'/admin/vault/fee': (bad) => [`);
-        expect(bodies).toContain(`'/admin/vault/ceiling': (bad) => [`);
-        expect(bodies).toContain(`'/admin/vault/fees': (bad) => [`);
-        expect(bodies).toContain(`'/admin/staff': (bad) => [`);
-        expect(bodies).toContain(`'/admin/people/:handle/notes': (bad) => [`);
-        expect(bodies).toContain(`'/admin/people/:handle/suspend': (bad) => [`);
-        expect(bodies).toContain(`'/admin/people/:handle/lift': (bad) => [`);
-        expect(bodies).toContain(`'/admin/people/:handle/clear': (bad) => [`);
-        expect(bodies).toContain(`'/admin/people/:handle/sign-out': (bad) => [`);
-        expect(bodies).toContain(`'/admin/people/:handle/minor': (bad) => [`);
-        expect(spared).toContain(`'/admin/vault/pause'`);
-        expect(queries).toContain(`'/admin/log': ['cursor', 'staff', 'person', 'kind']`);
-        expect(queries).toContain(`'/admin/people': ['q', 'list', 'cursor']`);
-        expect(queries).toContain(`'/admin/people/:handle/history': ['cursor']`);
-        expect(queries).toContain(`'/admin/reports': ['status', 'cursor']`);
-        expect(queries).toContain(`'/admin/play/matches': ['list', 'game', 'cursor']`);
-        expect(queries).toContain(`'/admin/play/tables': ['game', 'cursor']`);
-        expect(queries).toContain(`'/admin/live': ['cursor']`);
-        expect(bodies).toContain(`'/admin/reports/:id/review': (bad) => [`);
-        expect(bodies).toContain(`'/admin/play/games/:game': (bad) => [`);
-        expect(bodies).toContain(`'/admin/play/matches/:id/void': (bad) => [`);
-        expect(bodies).toContain(`'/admin/play/tables/:id/close': (bad) => [`);
-        expect(bodies).toContain(`'/admin/notice': (bad) => [`);
-        expect(bodies).toContain(`'/admin/notice/end': (bad) => [`);
-        expect(bodies).toContain(`'/admin/shop/items/:id': (bad) => [`);
-        expect(bodies).toContain(`'/admin/shop/featured': (bad) => [`);
-        expect(queries).toContain(`'/admin/shop/orders': ['state', 'delivered', 'item', 'person', 'cursor']`);
-        expect(bodies).toContain(`'/admin/people/:handle/looks': (bad) => [`);
-        expect(bodies).toContain(`'/admin/people/:handle/looks/:item/take': (bad) => [`);
-        expect(bodies).toContain(`'/admin/shop/orders/:id/refund': (bad) => [`);
-        expect(bodies).toContain(`'/admin/shop/money/withdraw': (bad) => [`);
-        expect(bodies).toContain(`'/admin/shop/money/share': (bad) => [`);
-        expect(bodies).toContain(`'/admin/shop/money/seller': (bad) => [`);
-        expect(queries).toContain(`'/admin/invites/campaigns': ['cursor']`);
-        expect(queries).toContain(`'/admin/invites/rewards': ['list', 'person', 'cursor']`);
-        expect(bodies).toContain(`'/admin/invites/campaigns': (bad) => campaignGarbage(bad)`);
-        expect(bodies).toContain(`'/admin/invites/campaigns/:id': (bad) => campaignGarbage(bad)`);
-        expect(bodies).toContain(`'/admin/invites/campaigns/:id/state': (bad) => [`);
-        expect(bodies).toContain(`'/admin/invites/rewards/:id': (bad) => [`);
     });
 
     it('answers anybody who may not give a look as a page that is not there, and takes a look and a reason only in the shapes the wire offers', async () =>

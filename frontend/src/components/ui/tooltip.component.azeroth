@@ -147,8 +147,7 @@ export default component Tooltip(props: {
      * `onFocusIn` fires for a programmatic `.focus()` too, and every sheet in this product moves
      * focus to its close button as it opens - so each one opened with the word "Close" floating over
      * its own first paragraph, which on the table sheet covered the sentence saying who can sit
-     * down. Nothing failed: the matrix reads overflow, hit targets, a landmark and the console, and
-     * a tooltip in the wrong place is none of those.
+     * down, and nothing failed, because a tooltip in the wrong place breaks no check.
      *
      * `:focus-visible` is the browser's own answer to "did a person tab here", so it shows for a
      * keyboard user - who needs the name and cannot hover for it - and stays quiet for focus the

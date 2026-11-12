@@ -216,10 +216,6 @@ turn once it is complete. The rules coach (`frontend/src/game/helpers/backgammon
 higher die from the same module's `forcedDie`, the function `turns` uses, and keeps no copy of the
 rule.
 
-`tools/qa/backgammon-pass.mjs` plays whole matches at 1, 3 and 5 points over the real api.
-
 ## Not built yet
 
 1. The achievements (`backgammon-first-win`, `-gammon`, `-cube`, `-master`) and the rating cases.
-2. A two-browser play pass that plays a match through the interface, like `play-pass.mjs` does for
-   ludo.

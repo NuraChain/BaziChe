@@ -101,8 +101,8 @@ describe('the handshake gate', () =>
 
     it('admits the built-server case, where the browser and the server share a port', () =>
     {
-        // This is `npm run qa` against the built server, and it is the case a `config.origin`
-        // comparison alone refuses - six hundred times, on the gate that must be 600/600.
+        // This is a browser on the built server, and it is the case a `config.origin`
+        // comparison alone refuses.
         expect(gate('http://localhost:4900', { host: 'localhost:4900', cookie: COOKIE })).toBe(true);
     });
 

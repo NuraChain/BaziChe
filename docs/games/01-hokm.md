@@ -1,7 +1,6 @@
 # Hokm — حکم
 
-**Status:** playable. The engine, the board and the passes (`tools/qa/hokm-pass.mjs`,
-`hokm-play-pass.mjs` and `hokm-motion-pass.mjs`) are built, and `games.status` is `available`. The
+**Status:** playable. The engine and the board are built, and `games.status` is `available`. The
 plan below is the one the game was built from; where it and the code disagree, the code is right.
 
 Canonical ruleset: [Pagat — Hokm](https://www.pagat.com/whist/hokm.html), 2, 3 and 4 players.

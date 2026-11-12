@@ -1,8 +1,7 @@
 # Ludo — منچ
 
-**Status:** playable. The engine, the board, the API pass (`tools/qa/ludo-pass.mjs`) and the browser
-pass (`tools/qa/play-pass.mjs`) are built, `games.status` is `available`, and the achievements are
-live. A table of four is also played two against two when whoever opens it says so (see *Teams*):
+**Status:** playable. The engine and the board are built, `games.status` is `available`, and the
+achievements are live. A table of four is also played two against two when whoever opens it says so (see *Teams*):
 the catalogue's `partners` for ludo is `optional`.
 
 Ruleset: **Variant B, the common Iranian rules** (the owner's decision). It is the Ludo cross with
@@ -426,9 +425,5 @@ reports.
   a star stand side by side. A win throws confetti in the colour of every seat that won.
 - **The result** is read by side, as at any table of two sides.
 
-`helpers-ludo.spec.ts` (*two against two*) and `game.spec.ts` hold the browser's half, `engine-seam.spec.ts` the board on the wire, and
-`tools/qa/ludo-pass.mjs` plays a whole game of two against two over the api: both partners win,
-nothing is sent home by its own side, no roll is offered a move onto a pair of the other side or
-past one (T7), a pair of two colours holds a token back with nothing else in its way, no square
-holds three tokens of a side (T7b), the finish names both seats, and a seat whose four were home
-moves its partner's tokens.
+`helpers-ludo.spec.ts` (*two against two*) and `game.spec.ts` hold the browser's half, and
+`engine-seam.spec.ts` the board on the wire.

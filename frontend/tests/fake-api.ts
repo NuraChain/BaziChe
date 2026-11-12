@@ -233,9 +233,9 @@ interface TableWire
 /**
  * The seat claim, in memory.
  *
- * The RACE is the server's business and `seat-race.spec.ts` owns it against a real Postgres.
- * What this fake exists to prove is the other half: that the client sends what it said it would,
- * renders what came back, and treats "no chair" as an answer rather than an error.
+ * The RACE is the server's business. What this fake exists to prove is the other half: that the
+ * client sends what it said it would, renders what came back, and treats "no chair" as an answer
+ * rather than an error.
  */
 function restate(table: TableWire)
 {
@@ -1606,8 +1606,8 @@ export const server =
      * The recovery vault, exactly as opaque here as it is on the real server.
      *
      * This fake stores four strings it cannot read and verifies nothing, because verifying a P-256
-     * signature is a claim about the SERVER and belongs to `recovery.db.spec.ts` against a real
-     * Postgres. What it is for is letting a page mount the store without exploding.
+     * signature is a claim about the SERVER. What it is for is letting a page mount the store
+     * without exploding.
      */
     vault: null as { salt: string; publicKey: string; wrapped: string; checkValue: string } | null,
     nura: nuraFresh(),
@@ -1640,9 +1640,8 @@ export const server =
     /**
      * Devices, in memory.
      *
-     * This fake does NOT recompute an id from the keys. That rule belongs to the real server and
-     * `device.db.spec.ts` owns it against a real Postgres; re-implementing it here would only
-     * prove the fake agrees with itself, and it would make arranging a tampered row - which is a
+     * This fake does NOT recompute an id from the keys. That rule belongs to the real server;
+     * re-implementing it here would only prove the fake agrees with itself, and it would make arranging a tampered row - which is a
      * state the client has to render - impossible.
      */
     devices: [] as Device[],
@@ -1685,8 +1684,7 @@ export const server =
      * Something happened to me, with the server's dedupe rule applied.
      *
      * One row per key: a second arrival bumps the count, moves it to the top and unreads it. The
-     * RULE is the server's and `notify.db.spec.ts` owns it against a real Postgres; this is here
-     * so a client test can arrange a list without a database.
+     * RULE is the server's; this is here so a client test can arrange a list without a database.
      */
     notify(input: { kind: NotificationWire['kind']; actor?: string; ref?: Record<string, string>; dedupeKey: string })
     {
@@ -3930,9 +3928,8 @@ export const client =
          * Who could have signed here.
          *
          * Derived from the member device lists rather than kept separately, because every device a
-         * spec arranges is a current one - revoked history is a DATABASE claim and belongs to
-         * `peer-devices.db.spec.ts` against a real Postgres, not to a fake that would only agree
-         * with itself about it.
+         * spec arranges is a current one - revoked history is a DATABASE claim, not one for a fake
+         * that would only agree with itself about it.
          */
         async signers({ params }: { params: { id: string } })
         {
@@ -4333,8 +4330,8 @@ export const client =
     /**
      * Groups, in memory.
      *
-     * The slug claim is the server's business - `groups.db.spec.ts` owns that race - so this
-     * fake takes the folded name and appends a counter when it is taken. What it exists to prove
+     * The slug claim is the server's business, so this fake takes the folded name and appends a
+     * counter when it is taken. What it exists to prove
      * is that the CLIENT sends what it said it would and renders what came back.
      */
     groups:

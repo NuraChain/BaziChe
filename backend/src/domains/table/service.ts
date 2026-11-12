@@ -1191,8 +1191,7 @@ export function createTableService(db: DataSource, social: SocialService)
          * simply matches nothing.
          *
          * Deciding the seat in application code and then writing it is the same race with extra
-         * steps, and the symptom is two people in the last chair. `tests/seat-race.spec.ts` fires
-         * ten claimers at three chairs.
+         * steps, and the symptom is two people in the last chair.
          */
         async claimSeat(me: string, tableId: string): Promise<number | null>
         {

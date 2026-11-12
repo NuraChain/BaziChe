@@ -4,8 +4,8 @@ import { HAND_BUILT_INDEX_NAMES } from './schema.ts';
  * What TypeORM's schema builder would change to make the database match the entities, less what it
  * always says and never means.
  *
- * `log()` is never empty, even on a database `syncSchema` built a moment ago (`converge.db.spec.ts`
- * holds both wrinkles): it drops the hand-built DESC indexes, which it cannot express and takes for
+ * `log()` is never empty, even on a database `syncSchema` built a moment ago: it drops the hand-built
+ * DESC indexes, which it cannot express and takes for
  * strays, and it re-issues one column default Postgres renders in another spelling. Left in, every
  * generated migration would drop those indexes and every boot would report drift. Taken out here, in
  * one place, for the drift check and the generator alike.

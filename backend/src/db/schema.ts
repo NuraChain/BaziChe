@@ -81,9 +81,8 @@ export async function createUnexpressibleIndexes(db: DataSource)
  * went on refusing it, and a perfectly good roll came back a 500 because the notification after it
  * could not be written.
  *
- * **No test could have caught it, and that is the part worth keeping.** `schema.db.spec.ts`,
- * `converge.db.spec.ts` and the snapshot recorder all build a database FROM NOTHING, where a
- * changed constraint and a new one are the same thing. Every gate was green while both real
+ * **No test could have caught it, and that is the part worth keeping.** A database built FROM
+ * NOTHING cannot tell a changed constraint from a new one. Every gate was green while both real
  * databases held the old rule - and production runs this same function through
  * `npm run schema:sync`, so a deployed database would have kept it forever.
  *

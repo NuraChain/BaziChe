@@ -43,9 +43,6 @@ npm run test:shuffle   # the same in random order, which finds specs that lean o
 
 And where they apply:
 
-- **The database:** `npm run test:db --workspace backend`, with `TEST_DATABASE_URL` naming a
-  database you do not mind losing, since it empties the tables before every test. Where Postgres
-  asks for a password, write it in that URL: the spec of `npm run setup` types it from there.
 - **The build:** `npm run build`, which also fails when the first load or any page outgrows its
   budget.
 - **Anything a page draws:** the responsive matrix, against the built server on a port of its own
@@ -72,8 +69,8 @@ written. And:
 - **Comment only what the code cannot say**: why a choice was made, a constraint from outside the
   code, or a trap the next person would fall into. Never what the code does.
 - **Build the final shape.** Nothing has shipped, so there are no migrations, compatibility shims or
-  flags guarding an old behaviour. A schema change is a change to an entity, with
-  `backend/tests/schema-snapshot.json` recorded again in a commit of its own.
+  flags guarding an old behaviour. A schema change is a change to an entity, in a
+  commit of its own.
 - **The wire is declared once**, in `backend/src/schemas.ts`, and the browser's types come from it.
 - **The database is reached through TypeORM**; raw SQL only for what a repository cannot say, with a
   sentence naming which.

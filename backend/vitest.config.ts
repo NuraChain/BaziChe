@@ -1,11 +1,4 @@
-import { configDefaults, defineConfig } from 'vitest/config';
-
-/**
- * The suites that need a real Postgres. Kept out of `npm test` and run by `npm run test:db`
- * (`vitest.db.config.ts`), so the everyday run is not a few thousand skipped tests and the
- * database run is not everything else as well.
- */
-export const DB_SPECS = ['tests/**/*.db.spec.ts', 'tests/seat-race.spec.ts'];
+import { defineConfig } from 'vitest/config';
 
 // THE FILENAME IS LOAD-BEARING. `vite.config.ts` here would make the CLI's detect.ts see a vite
 // config in a directory that declares neither vite nor a frontend package, which drops the
@@ -44,7 +37,6 @@ export default defineConfig({
     test:
     {
         environment: 'node',
-        exclude: [...configDefaults.exclude, ...DB_SPECS],
         setupFiles: ['reflect-metadata'],
         typecheck:
         {

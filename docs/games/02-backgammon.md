@@ -202,10 +202,6 @@ about the same as a ludo or hokm win.
 - `backend/tests/backgammon-seam.spec.ts`: every reader gets the same board and log all match long,
   the wire round-trips through the shared unions, and `parse` refuses other games' plays.
 - `backend/tests/engine-contract.spec.ts` plays random 1-point matches under its 3,000-action bound.
-- `backend/tests/backgammon.db.spec.ts` (opt-in, a real Postgres) plays through the match service: a
-  resignation at the opening is a rated loss and leaves the other seat `void` with nothing recorded,
-  four moves each and then a resignation is a rated win, and a turn the sweep played never counts as
-  a move of the seat it played for.
 
 ---
 

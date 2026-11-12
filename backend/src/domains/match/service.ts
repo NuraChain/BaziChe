@@ -503,8 +503,8 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
         /**
          * A person's own finished games, newest first, by keyset over `(finished_at, id)`.
          *
-         * Keyset rather than OFFSET for the reason `chat.db.spec.ts` already pins: a game finishing
-         * while somebody is paging back repeats or skips a row every time.
+         * Keyset rather than OFFSET: a game finishing while somebody is paging back would repeat or
+         * skip a row every time.
          */
         async history(me: string, cursor: string | null): Promise<MatchHistory>
         {

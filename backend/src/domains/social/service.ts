@@ -206,8 +206,7 @@ export function createSocialService(db: DataSource)
         {
             // Ordered, because the settings page renders this list. An unordered SELECT hands
             // back whatever Postgres finds first, which reshuffles between page loads for no
-            // reason anybody can see - and it made `social.db.spec.ts` fail once a later
-            // migration changed what "first" happened to mean.
+            // reason anybody can see.
             const rows = await db.getRepository(Mute).find({
                 select: { subjectKind: true, subjectId: true },
                 where: { userId: me },

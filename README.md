@@ -168,7 +168,6 @@ never built into a payload that seat may not have.
 | `npm test` | every unit spec, with no database |
 | `npm run test:changed` | only the specs that what is not yet pushed can change |
 | `npm run test:shuffle` | the same, in random order |
-| `npm run test:db --workspace backend` | the database specs, against `TEST_DATABASE_URL`, which they empty |
 | `npm run build` | the server, the client, the prerendered pages, and the size budgets |
 | `npm start` | the built server: api, realtime and pages on one origin |
 | `npm run qa` | the responsive matrix, Playwright across the app's pages at many sizes |

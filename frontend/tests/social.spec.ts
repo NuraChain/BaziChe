@@ -601,8 +601,7 @@ describe('chat store', () =>
         expect(chat.conversations().some((conversation) => conversation.id === 'c-sara')).toBe(true);
 
         // The client does not filter a thread out of a list it did not build. Blocking is a
-        // write, and what comes back next is the answer - which social.db.spec.ts proves the
-        // real server gives.
+        // write, and what comes back next is the answer.
         server.conversations = server.conversations.filter((row) => !row.members.includes('sara.k'));
         await chat.refresh();
         expect(chat.conversations().some((conversation) => conversation.id === 'c-sara')).toBe(false);

@@ -1,5 +1,5 @@
 import { NotFoundError, type HttpError } from '@azerothjs/http';
-import { IsNull, type DataSource, type EntityManager } from 'typeorm';
+import { In, IsNull, type DataSource, type EntityManager } from 'typeorm';
 import { getAddress, toHex, type Address, type Hex } from 'viem';
 
 import { commitOf, freshBytes, vaultIdOf, type Refusal, type Stake, type Vault, type VaultCall, type VaultGame } from '../../chain/vault.ts';
@@ -428,13 +428,12 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
 
             if (dropped.length > 0)
             {
-                for (const chair of dropped)
-                {
-                    await tx.getRepository(TableSeat).update({ tableId, userId: chair.userId as string }, { ready: false });
-                    await tx.getRepository(StakeConsent).delete({ tableId, userId: chair.userId as string });
-                }
+                const players = dropped.map((chair) => chair.userId as string);
 
-                return { locked: null, dropped: dropped.map((chair) => chair.userId as string) };
+                await tx.getRepository(TableSeat).update({ tableId, userId: In(players) }, { ready: false });
+                await tx.getRepository(StakeConsent).delete({ tableId, userId: In(players) });
+
+                return { locked: null, dropped: players };
             }
 
             const opened = await tx.getRepository(Escrow).insert({
@@ -495,10 +494,10 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
                 return;
             }
 
-            for (const seat of named === undefined ? seats : [named])
-            {
-                await tx.getRepository(TableSeat).update({ tableId: row.table_id, userId: seat.userId }, { ready: false });
-            }
+            await tx.getRepository(TableSeat).update(
+                { tableId: row.table_id, userId: In((named === undefined ? seats : [named]).map((seat) => seat.userId)) },
+                { ready: false }
+            );
 
             if (named === undefined)
             {

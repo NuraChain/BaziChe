@@ -739,6 +739,6 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'board.season': 'Saison',
     'board.seasonNumber': 'Saison {number}',
     'board.seasonNamed': 'Saison {number} : {name}',
-    'board.seasonLeft': { one: '1 jour restant', other: '{count} jours restants' },
+    'board.seasonLeft': { one: '1 jour restant', many: '{count} de jours restants', other: '{count} jours restants' },
     'board.seasonNone': 'Aucune saison n’est en cours. Le classement s’ouvrira au début de la prochaine.'
 };

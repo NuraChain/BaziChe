@@ -739,6 +739,6 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'board.season': 'Temporada',
     'board.seasonNumber': 'Temporada {number}',
     'board.seasonNamed': 'Temporada {number}: {name}',
-    'board.seasonLeft': { one: 'Falta 1 dia', other: 'Faltam {count} dias' },
+    'board.seasonLeft': { one: 'Falta 1 dia', many: 'Faltam {count} de dias', other: 'Faltam {count} dias' },
     'board.seasonNone': 'Nenhuma temporada em andamento agora. O placar abre quando a próxima começar.'
 };

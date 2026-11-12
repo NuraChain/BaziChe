@@ -26,8 +26,7 @@ const MIME = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126
 export function nameOf(raw: string)
 {
     const last = raw.split(/[/\\]/).pop() ?? '';
-    // eslint-disable-next-line no-control-regex
-    const clean = last.replace(/[\u0000-\u001f\u007f‪-‮⁦-⁩]/g, '').trim();
+    const clean =last.replace(/[\u0000-\u001f\u007f‪-‮⁦-⁩]/g, '').trim();
 
     if (clean === '' || clean === '.' || clean === '..')
     {

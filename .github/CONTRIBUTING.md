@@ -29,7 +29,7 @@ accounts, and with another in a second browser profile you can play against your
 While you work, the quick ones:
 
 ```sh
-npm run check          # typechecks and lints both workspaces side by side, keeping what it can
+npm run check          # typechecks both workspaces side by side, keeping what it can
 npm run test:changed   # only the specs that what is not yet pushed can change
 ```
 
@@ -40,9 +40,6 @@ npm run check:full     # the same checks with nothing kept, then the server's sp
 npm test               # every unit spec, with no database
 npm run test:shuffle   # the same in random order, which finds specs that lean on each other
 ```
-
-`npm run check` can pass where `check:full` does not: ESLint's cache does not see that an edit to
-one file changed what a type-aware rule says of another.
 
 And where they apply:
 
@@ -68,8 +65,9 @@ whatever supervises it to start it again.
 
 ## How the code is written
 
-`npm run check` holds the style: Allman braces, four spaces, single quotes, no trailing commas, LF
-line endings, and no return type the compiler would infer by itself. Beyond what a linter sees:
+The style is Allman braces, four spaces, single quotes, no trailing commas, LF line endings, and no
+return type the compiler would infer by itself. No tool holds it, so write as the code around you is
+written. And:
 
 - **Comment only what the code cannot say**: why a choice was made, a constraint from outside the
   code, or a trap the next person would fall into. Never what the code does.

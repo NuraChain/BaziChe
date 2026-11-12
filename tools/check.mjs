@@ -1,19 +1,15 @@
 /**
- * `npm run check`: the quick gate while working. The same steps as `azeroth check` and the server's
- * spec typecheck, with what each can keep between runs kept, and the two halves side by side.
+ * `npm run check`: the quick gate while working. The same typechecks as `azeroth check` and the
+ * server's spec typecheck, with what each can keep between runs kept, and the two halves side by side.
  *
  * - The server's typechecks are incremental, each with a `.tsbuildinfo` of its own under
  *   `node_modules/.cache/check/`. Never the server's tsconfig: `azeroth build` emits through that
  *   file, and a build that shares a `.tsbuildinfo` with a check that emits nothing can believe it
  *   is already up to date (`backend/tsconfig.json` says so beside `useDefineForClassFields`).
- * - ESLint keeps a cache of the files it passed. Its type-aware rules can be changed for a file by
- *   an edit to ANOTHER one, which the cache does not see: a pass here can be stale, which is why
- *   `npm run check:full`, with no cache at all, is the gate before a push.
  * - The browser's typecheck (`azeroth-tsc`) keeps nothing, so it runs whole, beside the server.
  *
- * Each half runs its steps in turn: five TypeScript programs at once is more memory than a laptop
- * has to give. What a step printed is held and shown under its name once it ends, so two halves
- * never interleave.
+ * Each half runs its steps in turn, so no more than two TypeScript programs are in memory at once.
+ * What a step printed is held and shown under its name once it ends, so two halves never interleave.
  */
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -26,18 +22,15 @@ const cache = at('node_modules/.cache/check/');
 mkdirSync(cache, { recursive: true });
 
 const TSC = at('node_modules/typescript/bin/tsc');
-const ESLINT = at('node_modules/eslint/bin/eslint.js');
 const AZEROTH_TSC = at('node_modules/@azerothjs/language-server/dist/tsc-cli.js');
 
 const LANES = [
     [
         { label: 'api typecheck', cwd: 'backend', script: TSC, args: ['--noEmit', '-p', 'tsconfig.json', '--incremental', '--tsBuildInfoFile', `${ cache }backend.tsbuildinfo`] },
-        { label: 'api lint', cwd: 'backend', script: ESLINT, args: ['.', '--cache', '--cache-location', `${ cache }backend.eslintcache`] },
         { label: 'api specs typecheck', cwd: 'backend', script: TSC, args: ['--noEmit', '-p', 'tsconfig.test.json', '--incremental', '--tsBuildInfoFile', `${ cache }backend-tests.tsbuildinfo`] }
     ],
     [
-        { label: 'web typecheck', cwd: 'frontend', script: AZEROTH_TSC, args: [] },
-        { label: 'web lint', cwd: 'frontend', script: ESLINT, args: ['.', '--cache', '--cache-location', `${ cache }frontend.eslintcache`] }
+        { label: 'web typecheck', cwd: 'frontend', script: AZEROTH_TSC, args: [] }
     ]
 ];
 

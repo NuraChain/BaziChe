@@ -163,7 +163,7 @@ never built into a payload that seat may not have.
 | Command | What it does |
 |---|---|
 | `npm run dev` | the api on 4900, rebuilt on every change, and Vite on 3100 |
-| `npm run check` | the quick gate while working: both workspaces typechecked and linted side by side, keeping what each can between runs |
+| `npm run check` | the quick gate while working: both workspaces typechecked side by side, keeping what each can between runs |
 | `npm run check:full` | the same with nothing kept, then the server's specs typechecked: the gate before a push |
 | `npm test` | every unit spec, with no database |
 | `npm run test:changed` | only the specs that what is not yet pushed can change |

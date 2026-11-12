@@ -133,7 +133,6 @@ function wordsOf(bytes: Uint8Array): string | null
     {
         const words = new TextDecoder(encoding, { fatal: true }).decode(start, { stream: true });
 
-        // eslint-disable-next-line no-control-regex
         return /[\u0000-\u0008\u000e-\u001a\u001c-\u001f\u007f]/.test(words) ? null : words;
     }
     catch

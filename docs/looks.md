@@ -12,9 +12,9 @@ purchase works is the shop's design (`docs/design/2026-10-27-shop-design.md`); t
 |---|---|---|
 | What is sold: its id, its line, its names and its blurb | `backend/src/domains/shop/catalogue.ts`: `SHOP_COLLECTIONS`, `LEGENDARY_COLLECTIONS`, `COLLECTION_NAMES`, `COLLECTION_BLURBS` | it is the catalogue, and the seed writes its rows at every boot |
 | The collections the browser draws | `frontend/src/game/looks/frames.ts` (`FRAMES`) | `satisfies readonly ShopCollection[]`; that it names every one is kept by hand |
-| Its colours | `game/looks/palette.ts` (`PALETTES`) | `satisfies Record<ShopCollection, Palette>`, and `look-palette.spec.ts` |
+| Its colours | `game/looks/palette.ts` (`PALETTES`) | `satisfies Record<ShopCollection, Palette>` |
 | Its light and its moments | `game/looks/`, a table a moment (*The motion*, below) | a `satisfies Record<…>` over the collections on every table, and `look-identity.spec.ts` |
-| Its voice | `tools/art/voices/<collection>.mjs`, written into `frontend/src/game/sound/looks/` | `VOICES` in `voices/index.mjs`, `LOOK_PACKS` in `game/sound-files.ts`, the build and `look-pack.spec.ts` |
+| Its voice | `tools/art/voices/<collection>.mjs`, written into `frontend/src/game/sound/looks/` | `VOICES` in `voices/index.mjs`, `LOOK_PACKS` in `game/sound-files.ts`, and the build |
 | Its shape language, for a collection on the legendary line | `tools/art/legendary/<collection>.mjs` | `LEGENDARY` in `legendary/index.mjs` |
 | Its rules in the stylesheet | `frontend/src/styles/app.css` | the sheet specs in the server suite (*The stylesheet*, below) |
 
@@ -39,9 +39,8 @@ light falls to where it does not.
 | `ground` | where its looks are shown |
 | `pattern` | its motif: `sparkle`, `girih`, `grid` and `filigree` are drawn by the tools themselves, and a legendary collection's names its own module (`lineOf`) |
 
-A pawn keeps its seat's colour as its body (`SEAT_RAMPS`, the Ludo board's own paint).
-`look-palette.spec.ts` (server suite) measures every collection's ink, pips and sides against those
-rules. A die and a stack of chips are no file: a die is drawn from custom properties its palette
+A pawn keeps its seat's colour as its body (`SEAT_RAMPS`, the Ludo board's own paint). Nothing
+measures a palette against those rules, so its contrasts are worked out as it is written. A die and a stack of chips are no file: a die is drawn from custom properties its palette
 gives (`DIE_PROPERTIES` in `dice.ts`), and chips from the tones of the shop's own chip
 (`chipTones` in `tools/art/look-parts.mjs`).
 
@@ -104,22 +103,19 @@ committed, and the walks keep screenshots of every collection at 3x.
 ## The stylesheet
 
 A look reaches the page as an attribute on its owner's things, and `app.css` turns it into the
-collection's file or colours. These rules name every collection, and each has a spec in the server
-suite that names the one missing:
+collection's file or colours. These rules name every collection, so a collection is added to each:
 
-| Rule | Spec |
-|---|---|
-| `[data-deco]`, and its still twin for somebody who asked for less motion | `frame-sheet.spec.ts` |
-| `[data-plate]` | `plate-sheet.spec.ts` |
-| `[data-faces]`, `[data-backs]`, and the shine of a back on the legendary line | `card-sheet.spec.ts` |
-| `[data-yard]` | `yard-sheet.spec.ts` |
-| `[data-mat]` | `felt-sheet.spec.ts` |
-| `[data-chips]` | `chip-sheet.spec.ts` |
-| `[data-checkers][data-tone]`, `.bgt-home[data-home]` | `checker-sheet.spec.ts` |
+- `[data-deco]`, and its still twin for somebody who asked for less motion
+- `[data-plate]`
+- `[data-faces]`, `[data-backs]`, and the shine of a back on the legendary line
+- `[data-yard]`
+- `[data-mat]`
+- `[data-chips]`
+- `[data-checkers][data-tone]`, `.bgt-home[data-home]`
 
 A theme's cover, a sigil and a look's own drawing are pictures named by the collection, which the
 build holds to a file in their folders. A chess set is twelve custom properties the board sets
-(`chess.ts`), and `piece-sheet.spec.ts` holds each to a drawing the build ships.
+(`chess.ts`), each naming a drawing the build ships.
 
 ## The voices
 
@@ -144,8 +140,7 @@ backgammon the dice are `die`, a hit `capture`, an entry from the bar `spawn` an
 `pawn`; at chess a piece set down and castling are `pawn`, a capture and a mate `capture`, and a
 promotion `spawn`. A game's entrance is `spawn` at every table. A pack is fetched only where one of its looks is heard (`wear` on a sound handle),
 under the device's sound switch, and the celebration's one long take only where somebody wears that
-celebration. The build refuses a missing, stray or oversized pack (64 KB), `look-pack.spec.ts`
-holds every pack to every moment, and the credits (`tools/art/sound-src/LICENSE.txt`) say the takes
+celebration. The build refuses a missing, stray or oversized pack (64 KB), and the credits (`tools/art/sound-src/LICENSE.txt`) say the takes
 are made by code here and are CC0.
 
 ## Adding a collection
@@ -155,7 +150,7 @@ are made by code here and are CC0.
    blurb. The seed writes its looks and its bundle at the next boot; no schema change, since no
    CHECK names a collection.
 2. `frames.ts`: its id in `FRAMES`.
-3. `palette.ts`: its palette. Run the server suite: `look-palette.spec.ts` says what fails.
+3. `palette.ts`: its palette, held by hand to the rules of *The palette*.
 4. Its light and every moment: an entry in each table of *The motion*; `npm run check` lists each
    one missing.
 5. On the legendary line, its shape language: `tools/art/legendary/<collection>.mjs` in

@@ -1,0 +1,111 @@
+import { Show, type Child } from 'azerothjs';
+
+import { useRewards } from '../../stores/rewards.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Panel from '../ui/panel.component.azeroth';
+
+export type QuestView = {
+    id: string;
+    period: 'daily' | 'weekly';
+    game: string;
+    title: string;
+    blurb: string;
+    target: number;
+    progress: number;
+    done: boolean;
+    claimed: boolean;
+};
+
+export function QuestRow(props: { quest: QuestView; onClaim: (period: 'daily' | 'weekly', id: string) => Promise<void>; class?: string })
+{
+    const locale = useLocale();
+    const quest = props.quest;
+
+    const pct = quest.target <= 0 ? 100 : Math.min(100, (quest.progress / quest.target) * 100);
+
+    const claim = async () =>
+    {
+        await props.onClaim(quest.period, quest.id);
+    };
+
+    return (
+        <Panel section class={ props.class ?? '' }>
+            <div class="flex flex-col gap-3">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="flex min-w-0 flex-col gap-1">
+                        <div class="text-ui-sm font-semibold text-text">{ quest.title }</div>
+                        <div class="text-xs text-muted">{ quest.blurb }</div>
+                    </div>
+                    <div class="text-ui-sm font-mono text-text">{ quest.progress } / { quest.target }</div>
+                </div>
+                <div class="w-full bg-border rounded-full h-2">
+                    <div class={ ['h-2 rounded-full', quest.done ? 'bg-accent' : 'bg-accent/30', `w-[${ pct }%]`].filter(Boolean).join(' ') } />
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                    <Show when={ !quest.done }>
+                        { () => <span class="text-xs text-muted">In progress</span> }
+                    </Show>
+                    <Show when={ quest.done && !quest.claimed }>
+                        { () =>
+                            <Button onClick={ claim } variant="solid" size="sm">
+                                { locale.t('app.rewards.claim') }
+                            </Button>
+                        }
+                    </Show>
+                    <Show when={ quest.claimed }>
+                        { () => <span class="text-xs text-accent">{ locale.t('app.rewards.claimed') }</span> }
+                    </Show>
+                </div>
+            </div>
+        </Panel>
+    );
+}
+
+export default component Quests(props: { class?: string })
+{
+    const locale = useLocale();
+    const rewards = useRewards();
+
+    const daily = rewards.dailyQuests();
+    const weekly = rewards.weeklyQuests();
+    const chestClaimed = rewards.chestClaimed();
+
+    return (
+        <div class={ ['flex flex-col gap-4', props.class ?? ''].filter(Boolean).join(' ') }>
+            <Show when={ daily.length > 0 }>
+                { () =>
+                    <div class="flex flex-col gap-3">
+                        <h3 class="text-ui-lg font-semibold text-text">{ locale.t('app.rewards.dailyQuests') }</h3>
+                        { daily.map((quest) => (
+                            <QuestRow
+                                key={ quest.id }
+                                quest={ quest }
+                                onClaim={ (period, id) => rewards.claimQuest(period, id) }
+                            />
+                        ))}
+                    </div>
+                }
+            </Show>
+            <Show when={ weekly.length > 0 }>
+                { () =>
+                    <div class="flex flex-col gap-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <h3 class="text-ui-lg font-semibold text-text">{ locale.t('app.rewards.weeklyQuests') }</h3>
+                            <Show when={ chestClaimed }>
+                                { () => <span class="text-xs text-accent">{ locale.t('app.rewards.chest') }</span> }
+                            </Show>
+                        </div>
+                        { weekly.map((quest) => (
+                            <QuestRow
+                                key={ quest.id }
+                                quest={ quest }
+                                onClaim={ (period, id) => rewards.claimQuest(period, id) }
+                            />
+                        ))}
+                    </div>
+                }
+            </Show>
+        </div>
+    );
+}

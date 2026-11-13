@@ -1,0 +1,74 @@
+import { Show, type Child } from 'azerothjs';
+
+import { useRewards } from '../../stores/rewards.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Icon from '../../icons/icon.component.azeroth';
+
+export default component CheckInCard(props: { class?: string })
+{
+    const locale = useLocale();
+    const rewards = useRewards();
+
+    const today = rewards.today();
+    const claimable = rewards.claimable();
+    const streak = rewards.streak();
+    const ladder = rewards.ladder();
+
+    const checkIn = async () =>
+    {
+        await rewards.checkIn();
+    };
+
+    return (
+        <div class={ ['flex flex-col gap-4', props.class ?? ''].filter(Boolean).join(' ') }>
+            <div class="flex items-baseline gap-2">
+                <div class="text-ui-lg font-semibold text-text">{ locale.t('app.rewards.streak') }</div>
+                <div class="text-ui-xl font-mono text-accent">{ streak }</div>
+                <Show when={ streak >= 3 }>
+                    { () => <span class="text-xs text-muted">{ locale.t('app.rewards.streakNudge') }</span> }
+                </Show>
+            </div>
+
+            <div class="grid grid-cols-7 gap-1">
+                { ladder.map((step) => (
+                    <div
+                        class={ [
+                            'aspect-square rounded-control border border-line',
+                            step.claimed ? 'bg-accent/20 border-accent/60' : 'bg-field',
+                            step.day === today ? 'ring-2 ring-accent' : ''
+                        ].filter(Boolean).join(' ') }
+                        title={ locale.t('app.rewards.day', { day: step.day }) }
+                    >
+                        <div class="flex h-full w-full flex-col items-center justify-center gap-0.5">
+                            <div class="text-ui-xs font-semibold text-text">{ step.day }</div>
+                            <div class="text-[10px] text-muted">{ step.amount }</div>
+                            <Show when={ step.look !== undefined }>
+                                { () =>
+                                    <span class={ step.look === 'exclusive' ? 'text-accent' : 'text-muted' }>
+                                        <Icon name="medal" size={ 10 } />
+                                    </span>
+                                }
+                            </Show>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div class="flex items-center justify-between gap-3">
+                <div class="text-xs text-muted">
+                    { claimable ? locale.t('app.rewards.today') : locale.t('app.rewards.claimed') }
+                </div>
+                <Button
+                    disabled={ !claimable }
+                    onClick={ checkIn }
+                    loading={ false }
+                    variant={ claimable ? 'solid' : 'outline' }
+                    block={ true }
+                >
+                    { locale.t('app.rewards.checkIn') }
+                </Button>
+            </div>
+        </div>
+    );
+}

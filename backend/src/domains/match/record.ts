@@ -2,6 +2,8 @@ import { In, IsNull, type EntityManager } from 'typeorm';
 
 import { Match, MatchAction, MatchPlayer, PlayerStats } from '../../entities/index.ts';
 import type { AchieveService } from '../achieve/service.ts';
+import type { QuestProgressHook, RewardFinishEffects, RewardFinishPlayer } from '../reward/progress.ts';
+import type { GameId } from '../reward/quests.ts';
 import type { Ending, Engine } from './engine.ts';
 import { movesOf, planOf } from './judge.ts';
 import { XP_FINISH, xpFor } from './levels.ts';
@@ -43,15 +45,16 @@ const eventsOf = async (tx: EntityManager, matchId: string): Promise<unknown[]> 
 
 export interface Recorder
 {
-    finish(tx: EntityManager, match: Match, engine: Engine, state: unknown, ending: Ending): Promise<void>;
+    finish(tx: EntityManager, match: Match, engine: Engine, state: unknown, ending: Ending): Promise<RewardFinishEffects>;
 }
 
-export function createRecorder(achieve: AchieveService): Recorder
+export function createRecorder(achieve: AchieveService, reward?: QuestProgressHook): Recorder
 {
     return {
         async finish(tx, match, engine, state, ending)
         {
-            const game = engine.id;
+            let effects: RewardFinishEffects = { changed: [], ready: [] };
+            const game = engine.id as GameId;
             const matchId = match.id;
             const format = { seats: match.seats, variant: match.variant };
             const players = await tx.getRepository(MatchPlayer).find({ where: { matchId }, order: { userId: 'ASC' } });
@@ -180,6 +183,28 @@ export function createRecorder(achieve: AchieveService): Recorder
             {
                 await achieve.record(tx, player.userId, matchId, game);
             }
+
+            if (reward?.onFinish !== undefined)
+            {
+                const rewardPlayers: RewardFinishPlayer[] = counted.flatMap((player) =>
+                {
+                    const verdict = verdictOf(player.seat);
+
+                    return verdict === undefined ? [] : [{
+                        userId: player.userId,
+                        seat: player.seat,
+                        result: verdict.result,
+                        credit: verdict.credit,
+                        ownTurns: ledger.find((row) => row.seat === player.seat)?.own ?? 0,
+                        tally: bySeat.get(player.seat) ?? {},
+                        opponentIds: [...new Set(players.filter((other) => other.userId !== player.userId).map((other) => other.userId))]
+                    }];
+                });
+
+                effects = await reward.onFinish(tx, match, game, rewardPlayers);
+            }
+
+            return effects;
         }
     };
 }

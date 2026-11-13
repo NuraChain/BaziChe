@@ -121,6 +121,11 @@ const leadOf = (row) =>
         return '/app/shop/collection';
     }
 
+    if (row.kind === 'reward-ready' || row.kind === 'reward-streak')
+    {
+        return '/app/rewards';
+    }
+
     if (row.kind === 'invite-joined' || row.kind === 'invite-played')
     {
         return '/app/invite';

@@ -1,0 +1,23 @@
+import { useHead } from 'azerothjs';
+
+import AdminHead from '../../components/admin/admin-head.component.azeroth';
+import Panel from '../../components/ui/panel.component.azeroth';
+import { useLocale } from '../../stores/locale.store.ts';
+
+export default component RewardsPage()
+{
+    const locale = useLocale();
+
+    useHead({ title: () => locale.t('admin.section.rewards') });
+
+    <div class="flex flex-col gap-6 @container">
+        <AdminHead title={ locale.t('admin.section.rewards') } lead={ locale.t('admin.rewards.lead') } how={ locale.t('admin.rewards.how') } />
+
+        <Panel section>
+            <div class="flex flex-col gap-3">
+                <h2 class="text-ui-lg font-semibold text-text">{ locale.t('admin.rewards.status') }</h2>
+                <p class="text-ui-base text-muted">{ locale.t('admin.rewards.pending') }</p>
+            </div>
+        </Panel>
+    </div>
+}

@@ -3614,6 +3614,12 @@ export const notificationKind = enumOf([
     /** Somebody watching a game the reader plays gave them NURA, and the gift is theirs now. */
     'donation',
 
+    /** A reward quest is ready to be claimed. */
+    'reward-ready',
+
+    /** A reward streak reminder is ready for the player today. */
+    'reward-streak',
+
     /** Somebody asked to join a group the reader may let people into. */
     'group-request',
 
@@ -3648,6 +3654,79 @@ export const notificationKind = enumOf([
 
     'tournament-over'
 ]);
+
+export const rewardLadderStep = object({
+    day: number(),
+    amount: number(),
+    claimed: boolean(),
+    look: enumOf(['weekly', 'exclusive']).optional()
+});
+
+export const rewardState = object({
+    streak: number(),
+    lastDay: number(),
+    best: number(),
+    claimable: boolean(),
+    today: number(),
+    ladder: array(rewardLadderStep),
+    cycleGranted: number(),
+    withdrawable: number(),
+    daily: array(object({
+        id: string(),
+        game: string(),
+        target: number(),
+        progress: number(),
+        done: boolean(),
+        claimed: boolean()
+    })),
+    weekly: array(object({
+        id: string(),
+        game: string(),
+        target: number(),
+        progress: number(),
+        done: boolean(),
+        claimed: boolean()
+    })),
+    chestClaimed: boolean(),
+    reason: string().optional()
+});
+
+export type RewardState = Infer<typeof rewardState>;
+
+export const rewardHistoryItem = object({
+    id: string(),
+    kind: enumOf(['check-in', 'quest', 'withdrawal', 'bonus']),
+    at: string(),
+    amount: number(),
+    note: string().optional()
+});
+
+export const rewardHistoryPage = object({
+    items: array(rewardHistoryItem),
+    hasMore: boolean(),
+    cursor: string().optional()
+});
+
+export type RewardHistoryPage = Infer<typeof rewardHistoryPage>;
+
+export const rewardQuestClaim = object({
+    claimed: boolean(),
+    period: enumOf(['daily', 'weekly']),
+    id: string(),
+    amount: number(),
+    reason: string().optional()
+});
+
+export type RewardQuestClaim = Infer<typeof rewardQuestClaim>;
+
+export const rewardWithdraw = object({
+    status: enumOf(['ready', 'queued', 'none']),
+    amount: number(),
+    txHash: string().optional(),
+    queued: number()
+});
+
+export type RewardWithdraw = Infer<typeof rewardWithdraw>;
 
 export type NotificationKind = Infer<typeof notificationKind>;
 

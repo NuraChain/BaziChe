@@ -96,6 +96,33 @@ export const ANNOUNCE_MS = 500;
 
 export const BITRATES: Record<VoiceQuality, number> = { standard: 32_000, high: 64_000, best: 96_000 };
 
+/** How long a join waits to learn whether this browser speaks Opus before it takes the plainer codec. */
+export const OPUS_ASK_MS = 2000;
+
+/**
+ * How long a join waits on the page's audio graph (`voice.input.ts`) before it sends the microphone
+ * as it is. The graph loads AudioWorklets, and on an iPhone those can wait on an AudioContext Safari
+ * holds suspended: the join waited with them, and the call said connecting for good. A graph that
+ * finishes later is taken up then.
+ */
+export const SHAPE_MS = 4000;
+
+/** What `work` answers, or `otherwise` once `ms` have gone by or it fails. */
+const within = <T>(work: Promise<T>, ms: number, otherwise: T) => new Promise<T>((resolve) =>
+{
+    const stop = runtime().clock.after(ms, () => resolve(otherwise));
+
+    work.then((value) =>
+    {
+        stop();
+        resolve(value);
+    }, () =>
+    {
+        stop();
+        resolve(otherwise);
+    });
+});
+
 let media: () => MediaDevices | null = () => (typeof navigator === 'undefined' ? null : navigator.mediaDevices ?? null);
 
 export function setVoiceMedia(next: (() => MediaDevices | null) | null)
@@ -824,7 +851,7 @@ export const useVoice = createStore((): VoiceApi =>
             unhold = realtime.hold();
 
             const round = ++joins;
-            const hears = await hearsOpus();
+            const hears = await within(hearsOpus(), OPUS_ASK_MS, false);
 
             if (round !== joins || untrack(table) !== next)
             {
@@ -905,6 +932,29 @@ export const useVoice = createStore((): VoiceApi =>
                 call.setSink(speaker);
             }
 
+            // In the room before the microphone, muted, so the call is joined whatever the microphone
+            // and its audio graph take: an iPhone that waited on them before saying so was never in
+            // the room, and both ends said connecting. The frame below says how it is once they are.
+            realtime.voice(next, true, true, opus);
+
+            /** Runs the audio graph on `raw`, or goes on without it after a while and takes it up once it is done. */
+            const shape = async (raw: MediaStream | null) =>
+            {
+                const shaping = process(raw);
+
+                if (!await within(shaping.then(() => true), SHAPE_MS, false))
+                {
+                    void shaping.then(() =>
+                    {
+                        if (round === joins && untrack(table) === next && stream === raw && !untrack(joining))
+                        {
+                            void call?.setMic(sending());
+                            gate();
+                        }
+                    }, () => undefined);
+                }
+            };
+
             const got = ready === null ? await microphone() : await primedMicrophone(ready.microphone);
 
             if (round !== joins || untrack(table) !== next)
@@ -915,7 +965,7 @@ export const useVoice = createStore((): VoiceApi =>
 
             stream = got;
             stir();
-            await process(got);
+            await shape(got);
 
             if (round !== joins || untrack(table) !== next)
             {
@@ -935,7 +985,7 @@ export const useVoice = createStore((): VoiceApi =>
                 }
 
                 stream = again;
-                await process(again);
+                await shape(again);
             }
 
             const quiet = stream === null || (!pushToTalk() && untrack(settings.settings).voiceStartMuted);

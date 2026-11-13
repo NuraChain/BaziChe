@@ -8,7 +8,7 @@ import { keyName } from '../src/lib/talk-key.ts';
 import { SOUND_BACKLOG, useRealtime } from '../src/stores/realtime.store.ts';
 import { useSession } from '../src/stores/session.store.ts';
 import { useSettings } from '../src/stores/settings.store.ts';
-import { ANNOUNCE_MS, LINES_MS, LOUDEST, SPEAKING_HOLD_MS, UNREACHED_MS, setRawMicrophone, setVoiceCall, setVoiceMedia, useVoice } from '../src/stores/voice.store.ts';
+import { ANNOUNCE_MS, LINES_MS, LOUDEST, SHAPE_MS, SPEAKING_HOLD_MS, UNREACHED_MS, setRawMicrophone, setVoiceCall, setVoiceMedia, useVoice } from '../src/stores/voice.store.ts';
 import { primeVoice, setPrimedVoice } from '../src/lib/primed-voice.ts';
 import { setDenoiseKit } from '../src/services/voice.denoise.ts';
 import { socket } from './fake-realtime.ts';
@@ -152,6 +152,64 @@ describe('voice at a table', () =>
         expect(useVoice().mic()).toBe('live');
         expect(useVoice().muted(), 'the owner asked for the microphone to start open').toBe(false);
         expect(voiceFrames().at(-1)).toMatchObject({ t: 'voice', room: TABLE, on: true, muted: false });
+    });
+
+    it('is in the room, muted, while the microphone is still being asked for, so a call is joined however long that takes', async () =>
+    {
+        let grant: (granted: MediaStream) => void = () => undefined;
+        setVoiceMedia(() => ({ getUserMedia: () => new Promise<MediaStream>((resolve) =>
+        {
+            grant = resolve;
+        }) }) as unknown as MediaDevices);
+
+        const joined = useVoice().join(TABLE);
+        await settle();
+
+        expect(voiceFrames(), 'an iPhone waiting on its microphone was never in the room').toEqual([{ t: 'voice', room: TABLE, on: true, muted: true, opus: false }]);
+        expect(useVoice().joining()).toBe(true);
+
+        grant(stream);
+        await joined;
+
+        expect(useVoice().joining()).toBe(false);
+        expect(voiceFrames().at(-1)).toMatchObject({ on: true, muted: false });
+    });
+
+    it('goes on without the audio graph when it does not load, and sends the microphone as it is', async () =>
+    {
+        const Context = vi.fn(function (this: Record<string, unknown>)
+        {
+            Object.assign(this, {
+                state: 'running',
+                audioWorklet: { addModule: () => new Promise<void>(() => undefined) },
+                resume: async () => undefined,
+                close: async () => undefined,
+                createMediaStreamSource: () => ({ connect: () => undefined, disconnect: () => undefined }),
+                createAnalyser: () => ({ fftSize: 0, getFloatTimeDomainData: () => undefined, disconnect: () => undefined })
+            });
+        });
+        vi.stubGlobal('AudioContext', Context);
+
+        try
+        {
+            useSettings().update({ voiceNoise: 'standard' });
+
+            const joined = useVoice().join(TABLE);
+            await settle();
+
+            expect(useVoice().joining(), 'the worklet never loaded, as Safari may leave it').toBe(true);
+
+            (runtime().clock as ManualClock).advance(SHAPE_MS);
+            await joined;
+
+            expect(useVoice().joining()).toBe(false);
+            expect(calls[0]?.mic.at(-1), 'the call was handed the microphone itself').toBe(stream);
+            expect(voiceFrames().at(-1)).toMatchObject({ on: true, muted: false });
+        }
+        finally
+        {
+            vi.unstubAllGlobals();
+        }
     });
 
     it('joins muted when the reader asked to start that way', async () =>

@@ -864,6 +864,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.inviteJoined': '{who} t’a rejoint grâce à ton lien',
     'notify.invitePlayed': '{who} a joué sa première partie : ton invitation compte',
     'notify.inviteReward': 'Un nouveau style grâce à une invitation est dans ta collection',
+    'notify.rewardReady': 'Une récompense est prête à être réclamée',
+    'notify.rewardStreak': 'Ta série s’améliore — réclame ta récompense d’aujourd’hui',
     'notify.gift': '{who} t’a envoyé un cadeau',
     'notify.donation': '{who} t’a envoyé {amount} NURA',
     'donate.action': 'Envoyer des NURA à {name}',

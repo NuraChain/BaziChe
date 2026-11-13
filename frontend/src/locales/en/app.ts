@@ -15,6 +15,7 @@ export const app = {
     'app.nav.leaderboard': 'Leaderboard',
     'app.nav.discover': 'Discover',
     'app.nav.shop': 'Shop',
+    'app.nav.rewards': 'Rewards',
     'off.shop': 'The shop is turned off right now',
     'off.shop.lead': 'This server sells no looks yet. You can still look around, and the looks you own work as before.',
     'off.paid': 'Playing for NURA is turned off right now',

@@ -861,6 +861,8 @@ export const social = {
     'notify.inviteJoined': '{who} joined through your link',
     'notify.invitePlayed': '{who} played a first game: your invite counts',
     'notify.inviteReward': 'A new look from an invite is in your collection',
+    'notify.rewardReady': 'A reward quest is ready to claim',
+    'notify.rewardStreak': 'Your streak is building — claim today’s reward',
     'notify.gift': '{who} sent you a gift',
     'notify.donation': '{who} sent you {amount} NURA',
     'donate.action': 'Send NURA to {name}',

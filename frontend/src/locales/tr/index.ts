@@ -19,5 +19,6 @@ import { helpersHokm } from './helpers-hokm.ts';
 import { helpersBackgammon } from './helpers-backgammon.ts';
 import { helpersPoker } from './helpers-poker.ts';
 import { helpersChess } from './helpers-chess.ts';
+import { rewards } from './rewards.ts';
 
-export const tr: Dictionary = { ...landing, ...app, ...play, ...social, ...wallet, ...vault, ...admin, ...shop, ...donate, ...market, ...invite, ...tournament, ...rules, ...me, ...helpers, ...helpersLudo, ...helpersHokm, ...helpersBackgammon, ...helpersPoker, ...helpersChess };
+export const tr: Dictionary = { ...landing, ...app, ...play, ...social, ...wallet, ...vault, ...admin, ...shop, ...donate, ...market, ...invite, ...tournament, ...rules, ...me, ...helpers, ...helpersLudo, ...helpersHokm, ...helpersBackgammon, ...helpersPoker, ...helpersChess, ...rewards };

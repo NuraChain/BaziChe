@@ -864,6 +864,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'notify.inviteJoined': '{who} तुम्हारे लिंक से जुड़ा',
     'notify.invitePlayed': '{who} ने पहला खेल खेल लिया: तुम्हारा न्योता गिना गया',
     'notify.inviteReward': 'एक न्योते से मिला नया लुक तुम्हारे कलेक्शन में है',
+    'notify.rewardReady': 'रिवॉर्ड मिशन दावा करने के लिए तैयार है',
+    'notify.rewardStreak': 'आपकी स्ट्रीक बढ़ रही है — आज का रिवॉर्ड ले लें',
     'notify.gift': '{who} ने तुम्हें एक तोहफ़ा भेजा',
     'notify.donation': '{who} ने तुम्हें {amount} NURA भेजे',
     'donate.action': '{name} को NURA भेजो',

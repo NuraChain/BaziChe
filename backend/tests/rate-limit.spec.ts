@@ -13,7 +13,12 @@ import {
     isSignIn,
     publicInviteLimit,
     publicInviteRateLimit,
+    isRewardMutation,
+    rewardLimit,
+    rewardRateLimit,
     routedPath,
+    REWARD_LEAST,
+    REWARD_SHARE,
     SIGN_IN_LEAST,
     SIGN_IN_SHARE,
     signInLimit,
@@ -246,5 +251,77 @@ describe('the budget of the page an invite link opens', () =>
         const main = readFileSync(fileURLToPath(new URL('../src/main.ts', import.meta.url)), 'utf8');
 
         expect(main).toContain('publicInviteRateLimit({ apiLimit: config.apiRateMax,');
+    });
+});
+
+describe('the budget of reward claims', () =>
+{
+    const rewarding = (apiLimit: number) =>
+    {
+        const app = new App();
+        app.post('/api/rewards/check-in', () => json({ ok: true }));
+        app.post('/api/rewards/quests/:period/:id/claim', () => json({ ok: true }));
+        app.post('/api/rewards/withdraw', () => json({ ok: true }));
+        app.get('/api/rewards', () => json({ ok: true }));
+        return pipeline(
+            app,
+            apiRateLimit({ limit: apiLimit, windowMs: 60_000, trustProxy: true }),
+            rewardRateLimit({ apiLimit, trustProxy: true })
+        );
+    };
+
+    const write = (handler: ReturnType<typeof rewarding>, path: string) =>
+        handler.handle(new Request(`http://local${ path }`, {
+            method: 'POST',
+            body: '{}',
+            headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.7' }
+        }));
+
+    it('sets a twentieth of the api ceiling, and never under twenty', () =>
+    {
+        expect(rewardLimit(600)).toBe(30);
+        expect(rewardLimit(20_000)).toBe(1_000);
+        expect(rewardLimit(100)).toBe(REWARD_LEAST);
+        expect(rewardLimit((REWARD_LEAST + 1) * REWARD_SHARE)).toBe(REWARD_LEAST + 1);
+    });
+
+    it('meters only reward writes on routed paths', () =>
+    {
+        expect(isRewardMutation('/api/rewards/check-in')).toBe(true);
+        expect(isRewardMutation('/api/rewards/quests/daily/quest-1/claim')).toBe(true);
+        expect(isRewardMutation('/api/rewards/quests/weekly/quest-1/claim')).toBe(true);
+        expect(isRewardMutation('/api/rewards/withdraw')).toBe(true);
+        expect(isRewardMutation('/api/rewards')).toBe(false);
+        expect(isRewardMutation('/api/rewards/history')).toBe(false);
+        expect(isRewardMutation('/api/rewards/quests/monthly/quest-1/claim')).toBe(false);
+        expect(isRewardMutation('/api/rewards/check-ins')).toBe(false);
+    });
+
+    it('refuses writes past their share while reads remain available', async () =>
+    {
+        const handler = rewarding(600);
+
+        for (let attempt = 0; attempt < 30; attempt += 1)
+        {
+            expect((await write(handler, '/api/rewards/check-in')).status).toBe(200);
+        }
+
+        expect((await write(handler, '/api/rewards/quests/daily/quest-1/claim')).status).toBe(429);
+        expect((await write(handler, '/api/rewards/withdraw')).status).toBe(429);
+        expect((await hit(handler, '/api/rewards')).status).toBe(200);
+    });
+
+    it('shares the budget across equivalent routed path spellings and is installed on the server', async () =>
+    {
+        const handler = rewarding(600);
+        for (let attempt = 0; attempt < 29; attempt += 1)
+        {
+            expect((await write(handler, '/api/rewards/check-in')).status).toBe(200);
+        }
+        expect((await write(handler, '/api/rewards/check-%69n/')).status).toBe(200);
+        expect((await write(handler, '/api/rewards/check-in')).status).toBe(429);
+
+        const main = readFileSync(fileURLToPath(new URL('../src/main.ts', import.meta.url)), 'utf8');
+        expect(main).toContain('rewardRateLimit({ apiLimit: config.apiRateMax,');
     });
 });

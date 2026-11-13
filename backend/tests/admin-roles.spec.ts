@@ -13,9 +13,9 @@ describe('who on the staff may do what', () =>
 
         expect(reach(null)).toEqual([]);
         expect(reach('moderator')).toEqual(['live', 'overview', 'people', 'reports']);
-        expect(reach('admin')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'seasons', 'shop', 'staff', 'tournaments']);
+        expect(reach('admin')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'rewards', 'seasons', 'shop', 'staff', 'tournaments']);
         expect(reach('co-owner'), 'a co-owner signs for no contract').toEqual(reach('admin'));
-        expect(reach('owner')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'seasons', 'shop', 'staff', 'tournaments', 'wallet']);
+        expect(reach('owner')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'rewards', 'seasons', 'shop', 'staff', 'tournaments', 'wallet']);
     });
 
     it('puts the owner above a co-owner, a co-owner above an admin, an admin above a moderator, and every role above somebody who is none', () =>

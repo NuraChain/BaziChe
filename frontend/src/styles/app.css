@@ -3540,8 +3540,8 @@ svg.lobby-board
     --type: clamp(0.6875rem, var(--u) * 3.1, 1rem);
     --pill-w: clamp(6.5rem, var(--u) * 34, 15rem);
     --col-w: clamp(3.5rem, var(--u) * 15, 8rem);
-    --back-w: clamp(1rem, var(--u) * 6.4, 3.5rem);
-    --shown-w: clamp(1.4rem, var(--u) * 11, 5rem);
+    --back-w: clamp(1.35rem, var(--u) * 8.4, 4.5rem);
+    --shown-w: clamp(1.9rem, var(--u) * 14.25, 6.4rem);
     --gap: clamp(0.2rem, var(--u), 0.5rem);
 }
 
@@ -4282,7 +4282,7 @@ svg.lobby-board
 
 .poker-hand
 {
-    --card-w: clamp(3.1rem, min(16cqi, 12.5cqb), 5.75rem);
+    --card-w: clamp(3.9rem, min(19.5cqi, 15cqb), 6.75rem);
 
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(min(16rem, 100% - 2 * var(--card-w) - 0.375rem), 1fr);
@@ -4342,7 +4342,7 @@ svg.lobby-board
 {
     .poker-hand
     {
-        --card-w: 2.75rem;
+        --card-w: 3.375rem;
     }
 
     .poker-own
@@ -4406,19 +4406,22 @@ svg.lobby-board
     }
 }
 
+/* The reader's buttons: as big as the room beside their cards allows, never smaller than a thumb. */
 .poker-acts
 {
+    --act: clamp(2.75rem, 13cqi, 3.5rem);
+
     display: flex;
     min-inline-size: 9.5rem;
     align-items: flex-end;
-    gap: 0.625rem;
+    gap: calc(var(--act) * 0.22);
 }
 
 .poker-thing
 {
     position: relative;
     display: flex;
-    min-inline-size: 2.75rem;
+    min-inline-size: var(--act);
     flex-direction: column;
     align-items: center;
     gap: 0.25rem;
@@ -4435,7 +4438,7 @@ svg.lobby-board
 .poker-thing-says
 {
     color: var(--color-muted);
-    font-size: var(--text-ui-2xs);
+    font-size: var(--text-ui-xs);
     font-weight: 700;
     line-height: 1.1;
     white-space: nowrap;
@@ -4445,8 +4448,8 @@ svg.lobby-board
 {
     display: flex;
     box-sizing: border-box;
-    inline-size: 2.75rem;
-    block-size: 2.75rem;
+    inline-size: var(--act);
+    block-size: var(--act);
     align-items: center;
     justify-content: center;
     border: 3px dashed rgb(255 255 255 / 0.85);
@@ -4481,12 +4484,12 @@ svg.lobby-board
 
 .poker-muck
 {
-    --back-w: 1.4rem;
+    --back-w: calc(var(--act) * 0.51);
 
     position: relative;
     display: block;
-    inline-size: 2.75rem;
-    block-size: 2.75rem;
+    inline-size: var(--act);
+    block-size: var(--act);
     transition: translate 140ms var(--ease-ui, ease);
 }
 
@@ -4534,22 +4537,159 @@ svg.lobby-board
     }
 }
 
+/*
+ * The raise: what it comes to, large, between a big blind less and a big blind more; the slider
+ * with its two ends; the four amounts a player reaches for; and the one press that sends it.
+ */
 .poker-raise
 {
     position: absolute;
     z-index: 10;
     inset-inline: 0;
     bottom: calc(100% + 0.5rem);
-    max-inline-size: 24rem;
+    max-inline-size: 22rem;
     margin-inline: auto;
     display: flex;
     flex-direction: column;
-    gap: 0.625rem;
-    padding: 0.75rem;
+    gap: 0.875rem;
+    padding: 0.75rem 1rem 1rem;
     border: 1px solid var(--line-strong);
     border-radius: var(--radius-panel);
-    background: var(--lifted);
-    box-shadow: 0 18px 36px -18px rgb(0 0 0 / 0.9);
+    background:
+        radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%),
+        var(--lifted);
+    box-shadow: 0 22px 44px -20px rgb(0 0 0 / 0.95), 0 0 0 1px rgb(0 0 0 / 0.25);
+}
+
+@media (prefers-reduced-motion: no-preference)
+{
+    .poker-raise
+    {
+        animation: poker-raise-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+    }
+}
+
+@keyframes poker-raise-in
+{
+    from
+    {
+        opacity: 0;
+        translate: 0 0.6rem;
+    }
+}
+
+.poker-raise-head
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-block: -0.25rem;
+    margin-inline-end: -0.5rem;
+}
+
+.poker-raise-title
+{
+    color: var(--color-muted);
+    font-size: var(--text-ui-sm);
+    font-weight: 700;
+}
+
+.poker-raise-amount
+{
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.poker-step
+{
+    display: flex;
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 999px;
+    background: var(--color-raised);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background 120ms ease, scale 120ms ease;
+}
+
+.poker-step:active:not(:disabled)
+{
+    scale: 0.92;
+}
+
+.poker-step:disabled
+{
+    cursor: default;
+    opacity: 0.35;
+}
+
+.poker-raise-chips
+{
+    display: flex;
+    min-inline-size: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: var(--color-text);
+    font-size: clamp(1.5rem, 7cqi, 2rem);
+    font-weight: 800;
+    line-height: 1;
+}
+
+.poker-raise-ends
+{
+    display: flex;
+    justify-content: space-between;
+    color: var(--color-faint);
+    font-size: var(--text-ui-2xs);
+    font-weight: 600;
+}
+
+.poker-presets
+{
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.375rem;
+}
+
+.poker-preset
+{
+    min-block-size: 2.5rem;
+    overflow: hidden;
+    padding-inline: 0.25rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 999px;
+    background: var(--color-raised);
+    color: var(--color-text);
+    font-size: var(--text-ui-xs);
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+
+.poker-preset[aria-pressed='true']
+{
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 24%, var(--color-raised));
+}
+
+.poker-preset[data-preset='allin'][aria-pressed='true']
+{
+    border-color: var(--gold);
+    background: color-mix(in srgb, var(--gold) 28%, var(--color-raised));
+}
+
+.poker-raise[data-all-in] .poker-raise-go
+{
+    background: var(--gold);
+    color: rgb(8 13 25);
 }
 
 .bg-board

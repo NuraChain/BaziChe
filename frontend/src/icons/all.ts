@@ -92,6 +92,7 @@ import {
     Pin,
     PinOff,
     Play,
+    Minus,
     Plus,
     RefreshCw,
     Reply,
@@ -133,6 +134,7 @@ import { registerIcons } from './registry.ts';
 export const ALL_ICONS = {
     'activity': Activity,
     'add': Plus,
+    'minus': Minus,
     'alert': TriangleAlert,
     'at': AtSign,
     'back': ArrowLeft,

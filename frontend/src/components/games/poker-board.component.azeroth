@@ -1,11 +1,11 @@
 import { batch, untrack } from 'azerothjs';
 
 import CardFace from './card-face.component.azeroth';
-import CoachLine from './coach-line.component.azeroth';
 import PokerSeat from './poker-seat.component.azeroth';
 import TableResult, { RESULT_OUT, RESULT_WAIT } from './table-result.component.azeroth';
 import { missesOf, plateTag, withMisses, type PlateTag } from './plate-tag.ts';
 import Button from '../ui/button.component.azeroth';
+import IconButton from '../ui/icon-button.component.azeroth';
 import Slider from '../ui/slider.component.azeroth';
 import Icon from '../../icons/icon.component.azeroth';
 import { FACE_KEY, rankOf, suitOf } from '../../data/cards.ts';
@@ -16,7 +16,7 @@ import { cardsOf as worn, dressCards, lean, playAt, unlean } from '../../game/lo
 import { celebrationOf, cheerAt } from '../../game/looks/celebrations.ts';
 import { enterAt, entranceOf } from '../../game/looks/entrances.ts';
 import { heardAt, wornOf } from '../../game/looks/table.ts';
-import { coachOf, handOf, pressed, priceOf, type PokerVerb } from '../../game/helpers/poker.ts';
+import { handOf, pressed, priceOf, type PokerVerb } from '../../game/helpers/poker.ts';
 import { EASE, centreOf, rectIn, type Rect } from '../../game/motion.ts';
 import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
 import { BETWEEN_CAP, BOARD_GAP, BOARD_OUT, CARD_FLY, CARD_GAP, CARD_RISE, CHIP_FLY, COLLECT, DEAL_LEAD, DISC_GAP, GATHER, GATHER_GAP, KNOCK, MUCK, MUCK_GAP, POT_FLY, POT_GAP, POT_SPAN, PUCK, RACK, TURN, WIN_AFTER, collectGap, dealGap, heldBefore, slides, spanOf, tabling } from '../../game/poker-beats.ts';
@@ -1411,7 +1411,6 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
 
     derived myChair = felt.chairs.find((chair) => chair.seat === viewer);
 
-    derived tip = view === null || over || waiting ? null : coachOf(view, mine);
 
     derived captioned = settings.settings().hintOutcome;
 
@@ -1580,6 +1579,20 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
     derived handed = view !== null && !result && mine !== undefined && myChair !== undefined && !myChair.out;
 
     derived opening = highest === 0;
+
+    /** One press of − or + moves the amount by a big blind, the unit every bet is counted in. */
+    derived raiseStep = Math.max(1, felt.blinds.big);
+
+    derived raiseDiscs = discsFor(chosen, felt.blinds.big);
+
+    derived presets = [
+        { id: 'min', label: locale.t('poker.preset.min'), amount: low },
+        { id: 'half', label: locale.t('poker.preset.half'), amount: potSized(0.5) },
+        { id: 'pot', label: locale.t('poker.preset.pot'), amount: potSized(1) },
+        { id: 'allin', label: locale.t('poker.preset.allin'), amount: high }
+    ];
+
+    derived raiseTitle = opening ? locale.t('poker.bet') : locale.t('poker.raise');
 
     derived raiseSays = chosen >= high
         ? locale.t('poker.allin', { chips: chips(high) })
@@ -1886,28 +1899,52 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                     <div class="table-hand poker-hand">
                         <Show when={ choosing }>
                             { () =>
-                                <div class="poker-raise">
+                                <div class="poker-raise" role="group" aria-label={ raiseTitle } data-all-in={ chosen >= high ? 'true' : undefined }>
+                                    <div class="poker-raise-head">
+                                        <span class="poker-raise-title">{ raiseTitle }</span>
+                                        <IconButton icon="close" label={ locale.t('common.close') } variant="ghost" size="sm" tip={ false } onClick={ () => raising = false } />
+                                    </div>
                                     <Show when={ ranged }>
                                         { () =>
-                                            <div class="flex flex-col gap-2">
-                                                <Slider
-                                                    value={ chosen }
-                                                    min={ low }
-                                                    max={ high }
-                                                    step={ 1 }
-                                                    label={ locale.t('poker.raise.label') }
-                                                    valueText={ chips(chosen) }
-                                                    onChange={ (value) => amount = Math.round(value) }
-                                                />
-                                                <div class="flex flex-wrap gap-1.5">
-                                                    <Button variant="secondary" size="sm" onClick={ () => amount = low }>{ locale.t('poker.preset.min') }</Button>
-                                                    <Button variant="secondary" size="sm" onClick={ () => amount = potSized(0.5) }>{ locale.t('poker.preset.half') }</Button>
-                                                    <Button variant="secondary" size="sm" onClick={ () => amount = potSized(1) }>{ locale.t('poker.preset.pot') }</Button>
+                                            <div class="flex flex-col gap-3">
+                                                <div class="poker-raise-amount">
+                                                    <button type="button" class="poker-step" aria-label={ locale.t('poker.raise.less') } disabled={ chosen <= low } onClick={ () => amount = Math.max(low, chosen - raiseStep) }>
+                                                        <Icon name="minus" size={ 20 } />
+                                                    </button>
+                                                    <output class="poker-raise-chips" aria-live="polite">
+                                                        <span class="chip-stack" data-discs={ raiseDiscs } aria-hidden="true"></span>
+                                                        <span class="tally">{ chips(chosen) }</span>
+                                                    </output>
+                                                    <button type="button" class="poker-step" aria-label={ locale.t('poker.raise.more') } disabled={ chosen >= high } onClick={ () => amount = Math.min(high, chosen + raiseStep) }>
+                                                        <Icon name="add" size={ 20 } />
+                                                    </button>
+                                                </div>
+                                                <div class="flex flex-col gap-1">
+                                                    <Slider
+                                                        value={ chosen }
+                                                        min={ low }
+                                                        max={ high }
+                                                        step={ 1 }
+                                                        label={ locale.t('poker.raise.label') }
+                                                        valueText={ chips(chosen) }
+                                                        onChange={ (value) => amount = Math.round(value) }
+                                                    />
+                                                    <div class="poker-raise-ends" aria-hidden="true">
+                                                        <span class="tally">{ chips(low) }</span>
+                                                        <span class="tally">{ chips(high) }</span>
+                                                    </div>
+                                                </div>
+                                                <div class="poker-presets" role="group" aria-label={ locale.t('poker.raise.label') }>
+                                                    <For each={ presets } key={ (one) => one.id } let={ one }>
+                                                        <button type="button" class="poker-preset" data-preset={ one.id } aria-pressed={ chosen === one.amount } onClick={ () => amount = one.amount }>
+                                                            { one.label }
+                                                        </button>
+                                                    </For>
                                                 </div>
                                             </div>
                                         }
                                     </Show>
-                                    <Button variant={ chosen >= high ? 'secondary' : 'primary' } size="lg" block disabled={ board.busy() } onClick={ () => void raise() }>
+                                    <Button variant="primary" size="lg" block class="poker-raise-go" disabled={ board.busy() } onClick={ () => void raise() }>
                                         { raiseSays }
                                     </Button>
                                 </div>
@@ -1954,7 +1991,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                                             when={ owing }
                                             fallback={
                                                 <button type="button" class="poker-thing" disabled={ board.busy() } onClick={ () => void act('check') }>
-                                                    <span class="poker-disc" data-act="check" aria-hidden="true"><Icon name="hand" size={ 18 } /></span>
+                                                    <span class="poker-disc" data-act="check" aria-hidden="true"><Icon name="hand" size={ 22 } /></span>
                                                     <span class="poker-thing-says">{ locale.t('poker.check') }</span>
                                                 </button>
                                             }
@@ -1969,7 +2006,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                                         <Show when={ raisable }>
                                             { () =>
                                                 <button type="button" class="poker-thing" aria-pressed={ raising } disabled={ board.busy() } onClick={ openRaise }>
-                                                    <span class="poker-disc" data-act="raise" aria-hidden="true"><Icon name="add" size={ 18 } /></span>
+                                                    <span class="poker-disc" data-act="raise" aria-hidden="true"><Icon name="add" size={ 22 } /></span>
                                                     <span class="poker-thing-says">{ opening ? locale.t('poker.bet') : locale.t('poker.raise') }</span>
                                                 </button>
                                             }
@@ -1986,7 +2023,6 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                                 }
                             </Show>
 
-                            <CoachLine tip={ tip } lamp />
                         </div>
                     </div>
                 }

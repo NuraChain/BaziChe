@@ -1,4 +1,4 @@
-import { Show, type Child } from 'azerothjs';
+import { For, Show } from 'azerothjs';
 
 import { useRewards } from '../../stores/rewards.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -48,7 +48,7 @@ export function QuestRow(props: { quest: QuestView; onClaim: (period: 'daily' | 
                     </Show>
                     <Show when={ quest.done && !quest.claimed }>
                         { () =>
-                            <Button onClick={ claim } variant="solid" size="sm">
+                            <Button onClick={ claim } variant="primary" size="sm">
                                 { locale.t('app.rewards.claim') }
                             </Button>
                         }
@@ -77,13 +77,14 @@ export default component Quests(props: { class?: string })
                 { () =>
                     <div class="flex flex-col gap-3">
                         <h3 class="text-ui-lg font-semibold text-text">{ locale.t('app.rewards.dailyQuests') }</h3>
-                        { daily.map((quest) => (
-                            <QuestRow
-                                key={ quest.id }
-                                quest={ quest }
-                                onClaim={ (period, id) => rewards.claimQuest(period, id) }
-                            />
-                        ))}
+                        <For each={ daily } key={ (quest) => quest.id } let={ quest }>
+                            { () =>
+                                <QuestRow
+                                    quest={ quest }
+                                    onClaim={ (period, id) => rewards.claimQuest(period, id) }
+                                />
+                            }
+                        </For>
                     </div>
                 }
             </Show>
@@ -96,13 +97,14 @@ export default component Quests(props: { class?: string })
                                 { () => <span class="text-xs text-accent">{ locale.t('app.rewards.chest') }</span> }
                             </Show>
                         </div>
-                        { weekly.map((quest) => (
-                            <QuestRow
-                                key={ quest.id }
-                                quest={ quest }
-                                onClaim={ (period, id) => rewards.claimQuest(period, id) }
-                            />
-                        ))}
+                        <For each={ weekly } key={ (quest) => quest.id } let={ quest }>
+                            { () =>
+                                <QuestRow
+                                    quest={ quest }
+                                    onClaim={ (period, id) => rewards.claimQuest(period, id) }
+                                />
+                            }
+                        </For>
                     </div>
                 }
             </Show>

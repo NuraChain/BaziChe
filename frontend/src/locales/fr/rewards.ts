@@ -1,4 +1,5 @@
 export const rewards = {
+    'app.rewards.lead': 'Daily rewards, progress and your withdrawable balance.',
     'app.rewards.checkIn': 'Check in',
     'app.rewards.claim': 'Claim',
     'app.rewards.claimed': 'Claimed',

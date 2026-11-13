@@ -1,6 +1,7 @@
 import { createClient, readManifest, type Manifest } from '@azerothjs/http/api/shared';
 
 import type { Api } from '../../backend/src/api.ts';
+import { sent } from './lib/read-again.ts';
 
 export type {
     Account,
@@ -156,9 +157,7 @@ export function onUnauthorized(listener: () => void)
 
 const heard = async (request: Request) =>
 {
-    const response = await (typeof AbortSignal.any === 'function'
-        ? fetch(request, { signal: AbortSignal.any([request.signal, AbortSignal.timeout(REQUEST_MS)]) })
-        : fetch(request));
+    const response = await sent(request, REQUEST_MS);
 
     if (response.status === 401)
     {

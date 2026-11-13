@@ -149,6 +149,42 @@ describe('a page being opened', () =>
         expect(await (await worker.request('/app/games', 'navigate'))?.text()).toBe('the offline page');
     });
 
+    it('tries the network once more before the offline page, as a connection gone stale fails only the first try', async () =>
+    {
+        const kept = new Map([['/offline.html', 'the offline page']]);
+        let tries = 0;
+        const worker = fakeWorker(SOURCE, [], { kept, answer: (url) =>
+        {
+            tries += url === '/app/games' ? 1 : 0;
+
+            if (tries === 1)
+            {
+                throw new TypeError('The network connection was lost.');
+            }
+
+            return 'the games page';
+        } });
+
+        expect(await (await worker.request('/app/games', 'navigate'))?.text()).toBe('"the games page"');
+        expect(tries).toBe(2);
+    });
+
+    it('is left to Safari, on an iPhone and on a Mac, which asks again by itself when a first try fails', async () =>
+    {
+        const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1';
+        const mac = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15';
+        const chrome = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+        for (const agent of [iphone, mac])
+        {
+            const worker = fakeWorker(SOURCE, [], { agent, answer: () => 'the games page' });
+
+            expect(await worker.request('/app/games', 'navigate'), agent).toBeNull();
+        }
+
+        expect(await fakeWorker(SOURCE, [], { agent: chrome, answer: () => 'the games page' }).request('/app/games', 'navigate')).not.toBeNull();
+    });
+
     it('is left to the browser for anything that is not a page, so no answer is ever kept from the api or a script', async () =>
     {
         const worker = fakeWorker(SOURCE, [], { answer: () => 'anything' });

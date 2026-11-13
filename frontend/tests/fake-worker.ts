@@ -18,6 +18,9 @@ export interface WorkerWorld
 {
     kept?: Map<string, string>;
     answer?: (url: string) => unknown;
+
+    /** The browser the worker runs in, as its user agent says; none when left out. */
+    agent?: string;
 }
 
 export interface FakeWorker
@@ -101,6 +104,8 @@ export function fakeWorker(source: string, tabs: FakeTab[], world: WorkerWorld =
 
     const scope = {
         location: { origin: ORIGIN },
+
+        navigator: { userAgent: world.agent ?? '', maxTouchPoints: 0 },
 
         addEventListener(type: string, listener: (event: object) => void)
         {
@@ -217,7 +222,7 @@ export function fakeWorker(source: string, tabs: FakeTab[], world: WorkerWorld =
             let answer: Promise<Response> | null = null;
 
             await fire('fetch', {
-                request: { url: `${ ORIGIN }${ url }`, mode },
+                request: { url: `${ ORIGIN }${ url }`, mode, method: 'GET' },
                 preloadResponse: Promise.resolve(undefined),
                 respondWith: (given: Promise<Response>) =>
                 {

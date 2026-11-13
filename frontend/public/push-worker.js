@@ -324,18 +324,51 @@ const offline = async () =>
     }
 };
 
+/*
+ * Safari, on an iPhone, an iPad or a Mac: every browser on iOS is Safari underneath.
+ *
+ * Safari opens a page itself when no worker answers for it, and asks again by itself when the first
+ * try finds the connection gone, as it often does after the phone slept or the tab sat idle. A page
+ * a worker fetched gets no second try: the first open of each page landed on the offline page, and
+ * Try again opened it. Safari offers no install prompt that wants a worker answering for pages, so
+ * here the worker leaves opening them to Safari, and turns off the preload it once turned on.
+ */
+const SAFARI = APPLE || (/Safari\//.test(self.navigator?.userAgent ?? '') && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS|Android/.test(self.navigator?.userAgent ?? ''));
+
 // Only a page being opened, and only from the network: a cached page or api answer would outlive the
-// deploy that replaced it. The offline page is what a browser's own install prompt asks a worker for.
+// deploy that replaced it. The offline page is what a browser's own install prompt asks a worker for,
+// and is shown only once the preload and two tries of the network have all failed: a connection that
+// went stale fails the first try and not the next.
 const opened = async (event) =>
 {
     try
     {
-        return await event.preloadResponse ?? await fetch(event.request);
+        const preloaded = await event.preloadResponse;
+
+        if (preloaded !== undefined)
+        {
+            return preloaded;
+        }
     }
     catch
     {
-        return await offline();
+        // Fetched again below.
     }
+
+    // A form sent as a page open is sent once: its body is spent, and a second send could act twice.
+    for (let tries = 0; tries < (event.request.method === 'GET' ? 2 : 1); tries += 1)
+    {
+        try
+        {
+            return await fetch(event.request);
+        }
+        catch
+        {
+            // Tried once more, then the offline page.
+        }
+    }
+
+    return await offline();
 };
 
 self.addEventListener('install', (event) =>
@@ -345,12 +378,14 @@ self.addEventListener('install', (event) =>
 
 self.addEventListener('activate', (event) =>
 {
-    event.waitUntil(Promise.resolve(self.registration.navigationPreload?.enable()).catch(() => undefined));
+    const preload = self.registration.navigationPreload;
+
+    event.waitUntil(Promise.resolve(SAFARI ? preload?.disable() : preload?.enable()).catch(() => undefined));
 });
 
 self.addEventListener('fetch', (event) =>
 {
-    if (event.request.mode === 'navigate')
+    if (event.request.mode === 'navigate' && !SAFARI)
     {
         event.respondWith(opened(event));
     }

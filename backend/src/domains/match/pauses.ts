@@ -8,7 +8,7 @@
  */
 export const PAUSES = {
     showdown: 3000,
-    pot: 1500,
+    pot: 3000,
     trick: 1100,
     hand: 2600,
     game: 3000,

@@ -9,7 +9,9 @@ import type { Rematch, Staked } from './boards.ts';
 
 export const RESULT_OUT = 240;
 
-export const RESULT_WAIT = 17_000;
+// The longest ending a table plays, a six-way all-in before the flop, and two seconds over it: it
+// grew when a won pot came to hold three seconds on its winner rather than one and a half.
+export const RESULT_WAIT = 18_500;
 
 export default component TableResult(props: { match: MatchView; shown: boolean; mine?: number; busy?: boolean; fold?: boolean; onAgain?: () => void; rematch?: Rematch; stake?: Staked; onStand?: (stands: boolean) => void })
 {

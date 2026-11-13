@@ -577,6 +577,7 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'poker.last.none': 'Aucune main n’est encore terminée.',
     'poker.last.won': '{name} a gagné {chips}',
     'poker.last.with': '{name} a gagné {chips} avec {category}',
+    'poker.won.folded': '{name} a gagné {chips} : tous les autres se sont couchés',
     'poker.street.preflop': 'Avant le flop',
     'poker.street.flop': 'Le flop',
     'poker.street.turn': 'La turn',

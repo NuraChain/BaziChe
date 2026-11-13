@@ -574,6 +574,7 @@ export const play = {
     'poker.last.none': 'No hand has finished yet.',
     'poker.last.won': '{name} won {chips}',
     'poker.last.with': '{name} won {chips} with {category}',
+    'poker.won.folded': '{name} won {chips}: everybody else folded',
     'poker.street.preflop': 'Before the flop',
     'poker.street.flop': 'The flop',
     'poker.street.turn': 'The turn',

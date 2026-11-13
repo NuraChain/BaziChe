@@ -1649,6 +1649,14 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
 
     derived paidSays = wonLines(felt.paid, felt.tabled).join(' ');
 
+    /*
+     * Who took the pot and why, on the table while it holds on its winner: the hand they showed,
+     * or that everybody else folded when nobody had to show. It goes with the next deal.
+     */
+    derived wonSays = felt.paid.map((pot) => felt.tabled.length === 0
+        ? locale.t('poker.won.folded', { name: locale.list(pot.winners.map(nameOf)), chips: chips(pot.amount) })
+        : wonLines([pot], felt.tabled)[0]).join(' ');
+
     const unsend = (id: string, rev: number) =>
     {
         if (sent === null || sent.id !== id || sent.rev !== rev)
@@ -1754,6 +1762,15 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                             </div>
                             <div class="poker-burst" aria-hidden="true" ref={ burstsIn }></div>
 
+                            <Show when={ playing && wonSays !== '' }>
+                                { () =>
+                                    <p class="poker-won" role="status" data-won>
+                                        <Icon name="trophy" size={ 16 } class="shrink-0" />
+                                        <span>{ wonSays }</span>
+                                    </p>
+                                }
+                            </Show>
+
                             <div class="poker-centre">
                                 <ul class="poker-board" aria-label={ locale.t('poker.board') }>
                                     <For each={ slots } key={ (one) => one.slot } let={ one }>
@@ -1856,9 +1873,6 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
 
                         <Show when={ playing }>
                             { () => <p class="sr-only" aria-live="polite">{ says }</p> }
-                        </Show>
-                        <Show when={ playing }>
-                            { () => <p class="sr-only" aria-live="polite">{ paidSays }</p> }
                         </Show>
                         <Show when={ priced }>
                             { () => <p class="poker-cost sr-only">{ costSays }</p> }

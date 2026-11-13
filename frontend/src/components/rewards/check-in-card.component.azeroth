@@ -63,7 +63,7 @@ export default component CheckInCard(props: { class?: string })
                     disabled={ !claimable }
                     onClick={ checkIn }
                     loading={ false }
-                    variant={ claimable ? 'solid' : 'outline' }
+                    variant={ claimable ? 'primary' : 'outline' }
                     block={ true }
                 >
                     { locale.t('app.rewards.checkIn') }

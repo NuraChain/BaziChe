@@ -43,7 +43,7 @@ export default component Balance(props: { class?: string })
                             <Button
                                 disabled={ withdrawable < 1000 }
                                 onClick={ withdraw }
-                                variant="solid"
+                                variant="primary"
                                 block={ true }
                             >
                                 { locale.t('app.rewards.withdraw') }

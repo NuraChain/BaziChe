@@ -67,7 +67,8 @@ Skins: days 7, 14, 21, 28 and each weekly chest give one look from an owner-chos
    recorded (amount 0) so the claim is not offered again.
 6. **Once.** Every claim is made idempotent by a unique index, the way `invite_rewards_once` does
    it: a retry or two requests at once find the row and write nothing.
-7. **Who may earn NURA.** Only an established player (`established_players`) with a wallet. Anyone
+7. **Who may earn NURA.** Only an established player (`established_players`) with a wallet, who
+   is not a minor (`users.is_minor`, as the shop and paid tables refuse) and not suspended. Anyone
    else can still check in, keep a streak, progress quests and win skins; their NURA claims are
    refused with a reason the UI explains. This is the main defence against farms of fresh accounts.
 8. **Server decides everything.** Quest progress comes only from matches this server arbitrated,
@@ -75,7 +76,7 @@ Skins: days 7, 14, 21, 28 and each weekly chest give one look from an owner-chos
    progress.
 9. **No new contract.** NURA is the chain's native coin and the vault has no "deposit for".
    Rewards are paid from the rewards wallet the owner provides (its key in the environment,
-   `REWARDS_KEY`) by a plain transfer to the player's wallet (R6). Earned NURA first accrues
+   `NURA_REWARDS_KEY`) by a plain transfer to the player's wallet (R6). Earned NURA first accrues
    off-chain in the ledger; the player withdraws it. Every grant and every payout is logged and
    shown in the admin, grouped by day (R8).
 10. **House style.** Read `.github/CONTRIBUTING.md` first. Follow the existing patterns: entities
@@ -86,18 +87,82 @@ Skins: days 7, 14, 21, 28 and each weekly chest give one look from an owner-chos
    Commit messages follow `type(scope): sentence`; never add co-author lines; never push without
    being asked.
 
-## 4. Anti-abuse rules for quest progress
+## 4. Facts already checked in the codebase (use these; do not guess)
+
+- **Where a match ends:** `createRecorder(...).finish(tx, match, engine, state, ending)` in
+  `backend/src/domains/match/record.ts`. Per player it has a `Verdict`
+  (`backend/src/domains/match/judge.ts`): `result` is `won | lost | drawn | abandoned | void`,
+  and `credit` is true only for a win that was not handed over by a forfeit. A quest "win" is
+  `verdict.credit === true`. A match "counts as played" when `result` is `won` (with credit),
+  `lost` or `drawn`. `void` and `abandoned` never count.
+- **Per-match counters:** `engine.tally(events)` gives each seat a `Tally` (name -> count) for
+  this match alone; the recorder already computes it as `bySeat`. The names that exist, and the
+  only ones a quest may use:
+  - ludo: `rolls`, `sixes`, `captures`, `home`, `enters`
+  - hokm: `hands`, `tricks`, `kots`, `trumps`
+  - backgammon: `games`, `gammons`, `backgammons`, `hits`, `borneOff`
+  - poker: `hands`, `pots`, `showdowns`, `knockouts`
+  - chess: `moves`, `captures`, `checks`, `checkmates`, `castles`, `promotions`,
+    `enPassants`, `draws`
+
+  These are the names `backend/src/domains/achieve/families.ts` uses. A spec must hold the quest
+  catalogue to names the achievement families of that game use, by importing them, not by
+  copying this list.
+- **Where rewards hook in:** at the end of `finish`, beside `achieve.record(tx, player.userId,
+  matchId, game)`, inside the same transaction, for the `counted` players only. Pass the
+  recorder a reward dependency the way it is passed `achieve`.
+- **Tournament match:** the match's table has `tables.tournament_id` not null.
+- **Friend:** a row in `friendships` between the two players.
+- **Established:** `established_players` has a row for the user. It is filled by
+  `establish(matchId)` in `backend/src/domains/invite/service.ts` (account 7 days old, 5 games
+  played out with somebody established or on the staff: `ESTABLISHED_DAYS`, `ESTABLISHED_GAMES`
+  in `invite/policy.ts`). Reuse it; do not write a second definition.
+- **The wallet a player is paid to:** the one every money path uses,
+  `select w.address from wallets w where w.user_id = :id order by w.last_used_at desc nulls last
+  limit 1` (see `shop/orders.ts`, `stake/service.ts`). Copy the address into the payout row when
+  it is queued; never re-read it when sending.
+- **Giving a look:** insert into `owned_items` with `via: 'reward'`, `orderId: null`,
+  `giverId: null`, `ON CONFLICT DO NOTHING`, and read back whether a row was written
+  (`invite/service.ts`, the insert with `via: 'reward'`, is the pattern). Bundles (`bundle.*`)
+  are never owned.
+- **Telling the browser:** the hub already has a per-person nudge,
+  `nudge(n, 'me', now, topic)` (`backend/src/realtime/hub.ts`). Use scope `me` with topic
+  `rewards`; do not add a new scope. The browser listens with `useRealtime().onNudge`.
+- **Settings:** `settings` is a closed key set (`settings_key_known`); `stake/rate.ts` shows how
+  one is read and written.
+- **Admin:** abilities are in `ABILITIES` (`backend/src/domains/admin/roles.ts`); add
+  `rewards: 'admin'`, and gate every edit of amounts, pool and budget with the existing
+  `wallet: 'owner'` ability. Add `'rewards'` to `ADMIN_SECTIONS`
+  (`frontend/src/lib/admin-sections.ts`). Staff actions are a closed set too: add
+  `reward-config` and `reward-freeze` to `ACTION_KINDS`, to the check in
+  `staff-action.entity.ts`, and to `frontend/src/lib/staff-words.ts`.
+- **A new notification kind touches all of:** `notification.entity.ts` (type and check),
+  `backend/src/domains/notify/notices.ts`, `backend/src/schemas.ts`,
+  `frontend/src/lib/notice-words.ts`, `frontend/src/lib/notifications.ts`,
+  `frontend/public/push-worker.js`.
+- **Chain client to copy:** `backend/src/chain/sponsor.ts` (settings, `configured`, bounded
+  client, nonce manager); its key is read in `backend/src/env.ts` as
+  `optional('NURA_SPONSOR_KEY', { secret: true })`. Name the new one `NURA_REWARDS_KEY`.
+  Gas floor: `gasFloorOf(chainId)` in `chain/vault.ts`.
+- **Browser patterns to copy:** optimistic changes with `frontend/src/lib/guess.ts` (used in
+  `calls.store.ts`); navigation entries and their red dots in
+  `frontend/src/components/app/nav-items.ts` and `nav-counts.ts`; words go in a new
+  `frontend/src/locales/<lang>/rewards.ts` registered in each language's `index.ts`.
+- **There are no bots.** Every seat is a person, so "a different human" means a different
+  `user_id`.
+
+## 5. Anti-abuse rules for quest progress
 
 A finished match counts toward quests only when all of these hold. Put them in one pure function
 (`countsForQuests`) with a spec.
 
-- It reached a real ending; the player did not abandon or walk (`ledger.exit`, `quitter`).
-- At least one opponent is a different human account (no bots, no solo).
+- The player's verdict is `won` with credit, `lost` or `drawn` (section 4).
+- At least one other seat is a different `user_id`.
 - It lasted a minimum number of the player's own turns (per game, a constant table).
 - The same opponent counts at most 3 times per reward day for one player (win-trading).
 - "Win" quests need the win to be against at least one established player.
 
-## 5. Tasks
+## 6. Tasks
 
 ### R1. Rules module (pure, no I/O)
 
@@ -114,10 +179,11 @@ A finished match counts toward quests only when all of these hold. Put them in o
 - **Files:** new `backend/src/domains/reward/quests.ts`, `backend/tests/reward-quests.spec.ts`.
 - **Do:** define quest templates as data: `{ id, period: 'daily' | 'weekly', game: GameId | 'any',
   metric, target, title/blurb keys }`. Metrics, all derivable in `Recorder.finish`:
-  `played`, `won`, `played-with-friend`, `won-streak`, `tournament-played`, `distinct-games`, and
-  per-game tallies that `player_stats.tallies` already counts (read
-  `backend/src/domains/match/record.ts` and each engine's `engagement` for the real counter names;
-  do not invent counters).
+  The metrics are a closed set, each defined by section 4: `played`, `won`,
+  `played-with-friend`, `tournament-played`, `distinct-games` (weekly only: how many different
+  games were played), and `{ tally: name }` with a name from section 4's list for that game.
+  Nothing else. Size targets so a daily quest takes about 30 minutes of play and a weekly one
+  about 3 hours; say in a comment how each target was sized.
   At least 6 daily and 4 weekly templates per game (hokm, backgammon, poker, ludo, chess) plus 6
   "any game" ones.
 - **Rotation:** `questsFor(cycleIndex, dayOrWeek, period)` is deterministic and the same for
@@ -170,19 +236,19 @@ A finished match counts toward quests only when all of these hold. Put them in o
 - **Files:** `backend/src/domains/match/record.ts` (call into the reward service inside
   `finish`'s transaction, beside the `achieve` call), `backend/src/domains/reward/progress.ts`,
   `backend/tests/reward-progress.spec.ts`.
-- **Do:** from the finished match build per-player facts, run `countsForQuests` (section 4), then
+- **Do:** from the finished match build per-player facts, run `countsForQuests` (section 5), then
   advance every active daily and weekly quest whose game and metric match, with an upsert that
   never passes the target. `claimQuest(userId, period, questId)` grants through `grant()`; when
   the 3rd weekly quest is claimed, the chest (NURA + pool look) is granted with it.
 - **Performance:** at most 2 extra statements per player per finished match. No per-quest loops of
   queries.
-- **Accept:** spec covers every rule in section 4 and every metric; a quest cannot be claimed
+- **Accept:** spec covers every rule in section 5 and every metric; a quest cannot be claimed
   before it is done, nor twice; progress made on the last day cannot be claimed after 7 days.
 
 ### R6. NURA payout (depends on R4; can run in parallel with R5)
 
 - **Files:** new `backend/src/chain/rewards.ts` (model it on `chain/sponsor.ts`: bounded client,
-  `nonceManager`, gas floor from `vault.ts`), `backend/src/env.ts` (`REWARDS_KEY`), a sweep in
+  `nonceManager`, gas floor from `vault.ts`), `backend/src/env.ts` (`NURA_REWARDS_KEY`), a sweep in
   `backend/src/main.ts` like the others, `backend/tests/fake-chain.ts`, reconcile kinds in
   `backend/src/domains/reconcile/`.
 - **Do:** `withdraw(userId)` moves the player's whole unpaid ledger balance into one `queued`
@@ -201,7 +267,7 @@ A finished match counts toward quests only when all of these hold. Put them in o
   `backend/src/http/rate-limit.ts`.
 - **Routes:** `GET /rewards` (state), `POST /rewards/check-in`, `POST /rewards/quests/:period/:id/claim`,
   `POST /rewards/withdraw`, `GET /rewards/history` (a page at a time).
-- **Do:** nudge the player's sockets (existing `nudge` frame, a new `rewards` scope) when quest
+- **Do:** nudge the player's sockets (scope `me`, topic `rewards`; section 4) when quest
   progress changes or a payout is mined. Add notification kinds `reward-ready` (a quest is done)
   and `reward-streak` (one push a day at most, only if today is unclaimed and the streak is >= 3);
   extend the kind checks, the notice words and `frontend/public/push-worker.js` texts.
@@ -258,17 +324,36 @@ A finished match counts toward quests only when all of these hold. Put them in o
 - **Accept:** `npm run check` and `npm run build` pass; with the switch off no route grants
   anything.
 
-## 6. Order and parallelism
+## 7. Order, and how to run the tasks
 
 ```
 R1 -> R2 -> R3 -> R4 -> R5 --\
                     \-> R6 ---+-> R7 -> R8 (parallel with R9) -> R10
 ```
 
-One agent per task. An agent finishes only when its acceptance checks pass and it has listed what
-it could not verify.
+Run **one task at a time**. A task is done only when:
 
-## 7. Decisions (confirmed by the owner, 2026-11-13)
+1. its acceptance checks pass, and the agent pasted the command output that shows it;
+2. `npm run check` passes, and `npm run build` for a task that touched the frontend;
+3. the agent listed what it could not verify;
+4. somebody reviewed the diff before the next task starts (`/code-review` at least).
+
+Extra gates, because these parts cannot be left to one agent alone:
+
+- **R6 (payout) moves real NURA.** It needs a review by a stronger model or a person, looking
+  for: a payout sent twice, a crash between sending and saving the hash, an address read at send
+  time instead of from the payout row, and the gas reserve. It is tried on a test wallet holding
+  a few NURA before `NURA_REWARDS_KEY` is set to the real one. The switch (R8) stays off until
+  then.
+- **R4 and R5 make claims about two requests at once** that no spec here can prove (the repo
+  keeps no database specs). The agent must run the migration, then the same claim twice in
+  parallel against a local database by hand, and paste the result.
+- **R9 (UI)** is checked by a person on a phone, in fa (right-to-left) and en, before it is
+  called done. The agent cannot see it.
+- An agent that finds a fact in section 4 to be wrong stops and says so; it does not work around
+  it.
+
+## 8. Decisions (confirmed by the owner, 2026-11-13)
 
 1. **Payout path:** no new contract. Paid from the owner-provided rewards wallet straight to the
    player's wallet; every grant and payout is logged in the admin by day.

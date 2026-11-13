@@ -26,7 +26,7 @@ import { createOps } from './http/ops.ts';
 import { SAMPLE_MS } from './ops/measures.ts';
 import { createMonitor } from './ops/monitor.ts';
 import { poolOf } from './ops/sample.ts';
-import { apiRateLimit, publicInviteRateLimit, signInRateLimit } from './http/rate-limit.ts';
+import { apiRateLimit, publicInviteRateLimit, rewardRateLimit, signInRateLimit } from './http/rate-limit.ts';
 import { createServerLogger } from './logger.ts';
 import { createChatService } from './domains/chat/service.ts';
 import { createFranking } from './domains/chat/franking.ts';
@@ -320,6 +320,7 @@ const handler = pipeline(
     apiRateLimit({ limit: config.apiRateMax, trustProxy: config.env === 'production' }),
     signInRateLimit({ apiLimit: config.apiRateMax, trustProxy: config.env === 'production' }),
     publicInviteRateLimit({ apiLimit: config.apiRateMax, trustProxy: config.env === 'production' }),
+    rewardRateLimit({ apiLimit: config.apiRateMax, trustProxy: config.env === 'production' }),
 
     // Inside the limiters, so a guess at the token is metered like any other request.
     metricsAt(config.metricsToken, () => monitor.metrics())
@@ -688,6 +689,50 @@ const sweepDonations = () =>
 giving = setTimeout(sweepDonations, DONATION_SWEEP_MS);
 giving.unref();
 
+const REWARD_SWEEP_MS = 3_000;
+
+const REWARD_SWEEP_BUDGET_MS = 4_000;
+
+let rewarding: NodeJS.Timeout | null = null;
+
+const rewardTold = new Map<string, string>();
+
+const sweepRewards = () =>
+{
+    void ports.jobs.sweepRewards(REWARD_SWEEP_BUDGET_MS)
+        .then(({ mined, retried, failed, faults }) =>
+        {
+            if (mined + retried + failed > 0)
+            {
+                log.info('reward payouts moved', { mined, retried, failed });
+            }
+
+            const now = new Map(faults.map((one) => [one.payout, one.error]));
+            for (const [payout, error] of now)
+            {
+                if (rewardTold.get(payout) !== error)
+                {
+                    log.warn('reward payout step failed', { payout, error });
+                }
+            }
+
+            rewardTold.clear();
+            now.forEach((error, payout) => rewardTold.set(payout, error));
+        })
+        .catch((error: unknown) => log.error('reward payout sweep failed', { error }))
+        .finally(() =>
+        {
+            if (rewarding !== null)
+            {
+                rewarding = setTimeout(sweepRewards, REWARD_SWEEP_MS);
+                rewarding.unref();
+            }
+        });
+};
+
+rewarding = setTimeout(sweepRewards, REWARD_SWEEP_MS);
+rewarding.unref();
+
 const MARKET_SWEEP_MS = 3_000;
 
 const MARKET_SWEEP_BUDGET_MS = 4_000;
@@ -900,6 +945,11 @@ handleShutdownSignals(served, {
         {
             clearTimeout(giving);
             giving = null;
+        }
+        if (rewarding !== null)
+        {
+            clearTimeout(rewarding);
+            rewarding = null;
         }
         if (marketing !== null)
         {

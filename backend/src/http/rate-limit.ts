@@ -124,3 +124,28 @@ export function publicInviteRateLimit(options: { apiLimit: number; trustProxy: b
         trustProxy: options.trustProxy
     }));
 }
+
+export const REWARD_LEAST = 20;
+
+export const REWARD_SHARE = 20;
+
+export function isRewardMutation(pathname: string)
+{
+    return pathname === '/api/rewards/check-in'
+        || pathname === '/api/rewards/withdraw'
+        || /^\/api\/rewards\/quests\/(daily|weekly)\/[^/]+\/claim$/.test(pathname);
+}
+
+export function rewardLimit(apiLimit: number)
+{
+    return Math.max(REWARD_LEAST, Math.floor(apiLimit / REWARD_SHARE));
+}
+
+export function rewardRateLimit(options: { apiLimit: number; trustProxy: boolean })
+{
+    return forPaths(isRewardMutation, rateLimit({
+        limit: rewardLimit(options.apiLimit),
+        windowMs: 60_000,
+        trustProxy: options.trustProxy
+    }));
+}

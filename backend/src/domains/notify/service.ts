@@ -87,6 +87,7 @@ export function createNotifyService(db: DataSource, social: SocialService)
             actorId: string | null;
             ref: Record<string, string>;
             dedupeKey: string;
+            once?: boolean;
         }): Promise<boolean>
         {
             if (input.actorId === input.userId)
@@ -110,19 +111,22 @@ export function createNotifyService(db: DataSource, social: SocialService)
                 return false;
             }
 
-            await db.query(
+            const conflict = input.once === true
+                ? 'on conflict (user_id, dedupe_key) do nothing returning id'
+                : `on conflict (user_id, dedupe_key) do update set
+                       count      = case when notifications.kind = excluded.kind then notifications.count + 1 else 1 end,
+                       kind       = excluded.kind,
+                       created_at = now(),
+                       read_at    = null,
+                       actor_id   = excluded.actor_id,
+                       ref        = excluded.ref`;
+            const rows = await db.query(
                 `insert into notifications (user_id, kind, actor_id, ref, dedupe_key)
                  values ($1, $2, $3, $4::jsonb, $5)
-                 on conflict (user_id, dedupe_key) do update set
-                    count      = case when notifications.kind = excluded.kind then notifications.count + 1 else 1 end,
-                    kind       = excluded.kind,
-                    created_at = now(),
-                    read_at    = null,
-                    actor_id   = excluded.actor_id,
-                    ref        = excluded.ref`,
+                 ${ conflict }`,
                 [input.userId, input.kind, input.actorId, JSON.stringify(clean(input.ref)), input.dedupeKey]
             );
-            return true;
+            return input.once === true ? rows.length > 0 : true;
         },
 
         async retract(userId: string, kind: NotificationKind, dedupeKey: string)

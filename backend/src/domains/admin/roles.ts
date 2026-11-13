@@ -27,7 +27,7 @@ export const GRANTED_ROLES = ['moderator', 'admin', 'co-owner'] as const;
 
 export type GrantedRole = (typeof GRANTED_ROLES)[number];
 
-export const ACTION_KINDS = ['grant', 'change', 'revoke', 'note', 'suspend', 'lift', 'expire', 'clear', 'sign-out', 'report', 'game', 'void', 'close', 'minor', 'notice', 'check', 'shop-item', 'shop-feature', 'shop-grant', 'shop-revoke', 'shop-refund', 'invite-campaign', 'invite-reward', 'minter-grant', 'minter-revoke', 'season', 'tournament', 'rate'] as const;
+export const ACTION_KINDS = ['grant', 'change', 'revoke', 'note', 'suspend', 'lift', 'expire', 'clear', 'sign-out', 'report', 'game', 'void', 'close', 'minor', 'notice', 'check', 'shop-item', 'shop-feature', 'shop-grant', 'shop-revoke', 'shop-refund', 'invite-campaign', 'invite-reward', 'minter-grant', 'minter-revoke', 'reward-config', 'reward-freeze', 'season', 'tournament', 'rate'] as const;
 
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
@@ -143,6 +143,7 @@ export const ABILITIES = {
     tournaments: 'admin',
     shop: 'admin',
     invites: 'admin',
+    rewards: 'admin',
     notice: 'admin',
     seasons: 'admin',
     money: 'admin',

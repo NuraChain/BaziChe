@@ -109,7 +109,11 @@ import type {
     ShopPurchase,
     ShopState,
     StaffList,
-    StaffLog
+    StaffLog,
+    RewardState,
+    RewardHistoryPage,
+    RewardQuestClaim,
+    RewardWithdraw
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
 import type { tournamentCreateInput, tournamentList, tournamentsQuery, AdminRate, adminRateInput, AdminTournament, AdminTournaments, TournamentDetail, adminTournamentRemove, adminTournamentSwitch, adminTournamentTime, adminTournamentsQuery, adminMinterInput, adminMinterSentInput, adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminSeasonStart, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
@@ -1113,6 +1117,15 @@ export interface AdminPort
 }
 
 /** Every port the API declaration may reach. One member per domain. */
+export interface RewardPort
+{
+    state(me: string): Promise<RewardState>;
+    checkIn(me: string): Promise<RewardState>;
+    claimQuest(me: string, period: 'daily' | 'weekly', id: string): Promise<RewardQuestClaim>;
+    withdraw(me: string): Promise<RewardWithdraw>;
+    history(me: string, cursor?: string | null): Promise<RewardHistoryPage>;
+}
+
 export interface Ports
 {
     meta: MetaPort;
@@ -1132,6 +1145,7 @@ export interface Ports
     chain: ChainPort;
     vault: VaultPort;
     invites: InvitePort;
+    reward: RewardPort;
     shop: ShopPort;
     donate: DonatePort;
     markets: MarketPort;

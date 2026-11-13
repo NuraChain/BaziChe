@@ -18,6 +18,8 @@ export const NOTICE_OF: Readonly<Record<string, Notice>> = {
     'invite-reward': 'inviting',
     'gift': 'gifts',
     'donation': 'gifts',
+    'reward-ready': 'gifts',
+    'reward-streak': 'gifts',
     'channel-invite': 'groups',
     'group-report': 'groups',
     'call': 'calls',

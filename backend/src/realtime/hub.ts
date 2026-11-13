@@ -154,7 +154,7 @@ export const SEEN_MS = 20_000;
 
 export const VIEWED_MAX = 4;
 
-export type SelfTopic = 'notifications' | 'devices' | 'profile' | 'party' | 'calls' | 'vault' | 'shop' | 'donations' | 'markets' | 'channels';
+export type SelfTopic = 'notifications' | 'devices' | 'profile' | 'party' | 'calls' | 'vault' | 'shop' | 'donations' | 'markets' | 'channels' | 'rewards';
 
 export interface Hub
 {

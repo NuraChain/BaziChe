@@ -16,6 +16,7 @@ import { gameOff, gameOn, lockTable, stillLocking, tableRefusal } from '../table
 import { hmacSha256, keccak, pickBelow } from '../../lib/crypto.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import type { AchieveService } from '../achieve/service.ts';
+import type { QuestProgressHook, RewardFinishEffects } from '../reward/progress.ts';
 import { firstRow } from '../../lib/rows.ts';
 import { createRecorder } from './record.ts';
 import { envelopeOf } from './envelope.ts';
@@ -55,7 +56,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export type Applied = 'now' | 'already' | 'stale';
 
 export type Expired =
-    | { matchId: string; game: string; played: true; before: number }
+    | { matchId: string; game: string; played: true; before: number; rewardEffects: RewardFinishEffects }
     | { matchId: string; game: string; played: false; reason: string };
 
 export interface MatchSeatRow
@@ -177,6 +178,8 @@ export const ENGINES: readonly Engine[] = [ludoEngine, hokmEngine, backgammonEng
 
 export const FOLD_MAX = 8;
 
+const NO_REWARD_EFFECTS: RewardFinishEffects = { changed: [], ready: [] };
+
 export const VOIDED = { seat: -1, kind: 'forfeit', verb: 'void' } as const;
 
 export const voidedOf = (state: unknown) => (state as { voided?: unknown }).voided === true;
@@ -189,9 +192,9 @@ export const sameTurn = (engine: Engine, before: unknown, after: unknown) =>
 /** Nobody chose anything: every seat plays in Classic. */
 const CLASSIC: LooksReader = async (_runner, _game, userIds) => new Map(userIds.map((id) => [id, {}]));
 
-export function createMatchService(db: DataSource, achieve: AchieveService, engines: readonly Engine[] = ENGINES, looksOf: LooksReader = CLASSIC)
+export function createMatchService(db: DataSource, achieve: AchieveService, engines: readonly Engine[] = ENGINES, looksOf: LooksReader = CLASSIC, reward?: QuestProgressHook)
 {
-    const recorder = createRecorder(achieve);
+    const recorder = createRecorder(achieve, reward);
 
     const byGame = new Map(engines.map((engine) => [engine.id, engine]));
 
@@ -445,6 +448,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
     {
         const ending = engine.finish(next);
         const rearm = ending === null && !sameTurn(engine, match.state, next);
+        let rewardEffects = NO_REWARD_EFFECTS;
 
         const written = await tx.getRepository(Match).update(
             { id: match.id, rev: match.rev },
@@ -486,7 +490,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
 
         if (ending !== null)
         {
-            await recorder.finish(tx, match, engine, next, ending);
+            rewardEffects = await recorder.finish(tx, match, engine, next, ending);
             await tx.getRepository(TableSeat).update({ tableId: match.tableId, ready: true }, { ready: false });
             await tx.getRepository(Escrow).update(
                 { matchId: match.id, state: 'open' },
@@ -495,6 +499,8 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                     : { state: 'refunding', updatedAt: () => 'now()' }
             );
         }
+
+        return rewardEffects;
     };
 
     return {
@@ -740,7 +746,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             me: string,
             matchId: string,
             want: { play: MatchPlay | null; rev?: number; key: string }
-        ): Promise<{ load: MatchLoad; applied: Applied; before: number }> =>
+        ): Promise<{ load: MatchLoad; applied: Applied; before: number; rewardEffects: RewardFinishEffects }> =>
         {
             if (!UUID.test(matchId))
             {
@@ -748,6 +754,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             }
 
             let before = -1;
+            let rewardEffects = NO_REWARD_EFFECTS;
 
             const applied = await db.transaction(async (tx): Promise<Applied> =>
             {
@@ -832,7 +839,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                  * What the die came up is in `events`, where the engine put it, and the ledger reads
                  * the same either way.
                  */
-                await commit(tx, match, engine, outcome.state, outcome.events, {
+                rewardEffects = await commit(tx, match, engine, outcome.state, outcome.events, {
                     seat: seat.seat,
                     userId: me,
                     kind: want.play === null && conceded === null ? 'forfeit' : 'play',
@@ -851,7 +858,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                 throw error;
             });
 
-            return { load: (await read(me, matchId)) as MatchLoad, applied, before };
+            return { load: (await read(me, matchId)) as MatchLoad, applied, before, rewardEffects };
         },
 
         proof: async (me: string, matchId: string) =>
@@ -944,7 +951,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                 throw tableRefusal('playing', 'A game has started at that table, and leaving it now is a forfeit.');
             }
 
-            await commit(tx, match, engine, outcome.state, outcome.events, {
+            const rewardEffects = await commit(tx, match, engine, outcome.state, outcome.events, {
                 seat: seat.seat,
                 userId: me,
                 kind: 'forfeit',
@@ -952,7 +959,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                 key: null
             }, await modeOf(tx, match.tableId));
 
-            return { matchId: match.id, before: match.rev };
+            return { matchId: match.id, before: match.rev, rewardEffects };
         },
 
         /**
@@ -1071,6 +1078,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             {
                 return await db.transaction(async (tx): Promise<Expired | null> =>
                 {
+                    let rewardEffects = NO_REWARD_EFFECTS;
                     const match = await tx.getRepository(Match)
                         .createQueryBuilder('m')
                         .where('m.finished_at is null and m.deadline_at < now()')
@@ -1142,7 +1150,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
 
                     const step = async (at: Match, next: unknown, events: unknown[]) =>
                     {
-                        await commit(tx, at, engine, next, events, {
+                        rewardEffects = await commit(tx, at, engine, next, events, {
                             seat,
                             userId: null,
                             kind: forfeiting ? 'forfeit' : 'play',
@@ -1176,7 +1184,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                         await postpone(tx, match.id, mode);
                     }
 
-                    return { matchId: match.id, game: match.game, played: true, before: match.rev };
+                    return { matchId: match.id, game: match.game, played: true, before: match.rev, rewardEffects };
                 });
             }
             catch (error: unknown)

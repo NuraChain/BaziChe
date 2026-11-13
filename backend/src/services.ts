@@ -43,6 +43,7 @@ import { createShopChain, type ShopChain } from './chain/shop.ts';
 import { createMarketsChain, type MarketsChain } from './chain/markets.ts';
 import { createNftChain, type NftChain } from './chain/minting.ts';
 import { createProfileSponsor, type ProfileSponsor } from './chain/sponsor.ts';
+import { createRewardWallet, type RewardWallet } from './chain/rewards.ts';
 import { createTipsChain, type TipsChain } from './chain/tips.ts';
 import { createVault, type Vault } from './chain/vault.ts';
 import { GAME_SEEDS } from './db/seed-reference.ts';
@@ -73,6 +74,8 @@ import type { CheckFamily, Holder } from './domains/reconcile/kinds.ts';
 import { createReconciler, type ReconcileSweep } from './domains/reconcile/service.ts';
 import type { Books } from './chain/rpc.ts';
 import { createShopService } from './domains/shop/service.ts';
+import { createRewardService } from './domains/reward/service.ts';
+import type { RewardFinishEffects } from './domains/reward/progress.ts';
 import { createReportsService } from './domains/admin/reports.ts';
 import { createStaffService, record, staffRefusal, type Actor } from './domains/admin/staff.ts';
 import { rateOf, setUsdRate, usdRate } from './domains/stake/rate.ts';
@@ -124,7 +127,7 @@ export interface WriteListener
     chatSeen(conversationId: string, userId: string): void;
     socialChanged(...userIds: string[]): void;
     edgesChanged(...userIds: string[]): void;
-    selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'calls' | 'vault' | 'shop' | 'donations' | 'markets' | 'channels'): void;
+    selfChanged(userId: string, what: 'notifications' | 'devices' | 'profile' | 'party' | 'calls' | 'vault' | 'shop' | 'donations' | 'markets' | 'channels' | 'rewards'): void;
     callChanged(callId: string, people: readonly string[]): void;
     voiceChatChanged(conversationId: string): void;
     gamePushed(pushes: readonly { userId: string; match: MatchView; events: MatchEventLog[] }[]): void;
@@ -183,6 +186,7 @@ export interface Services extends Ports
         sweepShop(forMs: number): Promise<ShopSweep>;
         sweepDonations(forMs: number): Promise<DonateSweep>;
         sweepMarkets(forMs: number): Promise<MarketSweep>;
+        sweepRewards(forMs: number): Promise<import('./domains/reward/payout.ts').RewardPayoutSweep>;
 
         /** Owed NFTs written down and a few asked of the chain and sent; nothing when the minter is not configured. */
         sweepNfts(): Promise<NftSweep>;
@@ -220,7 +224,7 @@ const IDLE_TABLES = 200;
 
 const ADMIN_TOURNAMENTS = 100;
 
-export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain, tipsChain?: TipsChain, marketsChain?: MarketsChain, nftChain?: NftChain, sponsorChain?: ProfileSponsor): Services
+export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain, tipsChain?: TipsChain, marketsChain?: MarketsChain, nftChain?: NftChain, sponsorChain?: ProfileSponsor, rewardChain?: RewardWallet): Services
 {
     const here = (userIds: readonly string[]) => presence?.present(userIds) ?? new Set(userIds);
 
@@ -270,6 +274,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const table = createTableService(db, social);
     const catalogue = createCatalogueService(db);
     const notify = createNotifyService(db, social);
+    const rewardWallet = rewardChain ?? createRewardWallet({ rpcUrl: config.rpcUrl, chainId: config.chainId, rewardsKey: config.rewardsKey });
+    const reward = createRewardService(db, rewardWallet, { mined: (userId) => live?.selfChanged(userId, 'rewards') });
     const shop = createShopService(db);
 
     /**
@@ -336,12 +342,33 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         actorId: string | null;
         ref: Record<string, string>;
         dedupeKey: string;
+        once?: boolean;
     }) =>
     {
         if (await notify.tell(input))
         {
             live?.selfChanged(input.userId, 'notifications');
             wake(input.userId);
+        }
+    };
+
+    const rewardEffects = async (effects: RewardFinishEffects) =>
+    {
+        for (const userId of new Set(effects.changed))
+        {
+            live?.selfChanged(userId, 'rewards');
+        }
+
+        for (const ready of effects.ready)
+        {
+            await courtesy('reward ready notice', () => tell({
+                userId: ready.userId,
+                kind: 'reward-ready',
+                actorId: null,
+                ref: {},
+                dedupeKey: `reward-ready:${ ready.periodKey }:${ ready.questId }`,
+                once: true
+            }));
         }
     };
 
@@ -989,7 +1016,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         live?.tableChanged(row.id, [...await table.peopleAt(row.id), ...also]);
     };
 
-    const match = createMatchService(db, achieve, ENGINES, shop.looksAt);
+    const match = createMatchService(db, achieve, ENGINES, shop.looksAt, reward);
 
     const tournaments = createTournamentService(db, { seat: table.seatForTournament, deal: match.dealTournament });
     const tournamentStaff = createTournamentStaff(db, tournaments, owners);
@@ -1855,6 +1882,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         holders.set('markets', () => forecasts.books());
     }
 
+    if (rewardWallet.configured && reward.audit !== undefined)
+    {
+        auditors.set('reward', (ask) => reward.audit!(ask));
+    }
+
     const reconciler = createReconciler(db, auditors, holders, { said: (event, fields) => note?.(event, fields, 'warn') });
 
     const sampleWork = createSampler(db, {
@@ -1874,6 +1906,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
         if (walked !== null)
         {
+            await rewardEffects(walked.rewardEffects);
             await courtesy('game push', () => pushMatch(walked.matchId, walked.before));
 
             const load = await match.peek(walked.matchId);
@@ -1971,6 +2004,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
         if (answer.applied === 'now')
         {
+            await rewardEffects(answer.rewardEffects);
             await courtesy('game push', () => pushMatch(matchId, answer.before));
             await courtesy('turn notice', () => nudgeTurn(answer.load, me));
 
@@ -2046,6 +2080,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
             stuckMatches.delete(expired.matchId);
             played += 1;
+            await rewardEffects(expired.rewardEffects);
             await courtesy('game push', () => pushMatch(expired.matchId, expired.before));
 
             const load = await match.peek(expired.matchId);
@@ -2436,6 +2471,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             sweepShop: (forMs) => orders.sweep(forMs),
             sweepDonations: (forMs) => donations.sweep(forMs),
             sweepMarkets: (forMs) => markets.sweep(forMs),
+            sweepRewards: (forMs) => reward.sweep(forMs),
             sweepNfts: () => mirror.pass(),
             reconcile: (forMs) => reconciler.sweep(forMs),
             sample: sampleWork,
@@ -2664,6 +2700,74 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             },
 
             visit: (code, visitor, viewer) => invites.visit(code, visitor, viewer)
+        },
+
+        reward: {
+            async state(me)
+            {
+                const state = await reward.state(me);
+
+                return {
+                    ...state,
+                    ladder: state.ladder.map(({ look, ...rest }) => look === undefined ? rest : { ...rest, look })
+                };
+            },
+            async checkIn(me)
+            {
+                const [payload, state] = await Promise.all([reward.checkIn(me), reward.state(me)]);
+                const next = {
+                    ...state,
+                    claimable: payload.claimed === false && state.claimable,
+                    ladder: state.ladder.map(({ look, ...rest }) => look === undefined ? rest : { ...rest, look })
+                };
+
+                live?.selfChanged(me, 'rewards');
+                return next;
+            },
+            async claimQuest(me, period, id)
+            {
+                const result = await reward.claimQuest(me, period, id);
+                if (result.claimed)
+                {
+                    live?.selfChanged(me, 'rewards');
+                }
+                return result;
+            },
+            async withdraw(me)
+            {
+                const result = await reward.withdraw(me);
+                if (result.status !== 'none')
+                {
+                    live?.selfChanged(me, 'rewards');
+                }
+                return result;
+            },
+            async history(me, cursor)
+            {
+                const rows = await db.query(
+                    `select id, source, amount, created_at as at, source_key as note
+                     from reward_grants where user_id = $1 order by created_at desc limit 25`,
+                    [me]
+                );
+
+                const items = rows.map((row: { id: string; source: string; amount: string; at: Date; note: string }) =>
+                {
+                    const kind = row.source === 'checkin' ? 'check-in' : row.source === 'bonus' ? 'bonus' : 'quest';
+                    return {
+                        id: row.id,
+                        kind,
+                        at: row.at.toISOString(),
+                        amount: Number(row.amount),
+                        note: row.note
+                    };
+                });
+
+                return {
+                    items,
+                    hasMore: false,
+                    ...(cursor === null || cursor === undefined ? {} : { cursor })
+                };
+            }
         },
 
         shop: {

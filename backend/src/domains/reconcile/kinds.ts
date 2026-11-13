@@ -1,5 +1,5 @@
 /** What a disagreement is about: a record of one of the four families of money, or a contract's own books. */
-export const CHECK_FAMILIES = ['escrow', 'order', 'donation', 'market', 'position', 'contract'] as const;
+export const CHECK_FAMILIES = ['escrow', 'order', 'donation', 'market', 'position', 'reward', 'contract'] as const;
 
 export type CheckFamily = (typeof CHECK_FAMILIES)[number];
 
@@ -17,7 +17,9 @@ export const CHECK_KINDS = [
     'position-state',
     'position-ticket',
     'position-claim',
-    'solvency'
+    'solvency',
+    'reward-ledger',
+    'reward-balance'
 ] as const;
 
 export type CheckKind = (typeof CHECK_KINDS)[number];

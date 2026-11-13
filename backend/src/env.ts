@@ -139,6 +139,7 @@ export function loadServerConfig()
              * the referee's or the minter's. Nothing is paid for while it is empty.
              */
             sponsorKey: optional('NURA_SPONSOR_KEY', { secret: true }),
+            rewardsKey: optional('NURA_REWARDS_KEY', { secret: true }),
 
             /** The explorer's Etherscan-compatible api, where a wallet's NFT transfers are read. */
             explorerApi: optional('NURA_EXPLORER_API'),

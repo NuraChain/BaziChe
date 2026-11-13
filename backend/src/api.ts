@@ -166,6 +166,10 @@ import {
     profileSponsorInput,
     nftPage,
     nftQuery,
+    rewardState,
+    rewardQuestClaim,
+    rewardWithdraw,
+    rewardHistoryPage,
     challenge,
     challengeInput,
     langQuery,
@@ -926,6 +930,20 @@ export function buildApi(ports: Ports)
 
             list: routes.post('/listed', { input: inviteListedInput, output: inviteListed },
                 (context) => ports.invites.list(context.principal.userId, context.input.on))
+        })),
+
+        rewards: feature('/rewards', [session], (routes) => ({
+            state: routes.get('/', { output: rewardState }, (context) => ports.reward.state(context.principal.userId)),
+
+            checkIn: routes.post('/check-in', { output: rewardState }, (context) => ports.reward.checkIn(context.principal.userId)),
+
+            claimQuest: routes.post('/quests/:period/:id/claim', { output: rewardQuestClaim }, (context) =>
+                ports.reward.claimQuest(context.principal.userId, context.params.period === 'daily' ? 'daily' : 'weekly', context.params.id)),
+
+            withdraw: routes.post('/withdraw', { output: rewardWithdraw }, (context) => ports.reward.withdraw(context.principal.userId)),
+
+            history: routes.get('/history', { query: historyQuery, output: rewardHistoryPage },
+                (context) => ports.reward.history(context.principal.userId, context.query.cursor ?? null))
         })),
 
         shop: feature('/shop', [session], (routes) => ({

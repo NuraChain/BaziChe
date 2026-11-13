@@ -1,5 +1,8 @@
 import type { MigrationInterface } from 'typeorm';
+import { RewardSchema1760000000000 } from './1760000000000-RewardSchema.ts';
 import { FillMessengerColumns1793682422851 } from './1793682422851-FillMessengerColumns.ts';
+import { RewardGrantSourceKey1794600000000 } from './1794600000000-RewardGrantSourceKey.ts';
+import { RewardPayoutRecovery1794600001000 } from './1794600001000-RewardPayoutRecovery.ts';
 
 /**
  * Every migration, oldest first, listed by hand: a glob would resolve against the working directory
@@ -13,5 +16,8 @@ import { FillMessengerColumns1793682422851 } from './1793682422851-FillMessenger
  * every other change a start makes by itself from the entities, as a version (`migrate.ts`).
  */
 export const MIGRATIONS: (new () => MigrationInterface)[] = [
-    FillMessengerColumns1793682422851
+    RewardSchema1760000000000,
+    FillMessengerColumns1793682422851,
+    RewardGrantSourceKey1794600000000,
+    RewardPayoutRecovery1794600001000
 ];

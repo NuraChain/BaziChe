@@ -14,6 +14,7 @@ export const FAMILY_WORDS: Record<CheckFamily, MessageKey> = {
     donation: 'admin.checks.family.donation',
     market: 'admin.checks.family.market',
     position: 'admin.checks.family.position',
+    reward: 'admin.checks.family.reward',
     contract: 'admin.checks.family.contract'
 };
 
@@ -23,6 +24,7 @@ export const WATCH_WORDS: Record<CheckFamily, MessageKey> = {
     donation: 'admin.checks.watch.donation',
     market: 'admin.checks.watch.market',
     position: 'admin.checks.watch.position',
+    reward: 'admin.checks.watch.reward',
     contract: 'admin.checks.watch.contract'
 };
 
@@ -32,6 +34,7 @@ export const FAMILY_MARKS: Record<CheckFamily, IconName> = {
     donation: 'gift',
     market: 'target',
     position: 'target',
+    reward: 'gift',
     contract: 'wallet'
 };
 
@@ -49,7 +52,9 @@ const KIND_WORDS: Record<CheckKind, MessageKey> = {
     'position-state': 'admin.checks.kind.position-state',
     'position-ticket': 'admin.checks.kind.position-ticket',
     'position-claim': 'admin.checks.kind.position-claim',
-    solvency: 'admin.checks.kind.solvency'
+    solvency: 'admin.checks.kind.solvency',
+    'reward-ledger': 'admin.checks.kind.reward-ledger',
+    'reward-balance': 'admin.checks.kind.reward-balance'
 };
 
 const HOLDER_WORDS: Readonly<Record<string, MessageKey>> = {
@@ -112,7 +117,8 @@ const STATES: Record<Exclude<CheckFamily, 'escrow' | 'contract'>, Readonly<Recor
         none: 'admin.checks.word.none',
         claimed: 'admin.checks.word.claimed',
         unclaimed: 'admin.checks.word.unclaimed'
-    }
+    },
+    reward: {}
 };
 
 const ADDRESS_WORDS: Partial<Record<CheckKind, MessageKey>> = {

@@ -31,6 +31,8 @@ const MARKS: Record<ActionKind, { icon: IconName; tone: string }> = {
     'shop-grant': { icon: 'gift', tone: 'bg-live/15 text-live' },
     'shop-revoke': { icon: 'gift', tone: 'bg-danger/15 text-danger' },
     'shop-refund': { icon: 'coins', tone: 'bg-gold/15 text-gold' },
+    'reward-config': { icon: 'gift', tone: 'bg-accent/15 text-accent' },
+    'reward-freeze': { icon: 'clock', tone: 'bg-danger/15 text-danger' },
     'invite-campaign': { icon: 'invite', tone: 'bg-accent/15 text-accent' },
     'invite-reward': { icon: 'gift', tone: 'bg-gold/15 text-gold' },
     'minter-grant': { icon: 'key', tone: 'bg-accent/15 text-accent' },

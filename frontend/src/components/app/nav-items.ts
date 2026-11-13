@@ -40,6 +40,7 @@ export const RAIL: NavItem[] = [
     { tab: 'leaderboard', lights: [], to: '/app/leaderboard', icon: 'trophy', labelKey: 'app.nav.leaderboard' },
     { tab: 'discover', lights: [], to: '/app/discover', icon: 'discover', labelKey: 'app.nav.discover' },
     { tab: 'shop', lights: [], to: '/app/shop', icon: 'bag', labelKey: 'app.nav.shop' },
+    { tab: 'rewards', lights: [], to: '/app/rewards', icon: 'gift', labelKey: 'app.nav.rewards' },
     { tab: 'settings', lights: [], to: '/app/me/settings', icon: 'settings', labelKey: 'app.nav.settings' }
 ];
 

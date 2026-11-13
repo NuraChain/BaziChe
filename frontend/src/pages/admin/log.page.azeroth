@@ -62,6 +62,8 @@ const KIND_WORDS: Record<ActionKind | 'all', MessageKey> = {
     'invite-reward': 'admin.log.kind.invite-reward',
     'minter-grant': 'admin.log.kind.minter-grant',
     'minter-revoke': 'admin.log.kind.minter-revoke',
+    'reward-config': 'admin.log.kind.reward-config',
+    'reward-freeze': 'admin.log.kind.reward-freeze',
     season: 'admin.log.kind.season',
     tournament: 'admin.log.kind.tournament',
     rate: 'admin.log.kind.rate'

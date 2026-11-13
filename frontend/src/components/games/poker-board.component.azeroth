@@ -1660,8 +1660,6 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
 
     derived lastSays = felt.last === null ? [] : wonLines(felt.last.pots, felt.last.shown);
 
-    derived paidSays = wonLines(felt.paid, felt.tabled).join(' ');
-
     /*
      * Who took the pot and why, on the table while it holds on its winner: the hand they showed,
      * or that everybody else folded when nobody had to show. It goes with the next deal.

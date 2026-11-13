@@ -18,6 +18,8 @@ export const NOTIFICATION_ICON: Record<NotificationKind, IconName> = {
     'invite-reward': 'gift',
     'gift': 'gift',
     'donation': 'coins',
+    'reward-ready': 'gift',
+    'reward-streak': 'gift',
     'group-request': 'friend-add',
     'group-approved': 'friend-check',
     'group-owner': 'crest-crown',
@@ -45,6 +47,8 @@ const SAYS: Record<NotificationKind, MessageKey> = {
     'invite-reward': 'notify.inviteReward',
     'gift': 'notify.gift',
     'donation': 'notify.donation',
+    'reward-ready': 'notify.rewardReady',
+    'reward-streak': 'notify.rewardStreak',
     'group-request': 'notify.groupRequest',
     'group-approved': 'notify.groupApproved',
     'group-owner': 'notify.groupOwner',
@@ -98,6 +102,10 @@ export function targetOf(item: Notification): string | null
     if (item.kind === 'gift' || item.kind === 'invite-reward')
     {
         return '/app/shop/collection';
+    }
+    if (item.kind === 'reward-ready' || item.kind === 'reward-streak')
+    {
+        return '/app/rewards';
     }
     if (item.kind === 'invite-joined' || item.kind === 'invite-played')
     {

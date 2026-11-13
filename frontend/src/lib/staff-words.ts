@@ -276,6 +276,11 @@ const said = (row: LogRow, locale: LocaleApi) =>
         return locale.t(REWARD_LINES[row.details.to ?? ''] ?? 'admin.log.line.invite.given', { ...slots, look: itemName(row.details.item ?? '', locale) });
     }
 
+    if (row.kind === 'reward-config' || row.kind === 'reward-freeze')
+    {
+        return locale.t(row.kind === 'reward-config' ? 'admin.log.line.reward.config' : 'admin.log.line.reward.freeze', { ...slots, reason: row.details.reason ?? '', player: row.person ?? '' });
+    }
+
     if (row.kind === 'rate')
     {
         return row.details.to === undefined

@@ -1,0 +1,32 @@
+import { useHead } from 'azerothjs';
+
+import Page from '../../components/app/page.component.azeroth';
+import PageHeader from '../../components/app/page-header.component.azeroth';
+import { useLocale } from '../../stores/locale.store.ts';
+import CheckInCard from '../../components/rewards/check-in-card.component.azeroth';
+import Quests from '../../components/rewards/quests.component.azeroth';
+import Balance from '../../components/rewards/balance.component.azeroth';
+import History from '../../components/rewards/history.component.azeroth';
+
+export default component RewardsPage()
+{
+    const locale = useLocale();
+
+    useHead({ title: () => locale.t('app.nav.rewards') });
+
+    <Page label={ locale.t('app.nav.rewards') }>
+        <div class="flex flex-col gap-5">
+            <PageHeader title={ locale.t('app.nav.rewards') } lead={ locale.t('app.rewards.lead') } />
+
+            <CheckInCard />
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <Quests />
+                <div class="flex flex-col gap-4">
+                    <Balance />
+                    <History />
+                </div>
+            </div>
+        </div>
+    </Page>
+}

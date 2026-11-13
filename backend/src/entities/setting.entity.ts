@@ -6,7 +6,7 @@ import { User } from './user.entity.ts';
  * its push keys are. The names are a closed set, so a typo in code is a refused write rather than
  * a second setting nobody reads.
  */
-@Check('settings_key_known', `key in ('usd-rate', 'push-keys')`)
+@Check('settings_key_known', `key in ('usd-rate', 'push-keys', 'reward-config', 'reward-budget')`)
 @Check('settings_value_length', `char_length(value) between 1 and 400`)
 @Entity('settings')
 export class Setting

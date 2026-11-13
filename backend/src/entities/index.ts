@@ -58,6 +58,13 @@ import { TableSeat } from './table-seat.entity.ts';
 import { Table } from './table.entity.ts';
 import { Mute } from './mute.entity.ts';
 import { Notice } from './notice.entity.ts';
+import { RewardCheckin } from './reward-checkin.entity.ts';
+import { RewardCycleTotal } from './reward-cycle-total.entity.ts';
+import { RewardGrant } from './reward-grant.entity.ts';
+import { RewardPayout } from './reward-payout.entity.ts';
+import { RewardQuestOpponent } from './reward-quest-opponent.entity.ts';
+import { RewardQuestProgress } from './reward-quest-progress.entity.ts';
+import { RewardStreak } from './reward-streak.entity.ts';
 import { Setting } from './setting.entity.ts';
 import { Notification } from './notification.entity.ts';
 import { OwnedItem } from './owned-item.entity.ts';
@@ -91,7 +98,7 @@ export {
     Tournament, TournamentEntry, TournamentGame,
     Game, GameRule, Group, GroupBan, GroupEvent, GroupInvite, GroupMember, GroupMute, GroupReport, GroupRequest, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, MinterChange, Mute,
     NftToken, Notice, Notification, OwnedItem, PaidAccount, PlayerStats, ProfileSponsorship, PushSubscription,
-    QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, Season, Session, Setting, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
+    QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, RewardCheckin, RewardCycleTotal, RewardGrant, RewardPayout, RewardQuestOpponent, RewardQuestProgress, RewardStreak, Season, Session, Setting, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
     UserAchievement, VoiceNote, VoicePlay, Wallet
 };
 
@@ -120,6 +127,7 @@ export const entities: Function[] = [
     Notification, PushSubscription,
     PaidAccount, TableStake, StakeConsent, Escrow, EscrowSeat,
     StaffMember, StaffAction, Suspension, Notice, Season, Setting,
+    RewardStreak, RewardCheckin, RewardQuestProgress, RewardQuestOpponent, RewardGrant, RewardPayout, RewardCycleTotal,
     ShopItem, ShopCollection, ShopOrder, OwnedItem, EquippedItem, NftToken, MinterChange,
     Donation, DonationsOff,
     Market, MarketPosition, MarketDisclosure,

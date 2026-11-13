@@ -8,8 +8,8 @@ import type { CheckFamily, CheckKind, CheckResolution } from '../domains/reconci
  * does not hold what it owes: found by the reconciliation pass, and kept for good once it ends.
  * `db` and `chain` are what each side said when it was last seen, in words the admin translates.
  */
-@Check('discrepancies_family_known', `family in ('escrow', 'order', 'donation', 'market', 'position', 'contract')`)
-@Check('discrepancies_kind_known', `kind in ('escrow-state', 'escrow-stakes', 'escrow-winners', 'order-state', 'order-sale', 'donation-state', 'donation-gift', 'market-state', 'market-winner', 'market-claimable', 'position-state', 'position-ticket', 'position-claim', 'solvency')`)
+@Check('discrepancies_family_known', `family in ('escrow', 'order', 'donation', 'market', 'position', 'reward', 'contract')`)
+@Check('discrepancies_kind_known', `kind in ('escrow-state', 'escrow-stakes', 'escrow-winners', 'order-state', 'order-sale', 'donation-state', 'donation-gift', 'market-state', 'market-winner', 'market-claimable', 'position-state', 'position-ticket', 'position-claim', 'solvency', 'reward-ledger', 'reward-balance')`)
 @Check('discrepancies_resolution_known', `resolution is null or resolution in ('agreed', 'put-right', 'staff')`)
 @Check('discrepancies_resolved_whole', `(resolved_at is null) = (resolution is null)`)
 @Check('discrepancies_staff_named', `coalesce(resolution = 'staff', false) = (staff_handle is not null)`)

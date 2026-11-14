@@ -133,7 +133,8 @@ export function isRewardMutation(pathname: string)
 {
     return pathname === '/api/rewards/check-in'
         || pathname === '/api/rewards/withdraw'
-        || /^\/api\/rewards\/quests\/(daily|weekly)\/[^/]+\/claim$/.test(pathname);
+        || /^\/api\/rewards\/quests\/(daily|weekly)\/[^/]+\/claim$/.test(pathname)
+        || pathname === '/api/rewards/quests/claim-all';
 }
 
 export function rewardLimit(apiLimit: number)

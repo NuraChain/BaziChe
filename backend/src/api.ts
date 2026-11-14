@@ -168,6 +168,8 @@ import {
     nftQuery,
     rewardState,
     rewardQuestClaim,
+    rewardClaimAll,
+    rewardActivity,
     rewardWithdraw,
     rewardHistoryPage,
     challenge,
@@ -943,7 +945,13 @@ export function buildApi(ports: Ports)
             withdraw: routes.post('/withdraw', { output: rewardWithdraw }, (context) => ports.reward.withdraw(context.principal.userId)),
 
             history: routes.get('/history', { query: historyQuery, output: rewardHistoryPage },
-                (context) => ports.reward.history(context.principal.userId, context.query.cursor ?? null))
+                (context) => ports.reward.history(context.principal.userId, context.query.cursor ?? null)),
+
+            claimAll: routes.post('/quests/claim-all', { output: rewardClaimAll },
+                (context) => ports.reward.claimAll(context.principal.userId)),
+
+            activity: routes.get('/activity', { output: rewardActivity },
+                (context) => ports.reward.activity(context.principal.userId))
         })),
 
         shop: feature('/shop', [session], (routes) => ({

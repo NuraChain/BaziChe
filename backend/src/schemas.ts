@@ -3728,6 +3728,29 @@ export const rewardWithdraw = object({
 
 export type RewardWithdraw = Infer<typeof rewardWithdraw>;
 
+export const rewardClaimAll = object({
+    claimed: array(object({
+        period: enumOf(['daily', 'weekly']),
+        id: string(),
+        amount: number()
+    })),
+    total: number()
+});
+
+export type RewardClaimAll = Infer<typeof rewardClaimAll>;
+
+export const rewardActivity = object({
+    today: number(),
+    matchesPlayed: number(),
+    daily: object({ done: number(), claimed: number() }),
+    weekly: object({ done: number(), claimed: number() }),
+    activityScore: number(),
+    activityLevel: enumOf(['bronze', 'silver', 'gold']),
+    firstMatchOfDay: boolean()
+});
+
+export type RewardActivity = Infer<typeof rewardActivity>;
+
 export type NotificationKind = Infer<typeof notificationKind>;
 
 /* ----------------------------------------------------------------- tournaments */

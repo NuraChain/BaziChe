@@ -2767,6 +2767,19 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     hasMore: false,
                     ...(cursor === null || cursor === undefined ? {} : { cursor })
                 };
+            },
+            async claimAll(me)
+            {
+                const result = await reward.claimAll(me);
+                if (result.claimed.length > 0)
+                {
+                    live?.selfChanged(me, 'rewards');
+                }
+                return result;
+            },
+            async activity(me)
+            {
+                return await reward.activity(me);
             }
         },
 

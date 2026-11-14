@@ -113,6 +113,8 @@ import type {
     RewardState,
     RewardHistoryPage,
     RewardQuestClaim,
+    RewardClaimAll,
+    RewardActivity,
     RewardWithdraw
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
@@ -1122,8 +1124,10 @@ export interface RewardPort
     state(me: string): Promise<RewardState>;
     checkIn(me: string): Promise<RewardState>;
     claimQuest(me: string, period: 'daily' | 'weekly', id: string): Promise<RewardQuestClaim>;
+    claimAll(me: string): Promise<RewardClaimAll>;
     withdraw(me: string): Promise<RewardWithdraw>;
     history(me: string, cursor?: string | null): Promise<RewardHistoryPage>;
+    activity(me: string): Promise<RewardActivity>;
 }
 
 export interface Ports

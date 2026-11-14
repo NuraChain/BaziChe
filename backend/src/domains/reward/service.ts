@@ -11,6 +11,7 @@ import { RewardStreak } from '../../entities/reward-streak.entity.ts';
 import { Setting } from '../../entities/setting.entity.ts';
 import { ShopItem } from '../../entities/shop-item.entity.ts';
 import { User } from '../../entities/user.entity.ts';
+import { MatchPlayer } from '../../entities/match-player.entity.ts';
 import { REWARD_CAP, REWARD_DAY_MS, REWARD_EPOCH_MS, REWARD_LADDER, cycleOf, nextStreak, rewardDayOf } from './rules.ts';
 import { countsForQuests, deltasForQuests, MIN_QUEST_TURNS, weeklyChestReady, type QuestProgressHook, type RewardFinishEffects } from './progress.ts';
 import { questsFor } from './quests.ts';
@@ -496,6 +497,165 @@ export function createRewardService(db: DataSource, wallet?: RewardWallet, hooks
         return { claimed: true, period, id: questId, amount: total };
     });
 
+    const claimAll = async (userId: string) => db.transaction(async (tx) =>
+    {
+        const today = todayOf();
+        const cycleInfo = cycleOf(today);
+        const periodKeys = periodKeysInClaimWindow('daily', today).concat(cycleInfo.week === null ? [] : periodKeysInClaimWindow('weekly', today));
+
+        const rows = await tx.getRepository(RewardQuestProgress).createQueryBuilder('progress')
+            .setLock('pessimistic_write')
+            .where('progress.userId = :userId', { userId })
+            .andWhere('progress.doneAt IS NOT NULL')
+            .andWhere('progress.claimedAt IS NULL')
+            .andWhere('progress.periodKey in (:...periodKeys)', { periodKeys })
+            .orderBy('progress.period', 'ASC')
+            .addOrderBy('progress.periodKey', 'ASC')
+            .addOrderBy('progress.doneAt', 'ASC')
+            .getMany();
+
+        const claimed: Array<{ period: 'daily' | 'weekly'; id: string; amount: number }> = [];
+        let totalAmount = 0;
+        const weeklyClaimedByWeek = new Map<string, string[]>();
+
+        for (const row of rows)
+        {
+            const period = row.period;
+            const valid = questForPeriodKey(period, row.periodKey, row.questId);
+            if (valid === null) continue;
+
+            const questCycle = period === 'daily'
+                ? cycleOf(Number(row.periodKey))
+                : cycleWeekOf(row.periodKey);
+            if (questCycle === null) continue;
+
+            const source = period === 'daily' ? 'daily' : 'weekly';
+            const amount = await grant(tx, userId, today, source, period === 'daily' ? 1_000 : 3_000, {
+                cycle: questCycle.cycle,
+                sourceKey: `${ userId }:${ period }:${ row.periodKey }:${ row.questId }`
+            });
+
+            await tx.getRepository(RewardQuestProgress).update(
+                { userId, period, periodKey: row.periodKey, questId: row.questId, claimedAt: IsNull() },
+                { claimedAt: new Date() }
+            );
+
+            claimed.push({ period, id: row.questId, amount });
+            totalAmount += amount;
+
+            if (period === 'weekly' && questCycle.week !== null)
+            {
+                const weekKey = `cycle:${ questCycle.cycle }:week:${ questCycle.week }`;
+                const prev = weeklyClaimedByWeek.get(weekKey) ?? [];
+                prev.push(row.questId);
+                weeklyClaimedByWeek.set(weekKey, prev);
+
+                const weeklyIds = questsFor(questCycle.cycle, questCycle.week, 'weekly').map((quest) => quest.id);
+                const allClaimed = weeklyIds.every((id) => prev.includes(id));
+                const chestAlreadyClaimed = await tx.getRepository(RewardGrant).exists({
+                    where: { userId, source: 'chest', sourceKey: `${ userId }:chest:${ weekKey }` }
+                });
+
+                if (allClaimed && !chestAlreadyClaimed)
+                {
+                    const config = await tx.getRepository(Setting).findOne({ where: { key: 'reward-config' } });
+                    let pool: unknown = [];
+                    try
+                    {
+                        pool = config === null ? [] : (JSON.parse(config.value) as { pool?: unknown }).pool ?? [];
+                    }
+                    catch
+                    {
+                        pool = [];
+                    }
+
+                    const choices = Array.isArray(pool)
+                        ? pool.filter((item): item is string => typeof item === 'string' && !item.startsWith('bundle.'))
+                        : [];
+                    const available = choices.length === 0
+                        ? []
+                        : await tx.getRepository(ShopItem).find({ where: { id: In(choices) } });
+                    const look = available.length === 0
+                        ? null
+                        : available[([...userId, ...weekKey].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 0)) % available.length].id;
+
+                    const chestAmount = await grant(tx, userId, today, 'chest', 1_000, {
+                        cycle: questCycle.cycle,
+                        sourceKey: `${ userId }:chest:${ weekKey }`,
+                        itemId: look
+                    });
+
+                    totalAmount += chestAmount;
+                    claimed.push({ period: 'weekly', id: `chest:${ weekKey }`, amount: chestAmount });
+                }
+            }
+        }
+
+        return { claimed, total: totalAmount };
+    });
+
+    const activity = async (userId: string) =>
+    {
+        const today = todayOf();
+        const start = new Date(REWARD_EPOCH_MS + (today - 1) * REWARD_DAY_MS);
+        const end = new Date(start.getTime() + REWARD_DAY_MS);
+
+        const matchesPlayed = await db.getRepository(MatchPlayer).createQueryBuilder('mp')
+            .innerJoin('mp.match', 'm')
+            .where('mp.userId = :userId', { userId })
+            .andWhere('m.finishedAt >= :start', { start })
+            .andWhere('m.finishedAt < :end', { end })
+            .andWhere('mp.result IN (:...results)', { results: ['won', 'drawn', 'lost'] })
+            .getCount();
+
+        const dailyPeriodKeys = periodKeysInClaimWindow('daily', today);
+        const dailyDone = await db.getRepository(RewardQuestProgress).createQueryBuilder('p')
+            .where('p.userId = :userId', { userId })
+            .andWhere('p.period = :period', { period: 'daily' })
+            .andWhere('p.periodKey in (:...keys)', { keys: dailyPeriodKeys })
+            .andWhere('p.doneAt IS NOT NULL')
+            .getCount();
+        const dailyClaimed = await db.getRepository(RewardQuestProgress).createQueryBuilder('p')
+            .where('p.userId = :userId', { userId })
+            .andWhere('p.period = :period', { period: 'daily' })
+            .andWhere('p.periodKey in (:...keys)', { keys: dailyPeriodKeys })
+            .andWhere('p.claimedAt IS NOT NULL')
+            .getCount();
+
+        const cycleInfo = cycleOf(today);
+        let weeklyDone = 0;
+        let weeklyClaimed = 0;
+        if (cycleInfo.week !== null)
+        {
+            const weeklyPeriodKeys = periodKeysInClaimWindow('weekly', today);
+            weeklyDone = await db.getRepository(RewardQuestProgress).createQueryBuilder('p')
+                .where('p.userId = :userId', { userId })
+                .andWhere('p.period = :period', { period: 'weekly' })
+                .andWhere('p.periodKey in (:...keys)', { keys: weeklyPeriodKeys })
+                .andWhere('p.doneAt IS NOT NULL')
+                .getCount();
+            weeklyClaimed = await db.getRepository(RewardQuestProgress).createQueryBuilder('p')
+                .where('p.userId = :userId', { userId })
+                .andWhere('p.period = :period', { period: 'weekly' })
+                .andWhere('p.periodKey in (:...keys)', { keys: weeklyPeriodKeys })
+                .andWhere('p.claimedAt IS NOT NULL')
+                .getCount();
+        }
+
+        const activityScore = Math.min(100, (matchesPlayed * 20) + (dailyDone * 15) + (weeklyDone * 10));
+        const activityLevel = (activityScore >= 60 ? 'gold' : activityScore >= 30 ? 'silver' : 'bronze') as 'gold' | 'silver' | 'bronze';
+
+        return {
+            today,
+            matchesPlayed,
+            daily: { done: dailyDone, claimed: dailyClaimed },
+            weekly: { done: weeklyDone, claimed: weeklyClaimed },
+            activityScore,
+            activityLevel,
+            firstMatchOfDay: matchesPlayed >= 1 && dailyDone === 0
+        };
+    };
+
     const checkIn = async (userId: string) =>
     {
         return await db.transaction(async (tx) =>
@@ -569,7 +729,7 @@ export function createRewardService(db: DataSource, wallet?: RewardWallet, hooks
         ? { mined: 0, retried: 0, failed: 0, faults: [] }
         : await payouts.sweep(budgetMs);
 
-    return { state, checkIn, claimQuest, grant, rewardForDay, onFinish, withdraw, sweep, audit: payouts?.audit };
+    return { state, checkIn, claimQuest, claimAll, activity, grant, rewardForDay, onFinish, withdraw, sweep, audit: payouts?.audit };
 }
 
 export const rewardState = createRewardService;

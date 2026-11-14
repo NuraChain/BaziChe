@@ -64,6 +64,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'common.requests': { one: '{count} arkadaşlık isteği', other: '{count} arkadaşlık isteği' },
     'common.notices': { one: '{count} yeni bildirim', other: '{count} yeni bildirim' },
     'common.waitingTables': { one: 'Seni bekleyen {count} masa', other: 'Seni bekleyen {count} masa' },
+    'common.rewards': { one: '{count} ödül hazır', other: '{count} ödül hazır' },
     'common.optional': 'İsteğe bağlı',
     'common.actionFailed': 'Olmadı. Tekrar dene.',
     'failure.offline': 'Çevrimdışısın. Bağlantını kontrol et, sonra tekrar dene.',

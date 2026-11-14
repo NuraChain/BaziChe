@@ -64,6 +64,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'common.requests': { one: '{count} solicitud de amistad', many: '{count} solicitudes de amistad', other: '{count} solicitudes de amistad' },
     'common.notices': { one: '{count} notificación nueva', many: '{count} notificaciones nuevas', other: '{count} notificaciones nuevas' },
     'common.waitingTables': { one: '{count} mesa te está esperando', many: '{count} mesas te están esperando', other: '{count} mesas te están esperando' },
+    'common.rewards': { one: '{count} recompensa lista', other: '{count} recompensas listas' },
     'common.optional': 'Opcional',
     'common.actionFailed': 'No se ha podido hacer. Inténtalo de nuevo.',
     'failure.offline': 'No tienes conexión. Revisa tu conexión e inténtalo de nuevo.',

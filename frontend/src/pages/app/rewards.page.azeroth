@@ -4,6 +4,7 @@ import Page from '../../components/app/page.component.azeroth';
 import PageHeader from '../../components/app/page-header.component.azeroth';
 import { useLocale } from '../../stores/locale.store.ts';
 import CheckInCard from '../../components/rewards/check-in-card.component.azeroth';
+import ActivityTrack from '../../components/rewards/activity-track.component.azeroth';
 import Quests from '../../components/rewards/quests.component.azeroth';
 import Balance from '../../components/rewards/balance.component.azeroth';
 import History from '../../components/rewards/history.component.azeroth';
@@ -19,6 +20,8 @@ export default component RewardsPage()
             <PageHeader title={ locale.t('app.nav.rewards') } lead={ locale.t('app.rewards.lead') } />
 
             <CheckInCard />
+
+            <ActivityTrack />
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <Quests />

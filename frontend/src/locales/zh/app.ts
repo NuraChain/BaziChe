@@ -64,6 +64,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'common.requests': { other: '{count} 个好友请求' },
     'common.notices': { other: '{count} 条新通知' },
     'common.waitingTables': { other: '{count} 张牌桌在等你' },
+    'common.rewards': { other: '{count} 个奖励已就绪' },
     'common.optional': '可选',
     'common.actionFailed': '操作没有成功，请重试。',
     'failure.offline': '你已离线。请检查网络连接后重试。',

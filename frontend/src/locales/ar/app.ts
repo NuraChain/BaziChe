@@ -64,6 +64,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'common.requests': { zero: 'لا طلبات صداقة', one: 'طلب صداقة واحد', two: 'طلبا صداقة', few: '{count} طلبات صداقة', many: '{count} طلب صداقة', other: '{count} طلب صداقة' },
     'common.notices': { zero: 'لا إشعارات جديدة', one: 'إشعار جديد', two: 'إشعاران جديدان', few: '{count} إشعارات جديدة', many: '{count} إشعارًا جديدًا', other: '{count} إشعار جديد' },
     'common.waitingTables': { zero: 'لا طاولات بانتظارك', one: 'طاولة واحدة بانتظارك', two: 'طاولتان بانتظارك', few: '{count} طاولات بانتظارك', many: '{count} طاولة بانتظارك', other: '{count} طاولة بانتظارك' },
+    'common.rewards': { one: '{count} مكافأة جاهزة', other: '{count} مكافآت جاهزة' },
     'common.optional': 'اختياري',
     'common.actionFailed': 'لم يتم ذلك. حاول مجددًا.',
     'failure.offline': 'أنت غير متصل بالإنترنت. تحقق من اتصالك ثم حاول مجددًا.',

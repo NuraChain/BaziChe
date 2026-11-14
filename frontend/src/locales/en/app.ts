@@ -58,6 +58,7 @@ export const app = {
     'common.requests': { one: '{count} friend request', other: '{count} friend requests' },
     'common.notices': { one: '{count} new notification', other: '{count} new notifications' },
     'common.waitingTables': { one: '{count} table waiting on you', other: '{count} tables waiting on you' },
+    'common.rewards': { one: '{count} reward ready', other: '{count} rewards ready' },
     'common.optional': 'Optional',
     'common.actionFailed': 'That did not go through. Try again.',
     'failure.offline': 'You are offline. Check your connection, then try again.',

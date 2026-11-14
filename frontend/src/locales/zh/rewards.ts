@@ -4,6 +4,8 @@ export const rewards = {
     'app.rewards.claim': 'Claim',
     'app.rewards.claimed': 'Claimed',
     'app.rewards.claiming': 'Claiming…',
+    'app.rewards.claimAll': 'Claim all',
+    'app.rewards.inProgress': 'In progress',
     'app.rewards.streak': 'Streak',
     'app.rewards.day': 'Day {day}',
     'app.rewards.balance': 'Balance',
@@ -23,5 +25,10 @@ export const rewards = {
     'app.rewards.skinWeekly': 'Weekly look',
     'app.rewards.skinExclusive': 'Exclusive look',
     'app.rewards.questDone': 'Quest ready to claim',
-    'app.rewards.streakNudge': 'Your streak is building — claim today’s reward'
+    'app.rewards.streakNudge': 'Your streak is building — claim today’s reward',
+    'app.rewards.dailyActivity': 'Daily activity',
+    'app.rewards.activity': 'Activity',
+    'app.rewards.matches': 'Matches today',
+    'app.rewards.quests': 'Quests done',
+    'app.rewards.firstMatchOfDay': 'First match of the day'
 };

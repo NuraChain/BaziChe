@@ -64,6 +64,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'common.requests': { one: '{count} फ्रेंड रिक्वेस्ट', other: '{count} फ्रेंड रिक्वेस्ट' },
     'common.notices': { one: '{count} नया नोटिफ़िकेशन', other: '{count} नए नोटिफ़िकेशन' },
     'common.waitingTables': { one: '{count} टेबल तुम्हारा इंतज़ार कर रही है', other: '{count} टेबलें तुम्हारा इंतज़ार कर रही हैं' },
+    'common.rewards': { one: '{count} इनाम तैयार', other: '{count} इनाम तैयार' },
     'common.optional': 'वैकल्पिक',
     'common.actionFailed': 'यह नहीं हो पाया। फिर से कोशिश करो।',
     'failure.offline': 'तुम ऑफ़लाइन हो। अपना कनेक्शन जाँचो, फिर से कोशिश करो।',

@@ -64,6 +64,7 @@ export const app: Pick<Dictionary, keyof typeof reference> = {
     'common.requests': { one: '{count} درخواست دوستی', other: '{count} درخواست دوستی' },
     'common.notices': { one: '{count} اعلان جدید', other: '{count} اعلان جدید' },
     'common.waitingTables': { one: '{count} میز منتظرته', other: '{count} میز منتظرته' },
+    'common.rewards': { one: '{count} جایزه آماده است', other: '{count} جایزه آماده است' },
     'common.optional': 'اختیاری',
     'common.actionFailed': 'نشد. یه بار دیگه امتحان کن.',
     'failure.offline': 'اینترنتت قطعه. اتصالت رو چک کن و دوباره امتحان کن.',

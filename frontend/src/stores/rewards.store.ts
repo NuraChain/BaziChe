@@ -1,6 +1,6 @@
 import { createSignal, createStore, type Getter } from 'azerothjs';
 
-import { client, type RewardHistoryPage, type RewardState } from '../api.ts';
+import { client, type RewardActivity, type RewardHistoryPage, type RewardState } from '../api.ts';
 
 export type LadderStep = {
     day: number;
@@ -39,12 +39,15 @@ export interface RewardsApi
     chestClaimed: Getter<boolean>;
     history: Getter<RewardHistoryPage | null>;
     historyLoading: Getter<boolean>;
+    activity: Getter<RewardActivity | null>;
 
     checkIn(): Promise<void>;
     claimQuest(period: 'daily' | 'weekly', id: string): Promise<void>;
+    claimAll(): Promise<void>;
     withdraw(): Promise<void>;
     refresh(): Promise<void>;
     loadHistory(cursor?: string | null): Promise<void>;
+    loadActivity(): Promise<void>;
 }
 
 export const useRewards = createStore((): RewardsApi =>
@@ -53,9 +56,11 @@ export const useRewards = createStore((): RewardsApi =>
     const [error, setError] = createSignal<unknown | null>(null);
     const [history, setHistory] = createSignal<RewardHistoryPage | null>(null);
     const [historyLoading, setHistoryLoading] = createSignal(false);
+    const [activity, setActivity] = createSignal<RewardActivity | null>(null);
 
     const loading = () => historyLoading();
     const failed = () => error() !== null;
+    const activityGetter = () => activity();
 
     const claimable = () => state()?.claimable ?? false;
     const streak = () => state()?.streak ?? 0;
@@ -148,6 +153,22 @@ export const useRewards = createStore((): RewardsApi =>
         }
     };
 
+    const claimAll = async () =>
+    {
+        setError(null);
+        try
+        {
+            await client.rewards.claimAll();
+            const fresh = await client.rewards.state();
+            setState(fresh);
+            setError(null);
+        }
+        catch (err)
+        {
+            setError(err);
+        }
+    };
+
     const withdraw = async () =>
     {
         setError(null);
@@ -196,6 +217,19 @@ export const useRewards = createStore((): RewardsApi =>
         }
     };
 
+    const loadActivity = async () =>
+    {
+        try
+        {
+            const data = await client.rewards.activity();
+            setActivity(data);
+        }
+        catch
+        {
+            setActivity(null);
+        }
+    };
+
     return {
         state: () => state(),
         loading,
@@ -211,12 +245,15 @@ export const useRewards = createStore((): RewardsApi =>
         dailyQuests,
         weeklyQuests,
         chestClaimed,
+        activity: activityGetter,
         history: () => history(),
         historyLoading,
         checkIn,
         claimQuest,
+        claimAll,
         withdraw,
         refresh,
-        loadHistory
+        loadHistory,
+        loadActivity
     };
 });

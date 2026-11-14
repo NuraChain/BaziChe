@@ -89,6 +89,8 @@ export type {
     RecoveryState,
     RewardHistoryPage,
     RewardQuestClaim,
+    RewardClaimAll,
+    RewardActivity,
     RewardState,
     RewardWithdraw,
     ServerInfo,

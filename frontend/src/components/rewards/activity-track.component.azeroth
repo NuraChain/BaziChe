@@ -1,0 +1,70 @@
+import { Show } from 'azerothjs';
+
+import { useRewards } from '../../stores/rewards.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Panel from '../ui/panel.component.azeroth';
+
+export default component ActivityTrack(props: { class?: string })
+{
+    const locale = useLocale();
+    const rewards = useRewards();
+
+    const activity = rewards.activity();
+    const streak = rewards.streak();
+
+    mount
+    {
+        void rewards.loadActivity();
+    }
+
+    const levelColor = (level: string | null) =>
+    {
+        if (level === 'gold') return 'text-accent';
+        if (level === 'silver') return 'text-secondary';
+        if (level === 'bronze') return 'text-muted';
+        return 'text-muted';
+    };
+
+    return (
+        <Panel section class={ props.class ?? '' }>
+            <div class="flex flex-col gap-4">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="flex flex-col gap-1">
+                        <div class="text-xs text-muted">{ locale.t('app.rewards.dailyActivity') }</div>
+                        <div class="text-ui-lg font-semibold text-text">{ locale.t('app.rewards.activity') }</div>
+                    </div>
+                    <div class={ ['text-ui-sm font-mono', levelColor(activity?.activityLevel ?? null)].filter(Boolean).join(' ') }>
+                        { activity?.activityLevel ?? '-' }
+                    </div>
+                </div>
+
+                <div class="w-full bg-border rounded-full h-2">
+                    <div class={ ['h-2 rounded-full bg-accent', `w-[${ activity?.activityScore ?? 0 }%]`].filter(Boolean).join(' ') } />
+                </div>
+
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="flex flex-col items-center gap-1">
+                        <div class="text-ui-xs font-mono text-text">{ activity?.matchesPlayed ?? 0 }</div>
+                        <div class="text-[10px] text-muted">{ locale.t('app.rewards.matches') }</div>
+                    </div>
+                    <div class="flex flex-col items-center gap-1">
+                        <div class="text-ui-xs font-mono text-text">{ activity?.daily.done ?? 0 } / 3</div>
+                        <div class="text-[10px] text-muted">{ locale.t('app.rewards.quests') }</div>
+                    </div>
+                    <div class="flex flex-col items-center gap-1">
+                        <div class="text-ui-xs font-mono text-text">{ streak }</div>
+                        <div class="text-[10px] text-muted">{ locale.t('app.rewards.streak') }</div>
+                    </div>
+                </div>
+
+                <Show when={ activity?.firstMatchOfDay === true }>
+                    { () =>
+                        <div class="flex items-center gap-2 text-xs text-accent">
+                            <span>{ locale.t('app.rewards.firstMatchOfDay') }</span>
+                        </div>
+                    }
+                </Show>
+            </div>
+        </Panel>
+    );
+}

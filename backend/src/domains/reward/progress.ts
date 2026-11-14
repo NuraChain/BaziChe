@@ -134,7 +134,7 @@ export const deltasForQuests = (quests: readonly QuestTemplate[], game: GameId, 
         const metric = typeof quest.metric === 'string' ? quest.metric : `tally:${ quest.metric.tally }`;
         const progress = counts[metric] ?? 0;
 
-        return progress <= 0 ? [] : [{ period: quest.period, questId: quest.id, progress, target: quest.target }];
+        return progress <= 0 ? [] : [{ period: quest.period, quest_id: quest.id, progress, target: quest.target }];
     });
 
 export const weeklyChestReady = (questIds: readonly string[], claimedQuestIds: readonly string[]) =>

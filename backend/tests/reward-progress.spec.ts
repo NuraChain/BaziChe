@@ -86,9 +86,9 @@ describe('reward quest progress', () =>
         ] as const;
 
         expect(deltasForQuests(quests, 'chess', { played: 1, won: 1, 'tally:moves': 8 })).toEqual([
-            { period: 'daily', questId: 'played', progress: 1, target: 5 },
-            { period: 'weekly', questId: 'won', progress: 1, target: 2 },
-            { period: 'daily', questId: 'tally', progress: 8, target: 20 }
+            { period: 'daily', quest_id: 'played', progress: 1, target: 5 },
+            { period: 'weekly', quest_id: 'won', progress: 1, target: 2 },
+            { period: 'daily', quest_id: 'tally', progress: 8, target: 20 }
         ]);
     });
 

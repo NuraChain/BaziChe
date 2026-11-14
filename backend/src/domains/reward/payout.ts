@@ -266,7 +266,7 @@ export function createRewardPayoutService(db: DataSource, wallet: RewardWallet, 
         const valid = ids.filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
         const users = db.getRepository(User).createQueryBuilder('user')
             .select('user.id', 'id')
-            .addSelect('user.handle::text', 'handle')
+            .addSelect('"user".handle::text', 'handle')
             .addSelect(keyOf('user.created_at'), 'at_key');
         const again = valid.length === 0 ? [] : await users.clone().where('user.id = any(:ids::uuid[])', { ids: valid }).getRawMany<AuditUser>();
         const page = users.clone()

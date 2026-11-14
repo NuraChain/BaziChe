@@ -212,11 +212,11 @@ export function createRewardService(db: DataSource, wallet?: RewardWallet, hooks
             });
 
             const matchingQuests = active.filter(({ quest }) => quest.game === 'any' || quest.game === game);
-            const deltaById = new Map(deltasForQuests(matchingQuests.map(({ quest }) => quest), game, counts).map((delta) => [delta.questId, delta]));
+            const deltaById = new Map(deltasForQuests(matchingQuests.map(({ quest }) => quest), game, counts).map((delta) => [delta.quest_id, delta]));
             const deltas = active.flatMap(({ quest, periodKey }) =>
             {
                 const delta = deltaById.get(quest.id);
-                return delta === undefined ? [] : [{ ...delta, periodKey }];
+                return delta === undefined ? [] : [{ ...delta, period_key: periodKey }];
             });
 
             if (deltas.length > 0)

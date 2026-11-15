@@ -264,21 +264,23 @@ export function createRewardPayoutService(db: DataSource, wallet: RewardWallet, 
         }
 
         const valid = ids.filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
-        const users = db.getRepository(User).createQueryBuilder('user')
-            .select('user.id', 'id')
-            .addSelect('"user".handle::text', 'handle')
-            .addSelect(keyOf('user.created_at'), 'at_key');
-        const again = valid.length === 0 ? [] : await users.clone().where('user.id = any(:ids::uuid[])', { ids: valid }).getRawMany<AuditUser>();
+        // `user` is reserved in Postgres and a property followed by a cast is not escaped by
+        // TypeORM, so the alias is `player` and the handle is read through it uncast on the alias.
+        const users = db.getRepository(User).createQueryBuilder('player')
+            .select('player.id', 'id')
+            .addSelect('player.handle::text', 'handle')
+            .addSelect(keyOf('player.created_at'), 'at_key');
+        const again = valid.length === 0 ? [] : await users.clone().where('player.id = any(:ids::uuid[])', { ids: valid }).getRawMany<AuditUser>();
         const page = users.clone()
-            .where(`exists (select 1 from reward_grants g where g.user_id = user.id)
-                 or exists (select 1 from reward_payouts p where p.user_id = user.id)`);
+            .where(`(exists (select 1 from reward_grants g where g.user_id = player.id)
+                 or exists (select 1 from reward_payouts p where p.user_id = player.id))`);
         const from = keysetAfter(after);
         if (from !== null)
         {
-            page.andWhere(olderThan('user.created_at', 'user.id'), from);
+            page.andWhere(olderThan('player.created_at', 'player.id'), from);
         }
 
-        const rows = await page.orderBy('user.created_at', 'DESC').addOrderBy('user.id', 'DESC').limit(AUDIT_PAGE + 1).getRawMany<AuditUser>();
+        const rows = await page.orderBy('player.created_at', 'DESC').addOrderBy('player.id', 'DESC').limit(AUDIT_PAGE + 1).getRawMany<AuditUser>();
         const result = await audited({ again, page: rows, after }, deadline, async (user) =>
         {
             const [sum] = await db.query(

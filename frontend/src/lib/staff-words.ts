@@ -4,6 +4,7 @@ import { STAFF_ROLES, type ReportStatus, type StaffRole } from '../../../backend
 import type { InviteFlag } from '../../../backend/src/domains/invite/policy.ts';
 import { amountsOf, mostPerCycle } from '../../../backend/src/domains/reward/rules.ts';
 import { SHOP_COLLECTIONS } from '../../../backend/src/domains/shop/catalogue.ts';
+import { isSkill, type Skill } from '../../../backend/src/domains/system/rules.ts';
 import { normalizeName } from '../../../backend/src/lib/naming.ts';
 import type { StaffLog } from '../../../backend/src/schemas.ts';
 import { GAMES } from '../data/games.ts';
@@ -20,6 +21,13 @@ export const ROLE_WORDS: Record<StaffRole, MessageKey> = {
     'co-owner': 'admin.role.co-owner',
     admin: 'admin.role.admin',
     moderator: 'admin.role.moderator'
+};
+
+export const SKILL_WORDS: Record<Skill, MessageKey> = {
+    casual: 'admin.systemPage.skill.casual',
+    intermediate: 'admin.systemPage.skill.intermediate',
+    advanced: 'admin.systemPage.skill.advanced',
+    'semi-pro': 'admin.systemPage.skill.semi-pro'
 };
 
 /** What a counted invite's flag says it saw. */
@@ -151,6 +159,57 @@ const mostIn = (said: string | undefined, locale: LocaleApi) =>
     {
         return '';
     }
+};
+
+/** A game id as the log keeps it, in the reader's words. */
+const gameIn = (game: string, locale: LocaleApi) =>
+{
+    const known = GAMES.find((one) => one.id === game);
+
+    return known === undefined ? game : locale.t(known.nameKey);
+};
+
+/** The settings as the server logs them, `wait 20s, skill intermediate, most 40`, or null when they do not read. */
+export const systemSettingsIn = (logged: string | undefined) =>
+{
+    const read = /^wait (\d+)s, skill ([a-z-]+), most (\d+)$/.exec(logged ?? '');
+
+    return read === null || !isSkill(read[2]) ? null : { wait: Number(read[1]), skill: read[2], most: Number(read[3]) };
+};
+
+/**
+ * A change to system players. The server logs the switch as `on`/`off`, the games as the ones
+ * left off (`all on` or `off: hokm, poker`), and the settings as one line of text.
+ */
+const systemLine = (row: LogRow, locale: LocaleApi, slots: Record<string, string>) =>
+{
+    const { part, to } = row.details;
+
+    if (part === 'retire')
+    {
+        return locale.t('admin.log.line.system.retire', slots);
+    }
+
+    if (part === 'switch' && (to === 'on' || to === 'off'))
+    {
+        return locale.t(to === 'on' ? 'admin.log.line.system.on' : 'admin.log.line.system.off', slots);
+    }
+
+    if (part === 'games' && to === 'all on')
+    {
+        return locale.t('admin.log.line.system.gamesAll', slots);
+    }
+
+    if (part === 'games' && to !== undefined && to.startsWith('off: '))
+    {
+        return locale.t('admin.log.line.system.games', { ...slots, games: locale.list(to.slice(5).split(', ').map((game) => gameIn(game, locale))) });
+    }
+
+    const settings = part === 'settings' ? systemSettingsIn(to) : null;
+
+    return settings === null
+        ? locale.t('admin.log.line.system.change', slots)
+        : locale.t('admin.log.line.system.settings', { ...slots, wait: settings.wait, skill: locale.t(SKILL_WORDS[settings.skill]), most: settings.most });
 };
 
 const said = (row: LogRow, locale: LocaleApi) =>
@@ -319,7 +378,7 @@ const said = (row: LogRow, locale: LocaleApi) =>
 
     if (row.kind === 'system-players')
     {
-        return locale.t(row.details.part === 'retire' ? 'admin.log.line.system.retire' : 'admin.log.line.system.change', slots);
+        return systemLine(row, locale, slots);
     }
 
     if (row.kind === 'rate')

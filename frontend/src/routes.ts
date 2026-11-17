@@ -51,6 +51,7 @@ export const routes: PageRoute[] = [
             { path: 'shop', lazy: chunk(() => import('./pages/admin/shop.page.azeroth')), guard: requireAbility('shop') },
             { path: 'invites', lazy: chunk(() => import('./pages/admin/invites.page.azeroth')), guard: requireAbility('invites') },
             { path: 'rewards', lazy: chunk(() => import('./pages/admin/rewards.page.azeroth')), guard: requireAbility('rewards') },
+            { path: 'system', lazy: chunk(() => import('./pages/admin/system.page.azeroth')), guard: requireAbility('system') },
             { path: 'notice', lazy: chunk(() => import('./pages/admin/notice.page.azeroth')), guard: requireAbility('notice') },
             { path: 'seasons', lazy: chunk(() => import('./pages/admin/seasons.page.azeroth')), guard: requireAbility('seasons') },
             { path: 'money', lazy: chunk(() => import('./pages/admin/money.page.azeroth')), guard: requireAbility('money') },

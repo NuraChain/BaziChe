@@ -108,13 +108,31 @@ export const playerOf = (row: PlayerRow): AdminSystemPlayer => ({
     createdAt: row.created_at.toISOString()
 });
 
+/** The strategy that plays a game: which agent and version, and whether it sees the whole state or only its seat's. */
+export interface Strategy
+{
+    agent: string;
+    version: number;
+    sees: 'open' | 'hidden';
+}
+
+/** Each game's strategy, from the agents' registry and the openness table, given in by the caller so this file never loads an agent. */
+export const strategiesOf = (agents: Readonly<Record<string, { id: string; version: number }>>, openness: Readonly<Record<string, 'open' | 'hidden'>>): Record<string, Strategy> =>
+    Object.fromEntries(Object.entries(agents)
+        .filter(([game]) => openness[game] !== undefined)
+        .map(([game, agent]) => [game, { agent: agent.id, version: agent.version, sees: openness[game] }]));
+
 /** The page's view of the config and the figures, from the rows read and what the runtime counted. */
-export const systemViewOf = (config: SystemConfig, games: readonly GameRow[], pool: { size: number; retired: number }, ai: AiFigures): AdminSystem => ({
+export const systemViewOf = (config: SystemConfig, games: readonly GameRow[], pool: { size: number; retired: number }, ai: AiFigures, strategies: Readonly<Record<string, Strategy>> = {}): AdminSystem => ({
     on: config.on,
     wait: config.wait,
     skill: config.skill,
     most: config.most,
-    games: games.map((row) => ({ ...row, on: config.games[row.game] !== false })),
+    games: games.map((row) => ({
+        ...row,
+        on: config.games[row.game] !== false,
+        ...(strategies[row.game] === undefined ? {} : { strategy: { ...strategies[row.game] } })
+    })),
     pool,
     ai: { ...ai, errors: ai.errors.map((one) => ({ ...one })) }
 });
@@ -153,7 +171,7 @@ export const settingsOf = (said: { wait: number; skill: string; most: number }) 
  * one (`system`). Each change is its staff action in the transaction that makes it, with the
  * setting's row locked, on the model of the rewards config.
  */
-export function createSystemAdmin(db: DataSource, aiFigures: () => AiFigures = noAiFigures)
+export function createSystemAdmin(db: DataSource, aiFigures: () => AiFigures = noAiFigures, strategies: Readonly<Record<string, Strategy>> = {})
 {
     const configNow = async (from: EntityManager) => systemConfigOf((await from.getRepository(Setting).findOneBy({ key: CONFIG_KEY }))?.value ?? null);
 
@@ -181,7 +199,7 @@ export function createSystemAdmin(db: DataSource, aiFigures: () => AiFigures = n
             from.query(POOL_SQL).then((rows) => rowsOf<{ size: number; retired: number }>(rows))
         ]);
 
-        return systemViewOf(config, games, pool ?? { size: 0, retired: 0 }, aiFigures());
+        return systemViewOf(config, games, pool ?? { size: 0, retired: 0 }, aiFigures(), strategies);
     };
 
     const change = async (actor: Actor, part: ConfigPart, reason: string, next: (config: SystemConfig) => SystemConfig, said: (config: SystemConfig) => string) =>

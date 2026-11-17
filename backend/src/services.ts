@@ -62,7 +62,9 @@ import { createSeasonService } from './domains/admin/seasons.ts';
 import { createShopAdmin } from './domains/admin/shop.ts';
 import { createInviteAdmin } from './domains/admin/invites.ts';
 import { createRewardAdmin } from './domains/admin/rewards.ts';
-import { createSystemAdmin } from './domains/system/admin.ts';
+import { createSystemAdmin, strategiesOf } from './domains/system/admin.ts';
+import { OPENNESS } from './domains/ai/agent.ts';
+import { AGENTS } from './domains/ai/agents.ts';
 import { createSeatFiller, type FillSweep } from './domains/system/fill.ts';
 import type { AiFigures } from './domains/system/rules.ts';
 import { createWorkerBrain } from './domains/ai/brain.ts';
@@ -297,7 +299,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const rewardWallet = rewardChain ?? createRewardWallet({ rpcUrl: config.rpcUrl, chainId: config.chainId, rewardsKey: config.rewardsKey });
     const reward = createRewardService(db, rewardWallet, { mined: (userId) => live?.selfChanged(userId, 'rewards') });
     const rewardAdmin = createRewardAdmin(db, rewardWallet);
-    const systemAdmin = createSystemAdmin(db, aiFigures ?? (() => ai.figures()));
+    const systemAdmin = createSystemAdmin(db, aiFigures ?? (() => ai.figures()), strategiesOf(AGENTS, OPENNESS));
     const shop = createShopService(db);
 
     /**

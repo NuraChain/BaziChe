@@ -38,6 +38,7 @@ const LOOK: Record<AdminSection, { icon: IconName; label: MessageKey }> = {
     shop: { icon: 'bag', label: 'admin.section.shop' },
     invites: { icon: 'invite', label: 'admin.section.invites' },
     rewards: { icon: 'gift', label: 'admin.section.rewards' },
+    system: { icon: 'bot', label: 'admin.section.system' },
     notice: { icon: 'megaphone', label: 'admin.section.notice' },
     seasons: { icon: 'trophy', label: 'admin.section.seasons' },
     money: { icon: 'coins', label: 'admin.section.money' },

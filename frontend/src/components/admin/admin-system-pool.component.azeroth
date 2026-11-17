@@ -1,0 +1,159 @@
+import type { AdminSystemPlayer } from '../../../../backend/src/schemas.ts';
+import { GAMES } from '../../data/games.ts';
+import { attempt } from '../../lib/attempt.ts';
+import { SKILL_WORDS, whyStaffRefused } from '../../lib/staff-words.ts';
+import { useAdminSystem } from '../../stores/admin-system.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import LoadMore from '../ui/load-more.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import AdminEmpty from './admin-empty.component.azeroth';
+import ReasonSheet from './reason-sheet.component.azeroth';
+import RewardPerson from './reward-person.component.azeroth';
+import When from './when.component.azeroth';
+
+/** The pool of system players, newest first, a page at a time: how each plays, where it is now, and retiring one. */
+export default component AdminSystemPool()
+{
+    const locale = useLocale();
+    const overlay = useOverlay();
+    const store = useAdminSystem();
+
+    state paging = false;
+
+    state pageFailed = false;
+
+    mount
+    {
+        store.want('players');
+    }
+
+    const nameOf = (game: string) =>
+    {
+        const known = GAMES.find((one) => one.id === game);
+
+        return known === undefined ? game : locale.t(known.nameKey);
+    };
+
+    const whereOf = (row: AdminSystemPlayer) =>
+    {
+        if (row.at === undefined)
+        {
+            return locale.t('admin.systemPage.idle');
+        }
+
+        return locale.t(row.at.playing ? 'admin.systemPage.atMatch' : 'admin.systemPage.atTable', { game: nameOf(row.at.game), table: row.at.table.toUpperCase() });
+    };
+
+    derived rows = store.players.rows().map((row) => ({
+        ...row,
+        skillWord: locale.t(SKILL_WORDS[row.skill]),
+        styleWord: locale.t('admin.systemPage.style', { style: row.style }),
+        playedWord: locale.plural('admin.systemPage.played', row.played),
+        where: whereOf(row),
+        busy: row.at !== undefined
+    }));
+
+    derived waiting = store.players.loading() && rows.length === 0;
+
+    derived failed = store.players.failed();
+
+    derived bare = !store.players.loading() && !failed && rows.length === 0;
+
+    derived listed = rows.length > 0;
+
+    derived more = store.players.more();
+
+    const retire = async (handle: string) =>
+    {
+        const said = await overlay.open(
+            ReasonSheet,
+            {
+                title: locale.t('admin.systemPage.askRetire', { person: handle }),
+                lead: locale.t('admin.systemPage.retireLead'),
+                confirm: locale.t('admin.systemPage.retire'),
+                destructive: true
+            },
+            { label: locale.t('admin.section.system') }
+        ).closed;
+
+        if (typeof said === 'string')
+        {
+            await attempt(store.retire(handle, said), locale.t('admin.systemPage.doneRetire'), whyStaffRefused);
+        }
+    };
+
+    const older = async () =>
+    {
+        if (paging)
+        {
+            return;
+        }
+
+        paging = true;
+        pageFailed = false;
+
+        try
+        {
+            await store.players.older();
+        }
+        catch
+        {
+            pageFailed = true;
+        }
+        finally
+        {
+            paging = false;
+        }
+    };
+
+    <section class="flex flex-col gap-4" aria-labelledby="admin-system-pool" data-system-pool>
+        <div class="flex flex-col gap-1">
+            <h2 id="admin-system-pool" class="title text-ui-2xl text-text">{ locale.t('admin.systemPage.pool') }</h2>
+            <p class="text-ui-md text-muted">{ locale.t('admin.systemPage.poolLead') }</p>
+        </div>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 4 } avatar /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState error={ store.players.error() } compact title={ locale.t('admin.systemPage.poolFailed') } onRetry={ () => void store.players.refetch() } /> }
+        </Show>
+
+        <Show when={ bare }>
+            { () => <AdminEmpty icon="people" title={ locale.t('admin.systemPage.poolEmpty') } /> }
+        </Show>
+
+        <Show when={ listed }>
+            <ul class="divide-y divide-line overflow-hidden rounded-panel border border-line bg-field">
+                <For each={ rows } key={ (row) => row.handle } let={ row }>
+                    <li class="flex flex-col gap-2 px-4 py-3 @2xl:flex-row @2xl:items-center @2xl:justify-between" data-system-player={ row.handle }>
+                        <div class="flex min-w-0 flex-col gap-1">
+                            <RewardPerson person={ row } />
+                            <p class="text-ui-xs text-muted">{ row.skillWord } · { row.styleWord } · { row.playedWord }</p>
+                            <p class={ row.busy ? 'text-ui-xs font-medium text-text' : 'text-ui-xs text-muted' }>{ row.where }</p>
+                        </div>
+                        <div class="flex shrink-0 flex-wrap items-center gap-2">
+                            <Show when={ row.retired } fallback={ <Button variant="destructive-ghost" size="sm" onClick={ () => void retire(row.handle) }>{ locale.t('admin.systemPage.retire') }</Button> }>
+                                <Badge text={ locale.t('admin.systemPage.retired') } tone="neutral" />
+                                <Show when={ row.retiredAt !== undefined }>
+                                    <span class="text-ui-xs text-muted"><When at={ row.retiredAt ?? '' } /></span>
+                                </Show>
+                            </Show>
+                        </div>
+                    </li>
+                </For>
+            </ul>
+            <Show when={ more }>
+                <LoadMore label={ locale.t('admin.systemPage.more') } loading={ paging } onMore={ () => void older() } />
+            </Show>
+            <Show when={ pageFailed }>
+                <p class="text-ui-sm text-muted" role="status">{ locale.t('admin.systemPage.moreFailed') }</p>
+            </Show>
+        </Show>
+    </section>
+}

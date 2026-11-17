@@ -3950,7 +3950,17 @@ export const adminSystem = object({
     wait: number(),
     skill: systemSkill,
     most: number(),
-    games: array(object({ game: string(), on: boolean(), seated: number(), playing: number(), live: number(), today: number() })),
+    games: array(object({
+        game: string(),
+        on: boolean(),
+        seated: number(),
+        playing: number(),
+        live: number(),
+        today: number(),
+
+        /** The strategy live for the game: its agent, its version, and whether it plays from the whole state or from its seat's view. Absent when no agent plays it. */
+        strategy: object({ agent: string(), version: number(), sees: enumOf(['open', 'hidden']) }).optional()
+    })),
     pool: object({ size: number(), retired: number() }),
     ai: object({
         decisions: number(),

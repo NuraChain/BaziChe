@@ -19,8 +19,9 @@ import {
     type Source,
     type Turn
 } from '../src/domains/ai/runtime.ts';
-import { seededRandom } from '../src/domains/ai/agent.ts';
-import type { MatchPlay } from '../src/schemas.ts';
+import { inputOf, seededRandom } from '../src/domains/ai/agent.ts';
+import { createSeatLogs, follows, type Feed } from '../src/domains/ai/source.ts';
+import type { MatchLog, MatchPlay } from '../src/schemas.ts';
 
 const MATCH = '00000000-0000-4000-8000-000000000001';
 
@@ -363,6 +364,162 @@ describe('the AI runtime', () =>
         await h.clock.advance(20_000);
 
         expect(h.sends).toEqual([]);
+    });
+});
+
+describe('the seat logs of a hidden game', () =>
+{
+    const pokerState = () => AI_ENGINES.poker.create([0, 1, 2], { die: () => 1 }, { target: 0, cube: false, blinds: 'low', variant: 'standard' }).state;
+
+    /** A match whose history grows one action at a time; `hole` drops one revision from the next incremental read. */
+    function fakeMatch(game = 'poker')
+    {
+        const state = pokerState();
+        let rev = 1;
+        let read = 0;
+        let hole: number | null = null;
+        const asked: number[] = [];
+
+        const entryOf = (at: number, reader: number | null) => ({
+            rev: at,
+            seat: at === 1 ? -1 : at % 3,
+            log: [{ text: `${ at } for ${ reader }` }] as unknown as MatchLog
+        });
+
+        const feed: Feed = async (_matchId, since) =>
+        {
+            asked.push(since);
+
+            const revs = Array.from({ length: rev - since }, (_, at) => since + 1 + at).filter((at) => since === 0 || at !== hole);
+
+            hole = null;
+            read += revs.length;
+
+            return { load: { match: { rev, game }, state }, events: (reader) => revs.map((at) => entryOf(at, reader)) };
+        };
+
+        const full = (seat: number) => inputOf(game, state, seat, (reader) => Array.from({ length: rev }, (_, at) => entryOf(at + 1, reader)));
+
+        return {
+            feed,
+            full,
+            asked,
+            read: () => read,
+            step: (by = 1) =>
+            {
+                rev += by;
+            },
+            rev: () => rev,
+            hole: (at: number) =>
+            {
+                hole = at;
+            }
+        };
+    }
+
+    it('hands an agent the same input as a full read, at every revision, reading each action once', async () =>
+    {
+        const match = fakeMatch();
+        const logs = createSeatLogs(match.feed);
+
+        for (let step = 0; step < 40; step += 1)
+        {
+            expect(await logs.read(MATCH, match.rev(), 1)).toEqual(match.full(1));
+            match.step(1 + (step % 3));
+        }
+
+        expect(match.asked[0]).toBe(0);
+        expect(match.asked.slice(1).every((since) => since > 0)).toBe(true);
+        expect(match.read()).toBe(match.rev() - (1 + (39 % 3)));
+    });
+
+    it('keeps each seat apart: two seats of one match see their own logs', async () =>
+    {
+        const match = fakeMatch();
+        const logs = createSeatLogs(match.feed);
+
+        for (let step = 0; step < 5; step += 1)
+        {
+            expect(await logs.read(MATCH, match.rev(), 0)).toEqual(match.full(0));
+            expect(await logs.read(MATCH, match.rev(), 2)).toEqual(match.full(2));
+            match.step();
+        }
+
+        expect(match.full(0)).not.toEqual(match.full(2));
+    });
+
+    it('rebuilds from nothing on a hole in what is newer', async () =>
+    {
+        const match = fakeMatch();
+        const logs = createSeatLogs(match.feed);
+
+        await logs.read(MATCH, match.rev(), 1);
+        match.step(4);
+        match.hole(match.rev() - 1);
+
+        expect(await logs.read(MATCH, match.rev(), 1)).toEqual(match.full(1));
+        expect(match.asked).toEqual([0, 1, 0]);
+
+        match.step();
+
+        expect(await logs.read(MATCH, match.rev(), 1)).toEqual(match.full(1));
+        expect(match.asked.at(-1)).toBe(5);
+    });
+
+    it('answers null once the match is past the revision asked, and keeps what it built', async () =>
+    {
+        const match = fakeMatch();
+        const logs = createSeatLogs(match.feed);
+
+        match.step(3);
+        await logs.read(MATCH, match.rev(), 1);
+
+        const reads = match.asked.length;
+
+        expect(await logs.read(MATCH, match.rev() - 1, 1)).toBeNull();
+        expect(match.asked.length).toBe(reads);
+
+        match.step();
+
+        expect(await logs.read(MATCH, match.rev() - 1, 1)).toBeNull();
+        expect(await logs.read(MATCH, match.rev(), 1)).toEqual(match.full(1));
+    });
+
+    it('holds a bounded number of matches and forgets the ones that ended', async () =>
+    {
+        const match = fakeMatch();
+        const logs = createSeatLogs(match.feed, 2);
+        const ids = ['m-1', 'm-2', 'm-3'];
+
+        for (const id of ids)
+        {
+            await logs.read(id, match.rev(), 0);
+        }
+
+        expect(logs.held()).toBe(2);
+
+        logs.keepOnly(new Set(['m-3']));
+        expect(logs.held()).toBe(1);
+
+        logs.forget('m-3');
+        expect(logs.held()).toBe(0);
+    });
+
+    it('never keeps an open game', async () =>
+    {
+        const match = fakeMatch('chess');
+        const logs = createSeatLogs(match.feed);
+
+        expect(await logs.read(MATCH, match.rev(), 0)).toBeNull();
+        expect(logs.held()).toBe(0);
+    });
+
+    it('needs every revision once, and nothing missing', () =>
+    {
+        expect(follows(3, 3, [])).toBe(true);
+        expect(follows(3, 5, [{ rev: 4 }, { rev: 5 }])).toBe(true);
+        expect(follows(3, 5, [{ rev: 5 }])).toBe(false);
+        expect(follows(3, 5, [{ rev: 4 }, { rev: 6 }])).toBe(false);
     });
 });
 

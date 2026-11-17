@@ -69,6 +69,9 @@ import type {
     AdminRewardDays,
     AdminRewardFrozen,
     AdminRewardOverview,
+    AdminSystem,
+    AdminSystemPlayer,
+    AdminSystemPlayers,
     RewardQuestClaim,
     RewardState,
     RewardWithdraw,
@@ -94,6 +97,7 @@ import { CHECKS_PAGE, type CheckFamily, type CheckList } from '../../backend/src
 import { INVITES_PAGE, LIVE_PAGE, LOG_PAGE, may, outranks, PEOPLE_PAGE, PLAY_PAGE, REPORTS_PAGE, SHOP_ORDERS_PAGE, type Ability, type CampaignMove, type RewardList, type RewardMove, type ActionKind, type ClearPart, type GrantedRole, type PeopleList, type ReportList, type ReportOutcome, type ReportStatus, type StaffRole, type SuspendCategory, type SuspendDays } from '../../backend/src/domains/admin/roles.ts';
 import { ALERT_ABILITY } from '../../backend/src/ops/measures.ts';
 import { amountsOf, mostPerCycle, REWARD_AMOUNTS, REWARD_CAP } from '../../backend/src/domains/reward/rules.ts';
+import { isSkill, POOL_LEAST, POOL_MOST, WAIT_LEAST, WAIT_MOST } from '../../backend/src/domains/system/rules.ts';
 import {
     FRIENDSHIP_FIXTURES,
     GROUP_FIXTURES,
@@ -1477,6 +1481,67 @@ const rewardConfigured = (part: string, reason: string, change: (config: AdminRe
     return structuredClone(server.rewardsAdmin.config);
 };
 
+/** System players as the staff read them: switched off, two games, an empty runtime, and whatever pool a spec sets. */
+const systemAdminFresh = () => ({
+    view: {
+        on: false,
+        wait: 20,
+        skill: 'intermediate',
+        most: 40,
+        games: [
+            { game: 'chess', on: true, seated: 1, playing: 2, live: 1, today: 4, strategy: { agent: 'chess-search', version: 2, sees: 'open' } },
+            { game: 'hokm', on: true, seated: 0, playing: 3, live: 1, today: 2, strategy: { agent: 'hokm-model', version: 1, sees: 'hidden' } }
+        ],
+        pool: { size: 0, retired: 0 },
+        ai: { decisions: 0, averageMs: 0, worstMs: 0, fallbacks: 0, errors: [] }
+    } as AdminSystem,
+
+    /** The pool, newest first; a page is `page` of them. */
+    players: [] as AdminSystemPlayer[],
+    page: 2
+});
+
+export const systemPlayer = (handle: string, at?: AdminSystemPlayer['at']): AdminSystemPlayer => ({
+    handle,
+    displayName: handle,
+    hue: 200,
+    skill: 'intermediate',
+    style: 314,
+    played: 12,
+    ...(at === undefined ? {} : { at }),
+    retired: false,
+    createdAt: '2026-10-20T10:00:00.000Z'
+});
+
+/** A change to the setting as the server makes it: the owner's alone, logged with what it was and what it became. */
+const systemConfigured = (part: string, reason: string, said: (view: AdminSystem) => string, change: (view: AdminSystem) => AdminSystem) =>
+{
+    staffGate('wallet');
+
+    const actor = staffRoleOf(server.me);
+    const before = server.systemAdmin.view;
+    const after = change(before);
+
+    server.systemAdmin.view = after;
+    staffLogged({
+        at: new Date(runtime().clock.now()).toISOString(),
+        staff: server.me,
+        ...(actor === null ? {} : { staffRole: actor }),
+        kind: 'system-players',
+        reason,
+        details: { part, from: said(before), to: said(after) }
+    });
+
+    return structuredClone(after);
+};
+
+const systemGamesText = (view: AdminSystem) =>
+{
+    const off = view.games.filter((game) => !game.on).map((game) => game.game).sort();
+
+    return off.length === 0 ? 'all on' : `off: ${ off.join(', ') }`;
+};
+
 export const NURA_MARKETS = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
 
 const marketsFresh = () => ({
@@ -1742,6 +1807,7 @@ export const server =
     donate: donateFresh(),
     rewards: rewardsFresh(),
     rewardsAdmin: rewardsAdminFresh(),
+    systemAdmin: systemAdminFresh(),
     markets: marketsFresh(),
     admin: adminFresh(),
     staff: staffFresh(),
@@ -2004,6 +2070,7 @@ export const server =
         server.donate = donateFresh();
         server.rewards = rewardsFresh();
         server.rewardsAdmin = rewardsAdminFresh();
+        server.systemAdmin = systemAdminFresh();
         server.markets = marketsFresh();
         server.admin = adminFresh();
         server.staff = staffFresh();
@@ -2392,6 +2459,90 @@ export const client =
             held.overview.top = held.overview.top.map((row) => (row.person.handle === params.handle ? { ...row, frozen: input.frozen } : row));
 
             return { handle: params.handle, frozen: input.frozen, ...(input.frozen ? { reason: input.reason, at } : {}) };
+        },
+
+        async system(): Promise<AdminSystem>
+        {
+            server.calls.push('admin.system');
+            staffGate('system');
+
+            return structuredClone(server.systemAdmin.view);
+        },
+
+        async switchSystem({ input }: { input: { on: boolean; reason: string } }): Promise<AdminSystem>
+        {
+            server.calls.push(`admin.switchSystem ${ input.on }`);
+
+            return systemConfigured('switch', input.reason, (view) => (view.on ? 'on' : 'off'), (view) => ({ ...view, on: input.on }));
+        },
+
+        async setSystemGames({ input }: { input: { games: Record<string, boolean>; reason: string } }): Promise<AdminSystem>
+        {
+            server.calls.push(`admin.setSystemGames ${ Object.entries(input.games).map(([game, on]) => `${ game }=${ on }`).join(',') }`);
+            staffGate('wallet');
+
+            const unknown = Object.keys(input.games).find((game) => !server.systemAdmin.view.games.some((one) => one.game === game));
+
+            if (unknown !== undefined)
+            {
+                throw staffRefused('staff-system-game', `There is no game ${ unknown }.`);
+            }
+
+            return systemConfigured('games', input.reason, systemGamesText, (view) => ({ ...view, games: view.games.map((game) => ({ ...game, on: input.games[game.game] ?? game.on })) }));
+        },
+
+        async setSystemSettings({ input }: { input: { wait: number; skill: string; most: number; reason: string } }): Promise<AdminSystem>
+        {
+            server.calls.push(`admin.setSystemSettings ${ input.wait } ${ input.skill } ${ input.most }`);
+            staffGate('wallet');
+
+            const { wait, skill, most } = input;
+
+            if (!Number.isInteger(wait) || wait < WAIT_LEAST || wait > WAIT_MOST || !Number.isInteger(most) || most < POOL_LEAST || most > POOL_MOST || !isSkill(skill))
+            {
+                throw staffRefused('staff-system-settings', `Wait is ${ WAIT_LEAST } to ${ WAIT_MOST } seconds and the pool ${ POOL_LEAST } to ${ POOL_MOST }.`);
+            }
+
+            return systemConfigured('settings', input.reason, (view) => `wait ${ view.wait }s, skill ${ view.skill }, most ${ view.most }`, (view) => ({ ...view, wait, skill, most }));
+        },
+
+        async systemPlayers({ query }: { query: { cursor?: string } }): Promise<AdminSystemPlayers>
+        {
+            server.calls.push(`admin.systemPlayers ${ query.cursor ?? '' }`);
+            staffGate('system');
+
+            const rows = server.systemAdmin.players;
+            const from = query.cursor === undefined ? 0 : rows.findIndex((one) => one.handle === query.cursor) + 1;
+            const page = rows.slice(from, from + server.systemAdmin.page);
+            const more = from + server.systemAdmin.page < rows.length;
+
+            return { rows: structuredClone(page), ...(more ? { cursor: page[page.length - 1].handle } : {}) };
+        },
+
+        async retireSystemPlayer({ params, input }: { params: { handle: string }; input: { reason: string } }): Promise<AdminSystemPlayer>
+        {
+            server.calls.push(`admin.retireSystemPlayer ${ params.handle }`);
+            staffGate('system');
+
+            const held = server.systemAdmin;
+            const found = held.players.find((one) => one.handle === params.handle);
+
+            if (found === undefined)
+            {
+                throw staffRefused('staff-nobody', 'No one by that name.');
+            }
+
+            if (!found.retired)
+            {
+                const actor = staffRoleOf(server.me);
+                const at = new Date(runtime().clock.now()).toISOString();
+
+                held.players = held.players.map((one) => (one.handle === params.handle ? { ...one, retired: true, retiredAt: at } : one));
+                held.view = { ...held.view, pool: { size: held.view.pool.size - 1, retired: held.view.pool.retired + 1 } };
+                staffLogged({ at, staff: server.me, ...(actor === null ? {} : { staffRole: actor }), kind: 'system-players', person: params.handle, reason: input.reason, details: { part: 'retire' } });
+            }
+
+            return structuredClone(held.players.find((one) => one.handle === params.handle) as AdminSystemPlayer);
         },
 
         async minters()

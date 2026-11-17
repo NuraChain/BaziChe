@@ -9,7 +9,10 @@ import { ACTION_KINDS } from '../src/domains/admin/roles.ts';
 
 import { face, type PersonRow } from '../src/domains/admin/people.ts';
 import { checkHandle } from '../src/domains/identity/handle.ts';
-import { gamesAfter, gamesText, playerOf, settingsOf, settingsText, systemViewOf, unknownGames, type PlayerRow } from '../src/domains/system/admin.ts';
+import { OPENNESS } from '../src/domains/ai/agent.ts';
+import { AGENTS } from '../src/domains/ai/agents.ts';
+import { adminSystem } from '../src/schemas.ts';
+import { gamesAfter, gamesText, playerOf, settingsOf, settingsText, strategiesOf, systemViewOf, unknownGames, type PlayerRow } from '../src/domains/system/admin.ts';
 import { systemRefusal } from '../src/domains/system/guard.ts';
 import { looksStaff, systemNameOf } from '../src/domains/system/names.ts';
 import { poolStep, styleOf, systemUserOf } from '../src/domains/system/pool.ts';
@@ -256,6 +259,24 @@ describe('the staff page for system players', () =>
             pool: { size: 12, retired: 1 },
             ai: { decisions: 0, averageMs: 0, worstMs: 0, fallbacks: 0, errors: [] }
         });
+    });
+
+    it('names the strategy live for each game from the registry, open or hidden, and none for a game no agent plays', () =>
+    {
+        const strategies = strategiesOf(AGENTS, OPENNESS);
+        const view = systemViewOf(
+            SYSTEM_DEFAULTS,
+            [{ game: 'chess', seated: 0, playing: 0, live: 0, today: 0 }, { game: 'hokm', seated: 0, playing: 0, live: 0, today: 0 }, { game: 'go', seated: 0, playing: 0, live: 0, today: 0 }],
+            { size: 0, retired: 0 },
+            noAiFigures(),
+            strategies
+        );
+
+        expect(Object.keys(strategies).sort()).toEqual(Object.keys(AGENTS).sort());
+        expect(view.games[0].strategy).toEqual({ agent: AGENTS.chess.id, version: AGENTS.chess.version, sees: 'open' });
+        expect(view.games[1].strategy).toEqual({ agent: AGENTS.hokm.id, version: AGENTS.hokm.version, sees: 'hidden' });
+        expect(view.games[2]).not.toHaveProperty('strategy');
+        expect(adminSystem.parse(view)).toEqual(view);
     });
 
     it('shows a pool row with where it is now only when it is somewhere, and when it retired only once it has', () =>

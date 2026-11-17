@@ -1,0 +1,269 @@
+import { POOL_LEAST, POOL_MOST, SKILLS, WAIT_LEAST, WAIT_MOST } from '../../../../backend/src/domains/system/rules.ts';
+import { GAMES } from '../../data/games.ts';
+import { attempt } from '../../lib/attempt.ts';
+import { SKILL_WORDS, whyStaffRefused } from '../../lib/staff-words.ts';
+import { readSettings, sameSettings, typedSettings, type TypedSettings } from '../../lib/system-admin.ts';
+import { useAdminSystem } from '../../stores/admin-system.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import Select from '../ui/select.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import Toggle from '../ui/switch.component.azeroth';
+import AdminEmpty from './admin-empty.component.azeroth';
+import ReasonSheet from './reason-sheet.component.azeroth';
+
+/** The master switch, the games and how system players are seated; only the owner changes them, the staff read them. */
+export default component AdminSystemSettings(props: { owner: boolean })
+{
+    const locale = useLocale();
+    const overlay = useOverlay();
+    const store = useAdminSystem();
+
+    /** The form being edited; undefined while it is as saved. */
+    state typed = undefined as TypedSettings | undefined;
+
+    state checked = false;
+
+    mount
+    {
+        store.want('system');
+    }
+
+    derived held = store.system();
+
+    derived waiting = held === null && !store.systemFailed();
+
+    derived failed = store.systemFailed();
+
+    derived shown = held !== null;
+
+    derived on = held?.on ?? false;
+
+    derived standing = locale.t(on ? 'admin.systemPage.state.on' : 'admin.systemPage.state.off');
+
+    derived reader = !props.owner;
+
+    const nameOf = (game: string) =>
+    {
+        const known = GAMES.find((one) => one.id === game);
+
+        return known === undefined ? game : locale.t(known.nameKey);
+    };
+
+    derived games = (held?.games ?? []).map((one) => ({ id: one.game, name: nameOf(one.game), on: one.on }));
+
+    derived gamesListed = games.length > 0;
+
+    derived gamesBare = held !== null && !gamesListed;
+
+    derived form = typed ?? (held === null ? { wait: '', skill: 'intermediate', most: '' } : typedSettings(held));
+
+    derived read = readSettings(form);
+
+    derived waitTold = checked && read.bad.includes('wait') ? locale.t('admin.systemPage.waitBad', { least: WAIT_LEAST, most: WAIT_MOST }) : null;
+
+    derived mostTold = checked && read.bad.includes('most') ? locale.t('admin.systemPage.mostBad', { least: POOL_LEAST, most: POOL_MOST }) : null;
+
+    derived changed = held !== null && typed !== undefined && (read.settings === null || !sameSettings(read.settings, held));
+
+    derived skills = SKILLS.map((skill) => ({ value: skill, label: locale.t(SKILL_WORDS[skill]) }));
+
+    derived skillWord = held === null ? '' : locale.t(SKILL_WORDS[held.skill]);
+
+    const edit = (field: keyof TypedSettings, value: string) =>
+    {
+        typed = { ...form, [field]: value };
+    };
+
+    const undo = () =>
+    {
+        typed = undefined;
+        checked = false;
+    };
+
+    const reason = async (title: string, confirm: string, destructive = false, lead?: string) =>
+    {
+        const said = await overlay.open(ReasonSheet, { title, confirm, destructive, ...(lead === undefined ? {} : { lead }) }, { label: locale.t('admin.section.system') }).closed;
+
+        return typeof said === 'string' ? said : null;
+    };
+
+    const flip = async (to: boolean) =>
+    {
+        const why = await reason(
+            locale.t(to ? 'admin.systemPage.askOn' : 'admin.systemPage.askOff'),
+            locale.t(to ? 'admin.systemPage.confirmOn' : 'admin.systemPage.confirmOff'),
+            !to,
+            locale.t(to ? 'admin.systemPage.switchOn' : 'admin.systemPage.switchOff')
+        );
+
+        if (why !== null)
+        {
+            await attempt(store.switchTo(to, why), locale.t(to ? 'admin.systemPage.doneOn' : 'admin.systemPage.doneOff'), whyStaffRefused);
+        }
+    };
+
+    const flipGame = async (game: string, to: boolean) =>
+    {
+        const name = nameOf(game);
+        const why = await reason(
+            locale.t(to ? 'admin.systemPage.askGameOn' : 'admin.systemPage.askGameOff', { game: name }),
+            locale.t(to ? 'admin.systemPage.confirmOn' : 'admin.systemPage.confirmOff'),
+            !to
+        );
+
+        if (why !== null)
+        {
+            await attempt(store.setGame(game, to, why), locale.t(to ? 'admin.systemPage.doneGameOn' : 'admin.systemPage.doneGameOff', { game: name }), whyStaffRefused);
+        }
+    };
+
+    const save = async () =>
+    {
+        checked = true;
+
+        const settings = read.settings;
+
+        if (settings === null)
+        {
+            return;
+        }
+
+        const why = await reason(locale.t('admin.systemPage.askSettings'), locale.t('admin.systemPage.save'));
+
+        if (why !== null && await attempt(store.setSettings(settings, why), locale.t('admin.systemPage.doneSettings'), whyStaffRefused))
+        {
+            undo();
+        }
+    };
+
+    <section class="flex flex-col gap-4" aria-labelledby="admin-system-settings" data-system-settings>
+        <div class="flex flex-col gap-1">
+            <h2 id="admin-system-settings" class="title text-ui-2xl text-text">{ locale.t('admin.systemPage.settings') }</h2>
+            <Show when={ reader }>
+                <p class="text-ui-md text-muted">{ locale.t('admin.systemPage.ownerOnly') }</p>
+            </Show>
+        </div>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 3 } /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState error={ store.systemError() } compact title={ locale.t('admin.systemPage.configFailed') } onRetry={ () => void store.refresh() } /> }
+        </Show>
+
+        <Show when={ shown }>
+            <div class="flex flex-col gap-4">
+                <div class="rounded-panel border border-line bg-field p-4" data-system-switch>
+                    <Show when={ props.owner } fallback={ <p class="text-ui-sm font-semibold text-text">{ standing }</p> }>
+                        <Toggle
+                            checked={ on }
+                            label={ standing }
+                            description={ locale.t(on ? 'admin.systemPage.switchOn' : 'admin.systemPage.switchOff') }
+                            onChange={ (to) => void flip(to) }
+                        />
+                    </Show>
+                </div>
+
+                <div class="flex flex-col gap-3 rounded-panel border border-line bg-field p-4" data-system-games>
+                    <div class="flex flex-col gap-1">
+                        <h3 class="text-ui-lg font-semibold text-text">{ locale.t('admin.systemPage.games') }</h3>
+                        <p class="text-ui-sm text-muted">{ locale.t('admin.systemPage.gamesLead') }</p>
+                    </div>
+                    <Show when={ gamesBare }>
+                        { () => <AdminEmpty icon="games" title={ locale.t('admin.systemPage.gamesEmpty') } /> }
+                    </Show>
+                    <Show when={ gamesListed }>
+                        <ul class="flex flex-col divide-y divide-line">
+                            <For each={ games } key={ (game) => game.id } let={ game }>
+                                <li class="flex min-h-11 items-center justify-between gap-3 py-2" data-system-game={ game.id }>
+                                    <Show when={ props.owner } fallback={
+                                        <div class="flex w-full items-center justify-between gap-2">
+                                            <span class="text-ui-sm font-semibold text-text">{ game.name }</span>
+                                            <Badge text={ locale.t(game.on ? 'admin.systemPage.on' : 'admin.systemPage.off') } tone={ game.on ? 'live' : 'neutral' } />
+                                        </div>
+                                    }>
+                                        <Toggle
+                                            class="w-full"
+                                            checked={ game.on }
+                                            label={ game.name }
+                                            description={ locale.t(game.on ? 'admin.systemPage.gameOn' : 'admin.systemPage.gameOff') }
+                                            onChange={ (to) => void flipGame(game.id, to) }
+                                        />
+                                    </Show>
+                                </li>
+                            </For>
+                        </ul>
+                    </Show>
+                </div>
+
+                <div class="flex flex-col gap-3 rounded-panel border border-line bg-field p-4" data-system-form>
+                    <div class="flex flex-col gap-1">
+                        <h3 class="text-ui-lg font-semibold text-text">{ locale.t('admin.systemPage.form') }</h3>
+                        <p class="text-ui-sm text-muted">{ locale.t('admin.systemPage.formLead') }</p>
+                    </div>
+
+                    <Show when={ props.owner } fallback={
+                        <dl class="grid grid-cols-1 gap-2 @2xl:grid-cols-3">
+                            <div class="flex flex-col gap-0.5">
+                                <dt class="text-ui-xs text-muted">{ locale.t('admin.systemPage.wait') }</dt>
+                                <dd class="tabular-nums text-ui-sm font-semibold text-text">{ locale.plural('admin.systemPage.seconds', held?.wait ?? 0) }</dd>
+                            </div>
+                            <div class="flex flex-col gap-0.5">
+                                <dt class="text-ui-xs text-muted">{ locale.t('admin.systemPage.skill') }</dt>
+                                <dd class="text-ui-sm font-semibold text-text">{ skillWord }</dd>
+                            </div>
+                            <div class="flex flex-col gap-0.5">
+                                <dt class="text-ui-xs text-muted">{ locale.t('admin.systemPage.most') }</dt>
+                                <dd class="tabular-nums text-ui-sm font-semibold text-text">{ locale.n(held?.most ?? 0) }</dd>
+                            </div>
+                        </dl>
+                    }>
+                        <div class="flex flex-col gap-3">
+                            <div class="grid grid-cols-1 gap-3 @2xl:grid-cols-3">
+                                <Field id="admin-system-wait" label={ locale.t('admin.systemPage.wait') } hint={ locale.t('admin.systemPage.waitHint', { least: WAIT_LEAST, most: WAIT_MOST }) } error={ waitTold }>
+                                    <Input
+                                        id="admin-system-wait"
+                                        value={ form.wait }
+                                        inputmode="numeric"
+                                        autocomplete="off"
+                                        invalid={ waitTold !== null }
+                                        describedBy={ waitTold !== null ? 'admin-system-wait-error' : 'admin-system-wait-hint' }
+                                        onInput={ (value) => edit('wait', value) }
+                                        onEnter={ () => void save() }
+                                    />
+                                </Field>
+                                <Select label={ locale.t('admin.systemPage.skill') } value={ form.skill } options={ skills } onChange={ (value) => edit('skill', value) } />
+                                <Field id="admin-system-most" label={ locale.t('admin.systemPage.most') } hint={ locale.t('admin.systemPage.mostHint', { least: POOL_LEAST, most: POOL_MOST }) } error={ mostTold }>
+                                    <Input
+                                        id="admin-system-most"
+                                        value={ form.most }
+                                        inputmode="numeric"
+                                        autocomplete="off"
+                                        invalid={ mostTold !== null }
+                                        describedBy={ mostTold !== null ? 'admin-system-most-error' : 'admin-system-most-hint' }
+                                        onInput={ (value) => edit('most', value) }
+                                        onEnter={ () => void save() }
+                                    />
+                                </Field>
+                            </div>
+                            <Show when={ changed }>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <Badge text={ locale.t('admin.systemPage.unsaved') } tone="gold" />
+                                    <Button variant="primary" size="sm" onClick={ () => void save() }>{ locale.t('admin.systemPage.save') }</Button>
+                                    <Button variant="ghost" size="sm" onClick={ undo }>{ locale.t('admin.systemPage.undo') }</Button>
+                                </div>
+                            </Show>
+                        </div>
+                    </Show>
+                </div>
+            </div>
+        </Show>
+    </section>
+}

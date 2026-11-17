@@ -46,15 +46,43 @@ describe('a match with a system seat moves no rating', () =>
 
 describe('the counters kept apart', () =>
 {
-    it('add a person\'s game and XP when the match had a system seat', () =>
+    it('add a person\'s game, win and XP when the match had a system seat', () =>
     {
-        expect(apartOf({ system: true, mine: false }, 1, 40)).toEqual({ played: 1, xp: 40 });
+        expect(apartOf({ system: true, mine: false }, { played: 1, won: 1, xp: 40 })).toEqual({ played: 1, won: 1, xp: 40 });
+        expect(apartOf({ system: true, mine: false }, { played: 1, won: 0, xp: 10 })).toEqual({ played: 1, won: 0, xp: 10 });
     });
 
     it('add nothing for a match among people, or to a system player\'s own row', () =>
     {
-        expect(apartOf({ system: false, mine: false }, 1, 40)).toEqual({ played: 0, xp: 0 });
-        expect(apartOf({ system: true, mine: true }, 1, 40)).toEqual({ played: 0, xp: 0 });
+        expect(apartOf({ system: false, mine: false }, { played: 1, won: 1, xp: 40 })).toEqual({ played: 0, won: 0, xp: 0 });
+        expect(apartOf({ system: true, mine: true }, { played: 1, won: 1, xp: 40 })).toEqual({ played: 0, won: 0, xp: 0 });
+    });
+
+    it('never leave more wins than games on the board', () =>
+    {
+        const rows = [
+            { system: true, mine: false, played: 1, won: 1, xp: 40 },
+            { system: false, mine: false, played: 1, won: 0, xp: 10 },
+            { system: true, mine: false, played: 1, won: 1, xp: 40 },
+            { system: false, mine: false, played: 1, won: 1, xp: 40 }
+        ];
+        const total = { played: 0, won: 0, xp: 0 };
+        const apart = { played: 0, won: 0, xp: 0 };
+
+        for (const row of rows)
+        {
+            const kept = apartOf(row, row);
+
+            total.played += row.played;
+            total.won += row.won;
+            total.xp += row.xp;
+            apart.played += kept.played;
+            apart.won += kept.won;
+            apart.xp += kept.xp;
+        }
+
+        expect({ played: total.played - apart.played, won: total.won - apart.won, xp: total.xp - apart.xp }).toEqual({ played: 2, won: 1, xp: 50 });
+        expect(apart.won).toBeLessThanOrEqual(apart.played);
     });
 
     it('follow `played`: a win nobody played out is not a game', () =>

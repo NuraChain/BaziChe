@@ -21,7 +21,7 @@ import { User } from './user.entity.ts';
 @Check('player_stats_peak_reached', `peak_rating >= rating or played = 0`)
 @Check('player_stats_streaks', `streak >= 0 and best_streak >= streak`)
 @Check('player_stats_tallies', `jsonb_typeof(tallies) = 'object' and xp >= 0`)
-@Check('player_stats_system', `system_played between 0 and played and system_xp between 0 and xp`)
+@Check('player_stats_system', `system_played between 0 and played and system_won between 0 and won and system_xp between 0 and xp`)
 @Index('player_stats_board', ['game', 'xp'])
 @Entity('player_stats')
 export class PlayerStats
@@ -75,13 +75,17 @@ export class PlayerStats
     bestStreak!: number;
 
     /**
-     * The part of `played` and `xp` that came from matches with a system player in a seat.
+     * The part of `played`, `won` and `xp` that came from matches with a system player in a seat.
      *
-     * Still counted in `played` and `xp`, because the person really played them, and kept apart so
-     * every board can rank on what is left: a game against the server is not a game against people.
+     * Still counted in `played`, `won` and `xp`, because the person really played them, and kept
+     * apart so every board can rank on what is left: a game against the server is not a game against
+     * people. Wins are split too, or a board would show more wins than games.
      */
     @Column({ name: 'system_played', type: 'integer', default: 0 })
     systemPlayed!: number;
+
+    @Column({ name: 'system_won', type: 'integer', default: 0 })
+    systemWon!: number;
 
     @Column({ name: 'system_xp', type: 'integer', default: 0 })
     systemXp!: number;

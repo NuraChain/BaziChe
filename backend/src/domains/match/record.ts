@@ -59,12 +59,12 @@ const systemSeatsOf = async (tx: EntityManager, matchId: string): Promise<Set<st
 export const playedOf = (verdict: Pick<Verdict, 'result' | 'credit'>) => (verdict.result === 'won' && !verdict.credit ? 0 : 1);
 
 /**
- * What a seat adds to `system_played` and `system_xp`: everything it earned, when the match had a
- * system seat and the seat is a person's. A system player's own row never needs the split, because
- * no board ever shows it.
+ * What a seat adds to `system_played`, `system_won` and `system_xp`: everything it earned, when the
+ * match had a system seat and the seat is a person's. A system player's own row never needs the
+ * split, because no board ever shows it.
  */
-export const apartOf = (match: { system: boolean; mine: boolean }, played: number, xp: number) =>
-    match.system && !match.mine ? { played, xp } : { played: 0, xp: 0 };
+export const apartOf = (match: { system: boolean; mine: boolean }, earned: { played: number; won: number; xp: number }) =>
+    match.system && !match.mine ? { played: earned.played, won: earned.won, xp: earned.xp } : { played: 0, won: 0, xp: 0 };
 
 /**
  * The players a finished match reports to the quests: people only, each against people only. A
@@ -183,7 +183,8 @@ export function createRecorder(achieve: AchieveService, reward?: QuestProgressHo
                 const after = move?.after ?? held?.rating ?? START;
                 const streak = { add: (held?.streak ?? 0) + 1, reset: 0, keep: held?.streak ?? 0 }[verdict.streak];
                 const played = playedOf(verdict);
-                const apart = apartOf({ system: system.size > 0, mine: system.has(player.userId) }, played, earned);
+                const won = verdict.credit ? 1 : 0;
+                const apart = apartOf({ system: system.size > 0, mine: system.has(player.userId) }, { played, won, xp: earned });
 
                 await stats.createQueryBuilder()
                     .update(PlayerStats)
@@ -199,19 +200,21 @@ export function createRecorder(achieve: AchieveService, reward?: QuestProgressHo
                         tallies: () => SUMMED,
                         xp: () => 'xp + :xp',
                         systemPlayed: () => 'system_played + :systemPlayed',
+                        systemWon: () => 'system_won + :systemWon',
                         systemXp: () => 'system_xp + :systemXp'
                     })
                     .where('user_id = :userId and game = :game')
                     .setParameters({
                         after,
                         played,
-                        won: verdict.credit ? 1 : 0,
+                        won,
                         drawn: verdict.result === 'drawn' ? 1 : 0,
                         quit: verdict.result === 'abandoned' ? 1 : 0,
                         streak,
                         tallies: JSON.stringify(tally),
                         xp: earned,
                         systemPlayed: apart.played,
+                        systemWon: apart.won,
                         systemXp: apart.xp,
                         userId: player.userId,
                         game

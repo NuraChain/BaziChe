@@ -1,0 +1,37 @@
+import { useHead } from 'azerothjs';
+
+import { may } from '../../../../backend/src/domains/admin/roles.ts';
+import AdminHead from '../../components/admin/admin-head.component.azeroth';
+import AdminSystemFigures from '../../components/admin/admin-system-figures.component.azeroth';
+import AdminSystemPool from '../../components/admin/admin-system-pool.component.azeroth';
+import AdminSystemSettings from '../../components/admin/admin-system-settings.component.azeroth';
+import { useAdminSystem } from '../../stores/admin-system.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useSession } from '../../stores/session.store.ts';
+
+export default component SystemPage()
+{
+    const locale = useLocale();
+    const session = useSession();
+
+    useHead({ title: () => locale.t('admin.section.system') });
+
+    derived role = session.account()?.staff ?? null;
+
+    derived owner = may(role, 'wallet');
+
+    mount
+    {
+        return () => useAdminSystem().reset();
+    }
+
+    <div class="flex flex-col gap-8 @container">
+        <AdminHead title={ locale.t('admin.section.system') } lead={ locale.t('admin.system.lead') } how={ locale.t('admin.system.how') } />
+
+        <AdminSystemSettings owner={ owner } />
+
+        <AdminSystemFigures />
+
+        <AdminSystemPool />
+    </div>
+}

@@ -162,6 +162,128 @@ hand where the chain is right, or act on the chain (a refund, a reclaim) where t
 close the check with a reason: a closed check stays closed while both sides say what they said, and
 the log keeps who closed it and why.
 
+## Rewards
+
+The daily check-in, the quests and their NURA (`docs/design/2026-11-16-rewards-design.md`). Earned
+NURA is a row in `reward_grants`; it leaves only when the player withdraws it, as a payout the
+rewards worker sends from the rewards wallet. The whole system ships switched off.
+
+**Where to look:** Admin › Rewards (the switch, the amounts, the looks, the budget, freezing), and
+`GET /api/metrics`: `baziche_rewards_on`, `baziche_rewards_granted_today_nura`,
+`baziche_reward_payouts{state="waiting"|"failed"}` (failed: in the last day),
+`baziche_reward_payouts_oldest_seconds` and `baziche_rewards_wallet_nura` (absent with no wallet,
+or when the chain did not answer the sample). A wallet too low for the queue is a `reward-balance`
+disagreement, so it stands as `checks-open`.
+
+### Funding the rewards wallet
+
+The rewards wallet is its own wallet, never the referee's: `NURA_REWARDS_KEY` holds its key, and
+without it withdrawals are refused (`reward-wallet`) and nothing else changes.
+
+1. Make a new wallet for it and send it **one cycle's budget plus 1,000 NURA**: 25,001,000 NURA at
+   the default budget. The 1,000 is the gas reserve. A payout is a plain transfer (21,000 gas at
+   47 gwei, about 0.001 NURA), and the worker never sends one that would leave the wallet holding
+   less than what is already sent and not mined, plus that payout and its gas, plus the reserve.
+   A payout it cannot afford stays queued, without using an attempt, and those behind it wait in
+   order.
+2. Before a real key, try a test wallet holding a few NURA: set its key, restart, withdraw once
+   from an established test account, and see the payout mined on the explorer.
+3. Top it up before each new cycle starts (every 30 reward days, counted from 2024-01-01 20:30
+   UTC): the wallet should hold what is still owed (the queue, and what players have earned and
+   not withdrawn) plus the reserve.
+
+### The cycle budget and its release
+
+All players together can be granted at most the cycle budget (default 25,000,000 NURA, the owner's
+to change in Admin › Rewards), and it opens day by day: by the end of cycle day `d`, at most
+`budget × d / 30` in total, with what a day leaves unused carried to the next. One player can be
+granted at most 200,000 NURA a cycle, which no setting changes. A claim the budget or the cap
+clips is still written, at what fit (0 included), and is not offered again; the player's page says
+the day's pool is spent. A look is still given. 25,000,000 pays 125 players in full, so the pool
+will clip once more play: that is the budget working, not a fault. Raise the budget only with the
+wallet funded for it.
+
+### The payout queue stalls
+
+**Means** `baziche_reward_payouts{state="waiting"}` grows or `…oldest_seconds` passes ten
+minutes, or payouts fail.
+
+**Look at** the worker's `reward payout step failed` lines (they name the payout and the error),
+whether `chain-down` or `checks-open` (`reward-balance`) stands, and the wallet's balance.
+
+**Do**
+- **Wallet short:** fund it (above). The waiting payouts go on their own at the next pass.
+- **Chain unreachable:** as `chain-down`. Nothing is lost: a payout's signed bytes and hash are
+  saved before it is sent, and the worker asks the chain for that hash before anything else.
+- **A payout sent and never mined:** leave it. The worker sends the same bytes again, and treats
+  it as replaced (a new attempt, up to 5) only once a mined block used its nonce, no receipt has
+  its hash, and the worker has seen it that way for ten minutes (a worker restart starts that wait
+  again).
+- **Failed for good** (5 attempts): the NURA is back in the player's balance; they withdraw again.
+- Never edit a payout row with a hash by hand without first looking that hash up on the explorer:
+  a transfer that mined is paid.
+
+### Freezing a player
+
+For a farm, a stolen account or anything the staff want to look into: Admin › Rewards, the person's
+handle, Freeze, with a reason (`POST /api/admin/rewards/people/:handle/freeze`,
+`{ "frozen": true, "reason": "…" }`; the `rewards` ability, an admin's). A frozen player earns no
+NURA: a check-in still keeps the streak and gives its look, but its NURA is written at 0
+(`reward-frozen`) and is not paid later; quest claims and withdrawals are refused `reward-frozen`,
+and a quest left unclaimed can still be claimed within its window once thawed. A payout already
+queued stays queued and is not sent while the player is frozen, suspended or a minor; it goes out on
+the first sweep after a thaw. One already sent cannot be called back. Thawing is the same call with `"frozen": false`. Both are staff
+actions (`reward-freeze`) with who, when and why.
+
+### Switching rewards on and off
+
+Owner only (the `wallet` ability): Admin › Rewards, the switch, with a reason
+(`POST /api/admin/rewards/switch`, `{ "on": true, "reason": "…" }`), a `reward-config` staff action
+with the before and after. Off: the check-in, quest claims and claim-all refuse `reward-off`, the
+rewards page says so, finished matches write no quest progress, and no streak reminder is sent.
+Withdrawing NURA already earned still works, since it is the player's. Switch on only once the
+wallet is funded and a test payout mined (above). The account's `rewards` flag, which shows the
+page, changes for a player when their page next loads the session.
+
+The streak reminder (`reward-streak`) goes out from 20:00 to 23:45 Tehran time, once a reward day,
+to a player whose check-in today would keep a streak of 3 or more, never to a frozen or suspended
+one, and not to one who muted gift notices.
+
+### Before the first deploy of the rewards branch
+
+On a database that has never had reward rows, nothing. Otherwise, with `NURA_REWARDS_KEY` empty
+and the switch off, in `psql` before the new build starts:
+
+1. **The old `RewardPayoutRecovery` migration.** An earlier build of it multiplied every amount in
+   `reward_grants` and `reward_cycle_totals` by 10^18. If
+   `select name from schema_migrations where name like 'RewardPayoutRecovery%'` finds it, look for
+   inflated rows. An honest grant is at most 2×10^23 wei (200,000 NURA) and an inflated one at
+   least 10^36, so:
+
+   ```sql
+   select count(*) from reward_grants where amount > 1e30 or wanted > 1e30;
+   select id, state, amount, tx_hash from reward_payouts where amount > 1e30;
+   ```
+
+   If grants are inflated, put them right in one transaction and count the cycle totals again:
+
+   ```sql
+   begin;
+   update reward_grants set amount = amount / 1000000000000000000 where amount > 1e30;
+   update reward_grants set wanted = wanted / 1000000000000000000 where wanted > 1e30;
+   update reward_cycle_totals t
+      set granted = coalesce((select sum(g.amount) from reward_grants g where g.cycle = t.cycle), 0);
+   commit;
+   ```
+
+   A payout over 10^30 was queued from an inflated balance and could never be afforded; look its
+   hash up (it should have none) before marking it failed by hand.
+2. **The streak table.** Nothing to run. The start adds `reward_streaks.run` (default 0) and turns
+   `last_day` from a day of the cycle into the absolute reward day; the type change re-adds the
+   column at 0 and keeps the old values in `kept_1_reward_streaks__last_day`. Those old streaks read
+   as broken and start again at day 1 on the next check-in. Nobody loses NURA by it.
+3. Start the new build and read the log for `the entities still differ`. Then switch on (above).
+
 ## When no alert says it
 
 ### A server key has leaked

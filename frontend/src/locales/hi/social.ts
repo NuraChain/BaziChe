@@ -453,6 +453,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'emoji.symbols': 'सिंबल',
     'emoji.flags': 'झंडे',
     'chat.loadFailed': 'यह बातचीत लोड नहीं हो पाई।',
+    'chat.refused.message-blocked': 'आप उस खाते तक नहीं पहुँच सकते।',
+    'chat.refused.message-closed': 'वे उन लोगों से संदेश नहीं ले रहे जिन्हें उन्होंने नहीं जोड़ा।',
     'level.xp': 'XP',
     'level.short': 'LVL',
     'level.title': 'लेवल {level}',

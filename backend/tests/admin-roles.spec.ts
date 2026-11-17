@@ -18,6 +18,14 @@ describe('who on the staff may do what', () =>
         expect(reach('owner')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'rewards', 'seasons', 'shop', 'staff', 'system', 'tournaments', 'wallet']);
     });
 
+    it('tells everyone who may open the people pages which accounts are system players, and keeps the system pages and their changes apart', () =>
+    {
+        // The mark on a person rides on `people` alone; a moderator can tell from the missing wallet anyway.
+        expect(STAFF_ROLES.filter((role) => may(role, 'people'))).toEqual(['moderator', 'admin', 'co-owner', 'owner']);
+        expect(STAFF_ROLES.filter((role) => may(role, 'system'))).toEqual(['admin', 'co-owner', 'owner']);
+        expect(STAFF_ROLES.filter((role) => may(role, 'wallet'))).toEqual(['owner']);
+    });
+
     it('puts the owner above a co-owner, a co-owner above an admin, an admin above a moderator, and every role above somebody who is none', () =>
     {
         const above = ROLES.map((actor) => ROLES.filter((other) => outranks(actor, other)));

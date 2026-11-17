@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { mayReceive } from '../src/domains/donate/service.ts';
 import { movesOf, planOf, type SeatFacts } from '../src/domains/match/judge.ts';
-import { apartOf, peopleOf, playedOf } from '../src/domains/match/record.ts';
+import { ownMatches, ownOf } from '../src/domains/achieve/service.ts';
+import { apartOf, playedOf, questPlayersOf, streakOf, talliesApartOf } from '../src/domains/match/record.ts';
 import { countsForQuests, type RewardFinishPlayer } from '../src/domains/reward/progress.ts';
 
 const seat = (facts: Partial<SeatFacts> & { seat: number; place: number }): SeatFacts => ({
@@ -85,6 +86,15 @@ describe('the counters kept apart', () =>
         expect(apart.won).toBeLessThanOrEqual(apart.played);
     });
 
+    it('add a person\'s tallies only when the match had a system seat', () =>
+    {
+        const tally = { moves: 40, captures: 3 };
+
+        expect(talliesApartOf({ system: true, mine: false }, tally)).toEqual(tally);
+        expect(talliesApartOf({ system: false, mine: false }, tally)).toEqual({});
+        expect(talliesApartOf({ system: true, mine: true }, tally)).toEqual({});
+    });
+
     it('follow `played`: a win nobody played out is not a game', () =>
     {
         expect(playedOf({ result: 'won', credit: false })).toBe(0);
@@ -95,38 +105,102 @@ describe('the counters kept apart', () =>
 
 describe('what the quests are told', () =>
 {
-    const player = (userId: string, opponentIds: string[]): RewardFinishPlayer => ({
+    // 4-seat hokm: seats 0 and 2 are one side, 1 and 3 the other; the recorder lists every other seat, partner included.
+    const table = (seats: readonly string[], won: readonly number[]): RewardFinishPlayer[] => seats.map((userId, seat) => ({
         userId,
-        seat: 0,
-        result: 'won',
-        credit: true,
+        seat,
+        result: won.includes(seat) ? 'won' : 'lost',
+        credit: won.includes(seat),
         ownTurns: 40,
-        tally: {},
-        opponentIds
-    });
-    const system = new Set(['bot-a', 'bot-b']);
+        tally: { hands: 7, tricks: 30 },
+        opponentIds: seats.filter((other) => other !== userId)
+    }));
+    const counts = (players: readonly RewardFinishPlayer[], established: readonly string[], friends: Record<string, string[]>) =>
+        players.map((one) => countsForQuests({
+            game: 'hokm',
+            ...one,
+            playerId: one.userId,
+            establishedOpponents: established,
+            friendOpponentIds: friends[one.userId] ?? []
+        }));
 
-    it('leaves out system players and every system opponent', () =>
+    it('tells nothing when two established friends partner against two system players', () =>
     {
-        const told = peopleOf([player('ann', ['bot-a', 'ben']), player('bot-a', ['ann', 'ben']), player('ben', ['ann', 'bot-a'])], system);
+        const players = table(['ann', 'bot-a', 'ben', 'bot-b'], [0, 2]);
 
-        expect(told.map((one) => [one.userId, one.opponentIds])).toEqual([['ann', ['ben']], ['ben', ['ann']]]);
+        expect(questPlayersOf(players, new Set(['bot-a', 'bot-b']))).toEqual([]);
     });
 
-    it('counts a match whose only opponents were system players for nothing', () =>
+    it('tells nothing for a mixed match either', () =>
     {
-        const [told] = peopleOf([player('ann', ['bot-a', 'bot-b'])], system);
-
-        expect(told.opponentIds).toEqual([]);
-        expect(countsForQuests({ game: 'chess', ...told, playerId: told.userId, establishedOpponents: ['bot-a'] })).toEqual({});
+        expect(questPlayersOf(table(['ann', 'bot-a', 'ben', 'cy'], [0, 2]), new Set(['bot-a']))).toEqual([]);
     });
 
-    it('counts a mixed match for the people in it only', () =>
+    it('tells the same two people against two people exactly what it always did, partner as friend included', () =>
     {
-        const [told] = peopleOf([player('ann', ['bot-a', 'ben'])], system);
-        const counts = countsForQuests({ game: 'chess', ...told, playerId: told.userId, establishedOpponents: ['bot-a'], friendOpponentIds: ['bot-a'] });
+        const players = table(['ann', 'cy', 'ben', 'dee'], [0, 2]);
+        const told = questPlayersOf(players, new Set());
 
-        expect(counts).toEqual({ played: 1 });
+        expect(told).toEqual(players);
+        expect(counts(told, ['ann', 'ben', 'cy', 'dee'], { ann: ['ben'], ben: ['ann'] })).toEqual([
+            { played: 1, won: 1, 'played-with-friend': 1, 'tally:hands': 7, 'tally:tricks': 30 },
+            { played: 1, 'tally:hands': 7, 'tally:tricks': 30 },
+            { played: 1, won: 1, 'played-with-friend': 1, 'tally:hands': 7, 'tally:tricks': 30 },
+            { played: 1, 'tally:hands': 7, 'tally:tricks': 30 }
+        ]);
+    });
+});
+
+describe('a win streak', () =>
+{
+    const people = { system: false, mine: false };
+    const withSystem = { system: true, mine: false };
+
+    it('moves as before in a match among people', () =>
+    {
+        expect([streakOf(4, 'add', people), streakOf(4, 'reset', people), streakOf(4, 'keep', people)]).toEqual([5, 0, 4]);
+    });
+
+    it('neither grows nor breaks for a person in a match with a system seat', () =>
+    {
+        expect([streakOf(4, 'add', withSystem), streakOf(4, 'reset', withSystem), streakOf(4, 'keep', withSystem)]).toEqual([4, 4, 4]);
+    });
+
+    it('moves as usual for the system player itself', () =>
+    {
+        const mine = { system: true, mine: true };
+
+        expect([streakOf(4, 'add', mine), streakOf(4, 'reset', mine)]).toEqual([5, 0]);
+    });
+});
+
+describe('what achievements stand on', () =>
+{
+    const tallies = { moves: 148, captures: 11, checks: 2, checkmates: 1 };
+    const row = { played: 30, won: 20, xp: 900, tallies, systemPlayed: 12, systemWon: 10, systemXp: 400, systemTallies: { moves: 100, captures: 11, checkmates: 1 } };
+    const none = { ...row, systemPlayed: 0, systemWon: 0, systemXp: 0, systemTallies: {} };
+
+    it('is a person\'s totals less their games with a system seat', () =>
+    {
+        expect(ownOf(row, false)).toEqual({ played: 18, won: 10, xp: 500, tallies: { moves: 48, captures: 0, checks: 2, checkmates: 0 } });
+        expect(ownOf(none, false)).toEqual({ played: 30, won: 20, xp: 900, tallies });
+    });
+
+    it('leaves a person no tally when every game behind it had a system seat', () =>
+    {
+        expect(Object.values(ownOf({ ...row, systemTallies: tallies }, false).tallies).every((value) => value === 0)).toBe(true);
+    });
+
+    it('is a system player\'s plain totals', () =>
+    {
+        expect(ownOf(none, true)).toEqual({ played: 30, won: 20, xp: 900, tallies });
+        expect(ownOf(row, true).tallies).toEqual(tallies);
+    });
+
+    it('leaves out matches with a system seat for a person only', () =>
+    {
+        expect(ownMatches('m.id', false)).toMatch(/^not exists .*system_players/s);
+        expect(ownMatches('m.id', true)).toBe('true');
     });
 });
 

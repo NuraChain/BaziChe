@@ -21,6 +21,7 @@ import { User } from './user.entity.ts';
 @Check('player_stats_peak_reached', `peak_rating >= rating or played = 0`)
 @Check('player_stats_streaks', `streak >= 0 and best_streak >= streak`)
 @Check('player_stats_tallies', `jsonb_typeof(tallies) = 'object' and xp >= 0`)
+@Check('player_stats_system_tallies', `jsonb_typeof(system_tallies) = 'object'`)
 @Check('player_stats_system', `system_played between 0 and played and system_won between 0 and won and system_xp between 0 and xp`)
 @Index('player_stats_board', ['game', 'xp'])
 @Entity('player_stats')
@@ -98,11 +99,19 @@ export class PlayerStats
      * and every game would have stored zero in the others' columns forever. The row is keyed
      * `(user_id, game)`, so the names only ever have to make sense within one game.
      *
-     * Nothing is DECIDED by these. No achievement, rating or level reads one; they are what a
-     * profile shows, which is why an engine names them and no shared code has an opinion.
+     * No rating or level reads one. The achievement ladders read what is left after `system_tallies`,
+     * and a profile shows them whole, which is why an engine names them and no shared code has an
+     * opinion.
      */
     @Column({ type: 'jsonb', default: () => `'{}'` })
     tallies!: Record<string, number>;
+
+    /**
+     * The part of `tallies` from matches with a system player in a seat, kept apart for the reason
+     * `system_xp` is: an achievement must not be earned against opponents summoned at will.
+     */
+    @Column({ name: 'system_tallies', type: 'jsonb', default: () => `'{}'` })
+    systemTallies!: Record<string, number>;
 
     @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
     updatedAt!: Date;

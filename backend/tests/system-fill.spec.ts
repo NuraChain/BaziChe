@@ -4,8 +4,11 @@ import { describe, expect, it } from 'vitest';
 import {
     AFTER_LEAST_MS,
     AFTER_MOST_MS,
+    ALONE_LEAST_MS,
+    ALONE_MOST_MS,
     STALL_MS,
     afterDelay,
+    aloneDelay,
     fillable,
     standUps,
     startsWith,
@@ -44,6 +47,9 @@ const boardOf = (chairs: Chair[], more: Partial<Board> = {}): Board => ({
     finished: null,
     now: NOW,
     chairs,
+    agent: true,
+    stood: null,
+    alone: null,
     ...more
 });
 
@@ -68,6 +74,28 @@ describe('when a table may be filled', () =>
 
         expect(waitingSince(board)).toBe(NOW - 25_000);
         expect(fillable(ON, board, everyone)).toBe(true);
+    });
+
+    it('fills nothing while any person seated is not ready, since the table could not start', () =>
+    {
+        const board = boardOf([person(0, 'ann'), person(1, 'bob', NOW - 30_000, false), empty(2), empty(3)]);
+
+        expect(waitingSince(board)).toBeNull();
+        expect(fillable(ON, board, everyone)).toBe(false);
+    });
+
+    it('starts the wait afresh after a system player stood up from the table', () =>
+    {
+        const board = boardOf([person(0, 'ann', NOW - 600_000), empty(1)], { stood: NOW - 19_000 });
+
+        expect(waitingSince(board)).toBe(NOW - 19_000);
+        expect(fillable(ON, board, everyone)).toBe(false);
+        expect(fillable(ON, { ...board, stood: NOW - 20_000 }, everyone)).toBe(true);
+    });
+
+    it('fills only a game that has an agent, whatever the settings say', () =>
+    {
+        expect(fillable(ON, boardOf([person(0, 'ann'), empty(1)], { agent: false }), everyone)).toBe(false);
     });
 
     it('measures the wait from the end of the last game for somebody who stayed on', () =>
@@ -163,12 +191,32 @@ describe('when the game starts', () =>
 
 describe('when system players stand up', () =>
 {
-    it('stands them all up when no person is left', () =>
+    it('stands them up one at a time when no person is left, each its own delay after the last', () =>
     {
-        expect(standUps(ON, boardOf([bot(0, 'a'), bot(1, 'b'), empty(2)]))).toEqual([
-            { user: 'a', why: 'alone' },
-            { user: 'b', why: 'alone' }
-        ]);
+        const chairs = [bot(0, 'a'), bot(1, 'b'), empty(2)];
+        const alone = NOW - 60_000;
+        const first = aloneDelay('6b1f0c4e-1a2b-4c3d-8e9f-0a1b2c3d4e5f', 0, alone);
+
+        expect(standUps(ON, boardOf(chairs)), 'not before the table was seen empty').toEqual([]);
+        expect(standUps(ON, boardOf(chairs, { alone, now: alone + first - 1 }))).toEqual([]);
+        expect(standUps(ON, boardOf(chairs, { alone, now: alone + first }))).toEqual([{ user: 'a', why: 'alone' }]);
+
+        const stood = alone + first;
+        const second = aloneDelay('6b1f0c4e-1a2b-4c3d-8e9f-0a1b2c3d4e5f', 1, stood);
+        const after = [empty(0), bot(1, 'b'), empty(2)];
+
+        expect(standUps(ON, boardOf(after, { alone, stood, now: stood + second - 1 }))).toEqual([]);
+        expect(standUps(ON, boardOf(after, { alone, stood, now: stood + second }))).toEqual([{ user: 'b', why: 'alone' }]);
+    });
+
+    it('keeps them seated once a person sits down again', () =>
+    {
+        expect(standUps(ON, boardOf([bot(0, 'a'), person(1, 'ann'), empty(2)], { alone: NOW - 600_000 }))).toEqual([]);
+    });
+
+    it('lets them go from a game with no agent', () =>
+    {
+        expect(standUps(ON, boardOf([person(0, 'ann'), bot(1, 'a'), empty(2)], { agent: false }))).toEqual([{ user: 'a', why: 'off' }]);
     });
 
     it('stands them up before the start when the switch or the game goes off', () =>
@@ -216,6 +264,20 @@ describe('when system players stand up', () =>
     it('lets a retired one go', () =>
     {
         expect(standUps(ON, boardOf([person(0, 'ann'), { ...bot(1, 'a'), retired: true }, empty(2)]))).toEqual([{ user: 'a', why: 'retired' }]);
+    });
+});
+
+describe('the delay when left alone', () =>
+{
+    it('stays in its window', () =>
+    {
+        for (let seat = 0; seat < 9; seat += 1)
+        {
+            const delay = aloneDelay('6b1f0c4e-1a2b-4c3d-8e9f-0a1b2c3d4e5f', seat, NOW + seat * 911);
+
+            expect(delay).toBeGreaterThanOrEqual(ALONE_LEAST_MS);
+            expect(delay).toBeLessThanOrEqual(ALONE_MOST_MS);
+        }
     });
 });
 

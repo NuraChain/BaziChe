@@ -31,8 +31,8 @@ export const useAdminSystem = createStore((): AdminSystemApi =>
 
     const [wanted, setWanted] = createSignal<readonly AdminSystemView[]>([]);
 
-    /** Players retired from this page, shown as the server answered until the list is read again. */
-    const [retired, setRetired] = createSignal<Readonly<Record<string, AdminSystemPlayer>>>({});
+    /** Rows read again after a retire, shown over the loaded pages until the list itself is read again. */
+    const [fresher, setFresher] = createSignal<Readonly<Record<string, AdminSystemPlayer>>>({});
 
     const wants = (view: AdminSystemView) => () => (wanted().includes(view) ? reader() : null);
 
@@ -46,13 +46,37 @@ export const useAdminSystem = createStore((): AdminSystemApi =>
 
     const players: Paged<AdminSystemPlayer> = {
         ...list,
-        rows: () => list.rows().map((row) => retired()[row.handle] ?? row),
+        rows: () => list.rows().map((row) => fresher()[row.handle] ?? row),
 
         async refetch()
         {
-            setRetired({});
+            setFresher({});
             await list.refetch();
         }
+    };
+
+    /** The pages already shown, read again from the first, so a page loaded further down is kept. */
+    const reread = async (shown: number) =>
+    {
+        const rows: Record<string, AdminSystemPlayer> = {};
+        let cursor: string | undefined;
+        let read = 0;
+
+        do
+        {
+            const page = await client.admin.systemPlayers({ query: cursor === undefined ? {} : { cursor } });
+
+            for (const row of page.rows)
+            {
+                rows[row.handle] = row;
+            }
+
+            read += page.rows.length;
+            cursor = page.cursor;
+        }
+        while (cursor !== undefined && read < shown);
+
+        return rows;
     };
 
     /** A config write answers with the whole view, figures included, which is read again so the page shows one answer. */
@@ -86,8 +110,11 @@ export const useAdminSystem = createStore((): AdminSystemApi =>
         {
             const answer = await client.admin.retireSystemPlayer({ params: { handle }, input: { reason } });
 
-            setRetired((now) => ({ ...now, [answer.handle]: answer }));
-            await system.refetch();
+            setFresher((now) => ({ ...now, [answer.handle]: answer }));
+            // The answer can still name the table it waits at: the filler stands it up on its own sweep.
+            const [, again] = await Promise.all([system.refetch(), reread(untrack(list.rows).length)]);
+
+            setFresher((now) => ({ ...now, ...again }));
 
             return answer;
         },
@@ -105,7 +132,7 @@ export const useAdminSystem = createStore((): AdminSystemApi =>
         reset()
         {
             setWanted([]);
-            setRetired({});
+            setFresher({});
         }
     };
 });

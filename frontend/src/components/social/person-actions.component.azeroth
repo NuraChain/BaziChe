@@ -20,6 +20,7 @@ import LazyWornLooks from './lazy-worn-looks.component.azeroth';
 import ReportSheet from './report-sheet.component.azeroth';
 import { copyText } from '../../lib/clipboard.ts';
 import { attempt } from '../../lib/attempt.ts';
+import { whyMessage } from '../../lib/message-refusal.ts';
 import { playWith } from '../../lib/play-with.ts';
 import { placeCall } from '../../lib/place-call.ts';
 import { giveTo } from '../../lib/donate-sheet.ts';
@@ -185,7 +186,7 @@ export default component PersonActions(props: OverlayProps & {
                 run: () =>
                 {
                     props.close();
-                    void chat.openDirect(props.personId).then((id) => navigate(`/app/chats/${ id }`));
+                    void attempt(chat.openDirect(props.personId).then((id) => navigate(`/app/chats/${ id }`)), undefined, whyMessage);
                 }
             }];
         const profile: Action = {

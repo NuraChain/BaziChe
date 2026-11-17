@@ -27,7 +27,7 @@ import { clockFor, isClock } from './clocks.ts';
 import { guestChairs, teamsOf, type Partners } from './teams.ts';
 import { scopeFor, type VoiceScope } from './voices.ts';
 import { readyBySql } from '../tournament/ready.ts';
-import { isSystem, notSystem } from '../system/sql.ts';
+import { notSystem } from '../system/sql.ts';
 
 /**
  * What the catalogue says a table of this game may be.
@@ -379,17 +379,10 @@ const IDLE = `t.status = 'open'
                       and e.state in ('locking', 'open', 'settling', 'refunding'))`;
 
 /**
- * System players never wait at a table on their own: when no person is left seated and no game is
- * running, they stand up in the same transaction, so the table closes by the rule below instead of
- * waiting for the seat filler's next pass. During a game they stay; the match still needs their seats.
+ * System players left alone at a table are not stood up here: the seat filler lets them go one at a
+ * time, each after its own delay, since all of them leaving at the instant the last person did would
+ * mark them. The table closes when the last of them stands up.
  */
-const ALONE_SQL = `
-    update table_seats s
-       set user_id = null, joined_at = null, ready = false
-     where s.table_id = $1 and s.user_id is not null and ${ isSystem('s.user_id') }
-       and not exists (select 1 from table_seats p where p.table_id = $1 and p.user_id is not null and ${ notSystem('p.user_id') })
-       and not exists (select 1 from matches m where m.table_id = $1 and m.finished_at is null)`;
-
 export const standUp = async (tx: EntityManager, tableId: string, userId: string) =>
 {
     const freed = await tx.getRepository(TableSeat)
@@ -399,8 +392,6 @@ export const standUp = async (tx: EntityManager, tableId: string, userId: string
     {
         return { left: false, closed: false };
     }
-
-    await tx.query(ALONE_SQL, [tableId]);
 
     await tx.getRepository(StakeConsent).delete({ tableId, userId });
 
@@ -792,6 +783,8 @@ export function createTableService(db: DataSource, social: SocialService)
                     // People only: a system player has no socket and is always here.
                     .addSelect(`(select coalesce(array_agg(s.user_id::text), '{}') from table_seats s where s.table_id = t.id and s.user_id is not null and ${ notSystem('s.user_id') })`, 'occupants')
                     .andWhere('not exists (select 1 from table_seats s where s.table_id = t.id and s.user_id = :lead)')
+                    // Company means a person: a table left to system players is on its way out.
+                    .andWhere(`exists (select 1 from table_seats s where s.table_id = t.id and s.user_id is not null and ${ notSystem('s.user_id') })`)
                     .andWhere(
                         `exists (select 1 from table_seats s
                                   where s.table_id = t.id and s.user_id is null
@@ -1518,7 +1511,13 @@ export function createTableService(db: DataSource, social: SocialService)
         async setReady(me: string, tableId: string, ready: boolean)
         {
             await mustSee(me, tableId);
-            await db.getRepository(TableSeat).update({ tableId, userId: me }, { ready });
+            // Becoming ready restarts `joined_at`, so the seat filler's wait runs from the ready time.
+            await db.getRepository(TableSeat)
+                .createQueryBuilder()
+                .update(TableSeat)
+                .set({ ready, joinedAt: () => ready ? 'case when ready then joined_at else now() end' : 'joined_at' })
+                .where('table_id = :tableId and user_id = :me', { tableId, me })
+                .execute();
         },
 
         async invite(me: string, tableId: string, otherId: string): Promise<boolean>

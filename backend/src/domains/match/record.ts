@@ -19,8 +19,8 @@ interface Ledger
     last: number;
 }
 
-const SUMMED = `(select coalesce(jsonb_object_agg(counter, coalesce((tallies ->> counter)::numeric, 0) + coalesce((cast(:tallies as jsonb) ->> counter)::numeric, 0)), '{}'::jsonb)
-                   from jsonb_object_keys(tallies || cast(:tallies as jsonb)) as counter)`;
+const summed = (column: string, param: string) => `(select coalesce(jsonb_object_agg(counter, coalesce((${ column } ->> counter)::numeric, 0) + coalesce((cast(:${ param } as jsonb) ->> counter)::numeric, 0)), '{}'::jsonb)
+                   from jsonb_object_keys(${ column } || cast(:${ param } as jsonb)) as counter)`;
 
 const ledgerOf = (tx: EntityManager, matchId: string, verbs: readonly string[]) =>
     tx.getRepository(MatchAction)
@@ -66,15 +66,24 @@ export const playedOf = (verdict: Pick<Verdict, 'result' | 'credit'>) => (verdic
 export const apartOf = (match: { system: boolean; mine: boolean }, earned: { played: number; won: number; xp: number }) =>
     match.system && !match.mine ? { played: earned.played, won: earned.won, xp: earned.xp } : { played: 0, won: 0, xp: 0 };
 
+/** What a seat adds to `system_tallies`, on the same terms as `apartOf`. */
+export const talliesApartOf = (match: { system: boolean; mine: boolean }, tally: Readonly<Record<string, number>>): Record<string, number> =>
+    (match.system && !match.mine ? { ...tally } : {});
+
 /**
- * The players a finished match reports to the quests: people only, each against people only. A
- * match whose only opponents were system players is left with no opponent, and a match with no
- * opponent counts for no quest; a mixed match counts the people in it.
+ * The players a finished match reports to the quests: nobody when any seat was a system player.
+ * Leaving out only the system opponents is not enough: in a team game a person's partner is in
+ * `opponentIds` too, so two people could earn quests together against summoned opponents.
  */
-export const peopleOf = <Player extends { userId: string; opponentIds: readonly string[] }>(players: readonly Player[], system: ReadonlySet<string>): Player[] =>
-    players
-        .filter((player) => !system.has(player.userId))
-        .map((player) => ({ ...player, opponentIds: player.opponentIds.filter((id) => !system.has(id)) }));
+export const questPlayersOf = <Player>(players: readonly Player[], system: ReadonlySet<string>): Player[] =>
+    (system.size > 0 ? [] : [...players]);
+
+/**
+ * A person's win streak after a match. One with a system seat neither adds nor resets it, so a best
+ * streak can never be built against opponents summoned at will; a system player's own moves as usual.
+ */
+export const streakOf = (held: number, move: Verdict['streak'], match: { system: boolean; mine: boolean }) =>
+    (match.system && !match.mine ? held : { add: held + 1, reset: 0, keep: held }[move]);
 
 export interface Recorder
 {
@@ -181,10 +190,11 @@ export function createRecorder(achieve: AchieveService, reward?: QuestProgressHo
 
                 const held = rowOf(player.userId);
                 const after = move?.after ?? held?.rating ?? START;
-                const streak = { add: (held?.streak ?? 0) + 1, reset: 0, keep: held?.streak ?? 0 }[verdict.streak];
+                const seated = { system: system.size > 0, mine: system.has(player.userId) };
+                const streak = streakOf(held?.streak ?? 0, verdict.streak, seated);
                 const played = playedOf(verdict);
                 const won = verdict.credit ? 1 : 0;
-                const apart = apartOf({ system: system.size > 0, mine: system.has(player.userId) }, { played, won, xp: earned });
+                const apart = apartOf(seated, { played, won, xp: earned });
 
                 await stats.createQueryBuilder()
                     .update(PlayerStats)
@@ -197,7 +207,8 @@ export function createRecorder(achieve: AchieveService, reward?: QuestProgressHo
                         abandoned: () => 'abandoned + :quit',
                         streak,
                         bestStreak: () => 'greatest(best_streak, :streak)',
-                        tallies: () => SUMMED,
+                        tallies: () => summed('tallies', 'tallies'),
+                        systemTallies: () => summed('system_tallies', 'systemTallies'),
                         xp: () => 'xp + :xp',
                         systemPlayed: () => 'system_played + :systemPlayed',
                         systemWon: () => 'system_won + :systemWon',
@@ -216,20 +227,21 @@ export function createRecorder(achieve: AchieveService, reward?: QuestProgressHo
                         systemPlayed: apart.played,
                         systemWon: apart.won,
                         systemXp: apart.xp,
+                        systemTallies: JSON.stringify(talliesApartOf(seated, tally)),
                         userId: player.userId,
                         game
                     })
                     .execute();
             }
 
-            for (const player of counted.filter((one) => !system.has(one.userId)))
+            for (const player of counted)
             {
                 await achieve.record(tx, player.userId, matchId, game);
             }
 
             if (reward?.onFinish !== undefined)
             {
-                const rewardPlayers: RewardFinishPlayer[] = peopleOf(counted.flatMap((player): RewardFinishPlayer[] =>
+                const rewardPlayers: RewardFinishPlayer[] = questPlayersOf(counted.flatMap((player): RewardFinishPlayer[] =>
                 {
                     const verdict = verdictOf(player.seat);
 

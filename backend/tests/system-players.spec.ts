@@ -11,6 +11,7 @@ import { face, type PersonRow } from '../src/domains/admin/people.ts';
 import { checkHandle } from '../src/domains/identity/handle.ts';
 import { OPENNESS } from '../src/domains/ai/agent.ts';
 import { AGENTS } from '../src/domains/ai/agents.ts';
+import { seatsAPerson } from '../src/domains/match/service.ts';
 import { adminSystem } from '../src/schemas.ts';
 import { gamesAfter, gamesText, playerOf, settingsOf, settingsText, strategiesOf, systemViewOf, unknownGames, type PlayerRow } from '../src/domains/system/admin.ts';
 import { systemRefusal } from '../src/domains/system/guard.ts';
@@ -326,10 +327,26 @@ describe('the system mark in the staff\'s people', () =>
         system: true
     };
 
-    it('is said only to a viewer holding the ability, and only of a system player', () =>
+    it('is said to everyone who may open the people pages, and only of a system player', () =>
     {
-        expect(face(row, true).system).toBe(true);
-        expect('system' in face(row, false)).toBe(false);
-        expect('system' in face({ ...row, system: false }, true)).toBe(false);
+        expect(face(row).system).toBe(true);
+        expect('system' in face({ ...row, system: false })).toBe(false);
+    });
+});
+
+describe('a match starting', () =>
+{
+    const system = new Set(['bot-a', 'bot-b']);
+
+    it('needs a person in a chair', () =>
+    {
+        expect(seatsAPerson([{ userId: 'bot-a' }, { userId: 'bot-b' }], system)).toBe(false);
+        expect(seatsAPerson([{ userId: 'bot-a' }, { userId: null }], system)).toBe(false);
+    });
+
+    it('goes ahead with one person among system players, or among people only', () =>
+    {
+        expect(seatsAPerson([{ userId: 'bot-a' }, { userId: 'ann' }], system)).toBe(true);
+        expect(seatsAPerson([{ userId: 'ann' }, { userId: 'ben' }], new Set())).toBe(true);
     });
 });

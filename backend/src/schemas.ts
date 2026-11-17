@@ -1350,7 +1350,8 @@ export const conversationMember = object({
      *
      * It is what anchors a device attestation to a PERSON, and it is shown so it can be compared out
      * of band the way a safety number is. Without it the attestation chain terminates in an address
-     * the server chose, agreeing only with itself.
+     * the server chose, agreeing only with itself. Absent for a member with no device: there is no
+     * attestation for it to anchor.
      */
     address: string().optional(),
 

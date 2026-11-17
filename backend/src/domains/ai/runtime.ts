@@ -42,9 +42,12 @@ const BUDGET_LEAST = 100;
 /** How long the pool lets a job run past its budget before it gives up on it. */
 const DECIDE_GRACE_MS = 2_000;
 
-/** How quickly a system seat gives up once no person is left. */
-const LEAVE_LEAST = 400;
-const LEAVE_SPREAD = 1_100;
+/**
+ * How long after the last person left each system seat gives up, from its own seed: seats leaving
+ * together would show they were never people, and the match still ends well within half a minute.
+ */
+export const LEAVE_LEAST = 4_000;
+export const LEAVE_SPREAD = 16_000;
 
 const ERRORS_KEPT = 50;
 
@@ -69,27 +72,50 @@ export interface Pace
     last: number | null;
 }
 
+/** Half the width of the window a move is drawn in, as a share of its pace, and at least. */
+const SPREAD_SHARE = 0.4;
+const SPREAD_LEAST = 250;
+
 /**
- * How long to wait before sending a move, in milliseconds from now.
+ * The window a move may be sent in, in whole milliseconds from now.
  *
  * Whatever the boards are still holding (the deadline beyond the turn's own length, a trick or a
- * pot being shown) is waited out first. Then a time that grows with the game and the number of real
- * choices, with a seeded jitter, kept between `THINK_LEAST` and the smallest of `THINK_MOST`, a
- * third of the turn and, on a chess clock, `BANK_SHARE` of the bank. Never later than `SAFETY_MS`
- * before the deadline, which wins over every other bound, and never the same interval twice
- * running unless the deadline leaves no room at all.
+ * pot being shown) is waited out first. Then between `THINK_LEAST` and the smallest of
+ * `THINK_MOST`, a third of the turn and, on a chess clock, `BANK_SHARE` of the bank (a bank too
+ * small for `THINK_LEAST` lowers it to 60 percent of the top). Never later than `SAFETY_MS` before the
+ * deadline, which wins over every other bound.
  */
-export function thinkTime(pace: Pace): number
+export function thinkBounds(pace: Omit<Pace, 'random' | 'last'>): { least: number; most: number; pace: number }
 {
     const left = Math.max(0, pace.leftMs);
     const own = Math.min(left, Math.max(0, pace.limitMs));
     const hold = left - own;
     const forced = pace.choices <= 1;
+    const top = Math.min(THINK_MOST, own / 3, pace.clock ? own * BANK_SHARE : THINK_MOST, forced ? FORCED_MOST : THINK_MOST);
+    const most = Math.floor(Math.min(Math.max(0, left - SAFETY_MS), hold + top));
+    const least = Math.min(most, Math.ceil(Math.min(hold + Math.min(THINK_LEAST, top * 0.6), most * 0.75)));
     const base = forced ? FORCED_MOST * 0.75 : (PACE[pace.game] ?? PACE_OTHER) * (0.7 + 0.6 * Math.min(1, Math.log2(pace.choices) / 5));
-    const raw = base * (0.6 + 0.8 * pace.random());
-    const most = Math.min(THINK_MOST, own / 3, pace.clock ? own * BANK_SHARE : THINK_MOST, forced ? FORCED_MOST : THINK_MOST);
-    const latest = Math.max(0, left - SAFETY_MS);
-    const ms = Math.round(Math.max(0, Math.min(latest, hold + Math.min(most, Math.max(THINK_LEAST, raw)))));
+
+    return { least, most, pace: base };
+}
+
+/**
+ * How long to wait before sending a move, in milliseconds from now.
+ *
+ * A time that grows with the game and the number of real choices, drawn inside the window of
+ * `thinkBounds` around that pace. The window is worked out first and the draw made inside it, so
+ * no time is ever pushed onto a bound: a clamped draw would make one exact interval a regular
+ * tell. Never the same interval twice running unless the window leaves no room at all.
+ */
+export function thinkTime(pace: Pace): number
+{
+    const { least, most, pace: base } = thinkBounds(pace);
+    const hold = Math.max(0, pace.leftMs) - Math.min(Math.max(0, pace.leftMs), Math.max(0, pace.limitMs));
+    const centre = Math.min(most, Math.max(least, hold + base));
+    const half = Math.max(SPREAD_LEAST, base * SPREAD_SHARE);
+    const low = Math.max(least, centre - half);
+    const high = Math.min(most, centre + half);
+    const ms = Math.round(low + (high - low) * (pace.random() + pace.random()) / 2);
 
     if (ms !== pace.last)
     {
@@ -98,12 +124,12 @@ export function thinkTime(pace: Pace): number
 
     const shift = 1 + Math.floor(pace.random() * 40);
 
-    if (ms + shift <= Math.min(latest, hold + Math.max(most, THINK_LEAST)))
+    if (ms + shift <= most)
     {
         return ms + shift;
     }
 
-    return ms - shift >= 0 ? ms - shift : (ms > 0 ? 0 : ms);
+    return ms - shift >= least ? ms - shift : (ms > least ? least : ms);
 }
 
 /** What a decision may use, given when its move will be sent. */
@@ -163,8 +189,11 @@ export interface Turn
     seats: SeatRow[];
 }
 
-/** Who the runtime acts for in a turn: the system player to move, or one to leave when no person is left; null for neither. */
-export function whoActs(turn: Turn): { mover: Mover; leave: boolean } | null
+/**
+ * Who the runtime acts for in a turn: `mover` is the system player to move, and `alone` every system
+ * seat still playing once no person is (empty while one is). Null for nobody.
+ */
+export function whoActs(turn: Turn): { mover: Mover | null; alone: Mover[] } | null
 {
     const engine = AI_ENGINES[turn.game];
 
@@ -175,18 +204,12 @@ export function whoActs(turn: Turn): { mover: Mover; leave: boolean } | null
 
     const playing = turn.seats.filter((row) => row.result === null && stillIn(turn.game, turn.state, row.seat));
     const asMover = (row: SeatRow): Mover => ({ seat: row.seat, userId: row.userId, skill: row.system?.skill ?? 'intermediate', style: row.system?.style ?? 0 });
-
-    if (!playing.some((row) => row.system === null))
-    {
-        const leaving = playing.find((row) => row.system !== null);
-
-        return leaving === undefined ? null : { mover: asMover(leaving), leave: true };
-    }
-
+    const alone = playing.some((row) => row.system === null) ? [] : playing.filter((row) => row.system !== null).map(asMover);
     const seat = engine.turnOf(turn.state);
     const row = playing.find((one) => one.seat === seat);
+    const mover = row === undefined || row.system === null ? null : asMover(row);
 
-    return row === undefined || row.system === null ? null : { mover: asMover(row), leave: false };
+    return mover === null && alone.length === 0 ? null : { mover, alone };
 }
 
 /** A cheap legal move for when no decision arrived in time: the engine's own autoplay, except chess, whose autoplay flags. */
@@ -238,6 +261,7 @@ interface Entry
 {
     rev: number;
     seat: number;
+    leave: boolean;
     cancel: () => void;
 }
 
@@ -253,7 +277,10 @@ export function createAiRuntime(deps: RuntimeDeps)
     const errors: AiError[] = [];
     let fresh: AiError[] = [];
     let active = false;
-    let last: number | null = null;
+
+    /** Per match: the interval its last decision waited, and when this process first found no person left in it. */
+    const lastOf = new Map<string, number>();
+    const aloneSince = new Map<string, number>();
     let decisions = 0;
     let totalMs = 0;
     let worstMs = 0;
@@ -315,14 +342,32 @@ export function createAiRuntime(deps: RuntimeDeps)
 
     /**
      * Holds the match's one slot until `delay` has passed, then runs `send` unless the match moved
-     * on meanwhile. `current` stays true only while this entry is the match's slot.
+     * on meanwhile. `current` stays true only while this entry is the match's slot; `claim` takes
+     * the slot over for sending once nothing can still cancel it, false when the match moved on.
+     * Only the callback that claimed the slot frees it: a cancelled one finishing late must not
+     * free the slot a newer one is sending from.
      */
-    const schedule = (turn: Turn, mover: Mover, delay: number, send: (current: () => boolean) => Promise<void>) =>
+    const schedule = (turn: Turn, mover: Mover, leave: boolean, delay: number, send: (current: () => boolean, claim: () => boolean) => Promise<void>) =>
     {
         let cancelled = false;
+        let claimed = false;
         let stop = () => undefined as void;
-        const entry: Entry = { rev: turn.rev, seat: mover.seat, cancel: () => { cancelled = true; stop(); } };
+        const entry: Entry = { rev: turn.rev, seat: mover.seat, leave, cancel: () => { cancelled = true; stop(); } };
         const current = () => !cancelled && entries.get(turn.matchId) === entry;
+
+        const claim = () =>
+        {
+            if (!current())
+            {
+                return false;
+            }
+
+            entries.delete(turn.matchId);
+            acting.add(turn.matchId);
+            claimed = true;
+
+            return true;
+        };
 
         entries.set(turn.matchId, entry);
 
@@ -330,7 +375,7 @@ export function createAiRuntime(deps: RuntimeDeps)
         {
             try
             {
-                await send(current);
+                await send(current, claim);
             }
             catch (error)
             {
@@ -338,52 +383,56 @@ export function createAiRuntime(deps: RuntimeDeps)
             }
             finally
             {
-                finish(turn.matchId);
+                if (claimed)
+                {
+                    finish(turn.matchId);
+                }
             }
         })());
 
         return current;
     };
 
-    /** Takes the slot over for sending, once nothing can still cancel it. False when the match moved on. */
-    const claim = (matchId: string, current: () => boolean) =>
+    const leave = (turn: Turn, mover: Mover, delay: number) =>
     {
-        if (!current())
+        schedule(turn, mover, true, delay, async (_current, claim) =>
         {
-            return false;
-        }
-
-        entries.delete(matchId);
-        acting.add(matchId);
-
-        return true;
-    };
-
-    const leave = (turn: Turn, mover: Mover) =>
-    {
-        const random = seededRandom(hashOf(`${ deps.salt }:${ turn.matchId }:${ turn.rev }:leave`));
-
-        schedule(turn, mover, LEAVE_LEAST + Math.floor(random() * LEAVE_SPREAD), async (current) =>
-        {
-            if (claim(turn.matchId, current))
+            if (claim())
             {
                 await sent(turn, mover, null);
             }
         });
     };
 
-    const decide = (turn: Turn, mover: Mover) =>
+    /** When this seat gives up, in milliseconds after the match was first found with no person left. */
+    const leaveAfter = (matchId: string, seat: number) =>
+        LEAVE_LEAST + Math.floor(seededRandom(hashOf(`${ deps.salt }:${ matchId }:${ seat }:leave`))() * LEAVE_SPREAD);
+
+    const delayOf = (turn: Turn, mover: Mover) => thinkTime({
+        game: turn.game,
+        choices: AI_ENGINES[turn.game].legal(turn.state, mover.seat).length,
+        leftMs: turn.leftMs,
+        limitMs: turn.limitMs,
+        clock: turn.clock,
+        random: seededRandom(hashOf(`${ deps.salt }:${ turn.matchId }:${ turn.rev }:${ mover.seat }`)),
+        last: lastOf.get(turn.matchId) ?? null
+    });
+
+    const forget = (matchId: string) =>
     {
-        const engine = AI_ENGINES[turn.game];
-        const random = seededRandom(hashOf(`${ deps.salt }:${ turn.matchId }:${ turn.rev }:${ mover.seat }`));
-        const choices = engine.legal(turn.state, mover.seat).length;
-        const delay = thinkTime({ game: turn.game, choices, leftMs: turn.leftMs, limitMs: turn.limitMs, clock: turn.clock, random, last });
+        seen.delete(matchId);
+        lastOf.delete(matchId);
+        aloneSince.delete(matchId);
+    };
+
+    const decide = (turn: Turn, mover: Mover, delay: number) =>
+    {
         const budget = budgetOf(delay);
         let decision: Promise<Decided> = new Promise(() => undefined);
 
-        last = delay;
+        lastOf.set(turn.matchId, delay);
 
-        const current = schedule(turn, mover, delay, async (live) =>
+        const current = schedule(turn, mover, false, delay, async (live, claim) =>
         {
             const waited = await within(decision, Math.max(0, Math.min(budget + DECIDE_GRACE_MS, turn.leftMs - SAFETY_MS - delay)));
 
@@ -398,7 +447,7 @@ export function createAiRuntime(deps: RuntimeDeps)
                 return;
             }
 
-            if (!claim(turn.matchId, live))
+            if (!claim())
             {
                 return;
             }
@@ -471,17 +520,36 @@ export function createAiRuntime(deps: RuntimeDeps)
 
             if (turn === null || turn.finished)
             {
-                seen.delete(matchId);
+                forget(matchId);
             }
             else
             {
+                aloneSince.delete(matchId);
                 seen.set(matchId, turn.rev);
             }
 
             return;
         }
 
-        if (held !== undefined && held.rev === turn.rev && held.seat === who.mover.seat)
+        if (who.alone.length === 0)
+        {
+            aloneSince.delete(matchId);
+        }
+        else if (!aloneSince.has(matchId))
+        {
+            aloneSince.set(matchId, clock.now());
+        }
+
+        // With no person left each system seat leaves at its own time, and plays its turns until then.
+        const since = aloneSince.get(matchId) ?? 0;
+        const next = who.alone
+            .map((mover) => ({ mover, wait: Math.max(0, since + leaveAfter(matchId, mover.seat) - clock.now()) }))
+            .sort((a, b) => a.wait - b.wait)[0] as { mover: Mover; wait: number } | undefined;
+        const delay = who.mover === null ? null : delayOf(turn, who.mover);
+        const leaving = next !== undefined && (delay === null || (delay >= next.wait && next.wait <= turn.leftMs - SAFETY_MS));
+        const mover = leaving ? (next as { mover: Mover }).mover : who.mover as Mover;
+
+        if (held !== undefined && held.rev === turn.rev && held.seat === mover.seat && held.leave === leaving)
         {
             return;
         }
@@ -490,19 +558,19 @@ export function createAiRuntime(deps: RuntimeDeps)
         entries.delete(matchId);
         seen.delete(matchId);
 
-        if (!who.leave && turn.leftMs <= 0 && !missed.has(`${ matchId }:${ turn.rev }`))
+        if (!leaving && turn.leftMs <= 0 && !missed.has(`${ matchId }:${ turn.rev }`))
         {
             missed.add(`${ matchId }:${ turn.rev }`);
             failed(turn.game, matchId, new Error('A system seat reached its turn deadline.'));
         }
 
-        if (who.leave)
+        if (leaving)
         {
-            leave(turn, who.mover);
+            leave(turn, mover, (next as { wait: number }).wait);
         }
         else
         {
-            decide(turn, who.mover);
+            decide(turn, mover, delay as number);
         }
     };
 
@@ -567,11 +635,11 @@ export function createAiRuntime(deps: RuntimeDeps)
             const listed = new Set(due.map((row) => row.matchId));
             let looked = 0;
 
-            for (const id of [...seen.keys()])
+            for (const id of new Set([...seen.keys(), ...lastOf.keys(), ...aloneSince.keys()]))
             {
-                if (!listed.has(id))
+                if (!listed.has(id) && !entries.has(id) && !acting.has(id) && !loading.has(id))
                 {
-                    seen.delete(id);
+                    forget(id);
                 }
             }
 

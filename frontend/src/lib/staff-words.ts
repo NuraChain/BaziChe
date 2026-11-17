@@ -10,6 +10,7 @@ import type { StaffLog } from '../../../backend/src/schemas.ts';
 import { GAMES } from '../data/games.ts';
 import type { MessageKey } from '../locales/en.ts';
 import type { LocaleApi } from '../stores/locale.store.ts';
+import { handleParts } from './handle-parts.ts';
 import { nuraOf } from './nura.ts';
 import { collectionName, itemName } from './shop.ts';
 import { shortAddress } from './wallet.ts';
@@ -123,23 +124,7 @@ export const foldHandle = (typed: string) => normalizeName(typed.trim().replace(
 
 export const whyStaffRefused = (error: unknown) => (error instanceof ApiError && isStaffRefusal(error.code) ? `admin.refused.${ error.code }` as const : 'common.actionFailed');
 
-const SLOT = /(\{[a-z]+\})/;
-
-const slotOf = (part: string) => /^\{([a-z]+)\}$/.exec(part)?.[1] ?? null;
-
-export function handleParts(said: string, handles: Readonly<Record<string, string>>)
-{
-    return said
-        .split(SLOT)
-        .filter((part) => part !== '')
-        .map((part, at) =>
-        {
-            const slot = slotOf(part);
-            const handle = slot !== null && Object.hasOwn(handles, slot) ? handles[slot] : undefined;
-
-            return handle === undefined ? { at, text: part, handle: false } : { at, text: handle, handle: true };
-        });
-}
+export { handleParts };
 
 const nuraIn = (wei: string | undefined, locale: LocaleApi) => (wei !== undefined && /^\d+$/.test(wei) ? locale.n(nuraOf(wei), { maximumFractionDigits: 4 }) : '');
 

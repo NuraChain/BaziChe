@@ -50,7 +50,7 @@ const NONE: Limits = { samples: 0, nodes: 0, inferred: false, lean: false, proof
 export const LEVELS: Readonly<Record<Skill, Level>> = {
     casual: { counts: false, finesse: false, shape: false, limits: NONE, ending: 0, trumpSamples: 0, ruleMargin: 3 },
     intermediate: { counts: true, finesse: true, shape: true, limits: { samples: 16, nodes: 6000, inferred: false, lean: false, proof: 1 }, ending: 4, trumpSamples: 0, ruleMargin: 1 },
-    advanced: { counts: true, finesse: true, shape: true, limits: { samples: 16, nodes: 16_000, inferred: true, lean: false, proof: 1 }, ending: 13, trumpSamples: 16, ruleMargin: 0.5 },
+    advanced: { counts: true, finesse: true, shape: true, limits: { samples: 32, nodes: 16_000, inferred: true, lean: false, proof: 1 }, ending: 13, trumpSamples: 16, ruleMargin: 0.5 },
     'semi-pro': { counts: true, finesse: true, shape: true, limits: { samples: 200, nodes: 240_000, inferred: true, lean: true, proof: 0.7 }, ending: 13, trumpSamples: 40, ruleMargin: 0 }
 };
 

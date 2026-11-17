@@ -8,7 +8,7 @@ import { levelOf } from '../match/levels.ts';
 import { markOf, nftsOf, unlinked, type NftMark } from '../nft/read.ts';
 import { PROFILE_LOOKS, chosenIn, worn, type ProfileLooks } from '../shop/looks.ts';
 import { runningSeason } from '../admin/seasons.ts';
-import { hasSystemSeat, notSystem } from '../system/sql.ts';
+import { hasSystemSeat, isSystem, notSystem } from '../system/sql.ts';
 
 interface Facts
 {
@@ -61,9 +61,29 @@ const blank = (): LadderFacts => ({
     pace: { live: { played: 0, won: 0 }, turns: { played: 0, won: 0 } }
 });
 
+/**
+ * The part of a person's totals and tallies their achievements stand on: what is left after games with a system
+ * seat, which they could summon at will. A system player's own totals stand whole, since every game
+ * of its had one, so its record never shows a count with nothing earned for it.
+ */
+export const ownOf = (row: Pick<PlayerStats, 'played' | 'won' | 'xp' | 'tallies' | 'systemPlayed' | 'systemWon' | 'systemXp' | 'systemTallies'>, mine: boolean) =>
+{
+    const apart = mine ? {} : (row.systemTallies ?? {});
+    const tallies = Object.fromEntries(Object.entries(row.tallies ?? {}).map(([name, value]) => [name, Number(value) - Number(apart[name] ?? 0)]));
+
+    return mine
+        ? { played: row.played, won: row.won, xp: row.xp, tallies }
+        : { played: row.played - row.systemPlayed, won: row.won - row.systemWon, xp: row.xp - row.systemXp, tallies };
+};
+
+/** The filter that keeps a person's per-match facts to games among people; a system player's keep every game. */
+export const ownMatches = (match: string, mine: boolean) => (mine ? 'true' : `not ${ hasSystemSeat(match) }`);
+
 async function factsOf(runner: EntityManager, userId: string): Promise<Facts>
 {
-    const stats = await runner.getRepository(PlayerStats).find({ where: { userId } });
+    const [{ mine }] = await runner.query(`select ${ isSystem('$1::uuid') } as mine`, [userId]) as [{ mine: boolean }];
+    const own = ownMatches('m.id', mine);
+    const stats = (await runner.getRepository(PlayerStats).find({ where: { userId } })).map((row) => ({ ...row, ...ownOf(row, mine) }));
 
     const split = await runner.getRepository(MatchPlayer)
         .createQueryBuilder('p')
@@ -74,7 +94,7 @@ async function factsOf(runner: EntityManager, userId: string): Promise<Facts>
         .addSelect('t.mode', 'mode')
         .addSelect('count(*)::int', 'played')
         .addSelect(`count(*) filter (where p.result = 'won' and ${ PLAYED_OUT })::int`, 'won')
-        .where(FINISHED, { userId })
+        .where(`${ FINISHED } and ${ own }`, { userId })
         .groupBy('m.game')
         .addGroupBy('m.seats')
         .addGroupBy('t.mode')
@@ -85,7 +105,7 @@ async function factsOf(runner: EntityManager, userId: string): Promise<Facts>
         .innerJoin(Match, 'm', 'm.id = p.match_id')
         .select('m.game', 'game')
         .addSelect(`count(distinct ((m.finished_at at time zone 'utc')::date))::int`, 'days')
-        .where(FINISHED, { userId })
+        .where(`${ FINISHED } and ${ own }`, { userId })
         .groupBy('grouping sets ((m.game), ())')
         .getRawMany<DaysRow>();
 
@@ -94,14 +114,14 @@ async function factsOf(runner: EntityManager, userId: string): Promise<Facts>
         .innerJoin(Match, 'm', 'm.id = p.match_id')
         .innerJoin(MatchPlayer, 'o', `o.match_id = p.match_id and o.user_id <> p.user_id and ${ notSystem('o.user_id') }`)
         .select('count(distinct o.user_id)::int', 'count')
-        .where(FINISHED, { userId })
+        .where(`${ FINISHED } and ${ own }`, { userId })
         .getRawOne<{ count: number }>();
 
     const hosted = await runner.getRepository(Table)
         .createQueryBuilder('t')
         .innerJoin(Match, 'm', 'm.table_id = t.id')
         .select('count(distinct t.id)::int', 'count')
-        .where(`t.host_id = :userId and ${ PLAYED_OUT }`, { userId })
+        .where(`t.host_id = :userId and ${ PLAYED_OUT } and ${ own }`, { userId })
         .getRawOne<{ count: number }>();
 
     const invited = await runner.getRepository(Referral).count({ where: { inviterId: userId, countedAt: Not(IsNull()) } });
@@ -124,7 +144,7 @@ async function factsOf(runner: EntityManager, userId: string): Promise<Facts>
             xp: row.xp,
             peak: row.peakRating,
             streak: row.bestStreak,
-            tallies: Object.fromEntries(Object.entries(row.tallies ?? {}).map(([name, value]) => [name, Number(value)]))
+            tallies: row.tallies
         });
     }
 

@@ -15,9 +15,6 @@ export interface PeopleAsk
     q?: string;
     list?: PeopleList;
     cursor?: string;
-
-    /** Whether the viewer holds `system`, and so is told which rows are system players. */
-    marked?: boolean;
 }
 
 export interface PersonRow extends Keyed
@@ -89,8 +86,11 @@ const roleOf = (row: PersonRow) => (row.owner ? 'owner' as const : row.staff_rol
 
 const nobody = () => staffRefusal('staff-nobody', 'No one by that name.');
 
-/** A person's face for the staff; the system mark only for a viewer holding `system`. */
-export const face = (row: PersonRow, marked: boolean) =>
+/**
+ * A person's face for the staff. The system mark goes to everyone who may open these pages: a
+ * system player has no wallet, sessions or devices, so the rest of the face tells them anyway.
+ */
+export const face = (row: PersonRow) =>
 {
     const role = roleOf(row);
 
@@ -105,7 +105,7 @@ export const face = (row: PersonRow, marked: boolean) =>
         suspended: row.is_suspended,
         ...(role === null ? {} : { staff: role }),
         reports: row.reports,
-        ...(marked && row.system ? { system: true as const } : {})
+        ...(row.system ?{ system: true as const } : {})
     };
 };
 
@@ -192,10 +192,10 @@ export function createPeopleService(db: DataSource, owners: () => readonly strin
                 .limit(PEOPLE_PAGE + 1)
                 .getRawMany<PersonRow>();
 
-            return { rows: rows.slice(0, PEOPLE_PAGE).map((row) => face(row, ask.marked === true)), ...cursorOf(rows, PEOPLE_PAGE) };
+            return { rows: rows.slice(0, PEOPLE_PAGE).map((row) => face(row)), ...cursorOf(rows, PEOPLE_PAGE) };
         },
 
-        async view(handle: string, marked = false)
+        async view(handle: string)
         {
             const row = await one(db.manager, handle);
 
@@ -249,7 +249,7 @@ export function createPeopleService(db: DataSource, owners: () => readonly strin
             return {
                 id: row.id,
                 person: {
-                    ...face(row, marked),
+                    ...face(row),
                     bio: row.bio,
                     ...(row.last_seen_at === null ? {} : { lastSeenAt: row.last_seen_at.toISOString() }),
                     strangers: row.allow_stranger_messages,

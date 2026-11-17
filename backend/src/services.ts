@@ -53,7 +53,7 @@ import { createIdentityService } from './domains/identity/service.ts';
 import { createInviteService, noInvite } from './domains/invite/service.ts';
 import { isAdminAddress } from './domains/identity/admin.ts';
 import { createProfileSponsorship } from './domains/identity/sponsor.ts';
-import { may, ownersOf, shownOwnersOf, type Ability, type GrantedRole, type StaffRole } from './domains/admin/roles.ts';
+import { may, ownersOf, shownOwnersOf, type Ability, type GrantedRole } from './domains/admin/roles.ts';
 import { createPeopleService } from './domains/admin/people.ts';
 import { createLiveService, type Call, type Online } from './domains/admin/live.ts';
 import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play.ts';
@@ -2011,10 +2011,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         return { ...found.report, together, history };
     };
 
-    /** One person as the staff read them; a viewer holding `system` is also told when it is a system player. */
-    const personOf = async (handle: string, viewer: StaffRole) =>
+    /** One person as the staff read them, marked when it is a system player. */
+    const personOf = async (handle: string) =>
     {
-        const found = await accounts.view(handle, may(viewer, 'system'));
+        const found = await accounts.view(handle);
 
         if (found === null)
         {
@@ -2244,7 +2244,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         return { stoodUp, closed, idle, failed };
     };
 
-    const seatFiller = createSeatFiller(db);
+    const seatFiller = createSeatFiller(db, new Set(Object.keys(AGENTS)));
 
     const fillSeats = (forMs: number) => seatFiller.sweep(forMs, here, {
         start: async (userId, tableId) =>
@@ -2253,8 +2253,12 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
             await courtesy('turn notice', () => nudgeTurn(load, userId));
         },
-        changed: async (tableId, gone) =>
+        changed: async (tableId, gone, conversationId) =>
         {
+            if (conversationId !== null)
+            {
+                live?.chatChanged(conversationId, ...gone);
+            }
             live?.tableChanged(tableId, [...await table.peopleAt(tableId), ...gone]);
         }
     });
@@ -2375,7 +2379,12 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             }
         }
 
-        return { members: [...byHandle.values()] };
+        // The address anchors a device attestation, so a member with no device has nothing for it to
+        // anchor; leaving it out for everyone also keeps a system player, which has no wallet, unmarked.
+        return {
+            members: [...byHandle.values()].map(({ address, ...member }) =>
+                member.devices.length === 0 || address === undefined ? member : { ...member, address })
+        };
     };
 
     const device = createDeviceService(db, {
@@ -2983,8 +2992,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     : await accounts.find({
                         ...(query.q === undefined ? {} : { q: query.q }),
                         ...(query.list === undefined ? {} : { list: query.list }),
-                        ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
-                        marked: may(actor.role, 'system')
+                        ...(query.cursor === undefined ? {} : { cursor: query.cursor })
                     });
             },
 
@@ -2992,7 +3000,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             {
                 const actor = await ableTo(me, 'people');
 
-                return actor === null ? null : await personOf(handle, actor.role);
+                return actor === null ? null : await personOf(handle);
             },
 
             async history(me, handle, cursor)
@@ -3012,7 +3020,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 }
 
                 await accounts.note(actor, handle, input.text);
-                return await personOf(handle, actor.role);
+                return await personOf(handle);
             },
 
             async suspend(me, handle, input)
@@ -3037,7 +3045,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 await recall(id);
                 await courtesy('letting go of push subscriptions', () => notify.forgetReach(id));
 
-                return await personOf(handle, actor.role);
+                return await personOf(handle);
             },
 
             async lift(me, handle, input)
@@ -3050,7 +3058,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 }
 
                 await accounts.lift(actor, handle, input.reason);
-                return await personOf(handle, actor.role);
+                return await personOf(handle);
             },
 
             async clear(me, handle, input)
@@ -3069,7 +3077,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     await courtesy('profile cleared', () => ringProfile(id));
                 }
 
-                return await personOf(handle, actor.role);
+                return await personOf(handle);
             },
 
             async signOut(me, handle, input)
@@ -3089,7 +3097,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     await courtesy('letting go of push subscriptions', () => notify.forgetReach(id));
                 }
 
-                return await personOf(handle, actor.role);
+                return await personOf(handle);
             },
 
             async minor(me, handle, input)
@@ -3127,7 +3135,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     await courtesy('profile changed', () => ringProfile(id));
                 }
 
-                return await personOf(handle, actor.role);
+                return await personOf(handle);
             },
 
             async reports(me, query)
@@ -3519,7 +3527,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     live?.selfChanged(target.id, 'shop');
                 }
 
-                return await personOf(handle, actor.role);
+                return await personOf(handle);
             },
 
             async takeLook(me, handle, item, input)
@@ -3544,7 +3552,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     await courtesy('profile look', () => ringProfile(target.id));
                 }
 
-                return await personOf(handle, actor.role);
+                return await personOf(handle);
             },
 
             async shopMoney(me)

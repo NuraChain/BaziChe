@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os';
 import { extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
@@ -7,9 +8,11 @@ import type { Decided, Job } from './agents.ts';
 /**
  * Where decisions are made, behind one small interface so the runtime can be specced with a fake.
  *
- * The real one is a single `worker_threads` worker fed from a bounded queue, one job at a time. The
- * dev server runs the `.ts` sources and the built server runs `.dist-backend`, so the worker file is
- * named with this file's own extension rather than a fixed one.
+ * The real one is a small lazy pool of `worker_threads` workers fed from one bounded queue, one job
+ * per worker at a time: it starts with one and adds another only while jobs are waiting, because one
+ * worker cannot keep up with the strongest skill at the pool cap. The dev server runs the `.ts`
+ * sources and the built server runs `.dist-backend`, so the worker file is named with this file's
+ * own extension rather than a fixed one.
  */
 export interface Brain
 {
@@ -47,6 +50,9 @@ export interface BrainOptions
 
     /** How far past its own budget a job may run before the worker is ended and made again. */
     graceMs?: number;
+
+    /** Workers at most. */
+    workersMost?: number;
     spawn?: () => WorkerLike;
 }
 
@@ -57,6 +63,9 @@ const QUEUE_MOST = 64;
 const GRACE_MS = 2_000;
 
 const HEAP_MB = 256;
+
+/** Two cores are left to the main thread and the database. */
+export const WORKERS_MOST = Math.min(4, Math.max(1, availableParallelism() - 2));
 
 const spawnWorker = (): WorkerLike => new Worker(WORKER_URL, { resourceLimits: { maxOldGenerationSizeMb: HEAP_MB } });
 
@@ -69,20 +78,26 @@ interface Waiting
     reject: (error: Error) => void;
 }
 
+interface Slot
+{
+    worker: WorkerLike;
+    busy: (Waiting & { timer: NodeJS.Timeout }) | null;
+}
+
 export function createWorkerBrain(options: BrainOptions = {}): Brain
 {
     const queueMost = options.queueMost ?? QUEUE_MOST;
     const graceMs = options.graceMs ?? GRACE_MS;
+    const workersMost = Math.max(1, options.workersMost ?? WORKERS_MOST);
     const spawn = options.spawn ?? spawnWorker;
     const queue: Waiting[] = [];
-    let worker: WorkerLike | null = null;
-    let busy: (Waiting & { timer: NodeJS.Timeout }) | null = null;
+    let slots: Slot[] = [];
     let stopped = false;
     let next = 0;
 
-    const settle = (outcome: { decided: Decided } | { error: Error }) =>
+    const settle = (slot: Slot, outcome: { decided: Decided } | { error: Error }) =>
     {
-        const done = busy;
+        const done = slot.busy;
 
         if (done === null)
         {
@@ -90,7 +105,7 @@ export function createWorkerBrain(options: BrainOptions = {}): Brain
         }
 
         clearTimeout(done.timer);
-        busy = null;
+        slot.busy = null;
 
         if ('decided' in outcome)
         {
@@ -104,43 +119,52 @@ export function createWorkerBrain(options: BrainOptions = {}): Brain
         pump();
     };
 
-    /** A worker that died or ran away is dropped; the next job makes a new one. */
-    const lose = (gone: WorkerLike, why: Error) =>
+    /** A worker that died or ran away is dropped; a waiting job makes a new one. */
+    const lose = (slot: Slot, why: Error) =>
     {
-        if (worker !== gone)
+        if (!slots.includes(slot))
         {
             return;
         }
 
-        worker = null;
-        void gone.terminate().catch(() => undefined);
-        settle({ error: why });
+        slots = slots.filter((one) => one !== slot);
+        void slot.worker.terminate().catch(() => undefined);
+        settle(slot, { error: why });
     };
 
-    const made = () =>
+    const made = (): Slot =>
     {
         const one = spawn();
+        const slot: Slot = { worker: one, busy: null };
 
         one.unref?.();
         one.on('message', (reply: Reply) =>
         {
-            if (busy === null || reply.id !== busy.id)
+            if (slot.busy === null || reply.id !== slot.busy.id)
             {
                 return;
             }
 
-            settle('error' in reply ? { error: new Error(reply.error) } : { decided: { play: reply.play, ms: reply.ms } });
+            settle(slot, 'error' in reply ? { error: new Error(reply.error) } : { decided: { play: reply.play, ms: reply.ms } });
         });
-        one.on('error', (error: Error) => lose(one, error));
-        one.on('exit', (code: number) => lose(one, new Error(`The decision worker stopped (${ code }).`)));
+        one.on('error', (error: Error) => lose(slot, error));
+        one.on('exit', (code: number) => lose(slot, new Error(`The decision worker stopped (${ code }).`)));
+        slots.push(slot);
 
-        return one;
+        return slot;
     };
 
     function pump()
     {
-        while (busy === null && queue.length > 0 && !stopped)
+        while (queue.length > 0 && !stopped)
         {
+            const idle = slots.find((slot) => slot.busy === null);
+
+            if (idle === undefined && slots.length >= workersMost)
+            {
+                return;
+            }
+
             const waiting = queue.shift() as Waiting;
 
             if (!waiting.live())
@@ -149,15 +173,14 @@ export function createWorkerBrain(options: BrainOptions = {}): Brain
                 continue;
             }
 
-            const current = worker ?? made();
+            const slot = idle ?? made();
 
-            worker = current;
-            busy = {
+            slot.busy = {
                 ...waiting,
-                timer: setTimeout(() => lose(current, new Error('The decision ran past its time.')), waiting.job.budget + graceMs)
+                timer: setTimeout(() => lose(slot, new Error('The decision ran past its time.')), waiting.job.budget + graceMs)
             };
-            busy.timer.unref();
-            current.postMessage({ id: waiting.id, job: waiting.job });
+            slot.busy.timer.unref();
+            slot.worker.postMessage({ id: waiting.id, job: waiting.job });
         }
     }
 
@@ -192,18 +215,21 @@ export function createWorkerBrain(options: BrainOptions = {}): Brain
                 waiting.reject(new Dropped('stopped'));
             }
 
-            const gone = worker;
+            const gone = slots;
 
-            worker = null;
+            slots = [];
 
-            if (busy !== null)
+            for (const slot of gone)
             {
-                clearTimeout(busy.timer);
-                busy.reject(new Dropped('stopped'));
-                busy = null;
+                if (slot.busy !== null)
+                {
+                    clearTimeout(slot.busy.timer);
+                    slot.busy.reject(new Dropped('stopped'));
+                    slot.busy = null;
+                }
             }
 
-            await gone?.terminate().catch(() => undefined);
+            await Promise.all(gone.map(async (slot) => await slot.worker.terminate().catch(() => undefined)));
         }
     };
 }

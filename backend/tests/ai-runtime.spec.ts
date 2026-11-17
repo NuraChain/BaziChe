@@ -6,20 +6,25 @@ import { Dropped, createWorkerBrain, type Brain, type WorkerLike } from '../src/
 import {
     BANK_SHARE,
     FORCED_MOST,
+    LEAVE_LEAST,
+    LEAVE_SPREAD,
     SAFETY_MS,
     THINK_LEAST,
     THINK_MOST,
     createAiRuntime,
     fallbackOf,
     stillIn,
+    thinkBounds,
     thinkTime,
     whoActs,
     type Act,
+    type AiRuntime,
+    type Pace,
     type SeatRow,
     type Source,
     type Turn
 } from '../src/domains/ai/runtime.ts';
-import { inputOf, seededRandom } from '../src/domains/ai/agent.ts';
+import { hashOf, inputOf, seededRandom } from '../src/domains/ai/agent.ts';
 import { createSeatLogs, follows, type Feed } from '../src/domains/ai/source.ts';
 import type { MatchLog, MatchPlay } from '../src/schemas.ts';
 
@@ -309,13 +314,131 @@ describe('the AI runtime', () =>
     {
         const h = harness();
 
-        h.set(chessTurn(4, 0, { seats: seatsOf(0, 'abandoned') }));
+        h.set(chessTurn(4, 1, { seats: seatsOf(1, 'abandoned') }));
         await h.start();
         h.runtime.moved(MATCH);
-        await h.clock.advance(5_000);
+        await h.clock.advance(LEAVE_LEAST - 1);
+
+        expect(h.sends).toEqual([]);
+
+        await h.clock.advance(LEAVE_SPREAD + 1);
 
         expect(h.jobs).toEqual([]);
         expect(h.sends).toEqual([{ userId: BOT, play: null, rev: 4, key: 'ai:4' }]);
+    });
+
+    it('with no person left, each system seat leaves at its own time and plays its turns until then', async () =>
+    {
+        const clock = fakeClock();
+        const bots = [0, 1, 2, 3];
+        const left: { seat: number; at: number }[] = [];
+        let moves = 0;
+        let runtime: AiRuntime | null = null;
+        let turn: Turn = chessTurn(1, 0, {
+            seats: [
+                ...bots.map((seat): SeatRow => ({ seat, userId: `bot-${ seat }`, result: null, system: { skill: 'intermediate', style: seat } })),
+                { seat: 4, userId: PERSON, result: 'abandoned', system: null }
+            ]
+        });
+
+        const source: Source = { turnAt: async () => turn, hidden: async () => null, due: async () => [] };
+        const brain: Brain = { decide: async () => ({ play: MOVE, ms: 5 }), stop: async () => undefined };
+
+        const act: Act = async (userId, _matchId, want) =>
+        {
+            const seat = Number(userId.slice(4));
+
+            if (want.play === null)
+            {
+                left.push({ seat, at: clock.now() });
+            }
+            else
+            {
+                moves += 1;
+            }
+
+            turn = {
+                ...turn,
+                rev: turn.rev + 1,
+                state: { ...(turn.state as object), rev: turn.rev + 1 },
+                seats: turn.seats.map((row) => (row.seat === seat && want.play === null ? { ...row, result: 'left' } : row))
+            };
+            runtime?.moved(MATCH);
+
+            return 'now';
+        };
+
+        runtime = createAiRuntime({ source, act, brain, clock, salt: 7 });
+        await runtime.drive(0);
+        runtime.moved(MATCH);
+        await clock.advance(30_000);
+
+        const times = left.map((one) => one.at);
+
+        expect(left.map((one) => one.seat).sort()).toEqual(bots);
+        expect(Math.min(...times)).toBeGreaterThanOrEqual(LEAVE_LEAST);
+        expect(Math.max(...times)).toBeLessThanOrEqual(LEAVE_LEAST + LEAVE_SPREAD);
+        expect(Math.max(...times) - Math.min(...times)).toBeGreaterThan(2_000);
+        expect(new Set(times).size).toBe(bots.length);
+        expect(moves).toBeGreaterThan(0);
+    });
+
+    it('a cancelled decision that finishes late does not free the slot a newer one is sending from', async () =>
+    {
+        const clock = fakeClock();
+        let turn: Turn = chessTurn(1);
+        let calls = 0;
+        let answer: (decided: Decided) => void = () => undefined;
+        let release: () => void = () => undefined;
+        const sends: number[] = [];
+
+        const source: Source = { turnAt: async () => turn, hidden: async () => null, due: async () => [{ matchId: MATCH, rev: turn.rev }] };
+
+        const brain: Brain = {
+            decide: () =>
+            {
+                calls += 1;
+
+                return calls === 1 ? new Promise<Decided>((resolve) => { answer = resolve; }) : Promise.resolve({ play: MOVE, ms: 5 });
+            },
+            stop: async () => undefined
+        };
+
+        const act: Act = async (_userId, _matchId, want) =>
+        {
+            sends.push(want.rev);
+            await new Promise<void>((resolve) => { release = resolve; });
+
+            return 'now';
+        };
+
+        const runtime = createAiRuntime({ source, act, brain, clock, salt: 99 });
+        const delay = thinkTime({ game: 'chess', choices: 20, leftMs: 30_000, limitMs: 30_000, clock: false, random: seededRandom(hashOf(`99:${ MATCH }:1:0`)), last: null });
+
+        await runtime.drive(0);
+        runtime.moved(MATCH);
+
+        // Rev 1's think time is over and it waits on a slow decision; then someone else's action moves the match on.
+        await clock.advance(delay);
+        turn = chessTurn(2, 0, { leftMs: 2_500 });
+        runtime.moved(MATCH);
+        await clock.advance(600);
+
+        expect(sends).toEqual([2]);
+
+        answer({ play: MOVE, ms: 5 });
+        await clock.advance(0);
+
+        expect(runtime.busy(MATCH)).toBe(true);
+
+        await runtime.drive(1_000);
+
+        expect(sends).toEqual([2]);
+
+        release();
+        await clock.advance(0);
+
+        expect(runtime.busy(MATCH)).toBe(false);
     });
 
     it('counts a system seat that reached its deadline as an error, and still moves', async () =>
@@ -527,9 +650,10 @@ describe('who the runtime acts for', () =>
 {
     it('the system player to move, nobody when a person is to move, and a system seat to leave once no person is left', () =>
     {
-        expect(whoActs(chessTurn(1, 0))).toMatchObject({ mover: { seat: 0, userId: BOT }, leave: false });
+        expect(whoActs(chessTurn(1, 0))).toMatchObject({ mover: { seat: 0, userId: BOT }, alone: [] });
         expect(whoActs(chessTurn(1, 1))).toBeNull();
-        expect(whoActs(chessTurn(1, 1, { seats: seatsOf(1, 'abandoned') }))).toMatchObject({ mover: { seat: 1 }, leave: true });
+        expect(whoActs(chessTurn(1, 1, { seats: seatsOf(1, 'abandoned') }))).toMatchObject({ mover: null, alone: [{ seat: 1 }] });
+        expect(whoActs(chessTurn(1, 0, { seats: seatsOf(0, 'abandoned') }))).toMatchObject({ mover: { seat: 0 }, alone: [{ seat: 0 }] });
         expect(whoActs(chessTurn(1, 0, { finished: true }))).toBeNull();
     });
 
@@ -622,6 +746,42 @@ describe('think time', () =>
     {
         expect(thinkTime({ ...base, leftMs: 31_500, limitMs: 30_000, random: () => 0 })).toBeGreaterThanOrEqual(1_500 + THINK_LEAST);
     });
+
+    it('draws inside its bounds, and no one interval takes more than 2 percent of the draws', () =>
+    {
+        const shapes: Omit<Pace, 'random' | 'last'>[] = [
+            { game: 'ludo', choices: 1, leftMs: 15_000, limitMs: 15_000, clock: false },
+            { game: 'ludo', choices: 2, leftMs: 15_000, limitMs: 15_000, clock: false },
+            { game: 'ludo', choices: 4, leftMs: 15_000, limitMs: 15_000, clock: false },
+            { game: 'chess', choices: 1, leftMs: 60_000, limitMs: 60_000, clock: true },
+            { game: 'chess', choices: 30, leftMs: 300_000, limitMs: 300_000, clock: true },
+            { game: 'chess', choices: 30, leftMs: 180_000, limitMs: 180_000, clock: true },
+            { game: 'chess', choices: 30, leftMs: 60_000, limitMs: 60_000, clock: true },
+            { game: 'chess', choices: 25, leftMs: 30_000, limitMs: 30_000, clock: false },
+            { game: 'hokm', choices: 5, leftMs: 20_000, limitMs: 20_000, clock: false },
+            { game: 'poker', choices: 3, leftMs: 21_500, limitMs: 20_000, clock: false },
+            { game: 'backgammon', choices: 12, leftMs: 30_000, limitMs: 30_000, clock: false }
+        ];
+
+        for (const shape of shapes)
+        {
+            const { least, most } = thinkBounds(shape);
+            const counts = new Map<number, number>();
+            let last: number | null = null;
+
+            for (let draw = 0; draw < 2_000; draw += 1)
+            {
+                const ms = thinkTime({ ...shape, random: seededRandom(hashOf(`${ shape.game }:${ shape.choices }:${ shape.leftMs }:${ draw }`)), last });
+
+                expect(ms).toBeGreaterThanOrEqual(least);
+                expect(ms).toBeLessThanOrEqual(most);
+                counts.set(ms, (counts.get(ms) ?? 0) + 1);
+                last = ms;
+            }
+
+            expect(Math.max(...counts.values()), `${ shape.game } ${ shape.choices } ${ shape.leftMs }`).toBeLessThanOrEqual(2_000 * 0.02);
+        }
+    });
 });
 
 describe('the decision worker pool', () =>
@@ -700,7 +860,7 @@ describe('the decision worker pool', () =>
     it('refuses past a full queue, and drops a job whose match moved on', async () =>
     {
         const workers = fakeWorkers(['silent']);
-        const brain = createWorkerBrain({ spawn: workers.spawn, graceMs: 60_000, queueMost: 1 });
+        const brain = createWorkerBrain({ spawn: workers.spawn, graceMs: 60_000, queueMost: 1, workersMost: 1 });
         const first = brain.decide(job, () => true);
         const second = brain.decide(job, () => false);
 
@@ -708,6 +868,22 @@ describe('the decision worker pool', () =>
         await brain.stop();
         await expect(first).rejects.toBeInstanceOf(Dropped);
         await expect(second).rejects.toBeInstanceOf(Dropped);
+    });
+
+    it('starts with one worker and adds more only while jobs are waiting, up to its cap', async () =>
+    {
+        const workers = fakeWorkers([]);
+        const brain = createWorkerBrain({ spawn: workers.spawn, graceMs: 60_000, workersMost: 2 });
+
+        await expect(brain.decide(job, () => true)).resolves.toMatchObject({ play: MOVE });
+        expect(workers.made).toHaveLength(1);
+
+        const all = await Promise.all([1, 2, 3, 4].map(async () => await brain.decide(job, () => true)));
+
+        expect(all.every((decided) => decided.play === MOVE)).toBe(true);
+        expect(workers.made).toHaveLength(2);
+        await brain.stop();
+        expect(workers.made.every((one) => one.terminated)).toBe(true);
     });
 
     it('runs a real decision in a real worker from the sources', async () =>

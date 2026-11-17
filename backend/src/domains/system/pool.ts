@@ -12,6 +12,9 @@ export interface Wanted
     /** The people at the table: a system player one of them blocks, or who is blocked by one, is not taken. */
     seated: readonly string[];
 
+    /** System players who sat at this table lately: not taken, so none stands up and sits straight back down. */
+    lately: readonly string[];
+
     random: () => number;
 
     /** What a system player made now plays at. */
@@ -84,7 +87,7 @@ const STILL_IDLE_SQL = `
  */
 export async function takeIdle(tx: EntityManager, wanted: Wanted): Promise<string | null>
 {
-    const passed: string[] = [];
+    const passed: string[] = [...wanted.lately];
 
     for (let attempt = 0; attempt < TAKE_ATTEMPTS; attempt += 1)
     {

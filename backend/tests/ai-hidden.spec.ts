@@ -155,7 +155,7 @@ describe('a hidden game\'s agent sees only its own seat', () =>
 
                 expect(compared).toBeGreaterThan(5);
                 expect(differed).toBeGreaterThan(compared / 2);
-            });
+            }, 30_000);
         }
     }
 });

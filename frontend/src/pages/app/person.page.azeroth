@@ -23,6 +23,7 @@ import { useShell } from '../../stores/shell.store.ts';
 import { useSocial } from '../../stores/social.store.ts';
 import { playWith } from '../../lib/play-with.ts';
 import { attempt } from '../../lib/attempt.ts';
+import { whyMessage } from '../../lib/message-refusal.ts';
 import Panel from '../../components/ui/panel.component.azeroth';
 
 export default component PersonPage()
@@ -141,7 +142,7 @@ export default component PersonPage()
     {
         if (person !== null)
         {
-            void chat.openDirect(person.id).then((id) => navigate(`/app/chats/${ id }`));
+            void attempt(chat.openDirect(person.id).then((id) => navigate(`/app/chats/${ id }`)), undefined, whyMessage);
         }
     };
 

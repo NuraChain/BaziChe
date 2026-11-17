@@ -23,8 +23,12 @@ export type Feed = (matchId: string, since: number) => Promise<{
     events: (seat: number | null) => { rev: number; seat: number; log: MatchLog }[];
 } | null>;
 
-/** How many matches the seat logs are kept for; past it the one read longest ago is dropped. */
-export const LOGS_MOST = 64;
+/**
+ * How many matches the seat logs are kept for; past it the one read longest ago is dropped. Sized
+ * for the pool cap: below it, decisions taking turns across the matches would evict each one before
+ * its next read and every read would be a full one.
+ */
+export const LOGS_MOST = 256;
 
 interface Kept
 {

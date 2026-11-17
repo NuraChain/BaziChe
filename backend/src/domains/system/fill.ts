@@ -34,6 +34,13 @@ export const STALL_MS = 60_000;
 export const AFTER_LEAST_MS = 8_000;
 export const AFTER_MOST_MS = 20_000;
 
+/** Left with no person at a waiting table, system players stand up one at a time, each this long after the last. */
+export const ALONE_LEAST_MS = 3_000;
+export const ALONE_MOST_MS = 15_000;
+
+/** A system player does not sit again at a table it sat at within this long; it would look like someone who left and came straight back. */
+export const LATELY_MS = 10 * 60_000;
+
 export interface Chair
 {
     seat: number;
@@ -41,7 +48,7 @@ export interface Chair
     invited: boolean;
     ready: boolean;
 
-    /** Epoch ms, or null for an empty chair. */
+    /** Epoch ms, or null for an empty chair. A person saying they are ready again restarts it. */
     joined: number | null;
     system: boolean;
     retired: boolean;
@@ -69,6 +76,15 @@ export interface Board
     finished: number | null;
     now: number;
     chairs: Chair[];
+
+    /** The game has an agent to play it; without one nothing is filled, whatever the settings say. */
+    agent: boolean;
+
+    /** When a system player last stood up from this table, as this process saw it, or null. */
+    stood: number | null;
+
+    /** Since when this process has seen no person at this table, or null while one sits here. */
+    alone: number | null;
 }
 
 export type StandWhy = 'alone' | 'off' | 'retired' | 'stalled' | 'after';
@@ -78,16 +94,21 @@ const isPerson = (chair: Chair) => chair.user !== null && !chair.system;
 const isFree = (chair: Chair) => chair.user === null && !chair.invited;
 
 /**
- * Since when the person waiting longest has waited: from when they sat down, or from the end of the
- * last game here when they stayed on after it, since nobody waits through a game they were playing.
+ * Since when this table has waited, or null when it is not waiting: every person seated is ready,
+ * and the wait is a fresh one, from the latest of when the longest-waiting person got ready, the end
+ * of the last game here and the last time a system player stood up from it. A table one person is
+ * not ready at could not start once filled, so it is not waiting at all.
  */
 export const waitingSince = (board: Board): number | null =>
 {
-    const since = board.chairs
-        .filter((chair) => isPerson(chair) && chair.ready && chair.joined !== null)
-        .map((chair) => Math.max(chair.joined!, board.finished ?? 0));
+    const people = board.chairs.filter(isPerson);
 
-    return since.length === 0 ? null : Math.min(...since);
+    if (people.length === 0 || people.some((chair) => !chair.ready || chair.joined === null))
+    {
+        return null;
+    }
+
+    return Math.max(Math.min(...people.map((chair) => chair.joined!)), board.finished ?? 0, board.stood ?? 0);
 };
 
 /** Whether a system player may be seated at this table now. `here` holds the people present. */
@@ -96,6 +117,7 @@ export const fillable = (config: SystemConfig, board: Board, here: ReadonlySet<s
     const since = waitingSince(board);
 
     return gameOn(config, board.game)
+        && board.agent
         && board.available
         && board.quick
         && board.public
@@ -156,6 +178,10 @@ const hashOf = (text: string) =>
 export const afterDelay = (tableId: string, seat: number, finished: number) =>
     AFTER_LEAST_MS + hashOf(`${ tableId }:${ seat }:${ Math.floor(finished) }`) % (AFTER_MOST_MS - AFTER_LEAST_MS + 1);
 
+/** How long after `from` (the table left without people, or the last stand-up there) this seat's system player stands up. */
+export const aloneDelay = (tableId: string, seat: number, from: number) =>
+    ALONE_LEAST_MS + hashOf(`${ tableId }:${ seat }:alone:${ Math.floor(from) }`) % (ALONE_MOST_MS - ALONE_LEAST_MS + 1);
+
 /** The system players to stand up at this table now, and why. Nothing moves while a game runs. */
 export const standUps = (config: SystemConfig, board: Board): { user: string; why: StandWhy }[] =>
 {
@@ -175,10 +201,14 @@ export const standUps = (config: SystemConfig, board: Board): { user: string; wh
 
     if (!board.chairs.some(isPerson))
     {
-        return all('alone');
+        // One at a time, the lowest seat first, each its own delay after the table emptied or the last one went.
+        const from = Math.max(board.alone ?? board.now, board.stood ?? 0);
+        const [next] = system;
+
+        return board.now - from >= aloneDelay(board.id, next.seat, from) ? [{ user: next.user!, why: 'alone' }] : [];
     }
 
-    if (!gameOn(config, board.game) || !board.available)
+    if (!gameOn(config, board.game) || !board.agent || !board.available)
     {
         return all('off');
     }
@@ -236,9 +266,10 @@ const BOARDS_SQL = `
 
 /**
  * Open public quick tables a system player may sit at: no game running, no stake, no tournament, a
- * chair neither taken nor held for an invite, and a ready person who has waited `$1` seconds, from
- * when they sat down or from the end of the last game here. Longest wait first. The switch and the
- * games that are off are asked by the caller; presence is asked of the hub.
+ * chair neither taken nor held for an invite, every person seated ready, and a wait of `$1` seconds
+ * since the longest-waiting one got ready or the last game here ended. Longest wait first. The
+ * switch, the games that are off, the games with an agent (`$4`), the last stand-up here and
+ * presence are asked by the caller.
  */
 const FILLABLE_SQL = `
     select t.id, t.game
@@ -246,13 +277,15 @@ const FILLABLE_SQL = `
       join quick_tables q on q.table_id = t.id
      cross join lateral (select max(m.finished_at) as last from matches m where m.table_id = t.id) f
      cross join lateral (
-               select min(greatest(s.joined_at, f.last)) as since
+               select greatest(min(s.joined_at), f.last) as since, bool_and(s.ready) as ready
                  from table_seats s
-                where s.table_id = t.id and s.user_id is not null and s.ready and ${ notSystem('s.user_id') }) w
+                where s.table_id = t.id and s.user_id is not null and ${ notSystem('s.user_id') }) w
      where t.status = 'open'
        and t.privacy = 'public'
        and t.tournament_id is null
        and not (t.game::text = any($2::text[]))
+       and t.game::text = any($4::text[])
+       and w.ready
        and exists (select 1 from games g where g.id = t.game and g.status = 'available')
        and not exists (select 1 from matches m where m.table_id = t.id and m.finished_at is null)
        and not exists (select 1 from table_stakes k where k.table_id = t.id)
@@ -271,12 +304,23 @@ const SEATED_SQL = `
        and not exists (select 1 from matches m where m.table_id = t.id and m.finished_at is null)
      limit $1`;
 
-interface BoardRow extends Omit<Board, 'chairs'>
+
+/** The system players who sat at this table in a game that ended lately. */
+const LATELY_SQL = `
+    select distinct mp.user_id
+      from match_players mp
+      join matches m on m.id = mp.match_id
+     where m.table_id = $1
+       and m.finished_at > now() - make_interval(secs => $2)
+       and ${ isSystem('mp.user_id') }`;
+
+interface BoardRow extends Omit<Board, 'chairs' | 'agent' | 'stood' | 'alone'>
 {
     chairs: Chair[] | null;
 }
 
-export const boardOf = (row: BoardRow): Board => ({ ...row, chairs: row.chairs ?? [] });
+export const boardOf = (row: BoardRow, more: Pick<Board, 'agent' | 'stood' | 'alone'>): Board =>
+    ({ ...row, chairs: row.chairs ?? [], ...more });
 
 export interface FillSweep
 {
@@ -292,17 +336,70 @@ export interface FillHooks
     /** Starts the game at a table that just filled, as the system player who took the last chair. */
     start(userId: string, tableId: string): Promise<void>;
 
-    /** Tells the people at a table its chairs changed; `gone` are those who just stood up. */
-    changed(tableId: string, gone: readonly string[]): Promise<void>;
+    /** Tells the people at a table, and in its game thread, that its chairs changed; `gone` are those who just stood up. */
+    changed(tableId: string, gone: readonly string[], conversationId: string | null): Promise<void>;
 }
 
-export function createSeatFiller(db: DataSource, random: () => number = Math.random, clock: () => number = Date.now)
+/**
+ * `agents` holds the games an agent can play; it is handed in so this domain never loads one.
+ *
+ * What this process remembers, since a stand-up leaves no row: when a system player last stood up
+ * from each table, which ones did, and since when a table has had no person at it. Another process
+ * keeps its own; the worst it does is let a table be filled or emptied a little early.
+ */
+export function createSeatFiller(db: DataSource, agents: ReadonlySet<string>, random: () => number = Math.random, clock: () => number = Date.now)
 {
+    const stoodAt = new Map<string, number>();
+    const leftAt = new Map<string, Map<string, number>>();
+    const aloneSince = new Map<string, number>();
+
+    const forget = (now: number) =>
+    {
+        for (const [tableId, at] of stoodAt)
+        {
+            if (now - at > LATELY_MS)
+            {
+                stoodAt.delete(tableId);
+            }
+        }
+
+        for (const [tableId, users] of leftAt)
+        {
+            for (const [userId, at] of users)
+            {
+                if (now - at > LATELY_MS)
+                {
+                    users.delete(userId);
+                }
+            }
+
+            if (users.size === 0)
+            {
+                leftAt.delete(tableId);
+            }
+        }
+    };
+
     const configNow = async () =>
         systemConfigOf(rowsOf<{ value: string }>(await db.query(`select value from settings where key = 'system-players'`))[0]?.value ?? null);
 
     const boardsOf = async (from: DataSource | EntityManager, ids: readonly string[]) =>
-        ids.length === 0 ? [] : rowsOf<BoardRow>(await from.query(BOARDS_SQL, [ids])).map(boardOf);
+        ids.length === 0 ? [] : rowsOf<BoardRow>(await from.query(BOARDS_SQL, [ids])).map((row) => boardOf(row, {
+            agent: agents.has(row.game),
+            stood: stoodAt.get(row.id) ?? null,
+            alone: aloneSince.get(row.id) ?? null
+        }));
+
+    const latelyAt = async (tx: EntityManager, tableId: string, now: number) =>
+    {
+        const played = rowsOf<{ user_id: string }>(await tx.query(LATELY_SQL, [tableId, LATELY_MS / 1000])).map((row) => row.user_id);
+        const left = [...leftAt.get(tableId) ?? []].flatMap(([userId, at]) => now - at <= LATELY_MS ? [userId] : []);
+
+        return [...new Set([...played, ...left])];
+    };
+
+    const threadOf = async (tx: EntityManager, tableId: string) =>
+        rowsOf<{ id: string }>(await tx.query(`select c.id from conversations c where c.table_id = $1 and c.kind = 'game'`, [tableId]))[0]?.id ?? null;
 
     const fillOne = async (config: SystemConfig, tableId: string, game: string, here: (userIds: readonly string[]) => ReadonlySet<string>) =>
         await db.transaction(async (tx) =>
@@ -331,14 +428,26 @@ export function createSeatFiller(db: DataSource, random: () => number = Math.ran
                 return null;
             }
 
-            const userId = await takeIdle(tx, { config, seated: people, random, skill: config.skill });
+            const lately = await latelyAt(tx, tableId, board.now);
+            const userId = await takeIdle(tx, { config, seated: people, lately, random, skill: config.skill });
 
             if (userId === null || !await seatAt(tx, tableId, seat, userId))
             {
                 return null;
             }
 
-            return { userId, full: startsWith(board, seat) };
+            // Into the game thread exactly as a person who sits down; `standUp` takes it out again.
+            const conversationId = await threadOf(tx, tableId);
+
+            if (conversationId !== null)
+            {
+                await tx.query(
+                    'insert into conversation_members (conversation_id, user_id) values ($1, $2) on conflict do nothing',
+                    [conversationId, userId]
+                );
+            }
+
+            return { userId, full: startsWith(board, seat), conversationId };
         });
 
     const standAt = async (config: SystemConfig, tableId: string) =>
@@ -347,6 +456,7 @@ export function createSeatFiller(db: DataSource, random: () => number = Math.ran
             await lockTable(tx, tableId);
 
             const [board] = await boardsOf(tx, [tableId]);
+            const conversationId = board === undefined ? null : await threadOf(tx, tableId);
             const gone: string[] = [];
             let closed = false;
 
@@ -362,7 +472,7 @@ export function createSeatFiller(db: DataSource, random: () => number = Math.ran
                 }
             }
 
-            return { gone, closed };
+            return { gone, closed, conversationId, now: board?.now ?? null };
         });
 
     return {
@@ -381,9 +491,33 @@ export function createSeatFiller(db: DataSource, random: () => number = Math.ran
                 return null;
             };
 
-            const seatedAt = rowsOf<{ id: string }>(await db.query(SEATED_SQL, [SEATED_MOST])).map((row) => row.id);
+            forget(clock());
 
-            for (const board of await boardsOf(db, seatedAt))
+            const seatedAt = rowsOf<{ id: string }>(await db.query(SEATED_SQL, [SEATED_MOST])).map((row) => row.id);
+            const boards = await boardsOf(db, seatedAt);
+
+            for (const tableId of aloneSince.keys())
+            {
+                if (!seatedAt.includes(tableId))
+                {
+                    aloneSince.delete(tableId);
+                }
+            }
+
+            for (const board of boards)
+            {
+                if (board.chairs.some(isPerson))
+                {
+                    aloneSince.delete(board.id);
+                }
+                else if (board.alone === null)
+                {
+                    aloneSince.set(board.id, board.now);
+                    board.alone = board.now;
+                }
+            }
+
+            for (const board of boards)
             {
                 if (clock() >= until)
                 {
@@ -402,9 +536,19 @@ export function createSeatFiller(db: DataSource, random: () => number = Math.ran
                     continue;
                 }
 
+                const at = stood.now ?? board.now;
+
+                stoodAt.set(board.id, at);
+                leftAt.set(board.id, new Map([...leftAt.get(board.id) ?? [], ...stood.gone.map((userId) => [userId, at] as const)]));
+
+                if (stood.closed)
+                {
+                    aloneSince.delete(board.id);
+                }
+
                 swept.stood += stood.gone.length;
                 swept.closed += stood.closed ? 1 : 0;
-                await hooks.changed(board.id, stood.gone).catch(failed(board.id));
+                await hooks.changed(board.id, stood.gone, stood.conversationId).catch(failed(board.id));
             }
 
             if (!config.on)
@@ -413,7 +557,7 @@ export function createSeatFiller(db: DataSource, random: () => number = Math.ran
             }
 
             const off = Object.entries(config.games).flatMap(([game, on]) => on ? [] : [game]);
-            const waiting = rowsOf<{ id: string; game: string }>(await db.query(FILLABLE_SQL, [config.wait, off, FILL_MOST]));
+            const waiting = rowsOf<{ id: string; game: string }>(await db.query(FILLABLE_SQL, [config.wait, off, FILL_MOST, [...agents]]));
 
             for (const { id, game } of waiting)
             {
@@ -437,10 +581,8 @@ export function createSeatFiller(db: DataSource, random: () => number = Math.ran
 
                     swept.started += began === true ? 1 : 0;
                 }
-                else
-                {
-                    await hooks.changed(id, []).catch(failed(id));
-                }
+
+                await hooks.changed(id, [], sat.conversationId).catch(failed(id));
             }
 
             return swept;

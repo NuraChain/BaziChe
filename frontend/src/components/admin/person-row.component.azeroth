@@ -27,6 +27,8 @@ export default component PersonRow(props: { person: AdminPersonRow })
 
     derived minor = props.person.minor;
 
+    derived systemPlayer = props.person.system === true;
+
     derived reported = props.person.reports > 0;
 
     derived reports = locale.plural('admin.people.reports', props.person.reports);
@@ -60,6 +62,9 @@ export default component PersonRow(props: { person: AdminPersonRow })
         </span>
         <span class="hidden text-ui-xs text-muted @2xl:block" data-since><When at={ props.person.createdAt } said={ since } /></span>
         <span class="flex max-w-[45%] flex-wrap items-center justify-end gap-1.5 @2xl:max-w-none @2xl:justify-start" data-marks>
+            <Show when={ systemPlayer }>
+                <Badge text={ locale.t('admin.people.system') } tone="epic" />
+            </Show>
             <Show when={ ranked }>
                 <Badge text={ roleWord } tone="accent" />
             </Show>

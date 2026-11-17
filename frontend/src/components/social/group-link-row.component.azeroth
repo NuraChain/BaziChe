@@ -1,4 +1,4 @@
-import { handleParts } from '../../lib/staff-words.ts';
+import { handleParts } from '../../lib/handle-parts.ts';
 import type { GroupLink } from '../../stores/group-admin.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import Badge from '../ui/badge.component.azeroth';

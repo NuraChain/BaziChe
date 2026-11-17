@@ -118,6 +118,14 @@ import {
     adminRewardOverview,
     adminRewardFreeze,
     adminRewardFreezeInput,
+    adminSystem,
+    adminSystemGames,
+    adminSystemPlayer,
+    adminSystemPlayers,
+    adminSystemPlayersQuery,
+    adminSystemRetire,
+    adminSystemSettings,
+    adminSystemSwitch,
     adminRewardLooksInput,
     adminRewardSwitch,
     adminPlay,
@@ -912,7 +920,25 @@ export function buildApi(ports: Ports)
                 async (context) => onlyAdmin(await ports.admin.setRewardBudget(context.principal.userId, context.input))),
 
             freezeRewards: routes.post('/rewards/people/:handle/freeze', { input: adminRewardFreezeInput, output: adminRewardFreeze },
-                async (context) => onlyAdmin(await ports.admin.freezeRewards(context.principal.userId, context.params.handle, context.input)))
+                async (context) => onlyAdmin(await ports.admin.freezeRewards(context.principal.userId, context.params.handle, context.input))),
+
+            system: routes.get('/system', { output: adminSystem },
+                async (context) => onlyAdmin(await ports.admin.system(context.principal.userId))),
+
+            switchSystem: routes.post('/system/switch', { input: adminSystemSwitch, output: adminSystem },
+                async (context) => onlyAdmin(await ports.admin.switchSystem(context.principal.userId, context.input))),
+
+            setSystemGames: routes.post('/system/games', { input: adminSystemGames, output: adminSystem },
+                async (context) => onlyAdmin(await ports.admin.setSystemGames(context.principal.userId, context.input))),
+
+            setSystemSettings: routes.post('/system/settings', { input: adminSystemSettings, output: adminSystem },
+                async (context) => onlyAdmin(await ports.admin.setSystemSettings(context.principal.userId, context.input))),
+
+            systemPlayers: routes.get('/system/players', { query: adminSystemPlayersQuery, output: adminSystemPlayers },
+                async (context) => onlyAdmin(await ports.admin.systemPlayers(context.principal.userId, context.query))),
+
+            retireSystemPlayer: routes.post('/system/players/:handle/retire', { input: adminSystemRetire, output: adminSystemPlayer },
+                async (context) => onlyAdmin(await ports.admin.retireSystemPlayer(context.principal.userId, context.params.handle, context.input)))
         })),
 
         vault: feature('/vault', [session], (routes) => ({

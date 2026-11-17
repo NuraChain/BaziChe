@@ -434,6 +434,71 @@ const sweepTurns = () =>
 turns = setTimeout(sweepTurns, TURN_SWEEP_MS);
 turns.unref();
 
+const FILL_SWEEP_MS = 2_000;
+
+const FILL_SWEEP_BUDGET_MS = 1_500;
+
+let fills: NodeJS.Timeout | null = null;
+
+const fillSeats = () =>
+{
+    void ports.jobs.fillSeats(FILL_SWEEP_BUDGET_MS)
+        .then(({ seated, started, stood, closed, failed }) =>
+        {
+            if (seated + started + stood > 0)
+            {
+                log.info('system seats', { seated, started, stood, closed });
+            }
+
+            for (const one of failed)
+            {
+                log.error('system seat failed', one);
+            }
+        })
+        .catch((error: unknown) => log.error('seat fill failed', { error }))
+        .finally(() =>
+        {
+            if (fills !== null)
+            {
+                fills = setTimeout(fillSeats, FILL_SWEEP_MS);
+                fills.unref();
+            }
+        });
+};
+
+fills = setTimeout(fillSeats, FILL_SWEEP_MS);
+fills.unref();
+
+const DRIVE_SWEEP_MS = 3_000;
+
+const DRIVE_SWEEP_BUDGET_MS = 2_000;
+
+let driving: NodeJS.Timeout | null = null;
+
+const driveSeats = () =>
+{
+    void ports.jobs.driveSeats(DRIVE_SWEEP_BUDGET_MS)
+        .then(({ errors }) =>
+        {
+            for (const one of errors)
+            {
+                log.error('system player failed', one);
+            }
+        })
+        .catch((error: unknown) => log.error('seat drive failed', { error }))
+        .finally(() =>
+        {
+            if (driving !== null)
+            {
+                driving = setTimeout(driveSeats, DRIVE_SWEEP_MS);
+                driving.unref();
+            }
+        });
+};
+
+driving = setTimeout(driveSeats, DRIVE_SWEEP_MS);
+driving.unref();
+
 const TABLE_SWEEP_MS = 30_000;
 
 let tables: NodeJS.Timeout | null = null;
@@ -952,6 +1017,17 @@ handleShutdownSignals(served, {
             clearTimeout(turns);
             turns = null;
         }
+        if (fills !== null)
+        {
+            clearTimeout(fills);
+            fills = null;
+        }
+        if (driving !== null)
+        {
+            clearTimeout(driving);
+            driving = null;
+        }
+        await ports.jobs.stopSeats().catch((error: unknown) => log.error('seat drive stop failed', { error }));
         if (tables !== null)
         {
             clearTimeout(tables);

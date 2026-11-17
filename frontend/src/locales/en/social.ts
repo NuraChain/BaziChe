@@ -450,6 +450,8 @@ export const social = {
     'emoji.symbols': 'Symbols',
     'emoji.flags': 'Flags',
     'chat.loadFailed': 'Could not load this conversation.',
+    'chat.refused.message-blocked': 'You can’t reach that account.',
+    'chat.refused.message-closed': 'They aren’t taking messages from people they haven’t added.',
     'level.xp': 'XP',
     'level.short': 'LVL',
     'level.title': 'Level {level}',

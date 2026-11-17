@@ -8,6 +8,7 @@ import { cursorOf, keyOf, keysetAfter, olderThan } from '../../lib/keyset.ts';
 import { PROFILE_LOOKS, chosenIn, worn } from '../shop/looks.ts';
 import { CODE_ALPHABET, CODE_LENGTH, ESTABLISHED_DAYS, ESTABLISHED_GAMES, MANY_A_DAY, QUICK_MINUTES, TOP_INVITERS, codeFrom, type InviteFlag, type RewardKind } from './policy.ts';
 import { INVITE_REFUSALS, type InviteRefusal } from './refusals.ts';
+import { hasSystemSeat, notSystem } from '../system/sql.ts';
 
 export const inviteRefusal = (word: InviteRefusal, message: string, details?: Record<string, string>) =>
     new HttpError(INVITE_REFUSALS[word], message, { code: word, ...(details === undefined ? {} : { details }) });
@@ -46,9 +47,12 @@ type Runner = DataSource | EntityManager;
 /**
  * Whether the player in `seat` can vouch for a game: not suspended, and established or on the staff
  * (the owner by the wallets the server names, and every member of the staff, who are where it all
- * starts and need no row). Wants `:owners`.
+ * starts and need no row). Wants `:owners`. A system player never vouches, and a game with one in any
+ * seat counts towards nothing here: in a team game the person vouching may be a partner, so two
+ * people could otherwise establish each other against opponents summoned at will.
  */
 const vouches = (seat: string) => `(exists (select 1 from users vu where vu.id = ${ seat }.user_id and vu.is_suspended = false)
+    and ${ notSystem(`${ seat }.user_id`) }
     and (exists (select 1 from established_players e where e.user_id = ${ seat }.user_id)
         or exists (select 1 from staff_members s where s.user_id = ${ seat }.user_id)
         or exists (select 1 from wallets o where o.user_id = ${ seat }.user_id and o.address = any(:owners))))`;
@@ -528,12 +532,13 @@ export function createInviteService(db: DataSource, owners: () => readonly strin
                 .select('seat.user_id', 'userId')
                 .where('seat.match_id = :matchId', { matchId })
                 .andWhere('player.is_suspended = false')
+                .andWhere(notSystem('seat.user_id'))
                 .andWhere('player.created_at <= now() - make_interval(days => :days)', { days: ESTABLISHED_DAYS })
                 .andWhere('not exists (select 1 from established_players e where e.user_id = seat.user_id)')
                 .andWhere(`(select count(distinct mine.match_id) from match_players mine
                             join matches played on played.id = mine.match_id
                             where mine.user_id = seat.user_id and played.finished_at is not null
-                              and mine.result in ('won', 'lost', 'drawn')
+                              and mine.result in ('won', 'lost', 'drawn') and not ${ hasSystemSeat('mine.match_id') }
                               and exists (select 1 from match_players other
                                           where other.match_id = mine.match_id and other.user_id <> mine.user_id
                                             and other.result in ('won', 'lost', 'drawn') and ${ vouches('other') })) >= :games`, { games: ESTABLISHED_GAMES, owners: owners() })
@@ -576,6 +581,7 @@ export function createInviteService(db: DataSource, owners: () => readonly strin
                 })
                 .where('counted_at is null')
                 .andWhere('inviter_id is not null')
+                .andWhere(`not ${ hasSystemSeat(':matchId') }`, { matchId })
                 .andWhere(`invitee_id in (select seat.user_id from match_players seat where seat.match_id = :matchId and seat.result in ('won', 'lost', 'drawn'))`, { matchId })
                 .andWhere('not exists (select 1 from match_players seat where seat.match_id = :matchId and seat.user_id = referrals.inviter_id)', { matchId })
                 .andWhere(`exists (select 1 from match_players other

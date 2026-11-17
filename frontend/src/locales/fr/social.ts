@@ -453,6 +453,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'emoji.symbols': 'Symboles',
     'emoji.flags': 'Drapeaux',
     'chat.loadFailed': 'Impossible de charger cette conversation.',
+    'chat.refused.message-blocked': 'Tu ne peux pas joindre ce compte.',
+    'chat.refused.message-closed': 'Cette personne n’accepte pas les messages de gens qu’elle n’a pas ajoutés.',
     'level.xp': 'XP',
     'level.short': 'NIV',
     'level.title': 'Niveau {level}',

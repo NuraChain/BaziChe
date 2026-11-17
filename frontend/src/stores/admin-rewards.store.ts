@@ -11,14 +11,14 @@ export type AdminFrozenRow = AdminRewardFrozen['rows'][number];
 
 export type AdminRewardView = 'config' | 'overview' | 'days' | 'frozen';
 
-interface Page<Row>
+export interface Page<Row>
 {
     rows: Row[];
     cursor?: string;
 }
 
 /** A keyset list read a page at a time: the first page follows its key, and older pages belong to the first page they continued. */
-interface Paged<Row>
+export interface Paged<Row>
 {
     rows: Getter<Row[]>;
     loading: Getter<boolean>;
@@ -29,7 +29,7 @@ interface Paged<Row>
     refetch(): Promise<void>;
 }
 
-function paged<Key, Row>(key: () => Key | null, read: (key: Key, cursor?: string) => Promise<Page<Row>>, name: string): Paged<Row>
+export function paged<Key, Row>(key: () => Key | null, read: (key: Key, cursor?: string) => Promise<Page<Row>>, name: string): Paged<Row>
 {
     const first = createResource(key, (asked) => read(asked), { name });
 

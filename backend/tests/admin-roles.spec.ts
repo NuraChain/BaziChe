@@ -13,9 +13,17 @@ describe('who on the staff may do what', () =>
 
         expect(reach(null)).toEqual([]);
         expect(reach('moderator')).toEqual(['live', 'overview', 'people', 'reports']);
-        expect(reach('admin')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'rewards', 'seasons', 'shop', 'staff', 'tournaments']);
+        expect(reach('admin')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'rewards', 'seasons', 'shop', 'staff', 'system', 'tournaments']);
         expect(reach('co-owner'), 'a co-owner signs for no contract').toEqual(reach('admin'));
-        expect(reach('owner')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'rewards', 'seasons', 'shop', 'staff', 'tournaments', 'wallet']);
+        expect(reach('owner')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'rewards', 'seasons', 'shop', 'staff', 'system', 'tournaments', 'wallet']);
+    });
+
+    it('tells everyone who may open the people pages which accounts are system players, and keeps the system pages and their changes apart', () =>
+    {
+        // The mark on a person rides on `people` alone; a moderator can tell from the missing wallet anyway.
+        expect(STAFF_ROLES.filter((role) => may(role, 'people'))).toEqual(['moderator', 'admin', 'co-owner', 'owner']);
+        expect(STAFF_ROLES.filter((role) => may(role, 'system'))).toEqual(['admin', 'co-owner', 'owner']);
+        expect(STAFF_ROLES.filter((role) => may(role, 'wallet'))).toEqual(['owner']);
     });
 
     it('puts the owner above a co-owner, a co-owner above an admin, an admin above a moderator, and every role above somebody who is none', () =>
@@ -77,7 +85,7 @@ describe('what the staff are refused in words', () =>
 {
     it('lists each word once with its status, and answers a word it does not have as none', () =>
     {
-        expect(STAFF_REFUSALS).toEqual({ 'staff-nobody': 404, 'staff-owner': 409, 'staff-self': 409, 'staff-rank': 409, 'staff-not-suspended': 409, 'staff-match-over': 409, 'staff-in-game': 409, 'staff-seated': 409, 'staff-table-closed': 409, 'staff-table-playing': 409, 'staff-no-notice': 409, 'staff-season-running': 409, 'staff-check-closed': 409, 'staff-shop-one': 422, 'staff-shop-sale': 409, 'staff-look-kept': 409, 'staff-shop-off': 409, 'staff-order-unpaid': 409, 'staff-shop-share': 422, 'staff-shop-address': 422, 'staff-shop-amount': 422, 'staff-shop-role': 409, 'staff-shop-paused': 409, 'staff-shop-running': 409, 'staff-shop-revenue': 409, 'staff-shop-refunded': 409, 'staff-shop-refused': 409, 'staff-shop-percent': 422, 'staff-markets-off': 409, 'staff-markets-address': 422, 'staff-markets-role': 409, 'staff-markets-refused': 409, 'staff-campaign-empty': 422, 'staff-campaign-look': 422, 'staff-campaign-milestone': 422, 'staff-campaign-window': 422, 'staff-campaign-running': 409, 'staff-campaign-move': 409, 'staff-campaign-ended': 409, 'staff-campaign-gave': 409, 'staff-reward-move': 409, 'staff-reward-suspended': 409, 'staff-minter-off': 409, 'staff-minter-chain': 409, 'staff-minter-code': 409, 'staff-minter-roles': 409, 'staff-minter-admin': 409, 'staff-minter-held': 409, 'staff-minter-lacks': 409, 'staff-minter-busy': 409, 'staff-minter-refused': 409, 'staff-minter-change': 409, 'staff-tournament-over': 409, 'staff-tournament-started': 409, 'staff-tournament-few': 409, 'staff-tournament-time': 422, 'staff-tournament-player': 409, 'staff-rate': 422, 'staff-reward-amounts': 422 });
+        expect(STAFF_REFUSALS).toEqual({ 'staff-nobody': 404, 'staff-owner': 409, 'staff-self': 409, 'staff-rank': 409, 'staff-not-suspended': 409, 'staff-match-over': 409, 'staff-in-game': 409, 'staff-seated': 409, 'staff-table-closed': 409, 'staff-table-playing': 409, 'staff-no-notice': 409, 'staff-season-running': 409, 'staff-check-closed': 409, 'staff-shop-one': 422, 'staff-shop-sale': 409, 'staff-look-kept': 409, 'staff-shop-off': 409, 'staff-order-unpaid': 409, 'staff-shop-share': 422, 'staff-shop-address': 422, 'staff-shop-amount': 422, 'staff-shop-role': 409, 'staff-shop-paused': 409, 'staff-shop-running': 409, 'staff-shop-revenue': 409, 'staff-shop-refunded': 409, 'staff-shop-refused': 409, 'staff-shop-percent': 422, 'staff-markets-off': 409, 'staff-markets-address': 422, 'staff-markets-role': 409, 'staff-markets-refused': 409, 'staff-campaign-empty': 422, 'staff-campaign-look': 422, 'staff-campaign-milestone': 422, 'staff-campaign-window': 422, 'staff-campaign-running': 409, 'staff-campaign-move': 409, 'staff-campaign-ended': 409, 'staff-campaign-gave': 409, 'staff-reward-move': 409, 'staff-reward-suspended': 409, 'staff-minter-off': 409, 'staff-minter-chain': 409, 'staff-minter-code': 409, 'staff-minter-roles': 409, 'staff-minter-admin': 409, 'staff-minter-held': 409, 'staff-minter-lacks': 409, 'staff-minter-busy': 409, 'staff-minter-refused': 409, 'staff-minter-change': 409, 'staff-tournament-over': 409, 'staff-tournament-started': 409, 'staff-tournament-few': 409, 'staff-tournament-time': 422, 'staff-tournament-player': 409, 'staff-rate': 422, 'staff-reward-amounts': 422, 'staff-system-game': 422, 'staff-system-settings': 422 });
         expect(isStaffRefusal('staff-rank')).toBe(true);
         expect(isStaffRefusal('toString')).toBe(false);
         expect(isStaffRefusal('not-found')).toBe(false);

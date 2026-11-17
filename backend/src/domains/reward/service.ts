@@ -38,6 +38,7 @@ import { countsForQuests, deltasForQuests, inQuestOrder, MIN_QUEST_TURNS, wantsD
 import { drawnGames, questsFor, questView, templateOf, type QuestTemplate } from './quests.ts';
 import { createRewardPayoutService, type RewardPayoutSweep } from './payout.ts';
 import { REWARD_REFUSALS, type RewardRefusal } from './refusals.ts';
+import { isSystem } from '../system/sql.ts';
 
 const HISTORY_PAGE = 25;
 
@@ -159,7 +160,8 @@ export function createRewardService(db: DataSource, wallet?: RewardWallet, hooks
     const factsOf = async (from: EntityManager, userId: string) =>
     {
         const [facts] = await from.query(
-            `select u.is_minor as minor,
+            `select ${ isSystem('u.id') } as system,
+                    u.is_minor as minor,
                     u.is_suspended as suspended,
                     exists (select 1 from reward_freezes f where f.user_id = u.id) as frozen,
                     exists (select 1 from established_players e where e.user_id = u.id) as established,

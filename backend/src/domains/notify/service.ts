@@ -8,6 +8,7 @@ import { NOTICE_OF } from './notices.ts';
 import { Notification } from '../../entities/notification.entity.ts';
 import { PushSubscription } from '../../entities/push-subscription.entity.ts';
 import type { SocialService } from '../social/service.ts';
+import { notSystem } from '../system/sql.ts';
 
 export interface NotificationRow
 {
@@ -111,6 +112,7 @@ export function createNotifyService(db: DataSource, social: SocialService)
                 return false;
             }
 
+            // A system player is told nothing: no row, so no badge and no push.
             const conflict = input.once === true
                 ? 'on conflict (user_id, dedupe_key) do nothing returning id'
                 : `on conflict (user_id, dedupe_key) do update set
@@ -119,14 +121,16 @@ export function createNotifyService(db: DataSource, social: SocialService)
                        created_at = now(),
                        read_at    = null,
                        actor_id   = excluded.actor_id,
-                       ref        = excluded.ref`;
+                       ref        = excluded.ref
+                   returning id`;
             const rows = await db.query(
                 `insert into notifications (user_id, kind, actor_id, ref, dedupe_key)
-                 values ($1, $2, $3, $4::jsonb, $5)
+                 select $1::uuid, $2, $3::uuid, $4::jsonb, $5
+                  where ${ notSystem('$1::uuid') }
                  ${ conflict }`,
                 [input.userId, input.kind, input.actorId, JSON.stringify(clean(input.ref)), input.dedupeKey]
             );
-            return input.once === true ? rows.length > 0 : true;
+            return rowsOf(rows).length > 0;
         },
 
         async retract(userId: string, kind: NotificationKind, dedupeKey: string)
@@ -194,7 +198,8 @@ export function createNotifyService(db: DataSource, social: SocialService)
                 `insert into notifications (user_id, kind, actor_id, ref, dedupe_key)
                  select t.id, $2, $3::uuid, $4::jsonb, $5
                    from unnest($1::uuid[]) as t(id)
-                  where not exists (
+                  where ${ notSystem('t.id') }
+                    and not exists (
                             select 1 from mutes m
                              where m.user_id = t.id
                                and ((m.subject_kind = 'person' and m.subject_id = $3::text)

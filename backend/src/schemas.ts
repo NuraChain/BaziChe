@@ -21,6 +21,7 @@ import { FILE_ALBUM_LEAST, FILE_ALBUM_MOST, FILE_AS } from './domains/chat/files
 import { MEDIA_KINDS } from './domains/chat/pages.ts';
 import { ALERT_KINDS, ALERT_LEVELS, FAMILIES, QUEUES, WORKERS } from './ops/measures.ts';
 import { REWARD_BUDGET_MOST, REWARD_CAP, REWARD_CYCLE_DAYS, REWARD_POOL_MOST } from './domains/reward/rules.ts';
+import { POOL_LEAST, POOL_MOST, SKILLS, WAIT_LEAST, WAIT_MOST } from './domains/system/rules.ts';
 
 const NUL = String.fromCharCode(0);
 
@@ -790,7 +791,9 @@ const adminFace = {
     minor: boolean(),
     suspended: boolean(),
     staff: enumOf(STAFF_ROLES).optional(),
-    reports: number()
+    reports: number(),
+    /** A system player, said only to a viewer holding `system`. */
+    system: literal(true).optional()
 };
 
 export const adminPeople = object({ rows: array(object(adminFace)), cursor: string().optional() });
@@ -1347,7 +1350,8 @@ export const conversationMember = object({
      *
      * It is what anchors a device attestation to a PERSON, and it is shown so it can be compared out
      * of band the way a safety number is. Without it the attestation chain terminates in an address
-     * the server chose, agreeing only with itself.
+     * the server chose, agreeing only with itself. Absent for a member with no device: there is no
+     * attestation for it to anchor.
      */
     address: string().optional(),
 
@@ -3936,6 +3940,75 @@ export const adminRewardFrozen = object({
 });
 
 export type AdminRewardFrozen = Infer<typeof adminRewardFrozen>;
+
+/* ----------------------------------------------------------------- system players */
+
+const systemSkill = enumOf(SKILLS);
+
+/** System players as the staff run them: the setting, per game what they are doing now, the pool, and what the AI runtime counted since the start. */
+export const adminSystem = object({
+    on: boolean(),
+    wait: number(),
+    skill: systemSkill,
+    most: number(),
+    games: array(object({
+        game: string(),
+        on: boolean(),
+        seated: number(),
+        playing: number(),
+        live: number(),
+        today: number(),
+
+        /** The strategy live for the game: its agent, its version, and whether it plays from the whole state or from its seat's view. Absent when no agent plays it. */
+        strategy: object({ agent: string(), version: number(), sees: enumOf(['open', 'hidden']) }).optional()
+    })),
+    pool: object({ size: number(), retired: number() }),
+    ai: object({
+        decisions: number(),
+        averageMs: number(),
+        worstMs: number(),
+        fallbacks: number(),
+        errors: array(object({ at: string(), game: string(), matchId: string(), message: string() }))
+    })
+});
+
+export type AdminSystem = Infer<typeof adminSystem>;
+
+export const adminSystemSwitch = object({ on: boolean(), reason: said() });
+
+/** Games switched on or off by id; a game left out keeps what it had. */
+export const adminSystemGames = object({ games: record(boolean()), reason: said() });
+
+export const adminSystemSettings = object({
+    wait: number({ int: true, min: WAIT_LEAST, max: WAIT_MOST }),
+    skill: systemSkill,
+    most: number({ int: true, min: POOL_LEAST, max: POOL_MOST }),
+    reason: said()
+});
+
+export const adminSystemPlayersQuery = object({ cursor: string({ max: 80 }).optional() });
+
+export const adminSystemRetire = object({ reason: said() });
+
+/** One system player: who it is, how it plays, its games, where it sits or plays now, and whether it is retired. */
+export const adminSystemPlayer = object({
+    handle: string(),
+    displayName: string(),
+    hue: number(),
+    skill: systemSkill,
+    style: number(),
+    played: number(),
+    at: object({ table: string(), game: string(), playing: boolean() }).optional(),
+    retired: boolean(),
+    retiredAt: string().optional(),
+    createdAt: string()
+});
+
+export type AdminSystemPlayer = Infer<typeof adminSystemPlayer>;
+
+export const adminSystemPlayers = object({ rows: array(adminSystemPlayer), cursor: string().optional() });
+
+export type AdminSystemPlayers = Infer<typeof adminSystemPlayers>;
 
 export type NotificationKind = Infer<typeof notificationKind>;
 

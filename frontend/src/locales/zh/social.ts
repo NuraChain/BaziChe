@@ -453,6 +453,8 @@ export const social: Pick<Dictionary, keyof typeof reference> = {
     'emoji.symbols': '符号',
     'emoji.flags': '旗帜',
     'chat.loadFailed': '无法加载这个对话。',
+    'chat.refused.message-blocked': '你无法联系这个账号。',
+    'chat.refused.message-closed': '对方不接收未添加之人的消息。',
     'level.xp': '经验',
     'level.short': '等级',
     'level.title': '等级 {level}',

@@ -11,6 +11,7 @@ import { TableSeat } from '../../entities/table-seat.entity.ts';
 import { TableStake } from '../../entities/table-stake.entity.ts';
 import { User } from '../../entities/user.entity.ts';
 import { maskOf } from '../stake/policy.ts';
+import { isSystem } from '../system/sql.ts';
 import { clockOf } from '../table/clocks.ts';
 import { gameOff, gameOn, lockTable, stillLocking, tableRefusal } from '../table/service.ts';
 import { hmacSha256, keccak, pickBelow } from '../../lib/crypto.ts';
@@ -178,6 +179,13 @@ export const ENGINES: readonly Engine[] = [ludoEngine, hokmEngine, backgammonEng
 
 export const FOLD_MAX = 8;
 
+/**
+ * Whether a person holds any of these chairs. A match needs one: a table of system players only
+ * would play on for nobody, and the filler's own care is not a lock.
+ */
+export const seatsAPerson = (chairs: readonly { userId: string | null }[], system: ReadonlySet<string>) =>
+    chairs.some((chair) => chair.userId !== null && !system.has(chair.userId));
+
 const NO_REWARD_EFFECTS: RewardFinishEffects = { changed: [], ready: [] };
 
 export const VOIDED = { seat: -1, kind: 'forfeit', verb: 'void' } as const;
@@ -256,6 +264,16 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
         if (chairs.some((chair) => !chair.ready))
         {
             throw tableRefusal('not-ready', 'Everybody has to be ready first.');
+        }
+
+        const system = new Set((await tx.query(
+            `select u.id from unnest($1::uuid[]) as u(id) where ${ isSystem('u.id') }`,
+            [chairs.map((chair) => chair.userId)]
+        ) as { id: string }[]).map((row) => row.id));
+
+        if (!seatsAPerson(chairs, system))
+        {
+            throw tableRefusal('not-ready', 'That table is not ready to start.');
         }
 
         const seats = chairs.map((chair) => chair.seat);
@@ -729,7 +747,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                     && chairs.every((chair, index) => chair.seat === staked[index].seat && chair.userId === staked[index].userId && chair.ready)
                     && !await tx.getRepository(User).createQueryBuilder('u')
                         .where('u.id in (:...ids)', { ids: staked.map((one) => one.userId) })
-                        .andWhere('(u.is_minor or u.is_suspended)')
+                        .andWhere(`(u.is_minor or u.is_suspended or ${ isSystem('u.id') })`)
                         .getExists();
                 const matchId = same ? await deal(tx, table, chairs, drawsAt(seeded(staked), OPENING)) : null;
 

@@ -25,6 +25,7 @@ import { useDevice } from '../../stores/device.store.ts';
 import { useSocial } from '../../stores/social.store.ts';
 import { playWith } from '../../lib/play-with.ts';
 import { attempt } from '../../lib/attempt.ts';
+import { whyMessage } from '../../lib/message-refusal.ts';
 import { pagingFor, visible } from '../../lib/pagination.ts';
 import { usePageParams } from '../../lib/page-param.ts';
 import { SEARCH_FIELD, keyboardTo } from '../../lib/way-back.ts';
@@ -196,7 +197,7 @@ export default component FriendsPage()
 
     const message = (person: Person) =>
     {
-        void chat.openDirect(person.id).then((id) => navigate(`/app/chats/${ id }`));
+        void attempt(chat.openDirect(person.id).then((id) => navigate(`/app/chats/${ id }`)), undefined, whyMessage);
     };
 
 

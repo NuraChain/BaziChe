@@ -13,6 +13,7 @@ import { TournamentGame } from '../../entities/tournament-game.entity.ts';
 import { Tournament, type TournamentStatus } from '../../entities/tournament.entity.ts';
 import { User } from '../../entities/user.entity.ts';
 import { lockTable } from '../table/service.ts';
+import { isSystem } from '../system/sql.ts';
 import { BEST_OF, FORMATS, MIN_ENTRANTS, type FormatId } from './engine/formats.ts';
 import { READY_MS } from './ready.ts';
 import { applyResult, dueGames, forfeitAbsent, shuffledSeeds, undecided, walkover, withoutAbsent, type Game as EngineGame, type Link, type Rules, type Side } from './engine/game.ts';
@@ -820,8 +821,10 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             const full = await db.transaction(async (tx) =>
             {
                 const tournament = await entryLock(tx, code);
+                const [{ system }] = await tx.query(`select ${ isSystem('$1::uuid') } as system`, [me]) as [{ system: boolean }];
 
-                if (tournament.status !== 'open' || tournament.startsAt.getTime() <= Date.now())
+                // A system player is never a bracket's entrant, so never its champion.
+                if (system || tournament.status !== 'open' || tournament.startsAt.getTime() <= Date.now())
                 {
                     throw refusal('tournament-closed', 'That tournament is not taking entries.');
                 }

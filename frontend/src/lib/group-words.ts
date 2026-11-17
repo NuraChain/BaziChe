@@ -1,7 +1,7 @@
 import type { MessageKey } from '../locales/en.ts';
 import type { GroupLogRow } from '../stores/group-admin.store.ts';
 import type { LocaleApi } from '../stores/locale.store.ts';
-import { handleParts } from './staff-words.ts';
+import { handleParts } from './handle-parts.ts';
 
 const SLOTS = { actor: '{actor}', person: '{person}' };
 

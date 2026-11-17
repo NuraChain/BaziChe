@@ -1,0 +1,171 @@
+import { GAMES } from '../../data/games.ts';
+import { newestFirst, totalsOf } from '../../lib/system-admin.ts';
+import { useAdminSystem } from '../../stores/admin-system.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import AdminEmpty from './admin-empty.component.azeroth';
+import When from './when.component.azeroth';
+
+/** What system players are doing now, per game, with the strategy that plays each; and what the decision runtime counted since the server started. */
+export default component AdminSystemFigures()
+{
+    const locale = useLocale();
+    const store = useAdminSystem();
+
+    mount
+    {
+        store.want('system');
+    }
+
+    const nameOf = (game: string) =>
+    {
+        const known = GAMES.find((one) => one.id === game);
+
+        return known === undefined ? game : locale.t(known.nameKey);
+    };
+
+    derived held = store.system();
+
+    derived waiting = held === null && !store.systemFailed();
+
+    derived failed = store.systemFailed();
+
+    derived shown = held !== null;
+
+    derived totals = totalsOf(held?.games ?? []);
+
+    derived games = (held?.games ?? []).map((one) => ({
+        ...one,
+        name: nameOf(one.game),
+        agent: one.strategy?.agent ?? '',
+        version: one.strategy === undefined ? '' : locale.t('admin.systemPage.version', { version: one.strategy.version }),
+        sees: one.strategy === undefined ? '' : locale.t(one.strategy.sees === 'open' ? 'admin.systemPage.sees.open' : 'admin.systemPage.sees.hidden'),
+        played: one.strategy !== undefined
+    }));
+
+    derived listed = games.length > 0;
+
+    derived bare = held !== null && !listed;
+
+    derived ai = held?.ai ?? null;
+
+    derived errors = newestFirst(ai?.errors ?? []).map((one, at) => ({ ...one, key: `${ one.at }-${ at }`, name: nameOf(one.game) }));
+
+    derived erred = errors.length > 0;
+
+    derived clean = held !== null && !erred;
+
+    derived tiles = [
+        { id: 'seated', label: locale.t('admin.systemPage.seated'), value: locale.n(totals.seated) },
+        { id: 'playing', label: locale.t('admin.systemPage.playing'), value: locale.n(totals.playing) },
+        { id: 'live', label: locale.t('admin.systemPage.live'), value: locale.n(totals.live) },
+        { id: 'today', label: locale.t('admin.systemPage.today'), value: locale.n(totals.today) }
+    ];
+
+    derived aiTiles = [
+        { id: 'decisions', label: locale.t('admin.systemPage.decisions'), value: locale.n(ai?.decisions ?? 0) },
+        { id: 'average', label: locale.t('admin.systemPage.averageMs'), value: locale.t('admin.systemPage.ms', { ms: Math.round(ai?.averageMs ?? 0) }) },
+        { id: 'worst', label: locale.t('admin.systemPage.worstMs'), value: locale.t('admin.systemPage.ms', { ms: Math.round(ai?.worstMs ?? 0) }) },
+        { id: 'fallbacks', label: locale.t('admin.systemPage.fallbacks'), value: locale.n(ai?.fallbacks ?? 0) }
+    ];
+
+    derived pool = locale.t('admin.systemPage.poolCounts', { size: held?.pool.size ?? 0, retired: held?.pool.retired ?? 0, most: held?.most ?? 0 });
+
+    <section class="flex flex-col gap-4" aria-labelledby="admin-system-now" data-system-figures>
+        <div class="flex flex-col gap-1">
+            <h2 id="admin-system-now" class="title text-ui-2xl text-text">{ locale.t('admin.systemPage.now') }</h2>
+            <Show when={ shown }>
+                <p class="tabular-nums text-ui-md text-muted" data-system-pool-counts>{ pool }</p>
+            </Show>
+        </div>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 4 } /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState error={ store.systemError() } compact title={ locale.t('admin.systemPage.figuresFailed') } onRetry={ () => void store.refresh() } /> }
+        </Show>
+
+        <Show when={ shown }>
+            <div class="flex flex-col gap-4">
+                <dl class="grid grid-cols-2 gap-3 @2xl:grid-cols-4" data-system-totals>
+                    <For each={ tiles } key={ (tile) => tile.id } let={ tile }>
+                        <div class="flex flex-col gap-1 rounded-panel border border-line bg-field p-4">
+                            <dt class="text-ui-xs text-muted">{ tile.label }</dt>
+                            <dd class="tally text-ui-xl font-semibold text-text">{ tile.value }</dd>
+                        </div>
+                    </For>
+                </dl>
+
+                <div class="flex flex-col gap-2" data-system-per-game>
+                    <h3 class="text-ui-lg font-semibold text-text">{ locale.t('admin.systemPage.perGame') }</h3>
+                    <Show when={ bare }>
+                        { () => <AdminEmpty icon="games" title={ locale.t('admin.systemPage.gamesEmpty') } /> }
+                    </Show>
+                    <Show when={ listed }>
+                        <ul class="divide-y divide-line overflow-hidden rounded-panel border border-line bg-field">
+                            <For each={ games } key={ (game) => game.game } let={ game }>
+                                <li class="flex flex-col gap-2 px-4 py-3" data-system-figure={ game.game }>
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                        <span class="text-ui-md font-semibold text-text">{ game.name }</span>
+                                        <Show when={ !game.on }>
+                                            <Badge text={ locale.t('admin.systemPage.off') } tone="neutral" />
+                                        </Show>
+                                    </div>
+                                    <p class="tabular-nums text-ui-sm text-text">
+                                        { locale.t('admin.systemPage.gameFigures', { seated: game.seated, playing: game.playing, live: game.live, today: game.today }) }
+                                    </p>
+                                    <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui-xs text-muted" data-system-strategy>
+                                        <Show when={ game.played } fallback={ <span>{ locale.t('admin.systemPage.noStrategy') }</span> }>
+                                            <span>{ locale.t('admin.systemPage.strategy') }</span>
+                                            <code class="font-mono text-text" dir="ltr">{ game.agent }</code>
+                                            <span class="tabular-nums">{ game.version }</span>
+                                            <span>· { game.sees }</span>
+                                        </Show>
+                                    </p>
+                                </li>
+                            </For>
+                        </ul>
+                    </Show>
+                </div>
+
+                <div class="flex flex-col gap-2" data-system-ai>
+                    <div class="flex flex-col gap-1">
+                        <h3 class="text-ui-lg font-semibold text-text">{ locale.t('admin.systemPage.ai') }</h3>
+                        <p class="text-ui-sm text-muted">{ locale.t('admin.systemPage.aiLead') }</p>
+                    </div>
+                    <dl class="grid grid-cols-2 gap-3 @2xl:grid-cols-4">
+                        <For each={ aiTiles } key={ (tile) => tile.id } let={ tile }>
+                            <div class="flex flex-col gap-1 rounded-panel border border-line bg-field p-4" data-system-ai-figure={ tile.id }>
+                                <dt class="text-ui-xs text-muted">{ tile.label }</dt>
+                                <dd class="tally text-ui-xl font-semibold text-text">{ tile.value }</dd>
+                            </div>
+                        </For>
+                    </dl>
+                </div>
+
+                <div class="flex flex-col gap-2" data-system-errors>
+                    <h3 class="text-ui-lg font-semibold text-text">{ locale.t('admin.systemPage.errors') }</h3>
+                    <Show when={ clean }>
+                        { () => <AdminEmpty icon="check-circle" title={ locale.t('admin.systemPage.errorsEmpty') } /> }
+                    </Show>
+                    <Show when={ erred }>
+                        <ul class="divide-y divide-line overflow-hidden rounded-panel border border-line bg-field">
+                            <For each={ errors } key={ (row) => row.key } let={ row }>
+                                <li class="flex flex-col gap-1 px-4 py-3" data-system-error>
+                                    <p class="text-ui-xs text-muted">
+                                        <span class="font-semibold text-text">{ row.name }</span> · <When at={ row.at } />
+                                    </p>
+                                    <p class="text-ui-sm text-text [overflow-wrap:anywhere]" dir="ltr">{ row.message }</p>
+                                </li>
+                            </For>
+                        </ul>
+                    </Show>
+                </div>
+            </div>
+        </Show>
+    </section>
+}

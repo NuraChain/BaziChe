@@ -17,6 +17,7 @@ import { orderVerdict, type OrderAfter, type Sold } from '../reconcile/verdicts.
 import { FEATURED_FIRST, SHOP_COLLECTIONS, bundleOf, bundlePriceFor, isItemId } from './catalogue.ts';
 import type { OrderState, ShopItemStatus, ShopMay } from './policy.ts';
 import { shopRefusal } from './service.ts';
+import { notSystem } from '../system/sql.ts';
 
 /** How long a quote is good for: the shop takes it until then and never after. */
 const QUOTE_LIFE = `interval '30 minutes'`;
@@ -235,7 +236,10 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
         return buyer.address;
     };
 
-    /** A friend of the buyer by handle. Nobody, somebody suspended and somebody who is not a friend are one answer. */
+    /**
+     * A friend of the buyer by handle. Nobody, somebody suspended, a system player and somebody who
+     * is not a friend are one answer: a gift to a system player is money spent on nobody.
+     */
     const friendOf = async (me: string, handle: string) =>
     {
         const found = await db.getRepository(User)
@@ -244,6 +248,7 @@ export function createOrderService(db: DataSource, shop: ShopChain, hooks: Order
             .select('u.id', 'id')
             .where('u.handle = :handle', { handle: handle.trim().replace(/^@/, '') })
             .andWhere('u.is_suspended = false')
+            .andWhere(notSystem('u.id'))
             .getRawOne<{ id: string }>();
 
         if (found === undefined)

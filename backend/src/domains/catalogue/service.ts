@@ -4,6 +4,7 @@ import { Game, Match, Table, TableSeat } from '../../entities/index.ts';
 
 import type { CataloguePort } from '../../ports.ts';
 import type { GameList, LiveCounts } from '../../schemas.ts';
+import { notSystem } from '../system/sql.ts';
 import { isClock } from '../table/clocks.ts';
 import type { Partners } from '../table/teams.ts';
 
@@ -98,7 +99,7 @@ export function createCatalogueService(db: DataSource): CataloguePort
                 .select('g.id', 'game')
                 .addSelect('g.status', 'status')
                 .addSelect('count(distinct t.id) filter (where m.id is null and s.user_id is null and s.invited_id is null)::int', 'tables')
-                .addSelect('count(s.user_id)::int', 'playing')
+                .addSelect(`count(s.user_id) filter (where ${ notSystem('s.user_id') })::int`, 'playing')
                 .groupBy('g.id')
                 .addGroupBy('g.status')
                 .addGroupBy('g.sort_order')

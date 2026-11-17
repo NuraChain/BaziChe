@@ -1765,7 +1765,7 @@ describe('the owner\'s view of the vault', () =>
             identity: {
                 principal: () => Promise.resolve({ userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' })
             },
-            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice', 'shop', 'shopItem', 'shopFeature', 'shopOrders', 'giveLook', 'takeLook', 'shopMoney', 'shopWithdraw', 'shopShare', 'shopSeller', 'shopPause', 'shopRefund', 'minters', 'minterGrant', 'minterRevoke', 'minterSent', 'invites', 'campaigns', 'writeCampaign', 'changeCampaign', 'moveCampaign', 'rewards', 'decideReward', 'rewardConfig', 'switchRewards', 'setRewardAmounts', 'setRewardLooks', 'setRewardBudget', 'freezeRewards'].map((verb) => [verb, (...said: unknown[]) =>
+            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice', 'shop', 'shopItem', 'shopFeature', 'shopOrders', 'giveLook', 'takeLook', 'shopMoney', 'shopWithdraw', 'shopShare', 'shopSeller', 'shopPause', 'shopRefund', 'minters', 'minterGrant', 'minterRevoke', 'minterSent', 'invites', 'campaigns', 'writeCampaign', 'changeCampaign', 'moveCampaign', 'rewards', 'decideReward', 'rewardConfig', 'switchRewards', 'setRewardAmounts', 'setRewardLooks', 'setRewardBudget', 'freezeRewards', 'system', 'systemPlayers', 'switchSystem', 'setSystemGames', 'setSystemSettings', 'retireSystemPlayer'].map((verb) => [verb, (...said: unknown[]) =>
             {
                 told.push([verb, ...said]);
 
@@ -1833,6 +1833,51 @@ describe('the owner\'s view of the vault', () =>
         }
 
         expect(told).toEqual([['staff', 'somebody'], ['setStaff', 'somebody', change], ['log', 'somebody', { kind: 'grant', person: 'mina' }]]);
+    });
+
+    it('answers anybody without the system players ability as a page that is not there, on every system route', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = owned(told, null);
+        const reason = 'Testing the pool';
+        const answers = [
+            await sent(app, '/system'),
+            await sent(app, '/system/players?cursor=x'),
+            await sent(app, '/system/switch', { on: true, reason }),
+            await sent(app, '/system/games', { games: { chess: false }, reason }),
+            await sent(app, '/system/settings', { wait: 30, skill: 'advanced', most: 50, reason }),
+            await sent(app, '/system/players/sara.m/retire', { reason })
+        ];
+
+        for (const response of answers)
+        {
+            const body = await response.json() as { error: { code: string; message: string } };
+
+            expect([response.status, body.error.code, body.error.message]).toEqual([404, 'not-found', 'Nothing there.']);
+        }
+
+        expect(told).toEqual([
+            ['system', 'somebody'],
+            ['systemPlayers', 'somebody', { cursor: 'x' }],
+            ['switchSystem', 'somebody', { on: true, reason }],
+            ['setSystemGames', 'somebody', { games: { chess: false }, reason }],
+            ['setSystemSettings', 'somebody', { wait: 30, skill: 'advanced', most: 50, reason }],
+            ['retireSystemPlayer', 'somebody', 'sara.m', { reason }]
+        ]);
+    });
+
+    it('refuses system settings outside their ranges before any port is asked', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = owned(told, null);
+        const reason = 'Testing the pool';
+
+        for (const body of [{ wait: 4, skill: 'casual', most: 10, reason }, { wait: 121, skill: 'casual', most: 10, reason }, { wait: 20, skill: 'grandmaster', most: 10, reason }, { wait: 20, skill: 'casual', most: 0, reason }, { wait: 20, skill: 'casual', most: 201, reason }, { wait: 20, skill: 'casual', most: 10 }])
+        {
+            expect((await sent(app, '/system/settings', body)).status, JSON.stringify(body)).toBe(422);
+        }
+
+        expect(told).toEqual([]);
     });
 
     it('answers anybody who may not read the people as a page that is not there, on the list, a person and every action on one', async () =>

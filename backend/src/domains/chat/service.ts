@@ -2,6 +2,7 @@ import { BadRequestError, ConflictError, ForbiddenError, HttpError, NotFoundErro
 import { In, IsNull, type DataSource, type EntityManager } from 'typeorm';
 
 import { EDIT_HOURS } from './edits.ts';
+import { MESSAGE_REFUSALS } from './refusals.ts';
 import { FILE_REACHED_BY_ME, fileNamed } from './file-rules.ts';
 import {
     FILE_DAY_BYTES,
@@ -39,6 +40,7 @@ import { Message, type MessageKind } from '../../entities/message.entity.ts';
 import { User } from '../../entities/user.entity.ts';
 import { VoiceNote } from '../../entities/voice-note.entity.ts';
 import { VoicePlay } from '../../entities/voice-play.entity.ts';
+import type { MessageRefusal } from '../social/policy.ts';
 import type { SocialService } from '../social/service.ts';
 import { GROUP_REFUSALS } from '../group/refusals.ts';
 import { PINS_MOST, SWITCH_COLUMNS, SWITCHES, mayIn, type GroupRight, type GroupRole } from '../group/roles.ts';
@@ -224,6 +226,12 @@ export function pairKeyOf(a: string, b: string)
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const refused = (word: VoiceRefusal, message: string) => new HttpError(VOICE_REFUSALS[word], message, { code: word });
+
+/** A block is said as one; every other refusal reads as a door closed to strangers, which names nobody's age. */
+const messageRefused = (refusal: MessageRefusal) =>
+    (refusal === 'blocked'
+        ? new HttpError(MESSAGE_REFUSALS['message-blocked'], 'You cannot reach that account.', { code: 'message-blocked' })
+        : new HttpError(MESSAGE_REFUSALS['message-closed'], 'They are not taking messages from people they have not added.', { code: 'message-closed' }));
 
 /**
  * The reader may hear the voice file `v`: they uploaded it, or they are in a room holding a live
@@ -724,9 +732,7 @@ export function createChatService(
             const refusal = await social.mayMessage(me, other.user_id);
             if (refusal !== null)
             {
-                throw new ForbiddenError(refusal === 'blocked'
-                    ? 'You cannot reach that account.'
-                    : 'They are not taking messages from people they have not added.');
+                throw messageRefused(refusal);
             }
         }
 
@@ -1741,9 +1747,7 @@ export function createChatService(
             const refusal = await social.mayMessage(me, otherId);
             if (refusal !== null)
             {
-                throw new ForbiddenError(refusal === 'blocked'
-                    ? 'You cannot reach that account.'
-                    : 'They are not taking messages from people they have not added.');
+                throw messageRefused(refusal);
             }
 
             const key = pairKeyOf(me, otherId);

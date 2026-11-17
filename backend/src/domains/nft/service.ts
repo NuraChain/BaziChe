@@ -6,6 +6,7 @@ import { rowsOf } from '../../lib/rows.ts';
 import { RUNGS } from '../achieve/families.ts';
 import { NFT_BATCH_MOST, NFT_SENDS_PER_PASS, type NftCollection, type NftState } from './rules.ts';
 import { awardAchievement, burnLook, mintLooks, settleSent, type Change, type TokenRow } from './steps.ts';
+import { notSystem } from '../system/sql.ts';
 
 /** The achievements minted: the legendary rungs, the top tenth of every ladder (`rarityAt`). */
 export const LEGENDARY: readonly string[] = RUNGS.filter((rung) => rung.rarity === 'legendary').map((rung) => rung.id);
@@ -80,7 +81,7 @@ export function createNftService(db: DataSource, chain: NftChain)
         }
     };
 
-    /** Writes a row for every look owned and every legendary achievement earned that has no live token, a slice at a time. */
+    /** Writes a row for every look owned and every legendary achievement a person earned that has no live token, a slice at a time. A system player's achievements are never minted, wallet or not. */
     const owe = async () =>
     {
         const looks = rowsOf<{ user_id: string; key: string; address: string }>(await db.query(
@@ -98,6 +99,7 @@ export function createNftService(db: DataSource, chain: NftChain)
                from user_achievements ua
                ${ LAST_WALLET('ua.user_id') }
               where ua.achievement_id = any($2::text[])
+                and ${ notSystem('ua.user_id') }
                 and not exists (select 1 from nft_tokens t
                                  where t.collection = 'achievement' and t.user_id = ua.user_id and t.key = ua.achievement_id and t.state <> 'burned')
               order by ua.earned_at

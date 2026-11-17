@@ -8,6 +8,7 @@ import { FriendRequest } from '../../entities/friend-request.entity.ts';
 import { Friendship } from '../../entities/friendship.entity.ts';
 import { Mute, type MuteSubject } from '../../entities/mute.entity.ts';
 import { isNotice } from '../notify/notices.ts';
+import { notSystem } from '../system/sql.ts';
 import { folded, likeLiteral, SEARCH_FROM, searchNeedle } from './names.ts';
 import { PROFILE_LOOKS, chosenIn, profileLookColumns, type ProfileLooks } from '../shop/looks.ts';
 import { GroupReport } from '../../entities/group-report.entity.ts';
@@ -285,6 +286,7 @@ export function createSocialService(db: DataSource)
                  where mine.user_id = $1
                    and theirs.friend_id <> $1
                    and u.is_suspended = false
+                   and ${ notSystem('u.id') }
                    and not exists (select 1 from friendships f
                                     where f.user_id = $1 and f.friend_id = theirs.friend_id)
                    and not exists (select 1 from blocks b
@@ -312,6 +314,7 @@ export function createSocialService(db: DataSource)
                  from users u
                  where u.is_suspended = false
                    and u.id <> $1
+                   and ${ notSystem('u.id') }
                    and not exists (select 1 from friendships f where f.user_id = $1 and f.friend_id = u.id)
                    and not exists (select 1 from blocks b
                                     where (b.user_id = $1 and b.blocked_id = u.id)

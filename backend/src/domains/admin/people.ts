@@ -5,6 +5,7 @@ import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/k
 import type { AdminPeople } from '../../schemas.ts';
 import { avatarHashOf } from '../identity/avatar.ts';
 import { folded, likeLiteral, SEARCH_FROM, searchNeedle } from '../social/names.ts';
+import { isSystem, notSystem } from '../system/sql.ts';
 import { agentOf } from './agent.ts';
 import { outranks, PEOPLE_PAGE, type ClearPart, type GrantedRole, type PeopleList, type ReportStatus, type SuspendCategory, type SuspendDays } from './roles.ts';
 import { record, staffRefusal, type Actor } from './staff.ts';
@@ -16,7 +17,7 @@ export interface PeopleAsk
     cursor?: string;
 }
 
-interface PersonRow extends Keyed
+export interface PersonRow extends Keyed
 {
     handle: string;
     display_name: string;
@@ -30,6 +31,7 @@ interface PersonRow extends Keyed
     owner: boolean;
     ranked: boolean;
     reports: number;
+    system: boolean;
 }
 
 interface FullRow extends PersonRow
@@ -84,7 +86,11 @@ const roleOf = (row: PersonRow) => (row.owner ? 'owner' as const : row.staff_rol
 
 const nobody = () => staffRefusal('staff-nobody', 'No one by that name.');
 
-const face = (row: PersonRow) =>
+/**
+ * A person's face for the staff. The system mark goes to everyone who may open these pages: a
+ * system player has no wallet, sessions or devices, so the rest of the face tells them anyway.
+ */
+export const face = (row: PersonRow) =>
 {
     const role = roleOf(row);
 
@@ -98,7 +104,8 @@ const face = (row: PersonRow) =>
         minor: row.is_minor,
         suspended: row.is_suspended,
         ...(role === null ? {} : { staff: role }),
-        reports: row.reports
+        reports: row.reports,
+        ...(row.system ?{ system: true as const } : {})
     };
 };
 
@@ -119,6 +126,7 @@ export function createPeopleService(db: DataSource, owners: () => readonly strin
         .addSelect('exists (select 1 from wallets o where o.user_id = u.id and o.address = any(:owners))', 'owner')
         .addSelect('exists (select 1 from wallets o where o.user_id = u.id and o.address = any(:ranked))', 'ranked')
         .addSelect('(select count(*)::int from reports r where r.against = u.id)', 'reports')
+        .addSelect(isSystem('u.id'), 'system')
         .setParameter('owners', shown())
         .setParameter('ranked', owners());
 
@@ -184,7 +192,7 @@ export function createPeopleService(db: DataSource, owners: () => readonly strin
                 .limit(PEOPLE_PAGE + 1)
                 .getRawMany<PersonRow>();
 
-            return { rows: rows.slice(0, PEOPLE_PAGE).map(face), ...cursorOf(rows, PEOPLE_PAGE) };
+            return { rows: rows.slice(0, PEOPLE_PAGE).map((row) => face(row)), ...cursorOf(rows, PEOPLE_PAGE) };
         },
 
         async view(handle: string)
@@ -305,6 +313,7 @@ export function createPeopleService(db: DataSource, owners: () => readonly strin
                 .addSelect(`(count(*) filter (where u.last_seen_at > now() - interval '1 day'))::int`, 'active')
                 .addSelect('(count(*) filter (where u.is_suspended))::int', 'suspended')
                 .addSelect('(count(*) filter (where u.is_minor))::int', 'minors')
+                .where(notSystem('u.id'))
                 .getRawOne<{ total: number; day: number; week: number; active: number; suspended: number; minors: number }>();
 
             return row ?? { total: 0, day: 0, week: 0, active: 0, suspended: 0, minors: 0 };

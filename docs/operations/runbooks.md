@@ -284,6 +284,130 @@ and the switch off, in `psql` before the new build starts:
    as broken and start again at day 1 on the next check-in. Nobody loses NURA by it.
 3. Start the new build and read the log for `the entities still differ`. Then switch on (above).
 
+## System players
+
+Seats the server plays at public quick-play tables, so a person is not left waiting
+(`docs/design/2026-11-17-system-players-design.md`). To the players they are players; only staff can
+tell which accounts they are: Admin › People marks them for everyone who may open it (a moderator
+and above), and the System players page needs the `system` ability (an admin's). A match with one
+moves no rating and makes no market, and for the people in it counts for no quest, no invite, no
+achievement progress and no streak. System players earn their own achievements, but never appear
+among holders or on a board. The whole feature ships switched off.
+
+**Where to look:** Admin › System players (`GET /api/admin/system`), and the server's log: `system
+seats` (info: how many were seated, started, stood up, closed in a pass), `system seat failed` and
+`seat fill failed` (the seat filler), `system player failed` and `seat drive failed` (the AI runtime).
+Nothing is in `GET /api/metrics` or on Admin › Overview yet.
+
+### Before the first deploy of the system players branch
+
+Nothing to run by hand: the start brings the database to the entities.
+
+- a new table, `system_players` (`user_id` keyed to `users`, deleted with it; `skill`; `style`;
+  `retired_at`; `created_at`), empty;
+- `player_stats` gains `system_played`, `system_won` and `system_xp`, each `integer` default 0, and a
+  check `player_stats_system` that keeps each between 0 and its total (`played`, `won`, `xp`). Every
+  existing row reads 0 and passes;
+- `player_stats` gains `system_tallies`, `jsonb` default `{}`, and a check
+  `player_stats_system_tallies` that keeps it an object. Every existing row reads `{}` and passes;
+- `staff_actions_kind_known` gains the kind `system-players`;
+- `settings_key_known` gains the key `system-players`. No setting row is written until the first
+  change on the page; until then the defaults hold, which are off.
+
+Start the new build and read the log for `the entities still differ`. Once a `system-players` staff
+action or setting row exists, an older build's start would fail its checks against those rows: roll
+back by the dump (`docs/operations/rollout.md`), never by starting the old build here.
+
+### Switching it on
+
+Owner only (the `wallet` ability), each change with a reason, a `system-players` staff action with
+the before and after. While the master switch is still off, in this order:
+
+1. **The games.** A game is on unless switched off by name, so switching on fills every game. Switch
+   off any game you do not want filled yet (`POST /api/admin/system/games`,
+   `{ "games": { "poker": false }, "reason": "…" }`). Each game's line names the strategy that plays
+   it; a game with "No strategy plays this game" is never filled whatever its switch says, but keep
+   it off so the page says what happens.
+2. **The settings** (`POST /api/admin/system/settings`, `{ "wait": 20, "skill": "intermediate",
+   "most": 40, "reason": "…" }`): the seconds a person waits before seats are filled (5 to 120), the
+   skill new system players are made with (existing ones keep theirs), and the most there may be
+   (1 to 200, retired ones not counted). Start with a long wait and a small pool, and look at the
+   figures after a day.
+3. **The switch** (`POST /api/admin/system/switch`, `{ "on": true, "reason": "…" }`). Within a few
+   seconds the seat filler starts seating at tables where every person seated is ready, one is
+   present, and the table has waited `wait` seconds since the longest-waiting one got ready, the
+   last game there ended, or a system player last stood up from it, whichever is latest.
+
+### What the figures on Admin › System players mean
+
+- **Waiting at tables**: system players seated at an open table with no match running: filling it,
+  about to stand up after a match, or leaving a table its people left, one every 3 to 15 seconds.
+- **Playing now**: system players in a live match. **Live matches with one**: matches running with
+  at least one system seat. **Matches today with one**: matches with a system seat started since
+  midnight by the database's clock.
+- **The pool**: how many there are, of at most `most`, and how many are retired. They are made as
+  seats need them, so a pool well under the cap is normal.
+- **Decisions**, since the server last started (a restart puts them back to zero): how many moves
+  were decided, the average and slowest time a decision took in the worker, **fallback moves** (a
+  cheap legal move played because no decision arrived in time, or it failed), and **recent errors**
+  (the last 50, also in the log). A few fallbacks under load are expected; fallbacks rising with
+  decisions flat is the worker not answering.
+- **The pool list**: each system player's handle, skill, style, games played, and where it sits or
+  plays now.
+
+### Retiring a system player
+
+For one whose name turned out wrong, or one that was noticed: Admin › System players, the pool, the
+player, Retire, with a reason (`POST /api/admin/system/players/:handle/retire`,
+`{ "reason": "…" }`; the `system` ability). It is never seated again. A match it is playing is
+played to the end; at a table that has not started, it stands up at the next pass. Retiring cannot
+be undone, and the row stays (its matches still name it). If the pool is at its cap, a new one is
+made in its place the next time a seat needs one, since retired ones are not counted.
+
+### Switching everything off quickly
+
+Owner: Admin › System players, the switch, off, with a reason (`POST /api/admin/system/switch`,
+`{ "on": false, "reason": "…" }`). Within about 2 seconds nobody new is seated, and system players
+waiting at tables that have not started stand up (the people stay seated and keep their chairs).
+**Matches under way are not touched**: their system players play them to the end, and a restart
+does not stop that (the runtime picks them up again from the database). To end one at once, void it
+from Admin › Play as any other match. One game is switched off the same way through the games.
+
+### System players stop moving
+
+**Means** a match with a system seat sits on a system player's turn, the turn deadlines pass and the
+turn sweep moves for them, or the recent errors fill with `A system seat reached its turn deadline.`
+
+**Look at** the recent errors and the log's `system player failed` lines (they name the game, the
+match and the message), and the figures:
+
+- `The decision worker stopped (…)`, `The decision ran past its time.`: the worker died or ran away.
+  The next decision makes a new one, and the fallback plays meanwhile. If it keeps happening for
+  one game, that game's agent is at fault: switch the game off and report it with the match ids.
+- `The decision queue is full.`: more system seats to move at once than the workers keep up with
+  (64 waiting). The pool grows to at most 4 workers, fewer on a machine with few cores (it leaves
+  two to the server and the database). Lower `most`, or switch the busiest game off, until it
+  clears.
+- Decisions and fallbacks both flat while matches with a system seat are live: the runtime is not
+  driving. It starts with the first `driveSeats` pass, 3 seconds after a start; look for `seat drive
+  failed` (usually the database), and restart the server if nothing is said. A restart loses only
+  what was in memory: the next pass finds every live match where a system player is to move.
+- Slowest time near 3 seconds and fallbacks rising: the machine is short of CPU. The workers run
+  beside the server's own event loop; check This server on Admin › Overview.
+
+**Nobody is being seated**: the switch and the game are on, and the game has a strategy (a game
+with none is never filled); the pool is at `most` with every system player busy, or every idle one
+sat at this table in the last 10 minutes (the table waits, which is the rule, not a fault);
+`system seat failed` lines name the table and the error. A table is filled only when every person
+seated is ready and one is connected, so one person not ready, or a person whose socket dropped,
+holds it until that changes; saying ready again restarts the wait.
+
+**System players linger, or leave together**: at a table its people left, they stand up one at a
+time, each 3 to 15 seconds after the last; in a match with no person left, each resigns 4 to 20
+seconds after the server first saw it so. Both clocks are kept in memory: after a restart, or with
+more than one server running the filler, they can run a little late or early. Seated at a table for
+a minute with every chair taken and no match started, they stand up anyway.
+
 ## When no alert says it
 
 ### A server key has leaked

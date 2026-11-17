@@ -14,6 +14,7 @@ import { donationVerdict, type DonationAfter, type Given } from '../reconcile/ve
 import { eligibilityOf, WEI_PER_NURA, type Eligibility, type Standing } from '../stake/policy.ts';
 import { LEAST_NURA, MOST_NURA, PRESETS_NURA, type DonateMay, type DonationState } from './policy.ts';
 import { DONATE_REFUSALS, type DonateRefusal } from './refusals.ts';
+import { isSystem } from '../system/sql.ts';
 
 /** How long a prepared gift's call is good for: the contract takes it until then and never after. */
 const GIFT_LIFE = `interval '30 minutes'`;
@@ -88,7 +89,12 @@ interface PlayerRow
     suspended: boolean;
     off: boolean;
     apart: boolean;
+    system: boolean;
 }
+
+/** Whether a gift could go to this player: never to the giver, nor to a system player, which has no wallet to give to and no person behind it. */
+export const mayReceive = (row: Omit<PlayerRow, 'handle'>, me: string) =>
+    row.id !== me && !row.system && row.address !== null && !row.minor && !row.suspended && !row.off && !row.apart;
 
 const walletOf = (alias: string) =>
     `(select w.address from wallets w where w.user_id = ${ alias }.id order by w.last_used_at desc nulls last limit 1)`;
@@ -223,12 +229,13 @@ export function createDonationService(
             .addSelect('u.is_suspended', 'suspended')
             .addSelect((query) => query.select('count(*) > 0').from(DonationsOff, 'o').where('o.user_id = u.id'), 'off')
             .addSelect('exists (select 1 from blocks b where (b.user_id = u.id and b.blocked_id = :me) or (b.user_id = :me and b.blocked_id = u.id))', 'apart')
+            .addSelect(isSystem('u.id'), 'system')
             .where('p.match_id = :matchId', { matchId, me })
             .orderBy('p.seat', 'ASC')
             .getRawMany<PlayerRow>();
         const players = rows.map((row) => ({
             ...row,
-            may: row.id !== me && row.address !== null && !row.minor && !row.suspended && !row.off && !row.apart
+            may: mayReceive(row, me)
         }));
 
         return { matchId: match.id, players, playing: rows.some((row) => row.id === me) };

@@ -16,6 +16,7 @@ import { voidedOf } from '../match/service.ts';
 import { audited, AUDIT_PAGE, nothing, RECENT, type AuditAsk, type Finding, type Words } from '../reconcile/audit.ts';
 import { claimVerdict, marketVerdict, positionVerdict, type Given, type MarketAfter, type PositionAfter } from '../reconcile/verdicts.ts';
 import { eligibilityOf, WEI_PER_NURA, weiOf, type Eligibility, type Standing } from '../stake/policy.ts';
+import { hasSystemSeat } from '../system/sql.ts';
 import { choicesOf, verdictOf } from './outcomes.ts';
 import {
     LEAST_STAKE_NURA,
@@ -555,6 +556,8 @@ export function createMarketService(
             .addSelect('m.started_at + make_interval(secs => :window) > now() + make_interval(secs => :margin)', 'taking')
             .where('m.id = :matchId and m.finished_at is null')
             .andWhere(`t.privacy = 'public' and t.mode = 'live' and t.status <> 'closed' and t.tournament_id is null`)
+            // A bettor could know more about how the server plays than about how a person does.
+            .andWhere(`not ${ hasSystemSeat('m.id') }`)
             .setParameters({ matchId, window: MARKET_WINDOW_MS / 1000, margin: CLOSE_MARGIN_S })
             .getRawOne<{ table_id: string; game: string; seats: number; variant: 'standard' | 'teams'; closes_s: string; taking: boolean }>();
         const engine = engines.find((one) => one.id === found?.game);

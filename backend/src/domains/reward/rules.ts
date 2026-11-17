@@ -332,6 +332,8 @@ export const grantAward = (facts: GrantFacts): { amount: bigint; clipped?: 'rewa
 
 export interface EligibilityFacts
 {
+    /** A system player: never earns, whatever else is true of its row. */
+    system: boolean;
     established: boolean;
     wallet: string | null;
     minor: boolean;
@@ -342,6 +344,12 @@ export interface EligibilityFacts
 /** Rule 7, and the staff's freeze: why this player may not earn NURA, or nothing when they may. */
 export const eligibilityOf = (facts: EligibilityFacts): RewardRefusal | undefined =>
 {
+    // Its own refusal would be a code nobody can ever be answered with: a system player has no session.
+    if (facts.system)
+    {
+        return 'not-established';
+    }
+
     if (facts.suspended)
     {
         return 'reward-suspended';
@@ -374,6 +382,11 @@ export const questClaimGate = (facts: EligibilityFacts | undefined): { refused: 
     if (facts === undefined)
     {
         return { withheld: 'not-established' };
+    }
+
+    if (facts.system)
+    {
+        return { refused: 'not-established' };
     }
 
     if (facts.frozen)

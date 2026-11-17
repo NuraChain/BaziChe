@@ -119,6 +119,7 @@ import type {
     RewardWithdraw
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
+import type { AdminSystem, AdminSystemPlayer, AdminSystemPlayers, adminSystemGames, adminSystemPlayersQuery, adminSystemRetire, adminSystemSettings, adminSystemSwitch } from './schemas.ts';
 import type { AdminRewardConfig, AdminRewardDayEntries, AdminRewardDays, AdminRewardFreeze, AdminRewardFrozen, AdminRewardOverview, adminRewardDayQuery, adminRewardDaysQuery, adminRewardFrozenQuery, adminRewardAmountsInput, adminRewardBudgetInput, adminRewardFreezeInput, adminRewardLooksInput, adminRewardSwitch } from './schemas.ts';
 import type { tournamentCreateInput, tournamentList, tournamentsQuery, AdminRate, adminRateInput, AdminTournament, AdminTournaments, TournamentDetail, adminTournamentRemove, adminTournamentSwitch, adminTournamentTime, adminTournamentsQuery, adminMinterInput, adminMinterSentInput, adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminSeasonStart, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
@@ -1144,6 +1145,21 @@ export interface AdminPort
 
     /** Freezes or thaws one player's rewards, held to the rank rule against them. */
     freezeRewards(me: string, handle: string, input: Infer<typeof adminRewardFreezeInput>): Promise<AdminRewardFreeze | null>;
+
+    /** System players for a role holding `system`: the setting, the figures and the pool. */
+    system(me: string): Promise<AdminSystem | null>;
+
+    systemPlayers(me: string, query: Infer<typeof adminSystemPlayersQuery>): Promise<AdminSystemPlayers | null>;
+
+    /** The owner's alone (`wallet`), each a staff action: the switch, the games, and the wait, skill and cap. */
+    switchSystem(me: string, input: Infer<typeof adminSystemSwitch>): Promise<AdminSystem | null>;
+
+    setSystemGames(me: string, input: Infer<typeof adminSystemGames>): Promise<AdminSystem | null>;
+
+    setSystemSettings(me: string, input: Infer<typeof adminSystemSettings>): Promise<AdminSystem | null>;
+
+    /** Never seats this system player again (`system`). */
+    retireSystemPlayer(me: string, handle: string, input: Infer<typeof adminSystemRetire>): Promise<AdminSystemPlayer | null>;
 }
 
 /** Every port the API declaration may reach. One member per domain. */

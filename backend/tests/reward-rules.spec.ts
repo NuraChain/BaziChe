@@ -217,7 +217,7 @@ describe('reward rules', () =>
 
     it('decides who may earn NURA in one place', () =>
     {
-        const fine = { established: true, wallet: '0x' + '1'.repeat(40), minor: false, suspended: false, frozen: false };
+        const fine = { system: false, established: true, wallet: '0x' + '1'.repeat(40), minor: false, suspended: false, frozen: false };
 
         expect(eligibilityOf(fine)).toBeUndefined();
         expect(eligibilityOf({ ...fine, established: false })).toBe('not-established');
@@ -229,9 +229,19 @@ describe('reward rules', () =>
         expect(eligibilityOf({ ...fine, frozen: true, minor: true, established: false, wallet: null })).toBe('reward-frozen');
     });
 
+    it('refuses a system player before anything else, however its row looks', () =>
+    {
+        const fine = { system: true, established: true, wallet: '0x' + '1'.repeat(40), minor: false, suspended: false, frozen: false };
+
+        expect(eligibilityOf(fine)).toBe('not-established');
+        expect(eligibilityOf({ ...fine, suspended: true, frozen: true })).toBe('not-established');
+        expect(questClaimGate(fine)).toEqual({ refused: 'not-established' });
+        expect(questClaimGate({ ...fine, frozen: true })).toEqual({ refused: 'not-established' });
+    });
+
     it('refuses a frozen player\'s quest claim whole and lets anyone else rule 7 refuses claim at 0 NURA', () =>
     {
-        const fine = { established: true, wallet: '0x' + '1'.repeat(40), minor: false, suspended: false, frozen: false };
+        const fine = { system: false, established: true, wallet: '0x' + '1'.repeat(40), minor: false, suspended: false, frozen: false };
 
         expect(questClaimGate(fine)).toEqual({});
         expect(questClaimGate({ ...fine, established: false })).toEqual({ withheld: 'not-established' });

@@ -8,6 +8,7 @@ import { levelOf } from '../match/levels.ts';
 import { markOf, nftsOf, unlinked, type NftMark } from '../nft/read.ts';
 import { PROFILE_LOOKS, chosenIn, worn, type ProfileLooks } from '../shop/looks.ts';
 import { runningSeason } from '../admin/seasons.ts';
+import { hasSystemSeat, notSystem } from '../system/sql.ts';
 
 interface Facts
 {
@@ -91,7 +92,7 @@ async function factsOf(runner: EntityManager, userId: string): Promise<Facts>
     const opponents = await runner.getRepository(MatchPlayer)
         .createQueryBuilder('p')
         .innerJoin(Match, 'm', 'm.id = p.match_id')
-        .innerJoin(MatchPlayer, 'o', 'o.match_id = p.match_id and o.user_id <> p.user_id')
+        .innerJoin(MatchPlayer, 'o', `o.match_id = p.match_id and o.user_id <> p.user_id and ${ notSystem('o.user_id') }`)
         .select('count(distinct o.user_id)::int', 'count')
         .where(FINISHED, { userId })
         .getRawOne<{ count: number }>();
@@ -311,7 +312,7 @@ const BOARD_SIZE = 20;
  * after rank 20", so two rows both ranked 20 means the second one is on neither page. A board that
  * drops a player between page one and page two is worse than one that breaks a tie alphabetically.
  */
-const RANKED_BY_TOTAL = 'rank() over (order by s.xp desc, s.rating desc, u.handle asc)';
+const RANKED_BY_TOTAL = 'rank() over (order by s.xp - s.system_xp desc, s.rating desc, u.handle asc)';
 
 const WON = `count(*) filter (where p.result = 'won')::int`;
 
@@ -374,10 +375,12 @@ export function createAchieveService(db: DataSource)
                 .select('ua.achievement_id', 'id')
                 .addSelect('count(*)::int', 'n')
                 .where('ua.achievement_id in (:...ids)', { ids: [...ids] })
+                .andWhere(notSystem('ua.user_id'))
                 .groupBy('ua.achievement_id')
                 .getRawMany<{ id: string; n: number }>(),
             db.getRepository(PlayerStats).createQueryBuilder('ps')
                 .select('count(distinct ps.user_id)::int', 'n')
+                .where(notSystem('ps.user_id'))
                 .getRawOne<{ n: number }>()
         ]);
 
@@ -470,13 +473,14 @@ export function createAchieveService(db: DataSource)
                         .addSelect(chosenIn('u', PROFILE_LOOKS.deco), 'deco')
                         .addSelect(chosenIn('u', PROFILE_LOOKS.nameplate), 'nameplate')
                         .addSelect('s.rating', 'rating')
-                        .addSelect('s.played', 'played')
+                        .addSelect('s.played - s.system_played', 'played')
                         .addSelect('s.won', 'won')
-                        .addSelect('s.xp', 'xp')
+                        .addSelect('s.xp - s.system_xp', 'xp')
                         .addSelect(RANKED_BY_TOTAL, 'rank')
                         .from(PlayerStats, 's')
                         .innerJoin(User, 'u', 'u.id = s.user_id')
-                        .where('s.game = :game and s.played >= :floor', { game, floor: MIN_PLAYED }),
+                        .where('s.game = :game and s.played - s.system_played >= :floor', { game, floor: MIN_PLAYED })
+                        .andWhere(notSystem('u.id')),
                     'board')
                     .where('CAST(:after AS int) is null or board.rank > CAST(:after AS int)', { after: after ?? null })
                     .orderBy('board.rank')
@@ -537,6 +541,8 @@ export function createAchieveService(db: DataSource)
                     .andWhere('m.finished_at is not null')
                     .andWhere(COUNTED)
                     .andWhere(within.where, within.values)
+                    .andWhere(`not ${ hasSystemSeat('m.id') }`)
+                    .andWhere(notSystem('u.id'))
                     .groupBy('u.id')
                     .having('sum(p.xp) > 0'),
                 'board')

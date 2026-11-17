@@ -142,12 +142,19 @@ export function planOf(input: { seats: readonly SeatFacts[]; after: number; winn
     };
 }
 
-export function movesOf(plan: Plan, ratings: ReadonlyMap<number, number>)
+/**
+ * The rating moves of a finished match. `frozen` (a system player held a seat) narrows what counts
+ * to nothing that moves a rating, while every seat that would have been rated still gets its row
+ * with `after = before`: the result stands, the rating does not move, and no seat is missing a
+ * rating that would mark it out from the rest.
+ */
+export function movesOf(plan: Plan, ratings: ReadonlyMap<number, number>, frozen = false)
 {
     const counted = new Map(plan.verdicts.map((one) => [one.seat, one.counted]));
-
-    return rateField(
+    const moves = rateField(
         plan.verdicts.map((one) => ({ seat: one.seat, side: one.side, place: one.place, rating: ratings.get(one.seat) ?? START })),
         (seat, side) => counted.get(seat)?.includes(side) === true
     );
+
+    return frozen ? moves.map((one) => ({ ...one, after: one.before })) : moves;
 }

@@ -317,6 +317,11 @@ const said = (row: LogRow, locale: LocaleApi) =>
             : locale.t('admin.log.line.reward.amounts', { ...slots, most: mostIn(row.details.to, locale) });
     }
 
+    if (row.kind === 'system-players')
+    {
+        return locale.t(row.details.part === 'retire' ? 'admin.log.line.system.retire' : 'admin.log.line.system.change', slots);
+    }
+
     if (row.kind === 'rate')
     {
         return row.details.to === undefined

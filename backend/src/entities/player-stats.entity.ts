@@ -21,6 +21,7 @@ import { User } from './user.entity.ts';
 @Check('player_stats_peak_reached', `peak_rating >= rating or played = 0`)
 @Check('player_stats_streaks', `streak >= 0 and best_streak >= streak`)
 @Check('player_stats_tallies', `jsonb_typeof(tallies) = 'object' and xp >= 0`)
+@Check('player_stats_system', `system_played between 0 and played and system_xp between 0 and xp`)
 @Index('player_stats_board', ['game', 'xp'])
 @Entity('player_stats')
 export class PlayerStats
@@ -72,6 +73,18 @@ export class PlayerStats
 
     @Column({ name: 'best_streak', type: 'integer', default: 0 })
     bestStreak!: number;
+
+    /**
+     * The part of `played` and `xp` that came from matches with a system player in a seat.
+     *
+     * Still counted in `played` and `xp`, because the person really played them, and kept apart so
+     * every board can rank on what is left: a game against the server is not a game against people.
+     */
+    @Column({ name: 'system_played', type: 'integer', default: 0 })
+    systemPlayed!: number;
+
+    @Column({ name: 'system_xp', type: 'integer', default: 0 })
+    systemXp!: number;
 
     /**
      * What this person DID at this game, in the engine's own words.

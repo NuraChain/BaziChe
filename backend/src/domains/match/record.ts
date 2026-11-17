@@ -4,8 +4,9 @@ import { Match, MatchAction, MatchPlayer, PlayerStats } from '../../entities/ind
 import type { AchieveService } from '../achieve/service.ts';
 import type { QuestProgressHook, RewardFinishEffects, RewardFinishPlayer } from '../reward/progress.ts';
 import type { GameId } from '../reward/quests.ts';
+import { isSystem } from '../system/sql.ts';
 import type { Ending, Engine } from './engine.ts';
-import { movesOf, planOf } from './judge.ts';
+import { movesOf, planOf, type Verdict } from './judge.ts';
 import { XP_FINISH, xpFor } from './levels.ts';
 import { START } from './rating.ts';
 
@@ -43,6 +44,38 @@ const eventsOf = async (tx: EntityManager, matchId: string): Promise<unknown[]> 
     return rows.flatMap((row) => (row.events ?? []) as unknown[]);
 };
 
+/** The seats of a match held by system players: one query per finish. */
+const systemSeatsOf = async (tx: EntityManager, matchId: string): Promise<Set<string>> =>
+{
+    const rows = await tx.query(
+        `select mp.user_id from match_players mp where mp.match_id = $1 and ${isSystem('mp.user_id')}`,
+        [matchId]
+    ) as { user_id: string }[];
+
+    return new Set(rows.map((row) => row.user_id));
+};
+
+/** A win that was not credited (the others walked out) is not a game played. */
+export const playedOf = (verdict: Pick<Verdict, 'result' | 'credit'>) => (verdict.result === 'won' && !verdict.credit ? 0 : 1);
+
+/**
+ * What a seat adds to `system_played` and `system_xp`: everything it earned, when the match had a
+ * system seat and the seat is a person's. A system player's own row never needs the split, because
+ * no board ever shows it.
+ */
+export const apartOf = (match: { system: boolean; mine: boolean }, played: number, xp: number) =>
+    match.system && !match.mine ? { played, xp } : { played: 0, xp: 0 };
+
+/**
+ * The players a finished match reports to the quests: people only, each against people only. A
+ * match whose only opponents were system players is left with no opponent, and a match with no
+ * opponent counts for no quest; a mixed match counts the people in it.
+ */
+export const peopleOf = <Player extends { userId: string; opponentIds: readonly string[] }>(players: readonly Player[], system: ReadonlySet<string>): Player[] =>
+    players
+        .filter((player) => !system.has(player.userId))
+        .map((player) => ({ ...player, opponentIds: player.opponentIds.filter((id) => !system.has(id)) }));
+
 export interface Recorder
 {
     finish(tx: EntityManager, match: Match, engine: Engine, state: unknown, ending: Ending): Promise<RewardFinishEffects>;
@@ -62,6 +95,7 @@ export function createRecorder(achieve: AchieveService, reward?: QuestProgressHo
             const ledger = await ledgerOf(tx, matchId, engagement.verbs);
             const places = engine.standings(state);
             const last = Math.max(0, ...ledger.map((row) => row.last));
+            const system = await systemSeatsOf(tx, matchId);
 
             const plan = planOf({
                 seats: players.map((player) =>
@@ -115,7 +149,7 @@ export function createRecorder(achieve: AchieveService, reward?: QuestProgressHo
                 : await stats.find({ where: { game, userId: In(uncounted.map((player) => player.userId)) } });
 
             const rowOf = (userId: string) => [...locked, ...resting].find((row) => row.userId === userId);
-            const moves = movesOf(plan, new Map(players.map((player) => [player.seat, rowOf(player.userId)?.rating ?? START])));
+            const moves = movesOf(plan, new Map(players.map((player) => [player.seat, rowOf(player.userId)?.rating ?? START])), system.size > 0);
             const bySeat = engine.tally(await eventsOf(tx, matchId));
 
             for (const player of players)
@@ -148,6 +182,8 @@ export function createRecorder(achieve: AchieveService, reward?: QuestProgressHo
                 const held = rowOf(player.userId);
                 const after = move?.after ?? held?.rating ?? START;
                 const streak = { add: (held?.streak ?? 0) + 1, reset: 0, keep: held?.streak ?? 0 }[verdict.streak];
+                const played = playedOf(verdict);
+                const apart = apartOf({ system: system.size > 0, mine: system.has(player.userId) }, played, earned);
 
                 await stats.createQueryBuilder()
                     .update(PlayerStats)
@@ -161,32 +197,36 @@ export function createRecorder(achieve: AchieveService, reward?: QuestProgressHo
                         streak,
                         bestStreak: () => 'greatest(best_streak, :streak)',
                         tallies: () => SUMMED,
-                        xp: () => 'xp + :xp'
+                        xp: () => 'xp + :xp',
+                        systemPlayed: () => 'system_played + :systemPlayed',
+                        systemXp: () => 'system_xp + :systemXp'
                     })
                     .where('user_id = :userId and game = :game')
                     .setParameters({
                         after,
-                        played: verdict.result === 'won' && !verdict.credit ? 0 : 1,
+                        played,
                         won: verdict.credit ? 1 : 0,
                         drawn: verdict.result === 'drawn' ? 1 : 0,
                         quit: verdict.result === 'abandoned' ? 1 : 0,
                         streak,
                         tallies: JSON.stringify(tally),
                         xp: earned,
+                        systemPlayed: apart.played,
+                        systemXp: apart.xp,
                         userId: player.userId,
                         game
                     })
                     .execute();
             }
 
-            for (const player of counted)
+            for (const player of counted.filter((one) => !system.has(one.userId)))
             {
                 await achieve.record(tx, player.userId, matchId, game);
             }
 
             if (reward?.onFinish !== undefined)
             {
-                const rewardPlayers: RewardFinishPlayer[] = counted.flatMap((player) =>
+                const rewardPlayers: RewardFinishPlayer[] = peopleOf(counted.flatMap((player): RewardFinishPlayer[] =>
                 {
                     const verdict = verdictOf(player.seat);
 
@@ -199,7 +239,7 @@ export function createRecorder(achieve: AchieveService, reward?: QuestProgressHo
                         tally: bySeat.get(player.seat) ?? {},
                         opponentIds: [...new Set(players.filter((other) => other.userId !== player.userId).map((other) => other.userId))]
                     }];
-                });
+                }), system);
 
                 effects = await reward.onFinish(tx, match, game, rewardPlayers);
             }

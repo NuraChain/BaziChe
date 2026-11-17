@@ -27,6 +27,7 @@ import { clockFor, isClock } from './clocks.ts';
 import { guestChairs, teamsOf, type Partners } from './teams.ts';
 import { scopeFor, type VoiceScope } from './voices.ts';
 import { readyBySql } from '../tournament/ready.ts';
+import { isSystem, notSystem } from '../system/sql.ts';
 
 /**
  * What the catalogue says a table of this game may be.
@@ -377,7 +378,19 @@ const IDLE = `t.status = 'open'
     and not exists (select 1 from escrows e where e.table_id = t.id
                       and e.state in ('locking', 'open', 'settling', 'refunding'))`;
 
-const standUp = async (tx: EntityManager, tableId: string, userId: string) =>
+/**
+ * System players never wait at a table on their own: when no person is left seated and no game is
+ * running, they stand up in the same transaction, so the table closes by the rule below instead of
+ * waiting for the seat filler's next pass. During a game they stay; the match still needs their seats.
+ */
+const ALONE_SQL = `
+    update table_seats s
+       set user_id = null, joined_at = null, ready = false
+     where s.table_id = $1 and s.user_id is not null and ${ isSystem('s.user_id') }
+       and not exists (select 1 from table_seats p where p.table_id = $1 and p.user_id is not null and ${ notSystem('p.user_id') })
+       and not exists (select 1 from matches m where m.table_id = $1 and m.finished_at is null)`;
+
+export const standUp = async (tx: EntityManager, tableId: string, userId: string) =>
 {
     const freed = await tx.getRepository(TableSeat)
         .update({ tableId, userId }, { userId: null, joinedAt: null, ready: false });
@@ -386,6 +399,8 @@ const standUp = async (tx: EntityManager, tableId: string, userId: string) =>
     {
         return { left: false, closed: false };
     }
+
+    await tx.query(ALONE_SQL, [tableId]);
 
     await tx.getRepository(StakeConsent).delete({ tableId, userId });
 
@@ -509,6 +524,25 @@ const waitingChairs = (from: DataSource | EntityManager) => from.getRepository(T
     .andWhere('not exists (select 1 from matches m where m.table_id = t.id and m.finished_at is null)')
     .andWhere(NOT_LOCKING);
 
+/**
+ * Takes one chosen chair, ready, for quick play and for the seat filler alike: only while it is
+ * empty and not held for somebody else, the table open and no game running. Called under `lockTable`.
+ */
+export const seatAt = async (tx: EntityManager, tableId: string, seat: number, userId: string) =>
+{
+    const sat = await tx.getRepository(TableSeat)
+        .createQueryBuilder()
+        .update(TableSeat)
+        .set({ userId, joinedAt: () => 'now()', ready: true })
+        .where('table_id = :tableId and seat = :seat and user_id is null', { tableId, seat })
+        .andWhere('(invited_id is null or invited_id = :userId)', { userId })
+        .andWhere(`exists (select 1 from tables t where t.id = :tableId and t.status = 'open')`)
+        .andWhere('not exists (select 1 from matches m where m.table_id = :tableId and m.finished_at is null)')
+        .execute();
+
+    return sat.affected === 1;
+};
+
 const sit = async (tx: EntityManager, tableId: string, teams: boolean, lead: string) =>
 {
     await lockTable(tx, tableId);
@@ -528,16 +562,7 @@ const sit = async (tx: EntityManager, tableId: string, teams: boolean, lead: str
         return false;
     }
 
-    const sat = await chairs
-        .createQueryBuilder()
-        .update(TableSeat)
-        .set({ userId: lead, joinedAt: () => 'now()', ready: true })
-        .where('table_id = :tableId and seat = :seat and user_id is null', { tableId, seat })
-        .andWhere(`exists (select 1 from tables t where t.id = :tableId and t.status = 'open')`)
-        .andWhere('not exists (select 1 from matches m where m.table_id = :tableId and m.finished_at is null)')
-        .execute();
-
-    if (sat.affected !== 1)
+    if (!await seatAt(tx, tableId, seat, lead))
     {
         return false;
     }
@@ -764,7 +789,8 @@ export function createTableService(db: DataSource, social: SocialService)
                 const candidates = await compatible(tx, lead, ask.game, want.filter, stake)
                     .select('t.id', 'id')
                     .addSelect('t.teams', 'teams')
-                    .addSelect(`(select coalesce(array_agg(s.user_id::text), '{}') from table_seats s where s.table_id = t.id and s.user_id is not null)`, 'occupants')
+                    // People only: a system player has no socket and is always here.
+                    .addSelect(`(select coalesce(array_agg(s.user_id::text), '{}') from table_seats s where s.table_id = t.id and s.user_id is not null and ${ notSystem('s.user_id') })`, 'occupants')
                     .andWhere('not exists (select 1 from table_seats s where s.table_id = t.id and s.user_id = :lead)')
                     .andWhere(
                         `exists (select 1 from table_seats s
@@ -775,6 +801,7 @@ export function createTableService(db: DataSource, social: SocialService)
                         `not exists (select 1 from table_seats s
                                        join users o on o.id = s.user_id
                                       where s.table_id = t.id
+                                        and ${ notSystem('o.id') }
                                         and o.is_minor <> (select u.is_minor from users u where u.id = :lead)
                                         and not exists (select 1 from friendships f
                                                          where f.user_id = :lead and f.friend_id = o.id))`
@@ -1360,6 +1387,7 @@ export function createTableService(db: DataSource, social: SocialService)
                 .addSelect('count(distinct t.id)::int', 'tables')
                 .addSelect('floor(extract(epoch from now() - min(s.joined_at)))::int', 'oldest')
                 .where('s.ready')
+                .andWhere(notSystem('s.user_id'))
                 .andWhere('not exists (select 1 from matches m where m.table_id = t.id and m.finished_at is null)')
                 .groupBy('t.game')
                 .addGroupBy('t.mode')
@@ -1370,7 +1398,9 @@ export function createTableService(db: DataSource, social: SocialService)
 
         async waitingSeats(limit: number)
         {
+            // A system player is never absent, so it is never struck and stood up for it.
             const rows = await waitingChairs(db)
+                .andWhere(notSystem('s.user_id'))
                 .select('s.table_id', 'table_id')
                 .addSelect('s.user_id', 'user_id')
                 .orderBy('s.joined_at', 'ASC')

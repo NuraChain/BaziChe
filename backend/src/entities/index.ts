@@ -87,6 +87,7 @@ import { StaffAction } from './staff-action.entity.ts';
 import { StaffMember } from './staff-member.entity.ts';
 import { StakeConsent } from './stake-consent.entity.ts';
 import { Suspension } from './suspension.entity.ts';
+import { SystemPlayer } from './system-player.entity.ts';
 import { TableStake } from './table-stake.entity.ts';
 import { User } from './user.entity.ts';
 import { UserAchievement } from './user-achievement.entity.ts';
@@ -100,7 +101,7 @@ export {
     Tournament, TournamentEntry, TournamentGame,
     Game, GameRule, Group, GroupBan, GroupEvent, GroupInvite, GroupMember, GroupMute, GroupReport, GroupRequest, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, MinterChange, Mute,
     NftToken, Notice, Notification, OwnedItem, PaidAccount, PlayerStats, ProfileSponsorship, PushSubscription,
-    QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, RewardCheckin, RewardCycleTotal, RewardFreeze, RewardGrant, RewardPayout, RewardQuestGame, RewardQuestOpponent, RewardQuestProgress, RewardStreak, Season, Session, Setting, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, Table, TableRemoval, TableSeat, TableStake, User,
+    QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, RewardCheckin, RewardCycleTotal, RewardFreeze, RewardGrant, RewardPayout, RewardQuestGame, RewardQuestOpponent, RewardQuestProgress, RewardStreak, Season, Session, Setting, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, SystemPlayer, Table, TableRemoval, TableSeat, TableStake, User,
     UserAchievement, VoiceNote, VoicePlay, Wallet
 };
 
@@ -133,5 +134,6 @@ export const entities: Function[] = [
     ShopItem, ShopCollection, ShopOrder, OwnedItem, EquippedItem, NftToken, MinterChange,
     Donation, DonationsOff,
     Market, MarketPosition, MarketDisclosure,
-    Discrepancy
+    Discrepancy,
+    SystemPlayer
 ];

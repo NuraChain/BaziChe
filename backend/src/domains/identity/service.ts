@@ -15,6 +15,8 @@ import { AVATAR_MAX_BYTES, avatarHashOf, avatarUrl, sniffAvatar } from './avatar
 import { candidatesFor, checkHandle, handleFromAddress, normalizeHandle } from './handle.ts';
 import { signInText, verifySignature } from './signature.ts';
 import { PROFILE_LOOKS, chosenIn, type ProfileLooks } from '../shop/looks.ts';
+import { systemRefusal, type Held } from '../system/guard.ts';
+import { isSystem } from '../system/sql.ts';
 
 /** Five minutes. A signature older than this is refused however valid it is. */
 const NONCE_TTL_MS = 5 * 60 * 1000;
@@ -120,9 +122,23 @@ export function createIdentityService(db: DataSource, config: IdentityConfig)
         ...(guest ? { guest: true } : {})
     });
 
+    /** A system player is never given a session or a wallet; nothing should ask, and this refuses if something does. */
+    const refuseSystem = async (userId: string, held: Held) =>
+    {
+        const found = firstRow<{ system: boolean }>(await db.query(`select ${ isSystem('$1::uuid') } as system`, [userId]));
+        const refused = systemRefusal(found?.system === true, held);
+
+        if (refused !== null)
+        {
+            throw refused;
+        }
+    };
+
     /** Mints a session row and returns the bearer token, which is never stored anywhere. */
     const openSession = async (userId: string, userAgent: string, guest: boolean): Promise<{ token: string; sessionId: string }> =>
     {
+        await refuseSystem(userId, 'session');
+
         const token = mintToken();
         const inserted = await db.query(
             `insert into sessions (user_id, token_hash, expires_at, user_agent, guest)
@@ -277,6 +293,7 @@ export function createIdentityService(db: DataSource, config: IdentityConfig)
             {
                 const hue = Number.parseInt(address.slice(2, 8), 16) % 360;
                 user = await insertUser(handleFromAddress(address), `${ address.slice(0, 6) }…${ address.slice(-4) }`, hue);
+                await refuseSystem(user.id, 'wallet');
 
                 await db.query(
                     `insert into wallets (user_id, address, chain_id, provider_rdns, attestation, last_used_at)

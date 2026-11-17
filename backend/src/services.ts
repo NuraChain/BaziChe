@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@azerothjs/http';
 import type { DataSource } from 'typeorm';
 import { getAddress, type Hex } from 'viem';
@@ -53,7 +53,7 @@ import { createIdentityService } from './domains/identity/service.ts';
 import { createInviteService, noInvite } from './domains/invite/service.ts';
 import { isAdminAddress } from './domains/identity/admin.ts';
 import { createProfileSponsorship } from './domains/identity/sponsor.ts';
-import { may, ownersOf, shownOwnersOf, type Ability, type GrantedRole } from './domains/admin/roles.ts';
+import { may, ownersOf, shownOwnersOf, type Ability, type GrantedRole, type StaffRole } from './domains/admin/roles.ts';
 import { createPeopleService } from './domains/admin/people.ts';
 import { createLiveService, type Call, type Online } from './domains/admin/live.ts';
 import { createPlayService, stuckKindOf, type Stuck } from './domains/admin/play.ts';
@@ -62,6 +62,12 @@ import { createSeasonService } from './domains/admin/seasons.ts';
 import { createShopAdmin } from './domains/admin/shop.ts';
 import { createInviteAdmin } from './domains/admin/invites.ts';
 import { createRewardAdmin } from './domains/admin/rewards.ts';
+import { createSystemAdmin } from './domains/system/admin.ts';
+import { createSeatFiller, type FillSweep } from './domains/system/fill.ts';
+import type { AiFigures } from './domains/system/rules.ts';
+import { createWorkerBrain } from './domains/ai/brain.ts';
+import { createAiRuntime, type AiError } from './domains/ai/runtime.ts';
+import { createAiSource } from './domains/ai/source.ts';
 import { createMarketsMoney } from './domains/admin/markets-money.ts';
 import { createMintersAdmin } from './domains/admin/minters.ts';
 import { createShopMoney } from './domains/admin/shop-money.ts';
@@ -182,6 +188,15 @@ export interface Services extends Ports
         sweepTurns(forMs: number): Promise<TurnSweep>;
         sweepTables(): Promise<TableSweep>;
 
+        /** Seats system players at quick tables people have waited at, starts those that fill, and lets them go again. */
+        fillSeats(forMs: number): Promise<FillSweep>;
+
+        /** Schedules a move for every system player to move that nothing has scheduled yet; the first call switches the AI runtime on. */
+        driveSeats(forMs: number): Promise<{ looked: number; scheduled: number; errors: AiError[] }>;
+
+        /** Cancels what the AI runtime has scheduled and ends its worker. */
+        stopSeats(): Promise<void>;
+
         /** Starts what is due and moves every running tournament on; each is its own transaction. */
         sweepTournaments(): Promise<{ failed: { tournamentId: string; reason: string }[] }>;
         sweepStakes(forMs: number): Promise<StakeSweep>;
@@ -229,7 +244,7 @@ const IDLE_TABLES = 200;
 
 const ADMIN_TOURNAMENTS = 100;
 
-export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain, tipsChain?: TipsChain, marketsChain?: MarketsChain, nftChain?: NftChain, sponsorChain?: ProfileSponsor, rewardChain?: RewardWallet): Services
+export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteListener, presence?: PresenceReader, note?: Note, vault?: Vault, ops?: OpsReader, shopChain?: ShopChain, tipsChain?: TipsChain, marketsChain?: MarketsChain, nftChain?: NftChain, sponsorChain?: ProfileSponsor, rewardChain?: RewardWallet, aiFigures?: () => AiFigures): Services
 {
     const here = (userIds: readonly string[]) => presence?.present(userIds) ?? new Set(userIds);
 
@@ -282,6 +297,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const rewardWallet = rewardChain ?? createRewardWallet({ rpcUrl: config.rpcUrl, chainId: config.chainId, rewardsKey: config.rewardsKey });
     const reward = createRewardService(db, rewardWallet, { mined: (userId) => live?.selfChanged(userId, 'rewards') });
     const rewardAdmin = createRewardAdmin(db, rewardWallet);
+    const systemAdmin = createSystemAdmin(db, aiFigures ?? (() => ai.figures()));
     const shop = createShopService(db);
 
     /**
@@ -1136,6 +1152,9 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
     const pushMatch = async (matchId: string, before: number) =>
     {
+        // Every committed action passes here, so this is where a system player learns it is to move.
+        ai.moved(matchId);
+
         if (live === undefined)
         {
             return;
@@ -1990,9 +2009,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         return { ...found.report, together, history };
     };
 
-    const personOf = async (handle: string) =>
+    /** One person as the staff read them; a viewer holding `system` is also told when it is a system player. */
+    const personOf = async (handle: string, viewer: StaffRole) =>
     {
-        const found = await accounts.view(handle);
+        const found = await accounts.view(handle, may(viewer, 'system'));
 
         if (found === null)
         {
@@ -2047,6 +2067,25 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
         return { match: asMatch(answer.load), applied: answer.applied, events: since === null ? [] : logged(since.events) };
     };
+
+    /** System players move through `played`, the same path and the same courtesies as a person's move. */
+    const ai = createAiRuntime({
+        source: createAiSource(db, match.feed),
+        act: async (userId, matchId, want) => (await played(userId, matchId, want)).applied,
+        brain: createWorkerBrain(),
+        clock: {
+            now: () => Date.now(),
+            after: (ms, run) =>
+            {
+                const timer = setTimeout(run, ms);
+
+                timer.unref();
+
+                return () => clearTimeout(timer);
+            }
+        },
+        salt: randomInt(2 ** 31)
+    });
 
     const TIDY: Record<string, string> = {
         nonces: `delete from siwe_nonces where expires_at < now() - interval '1 day'`,
@@ -2202,6 +2241,21 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
         return { stoodUp, closed, idle, failed };
     };
+
+    const seatFiller = createSeatFiller(db);
+
+    const fillSeats = (forMs: number) => seatFiller.sweep(forMs, here, {
+        start: async (userId, tableId) =>
+        {
+            const load = await startPushed(userId, tableId);
+
+            await courtesy('turn notice', () => nudgeTurn(load, userId));
+        },
+        changed: async (tableId, gone) =>
+        {
+            live?.tableChanged(tableId, [...await table.peopleAt(tableId), ...gone]);
+        }
+    });
 
     const peers = createPeerDevices(db);
     const epochs = createEpochService(db);
@@ -2494,6 +2548,9 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         jobs: {
             sweepTurns,
             sweepTables,
+            fillSeats,
+            driveSeats: (forMs) => ai.drive(forMs),
+            stopSeats: () => ai.stop(),
             sweepTournaments,
             sweepStakes: (forMs) => stakes.sweep(forMs),
             sweepShop: (forMs) => orders.sweep(forMs),
@@ -2917,18 +2974,23 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
             async people(me, query)
             {
-                return await ableTo(me, 'people') === null
+                const actor = await ableTo(me, 'people');
+
+                return actor === null
                     ? null
                     : await accounts.find({
                         ...(query.q === undefined ? {} : { q: query.q }),
                         ...(query.list === undefined ? {} : { list: query.list }),
-                        ...(query.cursor === undefined ? {} : { cursor: query.cursor })
+                        ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+                        marked: may(actor.role, 'system')
                     });
             },
 
             async person(me, handle)
             {
-                return await ableTo(me, 'people') === null ? null : await personOf(handle);
+                const actor = await ableTo(me, 'people');
+
+                return actor === null ? null : await personOf(handle, actor.role);
             },
 
             async history(me, handle, cursor)
@@ -2948,7 +3010,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 }
 
                 await accounts.note(actor, handle, input.text);
-                return await personOf(handle);
+                return await personOf(handle, actor.role);
             },
 
             async suspend(me, handle, input)
@@ -2973,7 +3035,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 await recall(id);
                 await courtesy('letting go of push subscriptions', () => notify.forgetReach(id));
 
-                return await personOf(handle);
+                return await personOf(handle, actor.role);
             },
 
             async lift(me, handle, input)
@@ -2986,7 +3048,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 }
 
                 await accounts.lift(actor, handle, input.reason);
-                return await personOf(handle);
+                return await personOf(handle, actor.role);
             },
 
             async clear(me, handle, input)
@@ -3005,7 +3067,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     await courtesy('profile cleared', () => ringProfile(id));
                 }
 
-                return await personOf(handle);
+                return await personOf(handle, actor.role);
             },
 
             async signOut(me, handle, input)
@@ -3025,7 +3087,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     await courtesy('letting go of push subscriptions', () => notify.forgetReach(id));
                 }
 
-                return await personOf(handle);
+                return await personOf(handle, actor.role);
             },
 
             async minor(me, handle, input)
@@ -3063,7 +3125,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     await courtesy('profile changed', () => ringProfile(id));
                 }
 
-                return await personOf(handle);
+                return await personOf(handle, actor.role);
             },
 
             async reports(me, query)
@@ -3455,7 +3517,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     live?.selfChanged(target.id, 'shop');
                 }
 
-                return await personOf(handle);
+                return await personOf(handle, actor.role);
             },
 
             async takeLook(me, handle, item, input)
@@ -3480,7 +3542,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     await courtesy('profile look', () => ringProfile(target.id));
                 }
 
-                return await personOf(handle);
+                return await personOf(handle, actor.role);
             },
 
             async shopMoney(me)
@@ -3712,6 +3774,44 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 }
 
                 return await rewardAdmin.freezeState(target.id, target.handle);
+            },
+
+            async system(me)
+            {
+                return await ableTo(me, 'system') === null ? null : await systemAdmin.view();
+            },
+
+            async systemPlayers(me, query)
+            {
+                return await ableTo(me, 'system') === null ? null : await systemAdmin.players(query.cursor);
+            },
+
+            async switchSystem(me, input)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null ? null : await systemAdmin.switchTo(actor, input.on, input.reason);
+            },
+
+            async setSystemGames(me, input)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null ? null : await systemAdmin.setGames(actor, input.games, input.reason);
+            },
+
+            async setSystemSettings(me, input)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null ? null : await systemAdmin.setSettings(actor, input, input.reason);
+            },
+
+            async retireSystemPlayer(me, handle, input)
+            {
+                const actor = await ableTo(me, 'system');
+
+                return actor === null ? null : await systemAdmin.retire(actor, handle, input.reason);
             }
         },
 

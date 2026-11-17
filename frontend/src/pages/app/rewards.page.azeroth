@@ -1,35 +1,128 @@
 import { useHead } from 'azerothjs';
 
+import { REWARD_WITHDRAWAL_MINIMUM } from '../../../../backend/src/domains/reward/payout-rules.ts';
 import Page from '../../components/app/page.component.azeroth';
 import PageHeader from '../../components/app/page-header.component.azeroth';
-import { useLocale } from '../../stores/locale.store.ts';
-import CheckInCard from '../../components/rewards/check-in-card.component.azeroth';
 import ActivityTrack from '../../components/rewards/activity-track.component.azeroth';
-import Quests from '../../components/rewards/quests.component.azeroth';
 import Balance from '../../components/rewards/balance.component.azeroth';
+import CheckInCard from '../../components/rewards/check-in-card.component.azeroth';
 import History from '../../components/rewards/history.component.azeroth';
+import Quests from '../../components/rewards/quests.component.azeroth';
+import Button from '../../components/ui/button.component.azeroth';
+import ErrorState from '../../components/ui/error-state.component.azeroth';
+import Panel from '../../components/ui/panel.component.azeroth';
+import Skeleton from '../../components/ui/skeleton.component.azeroth';
+import { whyRewards } from '../../lib/reward-words.ts';
+import '../../locales/rewards-catalogue.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useRewards } from '../../stores/rewards.store.ts';
 
 export default component RewardsPage()
 {
     const locale = useLocale();
+    const rewards = useRewards();
 
     useHead({ title: () => locale.t('app.nav.rewards') });
 
-    <Page label={ locale.t('app.nav.rewards') }>
+    derived off = !rewards.open();
+
+    derived held = off ? null : rewards.state();
+
+    derived awaited = !off && held === null && rewards.loading();
+
+    derived refused = !off && held === null && !rewards.loading() && rewards.failed();
+
+    derived listed = held !== null;
+
+    derived reason = held?.reason;
+
+    derived withheld = reason !== undefined;
+
+    derived why = whyRewards(reason ?? null, locale);
+
+    // Off, NURA already earned is still the player's: withdrawing it is all the page offers.
+    derived withdrawable = rewards.withdrawable();
+
+    derived kept = off && withdrawable > 0;
+
+    derived short = withdrawable < REWARD_WITHDRAWAL_MINIMUM;
+
+    derived withdrawing = rewards.busy() === 'withdraw';
+
+    derived told = rewards.said();
+
+    derived saying = told !== null && told.on === 'withdraw';
+
+    derived said = told === null ? '' : whyRewards(told.reason, locale, told.amount);
+
+    mount
+    {
+        rewards.want('state');
+
+        return rewards.listen();
+    }
+
+    <Page label={ locale.t('app.nav.rewards') } onRefresh={ () => void rewards.refresh() }>
         <div class="flex flex-col gap-5">
             <PageHeader title={ locale.t('app.nav.rewards') } lead={ locale.t('app.rewards.lead') } />
 
-            <CheckInCard />
+            <Show when={ off }>
+                <Panel section class="flex flex-col gap-1" data-rewards-off>
+                    <p class="text-ui-sm font-semibold text-text">{ locale.t('app.rewards.off') }</p>
+                    <p class="text-ui-sm text-muted">{ locale.t('app.rewards.offLead') }</p>
+                </Panel>
+            </Show>
 
-            <ActivityTrack />
+            <Show when={ kept }>
+                <Panel section class="flex flex-col gap-3" data-rewards-kept>
+                    <p class="text-ui-sm text-muted">{ locale.t('app.rewards.offWithdraw') }</p>
+                    <p class="text-xs text-muted">{ locale.t('app.rewards.available', { amount: withdrawable }) }</p>
+                    <Button disabled={ short } onClick={ () => void rewards.withdraw() } loading={ withdrawing } variant="primary" block={ true }>
+                        { locale.t('app.rewards.withdraw') }
+                    </Button>
+                    <Show when={ short }>
+                        <p class="text-xs text-muted">{ locale.t('app.rewards.withdrawFrom', { least: REWARD_WITHDRAWAL_MINIMUM }) }</p>
+                    </Show>
+                    <Show when={ saying }>
+                        <p class="text-ui-sm text-muted" role="status">{ said }</p>
+                    </Show>
+                </Panel>
+            </Show>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <Quests />
-                <div class="flex flex-col gap-4">
-                    <Balance />
-                    <History />
+            <Show when={ awaited }>
+                <div class="flex flex-col gap-3" data-reading>
+                    <span class="sr-only">{ locale.t('common.loading') }</span>
+                    <Skeleton lines={ 4 } class="rounded-panel border border-line bg-field p-4" />
+                    <Skeleton lines={ 3 } class="rounded-panel border border-line bg-field p-4" />
                 </div>
-            </div>
+            </Show>
+
+            <Show when={ refused }>
+                <ErrorState error={ rewards.error() } title={ locale.t('app.rewards.failed') } onRetry={ () => void rewards.refresh() } />
+            </Show>
+
+            <Show when={ listed }>
+                <div class="flex flex-col gap-5">
+                    <Show when={ withheld }>
+                        <Panel section class="flex flex-col gap-1">
+                            <p class="text-ui-sm font-semibold text-text">{ locale.t('app.rewards.notEligible') }</p>
+                            <p class="text-ui-sm text-muted">{ why }</p>
+                        </Panel>
+                    </Show>
+
+                    <CheckInCard />
+
+                    <ActivityTrack />
+
+                    <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                        <Quests />
+                        <div class="flex flex-col gap-4">
+                            <Balance />
+                            <History />
+                        </div>
+                    </div>
+                </div>
+            </Show>
         </div>
     </Page>
 }

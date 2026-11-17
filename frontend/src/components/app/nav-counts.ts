@@ -28,12 +28,7 @@ export function useNavCounts(): NavCounts
         friends: () => social.incoming().length,
         chats: () => chat.totalUnread(),
         notifications: () => notifications.unread(),
-        rewards: () =>
-        {
-            const claimableCheckin = rewards.claimable() ? 1 : 0;
-            const claimableQuests = rewards.dailyQuests().filter((q) => q.done && !q.claimed).length;
-            return claimableCheckin + claimableQuests;
-        }
+        rewards: () => rewards.ready()
     };
 
     const countOf = (item: NavItem) => counts[item.tab]?.() ?? 0;

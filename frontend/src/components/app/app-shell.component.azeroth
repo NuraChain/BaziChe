@@ -23,6 +23,7 @@ import { useLocale } from '../../stores/locale.store.ts';
 import { useOverlay } from '../../stores/overlay.store.ts';
 import { useNotifications } from '../../stores/notifications.store.ts';
 import { useRealtime } from '../../stores/realtime.store.ts';
+import { useRewards } from '../../stores/rewards.store.ts';
 import { useSession } from '../../stores/session.store.ts';
 import { useSettings } from '../../stores/settings.store.ts';
 import { useSocial } from '../../stores/social.store.ts';
@@ -109,6 +110,7 @@ export default component AppShell(props: { children?: MountNode })
             useDevices().start(),
             useSession().start(),
             useWallet().start(),
+            useRewards().start(),
             watchSignedOut()
         ];
 

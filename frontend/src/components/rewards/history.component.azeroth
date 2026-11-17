@@ -1,57 +1,96 @@
-import { Show } from 'azerothjs';
-
-import { useRewards } from '../../stores/rewards.store.ts';
+import { HISTORY_WORDS } from '../../lib/reward-words.ts';
 import { useLocale } from '../../stores/locale.store.ts';
-import Panel from '../ui/panel.component.azeroth';
+import { useRewards } from '../../stores/rewards.store.ts';
+import ErrorState from '../ui/error-state.component.azeroth';
+import LoadMore from '../ui/load-more.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
 
-type HistoryItem = {
-    id: string;
-    kind: string;
-    at: string;
-    amount: number;
-    note?: string;
-};
-
+/** The reader's reward ledger, newest first, a page at a time. */
 export default component History(props: { class?: string })
 {
     const locale = useLocale();
     const rewards = useRewards();
 
+    state paging = false;
+
+    state pageFailed = false;
+
+    derived rows = rewards.history();
+
+    derived awaited = rewards.historyLoading() && rows.length === 0;
+
+    derived refused = rewards.historyFailed();
+
+    derived bare = !rewards.historyLoading() && !refused && rows.length === 0;
+
+    derived listed = rows.length > 0;
+
+    derived more = rewards.hasOlder();
+
     mount
     {
-        void rewards.loadHistory();
+        rewards.want('history');
     }
 
-    const page = rewards.history();
-    const items: HistoryItem[] = page === null ? [] : page.items;
+    const older = async () =>
+    {
+        if (paging)
+        {
+            return;
+        }
 
-    return (
-        <Panel section class={ props.class ?? '' }>
-            <div class="flex flex-col gap-4">
-                <h3 class="text-ui-lg font-semibold text-text">{ locale.t('app.rewards.history') }</h3>
+        paging = true;
+        pageFailed = false;
 
-                <Show when={ items.length === 0 }>
-                    { () => <p class="text-xs text-muted">{ locale.t('app.rewards.noHistory') }</p> }
-                </Show>
-                <Show when={ items.length > 0 }>
-                    { () =>
-                        <div class="flex flex-col gap-2">
-                            { items.map((item) => (
-                                <div class="flex items-center justify-between gap-3 px-3 py-2 bg-field rounded-control border border-line">
-                                    <div class="flex min-w-0 flex-col gap-1">
-                                        <div class="text-ui-sm text-text">{ item.kind }</div>
-                                        <div class="text-xs text-muted">{ new Date(item.at).toLocaleDateString() }</div>
-                                        <Show when={ item.note !== undefined && item.note !== '' }>
-                                            { () => <div class="text-[10px] text-faint">{ item.note }</div> }
-                                        </Show>
-                                    </div>
-                                    <div class="text-right text-ui-sm font-mono text-text">+{ item.amount }</div>
-                                </div>
-                            ))}
-                        </div>
-                    }
-                </Show>
-            </div>
-        </Panel>
-    );
+        try
+        {
+            await rewards.older();
+        }
+        catch
+        {
+            pageFailed = true;
+        }
+        finally
+        {
+            paging = false;
+        }
+    };
+
+    <section class={ [ 'flex flex-col gap-3', props.class ?? '' ].filter(Boolean).join(' ') } aria-labelledby="reward-history">
+        <h3 id="reward-history" class="text-ui-lg font-semibold text-text">{ locale.t('app.rewards.history') }</h3>
+
+        <Show when={ awaited }>
+            <Skeleton lines={ 3 } class="rounded-panel border border-line bg-field p-4" />
+        </Show>
+
+        <Show when={ refused }>
+            <ErrorState compact error={ rewards.historyError() } title={ locale.t('app.rewards.historyFailed') } onRetry={ () => void rewards.refresh() } />
+        </Show>
+
+        <Show when={ bare }>
+            <p class="text-xs text-muted">{ locale.t('app.rewards.noHistory') }</p>
+        </Show>
+
+        <Show when={ listed }>
+            <ul class="divide-y divide-line rounded-panel border border-line bg-field">
+                <For each={ rows } key={ (item) => item.id } let={ item }>
+                    <li class="flex items-center justify-between gap-3 px-3 py-2">
+                        <span class="flex min-w-0 flex-col gap-1">
+                            <span class="text-ui-sm text-text">{ locale.t(HISTORY_WORDS[item.kind] ?? 'app.rewards.kind.quest') }</span>
+                            <span class="text-xs text-muted">{ locale.date(new Date(item.at), { dateStyle: 'medium' }) }</span>
+                        </span>
+                        <span class="tally shrink-0 text-ui-sm font-mono text-text" dir="ltr">{ item.kind === 'withdrawal' ? '−' : '+' }{ locale.n(item.amount) }</span>
+                    </li>
+                </For>
+            </ul>
+        </Show>
+
+        <Show when={ more }>
+            <LoadMore label={ locale.t('app.rewards.more') } loading={ paging } onMore={ () => void older() } />
+        </Show>
+
+        <Show when={ pageFailed }>
+            <p class="text-ui-sm text-muted" role="status">{ locale.t('app.rewards.moreFailed') }</p>
+        </Show>
+    </section>
 }

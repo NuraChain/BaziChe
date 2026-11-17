@@ -1,0 +1,23 @@
+import { Link } from 'azerothjs';
+
+import Avatar from '../ui/avatar.component.azeroth';
+
+export interface RewardFace
+{
+    handle: string;
+    displayName: string;
+    hue: number;
+    avatar?: string;
+}
+
+/** A player as a reward line names them, opening their page. */
+export default component RewardPerson(props: { person: RewardFace })
+{
+    <Link to={ `/admin/people/${ props.person.handle }` } class="flex min-h-11 min-w-0 items-center gap-2 hover:underline" data-reward-person={ props.person.handle }>
+        <Avatar person={ props.person } size="sm" />
+        <span class="flex min-w-0 flex-col">
+            <span class="truncate text-ui-sm font-semibold text-text" dir="auto">{ props.person.displayName }</span>
+            <span class="truncate text-ui-xs text-muted" dir="ltr">@{ props.person.handle }</span>
+        </span>
+    </Link>
+}

@@ -22,12 +22,43 @@ import {
 import { rendered, type Series } from './prometheus.ts';
 import { HOUR_MINUTES, delayWindow, minuteCounts } from './rings.ts';
 
+/** The rewards figures of one sample; amounts in wei, as text. */
+export interface RewardsSampled
+{
+    on: boolean;
+    grantedToday: string;
+
+    /** Payouts queued or sent and not yet mined, and how long the oldest has waited. */
+    waiting: number;
+    oldest: number | null;
+
+    /** Payouts that failed for good in the last day. */
+    failed: number;
+
+    /** The rewards wallet's balance; null when there is no wallet or the chain did not answer. */
+    balance: string | null;
+}
+
 export interface Sampled
 {
     queues: { queue: Queue; count: number; oldest: number | null }[];
     stuck: number | null;
     checks: { open: number; oldest: number | null } | null;
+    rewards?: RewardsSampled;
 }
+
+const wholeNura = (wei: string) => Number(BigInt(wei) / 10n ** 18n);
+
+/** The rewards figures as Prometheus series; none before the first sample. */
+export const rewardSeries = (rewards: RewardsSampled | undefined): Series[] => rewards === undefined
+    ? []
+    : [
+        { name: 'baziche_rewards_on', help: 'Whether rewards are switched on, at 1.', type: 'gauge', samples: [{ value: rewards.on ? 1 : 0 }] },
+        { name: 'baziche_rewards_granted_today_nura', help: 'Whole NURA granted on the current reward day.', type: 'gauge', samples: [{ value: wholeNura(rewards.grantedToday) }] },
+        { name: 'baziche_reward_payouts', help: 'Reward payouts waiting (queued or sent), and failed in the last day.', type: 'gauge', samples: [{ labels: { state: 'waiting' }, value: rewards.waiting }, { labels: { state: 'failed' }, value: rewards.failed }] },
+        { name: 'baziche_reward_payouts_oldest_seconds', help: 'How long the oldest waiting reward payout has waited.', type: 'gauge', samples: [{ value: rewards.oldest ?? 0 }] },
+        { name: 'baziche_rewards_wallet_nura', help: 'Whole NURA the rewards wallet holds.', type: 'gauge', samples: rewards.balance === null ? [] : [{ value: wholeNura(rewards.balance) }] }
+    ];
 
 /** What one worker's pass came to, as far as the monitor counts it. */
 export interface WorkerPass
@@ -228,6 +259,9 @@ export function createMonitor(deps: MonitorDeps)
 
         alerts: (): readonly Standing[] => standing,
 
+        /** The latest sample's rewards figures; undefined before the first. */
+        rewards: () => sampled?.rewards,
+
         alertsFor: (abilities: { health: boolean; money: boolean }) => standing.filter((one) => abilities[ALERT_ABILITY[one.alert]]),
 
         /** The server's own measures, as "This server" draws them: the last hour's, and the latest sample's. */
@@ -301,6 +335,7 @@ export function createMonitor(deps: MonitorDeps)
                 { name: 'baziche_chain_unreached_passes', help: 'Reconciliation passes in a row that could not reach NuraChain.', type: 'gauge', samples: [{ value: unreached }] },
                 { name: 'baziche_checks_open', help: 'Disagreements with NuraChain still open.', type: 'gauge', samples: checks === null ? [] : [{ value: checks.open }] },
                 { name: 'baziche_checks_oldest_seconds', help: 'How long the oldest open disagreement has been open.', type: 'gauge', samples: checks === null || checks.oldest === null ? [] : [{ value: checks.oldest }] },
+                ...rewardSeries(sampled?.rewards),
                 { name: 'baziche_alert', help: 'Every alert standing, at 1.', type: 'gauge', samples: standing.map((one) => ({ labels: { alert: one.alert, level: one.level, ...(one.about === undefined ? {} : { about: one.about }) }, value: 1 })) }
             ];
 

@@ -6,9 +6,12 @@ import { Donation } from '../entities/donation.entity.ts';
 import { Escrow } from '../entities/escrow.entity.ts';
 import { MarketPosition } from '../entities/market-position.entity.ts';
 import { Market } from '../entities/market.entity.ts';
+import { RewardGrant } from '../entities/reward-grant.entity.ts';
+import { RewardPayout } from '../entities/reward-payout.entity.ts';
 import { ShopOrder } from '../entities/shop-order.entity.ts';
+import { rewardDayOf } from '../domains/reward/rules.ts';
 import type { Queue } from './measures.ts';
-import type { Sampled } from './monitor.ts';
+import type { RewardsSampled, Sampled } from './monitor.ts';
 
 /** The database pool as the driver holds it: open, idle, and callers waiting for one. */
 export const poolOf = (db: DataSource) =>
@@ -18,6 +21,13 @@ export const poolOf = (db: DataSource) =>
     return { total: pool?.totalCount ?? 0, idle: pool?.idleCount ?? 0, waiting: pool?.waitingCount ?? 0 };
 };
 
+/** What the rewards figures are read through: the switch, and the rewards wallet's balance when there is one. */
+export interface RewardSampling
+{
+    switchedOn(): Promise<boolean>;
+    balance: (() => Promise<bigint>) | null;
+}
+
 /** Which of the money's features this server runs: a queue or a count of one it does not is never read. */
 export interface Sampling
 {
@@ -26,7 +36,39 @@ export interface Sampling
     gifts: boolean;
     markets: boolean;
     checks: boolean;
+    rewards: RewardSampling;
 }
+
+/**
+ * The rewards at a glance: granted today (on the `day` index), the payouts waiting and failed in
+ * the last day (the open ones on their partial index), and the wallet. A balance the chain did not
+ * answer is null, and says nothing about the wallet: the reconcile pass owns "too low for the queue".
+ */
+const rewardsNow = async (db: DataSource, rewards: RewardSampling): Promise<RewardsSampled> =>
+{
+    const granted = await db.getRepository(RewardGrant).createQueryBuilder('g')
+        .select('coalesce(sum(g.amount), 0)::text', 'wei')
+        .where('g.day = :today', { today: rewardDayOf(new Date()) })
+        .getRawOne<{ wei: string }>();
+    const waiting = await db.getRepository(RewardPayout).createQueryBuilder('p')
+        .select('count(*)::int', 'count')
+        .addSelect('floor(extract(epoch from now() - min(coalesce(p.queued_at, p.created_at))))::int', 'oldest')
+        .where(`p.state in ('queued', 'sent')`)
+        .getRawOne<{ count: number; oldest: number | null }>();
+    const failed = await db.getRepository(RewardPayout).createQueryBuilder('p')
+        .where(`p.state = 'failed' and p.failed_at > now() - interval '1 day'`)
+        .getCount();
+    const balance = rewards.balance === null ? null : await rewards.balance().catch(() => null);
+
+    return {
+        on: await rewards.switchedOn(),
+        grantedToday: granted?.wei ?? '0',
+        waiting: waiting?.count ?? 0,
+        oldest: waiting?.oldest ?? null,
+        failed,
+        balance: balance === null ? null : balance.toString()
+    };
+};
 
 /** How many wait on one queue, and how long the oldest has, in whole seconds by Postgres's clock. */
 const queued = async <T extends ObjectLiteral>(queue: Queue, query: SelectQueryBuilder<T>, since: string) =>
@@ -53,8 +95,9 @@ const openChecks = async (db: DataSource) =>
 /**
  * What only the database knows of the work this server is behind on, read once a sample: each
  * worker's queue, the paid games stuck by the vault panel's own rule, and the disagreements with
- * NuraChain still open. Nine indexed reads at most, over the rows still in flight, made one after
- * another so that a sample holds one connection of the pool at a time and never takes a request's.
+ * NuraChain still open, and the rewards figures. Thirteen reads at most, over the rows still in
+ * flight, made one after another so that a sample holds one connection of the pool at a time and
+ * never takes a request's; the rewards wallet's balance is one bounded call to the chain.
  */
 export function createSampler(db: DataSource, running: Sampling)
 {
@@ -105,7 +148,8 @@ export function createSampler(db: DataSource, running: Sampling)
 
         const stuck = running.vault ? await stuckOf(db) : null;
         const checks = running.checks ? await openChecks(db) : null;
+        const rewards = await rewardsNow(db, running.rewards);
 
-        return { queues, stuck, checks };
+        return { queues, stuck, checks, rewards };
     };
 }

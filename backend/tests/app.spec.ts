@@ -1765,7 +1765,7 @@ describe('the owner\'s view of the vault', () =>
             identity: {
                 principal: () => Promise.resolve({ userId: 'somebody', handle: 'somebody', isMinor: false, sessionId: 'a-session' })
             },
-            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice', 'shop', 'shopItem', 'shopFeature', 'shopOrders', 'giveLook', 'takeLook', 'shopMoney', 'shopWithdraw', 'shopShare', 'shopSeller', 'shopPause', 'shopRefund', 'minters', 'minterGrant', 'minterRevoke', 'minterSent', 'invites', 'campaigns', 'writeCampaign', 'changeCampaign', 'moveCampaign', 'rewards', 'decideReward'].map((verb) => [verb, (...said: unknown[]) =>
+            admin: Object.fromEntries(['vault', 'fee', 'ceiling', 'fees', 'pause', 'staff', 'setStaff', 'log', 'people', 'person', 'history', 'note', 'suspend', 'lift', 'clear', 'signOut', 'minor', 'reports', 'reportsWaiting', 'report', 'review', 'play', 'switchGame', 'liveMatches', 'waitingTables', 'voidMatch', 'closeTable', 'overview', 'checks', 'closeCheck', 'live', 'notice', 'putNotice', 'endNotice', 'shop', 'shopItem', 'shopFeature', 'shopOrders', 'giveLook', 'takeLook', 'shopMoney', 'shopWithdraw', 'shopShare', 'shopSeller', 'shopPause', 'shopRefund', 'minters', 'minterGrant', 'minterRevoke', 'minterSent', 'invites', 'campaigns', 'writeCampaign', 'changeCampaign', 'moveCampaign', 'rewards', 'decideReward', 'rewardConfig', 'switchRewards', 'setRewardAmounts', 'setRewardLooks', 'setRewardBudget', 'freezeRewards'].map((verb) => [verb, (...said: unknown[]) =>
             {
                 told.push([verb, ...said]);
 
@@ -2248,6 +2248,46 @@ describe('the owner\'s view of the vault', () =>
         expect((await sent(app, `/invites/rewards/${ id }`, { to: 'review', reason: 'Look again' })).status).toBe(422);
         expect((await sent(app, '/invites/rewards?list=pending')).status).toBe(422);
         expect(told).toHaveLength(7);
+    });
+
+    it('answers anybody who may not run rewards as a page that is not there, and takes a change only in the shapes the wire offers', async () =>
+    {
+        const told: unknown[][] = [];
+        const app = owned(told, null);
+        const amounts = { ladder: Array.from({ length: 30 }, () => 1000), bonus: 20_000, daily: 1_000, weekly: 3_000, chest: 1_000 };
+        const answers = [
+            await sent(app, '/rewards'),
+            await sent(app, '/rewards/switch', { on: true, reason: 'Ready to run' }),
+            await sent(app, '/rewards/amounts', { amounts, reason: 'New numbers' }),
+            await sent(app, '/rewards/looks', { pool: ['dice.gold'], exclusive: 'pieces.oni', reason: 'New looks' }),
+            await sent(app, '/rewards/budget', { budget: 1_000_000, reason: 'Smaller pool' }),
+            await sent(app, '/rewards/people/mina/freeze', { frozen: true, reason: 'Farming accounts' })
+        ];
+
+        for (const response of answers)
+        {
+            const body = await response.json() as { error: { code: string; message: string } };
+
+            expect([response.status, body.error.code, body.error.message]).toEqual([404, 'not-found', 'Nothing there.']);
+        }
+
+        expect(told).toEqual([
+            ['rewardConfig', 'somebody'],
+            ['switchRewards', 'somebody', { on: true, reason: 'Ready to run' }],
+            ['setRewardAmounts', 'somebody', { amounts, reason: 'New numbers' }],
+            ['setRewardLooks', 'somebody', { pool: ['dice.gold'], exclusive: 'pieces.oni', reason: 'New looks' }],
+            ['setRewardBudget', 'somebody', { budget: 1_000_000, reason: 'Smaller pool' }],
+            ['freezeRewards', 'somebody', 'mina', { frozen: true, reason: 'Farming accounts' }]
+        ]);
+        expect((await sent(app, '/rewards/switch', { on: true, reason: 'ab' })).status).toBe(422);
+        expect((await sent(app, '/rewards/amounts', { amounts: { ...amounts, ladder: amounts.ladder.slice(1) }, reason: 'New numbers' })).status).toBe(422);
+        expect((await sent(app, '/rewards/amounts', { amounts: { ...amounts, daily: 1.5 }, reason: 'New numbers' })).status).toBe(422);
+        expect((await sent(app, '/rewards/amounts', { amounts: { ...amounts, bonus: 200_001 }, reason: 'New numbers' })).status).toBe(422);
+        expect((await sent(app, '/rewards/looks', { pool: Array.from({ length: 41 }, () => 'dice.gold'), reason: 'New looks' })).status).toBe(422);
+        expect((await sent(app, '/rewards/budget', { budget: -1, reason: 'Smaller pool' })).status).toBe(422);
+        expect((await sent(app, '/rewards/budget', { budget: 1_000_000_000_000, reason: 'Smaller pool' })).status).toBe(422);
+        expect((await sent(app, '/rewards/people/mina/freeze', { reason: 'Farming accounts' })).status).toBe(422);
+        expect(told).toHaveLength(6);
     });
 
     it('hands the owner\'s wallet the shop\'s call as the port composed it', async () =>

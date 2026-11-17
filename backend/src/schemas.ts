@@ -20,6 +20,7 @@ import { CHANNEL_BIO_MOST, CHANNEL_NAME_MOST, CHANNEL_POST_KINDS, CHANNEL_PRIVAC
 import { FILE_ALBUM_LEAST, FILE_ALBUM_MOST, FILE_AS } from './domains/chat/files.ts';
 import { MEDIA_KINDS } from './domains/chat/pages.ts';
 import { ALERT_KINDS, ALERT_LEVELS, FAMILIES, QUEUES, WORKERS } from './ops/measures.ts';
+import { REWARD_BUDGET_MOST, REWARD_CAP, REWARD_CYCLE_DAYS, REWARD_POOL_MOST } from './domains/reward/rules.ts';
 
 const NUL = String.fromCharCode(0);
 
@@ -334,6 +335,9 @@ export const account = object({
     nameplate: string().optional(),
     theme: string().optional(),
     effect: string().optional(),
+
+    /** Present while rewards are switched on here, so their door is drawn without asking and hidden while they are off. */
+    rewards: literal(true).optional(),
 
     /**
      * True while this SESSION signed in with a guest key the browser holds. Everything on chain is
@@ -3659,35 +3663,47 @@ export const rewardLadderStep = object({
     day: number(),
     amount: number(),
     claimed: boolean(),
-    look: enumOf(['weekly', 'exclusive']).optional()
+    look: enumOf(['weekly', 'exclusive']).optional(),
+
+    /** NURA the day pays beside its ladder amount: day 30's bonus. */
+    bonus: number().optional()
+});
+
+/** A quest of today or this week. `metric` is the browser's key for its words: a tally as `tally:<name>`; `reward` is the NURA it pays. */
+export const rewardQuest = object({
+    id: string(),
+    game: string(),
+    metric: string(),
+    target: number(),
+    reward: number(),
+    progress: number(),
+    done: boolean(),
+    claimed: boolean()
 });
 
 export const rewardState = object({
+    /** The live streak's ladder position: 0 once a day was missed. */
     streak: number(),
+
+    /** The absolute reward day of the last check-in. */
     lastDay: number(),
     best: number(),
     claimable: boolean(),
     today: number(),
+
+    /** The ladder position today's check-in pays, or paid. */
+    position: number(),
     ladder: array(rewardLadderStep),
     cycleGranted: number(),
     withdrawable: number(),
-    daily: array(object({
-        id: string(),
-        game: string(),
-        target: number(),
-        progress: number(),
-        done: boolean(),
-        claimed: boolean()
-    })),
-    weekly: array(object({
-        id: string(),
-        game: string(),
-        target: number(),
-        progress: number(),
-        done: boolean(),
-        claimed: boolean()
-    })),
+    daily: array(rewardQuest),
+    weekly: array(rewardQuest),
+
+    /** The NURA the week's chest pays. */
+    chest: number(),
     chestClaimed: boolean(),
+
+    /** Why NURA is not earned (rule 7); after a check-in, also why it paid less (the cap or the day's budget). */
     reason: string().optional()
 });
 
@@ -3728,11 +3744,19 @@ export const rewardWithdraw = object({
 
 export type RewardWithdraw = Infer<typeof rewardWithdraw>;
 
+/** What the player may still withdraw, in whole NURA: answered while rewards are switched off too. */
+export const rewardBalance = object({
+    withdrawable: number()
+});
+
+export type RewardBalance = Infer<typeof rewardBalance>;
+
 export const rewardClaimAll = object({
     claimed: array(object({
         period: enumOf(['daily', 'weekly']),
         id: string(),
-        amount: number()
+        amount: number(),
+        reason: string().optional()
     })),
     total: number()
 });
@@ -3750,6 +3774,168 @@ export const rewardActivity = object({
 });
 
 export type RewardActivity = Infer<typeof rewardActivity>;
+
+const rewardNura = () => number({ int: true, min: 0, max: REWARD_CAP });
+
+/** What a cycle pays, in whole NURA: the 30-day ladder by position, the bonus, one daily quest, one weekly quest and the chest. */
+export const rewardAmounts = object({
+    ladder: array(rewardNura(), { min: REWARD_CYCLE_DAYS, max: REWARD_CYCLE_DAYS }),
+    bonus: rewardNura(),
+    daily: rewardNura(),
+    weekly: rewardNura(),
+    chest: rewardNura()
+});
+
+/** Rewards as the staff run them: the switch, the amounts and the most they pay one player a cycle, the looks, and the cycle's budget in whole NURA. */
+export const adminRewardConfig = object({
+    on: boolean(),
+    amounts: rewardAmounts,
+    mostPerCycle: number(),
+    cap: number(),
+    pool: array(string()),
+    exclusive: string().optional(),
+    budget: number()
+});
+
+export type AdminRewardConfig = Infer<typeof adminRewardConfig>;
+
+export const adminRewardSwitch = object({ on: boolean(), reason: said() });
+
+export const adminRewardAmountsInput = object({ amounts: rewardAmounts, reason: said() });
+
+/** The looks a reward may give: the pool, each a look the shop has (never a bundle), and the cycle's exclusive one, or none. */
+export const adminRewardLooksInput = object({
+    pool: array(string({ min: 1, max: 40 }), { max: REWARD_POOL_MOST }),
+    exclusive: string({ min: 1, max: 40 }).optional(),
+    reason: said()
+});
+
+export const adminRewardBudgetInput = object({ budget: number({ int: true, min: 0, max: REWARD_BUDGET_MOST }), reason: said() });
+
+export const adminRewardFreezeInput = object({ frozen: boolean(), reason: said() });
+
+/** Whether a player's rewards are frozen, and when it was done and why while they are. */
+export const adminRewardFreeze = object({
+    handle: string(),
+    frozen: boolean(),
+    reason: string().optional(),
+    at: string().optional()
+});
+
+export type AdminRewardFreeze = Infer<typeof adminRewardFreeze>;
+
+const REWARD_SOURCES = ['checkin', 'bonus', 'daily', 'weekly', 'chest'] as const;
+
+/** A player as a reward line shows them. */
+const rewardFace = object({ handle: string(), displayName: string(), hue: number(), avatar: string().optional() });
+
+const REWARD_PAYOUT_STATES = ['queued', 'sent', 'mined', 'failed'] as const;
+
+/** NURA granted by each source, in whole NURA. */
+const rewardBySource = object({ checkin: number(), bonus: number(), daily: number(), weekly: number(), chest: number() });
+
+/** Where the cycle's budget stands, in whole NURA: all of it, what has opened by the end of today, what is granted so far and today. */
+const adminRewardBudget = object({
+    cycle: number(),
+    cycleDay: number(),
+    day: number(),
+    budget: number(),
+    open: number(),
+    used: number(),
+    usedToday: number()
+});
+
+/** A reward day in the staff's log, in whole NURA; `day` is absent on the one row of grants written before each kept its day. */
+const adminRewardDay = object({
+    day: number().optional(),
+    cycleDay: number().optional(),
+    granted: rewardBySource,
+    total: number(),
+    skins: number(),
+    players: number(),
+    paidOut: number(),
+
+    /** The cycle's grants through this day, and what the budget had opened by its end. */
+    used: number().optional(),
+    open: number().optional()
+});
+
+export const adminRewardDaysQuery = object({ cycle: string({ max: 6, pattern: /^\d{1,6}$/ }).optional() });
+
+/** One cycle's daily log, newest day first, with the budget it ran against. */
+export const adminRewardDays = object({ cycle: number(), budget: number(), days: array(adminRewardDay) });
+
+export type AdminRewardDays = Infer<typeof adminRewardDays>;
+
+export const adminRewardDayQuery = object({ cursor: string({ max: 80 }).optional() });
+
+/** One line of a reward day: a grant (what it wanted before clipping, and a look it gave) or a payout (its transaction and state). */
+const adminRewardEntry = union([
+    object({
+        kind: literal('grant'),
+        id: string(),
+        person: rewardFace,
+        source: enumOf(REWARD_SOURCES),
+        quest: string().optional(),
+        amount: number(),
+        wanted: number(),
+        item: string().optional(),
+        delivered: boolean().optional(),
+        at: string()
+    }),
+    object({
+        kind: literal('payout'),
+        id: string(),
+        person: rewardFace,
+        amount: number(),
+        state: enumOf(REWARD_PAYOUT_STATES),
+        hash: string().optional(),
+        attempts: number(),
+        at: string()
+    })
+]);
+
+export const adminRewardDayEntries = object({ day: number(), rows: array(adminRewardEntry), cursor: string().optional() });
+
+export type AdminRewardDayEntries = Infer<typeof adminRewardDayEntries>;
+
+const adminRewardPayout = object({
+    id: string(),
+    person: rewardFace,
+    wallet: string(),
+    amount: number(),
+    state: enumOf(REWARD_PAYOUT_STATES),
+    hash: string().optional(),
+    attempts: number(),
+    at: string()
+});
+
+/** Rewards at a glance: the budget today, the rewards wallet, the payout queue (failed first) and the cycle's top earners. */
+export const adminRewardOverview = object({
+    budget: adminRewardBudget,
+    wallet: object({
+        configured: boolean(),
+        address: string().optional(),
+        chainId: number().optional(),
+
+        /** Absent when the chain could not be read. */
+        balance: number().optional()
+    }),
+    queue: object({ queued: number(), sent: number(), owed: number(), rows: array(adminRewardPayout) }),
+    top: array(object({ person: rewardFace, earned: number(), frozen: boolean() }))
+});
+
+export type AdminRewardOverview = Infer<typeof adminRewardOverview>;
+
+export const adminRewardFrozenQuery = object({ cursor: string({ max: 80 }).optional() });
+
+/** The players whose rewards are frozen, newest first, with why, by whom and when. */
+export const adminRewardFrozen = object({
+    rows: array(object({ person: rewardFace, reason: string(), by: string().optional(), at: string() })),
+    cursor: string().optional()
+});
+
+export type AdminRewardFrozen = Infer<typeof adminRewardFrozen>;
 
 export type NotificationKind = Infer<typeof notificationKind>;
 

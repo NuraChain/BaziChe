@@ -7,7 +7,7 @@ import { User } from './user.entity.ts';
  * a second setting nobody reads.
  */
 @Check('settings_key_known', `key in ('usd-rate', 'push-keys', 'reward-config', 'reward-budget')`)
-@Check('settings_value_length', `char_length(value) between 1 and 400`)
+@Check('settings_value_length', `char_length(value) between 1 and 4000`)
 @Entity('settings')
 export class Setting
 {

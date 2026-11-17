@@ -61,6 +61,7 @@ import { createNoticeService } from './domains/admin/notice.ts';
 import { createSeasonService } from './domains/admin/seasons.ts';
 import { createShopAdmin } from './domains/admin/shop.ts';
 import { createInviteAdmin } from './domains/admin/invites.ts';
+import { createRewardAdmin } from './domains/admin/rewards.ts';
 import { createMarketsMoney } from './domains/admin/markets-money.ts';
 import { createMintersAdmin } from './domains/admin/minters.ts';
 import { createShopMoney } from './domains/admin/shop-money.ts';
@@ -74,6 +75,7 @@ import type { CheckFamily, Holder } from './domains/reconcile/kinds.ts';
 import { createReconciler, type ReconcileSweep } from './domains/reconcile/service.ts';
 import type { Books } from './chain/rpc.ts';
 import { createShopService } from './domains/shop/service.ts';
+import { createStreakReminder } from './domains/reward/reminder.ts';
 import { createRewardService } from './domains/reward/service.ts';
 import type { RewardFinishEffects } from './domains/reward/progress.ts';
 import { createReportsService } from './domains/admin/reports.ts';
@@ -188,6 +190,9 @@ export interface Services extends Ports
         sweepMarkets(forMs: number): Promise<MarketSweep>;
         sweepRewards(forMs: number): Promise<import('./domains/reward/payout.ts').RewardPayoutSweep>;
 
+        /** Tells players whose streak today's check-in would keep, in the reward day's last hours; nothing while rewards are off. */
+        remindStreaks(forMs: number): Promise<{ told: number; missed: number }>;
+
         /** Owed NFTs written down and a few asked of the chain and sent; nothing when the minter is not configured. */
         sweepNfts(): Promise<NftSweep>;
         reconcile(forMs: number): Promise<ReconcileSweep>;
@@ -276,6 +281,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const notify = createNotifyService(db, social);
     const rewardWallet = rewardChain ?? createRewardWallet({ rpcUrl: config.rpcUrl, chainId: config.chainId, rewardsKey: config.rewardsKey });
     const reward = createRewardService(db, rewardWallet, { mined: (userId) => live?.selfChanged(userId, 'rewards') });
+    const rewardAdmin = createRewardAdmin(db, rewardWallet);
     const shop = createShopService(db);
 
     /**
@@ -371,6 +377,23 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             }));
         }
     };
+
+    const streakReminder = createStreakReminder(db, {
+        switchedOn: () => reward.switchedOn(),
+
+        async tell(userId, dedupeKey)
+        {
+            const told = await notify.tell({ userId, kind: 'reward-streak', actorId: null, ref: {}, dedupeKey, once: true });
+
+            if (told)
+            {
+                live?.selfChanged(userId, 'notifications');
+                wake(userId);
+            }
+
+            return told;
+        }
+    });
 
     const retract = async (userId: string, kind: Notification['kind'], dedupeKey: string) =>
     {
@@ -1894,7 +1917,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         shop: looksShop.configured,
         gifts: tipping.configured,
         markets: forecasts.configured,
-        checks: reconciler.watching.length > 0
+        checks: reconciler.watching.length > 0,
+        rewards: {
+            switchedOn: () => reward.switchedOn(),
+            balance: rewardWallet.address === null ? null : () => rewardWallet.balanceOf(rewardWallet.address!)
+        }
     });
 
     const walkAway = async (me: string, tableId: string, forfeit: boolean) =>
@@ -2381,7 +2408,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         address: string | null;
         created_at: Date;
         staff_role: GrantedRole | null;
-    } & ProfileLooks): Account =>
+    } & ProfileLooks, rewardsOn: boolean): Account =>
     {
         const role = roleOf(row);
 
@@ -2399,7 +2426,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             ...worn('deco', row.deco),
             ...worn('nameplate', row.nameplate),
             ...worn('theme', row.theme),
-            ...worn('effect', row.effect)
+            ...worn('effect', row.effect),
+            ...(rewardsOn ? { rewards: true as const } : {})
         };
     };
 
@@ -2472,6 +2500,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             sweepDonations: (forMs) => donations.sweep(forMs),
             sweepMarkets: (forMs) => markets.sweep(forMs),
             sweepRewards: (forMs) => reward.sweep(forMs),
+            remindStreaks: (forMs) => streakReminder.sweep(forMs),
             sweepNfts: () => mirror.pass(),
             reconcile: (forMs) => reconciler.sweep(forMs),
             sample: sampleWork,
@@ -2552,7 +2581,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             async me(userId)
             {
                 const row = await identity.profileFor(userId);
-                return row === null ? null : present(row);
+                return row === null ? null : present(row, await reward.switchedOn());
             },
 
             async challenge(address, deviceId)
@@ -2600,7 +2629,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 }
 
                 const row = await identity.profileFor(userId);
-                return { token: result.token, account: present(row!) };
+                return { token: result.token, account: present(row!, await reward.switchedOn()) };
             },
 
             async signOut(sessionId)
@@ -2629,7 +2658,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             {
                 const row = await identity.setProfile(userId, input);
                 await ringProfile(userId);
-                return present(row);
+                return present(row, await reward.switchedOn());
             },
 
             async uploadAvatar(data)
@@ -2703,26 +2732,23 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         },
 
         reward: {
-            async state(me)
-            {
-                const state = await reward.state(me);
+            state: (me) => reward.state(me),
 
-                return {
-                    ...state,
-                    ladder: state.ladder.map(({ look, ...rest }) => look === undefined ? rest : { ...rest, look })
-                };
-            },
+            balance: (me) => reward.balance(me),
+
             async checkIn(me)
             {
-                const [payload, state] = await Promise.all([reward.checkIn(me), reward.state(me)]);
-                const next = {
-                    ...state,
-                    claimable: payload.claimed === false && state.claimable,
-                    ladder: state.ladder.map(({ look, ...rest }) => look === undefined ? rest : { ...rest, look })
-                };
+                // Read after the write has committed: read beside it, the state could be the one before.
+                const made = await reward.checkIn(me);
+                const state = await reward.state(me);
 
-                live?.selfChanged(me, 'rewards');
-                return next;
+                if (made.claimed)
+                {
+                    live?.selfChanged(me, 'rewards');
+                }
+
+                // The reason the check-in paid less NURA than its day: a refusal of rule 7, the cap or the day's budget.
+                return made.claimed && made.reason !== undefined ? { ...state, reason: made.reason } : state;
             },
             async claimQuest(me, period, id)
             {
@@ -2742,32 +2768,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 }
                 return result;
             },
-            async history(me, cursor)
-            {
-                const rows = await db.query(
-                    `select id, source, amount, created_at as at, source_key as note
-                     from reward_grants where user_id = $1 order by created_at desc limit 25`,
-                    [me]
-                );
-
-                const items = rows.map((row: { id: string; source: string; amount: string; at: Date; note: string }) =>
-                {
-                    const kind = row.source === 'checkin' ? 'check-in' : row.source === 'bonus' ? 'bonus' : 'quest';
-                    return {
-                        id: row.id,
-                        kind,
-                        at: row.at.toISOString(),
-                        amount: Number(row.amount),
-                        note: row.note
-                    };
-                });
-
-                return {
-                    items,
-                    hasMore: false,
-                    ...(cursor === null || cursor === undefined ? {} : { cursor })
-                };
-            },
+            history: (me, cursor) => reward.history(me, cursor ?? null),
             async claimAll(me)
             {
                 const result = await reward.claimAll(me);
@@ -3637,6 +3638,80 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 }
 
                 return decided.reward;
+            },
+
+            async rewardConfig(me)
+            {
+                return await ableTo(me, 'rewards') === null ? null : await rewardAdmin.config();
+            },
+
+            async rewardOverview(me)
+            {
+                return await ableTo(me, 'rewards') === null ? null : await rewardAdmin.overview();
+            },
+
+            async rewardDays(me, query)
+            {
+                return await ableTo(me, 'rewards') === null ? null : await rewardAdmin.days(query.cycle === undefined ? null : Number(query.cycle));
+            },
+
+            async rewardDay(me, day, query)
+            {
+                // A day that is not whole digits names no day, the way an unknown id names no row.
+                return await ableTo(me, 'rewards') === null || !/^\d{1,9}$/.test(day) ? null : await rewardAdmin.day(Number(day), query.cursor);
+            },
+
+            async rewardFrozen(me, query)
+            {
+                return await ableTo(me, 'rewards') === null ? null : await rewardAdmin.frozen(query.cursor);
+            },
+
+            async switchRewards(me, input)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null ? null : await rewardAdmin.switchTo(actor, input.on, input.reason);
+            },
+
+            async setRewardAmounts(me, input)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null ? null : await rewardAdmin.setAmounts(actor, input.amounts, input.reason);
+            },
+
+            async setRewardLooks(me, input)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null ? null : await rewardAdmin.setLooks(actor, input.pool, input.exclusive ?? null, input.reason);
+            },
+
+            async setRewardBudget(me, input)
+            {
+                const actor = await ableTo(me, 'wallet');
+
+                return actor === null ? null : await rewardAdmin.setBudget(actor, input.budget, input.reason);
+            },
+
+            async freezeRewards(me, handle, input)
+            {
+                const actor = await ableTo(me, 'rewards');
+
+                if (actor === null)
+                {
+                    return null;
+                }
+
+                const target = await accounts.reachable(actor, handle);
+                const person = { id: target.id, handle: target.handle };
+
+                if (await rewardAdmin.freeze(actor, person, input.frozen, input.reason))
+                {
+                    live?.selfChanged(target.id, 'rewards');
+                }
+
+                return await rewardAdmin.freezeState(target.id, target.handle);
             }
         },
 

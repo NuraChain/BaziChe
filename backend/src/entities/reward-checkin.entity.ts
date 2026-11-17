@@ -1,8 +1,8 @@
 import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
 import { User } from './user.entity.ts';
 
-/** One reward day the player already claimed: the day number, and the ladder position that was paid. */
-@Check('reward_checkins_day_range', `day between 1 and 30`)
+/** One reward day the player already claimed: the absolute reward day, and the ladder position that was paid. */
+@Check('reward_checkins_day_range', `day >= 1`)
 @Check('reward_checkins_position_range', `position between 1 and 30`)
 @Index('reward_checkins_day_idx', ['day'])
 @Entity('reward_checkins')

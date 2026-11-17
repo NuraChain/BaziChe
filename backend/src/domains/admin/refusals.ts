@@ -56,7 +56,8 @@ export const STAFF_REFUSALS = {
     'staff-tournament-few': 409,
     'staff-tournament-time': 422,
     'staff-tournament-player': 409,
-    'staff-rate': 422
+    'staff-rate': 422,
+    'staff-reward-amounts': 422
 } as const satisfies Record<string, 404 | 409 | 422>;
 
 export type StaffRefusal = keyof typeof STAFF_REFUSALS;

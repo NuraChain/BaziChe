@@ -733,6 +733,42 @@ const sweepRewards = () =>
 rewarding = setTimeout(sweepRewards, REWARD_SWEEP_MS);
 rewarding.unref();
 
+/** A minute apart: the window it works in is hours long, and outside it, or once the day's walk is done, a pass asks nothing. */
+const REMINDER_SWEEP_MS = 60_000;
+
+const REMINDER_SWEEP_BUDGET_MS = 10_000;
+
+let reminding: NodeJS.Timeout | null = null;
+
+const remindStreaks = () =>
+{
+    void ports.jobs.remindStreaks(REMINDER_SWEEP_BUDGET_MS)
+        .then(({ told, missed }) =>
+        {
+            if (told > 0)
+            {
+                log.info('streak reminders sent', { told });
+            }
+
+            if (missed > 0)
+            {
+                log.warn('streak reminders could not be sent', { missed });
+            }
+        })
+        .catch((error: unknown) => log.error('streak reminder sweep failed', { error }))
+        .finally(() =>
+        {
+            if (reminding !== null)
+            {
+                reminding = setTimeout(remindStreaks, REMINDER_SWEEP_MS);
+                reminding.unref();
+            }
+        });
+};
+
+reminding = setTimeout(remindStreaks, REMINDER_SWEEP_MS);
+reminding.unref();
+
 const MARKET_SWEEP_MS = 3_000;
 
 const MARKET_SWEEP_BUDGET_MS = 4_000;
@@ -950,6 +986,11 @@ handleShutdownSignals(served, {
         {
             clearTimeout(rewarding);
             rewarding = null;
+        }
+        if (reminding !== null)
+        {
+            clearTimeout(reminding);
+            reminding = null;
         }
         if (marketing !== null)
         {

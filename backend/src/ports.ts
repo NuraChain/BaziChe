@@ -115,9 +115,11 @@ import type {
     RewardQuestClaim,
     RewardClaimAll,
     RewardActivity,
+    RewardBalance,
     RewardWithdraw
 } from './schemas.ts';
 import type { Infer } from '@azerothjs/schema';
+import type { AdminRewardConfig, AdminRewardDayEntries, AdminRewardDays, AdminRewardFreeze, AdminRewardFrozen, AdminRewardOverview, adminRewardDayQuery, adminRewardDaysQuery, adminRewardFrozenQuery, adminRewardAmountsInput, adminRewardBudgetInput, adminRewardFreezeInput, adminRewardLooksInput, adminRewardSwitch } from './schemas.ts';
 import type { tournamentCreateInput, tournamentList, tournamentsQuery, AdminRate, adminRateInput, AdminTournament, AdminTournaments, TournamentDetail, adminTournamentRemove, adminTournamentSwitch, adminTournamentTime, adminTournamentsQuery, adminMinterInput, adminMinterSentInput, adminCampaignInput, adminCampaignMove, adminCampaignsQuery, adminRewardDecision, adminRewardsQuery, adminCheckClose, adminChecksQuery, adminClearInput, adminGameInput, adminLiftInput, adminNoticeEnd, adminNoticeInput, adminSeasonStart, adminMatchesQuery, adminLiveQuery, adminTablesQuery, adminNoteInput, adminPeopleQuery, adminReportsQuery, adminReviewInput, adminGiveInput, adminTakeInput, adminShopFeatureInput, adminShopItemInput, adminShopRepriceInput, adminShopOrdersQuery, adminShopRefundInput, adminSignOutInput, adminMinorInput, adminSuspendInput, adminVoidInput, adminCloseInput, matchEvent, shopBalance, shopEarnings, shopOrders, staffInput, staffLogQuery } from './schemas.ts';
 import type { BreakDays } from './domains/stake/policy.ts';
 import type { ShopSlot } from './domains/shop/catalogue.ts';
@@ -1116,6 +1118,32 @@ export interface AdminPort
 
     /** A reward given, refused or taken back, held to the rank rule against the person it is for. */
     decideReward(me: string, id: string, input: Infer<typeof adminRewardDecision>): Promise<AdminInviteReward | null>;
+
+    /** Daily rewards as they run: for a role that opens Rewards. */
+    rewardConfig(me: string): Promise<AdminRewardConfig | null>;
+
+    /** Rewards at a glance, for a role that opens Rewards: the budget today, the wallet, the payout queue and the top earners. */
+    rewardOverview(me: string): Promise<AdminRewardOverview | null>;
+
+    /** One cycle's daily log; null as well for a cycle not begun. */
+    rewardDays(me: string, query: Infer<typeof adminRewardDaysQuery>): Promise<AdminRewardDays | null>;
+
+    /** One reward day's grants and payouts, a page at a time; null as well for a day not begun. */
+    rewardDay(me: string, day: string, query: Infer<typeof adminRewardDayQuery>): Promise<AdminRewardDayEntries | null>;
+
+    rewardFrozen(me: string, query: Infer<typeof adminRewardFrozenQuery>): Promise<AdminRewardFrozen | null>;
+
+    /** The owner's alone (`wallet`), each a staff action: the switch, the amounts, the looks and the cycle's budget. */
+    switchRewards(me: string, input: Infer<typeof adminRewardSwitch>): Promise<AdminRewardConfig | null>;
+
+    setRewardAmounts(me: string, input: Infer<typeof adminRewardAmountsInput>): Promise<AdminRewardConfig | null>;
+
+    setRewardLooks(me: string, input: Infer<typeof adminRewardLooksInput>): Promise<AdminRewardConfig | null>;
+
+    setRewardBudget(me: string, input: Infer<typeof adminRewardBudgetInput>): Promise<AdminRewardConfig | null>;
+
+    /** Freezes or thaws one player's rewards, held to the rank rule against them. */
+    freezeRewards(me: string, handle: string, input: Infer<typeof adminRewardFreezeInput>): Promise<AdminRewardFreeze | null>;
 }
 
 /** Every port the API declaration may reach. One member per domain. */
@@ -1126,6 +1154,7 @@ export interface RewardPort
     claimQuest(me: string, period: 'daily' | 'weekly', id: string): Promise<RewardQuestClaim>;
     claimAll(me: string): Promise<RewardClaimAll>;
     withdraw(me: string): Promise<RewardWithdraw>;
+    balance(me: string): Promise<RewardBalance>;
     history(me: string, cursor?: string | null): Promise<RewardHistoryPage>;
     activity(me: string): Promise<RewardActivity>;
 }

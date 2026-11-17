@@ -1,36 +1,49 @@
 import { describe, expect, it } from 'vitest';
 
-import { periodKeysInClaimWindow, rewardForDay } from '../src/domains/reward/service.ts';
+import { periodKeysInClaimWindow } from '../src/domains/reward/service.ts';
 import { REWARD_REFUSALS } from '../src/domains/reward/refusals.ts';
 
 describe('reward service', () =>
 {
-    it('pays the ladder and the day-30 bonus with the right look windows', () =>
-    {
-        expect(rewardForDay(1, true)).toMatchObject({ amount: 1000 });
-        expect(rewardForDay(1, true)).not.toHaveProperty('look');
-        expect(rewardForDay(7, true)).toMatchObject({ amount: 3000, look: 'weekly' });
-        expect(rewardForDay(14, true)).toMatchObject({ amount: 4000, look: 'weekly' });
-        expect(rewardForDay(21, true)).toMatchObject({ amount: 5000, look: 'weekly' });
-        expect(rewardForDay(28, true)).toMatchObject({ amount: 3000, look: 'weekly' });
-        expect(rewardForDay(30, true)).toMatchObject({ amount: 0, look: 'exclusive', bonus: 20000 });
-    });
-
-    it('refuses non-established players only on the NURA grant', () =>
+    it('refuses with 409s, and has a word of its own for a player with no wallet', () =>
     {
         expect(REWARD_REFUSALS['not-established']).toBe(409);
-        expect(rewardForDay(7, false)).toMatchObject({ amount: 0, look: 'weekly' });
+        expect(REWARD_REFUSALS['reward-no-wallet']).toBe(409);
+        expect(REWARD_REFUSALS['reward-wallet']).toBe(409);
+    });
+
+    it('lists every word once with its status: switched off answers as missing, a freeze as a conflict', () =>
+    {
+        expect(REWARD_REFUSALS).toEqual({
+            'not-established': 409,
+            'reward-off': 404,
+            'reward-wallet': 409,
+            'reward-no-wallet': 409,
+            'reward-minor': 409,
+            'reward-suspended': 409,
+            'reward-frozen': 409,
+            'reward-claimed': 409,
+            'reward-budget': 409,
+            'reward-cap': 409
+        });
+
+        for (const word of Object.keys(REWARD_REFUSALS))
+        {
+            expect(word).toMatch(/^[a-z]+(-[a-z]+)*$/);
+        }
     });
 
     it('keeps daily claims available through seven days, but not after that window', () =>
     {
-        expect(periodKeysInClaimWindow('daily', 20)).toEqual(['13', '14', '15', '16', '17', '18', '19', '20']);
+        expect(periodKeysInClaimWindow('daily', 1050)).toEqual(['1043', '1044', '1045', '1046', '1047', '1048', '1049', '1050']);
     });
 
     it('keeps the previous weekly quest key only while it falls within the seven-day window', () =>
     {
-        expect(periodKeysInClaimWindow('weekly', 29)).toEqual(['cycle:0:week:4']);
-        expect(periodKeysInClaimWindow('weekly', 30)).toEqual(['cycle:0:week:4']);
-        expect(periodKeysInClaimWindow('weekly', 31)).toEqual(['cycle:0:week:4', 'cycle:1:week:1']);
+        // Day 1050 is cycle 34's day 30, which has no week; 1051 opens cycle 35's first.
+        expect(periodKeysInClaimWindow('weekly', 1049)).toEqual(['cycle:34:week:4']);
+        expect(periodKeysInClaimWindow('weekly', 1050)).toEqual(['cycle:34:week:4']);
+        expect(periodKeysInClaimWindow('weekly', 1051)).toEqual(['cycle:34:week:4', 'cycle:35:week:1']);
+        expect(periodKeysInClaimWindow('weekly', 1058)).toEqual(['cycle:35:week:1', 'cycle:35:week:2']);
     });
 });

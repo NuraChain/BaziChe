@@ -1,65 +1,78 @@
-import { Show } from 'azerothjs';
-
-import { useRewards } from '../../stores/rewards.store.ts';
+import { REWARD_WITHDRAWAL_MINIMUM } from '../../../../backend/src/domains/reward/payout-rules.ts';
+import { REWARD_CAP } from '../../../../backend/src/domains/reward/rules.ts';
+import { whyRewards } from '../../lib/reward-words.ts';
 import { useLocale } from '../../stores/locale.store.ts';
+import { useRewards } from '../../stores/rewards.store.ts';
 import Button from '../ui/button.component.azeroth';
 import Panel from '../ui/panel.component.azeroth';
+
+/** Why a check-in paid less; NURA already earned is still the player's to withdraw. */
+const PAID_LESS = new Set(['reward-cap', 'reward-budget']);
 
 export default component Balance(props: { class?: string })
 {
     const locale = useLocale();
     const rewards = useRewards();
 
-    const cycleGranted = rewards.cycleGranted();
-    const withdrawable = rewards.withdrawable();
-    const reason = rewards.reason();
+    derived held = rewards.state();
 
-    const withdraw = async () =>
-    {
-        await rewards.withdraw();
-    };
+    derived granted = held?.cycleGranted ?? 0;
 
-    return (
-        <Panel section class={ props.class ?? '' }>
-            <div class="flex flex-col gap-4">
-                <div class="flex items-baseline justify-between gap-3">
-                    <div class="flex flex-col gap-1">
-                        <div class="text-xs text-muted">{ locale.t('app.rewards.balance') }</div>
-                        <div class="text-ui-2xl font-mono text-text">{ cycleGranted }</div>
-                    </div>
-                    <div class="text-xs text-muted">{ locale.t('app.rewards.withdrawable') }</div>
-                </div>
-                <div class="w-full bg-border rounded-full h-2">
-                    <div class="h-2 rounded-full bg-accent" style="width: min(100, (cycleGranted / 200000) * 100)%" />
-                </div>
-                <div class="text-xs text-muted text-right">
-                    { cycleGranted } / 200,000 NURA
-                </div>
+    derived withdrawable = held?.withdrawable ?? 0;
 
-                <Show when={ reason === undefined }>
-                    { () =>
-                        <div class="flex items-center justify-between gap-3">
-                            <div class="text-xs text-muted">{ withdrawable } NURA available</div>
-                            <Button
-                                disabled={ withdrawable < 1000 }
-                                onClick={ withdraw }
-                                variant="primary"
-                                block={ true }
-                            >
-                                { locale.t('app.rewards.withdraw') }
-                            </Button>
-                        </div>
-                    }
-                </Show>
-                <Show when={ reason !== undefined }>
-                    { () =>
-                        <div class="flex items-center gap-3 text-xs text-muted">
-                            <span>{ locale.t('app.rewards.notEligible') }</span>
-                            <span>{ locale.t('app.rewards.notEligibleLead') }</span>
-                        </div>
-                    }
-                </Show>
+    derived through = Math.min(100, Math.round((granted / REWARD_CAP) * 100));
+
+    derived eligible = held !== null && (held.reason === undefined || PAID_LESS.has(held.reason));
+
+    derived withdrawing = rewards.busy() === 'withdraw';
+
+    derived said = rewards.said();
+
+    derived saying = said !== null && said.on === 'withdraw';
+
+    derived why = said === null ? '' : whyRewards(said.reason, locale, said.amount);
+
+    derived short = withdrawable < REWARD_WITHDRAWAL_MINIMUM;
+
+    <Panel section class={ props.class ?? '' } labelledBy="reward-balance">
+        <div class="flex flex-col gap-4">
+            <div class="flex flex-col gap-1">
+                <h3 id="reward-balance" class="text-xs text-muted">{ locale.t('app.rewards.balance') }</h3>
+                <p class="tally text-ui-2xl font-mono text-text">{ locale.n(granted) } NURA</p>
             </div>
-        </Panel>
-    );
+            <div
+                class="h-2 w-full overflow-hidden rounded-full bg-sunk"
+                role="progressbar"
+                aria-valuemin={ 0 }
+                aria-valuemax={ REWARD_CAP }
+                aria-valuenow={ granted }
+                aria-valuetext={ locale.t('app.rewards.cycle', { granted, cap: REWARD_CAP }) }
+            >
+                <span class="block h-full rounded-full bg-accent motion-safe:transition-[width]" style={ `width: ${ through }%` }></span>
+            </div>
+            <p class="text-xs text-muted">{ locale.t('app.rewards.cycle', { granted, cap: REWARD_CAP }) }</p>
+
+            <Show when={ eligible }>
+                <div class="flex flex-col gap-3">
+                    <p class="text-xs text-muted">{ locale.t('app.rewards.available', { amount: withdrawable }) }</p>
+                    <Button
+                        disabled={ short }
+                        onClick={ () => void rewards.withdraw() }
+                        loading={ withdrawing }
+                        variant="primary"
+                        block={ true }
+                    >
+                        { locale.t('app.rewards.withdraw') }
+                    </Button>
+                    <Show when={ short }>
+                        <p class="text-xs text-muted">{ locale.t('app.rewards.withdrawFrom', { least: REWARD_WITHDRAWAL_MINIMUM }) }</p>
+                    </Show>
+                </div>
+            </Show>
+
+            <Show when={ saying }>
+                <p class="text-ui-sm text-muted" role="status">{ why }</p>
+            </Show>
+        </div>
+    </Panel>
 }

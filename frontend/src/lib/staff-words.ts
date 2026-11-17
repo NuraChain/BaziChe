@@ -2,6 +2,7 @@ import { ApiError } from '../api.ts';
 import { isStaffRefusal } from '../../../backend/src/domains/admin/refusals.ts';
 import { STAFF_ROLES, type ReportStatus, type StaffRole } from '../../../backend/src/domains/admin/roles.ts';
 import type { InviteFlag } from '../../../backend/src/domains/invite/policy.ts';
+import { amountsOf, mostPerCycle } from '../../../backend/src/domains/reward/rules.ts';
 import { SHOP_COLLECTIONS } from '../../../backend/src/domains/shop/catalogue.ts';
 import { normalizeName } from '../../../backend/src/lib/naming.ts';
 import type { StaffLog } from '../../../backend/src/schemas.ts';
@@ -133,6 +134,24 @@ export function handleParts(said: string, handles: Readonly<Record<string, strin
 }
 
 const nuraIn = (wei: string | undefined, locale: LocaleApi) => (wei !== undefined && /^\d+$/.test(wei) ? locale.n(nuraOf(wei), { maximumFractionDigits: 4 }) : '');
+
+/** A count of whole NURA as the log keeps it, which is text. */
+const wholeIn = (count: string | undefined, locale: LocaleApi) => (count !== undefined && /^\d+$/.test(count) ? locale.n(Number(count)) : '');
+
+/** The most a logged set of reward amounts pays one player a cycle. */
+const mostIn = (said: string | undefined, locale: LocaleApi) =>
+{
+    try
+    {
+        const amounts = amountsOf(JSON.parse(said ?? 'null'));
+
+        return amounts === null ? '' : locale.n(mostPerCycle(amounts));
+    }
+    catch
+    {
+        return '';
+    }
+};
 
 const said = (row: LogRow, locale: LocaleApi) =>
 {
@@ -276,9 +295,26 @@ const said = (row: LogRow, locale: LocaleApi) =>
         return locale.t(REWARD_LINES[row.details.to ?? ''] ?? 'admin.log.line.invite.given', { ...slots, look: itemName(row.details.item ?? '', locale) });
     }
 
-    if (row.kind === 'reward-config' || row.kind === 'reward-freeze')
+    if (row.kind === 'reward-freeze')
     {
-        return locale.t(row.kind === 'reward-config' ? 'admin.log.line.reward.config' : 'admin.log.line.reward.freeze', { ...slots, reason: row.details.reason ?? '', player: row.person ?? '' });
+        return locale.t(row.details.to === 'thawed' ? 'admin.log.line.reward.thaw' : 'admin.log.line.reward.freeze', slots);
+    }
+
+    if (row.kind === 'reward-config' && row.details.part === 'switch')
+    {
+        return locale.t(row.details.to === 'on' ? 'admin.log.line.reward.on' : 'admin.log.line.reward.off', slots);
+    }
+
+    if (row.kind === 'reward-config' && row.details.part === 'budget')
+    {
+        return locale.t('admin.log.line.reward.budget', { ...slots, from: wholeIn(row.details.from, locale), to: wholeIn(row.details.to, locale) });
+    }
+
+    if (row.kind === 'reward-config')
+    {
+        return row.details.part === 'looks'
+            ? locale.t('admin.log.line.reward.looks', slots)
+            : locale.t('admin.log.line.reward.amounts', { ...slots, most: mostIn(row.details.to, locale) });
     }
 
     if (row.kind === 'rate')

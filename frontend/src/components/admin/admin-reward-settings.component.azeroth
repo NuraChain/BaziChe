@@ -1,0 +1,262 @@
+import { REWARD_BUDGET_MOST, REWARD_POOL_MOST } from '../../../../backend/src/domains/reward/rules.ts';
+import { attempt } from '../../lib/attempt.ts';
+import { wholeNuraOf } from '../../lib/nura.ts';
+import { poolWith, poolWithout, samePool } from '../../lib/reward-admin.ts';
+import { itemName } from '../../lib/shop.ts';
+import { whyStaffRefused } from '../../lib/staff-words.ts';
+import '../../locales/shop-catalogue.ts';
+import { useAdminRewards } from '../../stores/admin-rewards.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import Toggle from '../ui/switch.component.azeroth';
+import LookPicker from './look-picker.component.azeroth';
+import ReasonSheet from './reason-sheet.component.azeroth';
+
+/** The switch, the cycle's budget and the looks rewards give; only the owner changes them, the staff read them. */
+export default component AdminRewardSettings(props: { owner: boolean })
+{
+    const locale = useLocale();
+    const overlay = useOverlay();
+    const store = useAdminRewards();
+
+    state budgetTyped = '';
+
+    state budgetTold = null as string | null;
+
+    /** The pool and exclusive look being edited; undefined while they are as saved. */
+    state pool = undefined as string[] | undefined;
+
+    state exclusive = undefined as string | null | undefined;
+
+    state adding = null as string | null;
+
+    state poolTold = null as string | null;
+
+    mount
+    {
+        store.want('config');
+    }
+
+    derived held = store.config();
+
+    derived waiting = held === null && !store.configFailed();
+
+    derived failed = store.configFailed();
+
+    derived shown = held !== null;
+
+    derived on = held?.on ?? false;
+
+    derived standing = locale.t(on ? 'admin.rewardsPage.state.on' : 'admin.rewardsPage.state.off');
+
+    derived budget = locale.t('admin.rewardsPage.budgetNow', { amount: held?.budget ?? 0 });
+
+    derived poolNow = pool ?? held?.pool ?? [];
+
+    derived exclusiveNow = exclusive === undefined ? held?.exclusive ?? null : exclusive;
+
+    derived looks = poolNow.map((id) => ({ id, name: itemName(id, locale) }));
+
+    derived pooled = looks.length > 0;
+
+    derived bare = !pooled;
+
+    derived exclusiveName = exclusiveNow === null ? locale.t('admin.rewardsPage.exclusiveNone') : itemName(exclusiveNow, locale);
+
+    derived looksChanged = held !== null && (!samePool(poolNow, held.pool) || exclusiveNow !== (held.exclusive ?? null));
+
+    derived reader = !props.owner;
+
+    const reason = async (title: string, confirm: string, destructive = false) =>
+    {
+        const said = await overlay.open(ReasonSheet, { title, confirm, destructive }, { label: locale.t('admin.section.rewards') }).closed;
+
+        return typeof said === 'string' ? said : null;
+    };
+
+    const flip = async (to: boolean) =>
+    {
+        const why = await reason(
+            locale.t(to ? 'admin.rewardsPage.askOn' : 'admin.rewardsPage.askOff'),
+            locale.t(to ? 'admin.rewardsPage.confirmOn' : 'admin.rewardsPage.confirmOff'),
+            !to
+        );
+
+        if (why !== null)
+        {
+            await attempt(store.switchTo(to, why), locale.t(to ? 'admin.rewardsPage.doneOn' : 'admin.rewardsPage.doneOff'), whyStaffRefused);
+        }
+    };
+
+    const saveBudget = async () =>
+    {
+        const amount = wholeNuraOf(budgetTyped, REWARD_BUDGET_MOST);
+
+        if (amount === null)
+        {
+            budgetTold = locale.t('admin.rewardsPage.budgetBad', { most: REWARD_BUDGET_MOST });
+            return;
+        }
+
+        const why = await reason(locale.t('admin.rewardsPage.askBudget', { amount }), locale.t('admin.rewardsPage.budgetSave'));
+
+        if (why !== null && await attempt(store.setBudget(amount, why), locale.t('admin.rewardsPage.doneBudget'), whyStaffRefused))
+        {
+            budgetTyped = '';
+        }
+    };
+
+    const add = () =>
+    {
+        if (adding === null)
+        {
+            return;
+        }
+
+        if (!poolNow.includes(adding) && poolNow.length >= REWARD_POOL_MOST)
+        {
+            poolTold = locale.t('admin.rewardsPage.poolFull', { most: REWARD_POOL_MOST });
+            return;
+        }
+
+        pool = poolWith(poolNow, adding);
+        adding = null;
+        poolTold = null;
+    };
+
+    const undoLooks = () =>
+    {
+        pool = undefined;
+        exclusive = undefined;
+        poolTold = null;
+    };
+
+    const saveLooks = async () =>
+    {
+        const why = await reason(locale.t('admin.rewardsPage.askLooks'), locale.t('admin.rewardsPage.saveLooks'));
+
+        if (why !== null && await attempt(store.setLooks(poolNow, exclusiveNow, why), locale.t('admin.rewardsPage.doneLooks'), whyStaffRefused))
+        {
+            undoLooks();
+        }
+    };
+
+    <section class="flex flex-col gap-4" aria-labelledby="admin-reward-settings" data-reward-settings>
+        <div class="flex flex-col gap-1">
+            <h2 id="admin-reward-settings" class="title text-ui-2xl text-text">{ locale.t('admin.rewardsPage.settings') }</h2>
+            <Show when={ reader }>
+                <p class="text-ui-md text-muted">{ locale.t('admin.rewardsPage.ownerOnly') }</p>
+            </Show>
+        </div>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 3 } /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState error={ store.configError() } compact title={ locale.t('admin.rewardsPage.configFailed') } onRetry={ () => void store.refresh() } /> }
+        </Show>
+
+        <Show when={ shown }>
+            <div class="flex flex-col gap-4">
+                <div class="rounded-panel border border-line bg-field p-4" data-reward-switch>
+                    <Show when={ props.owner } fallback={ <p class="text-ui-sm font-semibold text-text">{ standing }</p> }>
+                        <Toggle
+                            checked={ on }
+                            label={ standing }
+                            description={ locale.t(on ? 'admin.rewardsPage.switchOn' : 'admin.rewardsPage.switchOff') }
+                            onChange={ (to) => void flip(to) }
+                        />
+                    </Show>
+                </div>
+
+                <div class="flex flex-col gap-3 rounded-panel border border-line bg-field p-4" data-reward-budget>
+                    <div class="flex flex-col gap-1">
+                        <h3 class="text-ui-lg font-semibold text-text">{ locale.t('admin.rewardsPage.budget') }</h3>
+                        <p class="text-ui-sm text-muted">{ locale.t('admin.rewardsPage.budgetLead') }</p>
+                        <p class="tabular-nums text-ui-sm font-semibold text-text">{ budget }</p>
+                    </div>
+                    <Show when={ props.owner }>
+                        <Field id="admin-reward-budget" label={ locale.t('admin.rewardsPage.budgetLabel') } error={ budgetTold }>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <Input
+                                    id="admin-reward-budget"
+                                    class="min-w-40 flex-1"
+                                    value={ budgetTyped }
+                                    inputmode="numeric"
+                                    autocomplete="off"
+                                    enterkeyhint="send"
+                                    invalid={ budgetTold !== null }
+                                    describedBy={ budgetTold !== null ? 'admin-reward-budget-error' : undefined }
+                                    onInput={ (value) =>
+                                    {
+                                        budgetTyped = value;
+                                        budgetTold = null;
+                                    } }
+                                    onEnter={ () => void saveBudget() }
+                                />
+                                <Button variant="outline" onClick={ () => void saveBudget() }>{ locale.t('admin.rewardsPage.budgetSave') }</Button>
+                            </div>
+                        </Field>
+                    </Show>
+                </div>
+
+                <div class="flex flex-col gap-3 rounded-panel border border-line bg-field p-4" data-reward-looks>
+                    <div class="flex flex-col gap-1">
+                        <h3 class="text-ui-lg font-semibold text-text">{ locale.t('admin.rewardsPage.looks') }</h3>
+                        <p class="text-ui-sm text-muted">{ locale.t('admin.rewardsPage.looksLead') }</p>
+                    </div>
+
+                    <p class="text-ui-sm font-semibold text-text">{ locale.t('admin.rewardsPage.pool') }</p>
+                    <Show when={ bare }>
+                        <p class="text-ui-sm text-muted">{ locale.t('admin.rewardsPage.poolEmpty') }</p>
+                    </Show>
+                    <Show when={ pooled }>
+                        <ul class="flex flex-wrap gap-2" data-reward-pool>
+                            <For each={ looks } key={ (one) => one.id } let={ look }>
+                                <li class="flex min-h-11 items-center gap-1 rounded-full border border-line bg-raised ps-3 pe-1">
+                                    <span class="text-ui-sm text-text">{ look.name }</span>
+                                    <Show when={ props.owner }>
+                                        <Button variant="ghost" size="sm" icon="close" label={ locale.t('admin.rewardsPage.remove', { look: look.name }) } onClick={ () => pool = poolWithout(poolNow, look.id) } />
+                                    </Show>
+                                </li>
+                            </For>
+                        </ul>
+                    </Show>
+
+                    <Show when={ props.owner } fallback={ <p class="text-ui-sm text-muted">{ locale.t('admin.rewardsPage.exclusiveIs', { look: exclusiveName }) }</p> }>
+                        <div class="flex flex-col gap-3">
+                            <div class="flex flex-col gap-2">
+                                <LookPicker label={ locale.t('admin.rewardsPage.addLabel') } value={ adding } none={ locale.t('admin.rewardsPage.exclusiveNone') } onChange={ (value) =>
+                                {
+                                    adding = value;
+                                    poolTold = null;
+                                } } />
+                                <div>
+                                    <Button variant="outline" size="sm" leading="add" disabled={ adding === null } onClick={ add }>{ locale.t('admin.rewardsPage.add') }</Button>
+                                </div>
+                                <Show when={ poolTold !== null }>
+                                    <p class="text-ui-xs font-medium text-danger" role="alert">{ poolTold ?? '' }</p>
+                                </Show>
+                            </div>
+                            <LookPicker label={ locale.t('admin.rewardsPage.exclusive') } value={ exclusiveNow } none={ locale.t('admin.rewardsPage.exclusiveNone') } onChange={ (value) => exclusive = value } />
+                            <Show when={ looksChanged }>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <Badge text={ locale.t('admin.rewardsPage.unsaved') } tone="gold" />
+                                    <Button variant="primary" size="sm" onClick={ () => void saveLooks() }>{ locale.t('admin.rewardsPage.saveLooks') }</Button>
+                                    <Button variant="ghost" size="sm" onClick={ undoLooks }>{ locale.t('admin.rewardsPage.undo') }</Button>
+                                </div>
+                            </Show>
+                        </div>
+                    </Show>
+                </div>
+            </div>
+        </Show>
+    </section>
+}

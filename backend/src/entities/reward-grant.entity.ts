@@ -6,6 +6,7 @@ import { User } from './user.entity.ts';
 @Check('reward_grants_amount_nonnegative', `amount >= 0`)
 @Check('reward_grants_wanted_nonnegative', `wanted >= 0`)
 @Index('reward_grants_user_cycle_idx', ['userId', 'cycle'])
+@Index('reward_grants_day_idx', ['day'])
 @Index('reward_grants_user_source_key_once', ['userId', 'source', 'sourceKey'], { unique: true })
 @Entity('reward_grants')
 export class RewardGrant
@@ -18,6 +19,10 @@ export class RewardGrant
 
     @Column({ type: 'integer' })
     cycle!: number;
+
+    /** The absolute reward day it was granted on, for the admin's daily log; null on rows written before it was kept. */
+    @Column({ type: 'integer', nullable: true })
+    day!: number | null;
 
     @Column({ type: 'varchar', length: 16 })
     source!: 'checkin' | 'bonus' | 'daily' | 'weekly' | 'chest';

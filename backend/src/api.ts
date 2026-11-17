@@ -106,6 +106,20 @@ import {
     adminInvites,
     adminRewardDecision,
     adminRewardsQuery,
+    adminRewardAmountsInput,
+    adminRewardBudgetInput,
+    adminRewardConfig,
+    adminRewardDayEntries,
+    adminRewardDayQuery,
+    adminRewardDays,
+    adminRewardDaysQuery,
+    adminRewardFrozen,
+    adminRewardFrozenQuery,
+    adminRewardOverview,
+    adminRewardFreeze,
+    adminRewardFreezeInput,
+    adminRewardLooksInput,
+    adminRewardSwitch,
     adminPlay,
     adminGameInput,
     adminMatches,
@@ -170,6 +184,7 @@ import {
     rewardQuestClaim,
     rewardClaimAll,
     rewardActivity,
+    rewardBalance,
     rewardWithdraw,
     rewardHistoryPage,
     challenge,
@@ -867,7 +882,37 @@ export function buildApi(ports: Ports)
                 async (context) => onlyAdmin(await ports.admin.rewards(context.principal.userId, context.query))),
 
             decideReward: routes.post('/invites/rewards/:id', { input: adminRewardDecision, output: adminInviteReward },
-                async (context) => onlyAdmin(await ports.admin.decideReward(context.principal.userId, context.params.id, context.input)))
+                async (context) => onlyAdmin(await ports.admin.decideReward(context.principal.userId, context.params.id, context.input))),
+
+            rewardConfig: routes.get('/rewards', { output: adminRewardConfig },
+                async (context) => onlyAdmin(await ports.admin.rewardConfig(context.principal.userId))),
+
+            rewardOverview: routes.get('/rewards/overview', { output: adminRewardOverview },
+                async (context) => onlyAdmin(await ports.admin.rewardOverview(context.principal.userId))),
+
+            rewardDays: routes.get('/rewards/days', { query: adminRewardDaysQuery, output: adminRewardDays },
+                async (context) => onlyAdmin(await ports.admin.rewardDays(context.principal.userId, context.query))),
+
+            rewardDay: routes.get('/rewards/days/:day', { query: adminRewardDayQuery, output: adminRewardDayEntries },
+                async (context) => onlyAdmin(await ports.admin.rewardDay(context.principal.userId, context.params.day, context.query))),
+
+            rewardFrozen: routes.get('/rewards/frozen', { query: adminRewardFrozenQuery, output: adminRewardFrozen },
+                async (context) => onlyAdmin(await ports.admin.rewardFrozen(context.principal.userId, context.query))),
+
+            switchRewards: routes.post('/rewards/switch', { input: adminRewardSwitch, output: adminRewardConfig },
+                async (context) => onlyAdmin(await ports.admin.switchRewards(context.principal.userId, context.input))),
+
+            setRewardAmounts: routes.post('/rewards/amounts', { input: adminRewardAmountsInput, output: adminRewardConfig },
+                async (context) => onlyAdmin(await ports.admin.setRewardAmounts(context.principal.userId, context.input))),
+
+            setRewardLooks: routes.post('/rewards/looks', { input: adminRewardLooksInput, output: adminRewardConfig },
+                async (context) => onlyAdmin(await ports.admin.setRewardLooks(context.principal.userId, context.input))),
+
+            setRewardBudget: routes.post('/rewards/budget', { input: adminRewardBudgetInput, output: adminRewardConfig },
+                async (context) => onlyAdmin(await ports.admin.setRewardBudget(context.principal.userId, context.input))),
+
+            freezeRewards: routes.post('/rewards/people/:handle/freeze', { input: adminRewardFreezeInput, output: adminRewardFreeze },
+                async (context) => onlyAdmin(await ports.admin.freezeRewards(context.principal.userId, context.params.handle, context.input)))
         })),
 
         vault: feature('/vault', [session], (routes) => ({
@@ -943,6 +988,9 @@ export function buildApi(ports: Ports)
                 ports.reward.claimQuest(context.principal.userId, context.params.period === 'daily' ? 'daily' : 'weekly', context.params.id)),
 
             withdraw: routes.post('/withdraw', { output: rewardWithdraw }, (context) => ports.reward.withdraw(context.principal.userId)),
+
+            // Not behind the switch: what was earned is the player's to withdraw while rewards are off.
+            balance: routes.get('/balance', { output: rewardBalance }, (context) => ports.reward.balance(context.principal.userId)),
 
             history: routes.get('/history', { query: historyQuery, output: rewardHistoryPage },
                 (context) => ports.reward.history(context.principal.userId, context.query.cursor ?? null)),

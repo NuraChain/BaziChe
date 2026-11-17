@@ -1,7 +1,7 @@
 import { createServer as httpServer, type Server, type ServerResponse } from 'node:http';
 import { createServer as tcpServer, type AddressInfo, type Socket } from 'node:net';
 
-import { encodeErrorResult, parseAbi, type Hex } from 'viem';
+import { encodeErrorResult, keccak256, parseAbi, type Hex } from 'viem';
 
 export type Rpc = { method: string; params: unknown[] };
 
@@ -160,4 +160,81 @@ export function offchainLookup(sender: string, gatewayUrl: string)
 export function callOf(rpc: Rpc)
 {
     return rpc.params[0] as { to?: string; data: Hex };
+}
+
+/** A chain that knows only the rewards wallet: its balance, its nonces, the bytes it was sent and the receipts it can show. */
+export interface RewardChain
+{
+    balance: bigint;
+    gasPrice: bigint;
+    pending: number;
+    latest: number;
+    receipts: Map<string, 'success' | 'reverted'>;
+    sent: Hex[];
+    /** What the node says to the next broadcast instead of taking it. */
+    refuse: string | null;
+    /** Every call answers 502, as a node that is not there. */
+    down: boolean;
+}
+
+export async function fakeRewardChain(start: Partial<RewardChain> = {})
+{
+    const chain: RewardChain = {
+        balance: 0n,
+        gasPrice: 47_000_000_000n,
+        pending: 0,
+        latest: 0,
+        receipts: new Map(),
+        sent: [],
+        refuse: null,
+        down: false,
+        ...start
+    };
+    const hex = (value: bigint | number) => `0x${ value.toString(16) }`;
+    const { url, asked } = await fakeChain((rpc): Answer =>
+    {
+        if (chain.down)
+        {
+            return { status: 502 };
+        }
+
+        switch (rpc.method)
+        {
+            case 'eth_chainId':
+                return { result: hex(1020) };
+            case 'eth_gasPrice':
+                return { result: hex(chain.gasPrice) };
+            case 'eth_getBalance':
+                return { result: hex(chain.balance) };
+            case 'eth_getTransactionCount':
+                return { result: hex(rpc.params[1] === 'latest' ? chain.latest : chain.pending) };
+            case 'eth_sendRawTransaction':
+            {
+                const raw = rpc.params[0] as Hex;
+                if (chain.refuse !== null)
+                {
+                    const message = chain.refuse;
+                    chain.refuse = null;
+                    return { error: { code: -32000, message } };
+                }
+                chain.sent.push(raw);
+                return { result: keccak256(raw) };
+            }
+            case 'eth_getTransactionReceipt':
+            {
+                const status = chain.receipts.get(String(rpc.params[0]).toLowerCase());
+                return {
+                    result: status === undefined ? null : {
+                        status: status === 'success' ? '0x1' : '0x0',
+                        blockNumber: '0x2',
+                        transactionHash: rpc.params[0]
+                    }
+                };
+            }
+            default:
+                return { result: '0x' };
+        }
+    });
+
+    return { url, asked, chain };
 }

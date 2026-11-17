@@ -1,86 +1,103 @@
 import { HttpError } from '@azerothjs/http';
-import { In, IsNull, type DataSource, type EntityManager } from 'typeorm';
+import { In, IsNull, Not, type DataSource, type EntityManager } from 'typeorm';
 
 import type { RewardWallet } from '../../chain/rewards.ts';
-import { EstablishedPlayer } from '../../entities/established-player.entity.ts';
+import { Game } from '../../entities/game.entity.ts';
+import { MatchPlayer } from '../../entities/match-player.entity.ts';
 import { OwnedItem } from '../../entities/owned-item.entity.ts';
 import { RewardCheckin } from '../../entities/reward-checkin.entity.ts';
+import { RewardCycleTotal } from '../../entities/reward-cycle-total.entity.ts';
 import { RewardGrant } from '../../entities/reward-grant.entity.ts';
 import { RewardQuestProgress } from '../../entities/reward-quest-progress.entity.ts';
 import { RewardStreak } from '../../entities/reward-streak.entity.ts';
 import { Setting } from '../../entities/setting.entity.ts';
 import { ShopItem } from '../../entities/shop-item.entity.ts';
 import { User } from '../../entities/user.entity.ts';
-import { MatchPlayer } from '../../entities/match-player.entity.ts';
-import { REWARD_CAP, REWARD_DAY_MS, REWARD_EPOCH_MS, REWARD_LADDER, cycleOf, nextStreak, rewardDayOf } from './rules.ts';
-import { countsForQuests, deltasForQuests, MIN_QUEST_TURNS, weeklyChestReady, type QuestProgressHook, type RewardFinishEffects } from './progress.ts';
-import { questsFor } from './quests.ts';
+import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
+import {
+    REWARD_CAP,
+    REWARD_DAY_MS,
+    REWARD_EPOCH_MS,
+    budgetOf,
+    cycleOf,
+    eligibilityOf,
+    grantAward,
+    ladderView,
+    nuraOf,
+    pickLook,
+    planCheckIn,
+    questClaimGate,
+    rewardConfigOf,
+    rewardDayOf,
+    rewardForDay,
+    weiOf,
+    type EligibilityFacts,
+    type RewardConfig
+} from './rules.ts';
+import { countsForQuests, deltasForQuests, inQuestOrder, MIN_QUEST_TURNS, wantsDistinctGame, weeklyChestReady, type QuestProgressHook, type RewardFinishEffects } from './progress.ts';
+import { drawnGames, questsFor, questView, templateOf, type QuestTemplate } from './quests.ts';
 import { createRewardPayoutService, type RewardPayoutSweep } from './payout.ts';
 import { REWARD_REFUSALS, type RewardRefusal } from './refusals.ts';
-import type { QuestTemplate } from './quests.ts';
 
-const WEI_PER_NURA = 10n ** 18n;
+const HISTORY_PAGE = 25;
 
-const weiFor = (nura: number) => BigInt(nura) * WEI_PER_NURA;
-
-const nuraFor = (wei: string | bigint) => Number(BigInt(wei) / WEI_PER_NURA);
-
-export interface RewardDayResult
-{
-    amount: number;
-    bonus: number;
-    look?: 'weekly' | 'exclusive';
-    day: number;
-    eligible: boolean;
-}
-
-export const rewardRefusal = (word: RewardRefusal, message: string) =>
-    new HttpError(REWARD_REFUSALS[word], message, { code: word });
-
-/** A check-in day pays the ladder amount, with a look on the weekly skin days and the cycle bonus on day 30. */
-export const rewardForDay = (day: number, established: boolean): RewardDayResult =>
-{
-    const ladderAmount = REWARD_LADDER[day - 1] ?? 0;
-
-    if (day === 30)
-    {
-        return {
-            day,
-            amount: established ? 0 : 0,
-            bonus: established ? 20_000 : 0,
-            look: 'exclusive',
-            eligible: established
-        };
-    }
-
-    const look = [7, 14, 21, 28].includes(day) ? 'weekly' : undefined;
-
-    return {
-        day,
-        amount: established ? ladderAmount : 0,
-        bonus: 0,
-        ...(look === undefined ? {} : { look }),
-        eligible: established
-    };
+const REFUSAL_WORDS: Partial<Record<RewardRefusal, string>> = {
+    'not-established': 'Only an established player may earn NURA rewards.',
+    'reward-no-wallet': 'Link a wallet to earn NURA rewards.',
+    'reward-minor': 'Only adults can earn NURA rewards.',
+    'reward-suspended': 'A suspended account cannot earn NURA rewards.',
+    'reward-frozen': 'The staff froze the rewards of this account.'
 };
 
-interface RewardState
+/** The switch is off: everything but withdrawing what was already earned answers as if rewards were not here. */
+const switchedOff = () => rewardRefusal('reward-off', 'Rewards are not running here.');
+
+const rewardRefusal = (word: RewardRefusal, message: string) =>
+    new HttpError(REWARD_REFUSALS[word], message, { code: word });
+
+type GrantSource = RewardGrant['source'];
+
+interface GrantAsk
 {
-    streak: number;
-    lastDay: number;
-    best: number;
-    claimable: boolean;
+    source: GrantSource;
+    sourceKey: string;
+    wanted: number;
     today: number;
-    ladder: { day: number; amount: number; claimed: boolean; look?: 'weekly' | 'exclusive' }[];
-    cycleGranted: number;
-    withdrawable: number;
+    itemId?: string | null;
+
+    /** Why this player may not earn NURA: the row is still written, with nothing in it, and the look still given. */
+    withheld?: RewardRefusal;
+}
+
+interface Granted
+{
+    amount: number;
+    written: boolean;
+    delivered: boolean | null;
+    clipped?: RewardRefusal;
+}
+
+const NOT_WRITTEN: Granted = { amount: 0, written: false, delivered: null };
+
+interface ClaimedQuest
+{
+    period: 'daily' | 'weekly';
+    id: string;
+    amount: number;
     reason?: RewardRefusal;
-    daily: { id: string; game: string; target: number; progress: number; done: boolean; claimed: boolean }[];
-    weekly: { id: string; game: string; target: number; progress: number; done: boolean; claimed: boolean }[];
-    chestClaimed: boolean;
+}
+
+interface HistoryRow extends Keyed
+{
+    source: GrantSource;
+    amount: string;
+    at: Date;
+    note: string;
 }
 
 const todayOf = () => rewardDayOf(new Date());
+
+const weekKeyOf = (cycle: number, week: number) => `cycle:${ cycle }:week:${ week }`;
 
 const cycleWeekOf = (periodKey: string) =>
 {
@@ -104,7 +121,7 @@ export const periodKeysInClaimWindow = (period: 'daily' | 'weekly', today: numbe
             const cycle = cycleOf(day);
             if (cycle.week !== null)
             {
-                keys.add(`cycle:${ cycle.cycle }:week:${ cycle.week }`);
+                keys.add(weekKeyOf(cycle.cycle, cycle.week));
             }
         }
     }
@@ -112,44 +129,252 @@ export const periodKeysInClaimWindow = (period: 'daily' | 'weekly', today: numbe
     return [...keys];
 };
 
-const questForPeriodKey = (period: 'daily' | 'weekly', periodKey: string, questId: string) =>
-{
-    if (period === 'daily')
-    {
-        const day = Number(periodKey);
-        if (!Number.isInteger(day) || day < 1)
-        {
-            return null;
-        }
+const claimableRow = (row: RewardQuestProgress) => row.claimedAt === null && row.doneAt !== null && row.progress >= row.target;
 
-        const cycle = cycleOf(day);
-        return questsFor(cycle.cycle, cycle.day, 'daily').find((quest) => quest.id === questId) ?? null;
-    }
-
-    const cycle = cycleWeekOf(periodKey);
-    return cycle === null ? null : questsFor(cycle.cycle, cycle.week, 'weekly').find((quest) => quest.id === questId) ?? null;
-};
+const historyKind = (source: GrantSource) => source === 'checkin' ? 'check-in' as const : source === 'bonus' ? 'bonus' as const : 'quest' as const;
 
 export function createRewardService(db: DataSource, wallet?: RewardWallet, hooks: { mined?(userId: string): void } = {})
 {
     const payouts = wallet === undefined ? null : createRewardPayoutService(db, wallet, hooks);
 
+    /**
+     * The first lock of every claim. NO KEY UPDATE, not UPDATE: every insert that references the
+     * player takes a key-share lock on this row, and the match recorder must not wait on a claim.
+     */
+    const lockPlayer = async (tx: EntityManager, userId: string) =>
+    {
+        const user = await tx.getRepository(User).createQueryBuilder('user')
+            .select('user.id')
+            .setLock('for_no_key_update')
+            .where('user.id = :userId', { userId })
+            .getOne();
+
+        if (user === null)
+        {
+            throw new HttpError(404, 'No such player.', { code: 'reward-missing' });
+        }
+    };
+
+    /** Rule 7 and the staff's freeze, the one place they are decided. Raw SQL: the newest wallet is a correlated subquery a repository cannot say. */
+    const factsOf = async (from: EntityManager, userId: string) =>
+    {
+        const [facts] = await from.query(
+            `select u.is_minor as minor,
+                    u.is_suspended as suspended,
+                    exists (select 1 from reward_freezes f where f.user_id = u.id) as frozen,
+                    exists (select 1 from established_players e where e.user_id = u.id) as established,
+                    (select w.address from wallets w where w.user_id = u.id order by w.last_used_at desc nulls last limit 1) as wallet
+             from users u
+             where u.id = $1`,
+            [userId]
+        ) as EligibilityFacts[];
+
+        return facts;
+    };
+
+    const eligibility = async (from: EntityManager, userId: string) =>
+    {
+        const facts = await factsOf(from, userId);
+
+        return facts === undefined ? 'not-established' as const : eligibilityOf(facts);
+    };
+
+    /** A frozen player's claim is refused whole; anyone else rule 7 refuses claims at 0 NURA, the reason given. */
+    const claimGate = async (tx: EntityManager, userId: string) =>
+    {
+        const gate = questClaimGate(await factsOf(tx, userId));
+
+        if ('refused' in gate)
+        {
+            throw rewardRefusal(gate.refused, REFUSAL_WORDS[gate.refused] ?? 'This player may not earn NURA rewards.');
+        }
+
+        return gate.withheld;
+    };
+
+    const settingOf = async (from: EntityManager, key: 'reward-config' | 'reward-budget') =>
+        (await from.getRepository(Setting).findOneBy({ key }))?.value ?? null;
+
+    const configOf = async (from: EntityManager) => rewardConfigOf(await settingOf(from, 'reward-config'));
+
+    /** The config, when the switch is on; refused as `reward-off` when it is not. */
+    const runningConfig = async (from: EntityManager) =>
+    {
+        const config = await configOf(from);
+
+        if (!config.on)
+        {
+            throw switchedOff();
+        }
+
+        return config;
+    };
+
+    const gamesOpen = async (from: EntityManager) =>
+        drawnGames((await from.getRepository(Game).find({ select: { id: true }, where: { status: 'available' } })).map((game) => game.id));
+
+    /** The configured looks that are still in the shop. */
+    const looksOf = async (tx: EntityManager, config: RewardConfig) =>
+    {
+        const wanted = [...config.pool, ...(config.exclusive === null ? [] : [config.exclusive])];
+        const known = wanted.length === 0
+            ? new Set<string>()
+            : new Set((await tx.getRepository(ShopItem).find({ select: { id: true }, where: { id: In(wanted) } })).map((item) => item.id));
+
+        return {
+            pool: config.pool.filter((id) => known.has(id)),
+            exclusive: config.exclusive !== null && known.has(config.exclusive) ? config.exclusive : null
+        };
+    };
+
+    const giveLook = async (tx: EntityManager, userId: string, itemId: string) =>
+    {
+        const owned = await tx.getRepository(OwnedItem).createQueryBuilder()
+            .insert()
+            .values({ userId, itemId, via: 'reward', orderId: null, giverId: null })
+            .orIgnore()
+            .returning(['itemId'])
+            .execute();
+
+        return (owned.raw as unknown[]).length > 0;
+    };
+
+    /**
+     * Every NURA a player earns is written here, inside the caller's transaction and after the
+     * caller locked the player's row (`lockPlayer`), which is what keeps the cap's sum from racing.
+     * Booked to the cycle of the day it is granted on, clipped to the cap (rule 5) and to the
+     * budget opened so far (rule 4), and once per (player, source, key) (rule 6).
+     */
+    const grant = async (tx: EntityManager, userId: string, ask: GrantAsk): Promise<Granted> =>
+    {
+        const grants = tx.getRepository(RewardGrant);
+
+        if (await grants.existsBy({ userId, source: ask.source, sourceKey: ask.sourceKey }))
+        {
+            return NOT_WRITTEN;
+        }
+
+        const { cycle, day: cycleDay } = cycleOf(ask.today);
+        const wanted = weiOf(ask.wanted);
+        let award: { amount: bigint; clipped?: RewardRefusal } = { amount: 0n };
+        let total: RewardCycleTotal | null = null;
+
+        if (ask.withheld !== undefined)
+        {
+            award = { amount: 0n, clipped: ask.withheld };
+        }
+        else if (wanted > 0n)
+        {
+            const [mine] = await tx.query(
+                'select coalesce(sum(amount), 0)::text as total from reward_grants where user_id = $1 and cycle = $2',
+                [userId, cycle]
+            ) as [{ total: string }];
+
+            await tx.getRepository(RewardCycleTotal).createQueryBuilder()
+                .insert()
+                .values({ cycle, granted: '0' })
+                .orIgnore()
+                .execute();
+
+            total = await tx.getRepository(RewardCycleTotal).createQueryBuilder('total')
+                .setLock('pessimistic_write')
+                .where('total.cycle = :cycle', { cycle })
+                .getOneOrFail();
+
+            award = grantAward({
+                wanted,
+                playerGranted: BigInt(mine.total),
+                cap: weiOf(REWARD_CAP),
+                cycleGranted: BigInt(total.granted),
+                budget: budgetOf(await settingOf(tx, 'reward-budget')),
+                cycleDay
+            });
+        }
+
+        const itemId = ask.itemId ?? null;
+        const inserted = await grants.createQueryBuilder()
+            .insert()
+            .into(RewardGrant)
+            .values({
+                userId,
+                cycle,
+                day: ask.today,
+                source: ask.source,
+                sourceKey: ask.sourceKey,
+                amount: award.amount.toString(),
+                wanted: wanted.toString(),
+                itemId,
+                delivered: null
+            })
+            .orIgnore()
+            .returning(['id'])
+            .execute();
+
+        const [row] = inserted.raw as { id: string }[];
+
+        if (row === undefined)
+        {
+            return NOT_WRITTEN;
+        }
+
+        if (total !== null && award.amount > 0n)
+        {
+            await tx.getRepository(RewardCycleTotal).update({ cycle }, { granted: (BigInt(total.granted) + award.amount).toString() });
+        }
+
+        let delivered: boolean | null = null;
+
+        if (itemId !== null)
+        {
+            delivered = await giveLook(tx, userId, itemId);
+            await grants.update({ id: row.id }, { delivered });
+        }
+
+        return {
+            amount: nuraOf(award.amount),
+            written: true,
+            delivered,
+            ...(award.clipped === undefined ? {} : { clipped: award.clipped })
+        };
+    };
+
     const onFinish: NonNullable<QuestProgressHook['onFinish']> = async (tx, match, game, players) =>
     {
         const effects: RewardFinishEffects = { changed: [], ready: [] };
+
+        if (players.length === 0)
+        {
+            return effects;
+        }
+
+        // One statement per match, not per player: the switch and the games quests are drawn from.
+        const [{ config, games: open }] = await tx.query(
+            `select (select s.value from settings s where s.key = 'reward-config') as config,
+                    array(select g.id::text from games g where g.status = 'available') as games`
+        ) as [{ config: string | null; games: string[] }];
+
+        if (!rewardConfigOf(config).on)
+        {
+            return effects;
+        }
+
+        const games = drawnGames(open);
         const today = todayOf();
         const cycle = cycleOf(today);
-        const weekStartDay = cycle.week === null ? today : today - (cycle.day - ((cycle.week - 1) * 7 + 1));
-        const weekStart = new Date(REWARD_EPOCH_MS + (weekStartDay - 1) * REWARD_DAY_MS);
-        const weekEnd = new Date(weekStart.getTime() + 7 * REWARD_DAY_MS);
+        const weekKey = cycle.week === null ? null : weekKeyOf(cycle.cycle, cycle.week);
+        const weekly = cycle.week === null || weekKey === null ? [] : questsFor(cycle.cycle, cycle.week, 'weekly', games);
         const active = [
-            ...questsFor(cycle.cycle, cycle.day, 'daily').map((quest) => ({ quest, periodKey: String(today) })),
-            ...(cycle.week === null ? [] : questsFor(cycle.cycle, cycle.week, 'weekly').map((quest) => ({ quest, periodKey: `cycle:${ cycle.cycle }:week:${ cycle.week }` })))
+            ...questsFor(cycle.cycle, cycle.day, 'daily', games).map((quest) => ({ quest, periodKey: String(today) })),
+            ...weekly.map((quest) => ({ quest, periodKey: weekKey ?? '' }))
         ];
 
-        for (const player of players)
+        // In user order, not seat order: two matches between the same players finishing together
+        // with seats swapped would otherwise take each other's rows in opposite order and deadlock.
+        const byUser = [...players].sort((a, b) => (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0));
+
+        for (const player of byUser)
         {
-            const opponents = [...new Set(player.opponentIds.filter((id) => id !== player.userId))];
+            const opponents =[...new Set(player.opponentIds.filter((id) => id !== player.userId))];
             const validResult = ['won', 'lost', 'drawn'].includes(player.result) && (player.result !== 'won' || player.credit === true);
             const mayCountOpponent = validResult && player.ownTurns >= MIN_QUEST_TURNS[game] && opponents.length > 0;
 
@@ -172,12 +397,6 @@ export function createRewardService(db: DataSource, wallet?: RewardWallet, hooks
                      on conflict (user_id, day, opponent_id) do update
                      set count = least(reward_quest_opponents.count + 1, 4)::smallint
                      returning opponent_id, count
-                 ), weekly_games as (
-                     select coalesce(array_agg(distinct m.game), '{}'::varchar[]) as games
-                     from matches m
-                     inner join match_players mp on mp.match_id = m.id
-                     where mp.user_id = $1 and m.id <> $5 and m.finished_at >= $6 and m.finished_at < $7
-                       and mp.result in ('won', 'lost', 'drawn')
                  )
                  select coalesce(jsonb_agg(jsonb_build_object(
                             'id', k.opponent_id,
@@ -185,18 +404,16 @@ export function createRewardService(db: DataSource, wallet?: RewardWallet, hooks
                             'established', k.established,
                             'count', case when $4::boolean then coalesce(b.count, k.previous) else k.previous end
                         )), '[]'::jsonb) as opponents,
-                        exists (select 1 from tables t where t.id = $8 and t.tournament_id is not null) as tournament,
-                        (select games from weekly_games) as games
+                        exists (select 1 from tables t where t.id = $5 and t.tournament_id is not null) as tournament
                  from known k
                  left join bumped b on b.opponent_id = k.opponent_id`,
-                [player.userId, opponents, today, mayCountOpponent, match.id, weekStart, weekEnd, match.tableId]
-            ) as [{ opponents: { id: string; friend: boolean; established: boolean; count: number }[]; tournament: boolean; games: string[] }];
+                [player.userId, opponents, today, mayCountOpponent, match.tableId]
+            ) as [{ opponents: { id: string; friend: boolean; established: boolean; count: number }[]; tournament: boolean }];
 
             const opponentCounts = Object.fromEntries(facts.opponents.map((opponent) => [opponent.id, Number(opponent.count)]));
             const friendOpponentIds = facts.opponents.filter((opponent) => opponent.friend).map((opponent) => opponent.id);
             const establishedOpponents = facts.opponents.filter((opponent) => opponent.established).map((opponent) => opponent.id);
-            const seenGames = new Set(facts.games ?? []);
-            const counts = countsForQuests({
+            const input = {
                 game,
                 result: player.result,
                 credit: player.credit,
@@ -207,21 +424,38 @@ export function createRewardService(db: DataSource, wallet?: RewardWallet, hooks
                 friendOpponentIds,
                 establishedOpponents,
                 tournament: facts.tournament,
-                tally: player.tally,
-                ...(mayCountOpponent && !seenGames.has(game) ? { distinctGames: 1 } : {})
-            });
+                tally: player.tally
+            };
+            let counts = countsForQuests(input);
+
+            // The game is marked only by a match that counted, so one that did not leaves it for one that does.
+            if (weekKey !== null && wantsDistinctGame(weekly, counts))
+            {
+                const marked = await tx.query(
+                    `insert into reward_quest_games (user_id, period_key, game) values ($1, $2, $3)
+                     on conflict do nothing
+                     returning game`,
+                    [player.userId, weekKey, game]
+                ) as unknown[];
+
+                if (marked.length > 0)
+                {
+                    counts = countsForQuests({ ...input, distinctGames: 1 });
+                }
+            }
 
             const matchingQuests = active.filter(({ quest }) => quest.game === 'any' || quest.game === game);
             const deltaById = new Map(deltasForQuests(matchingQuests.map(({ quest }) => quest), game, counts).map((delta) => [delta.quest_id, delta]));
-            const deltas = active.flatMap(({ quest, periodKey }) =>
+            const deltas = inQuestOrder(active.flatMap(({ quest, periodKey }) =>
             {
                 const delta = deltaById.get(quest.id);
                 return delta === undefined ? [] : [{ ...delta, period_key: periodKey }];
-            });
+            }));
 
             if (deltas.length > 0)
             {
-                // A single multi-row upsert keeps a match to at most two reward statements per player.
+                // A single multi-row upsert keeps a match to few reward statements per player. Its rows
+                // are locked in the order claim-all locks them, or the two deadlock.
                 const advanced = await tx.query(
                     `with incoming as (
                          select * from jsonb_to_recordset($1::jsonb) as x(period varchar, period_key varchar, quest_id varchar, progress integer, target integer)
@@ -230,6 +464,7 @@ export function createRewardService(db: DataSource, wallet?: RewardWallet, hooks
                      select $2, period, period_key, quest_id, least(progress, target), target,
                             case when progress >= target then now() else null end
                      from incoming
+                     order by period collate "C", period_key collate "C", quest_id collate "C"
                      on conflict (user_id, period, period_key, quest_id) do update set
                         progress = least(reward_quest_progress.target, reward_quest_progress.progress + excluded.progress),
                         done_at = case
@@ -260,167 +495,180 @@ export function createRewardService(db: DataSource, wallet?: RewardWallet, hooks
         return effects;
     };
 
-    const state = async (userId: string): Promise<RewardState> =>
+    const state = async (userId: string) =>
     {
-        const [streakRow, claimedRows, established] = await Promise.all([
+        const [config, games] = await Promise.all([runningConfig(db.manager), gamesOpen(db.manager)]);
+        const today = todayOf();
+        const cycle = cycleOf(today);
+        const weekKey = cycle.week === null ? null : weekKeyOf(cycle.cycle, cycle.week);
+        const dailyTemplates = questsFor(cycle.cycle, cycle.day, 'daily', games);
+        const weeklyTemplates = cycle.week === null ? [] : questsFor(cycle.cycle, cycle.week, 'weekly', games);
+
+        const [streakRow, reason, granted, progressRows, chestClaimed, withdrawable] = await Promise.all([
             db.getRepository(RewardStreak).findOne({ where: { userId } }),
-            db.getRepository(RewardCheckin).find({ where: { userId } }),
-            db.getRepository(EstablishedPlayer).exists({ where: { userId } })
+            eligibility(db.manager, userId),
+            db.query(
+                'select coalesce(sum(amount), 0)::text as total from reward_grants where user_id = $1 and cycle = $2',
+                [userId, cycle.cycle]
+            ) as Promise<[{ total: string }]>,
+            db.getRepository(RewardQuestProgress).find({
+                where: [
+                    { userId, period: 'daily', periodKey: String(today) },
+                    ...(weekKey === null ? [] : [{ userId, period: 'weekly' as const, periodKey: weekKey }])
+                ]
+            }),
+            weekKey === null ? Promise.resolve(false) : db.getRepository(RewardGrant).existsBy({ userId, source: 'chest', sourceKey: weekKey }),
+            payouts === null ? Promise.resolve('0') : payouts.withdrawable(userId)
         ]);
 
-        const today = todayOf();
-        const cycle = cycleOf(today).cycle;
-        const claimedDaySet = new Set(claimedRows.map((one) => one.day));
-        const ladder: RewardState['ladder'] = REWARD_LADDER.map((amount, index) =>
+        const view = ladderView(streakRow, today);
+        const progressByKey = new Map(progressRows.map((row) => [`${ row.period }:${ row.questId }`, row]));
+
+        /** The period's draw, then any quest of it with progress that a game switched off since took out of the draw: it is still claimable. */
+        const questsOf = (period: 'daily' | 'weekly', drawn: readonly QuestTemplate[]) =>
         {
-            const day = index + 1;
-            const look = [7, 14, 21, 28].includes(day) ? 'weekly' : day === 30 ? 'exclusive' : undefined;
+            const ids = new Set(drawn.map((quest) => quest.id));
+            const left = progressRows.flatMap((row) =>
+            {
+                const quest = row.period === period && !ids.has(row.questId) ? templateOf(period, row.questId) : null;
 
-            return {
-                day,
-                amount,
-                claimed: claimedDaySet.has(day),
-                ...(look === undefined ? {} : { look })
-            };
-        });
+                return quest === null ? [] : [quest];
+            });
 
-        const cycleGranted = await db.getRepository(RewardGrant).createQueryBuilder('grant')
-            .select('coalesce(sum(grant.amount)::bigint, 0)', 'total')
-            .where('grant.user_id = :userId', { userId })
-            .andWhere('grant.cycle = :cycle', { cycle })
-            .getRawOne<{ total: string }>();
-
-        const reason = established ? undefined : 'not-established';
-        const withdrawable = payouts === null ? 0 : nuraFor(await payouts.withdrawable(userId));
-
-        const cycleInfo = cycleOf(today);
-        const dailyTemplates = questsFor(cycleInfo.cycle, today, 'daily');
-        const weeklyTemplates: QuestTemplate[] = cycleInfo.week === null ? [] : questsFor(cycleInfo.cycle, cycleInfo.week, 'weekly');
-        const allTemplateIds = [...dailyTemplates.map((q) => q.id), ...weeklyTemplates.map((q) => q.id)];
-        const periodKeys = periodKeysInClaimWindow('daily', today).concat(cycleInfo.week === null ? [] : periodKeysInClaimWindow('weekly', today));
-
-        const progressRows = await db.getRepository(RewardQuestProgress).find({
-            where: { userId, period: In(['daily', 'weekly'] as const), questId: In(allTemplateIds), periodKey: In(periodKeys) }
-        });
-        const progressByKey = new Map(progressRows.map((row) => [`${row.period}:${row.periodKey}:${row.questId}`, row]));
-
-        const daily = dailyTemplates.map((quest) =>
-        {
-            const row = progressByKey.get(`daily:${today}:${quest.id}`);
-            return {
-                id: quest.id,
-                game: quest.game,
-                target: quest.target,
-                progress: row?.progress ?? 0,
-                done: row?.doneAt !== null,
-                claimed: row?.claimedAt !== null
-            };
-        });
-
-        const weekly = weeklyTemplates.map((quest) =>
-        {
-            const key = `cycle:${cycleInfo.cycle}:week:${cycleInfo.week}`;
-            const row = progressByKey.get(`weekly:${key}:${quest.id}`);
-            return {
-                id: quest.id,
-                game: quest.game,
-                target: quest.target,
-                progress: row?.progress ?? 0,
-                done: row?.doneAt !== null,
-                claimed: row?.claimedAt !== null
-            };
-        });
-
-        const chestClaimed = weekly.length > 0 && weekly.every((q) => q.claimed);
+            return [...drawn, ...left].map((quest) => questView(quest, progressByKey.get(`${ period }:${ quest.id }`), config.amounts[period]));
+        };
 
         return {
-            streak: streakRow?.streak ?? 0,
+            streak: view.streak,
             lastDay: streakRow?.lastDay ?? 0,
             best: streakRow?.best ?? 0,
-            claimable: !claimedDaySet.has(today),
+            claimable: view.claimable,
             today,
-            ladder,
-            cycleGranted: nuraFor(cycleGranted?.total ?? '0'),
-            withdrawable,
-            daily,
-            weekly,
+            position: view.position,
+            ladder: config.amounts.ladder.map((_, index) =>
+            {
+                const { amount, look, bonus } = rewardForDay(index + 1, config.amounts);
+
+                return {
+                    day: index + 1,
+                    amount,
+                    claimed: index + 1 <= view.claimed,
+                    ...(look === undefined ? {} : { look }),
+                    ...(bonus === 0 ? {} : { bonus })
+                };
+            }),
+            cycleGranted: nuraOf(granted[0].total),
+            withdrawable: nuraOf(withdrawable),
+            daily: questsOf('daily', dailyTemplates),
+            weekly: questsOf('weekly', weeklyTemplates),
+            chest: config.amounts.chest,
             chestClaimed,
             ...(reason === undefined ? {} : { reason })
         };
     };
 
-    const grant = async (
-        tx: EntityManager,
-        userId: string,
-        day: number,
-        source: 'checkin' | 'bonus' | 'daily' | 'weekly' | 'chest',
-        amountWanted: number,
-        options: { cycle?: number; sourceKey?: string; itemId?: string | null } = {}
-    ) =>
+    /** Grants the chest of a week whose three quests are all claimed now; nothing when it is not ready or already granted. */
+    const openChest = async (tx: EntityManager, userId: string, periodKey: string, today: number, config: RewardConfig, withheld: RewardRefusal | undefined): Promise<ClaimedQuest | null> =>
     {
-        const established = await tx.getRepository(EstablishedPlayer).exists({ where: { userId } });
-        if (!established)
+        if (cycleWeekOf(periodKey) === null)
         {
-            throw rewardRefusal('not-established', 'Only an established player may earn NURA rewards.');
+            return null;
         }
 
-        const total = await tx.getRepository(RewardGrant).createQueryBuilder('grant')
-            .select('coalesce(sum(grant.amount)::bigint, 0)', 'total')
-            .where('grant.user_id = :userId', { userId })
-            .andWhere('grant.cycle = :cycle', { cycle: options.cycle ?? 0 })
-            .getRawOne<{ total: string }>();
+        const claimed = await tx.getRepository(RewardQuestProgress).find({
+            select: { questId: true },
+            where: { userId, period: 'weekly', periodKey, claimedAt: Not(IsNull()) }
+        });
 
-        const alreadyGranted = BigInt(total?.total ?? '0');
-        const wanted = weiFor(amountWanted);
-        const award = wanted < weiFor(REWARD_CAP) - alreadyGranted
-            ? wanted
-            : (weiFor(REWARD_CAP) > alreadyGranted ? weiFor(REWARD_CAP) - alreadyGranted : 0n);
-
-        let delivered: boolean | null = null;
-        const itemId = options.itemId ?? null;
-        if (itemId !== null)
+        if (!weeklyChestReady(claimed.map((quest) => quest.questId)))
         {
-            const owned = await tx.getRepository(OwnedItem).createQueryBuilder()
-                .insert()
-                .values({ userId, itemId, via: 'reward', orderId: null, giverId: null })
-                .orIgnore()
-                .returning(['itemId'])
-                .execute();
-            delivered = (owned.raw as unknown[]).length > 0;
+            return null;
         }
 
-        await tx.getRepository(RewardGrant).createQueryBuilder()
-            .insert()
-            .into(RewardGrant)
-            .values({
-                userId,
-                cycle: options.cycle ?? 0,
-                source,
-                sourceKey: options.sourceKey ?? `${ userId }:${ source }:${ day }`,
-                amount: award.toString(),
-                wanted: wanted.toString(),
-                itemId,
-                delivered
-            })
-            .orIgnore()
-            .execute();
+        const looks = await looksOf(tx, config);
+        const paid = await grant(tx, userId, {
+            source: 'chest',
+            sourceKey: periodKey,
+            wanted: config.amounts.chest,
+            today,
+            itemId: pickLook(looks.pool, `${ userId }:${ periodKey }`),
+            ...(withheld === undefined ? {} : { withheld })
+        });
 
-        return nuraFor(award);
+        return paid.written
+            ? { period: 'weekly', id: `chest:${ periodKey }`, amount: paid.amount, ...(paid.clipped === undefined ? {} : { reason: paid.clipped }) }
+            : null;
     };
+
+    /** Claims locked, done, unclaimed quest rows: each through `grant()`, and the week's chest with the last of its three. */
+    const claimRows = async (tx: EntityManager, userId: string, today: number, rows: readonly RewardQuestProgress[], config: RewardConfig, withheld: RewardRefusal | undefined) =>
+    {
+        const claimed: ClaimedQuest[] = [];
+
+        for (const row of rows)
+        {
+            if (!claimableRow(row) || templateOf(row.period, row.questId) === null)
+            {
+                continue;
+            }
+
+            const paid = await grant(tx, userId, {
+                source: row.period,
+                sourceKey: `${ row.periodKey }:${ row.questId }`,
+                wanted: config.amounts[row.period],
+                today,
+                ...(withheld === undefined ? {} : { withheld })
+            });
+
+            await tx.getRepository(RewardQuestProgress).update(
+                { userId, period: row.period, periodKey: row.periodKey, questId: row.questId, claimedAt: IsNull() },
+                { claimedAt: new Date() }
+            );
+
+            claimed.push({ period: row.period, id: row.questId, amount: paid.amount, ...(paid.clipped === undefined ? {} : { reason: paid.clipped }) });
+
+            if (row.period === 'weekly')
+            {
+                const chest = await openChest(tx, userId, row.periodKey, today, config, withheld);
+
+                if (chest !== null)
+                {
+                    claimed.push(chest);
+                }
+            }
+        }
+
+        return claimed;
+    };
+
+    /** The order `inQuestOrder` gives and the match finish's upsert locks in; any other order can deadlock with it. */
+    const QUEST_ORDER = {
+        '"progress"."period" collate "C"': 'ASC' as const,
+        '"progress"."period_key" collate "C"': 'ASC' as const,
+        '"progress"."quest_id" collate "C"': 'ASC' as const
+    };
+
+    const lockedProgress = (tx: EntityManager, userId: string) => tx.getRepository(RewardQuestProgress).createQueryBuilder('progress')
+        .setLock('pessimistic_write')
+        .where('progress.userId = :userId', { userId });
 
     const claimQuest = async (userId: string, period: 'daily' | 'weekly', questId: string) => db.transaction(async (tx) =>
     {
+        const config = await runningConfig(tx);
+
+        await lockPlayer(tx, userId);
+        const withheld = await claimGate(tx, userId);
+
         const today = todayOf();
-        const periodKeys = periodKeysInClaimWindow(period, today);
-        const rows = await tx.getRepository(RewardQuestProgress).createQueryBuilder('progress')
-            .setLock('pessimistic_write')
-            .where('progress.userId = :userId and progress.period = :period and progress.questId = :questId', { userId, period, questId })
-            .andWhere('progress.periodKey in (:...periodKeys)', { periodKeys })
-            .orderBy('progress.doneAt', 'DESC')
+        const rows = templateOf(period, questId) === null ? [] : await lockedProgress(tx, userId)
+            .andWhere('progress.period = :period and progress.questId = :questId', { period, questId })
+            .andWhere('progress.periodKey in (:...periodKeys)', { periodKeys: periodKeysInClaimWindow(period, today) })
+            .orderBy(QUEST_ORDER)
             .getMany();
 
-        const row = rows.find((candidate) => questForPeriodKey(period, candidate.periodKey, questId) !== null);
-        if (row === undefined)
+        const row = rows.find(claimableRow) ?? rows[0];
+
+        if (row === undefined || row.doneAt === null || row.progress < row.target)
         {
             return { claimed: false, period, id: questId, amount: 0, reason: 'not-ready' };
         }
@@ -430,168 +678,36 @@ export function createRewardService(db: DataSource, wallet?: RewardWallet, hooks
             return { claimed: false, period, id: questId, amount: 0, reason: 'reward-claimed' };
         }
 
-        if (row.doneAt === null || row.progress < row.target)
-        {
-            return { claimed: false, period, id: questId, amount: 0, reason: 'not-ready' };
-        }
+        const claimed = await claimRows(tx, userId, today, [row], config, withheld);
+        const reason = claimed.find((one) => one.reason !== undefined)?.reason;
 
-        const questCycle = period === 'daily'
-            ? cycleOf(Number(row.periodKey))
-            : cycleWeekOf(row.periodKey);
-
-        if (questCycle === null)
-        {
-            return { claimed: false, period, id: questId, amount: 0, reason: 'not-ready' };
-        }
-
-        const source = period === 'daily' ? 'daily' : 'weekly';
-        const amount = await grant(tx, userId, today, source, period === 'daily' ? 1_000 : 3_000, {
-            cycle: questCycle.cycle,
-            sourceKey: `${ userId }:${ period }:${ row.periodKey }:${ questId }`
-        });
-
-        await tx.getRepository(RewardQuestProgress).update(
-            { userId, period, periodKey: row.periodKey, questId, claimedAt: IsNull() },
-            { claimedAt: new Date() }
-        );
-
-        let total = amount;
-        if (period === 'weekly' && questCycle !== null && questCycle.week !== null)
-        {
-            const weeklyIds = questsFor(questCycle.cycle, questCycle.week, 'weekly').map((quest) => quest.id);
-            const claimed = await tx.getRepository(RewardQuestProgress).find({
-                where: { userId, period: 'weekly', periodKey: row.periodKey, questId: In(weeklyIds) }
-            });
-
-            if (weeklyChestReady(weeklyIds, claimed.filter((quest) => quest.claimedAt !== null).map((quest) => quest.questId)))
-            {
-                const config = await tx.getRepository(Setting).findOne({ where: { key: 'reward-config' } });
-                let pool: unknown = [];
-                try
-                {
-                    pool = config === null ? [] : (JSON.parse(config.value) as { pool?: unknown }).pool ?? [];
-                }
-                catch
-                {
-                    pool = [];
-                }
-
-                const choices = Array.isArray(pool)
-                    ? pool.filter((item): item is string => typeof item === 'string' && !item.startsWith('bundle.'))
-                    : [];
-                const available = choices.length === 0
-                    ? []
-                    : await tx.getRepository(ShopItem).find({ where: { id: In(choices) } });
-                const look = available.length === 0
-                    ? null
-                    : available[([...userId, ...row.periodKey].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 0)) % available.length].id;
-
-                total += await grant(tx, userId, today, 'chest', 1_000, {
-                    cycle: questCycle.cycle,
-                    sourceKey: `${ userId }:chest:${ row.periodKey }`,
-                    itemId: look
-                });
-            }
-        }
-
-        return { claimed: true, period, id: questId, amount: total };
+        return {
+            claimed: true,
+            period,
+            id: questId,
+            amount: claimed.reduce((sum, one) => sum + one.amount, 0),
+            ...(reason === undefined ? {} : { reason })
+        };
     });
 
     const claimAll = async (userId: string) => db.transaction(async (tx) =>
     {
-        const today = todayOf();
-        const cycleInfo = cycleOf(today);
-        const periodKeys = periodKeysInClaimWindow('daily', today).concat(cycleInfo.week === null ? [] : periodKeysInClaimWindow('weekly', today));
+        const config = await runningConfig(tx);
 
-        const rows = await tx.getRepository(RewardQuestProgress).createQueryBuilder('progress')
-            .setLock('pessimistic_write')
-            .where('progress.userId = :userId', { userId })
+        await lockPlayer(tx, userId);
+        const withheld = await claimGate(tx, userId);
+
+        const today = todayOf();
+        const rows = await lockedProgress(tx, userId)
             .andWhere('progress.doneAt IS NOT NULL')
             .andWhere('progress.claimedAt IS NULL')
-            .andWhere('progress.periodKey in (:...periodKeys)', { periodKeys })
-            .orderBy('progress.period', 'ASC')
-            .addOrderBy('progress.periodKey', 'ASC')
-            .addOrderBy('progress.doneAt', 'ASC')
+            .andWhere('progress.periodKey in (:...periodKeys)', { periodKeys: [...periodKeysInClaimWindow('daily', today), ...periodKeysInClaimWindow('weekly', today)] })
+            .orderBy(QUEST_ORDER)
             .getMany();
 
-        const claimed: Array<{ period: 'daily' | 'weekly'; id: string; amount: number }> = [];
-        let totalAmount = 0;
-        const weeklyClaimedByWeek = new Map<string, string[]>();
+        const claimed = await claimRows(tx, userId, today, rows, config, withheld);
 
-        for (const row of rows)
-        {
-            const period = row.period;
-            const valid = questForPeriodKey(period, row.periodKey, row.questId);
-            if (valid === null) continue;
-
-            const questCycle = period === 'daily'
-                ? cycleOf(Number(row.periodKey))
-                : cycleWeekOf(row.periodKey);
-            if (questCycle === null) continue;
-
-            const source = period === 'daily' ? 'daily' : 'weekly';
-            const amount = await grant(tx, userId, today, source, period === 'daily' ? 1_000 : 3_000, {
-                cycle: questCycle.cycle,
-                sourceKey: `${ userId }:${ period }:${ row.periodKey }:${ row.questId }`
-            });
-
-            await tx.getRepository(RewardQuestProgress).update(
-                { userId, period, periodKey: row.periodKey, questId: row.questId, claimedAt: IsNull() },
-                { claimedAt: new Date() }
-            );
-
-            claimed.push({ period, id: row.questId, amount });
-            totalAmount += amount;
-
-            if (period === 'weekly' && questCycle.week !== null)
-            {
-                const weekKey = `cycle:${ questCycle.cycle }:week:${ questCycle.week }`;
-                const prev = weeklyClaimedByWeek.get(weekKey) ?? [];
-                prev.push(row.questId);
-                weeklyClaimedByWeek.set(weekKey, prev);
-
-                const weeklyIds = questsFor(questCycle.cycle, questCycle.week, 'weekly').map((quest) => quest.id);
-                const allClaimed = weeklyIds.every((id) => prev.includes(id));
-                const chestAlreadyClaimed = await tx.getRepository(RewardGrant).exists({
-                    where: { userId, source: 'chest', sourceKey: `${ userId }:chest:${ weekKey }` }
-                });
-
-                if (allClaimed && !chestAlreadyClaimed)
-                {
-                    const config = await tx.getRepository(Setting).findOne({ where: { key: 'reward-config' } });
-                    let pool: unknown = [];
-                    try
-                    {
-                        pool = config === null ? [] : (JSON.parse(config.value) as { pool?: unknown }).pool ?? [];
-                    }
-                    catch
-                    {
-                        pool = [];
-                    }
-
-                    const choices = Array.isArray(pool)
-                        ? pool.filter((item): item is string => typeof item === 'string' && !item.startsWith('bundle.'))
-                        : [];
-                    const available = choices.length === 0
-                        ? []
-                        : await tx.getRepository(ShopItem).find({ where: { id: In(choices) } });
-                    const look = available.length === 0
-                        ? null
-                        : available[([...userId, ...weekKey].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 0)) % available.length].id;
-
-                    const chestAmount = await grant(tx, userId, today, 'chest', 1_000, {
-                        cycle: questCycle.cycle,
-                        sourceKey: `${ userId }:chest:${ weekKey }`,
-                        itemId: look
-                    });
-
-                    totalAmount += chestAmount;
-                    claimed.push({ period: 'weekly', id: `chest:${ weekKey }`, amount: chestAmount });
-                }
-            }
-        }
-
-        return { claimed, total: totalAmount };
+        return { claimed, total: claimed.reduce((sum, one) => sum + one.amount, 0) };
     });
 
     const activity = async (userId: string) =>
@@ -656,63 +772,123 @@ export function createRewardService(db: DataSource, wallet?: RewardWallet, hooks
         };
     };
 
-    const checkIn = async (userId: string) =>
+    /**
+     * Today's check-in: the streak moves and the looks are given whoever the player is; the NURA
+     * part is 0 for a player rule 7 refuses, with the reason. The day pays its ladder position, and
+     * position 30 the bonus as a ledger row of its own.
+     */
+    const checkIn = async (userId: string) => db.transaction(async (tx) =>
     {
-        return await db.transaction(async (tx) =>
+        const config = await runningConfig(tx);
+
+        await lockPlayer(tx, userId);
+
+        const today = todayOf();
+        const streakRow = await tx.getRepository(RewardStreak).createQueryBuilder('streak')
+            .setLock('pessimistic_write')
+            .where('streak.userId = :userId', { userId })
+            .getOne();
+
+        const plan = planCheckIn(streakRow, today, config.amounts);
+        const refused = { claimed: false as const, day: today, position: plan.position, amount: 0, reason: 'reward-claimed' as const };
+
+        if (!plan.claimable)
         {
-            const user = await tx.getRepository(User).findOne({ where: { id: userId } });
-            if (user === null)
-            {
-                throw new HttpError(404, 'No such player.', { code: 'reward-missing' });
-            }
+            return refused;
+        }
 
-            const today = todayOf();
-            const streakRow = await tx.getRepository(RewardStreak).createQueryBuilder('s')
-                .setLock('pessimistic_write')
-                .where('s.user_id = :userId', { userId })
-                .getOne();
+        const inserted = await tx.getRepository(RewardCheckin).createQueryBuilder()
+            .insert()
+            .into(RewardCheckin)
+            .values({ userId, day: today, position: plan.position })
+            .orIgnore()
+            .returning(['day'])
+            .execute();
 
-            const existing = await tx.getRepository(RewardCheckin).createQueryBuilder('checkin')
-                .where('checkin.user_id = :userId', { userId })
-                .andWhere('checkin.day = :day', { day: today })
-                .getOne();
+        if ((inserted.raw as unknown[]).length === 0)
+        {
+            return refused;
+        }
 
-            if (existing !== null)
-            {
-                return { claimed: false, day: today, amount: 0, reason: 'reward-claimed' };
-            }
+        await tx.getRepository(RewardStreak).createQueryBuilder()
+            .insert()
+            .into(RewardStreak)
+            .values({ userId, streak: plan.position, run: plan.run, lastDay: today, best: plan.best })
+            .orUpdate(['streak', 'run', 'last_day', 'best'], ['user_id'])
+            .execute();
 
-            const established = await tx.getRepository(EstablishedPlayer).exists({ where: { userId } });
-            const current = streakRow ?? { userId, streak: 0, lastDay: 0, best: 0 };
-            const next = nextStreak(current.lastDay, today, current.streak);
-            const best = Math.max(current.best, next);
-            const pay = rewardForDay(today, established);
+        const withheld = await eligibility(tx, userId);
+        const looks = plan.pay.look === undefined ? null : await looksOf(tx, config);
+        const sourceKey = `day:${ today }`;
 
-            await tx.getRepository(RewardCheckin).createQueryBuilder()
-                .insert()
-                .into(RewardCheckin)
-                .values({ userId, day: today, position: today })
-                .orIgnore()
-                .execute();
-
-            await tx.getRepository(RewardStreak).createQueryBuilder()
-                .insert()
-                .into(RewardStreak)
-                .values({ userId, streak: next, lastDay: today, best })
-                .orUpdate(['streak', 'lastDay', 'best'], ['user_id'])
-                .execute();
-
-            const granted = established ? await grant(tx, userId, today, 'checkin', pay.amount + pay.bonus, { cycle: cycleOf(today).cycle }) : 0;
-
-            return {
-                claimed: true,
-                day: today,
-                amount: granted,
-                look: pay.look,
-                balance: granted,
-                ...(established ? {} : { reason: 'not-established' as const })
-            };
+        const ladder = await grant(tx, userId, {
+            source: 'checkin',
+            sourceKey,
+            wanted: plan.pay.amount,
+            today,
+            itemId: plan.pay.look === 'weekly' && looks !== null ? pickLook(looks.pool, `${ userId }:${ today }`) : null,
+            ...(withheld === undefined ? {} : { withheld })
         });
+
+        const bonus = plan.pay.look === 'exclusive'
+            ? await grant(tx, userId, {
+                source: 'bonus',
+                sourceKey,
+                wanted: plan.pay.bonus,
+                today,
+                itemId: looks?.exclusive ?? null,
+                ...(withheld === undefined ? {} : { withheld })
+            })
+            : NOT_WRITTEN;
+
+        const reason = withheld ?? ladder.clipped ?? bonus.clipped;
+
+        return {
+            claimed: true as const,
+            day: today,
+            position: plan.position,
+            amount: ladder.amount + bonus.amount,
+            delivered: ladder.delivered ?? bonus.delivered,
+            ...(plan.pay.look === undefined ? {} : { look: plan.pay.look }),
+            ...(reason === undefined ? {} : { reason })
+        };
+    });
+
+    /** The player's ledger, newest first, a page at a time, in whole NURA. */
+    const history = async (userId: string, cursor: string | null) =>
+    {
+        const after = keysetAfter(cursor);
+        const query = db.getRepository(RewardGrant).createQueryBuilder('g')
+            .select('g.id', 'id')
+            .addSelect('g.source', 'source')
+            .addSelect('g.amount::text', 'amount')
+            .addSelect('g.created_at', 'at')
+            .addSelect('g.source_key', 'note')
+            .addSelect(keyOf('g.created_at'), 'at_key')
+            .where('g.user_id = :userId', { userId });
+
+        if (after !== null)
+        {
+            query.andWhere(olderThan('g.created_at', 'g.id'), after);
+        }
+
+        const rows = await query
+            .orderBy('g.created_at', 'DESC')
+            .addOrderBy('g.id', 'DESC')
+            .limit(HISTORY_PAGE + 1)
+            .getRawMany<HistoryRow>();
+
+        return {
+            items: rows.slice(0, HISTORY_PAGE).map((row) => ({
+                id: row.id,
+                kind: historyKind(row.source),
+                at: new Date(row.at).toISOString(),
+                amount: nuraOf(row.amount),
+                note: row.note
+            })),
+            hasMore: rows.length > HISTORY_PAGE,
+            ...cursorOf(rows, HISTORY_PAGE)
+        };
     };
 
     const withdraw = async (userId: string) =>
@@ -725,11 +901,15 @@ export function createRewardService(db: DataSource, wallet?: RewardWallet, hooks
         return await payouts.withdraw(userId);
     };
 
+    /** What is left to withdraw, switch or no switch: it was earned and is the player's. */
+    const balance = async (userId: string) => ({ withdrawable: payouts === null ? 0 : nuraOf(await payouts.withdrawable(userId)) });
+
     const sweep = async (budgetMs: number): Promise<RewardPayoutSweep> => payouts === null
         ? { mined: 0, retried: 0, failed: 0, faults: [] }
         : await payouts.sweep(budgetMs);
 
-    return { state, checkIn, claimQuest, claimAll, activity, grant, rewardForDay, onFinish, withdraw, sweep, audit: payouts?.audit };
-}
+    /** Whether rewards run here: the browser hides their door, and a reminder is not sent, while they do not. */
+    const switchedOn = async () => (await configOf(db.manager)).on;
 
-export const rewardState = createRewardService;
+    return { state, checkIn, claimQuest, claimAll, activity, history, onFinish, withdraw, balance, sweep, switchedOn, audit: payouts?.audit };
+}

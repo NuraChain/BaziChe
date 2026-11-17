@@ -1,0 +1,55 @@
+import { questWords } from '../../lib/reward-words.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useRewards, type RewardPeriod, type RewardQuest } from '../../stores/rewards.store.ts';
+import Button from '../ui/button.component.azeroth';
+
+export default component QuestRow(props: { quest: RewardQuest; period: RewardPeriod })
+{
+    const locale = useLocale();
+    const rewards = useRewards();
+
+    derived quest = props.quest;
+
+    derived words = questWords(quest, locale);
+
+    derived counted = Math.min(quest.progress, quest.target);
+
+    derived through = quest.target <= 0 ? 100 : Math.round((counted / quest.target) * 100);
+
+    derived ready = quest.done && !quest.claimed;
+
+    derived going = !quest.done && !quest.claimed;
+
+    derived claiming = rewards.busy() === `quest:${ props.period }:${ quest.id }`;
+
+    <div class="flex flex-col gap-3 rounded-panel border border-line bg-field p-4" data-quest={ quest.id }>
+        <div class="flex items-center justify-between gap-3">
+            <p class="min-w-0 text-ui-sm font-semibold text-text">{ words }</p>
+            <span class="tally shrink-0 text-ui-sm font-mono text-text">{ locale.n(counted) } / { locale.n(quest.target) }</span>
+        </div>
+        <div
+            class="h-2 w-full overflow-hidden rounded-full bg-sunk"
+            role="progressbar"
+            aria-valuemin={ 0 }
+            aria-valuemax={ quest.target }
+            aria-valuenow={ counted }
+            aria-label={ words }
+        >
+            <span class={ [ 'block h-full rounded-full motion-safe:transition-[width]', quest.done ? 'bg-accent' : 'bg-accent/40' ].join(' ') } style={ `width: ${ through }%` }></span>
+        </div>
+        <div class="flex items-center justify-end gap-3">
+            <span class="me-auto text-xs tabular-nums text-muted">{ locale.t('app.rewards.pays', { amount: quest.reward }) }</span>
+            <Show when={ going }>
+                <span class="text-xs text-muted">{ locale.t('app.rewards.inProgress') }</span>
+            </Show>
+            <Show when={ ready }>
+                <Button onClick={ () => void rewards.claimQuest(props.period, quest.id) } loading={ claiming } variant="primary" size="sm">
+                    { locale.t('app.rewards.claim') }
+                </Button>
+            </Show>
+            <Show when={ quest.claimed }>
+                <span class="text-xs text-accent">{ locale.t('app.rewards.claimed') }</span>
+            </Show>
+        </div>
+    </div>
+}

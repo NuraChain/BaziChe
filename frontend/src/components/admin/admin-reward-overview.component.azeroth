@@ -1,0 +1,187 @@
+import type { AdminRewardOverview } from '../../../../backend/src/schemas.ts';
+import { explorerTx } from '../../lib/nura.ts';
+import { shareOf } from '../../lib/reward-admin.ts';
+import { shortAddress } from '../../lib/wallet.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import { useAdminRewards } from '../../stores/admin-rewards.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import type { Tone } from '../ui/variants.ts';
+import AdminEmpty from './admin-empty.component.azeroth';
+import { freezeAsked } from './reward-freeze.ts';
+import RewardPerson from './reward-person.component.azeroth';
+import When from './when.component.azeroth';
+
+type PayoutState = AdminRewardOverview['queue']['rows'][number]['state'];
+
+export const PAYOUT_STATES: Record<PayoutState, { word: MessageKey; tone: Tone }> = {
+    queued: { word: 'admin.rewardsPage.payout.queued', tone: 'gold' },
+    sent: { word: 'admin.rewardsPage.payout.sent', tone: 'accent' },
+    mined: { word: 'admin.rewardsPage.payout.mined', tone: 'live' },
+    failed: { word: 'admin.rewardsPage.payout.failed', tone: 'danger' }
+};
+
+/** Rewards at a glance for the staff: the budget today, the rewards wallet, the payout queue and who earned most. */
+export default component AdminRewardOverview(props: { freezes: boolean })
+{
+    const locale = useLocale();
+    const store = useAdminRewards();
+
+    mount
+    {
+        store.want('overview');
+    }
+
+    derived held = store.overview();
+
+    derived waiting = held === null && !store.overviewFailed();
+
+    derived failed = store.overviewFailed();
+
+    derived shown = held !== null;
+
+    derived budget = held?.budget ?? null;
+
+    derived through = budget === null ? 0 : shareOf(budget.used, budget.open);
+
+    derived wallet = held?.wallet ?? null;
+
+    derived walletOff = wallet !== null && !wallet.configured;
+
+    derived walletOn = wallet !== null && wallet.configured;
+
+    derived address = wallet?.address ?? '';
+
+    derived balanceKnown = wallet?.balance !== undefined;
+
+    derived balanceUnknown = walletOn && !balanceKnown;
+
+    derived owed = held?.queue.owed ?? 0;
+
+    derived short = balanceKnown && (wallet?.balance ?? 0) < owed;
+
+    derived queue = (held?.queue.rows ?? []).map((row) => ({
+        ...row,
+        state: PAYOUT_STATES[row.state],
+        link: row.hash === undefined || wallet?.chainId === undefined ? null : explorerTx(wallet.chainId, row.hash)
+    }));
+
+    derived queued = queue.length > 0;
+
+    derived queueBare = held !== null && !queued;
+
+    derived top = held?.top ?? [];
+
+    derived ranked = top.length > 0;
+
+    derived topBare = held !== null && !ranked;
+
+    <section class="flex flex-col gap-4" aria-labelledby="admin-reward-today" data-reward-overview>
+        <h2 id="admin-reward-today" class="title text-ui-2xl text-text">{ locale.t('admin.rewardsPage.today') }</h2>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 4 } /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState error={ store.overviewError() } compact title={ locale.t('admin.rewardsPage.overviewFailed') } onRetry={ () => void store.refresh() } /> }
+        </Show>
+
+        <Show when={ shown }>
+            <div class="flex flex-col gap-4">
+                <div class="grid grid-cols-1 gap-4 @2xl:grid-cols-2">
+                    <div class="flex flex-col gap-2 rounded-panel border border-line bg-field p-4" data-reward-budget-today>
+                        <p class="text-ui-xs text-muted">{ locale.t('admin.rewardsPage.cycleDay', { cycle: budget?.cycle ?? 0, day: budget?.cycleDay ?? 0 }) }</p>
+                        <p class="tabular-nums text-ui-lg font-semibold text-text">{ locale.t('admin.rewardsPage.used', { used: budget?.used ?? 0, open: budget?.open ?? 0 }) }</p>
+                        <div class="h-2 w-full overflow-hidden rounded-full bg-sunk" role="progressbar" aria-valuemin={ 0 } aria-valuemax={ 100 } aria-valuenow={ through } aria-label={ locale.t('admin.rewardsPage.budget') }>
+                            <span class="block h-full rounded-full bg-accent motion-safe:transition-[width]" style={ `width: ${ through }%` }></span>
+                        </div>
+                        <p class="text-ui-xs text-muted">{ locale.t('admin.rewardsPage.usedToday', { amount: budget?.usedToday ?? 0, budget: budget?.budget ?? 0 }) }</p>
+                    </div>
+
+                    <div class="flex flex-col gap-2 rounded-panel border border-line bg-field p-4" data-reward-wallet>
+                        <p class="text-ui-sm font-semibold text-text">{ locale.t('admin.rewardsPage.wallet') }</p>
+                        <Show when={ walletOff }>
+                            <p class="text-ui-sm text-muted">{ locale.t('admin.rewardsPage.walletOff') }</p>
+                        </Show>
+                        <Show when={ walletOn }>
+                            <div class="flex flex-col gap-1">
+                                <p class="text-ui-xs text-muted [overflow-wrap:anywhere]" dir="ltr" title={ address }>{ address }</p>
+                                <Show when={ balanceKnown }>
+                                    <p class="tabular-nums text-ui-lg font-semibold text-text">{ locale.t('admin.rewardsPage.balance', { amount: wallet?.balance ?? 0 }) }</p>
+                                </Show>
+                                <Show when={ balanceUnknown }>
+                                    <p class="text-ui-sm text-muted">{ locale.t('admin.rewardsPage.balanceUnknown') }</p>
+                                </Show>
+                                <Show when={ short }>
+                                    <p class="text-ui-sm font-medium text-danger" role="status">{ locale.t('admin.rewardsPage.walletShort', { owed }) }</p>
+                                </Show>
+                            </div>
+                        </Show>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2" data-reward-queue>
+                    <div class="flex flex-wrap items-baseline justify-between gap-2">
+                        <h3 class="text-ui-lg font-semibold text-text">{ locale.t('admin.rewardsPage.queue') }</h3>
+                        <p class="tabular-nums text-ui-xs text-muted">{ locale.t('admin.rewardsPage.queueCounts', { queued: held?.queue.queued ?? 0, sent: held?.queue.sent ?? 0, owed }) }</p>
+                    </div>
+                    <Show when={ queueBare }>
+                        { () => <AdminEmpty icon="wallet" title={ locale.t('admin.rewardsPage.queueEmpty') } /> }
+                    </Show>
+                    <Show when={ queued }>
+                        <ul class="divide-y divide-line overflow-hidden rounded-panel border border-line bg-field">
+                            <For each={ queue } key={ (row) => row.id } let={ row }>
+                                <li class="flex flex-col gap-2 px-4 py-3 @2xl:flex-row @2xl:items-center @2xl:justify-between" data-payout={ row.id }>
+                                    <RewardPerson person={ row.person } />
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="tabular-nums text-ui-sm font-semibold text-text">{ locale.t('admin.rewardsPage.nura', { amount: row.amount }) }</span>
+                                        <Badge text={ locale.t(row.state.word) } tone={ row.state.tone } />
+                                        <span class="text-ui-xs text-muted">{ locale.plural('admin.rewardsPage.attempts', row.attempts) }</span>
+                                        <span class="text-ui-xs text-muted"><When at={ row.at } /></span>
+                                        <Show when={ row.link !== null }>
+                                            <a href={ row.link ?? '' } target="_blank" rel="noopener noreferrer" class="text-ui-xs font-semibold text-accent hover:underline" dir="ltr">{ shortAddress(row.hash ?? '', 8, 6) }</a>
+                                        </Show>
+                                        <Show when={ row.link === null && row.hash !== undefined }>
+                                            <span class="text-ui-xs text-muted" dir="ltr">{ shortAddress(row.hash ?? '', 8, 6) }</span>
+                                        </Show>
+                                    </div>
+                                </li>
+                            </For>
+                        </ul>
+                    </Show>
+                </div>
+
+                <div class="flex flex-col gap-2" data-reward-top>
+                    <h3 class="text-ui-lg font-semibold text-text">{ locale.t('admin.rewardsPage.top') }</h3>
+                    <Show when={ topBare }>
+                        { () => <AdminEmpty icon="trophy" title={ locale.t('admin.rewardsPage.topEmpty') } /> }
+                    </Show>
+                    <Show when={ ranked }>
+                        <ol class="divide-y divide-line overflow-hidden rounded-panel border border-line bg-field">
+                            <For each={ top } key={ (row) => row.person.handle } let={ row }>
+                                <li class="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
+                                    <RewardPerson person={ row.person } />
+                                    <div class="flex shrink-0 items-center gap-2">
+                                        <span class="tally text-ui-sm font-semibold text-text">{ locale.n(row.earned) }</span>
+                                        <Show when={ row.frozen }>
+                                            <Badge text={ locale.t('admin.rewardsPage.frozenTag') } tone="danger" />
+                                        </Show>
+                                        <Show when={ props.freezes }>
+                                            <Button variant={ row.frozen ? 'outline' : 'destructive-ghost' } size="sm" onClick={ () => void freezeAsked(row.person.handle, !row.frozen) }>
+                                                { locale.t(row.frozen ? 'admin.rewardsPage.thaw' : 'admin.rewardsPage.freeze') }
+                                            </Button>
+                                        </Show>
+                                    </div>
+                                </li>
+                            </For>
+                        </ol>
+                    </Show>
+                </div>
+            </div>
+        </Show>
+    </section>
+}

@@ -22,4 +22,29 @@ describe('the reward schema', () =>
         expect(wordsIn('settings_key_known')).toContain('reward-config');
         expect(wordsIn('settings_key_known')).toContain('reward-budget');
     });
+
+    it('keeps the freezes in a table of their own, so freezing touches no existing row', () =>
+    {
+        const targetName = (one: { target?: string | Function }) => typeof one.target === 'function' ? one.target.name : String(one.target ?? '');
+        const freezes = getMetadataArgsStorage().tables.find((one) => targetName(one) === 'RewardFreeze');
+
+        expect(freezes?.name).toBe('reward_freezes');
+        expect(expressionOf('reward_freezes_reason_length')).toBe('char_length(reason) between 3 and 500');
+    });
+
+    it('knows the staff actions of rewards, and holds the whole config in its setting', () =>
+    {
+        expect(wordsIn('staff_actions_kind_known')).toEqual(expect.arrayContaining(['reward-config', 'reward-freeze']));
+        expect(expressionOf('settings_value_length')).toBe('char_length(value) between 1 and 4000');
+    });
+
+    it('adds the reward day to a grant as a nullable, indexed column, which rows written before it can hold', () =>
+    {
+        const target = (one: { target?: string | Function }) => typeof one.target === 'function' ? one.target.name : '';
+        const day = getMetadataArgsStorage().columns.find((one) => target(one) === 'RewardGrant' && one.propertyName === 'day');
+        const index = getMetadataArgsStorage().indices.find((one) => one.name === 'reward_grants_day_idx');
+
+        expect(day?.options).toMatchObject({ type: 'integer', nullable: true });
+        expect(index?.columns).toEqual(['day']);
+    });
 });

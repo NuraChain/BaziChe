@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { countsForQuests } from '../src/domains/reward/progress.ts';
-import { deltasForQuests, weeklyChestReady } from '../src/domains/reward/progress.ts';
+import { deltasForQuests, inQuestOrder, wantsDistinctGame, weeklyChestReady } from '../src/domains/reward/progress.ts';
 
 describe('reward quest progress', () =>
 {
@@ -92,11 +92,50 @@ describe('reward quest progress', () =>
         ]);
     });
 
-    it('opens the weekly chest only after all three quest claims', () =>
+    it('opens the weekly chest with the third different weekly quest claimed, whichever draw it came from', () =>
     {
-        const ids = ['one', 'two', 'three'];
-        expect(weeklyChestReady(ids, ['one', 'two'])).toBe(false);
-        expect(weeklyChestReady(ids, ['one', 'two', 'three'])).toBe(true);
-        expect(weeklyChestReady(['one', 'two'], ['one', 'two'])).toBe(false);
+        expect(weeklyChestReady([])).toBe(false);
+        expect(weeklyChestReady(['one', 'two'])).toBe(false);
+        expect(weeklyChestReady(['one', 'two', 'two'])).toBe(false);
+        expect(weeklyChestReady(['one', 'two', 'three'])).toBe(true);
+    });
+
+    it('marks a game for the different-games quest only from a match that counted, while such a quest is drawn', () =>
+    {
+        const distinct = [{ metric: 'distinct-games' as const }];
+        const counted = countsForQuests({ game: 'chess', result: 'lost', ownTurns: 30, playerId: 'me', opponentIds: ['them'] });
+        const short = countsForQuests({ game: 'chess', result: 'lost', ownTurns: 6, playerId: 'me', opponentIds: ['them'] });
+        const alone = countsForQuests({ game: 'chess', result: 'lost', ownTurns: 30, playerId: 'me', opponentIds: [] });
+        const unearned = countsForQuests({ game: 'chess', result: 'won', credit: false, ownTurns: 30, playerId: 'me', opponentIds: ['them'] });
+        const farmed = countsForQuests({ game: 'chess', result: 'lost', ownTurns: 30, playerId: 'me', opponentIds: ['them'], sameOpponentCounts: { them: 4 } });
+
+        expect(wantsDistinctGame(distinct, counted)).toBe(true);
+        expect(wantsDistinctGame([{ metric: 'played' as const }], counted)).toBe(false);
+
+        for (const counts of [short, alone, unearned, farmed])
+        {
+            expect(wantsDistinctGame(distinct, counts)).toBe(false);
+        }
+    });
+
+    it('puts progress rows in one lock order, by code point as collate "C" sorts', () =>
+    {
+        const row = (period: string, period_key: string, quest_id: string) => ({ period, period_key, quest_id });
+        const rows = [
+            row('weekly', '35-2', 'any-won-weekly'),
+            row('daily', '1051', 'chess-moves-daily'),
+            row('weekly', '35-2', 'Z-upper'),
+            row('daily', '1051', 'any-played-daily'),
+            row('daily', '1050', 'chess-moves-daily')
+        ];
+
+        expect(inQuestOrder(rows)).toEqual([
+            row('daily', '1050', 'chess-moves-daily'),
+            row('daily', '1051', 'any-played-daily'),
+            row('daily', '1051', 'chess-moves-daily'),
+            row('weekly', '35-2', 'Z-upper'),
+            row('weekly', '35-2', 'any-won-weekly')
+        ]);
+        expect(inQuestOrder([...rows].reverse())).toEqual(inQuestOrder(rows));
     });
 });

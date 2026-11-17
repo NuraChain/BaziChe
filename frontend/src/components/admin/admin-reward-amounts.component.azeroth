@@ -1,0 +1,159 @@
+import { REWARD_CAP } from '../../../../backend/src/domains/reward/rules.ts';
+import { attempt } from '../../lib/attempt.ts';
+import { AMOUNT_FIELDS, readAmounts, sameAmounts, typedAmounts, type AmountField, type TypedAmounts } from '../../lib/reward-admin.ts';
+import { whyStaffRefused } from '../../lib/staff-words.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import { useAdminRewards } from '../../stores/admin-rewards.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import { useOverlay } from '../../stores/overlay.store.ts';
+import Button from '../ui/button.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import ReasonSheet from './reason-sheet.component.azeroth';
+
+const FIELD_WORDS: Record<AmountField, MessageKey> = {
+    bonus: 'admin.rewardsPage.amount.bonus',
+    daily: 'admin.rewardsPage.amount.daily',
+    weekly: 'admin.rewardsPage.amount.weekly',
+    chest: 'admin.rewardsPage.amount.chest'
+};
+
+/** What a cycle pays, as the owner edits it: the most one player could earn is summed as they type, and a set past the cap is never sent. */
+export default component AdminRewardAmounts()
+{
+    const locale = useLocale();
+    const overlay = useOverlay();
+    const store = useAdminRewards();
+
+    /** The form as typed; undefined while it is the saved set. */
+    state typed = undefined as TypedAmounts | undefined;
+
+    mount
+    {
+        store.want('config');
+    }
+
+    derived held = store.config();
+
+    derived shown = held !== null;
+
+    derived form = typed ?? (held === null ? null : typedAmounts(held.amounts));
+
+    derived read = form === null ? null : readAmounts(form);
+
+    derived ladder = (form?.ladder ?? []).map((value, at) => ({ day: at + 1, value, bad: read?.bad.includes(`ladder.${ at + 1 }`) === true }));
+
+    derived fields = AMOUNT_FIELDS.map((field) => ({ field, value: form?.[field] ?? '', bad: read?.bad.includes(field) === true, label: locale.t(FIELD_WORDS[field]) }));
+
+    derived over = read?.over === true;
+
+    derived bad = (read?.bad.length ?? 0) > 0;
+
+    derived most = read?.most ?? null;
+
+    derived through = most === null ? 0 : Math.min(100, Math.round((most / REWARD_CAP) * 100));
+
+    derived total = most === null ? locale.t('admin.rewardsPage.amountsBad') : locale.t('admin.rewardsPage.most', { most, cap: REWARD_CAP });
+
+    derived bySource = read?.bySource ?? null;
+
+    derived split = bySource === null ? '' : locale.t('admin.rewardsPage.bySource', { checkin: bySource.checkin, bonus: bySource.bonus, daily: bySource.daily, weekly: bySource.weekly });
+
+    derived overBy = locale.t('admin.rewardsPage.over', { over: (most ?? 0) - REWARD_CAP, cap: REWARD_CAP });
+
+    derived changed = held !== null && read !== null && read.amounts !== null && !sameAmounts(read.amounts, held.amounts);
+
+    const edit = (change: (now: TypedAmounts) => TypedAmounts) =>
+    {
+        if (form !== null)
+        {
+            typed = change(form);
+        }
+    };
+
+    const save = async () =>
+    {
+        const amounts = read?.amounts ?? null;
+
+        if (amounts === null || most === null)
+        {
+            return;
+        }
+
+        const said = await overlay.open(
+            ReasonSheet,
+            { title: locale.t('admin.rewardsPage.askAmounts', { most }), confirm: locale.t('admin.rewardsPage.saveAmounts') },
+            { label: locale.t('admin.section.rewards') }
+        ).closed;
+
+        if (typeof said === 'string' && await attempt(store.setAmounts(amounts, said), locale.t('admin.rewardsPage.doneAmounts'), whyStaffRefused))
+        {
+            typed = undefined;
+        }
+    };
+
+    <section class="flex flex-col gap-4" aria-labelledby="admin-reward-amounts" data-reward-amounts>
+        <div class="flex flex-col gap-1">
+            <h2 id="admin-reward-amounts" class="title text-ui-2xl text-text">{ locale.t('admin.rewardsPage.amounts') }</h2>
+            <p class="text-ui-md text-muted">{ locale.t('admin.rewardsPage.amountsLead', { cap: REWARD_CAP }) }</p>
+        </div>
+
+        <Show when={ shown }>
+            <div class="flex flex-col gap-4 rounded-panel border border-line bg-field p-4">
+                <fieldset class="flex flex-col gap-2">
+                    <legend class="mb-2 text-ui-sm font-semibold text-text">{ locale.t('admin.rewardsPage.ladder') }</legend>
+                    <ol class="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-7">
+                        <For each={ ladder } key={ (one) => one.day } let={ step }>
+                            <li class="flex min-w-0 flex-col gap-1">
+                                <label for={ `admin-reward-day-${ step.day }` } class="text-ui-xs text-muted">{ locale.t('admin.rewardsPage.day', { day: step.day }) }</label>
+                                <Input
+                                    id={ `admin-reward-day-${ step.day }` }
+                                    value={ step.value }
+                                    inputmode="numeric"
+                                    autocomplete="off"
+                                    invalid={ step.bad }
+                                    onInput={ (value) => edit((now) => ({ ...now, ladder: now.ladder.map((one, at) => (at === step.day - 1 ? value : one)) })) }
+                                />
+                            </li>
+                        </For>
+                    </ol>
+                </fieldset>
+
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <For each={ fields } key={ (one) => one.field } let={ one }>
+                        <div class="flex min-w-0 flex-col gap-1">
+                            <label for={ `admin-reward-${ one.field }` } class="text-ui-sm font-semibold text-text">{ one.label }</label>
+                            <Input
+                                id={ `admin-reward-${ one.field }` }
+                                value={ one.value }
+                                inputmode="numeric"
+                                autocomplete="off"
+                                invalid={ one.bad }
+                                onInput={ (value) => edit((now) => ({ ...now, [one.field]: value })) }
+                            />
+                        </div>
+                    </For>
+                </div>
+
+                <div class="flex flex-col gap-2" aria-live="polite" data-reward-most>
+                    <p class={ [ 'tabular-nums text-ui-sm font-semibold', over || bad ? 'text-danger' : 'text-text' ].join(' ') }>{ total }</p>
+                    <div class="h-2 w-full overflow-hidden rounded-full bg-sunk" aria-hidden="true">
+                        <span class={ [ 'block h-full rounded-full motion-safe:transition-[width]', over ? 'bg-danger' : 'bg-accent' ].join(' ') } style={ `width: ${ through }%` }></span>
+                    </div>
+                    <Show when={ split !== '' }>
+                        <p class="text-ui-xs text-muted">{ split }</p>
+                    </Show>
+                    <Show when={ over }>
+                        <p class="text-ui-xs font-medium text-danger" role="alert">{ overBy }</p>
+                    </Show>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <Button variant="primary" disabled={ !changed || over || bad } onClick={ () => void save() }>{ locale.t('admin.rewardsPage.saveAmounts') }</Button>
+                    <Show when={ typed !== undefined }>
+                        <Button variant="ghost" onClick={ () => typed = undefined }>{ locale.t('admin.rewardsPage.undo') }</Button>
+                    </Show>
+                </div>
+            </div>
+        </Show>
+    </section>
+}

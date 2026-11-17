@@ -61,6 +61,17 @@ import type {
     NftItem,
     PersonSummary,
     Privacy,
+    RewardActivity,
+    RewardClaimAll,
+    RewardHistoryPage,
+    AdminRewardConfig,
+    AdminRewardDayEntries,
+    AdminRewardDays,
+    AdminRewardFrozen,
+    AdminRewardOverview,
+    RewardQuestClaim,
+    RewardState,
+    RewardWithdraw,
     ShopBalance,
     ShopCollectionView,
     ShopEarnings,
@@ -82,6 +93,7 @@ import { STAFF_REFUSALS, type StaffRefusal } from '../../backend/src/domains/adm
 import { CHECKS_PAGE, type CheckFamily, type CheckList } from '../../backend/src/domains/reconcile/kinds.ts';
 import { INVITES_PAGE, LIVE_PAGE, LOG_PAGE, may, outranks, PEOPLE_PAGE, PLAY_PAGE, REPORTS_PAGE, SHOP_ORDERS_PAGE, type Ability, type CampaignMove, type RewardList, type RewardMove, type ActionKind, type ClearPart, type GrantedRole, type PeopleList, type ReportList, type ReportOutcome, type ReportStatus, type StaffRole, type SuspendCategory, type SuspendDays } from '../../backend/src/domains/admin/roles.ts';
 import { ALERT_ABILITY } from '../../backend/src/ops/measures.ts';
+import { amountsOf, mostPerCycle, REWARD_AMOUNTS, REWARD_CAP } from '../../backend/src/domains/reward/rules.ts';
 import {
     FRIENDSHIP_FIXTURES,
     GROUP_FIXTURES,
@@ -1350,6 +1362,121 @@ const donationOf = (id: string) =>
     return found;
 };
 
+/** A reward state on absolute day 1050 with nothing checked in yet: the ladder pays position 1 today. */
+export const rewardState = (): RewardState => ({
+    streak: 0,
+    lastDay: 0,
+    best: 0,
+    claimable: true,
+    today: 1050,
+    position: 1,
+    ladder: Array.from({ length: 30 }, (_, index) => ({
+        day: index + 1,
+        amount: index === 29 ? 0 : 500,
+        claimed: false,
+        ...(index === 29 ? { look: 'exclusive' as const, bonus: 20_000 } : {})
+    })),
+    cycleGranted: 0,
+    withdrawable: 0,
+    daily: [
+        { id: 'any-played-daily', game: 'any', metric: 'played', target: 6, reward: 1000, progress: 6, done: true, claimed: false },
+        { id: 'hokm-tally:kots-daily', game: 'hokm', metric: 'tally:kots', target: 5, reward: 1000, progress: 0, done: false, claimed: false }
+    ],
+    weekly: [],
+    chest: 1000,
+    chestClaimed: false
+});
+
+type RewardHistoryRow = RewardHistoryPage['items'][number];
+
+const rewardsFresh = () => ({
+    state: rewardState(),
+
+    /** Every ledger row, newest first; a page is `page` of them. */
+    history: [] as RewardHistoryRow[],
+    page: 2,
+
+    /** Why the next check-in or claim paid less, as the server would add it. */
+    reason: undefined as string | undefined,
+
+    /** Promises a state read waits on before it is answered, one per read, so a spec can look while it loads. */
+    stateHolds: [] as Promise<void>[],
+
+    /** What the next withdrawal answers. */
+    withdraw: { status: 'none', amount: 0, queued: 0 } as RewardWithdraw,
+
+    /** The NURA left to withdraw, answered whether rewards are on or off. */
+    balance: 0,
+
+    /** A refusal every read and press answers with, as the server does once rewards are switched off or the player is frozen. */
+    refuse: null as { status: number; code: string } | null
+});
+
+const rewardFace = (handle: string) => ({ handle, displayName: handle, hue: 120 });
+
+/** Rewards as the staff read them: switched off with the default amounts, nothing granted, nobody frozen. */
+const rewardsAdminFresh = () => ({
+    config: {
+        on: false,
+        amounts: { ...REWARD_AMOUNTS, ladder: [...REWARD_AMOUNTS.ladder] },
+        mostPerCycle: mostPerCycle(REWARD_AMOUNTS),
+        cap: REWARD_CAP,
+        pool: [] as string[],
+        budget: 25_000_000
+    } as AdminRewardConfig,
+    overview: {
+        budget: { cycle: 34, cycleDay: 3, day: 1023, budget: 25_000_000, open: 2_500_000, used: 1_000, usedToday: 500 },
+        wallet: { configured: true, address: '0x00000000000000000000000000000000000000aa', chainId: 1, balance: 900 },
+        queue: { queued: 1, sent: 0, owed: 1_000, rows: [{ id: 'payout-1', person: rewardFace('dana'), wallet: '0x00000000000000000000000000000000000000bb', amount: 1_000, state: 'failed', attempts: 3, at: '2026-10-27T10:00:00.000Z' }] },
+        top: [{ person: rewardFace('dana'), earned: 1_000, frozen: false }]
+    } as AdminRewardOverview,
+    days: { cycle: 34, budget: 25_000_000, days: [] } as AdminRewardDays,
+
+    /** Every line of a reward day, newest first; a page is `page` of them. */
+    entries: {} as Record<number, AdminRewardDayEntries['rows']>,
+    frozen: [] as AdminRewardFrozen['rows'],
+    page: 2
+});
+
+const rewardsRefusal = () =>
+{
+    const refused = server.rewards.refuse;
+
+    if (refused !== null)
+    {
+        throw new ApiError(refused.status, refused.code, refused.code, undefined);
+    }
+};
+
+/** One page of a keyset list the fakes keep in an array, the cursor being the id of the last row given. */
+const rewardPageOf = <Row>(rows: Row[], idOf: (row: Row) => string, cursor: string | undefined) =>
+{
+    const from = cursor === undefined ? 0 : rows.findIndex((one) => idOf(one) === cursor) + 1;
+    const page = rows.slice(from, from + server.rewardsAdmin.page);
+    const more = from + server.rewardsAdmin.page < rows.length;
+
+    return { rows: structuredClone(page), ...(more ? { cursor: idOf(page[page.length - 1]) } : {}) };
+};
+
+const rewardConfigured = (part: string, reason: string, change: (config: AdminRewardConfig) => AdminRewardConfig) =>
+{
+    staffGate('wallet');
+
+    const actor = staffRoleOf(server.me);
+
+    server.rewardsAdmin.config = change(server.rewardsAdmin.config);
+    staffLogged({
+        at: new Date(runtime().clock.now()).toISOString(),
+        staff: server.me,
+        ...(actor === null ? {} : { staffRole: actor }),
+        kind: 'reward-config',
+        reason,
+        details: { part }
+    });
+
+    return structuredClone(server.rewardsAdmin.config);
+};
+
 export const NURA_MARKETS = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
 
 const marketsFresh = () => ({
@@ -1613,6 +1740,8 @@ export const server =
     nura: nuraFresh(),
     shop: shopFresh(),
     donate: donateFresh(),
+    rewards: rewardsFresh(),
+    rewardsAdmin: rewardsAdminFresh(),
     markets: marketsFresh(),
     admin: adminFresh(),
     staff: staffFresh(),
@@ -1873,6 +2002,8 @@ export const server =
         server.nura = nuraFresh();
         server.shop = shopFresh();
         server.donate = donateFresh();
+        server.rewards = rewardsFresh();
+        server.rewardsAdmin = rewardsAdminFresh();
         server.markets = marketsFresh();
         server.admin = adminFresh();
         server.staff = staffFresh();
@@ -2160,6 +2291,109 @@ export const client =
 {
     admin:
     {
+        async rewardConfig(): Promise<AdminRewardConfig>
+        {
+            server.calls.push('admin.rewardConfig');
+            staffGate('rewards');
+
+            return structuredClone(server.rewardsAdmin.config);
+        },
+
+        async rewardOverview(): Promise<AdminRewardOverview>
+        {
+            server.calls.push('admin.rewardOverview');
+            staffGate('rewards');
+
+            return structuredClone(server.rewardsAdmin.overview);
+        },
+
+        async rewardDays({ query }: { query: { cycle?: string } }): Promise<AdminRewardDays>
+        {
+            server.calls.push(`admin.rewardDays ${ query.cycle ?? '' }`);
+            staffGate('rewards');
+
+            return { ...structuredClone(server.rewardsAdmin.days), ...(query.cycle === undefined ? {} : { cycle: Number(query.cycle) }) };
+        },
+
+        async rewardDay({ params, query }: { params: { day: string }; query: { cursor?: string } }): Promise<AdminRewardDayEntries>
+        {
+            server.calls.push(`admin.rewardDay ${ params.day } ${ query.cursor ?? '' }`);
+            staffGate('rewards');
+
+            const day = Number(params.day);
+
+            return { day, ...rewardPageOf(server.rewardsAdmin.entries[day] ?? [], (row) => row.id, query.cursor) };
+        },
+
+        async rewardFrozen({ query }: { query: { cursor?: string } }): Promise<AdminRewardFrozen>
+        {
+            server.calls.push(`admin.rewardFrozen ${ query.cursor ?? '' }`);
+            staffGate('rewards');
+
+            return rewardPageOf(server.rewardsAdmin.frozen, (row) => row.person.handle, query.cursor);
+        },
+
+        async switchRewards({ input }: { input: { on: boolean; reason: string } }): Promise<AdminRewardConfig>
+        {
+            server.calls.push(`admin.switchRewards ${ input.on } ${ input.reason }`);
+
+            return rewardConfigured('switch', input.reason, (config) => ({ ...config, on: input.on }));
+        },
+
+        async setRewardAmounts({ input }: { input: { amounts: AdminRewardConfig['amounts']; reason: string } }): Promise<AdminRewardConfig>
+        {
+            server.calls.push(`admin.setRewardAmounts ${ input.reason }`);
+            staffGate('wallet');
+
+            const amounts = amountsOf(input.amounts);
+
+            if (amounts === null)
+            {
+                throw staffRefused('staff-reward-amounts', 'Those amounts pay one player more than the cap.');
+            }
+
+            return rewardConfigured('amounts', input.reason, (config) => ({ ...config, amounts: { ...amounts, ladder: [...amounts.ladder] }, mostPerCycle: mostPerCycle(amounts) }));
+        },
+
+        async setRewardLooks({ input }: { input: { pool: string[]; exclusive?: string; reason: string } }): Promise<AdminRewardConfig>
+        {
+            server.calls.push(`admin.setRewardLooks ${ input.pool.join(',') } ${ input.exclusive ?? '' }`);
+
+            return rewardConfigured('looks', input.reason, (config) =>
+            {
+                const { exclusive: _, ...rest } = config;
+
+                return { ...rest, pool: [...input.pool], ...(input.exclusive === undefined ? {} : { exclusive: input.exclusive }) };
+            });
+        },
+
+        async setRewardBudget({ input }: { input: { budget: number; reason: string } }): Promise<AdminRewardConfig>
+        {
+            server.calls.push(`admin.setRewardBudget ${ input.budget }`);
+
+            return rewardConfigured('budget', input.reason, (config) => ({ ...config, budget: input.budget }));
+        },
+
+        async freezeRewards({ params, input }: { params: { handle: string }; input: { frozen: boolean; reason: string } })
+        {
+            server.calls.push(`admin.freezeRewards ${ params.handle } ${ input.frozen }`);
+            staffGate('rewards');
+
+            const at = new Date(runtime().clock.now()).toISOString();
+            const held = server.rewardsAdmin;
+
+            held.frozen = held.frozen.filter((row) => row.person.handle !== params.handle);
+
+            if (input.frozen)
+            {
+                held.frozen.unshift({ person: rewardFace(params.handle), reason: input.reason, by: server.me, at });
+            }
+
+            held.overview.top = held.overview.top.map((row) => (row.person.handle === params.handle ? { ...row, frozen: input.frozen } : row));
+
+            return { handle: params.handle, frozen: input.frozen, ...(input.frozen ? { reason: input.reason, at } : {}) };
+        },
+
         async minters()
         {
             server.calls.push('admin.minters');
@@ -3505,6 +3739,109 @@ export const client =
             }
 
             return { ...gift };
+        }
+    },
+
+    rewards:
+    {
+        async state(): Promise<RewardState>
+        {
+            server.calls.push('rewards.state');
+            rewardsRefusal();
+
+            const held = server.rewards.stateHolds.shift();
+
+            if (held !== undefined)
+            {
+                await held;
+            }
+
+            return structuredClone(server.rewards.state);
+        },
+        async checkIn(): Promise<RewardState>
+        {
+            server.calls.push('rewards.checkIn');
+
+            const now = server.rewards.state;
+
+            if (now.claimable)
+            {
+                server.rewards.state = {
+                    ...now,
+                    claimable: false,
+                    streak: now.position,
+                    lastDay: now.today,
+                    ladder: now.ladder.map((step) => (step.day <= now.position ? { ...step, claimed: true } : step))
+                };
+            }
+
+            const reason = now.claimable ? server.rewards.reason : undefined;
+
+            return { ...structuredClone(server.rewards.state), ...(reason === undefined ? {} : { reason }) };
+        },
+        async claimQuest({ params }: { params: { period: string; id: string } }): Promise<RewardQuestClaim>
+        {
+            server.calls.push(`rewards.claimQuest ${ params.period } ${ params.id }`);
+
+            const period = params.period === 'weekly' ? 'weekly' : 'daily';
+            const quest = server.rewards.state[period].find((one) => one.id === params.id);
+
+            if (quest === undefined || !quest.done || quest.claimed)
+            {
+                return { claimed: false, period, id: params.id, amount: 0, reason: quest?.claimed === true ? 'reward-claimed' : 'not-ready' };
+            }
+
+            quest.claimed = true;
+
+            const reason = server.rewards.reason;
+
+            return { claimed: true, period, id: params.id, amount: reason === undefined ? 300 : 0, ...(reason === undefined ? {} : { reason }) };
+        },
+        async claimAll(): Promise<RewardClaimAll>
+        {
+            server.calls.push('rewards.claimAll');
+
+            const reason = server.rewards.reason;
+            const claimed = (['daily', 'weekly'] as const).flatMap((period) => server.rewards.state[period]
+                .filter((one) => one.done && !one.claimed)
+                .map((one) =>
+                {
+                    one.claimed = true;
+
+                    return { period, id: one.id, amount: reason === undefined ? 300 : 0, ...(reason === undefined ? {} : { reason }) };
+                }));
+
+            return { claimed, total: claimed.reduce((sum, one) => sum + one.amount, 0) };
+        },
+        async withdraw()
+        {
+            server.calls.push('rewards.withdraw');
+
+            rewardsRefusal();
+
+            return structuredClone(server.rewards.withdraw);
+        },
+        async balance()
+        {
+            server.calls.push('rewards.balance');
+
+            return { withdrawable: server.rewards.balance };
+        },
+        async history({ query }: { query: { cursor?: string } }): Promise<RewardHistoryPage>
+        {
+            server.calls.push(`rewards.history ${ query.cursor ?? '' }`);
+
+            const from = query.cursor === undefined ? 0 : server.rewards.history.findIndex((one) => one.id === query.cursor) + 1;
+            const items = server.rewards.history.slice(from, from + server.rewards.page);
+            const hasMore = from + server.rewards.page < server.rewards.history.length;
+
+            return { items: structuredClone(items), hasMore, ...(hasMore ? { cursor: items[items.length - 1].id } : {}) };
+        },
+        async activity(): Promise<RewardActivity>
+        {
+            server.calls.push('rewards.activity');
+
+            return { today: 1050, matchesPlayed: 0, daily: { done: 0, claimed: 0 }, weekly: { done: 0, claimed: 0 }, activityScore: 0, activityLevel: 'bronze', firstMatchOfDay: false };
         }
     },
 

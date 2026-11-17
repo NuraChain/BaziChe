@@ -1,0 +1,256 @@
+import type { AdminRewardDays } from '../../../../backend/src/schemas.ts';
+import { shareOf } from '../../lib/reward-admin.ts';
+import { itemName } from '../../lib/shop.ts';
+import type { MessageKey } from '../../locales/en.ts';
+import '../../locales/shop-catalogue.ts';
+import { useAdminRewards, type AdminRewardEntry } from '../../stores/admin-rewards.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Badge from '../ui/badge.component.azeroth';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import LoadMore from '../ui/load-more.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import AdminEmpty from './admin-empty.component.azeroth';
+import { PAYOUT_STATES } from './admin-reward-overview.component.azeroth';
+import RewardPerson from './reward-person.component.azeroth';
+import When from './when.component.azeroth';
+
+type LogDay = AdminRewardDays['days'][number];
+
+type Source = keyof LogDay['granted'];
+
+const SOURCES: readonly Source[] = ['checkin', 'bonus', 'daily', 'weekly', 'chest'];
+
+const SOURCE_WORDS: Record<Source, MessageKey> = {
+    checkin: 'admin.rewardsPage.source.checkin',
+    bonus: 'admin.rewardsPage.source.bonus',
+    daily: 'admin.rewardsPage.source.daily',
+    weekly: 'admin.rewardsPage.source.weekly',
+    chest: 'admin.rewardsPage.source.chest'
+};
+
+/** The daily log of a cycle, newest day first; a day opens to its grants and payouts one by one, a page at a time. */
+export default component AdminRewardDays()
+{
+    const locale = useLocale();
+    const store = useAdminRewards();
+
+    state paging = false;
+
+    state pageFailed = false;
+
+    /** The cycle running now, learnt from the first log read without asking for one. */
+    state current = null as number | null;
+
+    const entryView = (row: AdminRewardEntry) =>
+    {
+        if (row.kind === 'payout')
+        {
+            return {
+                id: `payout-${ row.id }`,
+                person: row.person,
+                what: locale.t('admin.rewardsPage.payout'),
+                amount: row.amount,
+                detail: locale.plural('admin.rewardsPage.attempts', row.attempts),
+                state: PAYOUT_STATES[row.state],
+                hash: row.hash ?? '',
+                at: row.at
+            };
+        }
+
+        const clipped = row.wanted > row.amount;
+        const look = row.item === undefined ? '' : (row.delivered === false ? locale.t('admin.rewardsPage.owned', { look: itemName(row.item, locale) }) : itemName(row.item, locale));
+
+        return {
+            id: `grant-${ row.id }`,
+            person: row.person,
+            what: row.quest === undefined ? locale.t(SOURCE_WORDS[row.source]) : `${ locale.t(SOURCE_WORDS[row.source]) } · ${ row.quest }`,
+            amount: row.amount,
+            detail: [clipped ? locale.t('admin.rewardsPage.wanted', { amount: row.wanted }) : '', look].filter(Boolean).join(' · '),
+            state: null,
+            hash: '',
+            at: row.at
+        };
+    };
+
+    mount
+    {
+        store.want('days');
+    }
+
+    effect
+    {
+        const read = store.days();
+
+        if (read !== null && store.cycle() === null)
+        {
+            current = read.cycle;
+        }
+    }
+
+    derived held = store.days();
+
+    derived waiting = held === null && !store.daysFailed();
+
+    derived failed = store.daysFailed();
+
+    derived cycle = held?.cycle ?? store.cycle() ?? 0;
+
+    derived earlier = cycle > 0;
+
+    derived later = store.cycle() !== null;
+
+    derived days = (held?.days ?? []).map((day) => ({
+        ...day,
+        key: day.day === undefined ? 'before' : String(day.day),
+        title: day.cycleDay === undefined ? locale.t('admin.rewardsPage.before') : locale.t('admin.rewardsPage.dayOf', { day: day.cycleDay }),
+        sources: SOURCES.filter((source) => day.granted[source] > 0).map((source) => locale.t('admin.rewardsPage.bySourceOne', { source: locale.t(SOURCE_WORDS[source]), amount: day.granted[source] })),
+        budgeted: day.used !== undefined && day.open !== undefined,
+        through: shareOf(day.used ?? 0, day.open ?? 0)
+    }));
+
+    derived listed = days.length > 0;
+
+    derived bare = held !== null && !listed;
+
+    derived opened = store.opened();
+
+    derived entries = store.entries.rows().map((row) => entryView(row));
+
+    derived entriesWaiting = opened !== null && store.entries.loading() && entries.length === 0;
+
+    derived entriesFailed = opened !== null && store.entries.failed();
+
+    derived entriesBare = opened !== null && !store.entries.loading() && !store.entries.failed() && entries.length === 0;
+
+    derived entriesListed = opened !== null && entries.length > 0;
+
+    derived more = opened !== null && store.entries.more();
+
+    const older = async () =>
+    {
+        if (paging)
+        {
+            return;
+        }
+
+        paging = true;
+        pageFailed = false;
+
+        try
+        {
+            await store.entries.older();
+        }
+        catch
+        {
+            pageFailed = true;
+        }
+        finally
+        {
+            paging = false;
+        }
+    };
+
+    <section class="flex flex-col gap-4" aria-labelledby="admin-reward-log" data-reward-log>
+        <div class="flex flex-wrap items-end justify-between gap-3">
+            <div class="flex flex-col gap-1">
+                <h2 id="admin-reward-log" class="title text-ui-2xl text-text">{ locale.t('admin.rewardsPage.log') }</h2>
+                <p class="text-ui-md text-muted">{ locale.t('admin.rewardsPage.logLead') }</p>
+            </div>
+            <div class="flex items-center gap-1" role="group" aria-label={ locale.t('admin.rewardsPage.cycle', { cycle }) }>
+                <Button variant="ghost" size="sm" icon="chevron-left" class="rtl:-scale-x-100" label={ locale.t('admin.rewardsPage.earlier') } disabled={ !earlier } onClick={ () => store.showCycle(cycle - 1) } />
+                <span class="tabular-nums min-w-20 text-center text-ui-sm font-semibold text-text">{ locale.t('admin.rewardsPage.cycle', { cycle }) }</span>
+                <Button variant="ghost" size="sm" icon="chevron-right" class="rtl:-scale-x-100" label={ locale.t('admin.rewardsPage.later') } disabled={ !later } onClick={ () => store.showCycle(current === null || cycle + 1 >= current ? null : cycle + 1) } />
+            </div>
+        </div>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 5 } /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState error={ store.daysError() } compact title={ locale.t('admin.rewardsPage.logFailed') } onRetry={ () => void store.refresh() } /> }
+        </Show>
+
+        <Show when={ bare }>
+            { () => <AdminEmpty icon="gift" title={ locale.t('admin.rewardsPage.logEmpty') } /> }
+        </Show>
+
+        <Show when={ listed }>
+            <ul class="flex flex-col gap-2">
+                <For each={ days } key={ (day) => day.key } let={ day }>
+                    <li class="flex flex-col overflow-hidden rounded-panel border border-line bg-field" data-reward-day={ day.key }>
+                        <div class="flex flex-col gap-2 p-4">
+                            <div class="flex flex-wrap items-baseline justify-between gap-2">
+                                <h3 class="text-ui-md font-semibold text-text">{ day.title }</h3>
+                                <span class="tabular-nums text-ui-md font-semibold text-text">{ locale.t('admin.rewardsPage.nura', { amount: day.total }) }</span>
+                            </div>
+                            <p class="text-ui-xs text-muted">{ locale.list(day.sources.length > 0 ? day.sources : [locale.t('admin.rewardsPage.nothing')]) }</p>
+                            <p class="text-ui-xs text-muted">
+                                { locale.plural('admin.rewardsPage.players', day.players) } · { locale.plural('admin.rewardsPage.skins', day.skins) } · { locale.t('admin.rewardsPage.paidOut', { amount: day.paidOut }) }
+                            </p>
+                            <Show when={ day.budgeted }>
+                                <div class="flex flex-col gap-1">
+                                    <div class="h-1.5 w-full overflow-hidden rounded-full bg-sunk" aria-hidden="true">
+                                        <span class="block h-full rounded-full bg-accent" style={ `width: ${ day.through }%` }></span>
+                                    </div>
+                                    <p class="tabular-nums text-ui-xs text-muted">{ locale.t('admin.rewardsPage.used', { used: day.used ?? 0, open: day.open ?? 0 }) }</p>
+                                </div>
+                            </Show>
+                            <Show when={ day.day !== undefined }>
+                                <div>
+                                    <Button variant="outline" size="sm" pressed={ opened === day.day } onClick={ () => store.open(day.day ?? null) }>
+                                        { locale.t(opened === day.day ? 'admin.rewardsPage.close' : 'admin.rewardsPage.open') }
+                                    </Button>
+                                </div>
+                            </Show>
+                        </div>
+
+                        <Show when={ day.day !== undefined && opened === day.day }>
+                            <div class="flex flex-col gap-2 border-t border-line bg-void/40 p-3" data-reward-entries>
+                                <Show when={ entriesWaiting }>
+                                    { () => <Skeleton lines={ 3 } avatar /> }
+                                </Show>
+                                <Show when={ entriesFailed }>
+                                    { () => <ErrorState error={ store.entries.error() } compact title={ locale.t('admin.rewardsPage.entriesFailed') } onRetry={ () => void store.entries.refetch() } /> }
+                                </Show>
+                                <Show when={ entriesBare }>
+                                    <p class="text-ui-sm text-muted">{ locale.t('admin.rewardsPage.entriesEmpty') }</p>
+                                </Show>
+                                <Show when={ entriesListed }>
+                                    <ul class="divide-y divide-line">
+                                        <For each={ entries } key={ (row) => row.id } let={ row }>
+                                            <li class="flex flex-col gap-1 py-2 @2xl:flex-row @2xl:items-center @2xl:justify-between" data-entry={ row.id }>
+                                                <RewardPerson person={ row.person } />
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <span class="text-ui-sm text-text">{ row.what }</span>
+                                                    <span class="tabular-nums text-ui-sm font-semibold text-text">{ locale.t('admin.rewardsPage.nura', { amount: row.amount }) }</span>
+                                                    <Show when={ row.state !== null }>
+                                                        <Badge text={ row.state === null ? '' : locale.t(row.state.word) } tone={ row.state?.tone ?? 'neutral' } />
+                                                    </Show>
+                                                    <Show when={ row.detail !== '' }>
+                                                        <span class="text-ui-xs text-muted">{ row.detail }</span>
+                                                    </Show>
+                                                    <Show when={ row.hash !== '' }>
+                                                        <span class="text-ui-xs text-muted [overflow-wrap:anywhere]" dir="ltr">{ row.hash }</span>
+                                                    </Show>
+                                                    <span class="text-ui-xs text-muted"><When at={ row.at } /></span>
+                                                </div>
+                                            </li>
+                                        </For>
+                                    </ul>
+                                </Show>
+                                <Show when={ more }>
+                                    <LoadMore label={ locale.t('admin.rewardsPage.more') } loading={ paging } onMore={ () => void older() } />
+                                </Show>
+                                <Show when={ pageFailed }>
+                                    <p class="text-ui-sm text-muted" role="status">{ locale.t('admin.rewardsPage.moreFailed') }</p>
+                                </Show>
+                            </div>
+                        </Show>
+                    </li>
+                </For>
+            </ul>
+        </Show>
+    </section>
+}

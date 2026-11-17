@@ -1,4 +1,4 @@
-import { useHead } from 'azerothjs';
+import { Link, useHead } from 'azerothjs';
 
 import type { MatchHistoryEntry } from '../../api.ts';
 import Page from '../../components/app/page.component.azeroth';
@@ -18,6 +18,7 @@ import Icon from '../../icons/icon.component.azeroth';
 import type { IconName } from '../../icons/registry.ts';
 import { findGame } from '../../lib/find-game.ts';
 import { aboutPerson } from '../../lib/person-menu.ts';
+import '../../locales/rewards-catalogue.ts';
 import { useCatalogue } from '../../stores/catalogue.store.ts';
 import { useConnection } from '../../stores/connection.store.ts';
 import { useDevice } from '../../stores/device.store.ts';
@@ -27,6 +28,7 @@ import { useNotifications } from '../../stores/notifications.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
 import { usePresence } from '../../stores/presence.store.ts';
 import { useRecord } from '../../stores/record.store.ts';
+import { useRewards } from '../../stores/rewards.store.ts';
 import { useSocial } from '../../stores/social.store.ts';
 
 const RESULT_ICON: Record<MatchHistoryEntry['result'], IconName> = {
@@ -57,6 +59,7 @@ export default component HomePage()
     const device = useDevice();
     const notifications = useNotifications();
     const connection = useConnection();
+    const rewards = useRewards();
 
     useHead({ title: () => locale.t('app.nav.home') });
 
@@ -107,6 +110,14 @@ export default component HomePage()
 
     derived finding = lobby.finding().includes(catalogue.featured());
 
+    derived rewarded = rewards.door();
+
+    derived ready = rewards.ready();
+
+    derived rewardLine = !rewards.open()
+        ? locale.t('app.rewards.available', { amount: rewards.withdrawable() })
+        : ready > 0 ? locale.plural('common.rewards', ready) : locale.t('app.rewards.lead');
+
     const said = (row: MatchHistoryEntry) =>
         locale.t(`home.recent.${ row.result }`, { game: locale.t(catalogue.byId(row.game as GameId).nameKey) });
 
@@ -140,6 +151,9 @@ export default component HomePage()
                             <BrandMark class="truncate text-ui-lg text-text" />
                         </span>
                         <IconButton icon="search" label={ locale.t('app.nav.search') } to="/app/search" />
+                        <Show when={ rewarded }>
+                            { () => <IconButton icon="gift" label={ locale.t('app.nav.rewards') } to="/app/rewards" count={ ready } /> }
+                        </Show>
                         <IconButton icon="bell" label={ locale.t('app.nav.notifications') } to="/app/notifications" count={ notifications.unread() } />
                     </div>
                 }
@@ -174,6 +188,21 @@ export default component HomePage()
                     </ul>
                 </div>
             </section>
+
+            <Show when={ rewarded }>
+                { () =>
+                    <Link to="/app/rewards" class="group flex min-h-14 items-center gap-3 rounded-panel border border-line bg-field px-4 py-3" data-home-rewards>
+                        <span class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/12 text-accent">
+                            <Icon name="gift" size={ 18 } />
+                        </span>
+                        <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <span class="truncate text-ui-sm font-semibold text-text transition-colors group-hover:text-accent">{ locale.t('app.nav.rewards') }</span>
+                            <span class="truncate text-ui-xs text-muted">{ rewardLine }</span>
+                        </span>
+                        <Icon name="chevron-right" size={ 16 } class="icon-flip shrink-0 text-faint" />
+                    </Link>
+                }
+            </Show>
 
             <Show when={ sitting }>
                 <section aria-labelledby="home-continue">

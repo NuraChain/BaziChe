@@ -1,70 +1,78 @@
-import { Show } from 'azerothjs';
-
-import { useRewards } from '../../stores/rewards.store.ts';
+import type { MessageKey } from '../../locales/en.ts';
 import { useLocale } from '../../stores/locale.store.ts';
+import { useRewards } from '../../stores/rewards.store.ts';
 import Panel from '../ui/panel.component.azeroth';
+
+const LEVEL_WORDS: Readonly<Record<string, MessageKey>> = {
+    bronze: 'app.rewards.level.bronze',
+    silver: 'app.rewards.level.silver',
+    gold: 'app.rewards.level.gold'
+};
+
+const LEVEL_TONE: Readonly<Record<string, string>> = {
+    bronze: 'text-muted',
+    silver: 'text-secondary',
+    gold: 'text-accent'
+};
 
 export default component ActivityTrack(props: { class?: string })
 {
     const locale = useLocale();
     const rewards = useRewards();
 
-    const activity = rewards.activity();
-    const streak = rewards.streak();
+    derived activity = rewards.activity();
+
+    derived level = activity?.activityLevel ?? null;
+
+    derived levelWord = level === null ? '' : locale.t(LEVEL_WORDS[level] ?? 'app.rewards.level.bronze');
+
+    derived through = Math.max(0, Math.min(100, Math.round(activity?.activityScore ?? 0)));
+
+    derived questsDone = activity?.daily.done ?? 0;
+
+    derived questsOf = rewards.dailyQuests().length;
+
+    derived streak = rewards.state()?.streak ?? 0;
+
+    derived firstOfDay = activity?.firstMatchOfDay === true;
 
     mount
     {
-        void rewards.loadActivity();
+        rewards.want('activity');
     }
 
-    const levelColor = (level: string | null) =>
-    {
-        if (level === 'gold') return 'text-accent';
-        if (level === 'silver') return 'text-secondary';
-        if (level === 'bronze') return 'text-muted';
-        return 'text-muted';
-    };
-
-    return (
-        <Panel section class={ props.class ?? '' }>
-            <div class="flex flex-col gap-4">
-                <div class="flex items-center justify-between gap-3">
-                    <div class="flex flex-col gap-1">
-                        <div class="text-xs text-muted">{ locale.t('app.rewards.dailyActivity') }</div>
-                        <div class="text-ui-lg font-semibold text-text">{ locale.t('app.rewards.activity') }</div>
-                    </div>
-                    <div class={ ['text-ui-sm font-mono', levelColor(activity?.activityLevel ?? null)].filter(Boolean).join(' ') }>
-                        { activity?.activityLevel ?? '-' }
-                    </div>
+    <Panel section class={ props.class ?? '' } labelledBy="reward-activity">
+        <div class="flex flex-col gap-4">
+            <div class="flex items-center justify-between gap-3">
+                <div class="flex flex-col gap-1">
+                    <p class="text-xs text-muted">{ locale.t('app.rewards.dailyActivity') }</p>
+                    <h2 id="reward-activity" class="text-ui-lg font-semibold text-text">{ locale.t('app.rewards.activity') }</h2>
                 </div>
-
-                <div class="w-full bg-border rounded-full h-2">
-                    <div class={ ['h-2 rounded-full bg-accent', `w-[${ activity?.activityScore ?? 0 }%]`].filter(Boolean).join(' ') } />
-                </div>
-
-                <div class="grid grid-cols-3 gap-4">
-                    <div class="flex flex-col items-center gap-1">
-                        <div class="text-ui-xs font-mono text-text">{ activity?.matchesPlayed ?? 0 }</div>
-                        <div class="text-[10px] text-muted">{ locale.t('app.rewards.matches') }</div>
-                    </div>
-                    <div class="flex flex-col items-center gap-1">
-                        <div class="text-ui-xs font-mono text-text">{ activity?.daily.done ?? 0 } / 3</div>
-                        <div class="text-[10px] text-muted">{ locale.t('app.rewards.quests') }</div>
-                    </div>
-                    <div class="flex flex-col items-center gap-1">
-                        <div class="text-ui-xs font-mono text-text">{ streak }</div>
-                        <div class="text-[10px] text-muted">{ locale.t('app.rewards.streak') }</div>
-                    </div>
-                </div>
-
-                <Show when={ activity?.firstMatchOfDay === true }>
-                    { () =>
-                        <div class="flex items-center gap-2 text-xs text-accent">
-                            <span>{ locale.t('app.rewards.firstMatchOfDay') }</span>
-                        </div>
-                    }
-                </Show>
+                <span class={ [ 'text-ui-sm font-semibold', LEVEL_TONE[level ?? ''] ?? 'text-muted' ].join(' ') }>{ levelWord }</span>
             </div>
-        </Panel>
-    );
+
+            <div class="h-2 w-full overflow-hidden rounded-full bg-sunk" aria-hidden="true">
+                <span class="block h-full rounded-full bg-accent motion-safe:transition-[width]" style={ `width: ${ through }%` }></span>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4">
+                <div class="flex flex-col items-center gap-1">
+                    <span class="tally text-ui-xs font-mono text-text">{ locale.n(activity?.matchesPlayed ?? 0) }</span>
+                    <span class="text-center text-[10px] text-muted">{ locale.t('app.rewards.matches') }</span>
+                </div>
+                <div class="flex flex-col items-center gap-1">
+                    <span class="tally text-ui-xs font-mono text-text">{ locale.n(questsDone) } / { locale.n(questsOf) }</span>
+                    <span class="text-center text-[10px] text-muted">{ locale.t('app.rewards.quests') }</span>
+                </div>
+                <div class="flex flex-col items-center gap-1">
+                    <span class="tally text-ui-xs font-mono text-text">{ locale.n(streak) }</span>
+                    <span class="text-center text-[10px] text-muted">{ locale.t('app.rewards.streak') }</span>
+                </div>
+            </div>
+
+            <Show when={ firstOfDay }>
+                <p class="text-xs text-accent">{ locale.t('app.rewards.firstMatchOfDay') }</p>
+            </Show>
+        </div>
+    </Panel>
 }

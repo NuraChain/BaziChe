@@ -34,6 +34,21 @@ export function amountOf(text: string, least: string, most: string)
     return wei === null || wei % PLACE !== 0n || wei < BigInt(least) || wei > BigInt(most) ? null : wei.toString();
 }
 
+/** A typed count of whole NURA, separators allowed, or null when it is not one or passes `most`. */
+export function wholeNuraOf(text: string, most: number)
+{
+    const digits = latin(text.trim()).replace(/[,٬\s]/g, '');
+
+    if (!/^\d{1,15}$/.test(digits))
+    {
+        return null;
+    }
+
+    const value = Number(digits);
+
+    return value <= most ? value : null;
+}
+
 export function bpsOf(text: string)
 {
     const found = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(latin(text.trim()));

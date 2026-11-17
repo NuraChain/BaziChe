@@ -1,0 +1,158 @@
+import { foldHandle } from '../../lib/staff-words.ts';
+import { useAdminRewards } from '../../stores/admin-rewards.store.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Field from '../ui/field.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+import LoadMore from '../ui/load-more.component.azeroth';
+import Skeleton from '../ui/skeleton.component.azeroth';
+import AdminEmpty from './admin-empty.component.azeroth';
+import { freezeAsked } from './reward-freeze.ts';
+import RewardPerson from './reward-person.component.azeroth';
+import When from './when.component.azeroth';
+
+/** The players whose rewards are frozen, and freezing one more by their handle. */
+export default component AdminRewardFrozen(props: { freezes: boolean })
+{
+    const locale = useLocale();
+    const store = useAdminRewards();
+
+    state typed = '';
+
+    state told = null as string | null;
+
+    state paging = false;
+
+    state pageFailed = false;
+
+    mount
+    {
+        store.want('frozen');
+    }
+
+    derived rows = store.frozen.rows();
+
+    derived waiting = store.frozen.loading() && rows.length === 0;
+
+    derived failed = store.frozen.failed();
+
+    derived bare = !store.frozen.loading() && !failed && rows.length === 0;
+
+    derived listed = rows.length > 0;
+
+    derived more = store.frozen.more();
+
+    const freeze = async () =>
+    {
+        const handle = foldHandle(typed);
+
+        if (handle === '')
+        {
+            told = locale.t('admin.rewardsPage.freezeBad');
+            return;
+        }
+
+        if (await freezeAsked(handle, true))
+        {
+            typed = '';
+        }
+    };
+
+    const older = async () =>
+    {
+        if (paging)
+        {
+            return;
+        }
+
+        paging = true;
+        pageFailed = false;
+
+        try
+        {
+            await store.frozen.older();
+        }
+        catch
+        {
+            pageFailed = true;
+        }
+        finally
+        {
+            paging = false;
+        }
+    };
+
+    <section class="flex flex-col gap-4" aria-labelledby="admin-reward-frozen" data-reward-frozen>
+        <div class="flex flex-col gap-1">
+            <h2 id="admin-reward-frozen" class="title text-ui-2xl text-text">{ locale.t('admin.rewardsPage.frozen') }</h2>
+            <p class="text-ui-md text-muted">{ locale.t('admin.rewardsPage.frozenLead') }</p>
+        </div>
+
+        <Show when={ props.freezes }>
+            <div class="rounded-panel border border-line bg-field p-4">
+                <Field id="admin-reward-freeze" label={ locale.t('admin.rewardsPage.freezeLabel') } error={ told }>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <Input
+                            id="admin-reward-freeze"
+                            class="min-w-40 flex-1"
+                            value={ typed }
+                            leading="at"
+                            autocomplete="off"
+                            enterkeyhint="send"
+                            invalid={ told !== null }
+                            describedBy={ told !== null ? 'admin-reward-freeze-error' : undefined }
+                            onInput={ (value) =>
+                            {
+                                typed = value;
+                                told = null;
+                            } }
+                            onEnter={ () => void freeze() }
+                        />
+                        <Button variant="destructive-ghost" onClick={ () => void freeze() }>{ locale.t('admin.rewardsPage.freeze') }</Button>
+                    </div>
+                </Field>
+            </div>
+        </Show>
+
+        <Show when={ waiting }>
+            { () => <Skeleton lines={ 3 } avatar /> }
+        </Show>
+
+        <Show when={ failed }>
+            { () => <ErrorState error={ store.frozen.error() } compact title={ locale.t('admin.rewardsPage.frozenFailed') } onRetry={ () => void store.frozen.refetch() } /> }
+        </Show>
+
+        <Show when={ bare }>
+            { () => <AdminEmpty icon="check-circle" title={ locale.t('admin.rewardsPage.frozenEmpty') } /> }
+        </Show>
+
+        <Show when={ listed }>
+            <ul class="divide-y divide-line overflow-hidden rounded-panel border border-line bg-field">
+                <For each={ rows } key={ (row) => row.person.handle } let={ row }>
+                    <li class="flex flex-col gap-2 px-4 py-3" data-frozen={ row.person.handle }>
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <RewardPerson person={ row.person } />
+                            <Show when={ props.freezes }>
+                                <Button variant="outline" size="sm" onClick={ () => void freezeAsked(row.person.handle, false) }>{ locale.t('admin.rewardsPage.thaw') }</Button>
+                            </Show>
+                        </div>
+                        <p class="border-s-2 border-line-strong ps-3 text-ui-sm text-muted" dir="auto">{ row.reason }</p>
+                        <p class="text-ui-xs text-muted">
+                            <Show when={ row.by !== undefined }>
+                                <span dir="ltr">@{ row.by ?? '' }</span> ·{ ' ' }
+                            </Show>
+                            <When at={ row.at } />
+                        </p>
+                    </li>
+                </For>
+            </ul>
+            <Show when={ more }>
+                <LoadMore label={ locale.t('admin.rewardsPage.more') } loading={ paging } onMore={ () => void older() } />
+            </Show>
+            <Show when={ pageFailed }>
+                <p class="text-ui-sm text-muted" role="status">{ locale.t('admin.rewardsPage.moreFailed') }</p>
+            </Show>
+        </Show>
+    </section>
+}

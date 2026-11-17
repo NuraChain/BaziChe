@@ -1,9 +1,9 @@
-import type { GameId, QuestTemplate } from './quests.ts';
+import { metricOf, type GameId, type QuestTemplate } from './quests.ts';
+import { WEEKLY_QUESTS } from './rules.ts';
 import type { EntityManager } from 'typeorm';
 import type { Match } from '../../entities/match.entity.ts';
 
 export type RewardMatchResult = 'won' | 'lost' | 'drawn' | 'abandoned' | 'void';
-export type RewardQuestMetric = 'played' | 'won' | 'played-with-friend' | 'tournament-played' | 'distinct-games' | `tally:${string}`;
 
 export interface QuestCountInput
 {
@@ -131,17 +131,30 @@ export const deltasForQuests = (quests: readonly QuestTemplate[], game: GameId, 
             return [];
         }
 
-        const metric = typeof quest.metric === 'string' ? quest.metric : `tally:${ quest.metric.tally }`;
-        const progress = counts[metric] ?? 0;
+        const progress = counts[metricOf(quest)] ?? 0;
 
         return progress <= 0 ? [] : [{ period: quest.period, quest_id: quest.id, progress, target: quest.target }];
     });
 
-export const weeklyChestReady = (questIds: readonly string[], claimedQuestIds: readonly string[]) =>
-{
-    const claimed = new Set(claimedQuestIds);
-    return questIds.length === 3 && questIds.every((id) => claimed.has(id));
-};
+/** Whether this match may be a new game for a different-games quest: it counted, and such a quest is drawn. */
+export const wantsDistinctGame = (quests: readonly Pick<QuestTemplate, 'metric'>[], counts: Record<string, number>) =>
+    counts.played === 1 && quests.some((quest) => quest.metric === 'distinct-games');
+
+const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * Progress rows in the one order every writer locks them in: period, period key, quest id, by code
+ * point, as `collate "C"` sorts them. A claim and a match finish that lock in different orders deadlock.
+ */
+export const inQuestOrder = <Row extends { period: string; period_key: string; quest_id: string }>(rows: readonly Row[]) =>
+    [...rows].sort((a, b) => byCode(a.period, b.period) || byCode(a.period_key, b.period_key) || byCode(a.quest_id, b.quest_id));
+
+/**
+ * The chest opens with the third weekly quest of a week claimed. Counted from the claimed rows, not
+ * from the week's draw: a row is only written for a quest that was drawn, and the draw changes when
+ * a game is switched off mid-week.
+ */
+export const weeklyChestReady = (claimedQuestIds: readonly string[]) => new Set(claimedQuestIds).size >= WEEKLY_QUESTS;
 
 export interface RewardFinishPlayer
 {

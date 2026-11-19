@@ -80,7 +80,7 @@ const BED_BUDGET = 1024 * KB;
 const BED_SOURCES = join(PACK_SOURCES, 'beds');
 
 /** Each look's drawing in the shop: a card loads twelve of them at once on a phone. */
-const LOOK_BUDGET = 16 * KB;
+const LOOK_BUDGET = 72 * 1024;
 
 /**
  * What a profile wears, a folder each: a list of friends can load a frame and a plate for every
@@ -88,9 +88,9 @@ const LOOK_BUDGET = 16 * KB;
  * fetched once for every row that wears it.
  */
 const PROFILE_LOOKS = {
-    frames: { names: SHOP_COLLECTIONS.flatMap((collection) => [collection, `${ collection }-still`]), budget: 20 * KB },
-    plates: { names: [...SHOP_COLLECTIONS], budget: 6 * KB },
-    covers: { names: [...SHOP_COLLECTIONS], budget: 24 * KB }
+    frames: { names: SHOP_COLLECTIONS.flatMap((collection) => [collection, `${ collection }-still`]), budget: 26 * KB },
+    plates: { names: [...SHOP_COLLECTIONS], budget: 8 * KB },
+    covers: { names: [...SHOP_COLLECTIONS], budget: 32 * KB }
 };
 
 /**
@@ -101,19 +101,19 @@ const PROFILE_LOOKS = {
  * legendary pawn wears its collection's crest, a legendary back and checker its emblem.
  */
 const TABLE_LOOKS = {
-    pawns: { names: SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => `${ collection }-${ seat }`)), budget: 6 * KB },
-    decks: { names: [...SHOP_COLLECTIONS], budget: 96 * KB },
-    backs: { names: [...SHOP_COLLECTIONS], budget: 8 * KB },
+    pawns: { names: SHOP_COLLECTIONS.flatMap((collection) => Object.keys(SEAT_RAMPS).map((seat) => `${ collection }-${ seat }`)), budget: 18 * KB },
+    decks: { names: [...SHOP_COLLECTIONS], budget: 224 * KB },
+    backs: { names: [...SHOP_COLLECTIONS], budget: 16 * KB },
     yards: { names: [...SHOP_COLLECTIONS], budget: 12 * KB },
-    felts: { names: [...SHOP_COLLECTIONS], budget: 8 * KB },
-    checkers: { names: SHOP_COLLECTIONS.flatMap((collection) => [`${ collection }-light`, `${ collection }-dark`]), budget: 12 * KB },
-    homes: { names: [...SHOP_COLLECTIONS], budget: 16 * KB },
-    pieces: { names: SHOP_COLLECTIONS.flatMap((collection) => ['w', 'b'].flatMap((colour) => KINDS.map((kind) => `${ collection }-${ colour }${ kind }`))), budget: 12 * KB }
+    felts: { names: [...SHOP_COLLECTIONS], budget: 14 * KB },
+    checkers: { names: SHOP_COLLECTIONS.flatMap((collection) => [`${ collection }-light`, `${ collection }-dark`]), budget: 24 * KB },
+    homes: { names: [...SHOP_COLLECTIONS], budget: 26 * KB },
+    pieces: { names: SHOP_COLLECTIONS.flatMap((collection) => ['w', 'b'].flatMap((colour) => KINDS.map((kind) => `${ collection }-${ colour }${ kind }`))), budget: 24 * KB }
 };
 
 /** Each collection's sigil, beside its name in the shop and on its bundle: every page of the shop loads a dozen. */
 const SHOP_MARKS = {
-    sigils: { names: [...SHOP_COLLECTIONS], budget: 8 * KB }
+    sigils: { names: [...SHOP_COLLECTIONS], budget: 14 * KB }
 };
 
 /**

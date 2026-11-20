@@ -5922,22 +5922,15 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             async sendAlbum(me, sessionId, conversationId, input)
             {
                 const rows = await chat.sendAlbum(me, conversationId, await device.deviceOfSession(sessionId), input.album, input.messages);
-                const recipients = await chat.recipients(conversationId);
-                const told = new Set<string>();
 
                 // Each photo and video is a message, so the room's row counts every one of them.
-                for (let item = 0; item < rows.length; item += 1)
-                {
-                    for (const recipient of await notify.tellAll(recipients, {
-                        kind: 'message',
-                        actorId: me,
-                        ref: { conversationId },
-                        dedupeKey: `chat:${ conversationId }`
-                    }))
-                    {
-                        told.add(recipient);
-                    }
-                }
+                const told = await notify.tellAll(await chat.recipients(conversationId), {
+                    kind: 'message',
+                    actorId: me,
+                    ref: { conversationId },
+                    dedupeKey: `chat:${ conversationId }`,
+                    count: rows.length
+                });
 
                 for (const recipient of told)
                 {

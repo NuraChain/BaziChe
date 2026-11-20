@@ -185,7 +185,8 @@ export function createNotifyService(db: DataSource, social: SocialService)
             dedupeKey: string;
         } & (
             | { kind: 'group-call'; callId: string }
-            | { kind: Exclude<NotificationKind, 'group-call'> }
+            | { kind: 'message'; count?: number }
+            | { kind: Exclude<NotificationKind, 'group-call' | 'message'> }
         )): Promise<string[]>
         {
             const targets = [...new Set(userIds)].filter((id) => id !== input.actorId);
@@ -196,9 +197,10 @@ export function createNotifyService(db: DataSource, social: SocialService)
             }
 
             const callId = input.kind === 'group-call' ? input.callId : null;
+            const count = input.kind === 'message' ? input.count ?? 1 : 1;
             const rows = await db.query(
-                `insert into notifications (user_id, kind, actor_id, ref, dedupe_key)
-                 select t.id, $2, $3::uuid, $4::jsonb, $5
+                `insert into notifications (user_id, kind, actor_id, ref, dedupe_key, count)
+                 select t.id, $2, $3::uuid, $4::jsonb, $5, $9::integer
                    from unnest($1::uuid[]) as t(id)
                   where ${ notSystem('t.id') }
                     and ($8::uuid is null or exists (
@@ -216,14 +218,14 @@ export function createNotifyService(db: DataSource, social: SocialService)
                              where (b.user_id = t.id and b.blocked_id = $3::uuid)
                                 or (b.user_id = $3::uuid and b.blocked_id = t.id)))
                  on conflict (user_id, dedupe_key) do update set
-                    count      = case when notifications.kind = excluded.kind then notifications.count + 1 else 1 end,
+                    count      = case when notifications.kind = excluded.kind then notifications.count + excluded.count else excluded.count end,
                     kind       = excluded.kind,
                     created_at = now(),
                     read_at    = null,
                     actor_id   = excluded.actor_id,
                     ref        = excluded.ref
                  returning user_id`,
-                [targets, input.kind, input.actorId, JSON.stringify(clean(input.ref)), input.dedupeKey, input.ref.conversationId ?? null, NOTICE_OF[input.kind], callId]
+                [targets, input.kind, input.actorId, JSON.stringify(clean(input.ref)), input.dedupeKey, input.ref.conversationId ?? null, NOTICE_OF[input.kind], callId, count]
             );
 
             return rowsOf<{ user_id: string }>(rows).map((row) => row.user_id);

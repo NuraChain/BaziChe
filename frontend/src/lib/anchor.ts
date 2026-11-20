@@ -30,6 +30,7 @@ export interface PlaceOptions
     padding?: number;
     rtl?: boolean;
     flip?: boolean;
+    keepInView?: boolean;
 }
 
 export interface Placed
@@ -97,9 +98,15 @@ export function place(anchor: Box, floating: Size, viewport: Viewport, options: 
     const align = options.align ?? 'center';
 
     let side = physicalSide(options.side ?? 'top', rtl);
-    if (options.flip !== false && !fits(side, anchor, floating, viewport, gap, padding) && fits(opposite(side), anchor, floating, viewport, gap, padding))
+    if (options.flip !== false)
     {
-        side = opposite(side);
+        const sides = [side, opposite(side)];
+        if (options.keepInView === true)
+        {
+            const fallback = side === 'top' || side === 'bottom' ? physicalSide('end', rtl) : 'top';
+            sides.push(fallback, opposite(fallback));
+        }
+        side = sides.find((candidate) => fits(candidate, anchor, floating, viewport, gap, padding)) ?? side;
     }
 
     const vertical = side === 'top' || side === 'bottom';
@@ -114,6 +121,8 @@ export function place(anchor: Box, floating: Size, viewport: Viewport, options: 
     const anchorSize = vertical ? anchor.width : anchor.height;
     const floatingSize = vertical ? floating.width : floating.height;
     const limit = vertical ? viewport.width : viewport.height;
+    const mainLimit = vertical ? viewport.height - floating.height : viewport.width - floating.width;
+    const mainOffset = options.keepInView === true ? clamp(main, padding, mainLimit - padding) : main;
 
     const leading = align === 'start' ? anchorStart : (align === 'end' ? anchorStart + anchorSize - floatingSize : anchorStart + (anchorSize - floatingSize) / 2);
     const cross = clamp(leading, padding, limit - padding - floatingSize);
@@ -122,8 +131,8 @@ export function place(anchor: Box, floating: Size, viewport: Viewport, options: 
     const arrow = clamp(centre - cross, 10, Math.max(10, floatingSize - 10));
 
     return {
-        x: Math.round(vertical ? cross : main),
-        y: Math.round(vertical ? main : cross),
+        x: Math.round(vertical ? cross : mainOffset),
+        y: Math.round(vertical ? mainOffset : cross),
         side,
         align,
         arrow: Math.round(arrow)

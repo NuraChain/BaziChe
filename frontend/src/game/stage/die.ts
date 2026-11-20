@@ -181,9 +181,38 @@ export function createDie(options: DieOptions = {}): Die
 
             rest(face, seed);
 
-            const fall = stage.animate(stage.quiet() ? node : body, bodyFrames, { duration: length });
+            const quiet = stage.quiet();
+            const stops: (() => void)[] = [];
+            let remaining = plan.impacts.length;
+            const stopImpacts = () => stops.splice(0).forEach((stop) => stop());
+            const fall = stage.animate(quiet ? node : body, bodyFrames, {
+                duration: length,
+                landed: () =>
+                {
+                    stopImpacts();
 
-            if (flat && !stage.quiet())
+                    if (quiet || remaining > 0)
+                    {
+                        hooks.impact?.(quiet ? 1 : (plan.impacts.at(-1)?.power ?? 1));
+                    }
+                }
+            });
+
+            if (!quiet && hooks.impact !== undefined)
+            {
+                for (const impact of plan.impacts)
+                {
+                    stops.push(stage.after(impact.at, () =>
+                    {
+                        remaining -= 1;
+                        hooks.impact?.(impact.power);
+                    }));
+                }
+            }
+
+            void fall.done.then(stopImpacts);
+
+            if (flat && !quiet)
             {
                 const mine = thrown;
 
@@ -205,18 +234,6 @@ export function createDie(options: DieOptions = {}): Die
 
                 stage.animate(tone, seen.map((one) => ({ offset: one.offset, opacity: shadeOf(one.turn, index + 1).toFixed(3) })), { duration: length, quiet: 'skip' });
                 stage.animate(veils[index], seen.map((one) => ({ offset: one.offset, opacity: veilOf(one.turn, index + 1).toFixed(3) })), { duration: length, quiet: 'skip' });
-            }
-
-            if (stage.quiet())
-            {
-                stage.after(fall.length, () => hooks.impact?.(1));
-            }
-            else
-            {
-                for (const impact of plan.impacts)
-                {
-                    stage.after(impact.at, () => hooks.impact?.(impact.power));
-                }
             }
 
             return fall;

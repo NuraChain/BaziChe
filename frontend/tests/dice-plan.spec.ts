@@ -94,6 +94,25 @@ describe('a thrown die', () =>
 {
     const release = { x: 6, y: -4 };
 
+    it('sounds the landing once when a resize finishes a throw early', async () =>
+    {
+        const clock = manualClock(1000);
+        const stage = createStage({ clock, quiet: () => false });
+        const impact = vi.fn();
+        const die = createDie();
+        const toss = die.toss(stage, 4242, 4, release, { impact });
+
+        stage.land();
+        await toss.done;
+
+        expect(impact).toHaveBeenCalledTimes(1);
+
+        clock.advance(toss.length);
+
+        expect(impact).toHaveBeenCalledTimes(1);
+        expect(die.face()).toBe(4);
+    });
+
     it('always comes to rest showing exactly the face the game rolled', () =>
     {
         for (const seed of SEEDS)

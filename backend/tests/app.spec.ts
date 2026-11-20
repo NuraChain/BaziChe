@@ -19,6 +19,7 @@ import { PARTY_REFUSALS, type PartyRefusal } from '../src/domains/party/rules.ts
 import { tableRefusal } from '../src/domains/table/service.ts';
 import type { ServerConfig } from '../src/env.ts';
 import type { Ports } from '../src/ports.ts';
+import type { MatchProof } from '../src/schemas.ts';
 
 /**
  * Every server test drives the App through `app.handle(new Request(...))`.
@@ -2443,13 +2444,10 @@ describe('the owner\'s view of the vault', () =>
 
 describe('checking a game played for NURA', () =>
 {
-    const proof = {
+    const proof: MatchProof = {
+        randomness: { protocol: 'stake-v2', matchId: 'a-match', lastRev: 2, voided: true },
         game: 'ludo',
-        variant: 'standard',
         seats: [0, 1],
-        target: 0,
-        cube: false,
-        blinds: 'low',
         chainId: 31337,
         vault: `0x${ '12'.repeat(20) }`,
         amount: '10000000000000000000',
@@ -2465,7 +2463,7 @@ describe('checking a game played for NURA', () =>
             deadline: 1_900_000_000,
             signature: `0x${ '04'.repeat(65) }`
         }],
-        actions: [{ rev: 1, seat: -1, kind: 'open', payload: '{}', events: '[]' }],
+        actions: [{ rev: 1, seat: -1, kind: 'open', payload: '{}', events: '[]', randomness: 'null' }],
         openTx: `0x${ 'ab'.repeat(32) }`
     };
 

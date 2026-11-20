@@ -102,7 +102,9 @@ describe('a hidden game\'s agent sees only its own seat', () =>
         {
             it(`${ game }, ${ format.seats } seats: a state that differs only where the seat cannot look gives the same input and decision`, () =>
             {
-                const { draws, next } = seeded(format.seats * 31 + game.length);
+                const seed = format.seats * 31 + game.length;
+                const { draws } = seeded(seed);
+                const { next } = seeded(seed + 1);
                 let state = engine.create(Array.from({ length: format.seats }, (_, seat) => seat), draws, { target: 0, cube: false, blinds: 'low', variant: format.variant }).state;
                 const history: { rev: number; seat: number; events: unknown[] }[] = [];
                 let compared = 0;

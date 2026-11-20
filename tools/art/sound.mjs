@@ -9,6 +9,9 @@ const SOURCE = join(HERE, 'sound-src');
 const OUT = join(HERE, '..', '..', 'frontend', 'src', 'game', 'sound');
 const FFMPEG = process.env.FFMPEG ?? 'ffmpeg';
 
+// MP3 can raise decoded peaks, so leave room after the transient limiter without makeup gain.
+const HEADROOM = 'alimiter=limit=0.67:attack=1:release=8:level=0:latency=1,volume=-1dB';
+
 const HOOVES = 'bigsoundbank-0610-horse-trotting.ogg';
 
 const CLOCK = 'bigsoundbank-1372-tic-tac-mechanical-alarm-clock-1.ogg';
@@ -100,7 +103,7 @@ export const SOUNDS = [
     ['poker', 'chip-lay', 'bigsoundbank-0942-poker-chips.ogg', 0.32, { cuts: [[0.075, 0.4]], tail: 0.08 }],
     ['poker', 'chip-lay', 'bigsoundbank-0944-poker-chips-3.ogg', 0.33, { cuts: [[0.215, 0.55]], tail: 0.08, gain: 0.8 }],
     ['poker', 'chip-lay', 'bigsoundbank-0945-poker-chips-4.ogg', 0.31, { cuts: [[0.11, 0.42]], tail: 0.08, gain: 0.4 }],
-    ['poker', 'chip-lay', 'chip-lay-3.ogg', 0.26, { cuts: [[0, 0.26]], tail: 0.08, gain: 2.5 }],
+    ['poker', 'chip-lay', 'chip-lay-3.ogg', 0.26, { cuts: [[0, 0.26]], tail: 0.08, filter: 'equalizer=f=1000:t=o:w=2:g=-8', gain: -4 }],
     ['poker', 'chips-stack', 'bigsoundbank-0943-poker-chips-2.ogg', 0.3, { cuts: [[0.9, 1.2]], tail: 0.08 }],
     ['poker', 'chips-stack', 'bigsoundbank-0943-poker-chips-2.ogg', 0.27, { cuts: [[0.37, 0.64]], tail: 0.08, gain: 4 }],
     ['poker', 'chips-stack', 'chips-handle-5.ogg', 0.8, { cuts: [[0, 0.8]], tail: 0.15, gain: 0.9, kbps: 64 }],
@@ -145,7 +148,8 @@ function shaped(source, most, shape)
         ...(shape.low === undefined ? [] : [`highpass=f=${ shape.low }`]),
         `volume=${ shape.gain ?? 0 }dB`,
         `atrim=0:${ most }`,
-        `afade=t=out:st=${ fixed(Math.max(0, most - 0.06)) }:d=0.06`
+        `afade=t=out:st=${ fixed(Math.max(0, most - 0.06)) }:d=0.06`,
+        HEADROOM
     ].join(',');
     const mix = names.length === 1 ? `${ names[0] }${ after }` : `${ names.join('') }amix=inputs=${ names.length }:duration=longest:normalize=0,${ after }`;
 
@@ -157,7 +161,7 @@ function plain(source, most, gain = 0)
 {
     const fade = Math.max(0, most - 0.06).toFixed(3);
 
-    return ['-i', join(SOURCE, source), '-af', `silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.002,atrim=0:${ most },afade=t=out:st=${ fade }:d=0.06,volume=${ gain }dB`];
+    return ['-i', join(SOURCE, source), '-af', `silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.002,atrim=0:${ most },afade=t=out:st=${ fade }:d=0.06,volume=${ gain }dB,${ HEADROOM }`];
 }
 
 const scratch = mkdtempSync(join(tmpdir(), 'nura-sound-'));

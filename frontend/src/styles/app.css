@@ -6531,11 +6531,16 @@ svg.lobby-board
 .cco
 {
     position: absolute;
+    min-inline-size: 1em;
+    padding-inline: 0.12em;
+    border-radius: 0.2em;
     translate: -50% -50%;
-    color: rgb(233 205 145 / 0.82);
-    font-size: max(0.5625rem, 2.2cqw);
+    background: #352416;
+    color: #F9DEB6;
+    font-size: max(0.625rem, 2.2cqw);
     font-weight: 600;
     line-height: 1;
+    text-align: center;
     pointer-events: none;
     user-select: none;
 }

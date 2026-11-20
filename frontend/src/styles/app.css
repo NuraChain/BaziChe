@@ -3256,7 +3256,9 @@ svg.lobby-board
 
 .hokm-hand > li
 {
-    --step: min(calc(var(--card-w) * 0.62), calc((100cqi - var(--card-w)) / max(1, var(--n) - 1)));
+    /* A 6-degree rotation around the point below the card adds up to 16% of its height at the edge. */
+    --fan-outset: calc(var(--card-h) * 0.16);
+    --step: min(calc(var(--card-w) * 0.62), calc((100cqi - var(--card-w) - 2 * var(--fan-outset)) / max(1, var(--n) - 1)));
 
     position: absolute;
     top: 0.9rem;

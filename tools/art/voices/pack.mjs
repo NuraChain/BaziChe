@@ -13,6 +13,13 @@ import { db, fade, filter, normalize, peakOf, phoneLevel, RATE, trim, wav } from
 const CEILING = -1;
 const SOFTEST = 3;
 
+function decoded(file, rate, ffmpeg)
+{
+    const raw = execFileSync(ffmpeg, ['-v', 'error', '-i', file, '-ac', '1', '-ar', String(rate), '-f', 'f32le', '-']);
+
+    return new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / 4);
+}
+
 /** The seed a take is drawn from: FNV-1a over what names it. */
 export function seedOf(text)
 {
@@ -36,9 +43,8 @@ export function clickLevel(sound, scratch, ffmpeg)
     const file = join(scratch, 'click.mp3');
 
     writeFileSync(file, pack.subarray(start + offset, start + offset + size));
-    const raw = execFileSync(ffmpeg, ['-v', 'error', '-i', file, '-ac', '1', '-ar', String(RATE), '-f', 'f32le', '-']);
 
-    return phoneLevel(new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / 4));
+    return phoneLevel(decoded(file, RATE, ffmpeg));
 }
 
 /**
@@ -75,14 +81,33 @@ export function shaped(made, { below, most }, click)
     return signal;
 }
 
-/** A take as a pack keeps it: MP3, mono, 44.1 kHz, at `kbps`. */
+/** A take as a pack keeps it: MP3, mono, 44.1 kHz, at `kbps`, with room for decoded peaks. */
 export function encoded(signal, kbps, scratch, name, ffmpeg)
 {
     const source = join(scratch, `${ name }.wav`);
     const target = join(scratch, `${ name }.mp3`);
 
-    writeFileSync(source, wav(signal));
-    execFileSync(ffmpeg, ['-y', '-v', 'error', '-i', source, '-ac', '1', '-ar', '44100', '-c:a', 'libmp3lame', '-b:a', `${ kbps }k`, target]);
+    const encode = (samples) =>
+    {
+        writeFileSync(source, wav(samples));
+        execFileSync(ffmpeg, ['-y', '-v', 'error', '-i', source, '-ac', '1', '-ar', String(RATE), '-c:a', 'libmp3lame', '-b:a', `${ kbps }k`, target]);
+    };
+    const decodedPeak = () => Math.max(peakOf(decoded(target, RATE, ffmpeg)), peakOf(decoded(target, 48000, ffmpeg)));
+
+    encode(signal);
+
+    // MP3 encoding and 48 kHz playback can both raise peaks after shaping.
+    const peak = decodedPeak();
+    if (peak > 1)
+    {
+        const gain = db(CEILING) / peak;
+        encode(signal.map((sample) => sample * gain));
+
+        if (decodedPeak() > 1)
+        {
+            throw new Error(`${ name } still exceeds 0 dBFS after MP3 encoding`);
+        }
+    }
 
     return readFileSync(target);
 }

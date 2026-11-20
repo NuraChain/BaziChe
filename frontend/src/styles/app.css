@@ -3651,7 +3651,8 @@ svg.lobby-board
     padding: 0.25em 0.7em;
     border: 1px solid rgb(255 255 255 / 0.16);
     border-radius: 999px;
-    color: rgb(255 255 255 / 0.78);
+    background: rgb(0 0 0 / 0.35);
+    color: white;
     font-size: max(0.6875rem, 0.9em);
     font-weight: 600;
     white-space: nowrap;
@@ -4298,6 +4299,11 @@ svg.lobby-board
     margin-block-start: -0.25rem;
 }
 
+.poker-hand:has(> .poker-raise)
+{
+    z-index: 11;
+}
+
 .poker-side
 {
     grid-area: 1 / 3;
@@ -4565,7 +4571,7 @@ svg.lobby-board
     background:
         radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%),
         var(--lifted);
-    box-shadow: 0 22px 44px -20px rgb(0 0 0 / 0.95), 0 0 0 1px rgb(0 0 0 / 0.25);
+    box-shadow: var(--shadow-2), 0 0 0 1px rgb(0 0 0 / 0.25);
 }
 
 @media (prefers-reduced-motion: no-preference)
@@ -4696,7 +4702,7 @@ svg.lobby-board
 .poker-raise[data-all-in] .poker-raise-go
 {
     background: var(--gold);
-    color: rgb(8 13 25);
+    color: var(--bright-ink);
 }
 
 .bg-board

@@ -294,16 +294,15 @@ describe('capturing', () =>
         expect(after).toMatchObject({ turn: 1, die: null, sixes: 0, players: state.players });
     });
 
-    /**
-     * Every colour's own entry is one of the eight stars, so a token that has just come out of the
-     * yard is standing on a safe square rather than on the most dangerous one on the board.
-     */
-    it('starts every colour on a star', () =>
+    it('can capture a token standing on its own start square', () =>
     {
-        for (const colour of ['red', 'green', 'yellow', 'blue'] as const)
-        {
-            expect(SAFE, `${ colour } enters on an unprotected square`).toContain(ENTRY[colour]);
-        }
+        const target = ENTRY.yellow;
+        const state = place(place(table(2), 0, [target - 3, YARD, YARD, YARD]), 1, [0, YARD, YARD, YARD]);
+        const { state: after, events } = ok(apply(withDie(state, 3), { kind: 'move', seat: 0, piece: 0 }));
+
+        expect(after.players[0].pieces[0]).toBe(target);
+        expect(after.players[1].pieces[0]).toBe(YARD);
+        expect(kinds(events)).toContain('capture');
     });
 
     it('does not capture by passing over somebody', () =>
@@ -367,6 +366,17 @@ describe('the home column', () =>
         expect(legalMoves(withDie(start, 3))).toEqual([0, 1]);
         expect(ok(apply(withDie(start, 3), { kind: 'move', seat: 0, piece: 0 })).state.players[0].pieces)
             .toEqual([RING_STEPS + 2, RING_STEPS + 1, YARD, YARD]);
+    });
+
+    it('blocks a second token from landing on each occupied home square', () =>
+    {
+        for (let cell = RING_STEPS; cell < FINISHED; cell += 1)
+        {
+            const state = withDie(place(table(2), 0, [cell - 1, cell, YARD, YARD]), 1);
+
+            expect(legalMoves(state)).toEqual([1]);
+            expect(apply(state, { kind: 'move', seat: 0, piece: 0 })).toEqual({ ok: false, reason: 'illegal-move' });
+        }
     });
 
     it('is private: nobody else can be captured there', () =>
@@ -567,15 +577,18 @@ describe('the ledger', () =>
     });
 });
 
-describe('an occupied start square blocks entry', () =>
+describe('entering on the start square', () =>
 {
-    it('passes a six when an opponent occupies the only entry square', () =>
+    it('captures an opponent who is standing on the start square', () =>
     {
         const start = place(table(2), 1, [26, YARD, YARD, YARD]);
-        const { state, events } = ok(apply(start, { kind: 'roll', seat: 0, die: 6 }));
+        const { state: rolled } = ok(apply(start, { kind: 'roll', seat: 0, die: 6 }));
+        const { state, events } = ok(apply(rolled, { kind: 'move', seat: 0, piece: 0 }));
 
-        expect(events).toEqual([{ e: 'roll', seat: 0, die: 6 }, { e: 'pass', seat: 0, why: 'no-move' }]);
-        expect(state).toMatchObject({ turn: 1, die: null, players: start.players });
+        expect(kinds(events)).toEqual(['enter', 'capture']);
+        expect(state.players[0].pieces[0]).toBe(0);
+        expect(state.players[1].pieces[0]).toBe(YARD);
+        expect(state).toMatchObject({ turn: 0, die: null });
     });
 
     it('lets no token come out while one of its own stands on the start square', () =>
@@ -842,6 +855,27 @@ describe('two against two', () =>
 
         expect(events).toEqual([{ e: 'roll', seat: 0, die: 6 }, { e: 'pass', seat: 0, why: 'no-move' }]);
         expect(state).toMatchObject({ turn: 1, die: null, sixes: 0, players: start.players });
+    });
+
+    it('protects a token on its partner’s start against a landing by the opposing side', () =>
+    {
+        const from = on('green', ENTRY.yellow) - 3;
+        const start = position([[on('red', ENTRY.yellow), YARD, YARD, YARD], [from, YARD, YARD, YARD], EMPTY, EMPTY], 1, null);
+        const { state, events } = ok(apply(start, { kind: 'roll', seat: 1, die: 3 }));
+
+        expect(events).toEqual([{ e: 'roll', seat: 1, die: 3 }, { e: 'pass', seat: 1, why: 'no-move' }]);
+        expect(state).toMatchObject({ turn: 2, die: null, players: start.players });
+    });
+
+    it('captures an outsider on its partner’s start', () =>
+    {
+        const from = on('red', ENTRY.yellow) - 3;
+        const start = position([[from, YARD, YARD, YARD], [on('green', ENTRY.yellow), YARD, YARD, YARD], EMPTY, EMPTY], 0, 3);
+        const { state, events } = ok(apply(start, { kind: 'move', seat: 0, piece: 0 }));
+
+        expect(kinds(events)).toContain('capture');
+        expect(state.players[0].pieces[0]).toBe(ENTRY.yellow);
+        expect(state.players[1].pieces[0]).toBe(YARD);
     });
 
     describe('a player whose four are home', () =>

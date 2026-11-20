@@ -47,7 +47,7 @@ export const rules: Pick<Dictionary, keyof typeof reference> = {
     'rules.ludo.3.title': 'Mover',
     'rules.ludo.3.points': 'Una ficha avanza exactamente lo que marca el dado, en el sentido de las agujas del reloj, y puede saltar una ficha sola.\nTras dar la vuelta al tablero entra en su propio pasillo, cinco casillas donde nadie más entra. Llegar al final requiere el número exacto.\nSolo una de tus fichas puede estar en tu casilla de salida a la vez.',
     'rules.ludo.4.title': 'Comer',
-    'rules.ludo.4.points': 'Caer justo en una ficha rival la manda de vuelta a su casa. Pasar por encima no.\nLas ocho casillas seguras son las cuatro salidas y las cuatro estrellas. Solo puedes caer en una casilla segura vacía, incluso al salir de casa.',
+    'rules.ludo.4.points': 'Caer justo en una ficha rival la manda de vuelta a su casa. Pasar por encima no.\nLas cuatro estrellas rellenas protegen cualquier ficha. Solo puedes caer en ellas cuando están libres. Las estrellas huecas marcan las salidas. En equipos, una ficha está a salvo en la salida de su compañero. Puedes capturar una ficha rival en tu salida o en la de tu compañero.',
     'rules.ludo.5.title': 'Casillas ocupadas',
     'rules.ludo.5.points': 'En cada casilla cabe una sola ficha, incluso en el pasillo final. Puedes saltar por encima de otras fichas. Para caer en una casilla ocupada, debes poder capturar la ficha rival.',
     'rules.ludo.6.title': 'Ganar',

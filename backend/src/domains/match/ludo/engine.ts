@@ -20,7 +20,6 @@ import {
     RING_STEPS,
     TOKENS_PER_PLAYER,
     YARD,
-    capturesAt,
     coloursFor,
     obstacle,
     ringIndex,
@@ -181,7 +180,7 @@ function captureAt(state: LudoState, seat: number, mover: number, moving: number
 {
     const player = state.players[mover];
 
-    if (!capturesAt(player.colour, progress))
+    if (progress < 0 || progress >= RING_STEPS)
     {
         return;
     }

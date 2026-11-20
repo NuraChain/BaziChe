@@ -8,6 +8,6 @@ export const helpersLudo: Pick<Dictionary, keyof typeof reference> = {
     'helpers.ludo.tip.star': 'القطعة آمنة على هذا المربع. اختر حركة أخرى إن أمكن.',
     'helpers.ludo.tip.blocked': 'هذا المربع مشغول. اختر حركة أخرى إن أمكن.',
     'helpers.ludo.tip.helping': 'قطعك الأربع وصلت إلى البيت، فكل رمية لك الآن تحرّك قطع شريكك. والستة ما زالت تمنحك رمية أخرى.',
-    'helpers.ludo.tip.start': 'القطعة آمنة على هذا المربع. اختر حركة أخرى إن أمكن.',
+    'helpers.ludo.tip.start': 'حرّك قطعتك عن مربع البداية قبل إخراج قطعة أخرى.',
     'helpers.ludo.tip.exact': 'الوصول إلى البيت يحتاج العدد بالضبط، فالقطعة الأقرب من هذه الرمية تبقى مكانها.'
 };

@@ -47,7 +47,7 @@ export const rules: Pick<Dictionary, keyof typeof reference> = {
     'rules.ludo.3.title': 'Hamle',
     'rules.ludo.3.points': 'Taş, zarın gösterdiği kadar saat yönünde ilerler ve tek bir taşın üstünden atlayabilir.\nTahtayı bir kez dolaştıktan sonra kendi ev yoluna girer: başka kimsenin giremediği beş kare. Sona varmak tam sayı ister.\nBaşlangıç karende aynı anda yalnızca bir taşın durabilir.',
     'rules.ludo.4.title': 'Yemek',
-    'rules.ludo.4.points': 'Rakip taşın tam üstüne konmak onu ahırına geri gönderir. Üstünden geçmek göndermez.\nDört başlangıç karesi ve dört yıldızlı kare güvenlidir. Ahırdan çıkarken bile güvenli bir kareye ancak boşsa konabilirsin.',
+    'rules.ludo.4.points': 'Rakip taşın tam üstüne konmak onu ahırına geri gönderir. Üstünden geçmek göndermez.\nDört dolu yıldız her taşı korur. Bu karelere yalnızca boşken konabilirsin. İçi boş yıldızlar başlangıç karelerini gösterir. Takım oyununda taş, takım arkadaşının başlangıç karesinde güvendedir. Kendi başlangıcındaki veya takım arkadaşının başlangıcındaki rakip taşı yiyebilirsin.',
     'rules.ludo.5.title': 'Dolu kareler',
     'rules.ludo.5.points': 'Ev yolu dahil her karede yalnız bir taş durabilir. Diğer taşların üzerinden geçebilirsin. Dolu bir karede durmak için rakibin taşını yiyebilmelisin.',
     'rules.ludo.6.title': 'Kazanmak',

@@ -47,7 +47,7 @@ export const rules: Pick<Dictionary, keyof typeof reference> = {
     'rules.ludo.3.title': 'Se déplacer',
     'rules.ludo.3.points': 'Un pion avance exactement du nombre obtenu, dans le sens des aiguilles d\'une montre, et peut sauter par-dessus un pion seul.\nAprès un tour du plateau, il entre dans son couloir, cinq cases où personne d\'autre n\'entre. Atteindre le bout demande le nombre exact.\nUn seul de tes pions peut se trouver sur ta case de départ à la fois.',
     'rules.ludo.4.title': 'Prendre',
-    'rules.ludo.4.points': 'S\'arrêter pile sur un pion adverse le renvoie à son écurie. Passer par-dessus, non.\nLes huit cases sûres sont les quatre départs et les quatre étoiles. Tu ne peux t’arrêter sur une case sûre que si elle est libre, même en sortant de l’écurie.',
+    'rules.ludo.4.points': 'S\'arrêter pile sur un pion adverse le renvoie à son écurie. Passer par-dessus, non.\nLes quatre étoiles pleines protègent tous les pions. Tu ne peux t’y arrêter que si la case est libre. Les étoiles creuses marquent les départs. En équipe, un pion est protégé sur le départ de son partenaire. Tu peux capturer un pion adverse sur ton départ ou sur celui de ton partenaire.',
     'rules.ludo.5.title': 'Cases occupées',
     'rules.ludo.5.points': 'Une case accueille un seul pion, même dans le couloir final. Tu peux passer par-dessus les pions. Pour t’arrêter sur une case occupée, tu dois pouvoir prendre le pion adverse.',
     'rules.ludo.6.title': 'Gagner',

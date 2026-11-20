@@ -8,6 +8,6 @@ export const helpersLudo: Pick<Dictionary, keyof typeof reference> = {
     'helpers.ludo.tip.star': 'Le pion est à l’abri sur cette case. Choisis un autre déplacement si tu peux.',
     'helpers.ludo.tip.blocked': 'Cette case est occupée. Choisis un autre déplacement si tu peux.',
     'helpers.ludo.tip.helping': 'Tes quatre pions sont arrivés : chacun de tes lancers fait désormais avancer les pions de ton partenaire. Un six fait toujours rejouer.',
-    'helpers.ludo.tip.start': 'Le pion est à l’abri sur cette case. Choisis un autre déplacement si tu peux.',
+    'helpers.ludo.tip.start': 'Déplace ton pion hors de la case de départ avant d’en sortir un autre.',
     'helpers.ludo.tip.exact': 'Pour arriver, il faut le compte exact : un pion trop proche pour ce lancer reste où il est.'
 };

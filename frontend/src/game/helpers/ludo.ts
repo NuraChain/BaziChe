@@ -1,4 +1,4 @@
-import { FINISHED, RING_STEPS, YARD, capturesAt, cellAt, obstacle, ringIndex, type LudoColour, type Walker } from '../../../../backend/src/domains/match/ludo/board.ts';
+import { FINISHED, RING_STEPS, YARD, cellAt, obstacle, ringIndex, type LudoColour, type Walker } from '../../../../backend/src/domains/match/ludo/board.ts';
 import type { LudoBoard, LudoSeat } from '../../data/match.ts';
 import type { Tip } from './tip.ts';
 
@@ -19,7 +19,7 @@ const onSquare = (seat: LudoSeat, square: number) =>
 const standingOn = (board: LudoBoard, side: number, square: number) =>
     board.seats
         .filter((other) => other.side !== side)
-        .flatMap((other) => Array.from({ length: onSquare(other, square) }, () => other.seat));
+        .reduce((count, other) => count + onSquare(other, square), 0);
 
 const landsAt = (at: number, die: number) => (at === YARD ? 0 : at + die);
 
@@ -114,7 +114,7 @@ export function goalsOf(board: LudoBoard)
         }
 
         const to = landsAt(from, die);
-        const takes = capturesAt(mover.colour as LudoColour, to) ? standingOn(board, mover.side, squareOf(mover, to)).length : 0;
+        const takes = to < RING_STEPS ? standingOn(board, mover.side, squareOf(mover, to)) : 0;
 
         return [{ piece, from, to, takes }];
     });

@@ -8,6 +8,6 @@ export const helpersLudo: Pick<Dictionary, keyof typeof reference> = {
     'helpers.ludo.tip.star': 'La ficha está a salvo en esta casilla. Elige otro movimiento si puedes.',
     'helpers.ludo.tip.blocked': 'Esta casilla está ocupada. Elige otro movimiento si puedes.',
     'helpers.ludo.tip.helping': 'Tus cuatro fichas ya están en la meta, así que cada tirada tuya mueve ahora las fichas de tu compañero. Un seis sigue dando otra tirada.',
-    'helpers.ludo.tip.start': 'La ficha está a salvo en esta casilla. Elige otro movimiento si puedes.',
+    'helpers.ludo.tip.start': 'Mueve tu ficha fuera de la salida antes de sacar otra.',
     'helpers.ludo.tip.exact': 'Para llegar a la meta hace falta el número exacto, así que una ficha demasiado cerca para esta tirada se queda donde está.'
 };

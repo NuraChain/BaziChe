@@ -6,7 +6,7 @@ import { boardOf, dangerOf, hitChance, raceTurns } from '../src/domains/ai/ludo/
 import { PLANS, choose } from '../src/domains/ai/ludo/search.ts';
 import type { Draws } from '../src/domains/match/engine.ts';
 import { ludoEngine as engine } from '../src/domains/match/engines/ludo.ts';
-import { FINISHED, RING_STEPS, YARD, isSafeRing, ringIndex } from '../src/domains/match/ludo/board.ts';
+import { FINISHED, RING_STEPS, YARD, isProtectedRing, ringIndex } from '../src/domains/match/ludo/board.ts';
 import { create } from '../src/domains/match/ludo/engine.ts';
 import type { EngineAction, GameEvent, LudoState } from '../src/domains/match/ludo/state.ts';
 import { sideOf, type Format } from '../src/domains/match/sides.ts';
@@ -46,7 +46,7 @@ const baseline: Agent<LudoState> = (() =>
             for (const at of player.pieces)
             {
                 const mine = player.side === side;
-                const safe = at !== YARD && at < RING_STEPS && isSafeRing(ringIndex(player.colour, at)) ? 2 : 0;
+                const safe = at !== YARD && at < RING_STEPS && isProtectedRing(state.players, player, ringIndex(player.colour, at)) ? 2 : 0;
 
                 score += mine ? progressOf(at) + safe : -progressOf(at) / Math.max(1, state.players.length - 1);
             }
@@ -287,10 +287,10 @@ describe('the dice', () =>
         expect(dangerOf(boardOf(starred), starred.players[0], 21)).toBe(0);
         expect(dangerOf(boardOf(paired), paired.players[0], 20)).toBe(0);
 
-        // Yellow cannot capture a piece on the start square when it leaves the yard.
+        // Yellow can capture the visitor with a six when it leaves the yard.
         const start = position(TWO, [[26, YARD, YARD, YARD], [YARD, FINISHED, FINISHED, FINISHED]], 0, null);
 
-        expect(dangerOf(boardOf(start), start.players[0], 26)).toBe(0);
+        expect(dangerOf(boardOf(start), start.players[0], 26)).toBeCloseTo(1 / 6);
 
         // A token in the home stretch cannot be reached.
         expect(dangerOf(boardOf(exposed), exposed.players[0], RING_STEPS + 1)).toBe(0);

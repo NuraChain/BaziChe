@@ -1,9 +1,8 @@
 /**
  * The Ludo board, derived from the one this product already draws.
  *
- * `tools/blender/lib/atlas.py` paints the field and `tools/blender/assets/set-ludo.py` builds the
- * GLB from the same 15x15 grid. `board.spec.ts` asserts every constant here against the literals in
- * that Python, so the squares a token walks and the squares underneath it cannot drift apart.
+ * The SVG board and the landing model use the same 15×15 grid. The board tests match
+ * the ring, entries, filled stars, and home lanes to their positions in the art.
  */
 
 export type LudoColour = 'red' | 'green' | 'yellow' | 'blue';
@@ -86,7 +85,7 @@ export const ENTRY: Readonly<Record<LudoColour, number>> = {
     blue: 39
 };
 
-export const SAFE: readonly number[] = [0, 8, 13, 21, 26, 34, 39, 47];
+export const SAFE: readonly number[] = [8, 21, 34, 47];
 
 export const HOME_CELLS: Readonly<Record<LudoColour, readonly Cell[]>> = {
     red: trace([HOME_WALK.red]),
@@ -115,21 +114,18 @@ export function cellAt(colour: LudoColour, progress: number): Cell | null
     return HOME_CELLS[colour][progress - RING_STEPS];
 }
 
-export function isSafeRing(index: number)
-{
-    return SAFE.includes(index);
-}
-
-export function capturesAt(colour: LudoColour, progress: number)
-{
-    return progress >= 0 && progress < RING_STEPS && !isSafeRing(ringIndex(colour, progress));
-}
-
 export interface Walker
 {
     colour: LudoColour;
     pieces: readonly number[];
     side: number;
+}
+
+export function isProtectedRing(walkers: readonly Walker[], occupant: Walker, square: number)
+{
+    // A hollow star also protects a teammate of the colour that enters there.
+    return SAFE.includes(square) || walkers.some((one) =>
+        one.side === occupant.side && one.colour !== occupant.colour && ENTRY[one.colour] === square);
 }
 
 export type Obstacle = 'occupied' | 'safe' | 'start';
@@ -164,22 +160,22 @@ export function obstacle(walkers: readonly Walker[], mover: number, piece: numbe
     {
         const count = standing(walker, square, index === mover ? piece : -1);
 
-        if (count > 0 && walker.side === own.side)
+        if (count === 0)
+        {
+            continue;
+        }
+
+        if (walker.side === own.side)
         {
             return 'occupied';
         }
 
+        if (isProtectedRing(walkers, walker, square))
+        {
+            return 'safe';
+        }
+
         opponents += count;
-    }
-
-    if (opponents === 0)
-    {
-        return null;
-    }
-
-    if (!capturesAt(own.colour, to))
-    {
-        return 'safe';
     }
 
     return opponents > 1 ? 'occupied' : null;

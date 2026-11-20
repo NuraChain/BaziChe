@@ -48,7 +48,7 @@ export const rules = {
     'rules.ludo.3.title': 'Moving',
     'rules.ludo.3.points': 'A token moves exactly the number rolled, clockwise, and can jump over a single token.\nAfter a lap of the board it goes into its own home lane, five cells nobody else can enter. Reaching the end takes the exact number.\nOnly one of your tokens can stand on your start square at a time.',
     'rules.ludo.4.title': 'Capturing',
-    'rules.ludo.4.points': 'Landing exactly on an opponent\'s token sends it back to its yard. Passing over it does not.\nThe eight safe squares are the four starts and the four stars. You can only land on a safe square when it is empty, even when leaving the yard.',
+    'rules.ludo.4.points': 'Landing exactly on an opponent\'s token sends it back to its yard. Passing over it does not.\nThe four filled stars protect any token. Land on them only when they are empty. Hollow stars mark the start squares. In teams, a token is safe on its partner’s start. You can capture an opponent on your start or your partner’s start.',
     'rules.ludo.5.title': 'Occupied squares',
     'rules.ludo.5.points': 'Only one token can occupy a square, including the home lane. You may pass over an occupied square. To land on an occupied square, you must be able to capture the opponent’s token.',
     'rules.ludo.6.title': 'Winning',

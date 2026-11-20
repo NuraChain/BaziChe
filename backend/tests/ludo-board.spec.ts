@@ -20,21 +20,7 @@ import {
     type Walker
 } from '../src/domains/match/ludo/board.ts';
 
-/**
- * The board the engine plays on has to be the board the art draws.
- *
- * `tools/blender/lib/atlas.py` paints the field and `tools/blender/assets/set-ludo.py` builds the
- * GLB, both from a 15x15 grid, and both were written long before any of this. The literals below
- * are transcribed from that Python; the constants they are compared against are walked from
- * segments. Two descriptions of one board, checked against each other, so neither can be edited
- * alone.
- *
- * The trap this exists to catch: `set-ludo.py` also carries a `track_spots` dictionary - red (2, 6),
- * green (8, 4), yellow (11, 8), blue (6, 10) - which is where the 3D model parks its loose tokens
- * for the market scene, NOT where a player enters the ring. Those are `starts` in `atlas.py`, two
- * squares away, painted under the stars. Taking the wrong pair would put every entry off the square
- * it is drawn on and nothing anywhere would fail.
- */
+/** Cell coordinates from the live board SVG in `frontend/public/board/ludo-board.svg`. */
 
 const STARTS: Record<LudoColour, readonly [number, number]> = {
     red: [1, 6],
@@ -43,8 +29,7 @@ const STARTS: Record<LudoColour, readonly [number, number]> = {
     blue: [6, 13]
 };
 
-const STARRED: readonly (readonly [number, number])[] = [
-    [1, 6], [8, 1], [13, 8], [6, 13],
+const FILLED_STARS: readonly (readonly [number, number])[] = [
     [6, 2], [12, 6], [8, 12], [2, 8]
 ];
 
@@ -158,16 +143,16 @@ describe('where a colour joins it', () =>
 
 describe('the safe squares', () =>
 {
-    it('are the eight the art marks with a star', () =>
+    it('are the four the art marks with a filled star', () =>
     {
-        expect(new Set(SAFE.map((index) => key(RING_CELLS[index])))).toEqual(new Set(STARRED.map(pair)));
+        expect(new Set(SAFE.map((index) => key(RING_CELLS[index])))).toEqual(new Set(FILLED_STARS.map(pair)));
     });
 
-    it('include every entry, so nobody is sent home the moment they arrive', () =>
+    it('exclude every entry marked with a hollow star', () =>
     {
         for (const colour of COLOURS)
         {
-            expect(SAFE, colour).toContain(ENTRY[colour]);
+            expect(SAFE, colour).not.toContain(ENTRY[colour]);
         }
     });
 });
@@ -268,13 +253,13 @@ describe('what stops a move', () =>
         expect(obstacle(board, 0, 0, star + 1)).toBeNull();
     });
 
-    it('opens the yard only onto an empty start', () =>
+    it('allows entry onto an empty start or one occupied by a single opponent', () =>
     {
         const there = on('yellow', ENTRY.red);
 
         expect(obstacle(walkers([[0, YARD, YARD, YARD], EMPTY, EMPTY, EMPTY], PAIRED), 0, 1, 0)).toBe('start');
         expect(obstacle(walkers([EMPTY, EMPTY, [there, YARD, YARD, YARD], EMPTY], PAIRED), 0, 0, 0)).toBe('occupied');
-        expect(obstacle(walkers([EMPTY, EMPTY, [there, YARD, YARD, YARD], EMPTY], ALONE), 0, 0, 0)).toBe('safe');
+        expect(obstacle(walkers([EMPTY, EMPTY, [there, YARD, YARD, YARD], EMPTY], ALONE), 0, 0, 0)).toBeNull();
         expect(obstacle(walkers([EMPTY, EMPTY, EMPTY, EMPTY], ALONE), 0, 0, 0)).toBeNull();
     });
 

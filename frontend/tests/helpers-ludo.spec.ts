@@ -131,7 +131,6 @@ describe('the rule that matters now', () =>
         },
         { name: 'an occupied star blocks the landing', pieces: [[5, -1, -1, -1], [34, -1, -1, -1]], die: 3, key: 'helpers.ludo.tip.star' },
         { name: 'an occupied star takes precedence over the six reminder', pieces: [[2, -1, -1, -1], [34, -1, -1, -1]], die: 6, key: 'helpers.ludo.tip.star' },
-        { name: 'an opponent on the start square blocks entry', pieces: [YARD, [26, -1, -1, -1]], die: 6, key: 'helpers.ludo.tip.star' },
         { name: 'home needs the exact count', pieces: [[54, 10, -1, -1], YARD], die: 3, key: 'helpers.ludo.tip.exact' },
         { name: 'the occupied home lane blocks a landing', pieces: [[50, 52, -1, -1], YARD], die: 2, key: 'helpers.ludo.tip.blocked' },
         { name: 'an occupied square blocks a friendly token', pieces: [[10, 12, -1, -1], YARD], die: 2, key: 'helpers.ludo.tip.blocked' },
@@ -437,10 +436,10 @@ describe('where each move on offer would end', () =>
     {
         const [mine, theirs] = coloursFor(2) as LudoColour[];
         const open = ringIndex(mine, 12);
-        const star = ringIndex(mine, 13);
+        const star = ringIndex(mine, 8);
 
         expect(goalsOf(boardOf(position([[10, -1, -1, -1], [standsOn(theirs, open), -1, -1, -1]], 2)))).toEqual([{ piece: 0, from: 10, to: 12, takes: 1 }]);
-        expect(goalsOf(boardOf(position([[10, -1, -1, -1], [standsOn(theirs, star), -1, -1, -1]], 3)))).toEqual([]);
+        expect(goalsOf(boardOf(position([[5, -1, -1, -1], [standsOn(theirs, star), -1, -1, -1]], 3)))).toEqual([]);
     });
 
     it('marks an empty start square and ends a home run at home', () =>
@@ -449,6 +448,7 @@ describe('where each move on offer would end', () =>
 
         expect(out).toHaveLength(1);
         expect(out[0]).toMatchObject({ from: -1, to: 0, takes: 0 });
+        expect(goalsOf(boardOf(position([YARD, [26, -1, -1, -1]], 6)))).toEqual([{ piece: 0, from: -1, to: 0, takes: 1 }]);
         expect(goalsOf(boardOf(position([[FINISHED - 2, FINISHED, FINISHED, FINISHED], [5, -1, -1, -1]], 2)))).toEqual([{ piece: 0, from: FINISHED - 2, to: FINISHED, takes: 0 }]);
     });
 

@@ -1,4 +1,4 @@
-import { ENTRY, FINISHED, HOME_RUN, RING, RING_STEPS, YARD, isSafeRing, ringIndex } from '../../match/ludo/board.ts';
+import { ENTRY, FINISHED, HOME_RUN, RING, RING_STEPS, YARD, isProtectedRing, ringIndex } from '../../match/ludo/board.ts';
 import type { LudoPlayer, LudoState } from '../../match/ludo/state.ts';
 
 /**
@@ -148,7 +148,7 @@ export function dangerOf(board: Board, target: LudoPlayer, at: number): number
     }
 
     const square = ringIndex(target.colour, at);
-    if (isSafeRing(square) || board.crowd[square] >= 2)
+    if (isProtectedRing(board.state.players, target, square) || board.crowd[square] >= 2)
     {
         return 0;
     }
@@ -163,7 +163,7 @@ export function dangerOf(board: Board, target: LudoPlayer, at: number): number
         }
 
         const entry = ENTRY[attacker.colour];
-        const canEnter = attacker.pieces.includes(YARD) && board.crowd[entry] === 0;
+        const canEnter = attacker.pieces.includes(YARD) && (board.crowd[entry] === 0 || entry === square);
         let reach = 0;
 
         for (const from of attacker.pieces)
@@ -183,7 +183,7 @@ export function dangerOf(board: Board, target: LudoPlayer, at: number): number
 
         const beyond = (square - entry + RING) % RING;
 
-        if (canEnter && beyond >= 1 && beyond + 6 <= FARTHEST)
+        if (canEnter && beyond + 6 <= FARTHEST)
         {
             reach |= 1 << (beyond + 6);
         }

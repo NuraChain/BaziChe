@@ -4,8 +4,9 @@
 achievements are live. A table of four is also played two against two when whoever opens it says so (see *Teams*):
 the catalogue's `partners` for ludo is `optional`.
 
-Baziche uses Iranian mench on a 52-square track with four safe stars and four safe starts. It applies
-Plato's one-token-per-square rule and passes the turn whenever the roll leaves no legal move.
+Baziche uses Iranian mench on a 52-square track. Four filled stars protect every token and four hollow
+stars mark the entries. A partner's entry also protects a token in team play. The turn passes
+whenever the roll leaves no legal move, and each square holds one token.
 Baziche uses six-only entry and bonus rolls, clockwise play, and an eight-token team finish.
 
 ---
@@ -41,7 +42,7 @@ sources is a governing body: Ludo has none, and every source calls its own rules
 | S2 | Four tokens each, all four in the yard at the start. | cited: [WP] "To enter a token into play from its yard to its starting square, a player must roll a six."; [MoG] each player "places the 4 pieces of that colour in the corresponding starting circle". Against: [Schmidt] starts one token on the start square ("Einen Stein stellt er auf das Feld A seiner Farbe") |
 | S3 | The board is the Ludo cross on a 15x15 grid: a 52-square ring, then a five-cell home lane per colour and the centre triangle. | house rule: read off the board art (`ludo/board.ts`, held to the art by `ludo-board.spec.ts`). [fekravaran] counts the same board's 72 cells («صفحه بازی منچ شامل 72 خانه است»), which is 52 + 4 × 5 |
 | S4 | Colours by seat count: two players are red and yellow (opposite corners, 26 squares apart), three are red, green and yellow, four are all four. | house rule: so two players never start one behind the other |
-| S5 | Eight safe squares: each colour's start square and one starred square in each quadrant. | cited: start squares safe, [faWP] «نقطه شروع جز نقطه‌های امن محسوب می‌شود» ("the starting point counts among the safe points"); a star per quadrant, [WP] *Indian*: "a safe square in each quadrant ... usually marked with a star." [MoG] and base [WP] have no safe ring squares; [WP] *Differences* (Denmark) has eight globes |
+| S5 | Four filled stars mark safe squares. Each hollow star is a colour's entry square. | Baziche's board. [WP] *Indian* uses a safe star in each quadrant. |
 | S6 | The first player is drawn by the server at random. | house rule. [MoG] "highest throw of the die starts"; [Schmidt] "wer die höchste Zahl würfelt, beginnt". A server draw is the same fair choice without a roll-off nobody decides anything in |
 
 ### Turn rules
@@ -76,7 +77,7 @@ sources is a governing body: Ludo has none, and every source calls its own rules
 |---|---|---|
 | C1 | A token that lands exactly on an opponent sends it back to its yard, where it needs a six like any other. | cited: [WP] "the opposing token is returned to its respective home point"; [MoG] "the piece jumped upon is returned to its starting circle"; [setare] «مهره سبز دوباره باید به بیرون از صفحه بازی بروند و با تاس ۶ بعدی به بازی بیاورید» |
 | C2 | Capture is on the exact landing square only, never by passing over. | cited: [Schmidt] "Wer mit dem letzten Punkt seiner Augenzahl auf ein Feld trifft ... schlägt diese Figur"; [fekravaran] «اگر مهره شما دقیقاً روی خانه‌ای بیفتد...» |
-| C4 | A move onto a safe square requires an empty destination, including when leaving the yard. | [Plato] for starred squares, S5 for Baziche's four safe starts |
+| C4 | A move onto a filled star requires an empty destination. In team play a token on its partner's entry is protected too. Other occupants of the entry follow the ordinary capture rule, including on a yard entry. | [Plato] for safe-square occupancy, Baziche house rule for the partner's entry. |
 | C5 | The home lane is private: no other colour can enter it, so nothing there can be captured. | cited: [WP] "A player's home column squares are always "safe", since no opponent may enter them."; [fekravaran] «مهره‌ای که وارد خانه پایانی شود ... قابل زدن نیست» |
 | C6 | Own tokens are never captured. | cited: [Schmidt] "Eigene Steine können nicht geschlagen werden" |
 
@@ -109,10 +110,9 @@ sources is a governing body: Ludo has none, and every source calls its own rules
 
 ## Decided choices
 
-Baziche protects occupants of the four start squares regardless of colour. That includes a
-visitor on the square where another colour enters from the yard. Plato's start protection
-applies to the corresponding colour. Baziche's rule supersedes D27, which allowed a capture
-when leaving the yard.
+Baziche's four filled stars are safe for every token. In a team match a token on its partner's
+hollow star is also safe. An opponent on your start or your partner's start can be captured,
+including when a token leaves the yard onto its start after a six.
 
 The one-token rule supersedes D28 and D29, which previously allowed two friendly tokens to
 form a block. A position recorded under those rules can still show a stack. Tokens may move
@@ -127,7 +127,7 @@ text and refuses `node:`, `typeorm`, `Math.random` and `Date.now`).
 
 ```
 board.ts      the grid, the ring, the entries, the safe squares, the home lanes, ringIndex, cellAt,
-              capturesAt (C4) and obstacle (M5), shared with the browser
+              isProtectedRing (C4) and obstacle (M5), shared with the browser
 state.ts      LudoState, EngineAction, GameEvent, RefusalReason
 engine.ts     create, controlled, legalMoves, apply (never throws)
 standings.ts  placementsOf, trailingOf
@@ -288,7 +288,7 @@ and D25 uses the same forfeit policy as hokm. The clause numbers in this section
 | T5 | Then you stay in the rotation, and every roll of yours moves your partner's tokens. | cited: Parchís, پنکو, Pegs and Jokers |
 | T5a | That starts at once: the roll earned by the six that brought your fourth token home already moves your partner's. | house rule (D24). Against: Uckers, which asks for a six first |
 | T6 | Partners cannot capture or land on each other's tokens, including when entering from the yard. | [Plato], M5 |
-| T8 | A token leaving the yard needs an empty start square, including when a partner moves it. | C4 |
+| T8 | A token leaving the yard can land on an empty start square or capture an opponent there. A token of either partner blocks entry. | C4 |
 | T9-T11 | Turn, movement and occupancy rules apply to the tokens the roller controls. | house rule (D24) |
 | T12 | The side with all eight tokens home wins, the moment the eighth arrives. One player's four is a hand-over (T5), not an ending. | cited: [Schmidt] team variant "Gewinner ist das Partner-Paar, dessen acht Figuren zuerst ... stehen", Pachisi, Uckers, پنکو |
 | T13 | Standings are by side: tokens home and then distance, each added up over both partners, and the pair shares the place. A side with a seat out is last. | house rule (hokm's shape) |
@@ -306,7 +306,7 @@ Parchís tournament rules say the same of talking.
   no rule of its own. `advance` is unchanged: a seat whose four are home is not `out` and keeps its
   turn.
 - The engine and browser helpers use `obstacle` in `ludo/board.ts` to check occupancy.
-- `captureAt` skips the mover's side and uses `capturesAt` to check the actual square of the move.
+- `obstacle` checks protection before a move. `captureAt` then captures the opponent on the legal landing square.
 - A move ends the game when every token of the mover's side is home, and a forfeit ends it when one
   side is left with nobody out (T12, T14). `winner` is that side.
 - `placementsOf` ranks sides and `trailingOf` names the seats behind (T13, T14). The adapter's
@@ -330,7 +330,7 @@ checks every position across whole games. `judge.spec.ts` checks forfeits using 
 - **The tokens that light up, and a tap.** The playable tokens are `controls`' (`seatsFor`), and a
   tap is a move only for the seat on turn, on a token of `controls` (`pick`).
 - **The helpers** (`game/helpers/ludo.ts`). `movedTo`, `outcomeOf` and `pieceFor` act on
-  `controls`. An occupied start offers no yard move (T8). The coach reads the tokens
+  `controls`. An entry occupied by either teammate offers no yard move (T8). The coach reads the tokens
   the reader controls. It explains an occupied or protected square before a move or after a pass,
   and tells the reader once when all four of their pieces are home.
   `helpers-ludo.spec.ts` holds that reading to `controls` over whole games.

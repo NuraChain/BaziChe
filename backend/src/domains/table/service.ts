@@ -9,6 +9,7 @@ import { Match } from '../../entities/match.entity.ts';
 import { Table } from '../../entities/table.entity.ts';
 import type { TableMode } from '../../entities/table.entity.ts';
 import type { TablePrivacy, TableStatus } from '../../schemas.ts';
+import { pickBelow } from '../../lib/crypto.ts';
 import { keyedQueue } from '../../lib/keyed-queue.ts';
 import { firstRow } from '../../lib/rows.ts';
 import { ConversationMember } from '../../entities/conversation-member.entity.ts';
@@ -156,12 +157,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const CODE = /^[a-z2-9]{4,12}$/i;
 
-function codeFrom(random: () => number)
+function codeFrom()
 {
     let out = '';
     for (let index = 0; index < CODE_LENGTH; index += 1)
     {
-        out += ALPHABET[Math.floor(random() * ALPHABET.length)];
+        out += ALPHABET[pickBelow(ALPHABET.length)];
     }
     return out;
 }
@@ -438,7 +439,7 @@ interface Opening
 
 const openRow = async (tx: EntityManager, host: string, opening: Opening, guests: readonly string[], ready: boolean) =>
 {
-    const inserted = await tx.getRepository(Table).insert({ ...opening, code: codeFrom(Math.random), hostId: host });
+    const inserted = await tx.getRepository(Table).insert({ ...opening, code: codeFrom(), hostId: host });
     const id = inserted.identifiers[0].id as string;
 
     /**
@@ -1443,7 +1444,7 @@ export function createTableService(db: DataSource, social: SocialService)
             }
 
             const inserted = await tx.getRepository(Table).insert({
-                code: codeFrom(Math.random),
+                code: codeFrom(),
                 game,
                 seats: 2,
                 mode: 'live',

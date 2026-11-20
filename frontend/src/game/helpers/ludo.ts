@@ -47,8 +47,6 @@ export function handOf(board: LudoBoard, seat: number)
     return own !== undefined && partner !== undefined && homeOf(own) ? partner : own;
 }
 
-const paired = (board: LudoBoard) => new Set(board.seats.map((one) => one.side)).size < board.seats.length;
-
 export function pieceFor(board: LudoBoard, piece: number)
 {
     if (board.moves.includes(piece))
@@ -122,29 +120,6 @@ export function goalsOf(board: LudoBoard)
     });
 }
 
-const starShields = (board: LudoBoard, me: LudoSeat, die: number) =>
-    board.moves.some((piece) =>
-    {
-        const to = landing(me, piece, die);
-
-        if (to === null || to >= RING_STEPS)
-        {
-            return false;
-        }
-
-        return !capturesAt(me.colour as LudoColour, to) && standingOn(board, me.side, squareOf(me, to)).length > 0;
-    });
-
-const joinsPartner = (board: LudoBoard, me: LudoSeat, die: number) =>
-    board.moves.some((piece) =>
-    {
-        const to = landing(me, piece, die);
-
-        return to !== null
-            && to < RING_STEPS
-            && board.seats.some((other) => other.seat !== me.seat && other.side === me.side && onSquare(other, squareOf(me, to)) > 0);
-    });
-
 const walkersOf = (board: LudoBoard): Walker[] =>
     board.seats.map((one) => ({
         colour: one.colour as LudoColour,
@@ -168,9 +143,14 @@ const stoppedBy = (board: LudoBoard, me: LudoSeat, die: number): Tip | null =>
         return to === null || to > FINISHED ? null : obstacle(walkers, mover, token.piece, to);
     });
 
-    if (reasons.some((reason) => reason === 'block' || reason === 'full'))
+    if (reasons.includes('safe'))
     {
-        return { key: paired(board) ? 'helpers.ludo.tip.blockedTeams' : 'helpers.ludo.tip.blocked' };
+        return { key: 'helpers.ludo.tip.star' };
+    }
+
+    if (reasons.includes('occupied'))
+    {
+        return { key: 'helpers.ludo.tip.blocked' };
     }
 
     return reasons.includes('start') ? { key: 'helpers.ludo.tip.start' } : null;
@@ -217,27 +197,9 @@ export function coachOf(board: LudoBoard, mine: number | undefined, turn: number
 
     if (board.die === undefined)
     {
-        const last = recent.at(-1);
-        const wasted = last?.e === 'roll' && last.seat === mine && last.die === 6 ? stoppedBy(board, me, 6) : null;
-
-        if (wasted !== null)
-        {
-            return wasted;
-        }
-
         const waiting = me.tokens.filter((token) => token.at !== FINISHED);
 
         return waiting.length > 0 && waiting.every((token) => token.at === YARD) ? { key: 'helpers.ludo.tip.yard' } : null;
-    }
-
-    if (starShields(board, me, board.die))
-    {
-        return { key: 'helpers.ludo.tip.star' };
-    }
-
-    if (joinsPartner(board, me, board.die))
-    {
-        return { key: 'helpers.ludo.tip.partner' };
     }
 
     const stopped = stoppedBy(board, me, board.die);

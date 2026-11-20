@@ -326,8 +326,6 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'match.stuck.them': '{name} {die} آورد و حرکتی نداره.',
     'match.sixes.you': 'سومین شش پشت سر هم. نوبتت سوخت.',
     'match.sixes.them': '{name} سومین شش پشت سر هم رو آورد. نوبتش سوخت.',
-    'match.wasted.you': 'شش آوردی ولی مهره‌ای نداری که حرکت بدی. دوباره تاس بنداز.',
-    'match.wasted.them': '{name} شش آورد ولی مهره‌ای نداره که حرکت بده، دوباره تاس می‌ندازه.',
     'match.turn.helping': 'چهار تا مهره‌ت رسیده خونه: حالا مهره‌های {name} رو حرکت بده.',
     'match.turn.helpingTheirs': '{name} داره مهره‌های {partner} رو حرکت می‌ده.',
     'match.turn.helpingYours': '{name} داره مهره‌های تو رو حرکت می‌ده.',

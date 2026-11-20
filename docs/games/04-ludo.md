@@ -4,24 +4,19 @@
 achievements are live. A table of four is also played two against two when whoever opens it says so (see *Teams*):
 the catalogue's `partners` for ludo is `optional`.
 
-Ruleset: **Variant B, the common Iranian rules** (the owner's decision). It is the Ludo cross with
-one die, played the way منچ is played in Iran: any yard token comes out on any six, eight squares are
-safe, a token coming out captures on its own start square, two tokens of one colour make a block,
-and the first player home ends the game. Free to play. No wagering of any kind.
-
-Every rule below is either **cited** (a source and the words it uses) or labelled **house rule**
-(no accepted source says it, or the sources disagree and the product chose). Rules the owner settled
-after the first draft carry their decision number (D27 onward) and date. One clause is still an
-**open choice**; it is at the end of the matrix.
+Baziche uses Iranian mench on a 52-square track with four safe stars and four safe starts. It applies
+Plato's one-token-per-square rule and passes the turn whenever the roll leaves no legal move.
+Baziche uses six-only entry and bonus rolls, clockwise play, and an eight-token team finish.
 
 ---
 
 ## Sources
 
-Read on 2026-10-04. The keys in square brackets are used through the rest of this file.
+Original sources read on 2026-10-04. Plato's rules were checked on 2026-11-20. The keys in square brackets are used through the rest of this file.
 
 | key | source | how it was read |
 |---|---|---|
+| [Plato] | [Plato Ludo rules](https://platoapp.com/en/games/ludo) | publisher's rules for single occupancy, occupied safe spaces and passing |
 | [WP] | en.wikipedia, [*Ludo*](https://en.wikipedia.org/wiki/Ludo): *Rules* (Overview, Gameplay) and *Variants* (Differences, African, Indian) | raw wikitext |
 | [MoG] | Masters of Games (James Masters), [*Rules of Ludo*](https://www.mastersofgames.com/rules/ludo-rules-instructions-guide.htm) | the site refuses direct fetches (403); read from the Wayback Machine snapshot of 2025-06-26 |
 | [Schmidt] | Schmidt Spiele, [*Die große Spielesammlung, Premium-Edition* (49125)](https://www.schmidtspiele.de/files/Produkte/4/49125%20-%20Die%20gro%C3%9Fe%20Spielesammlung/49125_Die_grosse_Spielesammlung_Premium-Edition-D.pdf), *Mensch ärgere Dich nicht*, pp. 1-2. Schmidt publishes the original | the PDF from schmidtspiele.de |
@@ -32,7 +27,7 @@ Read on 2026-10-04. The keys in square brackets are used through the rest of thi
 [Schmidt] is *Mensch ärgere Dich nicht*, the game منچ is named after. It is played on a different
 board (40 track squares and four goal fields) and has no safe squares, so it is cited for the rules
 of play and never for geometry. [setare], [fekravaran] and [faWP] are the Iranian sources. None of the
-six is a governing body: Ludo has none, and every source calls its own rules one way among several.
+sources is a governing body: Ludo has none, and every source calls its own rules one way among several.
 
 ---
 
@@ -57,7 +52,7 @@ six is a governing body: Ludo has none, and every source calls its own rules one
 | T2 | Play passes clockwise round the board: red, green, yellow, blue. | cited: [MoG] "Players take turns in a clockwise order"; [Schmidt] "reihum im Uhrzeigersinn" |
 | T3 | A six earns another roll after its move. | cited: [WP] "If the bonus roll results in a six again, the player earns again an additional bonus roll."; [setare] «تاس ۶ جایزه دارد!»; [fekravaran] «هر بار شش بیاورید یک نوبت اضافه می‌گیرید» ("every six earns an extra turn"); [MoG] "A throw of 6 gives another turn." |
 | T4 | **Only** a six earns a roll. A capture or a token reaching home on one to five passes the turn; on a six it keeps the six's roll. | cited: no accepted source gives a bonus for anything but a six ([setare], [fekravaran], [faWP], [MoG], [Schmidt] all name only the six). Against: [WP] *African* ("If a player captures the piece of another player, they are awarded a bonus roll.") |
-| T5 | A six with no legal move still earns the roll, and a roll whose only moves a block stops (M5) has no legal move. Only a one-to-five with nothing to move passes the turn (`pass`, `no-move`). | cited, by reading: [setare], [fekravaran] and [faWP] make the six's prize unconditional («جایزه شش»). Against, by reading: [MoG] "If no piece can legally move according to the number thrown, play passes to the next player." |
+| T5 | If the roll has no legal move, the turn passes immediately with `no-move`, including on a six. | [Plato], [MoG] |
 | T6 | Three sixes in a row end the turn. The third six is not moved and earns no roll (`pass`, `three-sixes`); the count starts again for the next player. | cited: [WP] "If the third roll is also a six, the player may not move and the turn immediately passes to the next player." Against: [faWP] keeps throwing until a non-six («تا عدد غیر ۶»); [Schmidt] the same ("darf er erneut nach dem Ziehen würfeln"); [fekravaran] says some versions send a piece home instead and to agree first («پیش از شروع، درباره این قانون توافق کنید») |
 | T7 | No "three tries to find a six": a full yard rolling one to five passes at once. | cited, by absence: [WP], [MoG], [setare], [fekravaran], [faWP] have no such rule. Against: [Schmidt] "Wer keine Figur mehr im Spiel hat ... kann dreimal würfeln" (that clause is in its team variant) |
 | T8 | A player with a legal move must make one. There is no voluntary pass. | cited: [MoG] passes play only "If no piece can legally move". The turn clock plays an expired turn (see *Turn order*) |
@@ -69,13 +64,8 @@ six is a governing body: Ludo has none, and every source calls its own rules one
 | M1 | A token leaves the yard only on a six, onto its own start square. | cited: [WP] (S2's quote); [MoG] "A player must throw a 6 to move a piece from the starting circle onto the first square on the track."; [setare] «هر بازیکنی که تاس ۶ بیاورد، مجوز دارد که یک مهره‌اش را وارد بازی کند» |
 | M2 | Entering is a choice: on a six the player may bring out any yard token or move a token already out. | cited: [setare] «روش دیگری که در ایران بیشتر بازی می‌شود این محدودیت را ندارد، یعنی بازیکن می‌تواند با هر تاس ۶، یکی از چهار مهره خود را وارد بازی کند» ("the way more played in Iran has no such limit: with any six the player may bring in any of their four pieces"); [MoG] "Each throw, the player decides which piece to move." Against: [Schmidt] base rules make entering compulsory ("Bei einer „6” muss man einen neuen Stein ins Spiel bringen") |
 | M3 | Yard tokens are interchangeable. A move naming any yard token brings out the first one in the yard, and the move list offers the entry once. | house rule (engineering; LUDO-11) |
-| M4 | A token moves exactly the die, clockwise, and may pass over any single token, its own or an opponent's. | cited: [Schmidt] "Eigene und fremde Steine können übersprungen werden"; [WP] and [MoG] stop a token only at a block (M5) |
-| M5 | **Two tokens of one colour on a ring square are a block** (D28, the owner's decision of 2026-10-05). No token of another colour may land on it or pass it, so a block is never captured by a landing. A move that would is not offered. | cited: [WP] "If a token advances onto a space occupied by a token of the same colour, it is stacked on top to form a "block"." and, under *Differences*, "A block of two or more pieces cannot be taken by an opponent's single piece." and "Some variations permit doubled blocks to be passed" (so the rule is that they are not); [MoG] "If a piece lands upon a piece of the same colour, this forms a block. This block cannot be passed or landed on by any opposing piece." [WP]'s base rule sends a token that lands on a block back home instead; the product follows [MoG] and does not offer the move. Against: [Schmidt] base "auf jedem Feld immer nur ein Spielstein"; [fekravaran] «مهره‌ها نمی‌توانند روی مهره‌های هم‌رنگ خود حرکت یا توقف کنند» |
-| M5a | A block's owner may pass it, and may break it by moving either token. | cited: [MoG] blocks only "any opposing piece"; [WP] lists blocking the owner's own trailing pieces as a variation ("A doubled block also blocks trailing pieces of the player who created the block", *African*). Against: [Schmidt] team variant "nicht überspringen – auch nicht mit eigenen Figuren!" |
-| M5b | A block may stand on any ring square, a star or another colour's start square included, and blocks there too. | cited: [WP] and [MoG] form a block wherever two tokens of one colour meet, with no exception; [Schmidt] team variant builds walls on an opponent's start square ("Mauert man auf dem Anfangskreis (A) eines Spielers der Gegenpartei"). Nobody forbids it |
-| M5c | No third token joins a block: a move landing on two of the mover's own tokens is not offered. | cited: [Schmidt] team variant "Drei Figuren können nie auf einem Kreis stehen." The only accepted source that addresses it; [WP] lists "Three pieces together are weak" as a variation |
-| M5d | A start square holds one token of its own colour: no token comes out while one of its own stands there. | cited: [setare] «تا زمانیکه مهره دوم را از این نقطه شروع پیش نبرید نمی‌توانید مهره سومی را وارد بازی کنید» ("until you move the second piece off the start point you cannot bring in a third"); [faWP] «نمی‌تواند چند مهره در نقطه شروع بر روی هم قرار دهد» ("cannot stack pieces on the start point"); [Schmidt] "Ist dieses Feld noch von einer anderen eigenen Spielfigur besetzt, muss dieser Stein erst mit der „6” weitergezogen werden." |
-| M5e | The home lane has no blocks: no other colour can enter it, so its owner may gather any number there. | house rule: blocks exist to stop opponents, and C5 already keeps them out |
+| M4 | A token moves exactly the die, clockwise, and may pass over occupied squares. | [Schmidt], [Plato] |
+| M5 | A ring or home-lane square holds one token. An occupied square is a legal destination only if the move captures its opponent occupant. Finished pieces are counted separately. | [Plato] |
 | M6 | A token walks 50 squares past its start square (51 of the 52) and its next step enters its own home lane. It never laps the board again. | cited: [WP] home column; [faWP] (for team play) «نمی‌تواند دوباره یک دور دیگر برود» ("cannot go round again") |
 | M7 | The home lane and the triangle need an exact count. An overshoot is not offered as a move. | cited: [WP] "In the home column, a player must roll the exact number needed to get each token onto the home triangle."; [MoG] "only ... by an exact throw"; [fekravaran] «بازیکن باید عدد دقیق ... را بیاورد»; [Schmidt] "Auch die Zielfelder werden beim Vorrücken einzeln gezählt" |
 | M8 | Nothing forces a capture. Any legal move may be chosen. | cited: [Schmidt] "Es herrscht aber kein Schlagzwang." |
@@ -86,11 +76,9 @@ six is a governing body: Ludo has none, and every source calls its own rules one
 |---|---|---|
 | C1 | A token that lands exactly on an opponent sends it back to its yard, where it needs a six like any other. | cited: [WP] "the opposing token is returned to its respective home point"; [MoG] "the piece jumped upon is returned to its starting circle"; [setare] «مهره سبز دوباره باید به بیرون از صفحه بازی بروند و با تاس ۶ بعدی به بازی بیاورید» |
 | C2 | Capture is on the exact landing square only, never by passing over. | cited: [Schmidt] "Wer mit dem letzten Punkt seiner Augenzahl auf ein Feld trifft ... schlägt diese Figur"; [fekravaran] «اگر مهره شما دقیقاً روی خانه‌ای بیفتد...» |
-| C3 | A block is never captured by an ordinary move, because no ordinary move may land on it (M5). The one exception is C7. | cited: M5's sources. This replaces Variant B's first-draft "an attacker captures the whole stack", which D28 retired |
-| C4 | No ordinary move captures on any of the eight safe squares. A token landing on one shares it with whoever is there, unless a block of another colour stands there (M5b). The one exception is C7. | cited: S5's sources |
+| C4 | A move onto a safe square requires an empty destination, including when leaving the yard. | [Plato] for starred squares, S5 for Baziche's four safe starts |
 | C5 | The home lane is private: no other colour can enter it, so nothing there can be captured. | cited: [WP] "A player's home column squares are always "safe", since no opponent may enter them."; [fekravaran] «مهره‌ای که وارد خانه پایانی شود ... قابل زدن نیست» |
 | C6 | Own tokens are never captured. | cited: [Schmidt] "Eigene Steine können nicht geschlagen werden" |
-| C7 | **A token coming out of the yard captures on its own start square** (D27, the owner's decision of 2026-10-05): every opponent token standing there goes home, whatever its colour, a block included. A token arriving on any start square by an ordinary move still captures nobody, so a start square stays safe for tokens passing through. | cited: [Schmidt] "Steht dagegen eine fremde Figur auf dem Feld A, wird sie geschlagen." (an opponent on your start square is captured); [WP] *Differences* (Denmark): "If the entry space is occupied by another player's piece, that piece is captured."; [fekravaran] «اگر بازیکن دیگری روی خانه امن شما قرار بگیرد، می‌توانید مهره او را بزنید» ("if another player stands on your safe square, you can hit their piece"). For a block: [Schmidt] team variant "Mauert man auf dem Anfangskreis (A) eines Spielers der Gegenpartei, ist dies Hausfriedensbruch! Wenn deshalb der blockierte Spieler eine 6 würfelt, fliegen die beiden Maurer raus!" (a wall on an opponent's start square is trespass, and that player's six sends both builders out). Against: [faWP] counts the start square among the safe points with no exception. See *Decided choices* |
 
 ### End
 
@@ -121,66 +109,14 @@ six is a governing body: Ludo has none, and every source calls its own rules one
 
 ## Decided choices
 
-**D27 (2026-10-05, the owner): a token coming out of the yard captures on its own start square.**
-This was open choice O1 in the first draft, where the engine treated a start square like every other
-safe square and an entering token simply shared it. The sources split:
+Baziche protects occupants of the four start squares regardless of colour. That includes a
+visitor on the square where another colour enters from the yard. Plato's start protection
+applies to the corresponding colour. Baziche's rule supersedes D27, which allowed a capture
+when leaving the yard.
 
-| captures on entry | start square safe for everybody | silent |
-|---|---|---|
-| [Schmidt] "Steht dagegen eine fremde Figur auf dem Feld A, wird sie geschlagen." | [faWP] «نقطه شروع جز نقطه‌های امن محسوب می‌شود» (no owner qualifier) | [setare] protects the OWNER's token only («اگر مهره شما روی آن باشد، مهره رنگ دیگری نمی‌تواند مهره شما را بزند», "while YOUR piece is on it, no other colour can hit it") and says nothing about a visitor |
-| [WP] *Differences* (Denmark): "If the entry space is occupied by another player's piece, that piece is captured." | | [MoG] and base [WP]: no safe start squares at all |
-| [fekravaran] «اگر بازیکن دیگری روی خانه امن شما قرار بگیرد، می‌توانید مهره او را بزنید» | | |
-
-Your own tokens reach your start square only by coming out, so "capture on entry" and
-[fekravaran]'s "you can hit a visitor on your safe square" are one rule. `capturesAt` in
-`ludo/board.ts` is the single statement of it, read by the engine's `captureAt`, the move helper
-`outcomeOf` and the coach. `ludo-rules.spec.ts` pins it in *a token coming out of the yard captures on
-its own start square*. A block of another colour on your start square goes the same way (D28 and
-[Schmidt]'s *Hausfriedensbruch*, under C7).
-
-**D28 (2026-10-05, the owner): two tokens of one colour block.** This replaces the first draft's
-"own tokens share a square and never block" and "an attacker captures the whole stack", which no
-accepted source supported. The owner set the core - no other colour lands on or passes a block, and a
-block cannot be captured - and asked for the edges to follow the most widely cited answer:
-
-| question | answer | sources |
-|---|---|---|
-| may the owner pass its own block? | yes (M5a) | [MoG], [WP] (blocking your own is a listed variation); against: [Schmidt] team variant |
-| may a block stand on a safe or start square? | yes, anywhere on the ring (M5b); but a start square holds one token of its own colour (M5d) | [WP], [MoG], [Schmidt] team variant; for the own start square [setare], [faWP], [Schmidt] base |
-| may a third token join? | no (M5c) | [Schmidt] team variant, the only source that answers |
-| what does a block on your start square do when you come out? | it is captured (C7) | [Schmidt] team variant, *Hausfriedensbruch* |
-
-`obstacle` in `ludo/board.ts` is the single statement of all four, read by the engine's `legalMoves`
-and by the coach, which names the reason (`helpers.ludo.tip.blocked`, `helpers.ludo.tip.start`) when a
-token cannot move, and after a pass or a wasted six that a block caused. The board draws a block as
-one pawn standing on the other (`BLOCK` in `game/layout.ts`). `ludo-rules.spec.ts` pins it in *two
-tokens of one colour form a block* and *a start square holds one token of its own colour*.
-
-**D29 (2026-10-05, the owner): in a team game, partners block too.** One of your tokens and one of
-your partner's on a ring square are a block like two of one colour. It replaces D24's "partner
-tokens share a square and never block", and with it the research's "a mixed stack falls whole", as
-D28 replaced the same two rules for one colour. [Schmidt]'s team variant, the one accepted source
-with both blocks and partners, builds its walls this way: a partner's token joins one. `obstacle`
-counts a pair by side, and in a free-for-all a side is a colour, so D28 and D29 are one statement.
-The edges are T7a to T8 under *Teams*; `ludo-rules.spec.ts` pins them in *a pair of partners on one
-square*.
-
----
-
-## Open choices
-
-One behaviour the engine has and the tests pin that no settled rule decides. It stays as it is until
-the owner chooses.
-
-**O2. Does a six with nothing to move count toward the three sixes?** The engine says **yes**: the
-count goes up when the six is rolled, before the engine asks whether anything can move, so three
-unusable sixes end the turn just as three used ones do. No source addresses it. [WP], the only
-accepted source with a three-sixes rule, counts throws ("If the third roll is also a six"), which
-reads as counting every six thrown. [faWP], [Schmidt] and [MoG] have no limit to count against;
-[fekravaran]'s penalty variant does not say. Pinned by *three sixes in a row end the turn* → *counts
-sixes that had nothing to move toward the three*. To change it: count a six in `move` instead of in
-`roll`, and the turn-clock fold bound needs re-checking, because unlimited unusable sixes would make a
-turn unbounded.
+The one-token rule supersedes D28 and D29, which previously allowed two friendly tokens to
+form a block. A position recorded under those rules can still show a stack. Tokens may move
+off or pass those pieces, and a new landing cannot join them.
 
 ---
 
@@ -191,7 +127,7 @@ text and refuses `node:`, `typeorm`, `Math.random` and `Date.now`).
 
 ```
 board.ts      the grid, the ring, the entries, the safe squares, the home lanes, ringIndex, cellAt,
-              capturesAt (D27) and obstacle (D28, D29), shared with the browser
+              capturesAt (C4) and obstacle (M5), shared with the browser
 state.ts      LudoState, EngineAction, GameEvent, RefusalReason
 engine.ts     create, controlled, legalMoves, apply (never throws)
 standings.ts  placementsOf, trailingOf
@@ -257,8 +193,8 @@ state's own answer (`controlled`), and the browser never works it out for the se
 1. `create` sorts the seats, deals the colours (S4), gives each player its side and starts at the
    drawn seat (S6).
 2. The seat on turn **rolls**. On a six, `sixes` goes up; the third six passes the turn at once (T6).
-3. If the roll has a legal move (overshoots and blocks taken out), `die` stays and the seat must **move** (T8). If it has none, a six
-   clears `die` for another roll (T5) and a one-to-five passes the turn.
+3. If the roll has a legal move, `die` stays and the seat must **move** (T8). When no legal
+   move exists, the turn passes (T5).
 4. After a move: every token of the mover's side home ends the game (E1; in a team game that is all
    eight). Otherwise a six (below three) clears `die` for another roll (T3) and anything else passes
    the turn (T4).
@@ -296,13 +232,9 @@ squares, the captures and who moves whose tokens after every action.
 - `apply` never throws, never mutates its input, and moves `rev` by exactly one on every accepted
   action and never otherwise.
 - Every player has exactly four pieces, each in `-1..56`.
-- `die !== null` only when the seat on turn has a legal move: a roll with none clears it or passes.
+- `die !== null` only when the seat on turn has a legal move: a roll with none passes.
 - `sixes` is 0, 1 or 2 between actions.
-- On a ring square that is not safe, the tokens all belong to one side (one colour, in a
-  free-for-all): a landing captures the single opponent there (C1), and no move may land on a block
-  (M5; *Teams*, T7).
-- No ring square holds three tokens of one side (M5c; *Teams*, T7b), and no start square holds two
-  of its own colour (M5d).
+- Every playable square on the ring or in a home lane holds at most one token.
 - No token is ever sent home by its own side.
 - The seat on turn moves its own tokens, and its partner's only once its own four are home. A token
   in the home lane or the triangle is never moved by an opponent.
@@ -344,13 +276,8 @@ its hero, off the same `partners`, and has a fourth card for it.
 
 It was researched on 2026-10-04 against the
 sources above and a wider set (Schmidt's team variant *Einigkeit macht stark*, Masters of Games'
-*Pachisi* and *Uckers*, Parchís tournament rules, پنکو's منچ گروهی). The owner settled the rules (D24)
-and then T7 (D29, 2026-10-05); what a forfeit costs a partner is hokm's rule (D25), because every
-game here shares one forfeit rule. The clause numbers are this section's own: T1 to T8 here are not
-the turn rules above.
-
-It is the smallest change to Variant B. In a free-for-all a side is a seat, so every clause below
-reads there as the rule it widens, and the free-for-all is played exactly as before.
+*Pachisi* and *Uckers*, Parchís tournament rules, پنکو's منچ گروهی). D24 established team play
+and D25 uses the same forfeit policy as hokm. The clause numbers in this section refer to team rules.
 
 | # | rule | basis |
 |---|---|---|
@@ -360,13 +287,9 @@ reads there as the rule it widens, and the free-for-all is played exactly as bef
 | T4 | You move only your own tokens until all four are home. | cited: Parchís, Uckers, پنکو |
 | T5 | Then you stay in the rotation, and every roll of yours moves your partner's tokens. | cited: Parchís, پنکو, Pegs and Jokers |
 | T5a | That starts at once: the roll earned by the six that brought your fourth token home already moves your partner's. | house rule (D24). Against: Uckers, which asks for a six first |
-| T6 | Partners never capture each other. Landing on a partner's token is an ordinary move. | cited: [Schmidt] team variant "Partner können sich nicht hinauswerfen!", پنکو (D24). Against: Parchís lets partners capture |
-| T7 | **One of your tokens and one of your partner's on a ring square are a block, exactly like two of one colour** (D29, replacing the research's "partner tokens never block"). No opponent lands on it or passes it, so no landing captures it. | cited: [Schmidt] team variant "Kommen zwei eigene Figuren – oder eine eigene Figur und eine Figur des Partners – auf einem Kreis zusammen, bilden sie eine Mauer!" |
-| T7a | Both partners pass their side's blocks, of one colour or of two, and may break them up (M5a, widened to the side). | consequence of M5a ([MoG]). Against: [Schmidt] team variant, whose walls stop their builders too, which M5a already declined |
-| T7b | No third token of a side joins a block (M5c, widened to the side). That includes coming out: no token comes out onto its own start square while two of its partner's stand there. | cited: [Schmidt] team variant "Drei Figuren können nie auf einem Kreis stehen." |
-| T7c | M5d stays a rule about colour: a start square holds one token of its own colour. One of the partner's may stand there beside it. | cited: [setare], [faWP], [Schmidt] |
-| T8 | C7 is unchanged: a token coming out sends home every **opponent** on its start square, a pair of opposing partners included. A partner standing there stays, and the two are a block. This replaces the research's "a mixed stack falls whole", which D28 and D29 retired. | D27 and [Schmidt] team variant, *Hausfriedensbruch* |
-| T9-T11 | Safe squares, home lanes, exact counts, entering as a choice (M2) and every rule about the die (a six's roll, a six with nothing to move, three sixes) are unchanged. They are judged over the tokens the roller controls, and the turn is the roller's. | house rule (D24) |
+| T6 | Partners cannot capture or land on each other's tokens, including when entering from the yard. | [Plato], M5 |
+| T8 | A token leaving the yard needs an empty start square, including when a partner moves it. | C4 |
+| T9-T11 | Turn, movement and occupancy rules apply to the tokens the roller controls. | house rule (D24) |
 | T12 | The side with all eight tokens home wins, the moment the eighth arrives. One player's four is a hand-over (T5), not an ending. | cited: [Schmidt] team variant "Gewinner ist das Partner-Paar, dessen acht Figuren zuerst ... stehen", Pachisi, Uckers, پنکو |
 | T13 | Standings are by side: tokens home and then distance, each added up over both partners, and the pair shares the place. A side with a seat out is last. | house rule (hokm's shape) |
 | T14 | A forfeit ends the match and the other side wins, with the board left as it stood (E3). Everybody still at the table is `unsettled`, and a seat whose side was behind on that board (fewer tokens home, or as many and less far round) is `trailing`. The judge decides from those facts as it does for hokm: the partner of somebody who walked out shares a trailing side's rated loss once both had played their share, and comes out `void` otherwise, a timeout included. | house rule (D24 and D25; `judge.ts`) |
@@ -382,10 +305,8 @@ Parchís tournament rules say the same of talking.
   home. `legalMoves` and `move` act on that player's tokens, so the roll after a finishing six needs
   no rule of its own. `advance` is unchanged: a seat whose four are home is not `out` and keeps its
   turn.
-- `obstacle` in `ludo/board.ts` counts a pair by side, which is D28 and D29 in one statement, with
-  T7a, T7b and T7c. The browser's helpers read the same function.
-- `captureAt` skips the mover's side (T6, T8), and still asks `capturesAt` with the colour that
-  moved, so a helper bringing out a partner's token captures on the partner's start square.
+- The engine and browser helpers use `obstacle` in `ludo/board.ts` to check occupancy.
+- `captureAt` skips the mover's side and uses `capturesAt` to check the actual square of the move.
 - A move ends the game when every token of the mover's side is home, and a forfeit ends it when one
   side is left with nobody out (T12, T14). `winner` is that side.
 - `placementsOf` ranks sides and `trailingOf` names the seats behind (T13, T14). The adapter's
@@ -393,10 +314,8 @@ Parchís tournament rules say the same of talking.
   all home, and otherwise every seat still at the table.
 - `tally` keys on `seat`, the actor, so T15 needs no code.
 
-`ludo-rules.spec.ts` pins the rules in *two against two*, `ludo-board.spec.ts` pins `obstacle` in
-*what stops a move* and holds it to the old count by colour wherever every colour is its own side,
-`ludo-purity.spec.ts` plays whole games, and `judge.spec.ts` judges forfeits from what the engine
-reports.
+`ludo-rules.spec.ts` covers teams, `ludo-board.spec.ts` covers occupancy, and `ludo-purity.spec.ts`
+checks every position across whole games. `judge.spec.ts` checks forfeits using the engine result.
 
 **At the table.** The board says who plays with whom and whose tokens are being moved (`side` and
 `controls`, under *State model*), and everything on screen reads those two.
@@ -411,18 +330,11 @@ reports.
 - **The tokens that light up, and a tap.** The playable tokens are `controls`' (`seatsFor`), and a
   tap is a move only for the seat on turn, on a token of `controls` (`pick`).
 - **The helpers** (`game/helpers/ludo.ts`). `movedTo`, `outcomeOf` and `pieceFor` act on
-  `controls`. Nothing of the mover's side is ever named a victim (T6), and a token coming out
-  counts the opponents on the start square of the colour that moves (T8). The coach reads the tokens
-  the reader is moving: it says once that the four are home (`tip.helping`), that landing on a
-  partner makes a block (`tip.partner`), and names a block in the words for sides
-  (`tip.blockedTeams`). A six that brings a fourth token home is still told it rolls again, and
-  only the token that brings the side's eighth home is not. After a turn has passed the board's
-  `controls` is the next seat's, so the pass a block caused is explained from the browser's own
-  reading of whose tokens the reader moves: its partner's once its own four are home.
+  `controls`. An occupied start offers no yard move (T8). The coach reads the tokens
+  the reader controls. It explains an occupied or protected square before a move or after a pass,
+  and tells the reader once when all four of their pieces are home.
   `helpers-ludo.spec.ts` holds that reading to `controls` over whole games.
-- **The pieces.** A pair is drawn one pawn on the other when both are of one side
-  (`BoardToken.side`), so a pair of partners looks like the block it is, and two opponents sharing
-  a star stand side by side. A win throws confetti in the colour of every seat that won.
+- **The pieces.** Recorded stacks are still rendered. A win throws confetti in the colour of every seat that won.
 - **The result** is read by side, as at any table of two sides.
 
 `helpers-ludo.spec.ts` (*two against two*) and `game.spec.ts` hold the browser's half, and

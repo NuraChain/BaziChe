@@ -12,18 +12,7 @@
  * and a function that throws for ordinary control flow is one you cannot fold.
  *
  * The ruleset is the one written down for this product (`docs/games/04-ludo.md`) - Variant B, the
- * common Iranian rules, with the owner's decisions of 2026-10-05. Two of a player's own tokens on a
- * ring square are a block (D28): no opponent lands on it or passes it, its owner passes freely, no
- * third token joins, and a start square holds one token of its own colour. A six with no legal move
- * still earns the extra roll; only a non-six with nothing to do ends the turn. There is no "three
- * tries to find a six" - a full yard rolling one to five simply passes. And entering is a choice
- * among the legal moves, with any yard token eligible on any six.
- *
- * The rest: capture on exact landing only, never by passing over; eight starred squares where no
- * landing sends anybody home, except that a token coming out of its yard sends home every opponent
- * on its own start square, a block included (D27); an exact count into the five home cells, with an overshoot simply absent
- * from the legal set; three consecutive sixes end the turn and the third grants no roll; a
- * capture or a finish on a six still earns the roll.
+ * Iranian mench with one token per board square and an immediate pass on any roll without a move.
  */
 
 import {
@@ -263,12 +252,6 @@ function roll(state: LudoState, seat: number, die: number, events: GameEvent[])
 
     if (legalMoves(state).length > 0)
     {
-        return;
-    }
-
-    if (die === 6)
-    {
-        state.die = null;
         return;
     }
 

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { FINISHED, RING, RING_STEPS, SAFE, YARD, ringIndex } from '../src/domains/match/ludo/board.ts';
+import { FINISHED, YARD, cellAt } from '../src/domains/match/ludo/board.ts';
 import { apply, controlled, create, legalMoves } from '../src/domains/match/ludo/engine.ts';
 import type { GameEvent, LudoState } from '../src/domains/match/ludo/state.ts';
 
@@ -97,6 +97,8 @@ const home = (pieces: readonly number[]) => pieces.every((at) => at === FINISHED
 
 function wrong(state: LudoState, events: readonly GameEvent[]): string | null
 {
+    const occupied = new Set<string>();
+
     for (const player of state.players)
     {
         if (player.pieces.length !== 4)
@@ -110,6 +112,20 @@ function wrong(state: LudoState, events: readonly GameEvent[]): string | null
             {
                 return `${ player.colour } has a token at ${ at }`;
             }
+
+            const cell = cellAt(player.colour, at);
+
+            if (cell !== null)
+            {
+                const square = `${ cell.col },${ cell.row }`;
+
+                if (occupied.has(square))
+                {
+                    return `square ${ square } holds multiple tokens`;
+                }
+
+                occupied.add(square);
+            }
         }
     }
 
@@ -121,23 +137,6 @@ function wrong(state: LudoState, events: readonly GameEvent[]): string | null
     if (state.turn < 0 || state.turn >= state.players.length)
     {
         return `the turn is ${ state.turn }`;
-    }
-
-    for (let square = 0; square < RING; square += 1)
-    {
-        const here = state.players.flatMap((player) => player.pieces
-            .filter((at) => at >= 0 && at < RING_STEPS && ringIndex(player.colour, at) === square)
-            .map(() => player.side));
-
-        if (here.some((side) => here.filter((one) => one === side).length > 2))
-        {
-            return `square ${ square } holds three tokens of one side`;
-        }
-
-        if (!SAFE.includes(square) && new Set(here).size > 1)
-        {
-            return `square ${ square } is not safe and holds two sides`;
-        }
     }
 
     const sideOf = (seat: number) => state.players.find((player) => player.seat === seat)?.side;

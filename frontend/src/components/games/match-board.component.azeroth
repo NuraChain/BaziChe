@@ -43,7 +43,7 @@ const NO_GOALS: readonly BoardGoal[] = [];
 
 const UPRIGHT: Tip = { key: 'match.upright' };
 
-const SPENT = { 'no-move': 'match.stuck', 'three-sixes': 'match.sixes', wasted: 'match.wasted' } as const;
+const SPENT = { 'no-move': 'match.stuck', 'three-sixes': 'match.sixes' } as const;
 
 export default component MatchBoard(props: { match: MatchView; events: EventBatch; starting?: boolean; onAgain?: () => void; rematch?: Rematch; stake?: Staked; speech?: Record<string, string>; turnMs?: number; onPresenting?: (busy: boolean) => void })
 {

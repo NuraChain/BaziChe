@@ -495,33 +495,6 @@ describe('a ludo move, played', () =>
         expect(felt).toEqual([]);
     });
 
-    it('sends everybody on a start square home together when a pawn comes out onto it', async () =>
-    {
-        const before = standing([EMPTY, [39, 5, YARD, YARD], [26, YARD, YARD, YARD]], 6);
-        const { state, act } = stepped(before, { kind: 'move', seat: 0, piece: 0 });
-
-        table.reset(sight(before));
-        drawn.length = 0;
-        play([act], sight(state));
-        await elapse(ENTER_MS - 20);
-
-        expect(routed(pawn('1-0'))).toHaveLength(0);
-        expect(routed(pawn('2-0'))).toHaveLength(0);
-
-        await elapse(40);
-
-        expect(routed(pawn('1-0'))).toHaveLength(1);
-        expect(routed(pawn('2-0'))).toHaveLength(1);
-        expect(cues.filter((cue) => cue === 'pawn-hit')).toHaveLength(1);
-
-        await elapse(KNOCK_MS + 40);
-
-        expect(cues.filter((cue) => cue === 'pawn-yard')).toHaveLength(1);
-        expect(pawn('1-0').style.translate).toBe(inNest('green', 0));
-        expect(pawn('2-0').style.translate).toBe(inNest('yellow', 0));
-        expect(pawn('1-1').style.translate).toBe(onSquare('green', 5));
-    });
-
     it('walks the home run and then goes into its triangle, and counts the pawn home only then', async () =>
     {
         const before = standing([[53, YARD, YARD, YARD], EMPTY], 3);
@@ -552,25 +525,6 @@ describe('a ludo move, played', () =>
         expect(pawn('0-0').style.scale).toBe(String(HOME_SCALE));
         expect(pawn('0-0').hasAttribute('data-home')).toBe(true);
         expect(felt).toEqual(['tick', 'select']);
-    });
-
-    it('makes a pair when a pawn lands beside one of its own, and only when it has landed', async () =>
-    {
-        const before = standing([[10, 14, YARD, YARD], EMPTY], 4);
-        const { state, act } = stepped(before, { kind: 'move', seat: 0, piece: 0 });
-
-        table.reset(sight(before));
-        play([act], sight(state));
-        await elapse(200);
-
-        expect(pawn('0-1').style.translate).toBe(onSquare('red', 14));
-        expect(pawn('0-1').hasAttribute('data-stacked')).toBe(false);
-
-        await elapse(500);
-
-        expect(pawn('0-0').style.translate).toBe(footOf(cellAt('red', 14)!, BLOCK[0].dx, BLOCK[0].dy));
-        expect(pawn('0-1').style.translate).toBe(footOf(cellAt('red', 14)!, BLOCK[1].dx, BLOCK[1].dy));
-        expect(pawn('0-1').hasAttribute('data-stacked')).toBe(true);
     });
 
     it('slides a seat that left home quietly when the game goes on, and moves nothing when its leaving ends the game', async () =>
@@ -761,7 +715,7 @@ describe('a ludo landing, with timers that fire one at a time as a browser\'s do
         };
     };
 
-    it('sounds the last step of a walk before the capture or the home it sets off, and an entry before whoever it sends home', async () =>
+    it('sounds the last step before the capture or home it sets off, and sounds entry on landing', async () =>
     {
         const timers = tasks(1000);
         const heard: Cue[] = [];
@@ -804,12 +758,12 @@ describe('a ludo landing, with timers that fire one at a time as a browser\'s do
 
         expect(await shown([homed.act], sight(homed.state, 0, 'n'))).toEqual(['pawn-step', 'pawn-step', 'home']);
 
-        const crowded = standing([EMPTY, [39, 5, YARD, YARD], [26, YARD, YARD, YARD]], 6);
-        const came = stepped(crowded, { kind: 'move', seat: 0, piece: 0 });
+        const starting = standing([EMPTY, EMPTY], 6);
+        const came = stepped(starting, { kind: 'move', seat: 0, piece: 0 });
 
-        board.reset(sight(crowded, 0, 'o'));
+        board.reset(sight(starting, 0, 'o'));
 
-        expect(await shown([came.act], sight(came.state, 0, 'o'))).toEqual(['pawn-step', 'pawn-hit', 'pawn-yard']);
+        expect(await shown([came.act], sight(came.state, 0, 'o'))).toEqual(['pawn-step']);
 
         ownDirector.cancel();
         board.dispose();
@@ -1180,11 +1134,11 @@ describe('a ludo roll, played', () =>
     it('keeps a die that is in the air out of the hand, and brings it back to the middle when the table is done with it', async () =>
     {
         const from = standing([[52, FINISHED, FINISHED, FINISHED], EMPTY], null);
-        const wasted = stepped(from, { kind: 'roll', seat: 0, die: 6 });
+        const blocked = stepped(from, { kind: 'roll', seat: 0, die: 6 });
 
         table.reset(sight(from));
         table.offer(0);
-        play([wasted.act], sight(wasted.state));
+        play([blocked.act], sight(blocked.state));
         await flush();
         table.offer(0);
         table.rattle(true);
@@ -1193,9 +1147,9 @@ describe('a ludo roll, played', () =>
         expect(die().hasAttribute('data-hand')).toBe(false);
         expect(cues).not.toContain('die-shake');
 
-        await elapse(thrown(wasted.act).duration + 10);
+        await elapse(thrown(blocked.act).duration + 10);
 
-        expect(cube().dataset.spent).toBe('wasted');
+        expect(cube().dataset.spent).toBe('no-move');
         expect(die().style.translate).toBe(spotOf('red'));
 
         await elapse(PASS_MS + 20);
@@ -1227,7 +1181,7 @@ describe('a ludo roll, played', () =>
         expect(passes).toEqual([]);
     });
 
-    it('greys a roll nobody could play, says so, holds it and takes it away; a third six and a wasted six each in their own way', async () =>
+    it('greys a roll nobody could play, says so, holds it and takes it away; a third six and a blocked six look different', async () =>
     {
         const stuckFrom = standing([EMPTY, EMPTY], null);
         const stuck = stepped(stuckFrom, { kind: 'roll', seat: 0, die: 3 });
@@ -1273,18 +1227,18 @@ describe('a ludo roll, played', () =>
 
         await elapse(PASS_MS + GONE_MS + 20);
 
-        const wastedFrom = standing([[52, FINISHED, FINISHED, FINISHED], EMPTY], null);
-        const wasted = stepped(wastedFrom, { kind: 'roll', seat: 0, die: 6 });
+        const blockedFrom = standing([[52, FINISHED, FINISHED, FINISHED], EMPTY], null);
+        const blocked = stepped(blockedFrom, { kind: 'roll', seat: 0, die: 6 });
 
         cues.length = 0;
         passes.length = 0;
-        table.reset(sight(wastedFrom));
-        play([wasted.act], sight(wasted.state));
-        await elapse(thrown(wasted.act).duration + 20);
+        table.reset(sight(blockedFrom));
+        play([blocked.act], sight(blocked.state));
+        await elapse(thrown(blocked.act).duration + 20);
 
-        expect(cube().dataset.spent).toBe('wasted');
-        expect(cues).toEqual([...lands(wasted.act), 'six']);
-        expect(passes).toEqual([[0, 6, 'wasted']]);
+        expect(cube().dataset.spent).toBe('no-move');
+        expect(cues).toEqual([...lands(blocked.act), 'pass']);
+        expect(passes).toEqual([[0, 6, 'no-move']]);
     });
 
     it('holds a spent roll its whole time even when more of the same batch waits', async () =>

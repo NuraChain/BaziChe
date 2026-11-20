@@ -1,4 +1,4 @@
-import { ENTRY, FINISHED, RING, RING_STEPS, YARD, isSafeRing, ringIndex } from '../../match/ludo/board.ts';
+import { ENTRY, FINISHED, HOME_RUN, RING, RING_STEPS, YARD, isSafeRing, ringIndex } from '../../match/ludo/board.ts';
 import type { LudoPlayer, LudoState } from '../../match/ludo/state.ts';
 
 /**
@@ -7,8 +7,8 @@ import type { LudoPlayer, LudoState } from '../../match/ludo/state.ts';
  * A token is worth the squares it has walked plus a bonus for being out of the yard (that is what a
  * six buys), a little for the safety of the home stretch and more for being home. Against that
  * stands the chance it is hit before its owner moves again, from the real dice: every opponent
- * token behind it within one, two or three rolls (a six rolls again, a third six passes), and every
- * yard token when it stands on that opponent's start square. The same chance read for the other
+ * token behind it within one, two or three rolls (a legal six rolls again, a third six passes).
+ * The same chance read for the other
  * side's tokens is the threat this side poses. A capture needs no term of its own: the victim's
  * walked squares simply go back to nothing, which is why it is worth more the further it had come.
  *
@@ -109,10 +109,10 @@ export function hitChance(reach: number, sixes = 0): number
     return chance;
 }
 
-/** Tokens of each side on each ring square, so blocks and safe pairs are a lookup. */
+/** Number of tokens on each ring square. */
 function crowdOf(state: LudoState)
 {
-    const crowd = new Int8Array((Math.max(...state.players.map((player) => player.side)) + 1) * RING);
+    const crowd = new Int8Array(RING);
 
     state.players.forEach((player) =>
     {
@@ -120,7 +120,7 @@ function crowdOf(state: LudoState)
         {
             if (at >= 0 && at < RING_STEPS)
             {
-                crowd[player.side * RING + ringIndex(player.colour, at)] += 1;
+                crowd[ringIndex(player.colour, at)] += 1;
             }
         }
     });
@@ -132,29 +132,11 @@ export interface Board
 {
     state: LudoState;
     crowd: Int8Array;
-    sides: number[];
 }
 
 export function boardOf(state: LudoState): Board
 {
-    return { state, crowd: crowdOf(state), sides: [...new Set(state.players.map((player) => player.side))] };
-}
-
-const blockedBy = (board: Board, square: number, side: number) =>
-    board.sides.some((other) => other !== side && board.crowd[other * RING + square] >= 2);
-
-/** Whether a token of `walker` at `from` can walk `steps` squares without meeting a block. */
-function clear(board: Board, walker: LudoPlayer, from: number, steps: number)
-{
-    for (let step = 1; step <= steps; step += 1)
-    {
-        if (blockedBy(board, ringIndex(walker.colour, from + step), walker.side))
-        {
-            return false;
-        }
-    }
-
-    return true;
+    return { state, crowd: crowdOf(state) };
 }
 
 /** The chance `target`'s token at `at` is hit before its owner moves again. */
@@ -166,7 +148,11 @@ export function dangerOf(board: Board, target: LudoPlayer, at: number): number
     }
 
     const square = ringIndex(target.colour, at);
-    const covered = isSafeRing(square) || board.crowd[target.side * RING + square] >= 2;
+    if (isSafeRing(square) || board.crowd[square] >= 2)
+    {
+        return 0;
+    }
+
     let survives = 1;
 
     for (const attacker of board.state.players)
@@ -177,38 +163,29 @@ export function dangerOf(board: Board, target: LudoPlayer, at: number): number
         }
 
         const entry = ENTRY[attacker.colour];
-        const waiting = attacker.pieces.includes(YARD);
+        const canEnter = attacker.pieces.includes(YARD) && board.crowd[entry] === 0;
         let reach = 0;
 
-        // Coming out of the yard sends home everything on the start square, a pair included.
-        if (waiting && square === entry && !attacker.pieces.some((one) => one === 0))
+        for (const from of attacker.pieces)
         {
-            reach |= 1 << 6;
+            if (from < 0 || from >= RING_STEPS)
+            {
+                continue;
+            }
+
+            const distance = (square - ringIndex(attacker.colour, from) + RING) % RING;
+
+            if (distance >= 1 && distance <= FARTHEST && from + distance < RING_STEPS)
+            {
+                reach |= 1 << distance;
+            }
         }
 
-        if (!covered)
+        const beyond = (square - entry + RING) % RING;
+
+        if (canEnter && beyond >= 1 && beyond + 6 <= FARTHEST)
         {
-            for (const from of attacker.pieces)
-            {
-                if (from < 0 || from >= RING_STEPS)
-                {
-                    continue;
-                }
-
-                const distance = (square - ringIndex(attacker.colour, from) + RING) % RING;
-
-                if (distance >= 1 && distance <= FARTHEST && from + distance < RING_STEPS && clear(board, attacker, from, distance))
-                {
-                    reach |= 1 << distance;
-                }
-            }
-
-            const beyond = (square - entry + RING) % RING;
-
-            if (waiting && beyond >= 1 && beyond + 6 <= FARTHEST && clear(board, attacker, 0, beyond))
-            {
-                reach |= 1 << (beyond + 6);
-            }
+            reach |= 1 << (beyond + 6);
         }
 
         survives *= 1 - hitChance(reach);
@@ -260,26 +237,26 @@ const RACE: Float64Array = (() =>
 
             rest.forEach((left, token) =>
             {
-                if (left >= roll)
+                const landing = left - roll;
+
+                if (landing >= 0 && (landing === 0 || landing > HOME_RUN || !rest.includes(landing)))
                 {
                     const next = [...rest];
 
-                    next[token] = left - roll;
-                    best = Math.min(best, table[keyOf(next)]);
+                    next[token] = landing;
+                    const turns = table[keyOf(next)];
+                    best = Math.min(best, turns + (roll === 6 && turns > 0 ? 0 : 1));
                 }
             });
-
-            // A six rolls again, so it costs no turn of its own, moved or not.
-            const turn = roll === 6 ? 0 : 1;
 
             if (best === Infinity)
             {
                 stuck += 1;
-                fixed += turn / 6;
+                fixed += 1 / 6;
             }
             else
             {
-                fixed += (turn + best) / 6;
+                fixed += best / 6;
             }
         }
 

@@ -142,7 +142,6 @@ type Thrown = Extract<Beat, { kind: 'roll' }>;
 
 const NOBODY: Shown = { pawns: [], out: [], die: null, turn: null };
 
-const WAITING: Felt = { pawns: [], out: [], die: { roller: 0, face: 6, fate: 'pending' }, winners: [], turn: 0 };
 
 const cq = (value: number) => `${ value.toFixed(3) }cqi`;
 
@@ -1165,7 +1164,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
             return;
         }
 
-        sound()?.play(beat.fate === 'three-sixes' ? 'deny' : (beat.fate === 'wasted' ? 'six' : 'pass'));
+        sound()?.play(beat.fate === 'three-sixes' ? 'deny' : 'pass');
 
         if (reader && beat.fate === 'three-sixes')
         {
@@ -1765,7 +1764,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
         async play(acts, sight, ctx)
         {
-            const beats = beatsOf(acts, sight.view);
+            const beats = beatsOf(acts);
 
             for (const [index, act] of beats.entries())
             {
@@ -1786,7 +1785,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
             }
         },
 
-        estimate: (acts) => beatsOf(acts, WAITING).flat().reduce((sum, beat) => sum + costOf(beat), 0),
+        estimate: (acts) => beatsOf(acts).flat().reduce((sum, beat) => sum + costOf(beat), 0),
 
         enter,
 

@@ -338,8 +338,6 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'match.stuck.them': '{name} 掷出了 {die}，无棋可走。',
     'match.sixes.you': '连续第三个六点，你的回合跳过。',
     'match.sixes.them': '{name} 连续掷出第三个六点，回合跳过。',
-    'match.wasted.you': '你掷出六点但没有棋可走。再掷一次。',
-    'match.wasted.them': '{name} 掷出六点但没有棋可走，再掷一次。',
     'match.turn.helping': '你的四枚棋子都到家了：替 {name} 走棋。',
     'match.turn.helpingTheirs': '{name} 正在替 {partner} 走棋。',
     'match.turn.helpingYours': '{name} 正在替你走棋。',

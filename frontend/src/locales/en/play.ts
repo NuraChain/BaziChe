@@ -335,8 +335,6 @@ export const play = {
     'match.stuck.them': '{name} rolled {die} and cannot move.',
     'match.sixes.you': 'A third six in a row. Your turn passes.',
     'match.sixes.them': '{name} rolled a third six in a row. The turn passes.',
-    'match.wasted.you': 'You rolled a six with nothing to move. Roll again.',
-    'match.wasted.them': '{name} rolled a six with nothing to move, and rolls again.',
     'match.turn.helping': 'Your four are home: move {name}’s tokens.',
     'match.turn.helpingTheirs': '{name} is moving {partner}’s tokens.',
     'match.turn.helpingYours': '{name} is moving your tokens.',

@@ -338,8 +338,6 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'match.stuck.them': 'رمى {name} {die} ولا يستطيع التحرك.',
     'match.sixes.you': 'ستة ثالثة على التوالي. ينتقل دورك.',
     'match.sixes.them': 'رمى {name} ستة ثالثة على التوالي. ينتقل الدور.',
-    'match.wasted.you': 'رميت ستة ولا شيء لتحركه. ارمِ مجددًا.',
-    'match.wasted.them': 'رمى {name} ستة ولا شيء ليحركه، ويرمي مجددًا.',
     'match.turn.helping': 'قطعك الأربع في البيت: حرّك قطع {name}.',
     'match.turn.helpingTheirs': '{name} يحرّك قطع {partner}.',
     'match.turn.helpingYours': '{name} يحرّك قطعك.',

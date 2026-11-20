@@ -338,8 +338,6 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'match.stuck.them': 'Zar {die} geldi, hamle yok: {name}',
     'match.sixes.you': 'Üst üste üçüncü altı. Sıran geçiyor.',
     'match.sixes.them': 'Üst üste üçüncü altı, sıra geçiyor: {name}',
-    'match.wasted.you': 'Altı attın ama oynatacak bir şey yok. Tekrar at.',
-    'match.wasted.them': 'Altı geldi ama oynatacak bir şey yok, tekrar atıyor: {name}',
     'match.turn.helping': 'Senin dördün evde: eşinin piyonlarını oynat ({name}).',
     'match.turn.helpingTheirs': 'Eşinin piyonlarını oynatıyor: {name} → {partner}',
     'match.turn.helpingYours': 'Senin piyonlarını oynatıyor: {name}',

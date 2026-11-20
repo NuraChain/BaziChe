@@ -122,7 +122,7 @@ export function isSafeRing(index: number)
 
 export function capturesAt(colour: LudoColour, progress: number)
 {
-    return progress === 0 || (progress > 0 && progress < RING_STEPS && !isSafeRing(ringIndex(colour, progress)));
+    return progress >= 0 && progress < RING_STEPS && !isSafeRing(ringIndex(colour, progress));
 }
 
 export interface Walker
@@ -132,44 +132,57 @@ export interface Walker
     side: number;
 }
 
-export type Obstacle = 'block' | 'full' | 'start';
+export type Obstacle = 'occupied' | 'safe' | 'start';
 
 const standing = (walker: Walker, square: number, except: number) =>
     walker.pieces.filter((at, piece) => piece !== except && at >= 0 && at < RING_STEPS && ringIndex(walker.colour, at) === square).length;
-
-const sideOn = (walkers: readonly Walker[], side: number, square: number, mover: number, piece: number) =>
-    walkers.reduce((count, walker, index) => (walker.side === side ? count + standing(walker, square, index === mover ? piece : -1) : count), 0);
 
 export function obstacle(walkers: readonly Walker[], mover: number, piece: number, to: number): Obstacle | null
 {
     const own = walkers[mover];
     const from = own.pieces[piece];
 
-    if (from === YARD)
+    if (to === FINISHED)
     {
-        const entry = ENTRY[own.colour];
-
-        if (standing(own, entry, piece) > 0)
-        {
-            return 'start';
-        }
-
-        return sideOn(walkers, own.side, entry, mover, piece) >= 2 ? 'full' : null;
+        return null;
     }
 
-    const others = [...new Set(walkers.map((walker) => walker.side))].filter((side) => side !== own.side);
-
-    for (let step = from + 1; step <= to && step < RING_STEPS; step += 1)
+    if (to >= RING_STEPS)
     {
-        const square = ringIndex(own.colour, step);
-
-        if (others.some((side) => sideOn(walkers, side, square, -1, -1) >= 2))
-        {
-            return 'block';
-        }
+        return own.pieces.includes(to) ? 'occupied' : null;
     }
 
-    return to < RING_STEPS && sideOn(walkers, own.side, ringIndex(own.colour, to), mover, piece) >= 2 ? 'full' : null;
+    if (from === YARD && own.pieces.includes(0))
+    {
+        return 'start';
+    }
+
+    const square = ringIndex(own.colour, to);
+    let opponents = 0;
+
+    for (const [index, walker] of walkers.entries())
+    {
+        const count = standing(walker, square, index === mover ? piece : -1);
+
+        if (count > 0 && walker.side === own.side)
+        {
+            return 'occupied';
+        }
+
+        opponents += count;
+    }
+
+    if (opponents === 0)
+    {
+        return null;
+    }
+
+    if (!capturesAt(own.colour, to))
+    {
+        return 'safe';
+    }
+
+    return opponents > 1 ? 'occupied' : null;
 }
 
 export function coloursFor(seats: number): readonly LudoColour[]

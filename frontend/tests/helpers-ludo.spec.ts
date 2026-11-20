@@ -129,27 +129,28 @@ describe('the rule that matters now', () =>
             recent: [{ e: 'pass', seat: 0, why: 'three-sixes' }],
             key: 'helpers.ludo.tip.yard'
         },
-        { name: 'a star shields the token a move lands on', pieces: [[5, -1, -1, -1], [34, -1, -1, -1]], die: 3, key: 'helpers.ludo.tip.star' },
-        { name: 'the star matters more than the six', pieces: [[2, -1, -1, -1], [34, -1, -1, -1]], die: 6, key: 'helpers.ludo.tip.star' },
-        { name: 'coming out onto a start star somebody holds is a capture rather than a shield', pieces: [YARD, [26, -1, -1, -1]], die: 6, key: 'helpers.ludo.tip.six' },
+        { name: 'an occupied star blocks the landing', pieces: [[5, -1, -1, -1], [34, -1, -1, -1]], die: 3, key: 'helpers.ludo.tip.star' },
+        { name: 'an occupied star takes precedence over the six reminder', pieces: [[2, -1, -1, -1], [34, -1, -1, -1]], die: 6, key: 'helpers.ludo.tip.star' },
+        { name: 'an opponent on the start square blocks entry', pieces: [YARD, [26, -1, -1, -1]], die: 6, key: 'helpers.ludo.tip.star' },
         { name: 'home needs the exact count', pieces: [[54, 10, -1, -1], YARD], die: 3, key: 'helpers.ludo.tip.exact' },
-        { name: 'a block ahead is why a token cannot move', pieces: [[10, 30, -1, -1], [38, 38, -1, -1]], die: 4, key: 'helpers.ludo.tip.blocked' },
-        { name: 'no third token joins a block, and the tip says so', pieces: [[10, 12, 12, -1], YARD], die: 2, key: 'helpers.ludo.tip.blocked' },
+        { name: 'the occupied home lane blocks a landing', pieces: [[50, 52, -1, -1], YARD], die: 2, key: 'helpers.ludo.tip.blocked' },
+        { name: 'an occupied square blocks a friendly token', pieces: [[10, 12, -1, -1], YARD], die: 2, key: 'helpers.ludo.tip.blocked' },
         { name: 'a token on the start square holds the yard back', pieces: [[0, -1, -1, -1], YARD], die: 6, key: 'helpers.ludo.tip.start' },
         {
-            name: 'a pass a block caused is explained once the turn has gone',
-            pieces: [[10, -1, -1, -1], [38, 38, -1, -1]],
+            name: 'an occupied star explains a pass',
+            pieces: [[5, -1, -1, -1], [34, -1, -1, -1]],
             die: null,
             turn: 1,
-            recent: [{ e: 'roll', seat: 0, die: 4 }, { e: 'pass', seat: 0, why: 'no-move' }],
-            key: 'helpers.ludo.tip.blocked'
+            recent: [{ e: 'roll', seat: 0, die: 3 }, { e: 'pass', seat: 0, why: 'no-move' }],
+            key: 'helpers.ludo.tip.star'
         },
         {
-            name: 'a six a block wasted is explained before the next roll',
-            pieces: [[10, 56, 56, 56], [38, 38, -1, -1]],
+            name: 'an occupied star explains a blocked six',
+            pieces: [[2, 56, 56, 56], [34, -1, -1, -1]],
             die: null,
-            recent: [{ e: 'roll', seat: 0, die: 6 }],
-            key: 'helpers.ludo.tip.blocked'
+            turn: 1,
+            recent: [{ e: 'roll', seat: 0, die: 6 }, { e: 'pass', seat: 0, why: 'no-move' }],
+            key: 'helpers.ludo.tip.star'
         },
         {
             name: 'a pass the exact count caused says nothing about blocks',
@@ -238,12 +239,14 @@ describe('two against two', () =>
 
     describe('what a move may land on', () =>
     {
-        it('sends nobody home by landing on a partner, and says that the two make a block', () =>
+        it('shows why a landing on a partner is unavailable', () =>
         {
-            const state = pairs([[27, -1, -1, -1], YARD, [4, -1, -1, -1], YARD], 3);
+            const state = pairs([[27, 5, -1, -1], YARD, [4, -1, -1, -1], YARD], 3);
+            const board = boardOf(state);
 
-            expect(coached(state, 0)).toBe('helpers.ludo.tip.partner');
-            expect(moved(state, 0).events.map((event) => event.e)).toEqual(['step']);
+            expect(coached(state, 0)).toBe('helpers.ludo.tip.blocked');
+            expect(board.moves).toEqual([1]);
+            expect(movedTo(board, 0)).toBeNull();
         });
 
         it('still sends home an opponent it lands on, and has nothing to coach about it', () =>
@@ -252,30 +255,6 @@ describe('two against two', () =>
 
             expect(coached(state, 0)).toBeNull();
             expect(moved(state, 0).events.map((event) => event.e)).toContain('capture');
-        });
-
-        it('offers no move onto or past a pair of opponents of two colours, and says why in the words for sides', () =>
-        {
-            const state = pairs([[27, 5, -1, -1], [17, -1, -1, -1], YARD, [43, -1, -1, -1]], 3);
-            const board = boardOf(state);
-
-            expect(board.moves).toEqual([1]);
-            expect(movedTo(board, 0)).toBeNull();
-            expect(coached(state, 0)).toBe('helpers.ludo.tip.blockedTeams');
-            expect(coached(pairs([[26, 5, -1, -1], [17, -1, -1, -1], YARD, [43, -1, -1, -1]], 6), 0)).toBe('helpers.ludo.tip.blockedTeams');
-        });
-
-        it('lets no third token of a side join a pair of partners, and says so', () =>
-        {
-            const state = pairs([[27, 30, -1, -1], YARD, [4, -1, -1, -1], YARD], 3);
-
-            expect(boardOf(state).moves).toEqual([1]);
-            expect(coached(state, 0)).toBe('helpers.ludo.tip.blockedTeams');
-        });
-
-        it('keeps the words for colours wherever every seat plays for itself', () =>
-        {
-            expect(coached(position([[27, 5, -1, -1], [17, 17, -1, -1], YARD, YARD], 3), 0)).toBe('helpers.ludo.tip.blocked');
         });
     });
 
@@ -294,16 +273,15 @@ describe('two against two', () =>
             expect(pieceFor(board, 1)).toBeNull();
         });
 
-        it('brings out a token of its partner onto the partner\'s start square, and sends home the opponent standing there', () =>
+        it('brings out a token of its partner onto the partner\'s start square', () =>
         {
-            const state = pairs([HOME, [13, -1, -1, -1], [-1, 10, -1, -1], [13, -1, -1, -1]], 6);
+            const state = pairs([HOME, YARD, [-1, 10, -1, -1], [13, -1, -1, -1]], 6);
             const board = boardOf(state);
 
             expect(board.moves).toEqual([0, 1]);
             expect([0, 2, 3].map((piece) => pieceFor(board, piece))).toEqual([0, 0, 0]);
             expect(moved(state, 0).events).toEqual([
-                { e: 'enter', seat: 0, owner: 2, piece: 0 },
-                { e: 'capture', seat: 0, owner: 2, piece: 0, victim: 1, victimPiece: 0 }
+                { e: 'enter', seat: 0, owner: 2, piece: 0 }
             ]);
         });
 
@@ -336,10 +314,10 @@ describe('two against two', () =>
 
         it('has a pass explained by what stopped its partner\'s tokens, once the turn has gone', () =>
         {
-            const state = pairs([HOME, [17, -1, -1, -1], [1, -1, -1, -1], [43, -1, -1, -1]], null, 1);
+            const state = pairs([HOME, [21, -1, -1, -1], [5, -1, -1, -1], YARD], null, 1);
             const recent = [{ e: 'roll', seat: 0, die: 3 }, { e: 'pass', seat: 0, why: 'no-move' }];
 
-            expect(coached(state, 0, recent)).toBe('helpers.ludo.tip.blockedTeams');
+            expect(coached(state, 0, recent)).toBe('helpers.ludo.tip.star');
         });
     });
 
@@ -455,23 +433,22 @@ describe('where each move on offer would end', () =>
         expect(goalsOf(boardOf(rolled, 1))).toEqual([]);
     });
 
-    it('counts who a landing sends home, and nobody on a star', () =>
+    it('counts captures and omits occupied stars from the goals', () =>
     {
         const [mine, theirs] = coloursFor(2) as LudoColour[];
         const open = ringIndex(mine, 12);
         const star = ringIndex(mine, 13);
 
         expect(goalsOf(boardOf(position([[10, -1, -1, -1], [standsOn(theirs, open), -1, -1, -1]], 2)))).toEqual([{ piece: 0, from: 10, to: 12, takes: 1 }]);
-        expect(goalsOf(boardOf(position([[10, -1, -1, -1], [standsOn(theirs, star), -1, -1, -1]], 3)))).toEqual([{ piece: 0, from: 10, to: 13, takes: 0 }]);
+        expect(goalsOf(boardOf(position([[10, -1, -1, -1], [standsOn(theirs, star), -1, -1, -1]], 3)))).toEqual([]);
     });
 
-    it('sends home whoever stands on the start a token comes out onto, and ends a home run at home', () =>
+    it('marks an empty start square and ends a home run at home', () =>
     {
-        const [mine, theirs] = coloursFor(2) as LudoColour[];
-        const out = goalsOf(boardOf(position([YARD, [standsOn(theirs, ringIndex(mine, 0)), -1, -1, -1]], 6)));
+        const out = goalsOf(boardOf(position([YARD, YARD], 6)));
 
         expect(out).toHaveLength(1);
-        expect(out[0]).toMatchObject({ from: -1, to: 0, takes: 1 });
+        expect(out[0]).toMatchObject({ from: -1, to: 0, takes: 0 });
         expect(goalsOf(boardOf(position([[FINISHED - 2, FINISHED, FINISHED, FINISHED], [5, -1, -1, -1]], 2)))).toEqual([{ piece: 0, from: FINISHED - 2, to: FINISHED, takes: 0 }]);
     });
 

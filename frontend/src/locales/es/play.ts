@@ -338,8 +338,6 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'match.stuck.them': '{name} ha sacado {die} y no puede mover.',
     'match.sixes.you': 'Tercer seis seguido. Pierdes el turno.',
     'match.sixes.them': '{name} ha sacado un tercer seis seguido. Pasa el turno.',
-    'match.wasted.you': 'Has sacado un seis sin nada que mover. Tira otra vez.',
-    'match.wasted.them': '{name} ha sacado un seis sin nada que mover y vuelve a tirar.',
     'match.turn.helping': 'Tus cuatro fichas están en la meta: mueve las de {name}.',
     'match.turn.helpingTheirs': '{name} está moviendo las fichas de {partner}.',
     'match.turn.helpingYours': '{name} está moviendo tus fichas.',

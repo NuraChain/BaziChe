@@ -153,7 +153,7 @@ describe('whose turn the ludo table has shown', () =>
 
     it('goes to whoever rolls, whatever the roll comes to', () =>
     {
-        for (const fate of ['pending', 'no-move', 'three-sixes', 'wasted'] as const)
+        for (const fate of ['pending', 'no-move', 'three-sixes'] as const)
         {
             expect(step(bare(0), { kind: 'roll', seat: 2, face: 6, fate }).turn, fate).toBe(2);
         }
@@ -180,7 +180,7 @@ describe('the ludo board as it has been shown', () =>
 {
     it('is the board the engine describes after every action, for every seat and for nobody, over whole games', () =>
     {
-        const met = { rolls: 0, wasted: 0, sixes: 0, stuck: 0, moves: 0, captures: 0, homes: 0, helped: 0, leftAlive: 0, leftOver: 0, dieTaken: 0, finishes: 0, turnTold: 0, turnLeft: 0 };
+        const met = { rolls: 0, sixes: 0, stuck: 0, moves: 0, captures: 0, homes: 0, helped: 0, leftAlive: 0, leftOver: 0, dieTaken: 0, finishes: 0, turnTold: 0, turnLeft: 0 };
         let checked = 0;
 
         for (const [index, game] of GAMES.entries())
@@ -196,7 +196,7 @@ describe('the ludo board as it has been shown', () =>
                 {
                     const felt = feltAt(frame.state);
                     const before = shown;
-                    const beats = beatsOf([frame.act], felt)[0];
+                    const beats = beatsOf([frame.act])[0];
 
                     const told = JSON.stringify(felt);
 
@@ -222,7 +222,6 @@ describe('the ludo board as it has been shown', () =>
                         if (beat.kind === 'roll')
                         {
                             met.rolls += 1;
-                            met.wasted += beat.fate === 'wasted' ? 1 : 0;
                             met.sixes += beat.fate === 'three-sixes' ? 1 : 0;
                             met.stuck += beat.fate === 'no-move' ? 1 : 0;
                         }
@@ -258,7 +257,7 @@ describe('the ludo board as it has been shown', () =>
         }
     }, 60_000);
 
-    it('ends where the engine ends when several actions arrive together, and never calls a six wasted that was not', () =>
+    it('ends where the engine ends when several actions arrive together, and keeps each roll’s pass reason', () =>
     {
         let batches = 0;
         let together = 0;
@@ -274,7 +273,7 @@ describe('the ludo board as it has been shown', () =>
 
                 for (const frame of frames)
                 {
-                    for (const beat of beatsOf([frame.act], feltAt(frame.state))[0])
+                    for (const beat of beatsOf([frame.act])[0])
                     {
                         if (beat.kind === 'roll')
                         {
@@ -288,7 +287,7 @@ describe('the ludo board as it has been shown', () =>
                     const size = 1 + next() % 8;
                     const run = frames.slice(at, at + size);
                     const sight = feltAt(run[run.length - 1].state);
-                    const beats = beatsOf(run.map((frame) => frame.act), sight);
+                    const beats = beatsOf(run.map((frame) => frame.act));
 
                     shown = folded(shown, beats.flat());
 
@@ -304,13 +303,7 @@ describe('the ludo board as it has been shown', () =>
                             continue;
                         }
 
-                        const real = truth.get(frame.act.rev);
-                        const quitAfter = run.slice(nth + 1).some((later) => later.act.moves[0]?.e === 'forfeit');
-
-                        if (told.fate === 'wasted' || real !== 'wasted' || !quitAfter)
-                        {
-                            expect(told.fate, `the six of revision ${ frame.act.rev }`).toBe(real);
-                        }
+                        expect(told.fate).toBe(truth.get(frame.act.rev));
                     }
 
                     batches += 1;
@@ -324,49 +317,39 @@ describe('the ludo board as it has been shown', () =>
         expect(together).toBeGreaterThan(500);
     }, 60_000);
 
-    it('sends everybody on a start square home when a pawn comes out onto it', () =>
+    it('distinguishes a blocked roll from the third consecutive six', () =>
     {
-        const before = standing([[YARD, YARD, YARD, YARD], [39, 5, YARD, YARD], [26, YARD, YARD, YARD]], 6);
-        const { state, act } = stepped(before, { kind: 'move', seat: 0, piece: 0 });
-        const beats = beatsOf([act], feltAt(state))[0];
-
-        expect(beats).toEqual([{ kind: 'move', key: '0-0', seat: 0, from: YARD, to: 0, victims: ['1-0', '2-0'], home: false }]);
-        expect(folded(shownOf(feltAt(before)), beats).pawns).toEqual(feltAt(state).pawns);
-    });
-
-    it('calls a six with nothing to move wasted, a third six three sixes, and a roll that passes no move', () =>
-    {
-        const wasted = stepped(standing([[52, FINISHED, FINISHED, FINISHED], [YARD, YARD, YARD, YARD]], null), { kind: 'roll', seat: 0, die: 6 });
+        const blocked = stepped(standing([[52, FINISHED, FINISHED, FINISHED], [YARD, YARD, YARD, YARD]], null), { kind: 'roll', seat: 0, die: 6 });
         const third = stepped({ ...standing([[10, YARD, YARD, YARD], [YARD, YARD, YARD, YARD]], null), sixes: 2 }, { kind: 'roll', seat: 0, die: 6 });
         const stuck = stepped(standing([[YARD, YARD, YARD, YARD], [YARD, YARD, YARD, YARD]], null), { kind: 'roll', seat: 0, die: 3 });
         const waiting = stepped(standing([[10, YARD, YARD, YARD], [YARD, YARD, YARD, YARD]], null), { kind: 'roll', seat: 0, die: 6 });
 
-        expect(beatsOf([wasted.act], feltAt(wasted.state))[0]).toEqual([{ kind: 'roll', seat: 0, face: 6, fate: 'wasted' }]);
-        expect(beatsOf([third.act], feltAt(third.state))[0]).toEqual([{ kind: 'roll', seat: 0, face: 6, fate: 'three-sixes' }]);
-        expect(beatsOf([stuck.act], feltAt(stuck.state))[0]).toEqual([{ kind: 'roll', seat: 0, face: 3, fate: 'no-move' }]);
-        expect(beatsOf([waiting.act], feltAt(waiting.state))[0]).toEqual([{ kind: 'roll', seat: 0, face: 6, fate: 'pending' }]);
-        expect(feltAt(wasted.state).die).toBeNull();
+        expect(beatsOf([blocked.act])[0]).toEqual([{ kind: 'roll', seat: 0, face: 6, fate: 'no-move' }]);
+        expect(beatsOf([third.act])[0]).toEqual([{ kind: 'roll', seat: 0, face: 6, fate: 'three-sixes' }]);
+        expect(beatsOf([stuck.act])[0]).toEqual([{ kind: 'roll', seat: 0, face: 3, fate: 'no-move' }]);
+        expect(beatsOf([waiting.act])[0]).toEqual([{ kind: 'roll', seat: 0, face: 6, fate: 'pending' }]);
+        expect(feltAt(blocked.state).die).toBeNull();
         expect(feltAt(waiting.state).die).toEqual({ roller: 0, face: 6, fate: 'pending' });
     });
 
-    it('knows a wasted six from the roll that follows it in the same batch, with the board saying nothing', () =>
+    it('keeps a blocked six and the next player’s roll separate in a batch', () =>
     {
-        const first = stepped(standing([[52, FINISHED, FINISHED, FINISHED], [YARD, YARD, YARD, YARD]], null), { kind: 'roll', seat: 0, die: 6 });
-        const second = stepped(first.state, { kind: 'roll', seat: 0, die: 4 });
-        const beats = beatsOf([first.act, second.act], feltAt(second.state));
+        const first = stepped(standing([[52, FINISHED, FINISHED, FINISHED], [10, YARD, YARD, YARD]], null), { kind: 'roll', seat: 0, die: 6 });
+        const second = stepped(first.state, { kind: 'roll', seat: 1, die: 4 });
+        const beats = beatsOf([first.act, second.act]);
 
-        expect(beats[0]).toEqual([{ kind: 'roll', seat: 0, face: 6, fate: 'wasted' }]);
-        expect(beats[1]).toEqual([{ kind: 'roll', seat: 0, face: 4, fate: 'pending' }]);
+        expect(beats[0]).toEqual([{ kind: 'roll', seat: 0, face: 6, fate: 'no-move' }]);
+        expect(beats[1]).toEqual([{ kind: 'roll', seat: 1, face: 4, fate: 'pending' }]);
     });
 
     it('sends the pawns of a seat that left home only when the game goes on, and takes its waiting die', () =>
     {
         const three = standing([[10, 20, YARD, YARD], [5, YARD, YARD, YARD], [7, 30, YARD, YARD]], 4);
         const gone = stepped(three, { kind: 'forfeit', seat: 0, reason: 'left' });
-        const goneBeats = beatsOf([gone.act], feltAt(gone.state))[0];
+        const goneBeats = beatsOf([gone.act])[0];
         const two = standing([[10, 20, YARD, YARD], [5, YARD, YARD, YARD]], 4);
         const ended = stepped(two, { kind: 'forfeit', seat: 0, reason: 'left' });
-        const endedBeats = beatsOf([ended.act], feltAt(ended.state))[0];
+        const endedBeats = beatsOf([ended.act])[0];
 
         expect(goneBeats).toEqual([{ kind: 'forfeit', seat: 0, survives: true }]);
         expect(folded(shownOf(feltAt(three)), goneBeats).pawns.filter((pawn) => pawn.owner === 0).map((pawn) => pawn.progress)).toEqual([YARD, YARD, YARD, YARD]);
@@ -379,7 +362,7 @@ describe('the ludo board as it has been shown', () =>
     {
         const three = standing([[10, 20, YARD, YARD], [5, YARD, YARD, YARD], [7, 30, YARD, YARD]], 4);
         const gone = stepped(three, { kind: 'forfeit', seat: 2, reason: 'timeout' });
-        const shown = folded(shownOf(feltAt(three)), beatsOf([gone.act], feltAt(gone.state))[0]);
+        const shown = folded(shownOf(feltAt(three)), beatsOf([gone.act])[0]);
 
         expect(shown.die).toEqual({ roller: 0, face: 4, fate: 'pending' });
         expect(sameAs(shown, feltAt(gone.state))).toBe(true);

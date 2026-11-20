@@ -338,8 +338,6 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'match.stuck.them': 'У игрока {name} выпало {die}, и ходить некуда.',
     'match.sixes.you': 'Третья шестёрка подряд. Ход переходит дальше.',
     'match.sixes.them': 'У игрока {name} третья шестёрка подряд. Ход переходит дальше.',
-    'match.wasted.you': 'Выпала шестёрка, но ходить нечем. Бросай ещё раз.',
-    'match.wasted.them': 'У игрока {name} шестёрка, но ходить нечем — он бросает ещё раз.',
     'match.turn.helping': 'Все четыре твои фишки дома: ходи фишками игрока {name}.',
     'match.turn.helpingTheirs': '{name} ходит фишками игрока {partner}.',
     'match.turn.helpingYours': '{name} ходит твоими фишками.',

@@ -1,7 +1,7 @@
 import { FINISHED, YARD, cellAt, type LudoColour } from '../../../backend/src/domains/match/ludo/board.ts';
 import { HOME_SLOTS, NEST, NEST_SPREAD, NEST_WELLS } from './layout.ts';
 
-export type Fate = 'pending' | 'no-move' | 'three-sixes' | 'wasted';
+export type Fate = 'pending' | 'no-move' | 'three-sixes';
 
 export interface Pawn
 {
@@ -159,48 +159,19 @@ export function sameAs(shown: Shown, felt: Felt)
         && (shown.die?.roller ?? -1) === (felt.die?.roller ?? -1);
 }
 
-const fateOf = (acts: readonly { moves: readonly Told[] }[], index: number, at: number, sight: Felt): Fate =>
+const fateOf = (next: Told | undefined): Fate =>
 {
-    const moves = acts[index].moves;
-    const roll = moves[at];
-    const pass = moves[at + 1]?.e === 'pass' ? moves[at + 1] : undefined;
-
-    if (pass !== undefined)
-    {
-        return pass.why === 'three-sixes' ? 'three-sixes' : 'no-move';
-    }
-
-    if (roll.die !== 6)
+    if (next?.e !== 'pass')
     {
         return 'pending';
     }
 
-    for (const later of acts.slice(index + 1))
-    {
-        const first = later.moves[0];
-
-        if (first === undefined)
-        {
-            continue;
-        }
-
-        if (first.e === 'roll')
-        {
-            return first.seat === roll.seat ? 'wasted' : 'pending';
-        }
-
-        if (first.e !== 'forfeit' || first.seat === roll.seat || later.moves.some((move) => move.e === 'finish'))
-        {
-            return 'pending';
-        }
-    }
-
-    return sight.die === null ? 'wasted' : 'pending';
+    return next.why === 'three-sixes' ? 'three-sixes' : 'no-move';
 };
 
-export function beatsOf(acts: readonly { moves: readonly Told[] }[], sight: Felt): Beat[][]
+export function beatsOf(acts: readonly { moves: readonly Told[] }[]): Beat[][]
 {
-    return acts.map((act, index) =>
+    return acts.map((act) =>
     {
         const beats: Beat[] = [];
         const moves = act.moves;
@@ -210,7 +181,7 @@ export function beatsOf(acts: readonly { moves: readonly Told[] }[], sight: Felt
         {
             if (move.e === 'roll' && move.seat !== undefined && move.die !== undefined)
             {
-                beats.push({ kind: 'roll', seat: move.seat, face: move.die, fate: fateOf(acts, index, at, sight) });
+                beats.push({ kind: 'roll', seat: move.seat, face: move.die, fate: fateOf(moves[at + 1]) });
             }
             else if ((move.e === 'enter' || move.e === 'step') && move.owner !== undefined && move.piece !== undefined)
             {

@@ -287,32 +287,31 @@ describe('the dice', () =>
         expect(dangerOf(boardOf(starred), starred.players[0], 21)).toBe(0);
         expect(dangerOf(boardOf(paired), paired.players[0], 20)).toBe(0);
 
-        // On yellow's start square while yellow has a token in the yard: a six sends it home, pair or not.
-        const start = position(TWO, [[26, 26, YARD, YARD], [YARD, FINISHED, FINISHED, FINISHED]], 0, null);
+        // Yellow cannot capture a piece on the start square when it leaves the yard.
+        const start = position(TWO, [[26, YARD, YARD, YARD], [YARD, FINISHED, FINISHED, FINISHED]], 0, null);
 
-        expect(dangerOf(boardOf(start), start.players[0], 26)).toBeCloseTo(1 / 6, 9);
+        expect(dangerOf(boardOf(start), start.players[0], 26)).toBe(0);
 
         // A token in the home stretch cannot be reached.
         expect(dangerOf(boardOf(exposed), exposed.players[0], RING_STEPS + 1)).toBe(0);
 
-        // A red pair on 18 stands between yellow on 16 and red's token on 20: yellow cannot pass it.
+        // Only the destination matters when yellow moves past another piece.
         const open = position(TWO, [[20, YARD, YARD, YARD], [yellowAt(16), FINISHED, FINISHED, FINISHED]], 0, null);
-        const walled = position(TWO, [[20, 18, 18, YARD], [yellowAt(16), FINISHED, FINISHED, FINISHED]], 0, null);
+        const occupied = position(TWO, [[20, 18, YARD, YARD], [yellowAt(16), FINISHED, FINISHED, FINISHED]], 0, null);
 
         expect(dangerOf(boardOf(open), open.players[0], 20)).toBeCloseTo(hitChance(1 << 4), 9);
-        expect(dangerOf(boardOf(walled), walled.players[0], 20)).toBe(0);
+        expect(dangerOf(boardOf(occupied), occupied.players[0], 20)).toBeCloseTo(hitChance(1 << 4), 9);
     });
 
-    it('count the endgame by exact rolls: a lone token needs five turns on average wherever it stands in the stretch', () =>
+    it('counts six turns on average for the exact roll that brings the last token home', () =>
     {
-        for (let left = 1; left <= 5; left += 1)
+        for (let left = 1; left <= 6; left += 1)
         {
-            expect(raceTurns([FINISHED - left, FINISHED, FINISHED, FINISHED])).toBeCloseTo(5);
+            expect(raceTurns([FINISHED - left, FINISHED, FINISHED, FINISHED])).toBeCloseTo(6);
         }
 
         expect(raceTurns([FINISHED, FINISHED, FINISHED, FINISHED])).toBe(0);
         expect(raceTurns([YARD, FINISHED, FINISHED, FINISHED])).toBeNull();
-        expect(raceTurns([FINISHED - 1, FINISHED - 1, FINISHED, FINISHED])).toBeCloseTo(10);
     });
 });
 
@@ -394,19 +393,16 @@ describe('tactics', () =>
 
 describe('strength', () =>
 {
-    // Over 1000 games a pair: intermediate 0.64 against the baseline and 0.69 against casual, advanced
-    // 0.55 against intermediate. Semi-pro: 0.56 against intermediate (300), 0.54 against advanced over
-    // 1200 games on three seed sets (0.58, 0.49, 0.55) - ahead, but by little; the dice dominate.
     it('intermediate beats the stage-1 baseline clearly, and casual', () =>
     {
-        expect(share(at('intermediate'), at('intermediate', baseline), 150, 1)).toBeGreaterThan(0.58);
-        expect(share(at('intermediate'), at('casual'), 150, 3000)).toBeGreaterThan(0.6);
+        expect(share(at('intermediate'), at('intermediate', baseline), 500, 1)).toBeGreaterThan(0.55);
+        expect(share(at('intermediate'), at('casual'), 500, 3000)).toBeGreaterThan(0.6);
     }, 30_000);
 
     it('advanced beats intermediate, and semi-pro beats advanced', () =>
     {
         expect(share(at('advanced'), at('intermediate'), 150, 1000)).toBeGreaterThan(0.53);
-        expect(share(at('semi-pro'), at('advanced'), 50, 2000)).toBeGreaterThan(0.5);
+        expect(share(at('semi-pro'), at('advanced'), 150, 2000)).toBeGreaterThan(0.5);
     }, 60_000);
 });
 

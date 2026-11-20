@@ -338,8 +338,6 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'match.stuck.them': '{name} का पासा {die} आया और वे चल नहीं सकते।',
     'match.sixes.you': 'लगातार तीसरा छह। तुम्हारी बारी गई।',
     'match.sixes.them': '{name} का लगातार तीसरा छह आया। बारी आगे गई।',
-    'match.wasted.you': 'छह आया पर चलाने को कुछ नहीं। फिर से फेंको।',
-    'match.wasted.them': '{name} का छह आया पर चलाने को कुछ नहीं था, वे फिर से फेंकेंगे।',
     'match.turn.helping': 'तुम्हारी चारों घर पहुँच गईं: अब {name} की गोटियाँ चलाओ।',
     'match.turn.helpingTheirs': '{name}, {partner} की गोटियाँ चला रहे हैं।',
     'match.turn.helpingYours': '{name} तुम्हारी गोटियाँ चला रहे हैं।',

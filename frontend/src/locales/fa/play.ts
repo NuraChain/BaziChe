@@ -548,7 +548,7 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'poker.raise.label': 'چقدر؟',
     'poker.preset.min': 'کمترین',
     'poker.preset.half': 'نصف پات',
-    'poker.preset.pot': 'اندازه‌ی پات',
+    'poker.preset.pot': 'کل پات',
     'poker.preset.allin': 'آل‌این',
     'poker.raise.less': 'یک بلایند بزرگ کمتر',
     'poker.raise.more': 'یک بلایند بزرگ بیشتر',

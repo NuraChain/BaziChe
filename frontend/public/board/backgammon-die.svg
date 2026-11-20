@@ -1,21 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-    <title>Ivory Backgammon die face</title>
-    <defs>
-        <linearGradient id="bevel" x2="55%" y2="100%">
-            <stop stop-color="#FFFAE7"/>
-            <stop offset=".42" stop-color="#E8CDA2"/>
-            <stop offset=".74" stop-color="#BD8F5E"/>
-            <stop offset="1" stop-color="#92613C"/>
-        </linearGradient>
-        <radialGradient id="face" cx="43%" cy="40%" r="79%" fx="29%" fy="20%">
-            <stop stop-color="#FFFEF5"/>
-            <stop offset=".53" stop-color="#F6E9CE"/>
-            <stop offset=".88" stop-color="#E2C99D"/>
-            <stop offset="1" stop-color="#BD9367"/>
-        </radialGradient>
-    </defs>
-    <rect x="1" y="1" width="126" height="126" rx="22" fill="url(#bevel)" stroke="#9B734E" stroke-width="1.5"/>
-    <rect x="4.5" y="3.5" width="119" height="119" rx="19" fill="url(#face)" stroke="#D7B587"/>
-    <path d="M8 26C8 15 15 8 26 8H95" fill="none" stroke="#FFFDF1" stroke-width="2" stroke-linecap="round"/>
-    <path d="M29 119H102C113 119 120 110 120 100" fill="none" stroke="#AE8057" stroke-opacity=".65" stroke-width="1.5" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:h="http://www.w3.org/1999/xlink" viewBox="0 0 128 128">
+<title>Engraved ivory die</title>
+<defs>
+<linearGradient id="ib" x2=".66" y2="1"><stop stop-color="#fff7da"/><stop offset=".26" stop-color="#e6c792"/><stop offset=".55" stop-color="#ae855a"/><stop offset=".78" stop-color="#dbb47d"/><stop offset="1" stop-color="#8f613d"/></linearGradient>
+<radialGradient id="if" cx=".37" cy=".29" r=".87"><stop stop-color="#fffbed"/><stop offset=".58" stop-color="#f7edd5"/><stop offset="1" stop-color="#d8be94"/></radialGradient>
+<g id="ic" fill="none" stroke="#b59461"><path d="M8.5 31V24Q8.5 9 25 9H37M12 23Q13 13 23 13Q19 18 12 20"/></g>
+<g id="ip"><use h:href="#ic"/><use h:href="#ic" transform="translate(128) scale(-1 1)"/></g>
+</defs>
+<rect x="1" y="1" width="126" height="126" rx="22" fill="url(#ib)" stroke="#97704c" stroke-width="1.5"/>
+<rect x="4.5" y="3.5" width="119" height="119" rx="19" fill="url(#if)" stroke="#fef6dc" stroke-width="1.2"/>
+<use h:href="#ip"/>
+<use h:href="#ip" transform="translate(0 126) scale(1 -1)"/>
+<path d="M17 119Q21 121 28 121H99Q113 121 118 110" fill="none" stroke="#af895a" opacity=".7"/>
 </svg>
+           

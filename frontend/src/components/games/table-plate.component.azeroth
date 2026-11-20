@@ -126,6 +126,7 @@ export default component TablePlate(props: {
 
     <div
         class="table-plate"
+        data-theme="dark"
         data-turn={ props.turn === true ? 'true' : undefined }
         data-dim={ props.dim === true ? 'true' : undefined }
         data-bubble={ props.below === true ? 'below' : undefined }

@@ -2518,14 +2518,14 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                             </div>
                             <div class="hokm-burst" aria-hidden="true" ref={ burstsIn }></div>
 
-                            <div class="hokm-medal" data-set={ trump === null ? undefined : 'true' } aria-hidden="true">
+                            <div class="hokm-medal" data-theme="dark" data-set={ trump === null ? undefined : 'true' } aria-hidden="true">
                                 <Show when={ trump } let={ suit } fallback={ <Icon name="crest-crown" size={ 20 } class="text-gold" /> }>
                                     <Icon name={ SUIT_ICON[suit] } size={ 20 } class={ RED_SUITS.includes(suit) ? 'text-danger-fill' : 'text-bright-ink' } />
                                 </Show>
                             </div>
 
                             <Show when={ token } let={ call }>
-                                <span class="hokm-token" data-suit={ call.suit } aria-hidden="true">
+                                <span class="hokm-token" data-theme="dark" data-suit={ call.suit } aria-hidden="true">
                                     <Icon name={ SUIT_ICON[call.suit] } size={ 20 } class={ RED_SUITS.includes(call.suit) ? 'text-danger-fill' : 'text-bright-ink' } />
                                 </span>
                             </Show>

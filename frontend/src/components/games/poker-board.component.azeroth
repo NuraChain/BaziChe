@@ -1879,7 +1879,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                                 </div>
                             </For>
 
-                            <span class="poker-puck" data-seat={ button } aria-hidden="true">D</span>
+                            <span class="poker-puck" data-theme="dark" data-seat={ button } aria-hidden="true">D</span>
                         </div>
 
                         <Show when={ playing }>

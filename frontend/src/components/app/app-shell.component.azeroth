@@ -168,6 +168,7 @@ export default component AppShell(props: { children?: MountNode })
 
     derived compact = !bare && (posture === 'rail' || (posture === 'sidebar' && folded));
 
+    // A viewport resize can reach CSS a frame before the device store measures the new width.
     <div class="contents">
         <div
             id="app-shell"
@@ -175,8 +176,8 @@ export default component AppShell(props: { children?: MountNode })
             data-nav={ showBottomNav ? 'island' : 'none' }
             inert={ overlay.blocking() }
             class={ () => [
-                'grid h-dvh min-h-0 bg-void text-text',
-                posture === 'phone' || bare ? 'grid-cols-1' : (compact ? 'grid-cols-[var(--rail-w)_minmax(0,1fr)]' : 'grid-cols-[var(--sidebar-w)_minmax(0,1fr)]')
+                'grid h-dvh min-h-0 grid-cols-1 bg-void text-text',
+                posture === 'phone' || bare ? '' : (compact ? 'min-[768px]:grid-cols-[var(--rail-w)_minmax(0,1fr)]' : 'min-[1024px]:grid-cols-[var(--sidebar-w)_minmax(0,1fr)]')
             ].join(' ') }
         >
             <SkipLink region="app-main" />

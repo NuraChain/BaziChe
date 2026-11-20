@@ -32,7 +32,7 @@ export default component Sidebar()
 
     derived status = dot === 'online' ? locale.t('common.online') : (user === null ? '' : `@${ user.handle }`);
 
-    <nav class="safe-t safe-b flex h-dvh w-[var(--sidebar-w)] flex-col border-e border-line bg-void" aria-label={ locale.t('app.nav.primary') }>
+    <nav class="safe-t safe-b hidden h-dvh w-[var(--sidebar-w)] flex-col border-e border-line bg-void min-[1024px]:flex" aria-label={ locale.t('app.nav.primary') }>
         <Link to="/app" class="flex h-[var(--topbar-h)] shrink-0 items-center gap-3 px-5" aria-label={ locale.t('app.nav.home') }>
             <BrandLogo size="lg" />
             <BrandMark class="truncate text-ui-lg text-text" />

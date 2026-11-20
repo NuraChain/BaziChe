@@ -1,6 +1,6 @@
-import { In, IsNull, type EntityManager } from 'typeorm';
+import { In, IsNull, Not, type EntityManager } from 'typeorm';
 
-import { Match, MatchAction, MatchPlayer, PlayerStats } from '../../entities/index.ts';
+import { Match, MatchAction, MatchPlayer, PlayerStats, Table } from '../../entities/index.ts';
 import type { AchieveService } from '../achieve/service.ts';
 import type { QuestProgressHook, RewardFinishEffects, RewardFinishPlayer } from '../reward/progress.ts';
 import type { GameId } from '../reward/quests.ts';
@@ -129,6 +129,11 @@ export function createRecorder(achieve: AchieveService, reward?: QuestProgressHo
             await tx.getRepository(Match).update(
                 { id: matchId, finishedAt: IsNull() },
                 { finishedAt: () => 'now()', deadlineAt: null, outcome: plan.outcome, winnerSeat: plan.winnerSeat }
+            );
+
+            await tx.getRepository(Table).update(
+                { id: match.tableId, status: Not('closed') },
+                { status: 'closed', closedAt: () => 'now()' }
             );
 
             const verdictOf = (seat: number) => plan.verdicts.find((one) => one.seat === seat);

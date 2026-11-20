@@ -1511,13 +1511,20 @@ export function createTableService(db: DataSource, social: SocialService)
         /** Says whether this seat is ready. Only the person in it may say. */
         async setReady(me: string, tableId: string, ready: boolean)
         {
-            await mustSee(me, tableId);
+            const table = await mustSee(me, tableId);
+
+            if (table.status === 'closed')
+            {
+                throw tableRefusal('table-closed', 'That table has closed.');
+            }
+
             // Becoming ready restarts `joined_at`, so the seat filler's wait runs from the ready time.
             await db.getRepository(TableSeat)
                 .createQueryBuilder()
                 .update(TableSeat)
                 .set({ ready, joinedAt: () => ready ? 'case when ready then joined_at else now() end' : 'joined_at' })
                 .where('table_id = :tableId and user_id = :me', { tableId, me })
+                .andWhere("exists (select 1 from tables t where t.id = :tableId and t.status = 'open')")
                 .execute();
         },
 

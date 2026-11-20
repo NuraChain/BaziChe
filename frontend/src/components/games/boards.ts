@@ -4,27 +4,6 @@ import type { MatchView, TableMoney, TableSummary } from '../../api.ts';
 import { chunk } from '../../lib/chunks.ts';
 import type { EventBatch } from '../../stores/match.store.ts';
 
-export interface Rematch
-{
-    ready: boolean;
-    waiting: string[];
-    empty: number;
-}
-
-export function rematchOf(table: TableSummary): Rematch
-{
-    const settled = table.matchId === undefined;
-    const mine = table.chairs.find((chair) => chair.seat === table.mine);
-
-    return {
-        ready: settled && mine?.ready === true,
-        waiting: settled
-            ? table.chairs.flatMap((chair) => (chair.who === undefined || chair.seat === table.mine || chair.ready ? [] : [chair.who]))
-            : [],
-        empty: table.chairs.filter((chair) => chair.who === undefined).length
-    };
-}
-
 export interface Staked
 {
     amount: string;
@@ -59,13 +38,11 @@ export interface BoardProps
 {
     match: MatchView;
     events: EventBatch;
-    starting?: boolean;
-    onAgain?: () => void;
-    rematch?: Rematch;
     stake?: Staked;
     speech?: Record<string, string>;
     turnMs?: number;
     onPresenting?: (busy: boolean) => void;
+    onResult?: (id: string) => void;
 }
 
 export type BoardComponent = (props: BoardProps) => MountNode;

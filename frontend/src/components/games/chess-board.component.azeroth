@@ -31,7 +31,7 @@ import type { Ctx } from '../../game/stage/director.ts';
 import { createPresenter, type Presenter, type Sight } from '../../game/stage/presenter.ts';
 import { createStage } from '../../game/stage/stage.ts';
 import type { MatchView } from '../../api.ts';
-import type { Rematch, Staked } from './boards.ts';
+import type { Staked } from './boards.ts';
 
 interface Picked
 {
@@ -117,7 +117,7 @@ const toldOf = (move: Move, seat: number, legal: readonly Move[]): Told => ({
 
 const clampTo = (point: { x: number; y: number }) => ({ x: Math.min(Math.max(point.x, 0), SIZE - 1), y: Math.min(Math.max(point.y, 0), SIZE - 1) });
 
-export default component ChessBoard(props: { match: MatchView; events: EventBatch; starting?: boolean; onAgain?: () => void; rematch?: Rematch; stake?: Staked; speech?: Record<string, string>; turnMs?: number; onPresenting?: (busy: boolean) => void })
+export default component ChessBoard(props: { match: MatchView; events: EventBatch; stake?: Staked; speech?: Record<string, string>; turnMs?: number; onPresenting?: (busy: boolean) => void; onResult?: (id: string) => void })
 {
     const locale = useLocale();
     const board = useBoard();
@@ -1202,6 +1202,6 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
             </Show>
         </div>
 
-        <TableResult match={ game } shown={ result } mine={ mine } busy={ props.starting === true } fold={ looked !== null } onAgain={ props.onAgain } rematch={ props.rematch } stake={ props.stake } onStand={ (stands) => resultStands = stands } />
+        <TableResult match={ game } shown={ result } onShown={ props.onResult } mine={ mine } fold={ looked !== null } stake={ props.stake } onStand={ (stands) => resultStands = stands } />
     </div>
 }

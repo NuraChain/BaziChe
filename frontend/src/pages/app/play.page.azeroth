@@ -40,9 +40,11 @@ import { inviteTo } from '../../lib/invite-sheet.ts';
 import { leaveLead, whyRefused } from '../../lib/open-table.ts';
 import { copyText } from '../../lib/clipboard.ts';
 import { joinVoice } from '../../lib/join-voice.ts';
-import { BOARDS, drawable, rematchOf, stakedOf, type BoardComponent, type Rematch, type Staked } from '../../components/games/boards.ts';
+import { BOARDS, drawable, stakedOf, type BoardComponent, type Staked } from '../../components/games/boards.ts';
 import { turnMs } from '../../../../backend/src/domains/match/turns.ts';
 import { feeFor } from '../../../../backend/src/domains/stake/policy.ts';
+
+const RESULT_VISIBLE_MS = 10_000;
 
 export default component PlayPage()
 {
@@ -119,6 +121,9 @@ export default component PlayPage()
 
     let offer = '';
 
+    let resultShown = '';
+    let cancelReturn = () => {};
+
     const stranded = new Map<string, string>();
 
     const withdraw = () =>
@@ -159,6 +164,7 @@ export default component PlayPage()
         {
             release();
             withdraw();
+            cancelReturn();
 
             for (const toast of stranded.values())
             {
@@ -319,11 +325,15 @@ export default component PlayPage()
             .catch((error: unknown) => toasts.show({ kind: 'warning', text: locale.t(whyRefused(error, 'voice.switchFailed', 'voice.refused.playing')), dedupe: 'table-voice' }));
     };
 
-    derived behind = seated && table?.matchId !== undefined && board.match()?.id !== table?.matchId;
+    derived closed = table?.status === 'closed';
+
+    derived matchId = (seated ? table?.matchId : undefined) ?? (closed ? table?.lastMatchId : undefined);
+
+    derived behind = matchId !== undefined && board.match()?.id !== matchId;
 
     derived unfetched = behind && board.lost();
 
-    derived showing = !unfetched && board.match() !== null && board.match()!.tableId === table?.id;
+    derived showing = matchId !== undefined && board.match()?.id === matchId;
 
     derived awake = showing && board.match()!.finishedAt === undefined;
 
@@ -371,11 +381,7 @@ export default component PlayPage()
 
     derived room = table?.conversationId ?? '';
 
-    derived opened = table !== null && table.status !== 'closed' ? table : null;
-
     derived missing = !loading && !failed && table === null;
-
-    derived closed = table?.status === 'closed';
 
     derived closedLead = locale.t(table?.closedBy === 'staff' ? 'play.closedLead.staff' : 'play.closedLead');
 
@@ -391,6 +397,8 @@ export default component PlayPage()
 
     derived watching = !seated && table !== null && (table.matchId !== undefined || spectated?.match.tableId === table.id);
 
+    derived opened = table !== null && (!closed || matchId !== undefined || watching) ? table : null;
+
     derived backable = watching && table !== null && table.privacy === 'public' && table.mode === 'live'
         ? table.matchId ?? (spectated?.match.tableId === table.id ? spectated.match.id : null)
         : null;
@@ -399,7 +407,7 @@ export default component PlayPage()
 
     derived standing = !seated && !showing && table !== null && table.matchId === undefined && !watching;
 
-    derived roomOpen = lobbyOpen || standing;
+    derived roomOpen = !closed && (lobbyOpen || standing);
 
     derived paused = table !== null && catalogue.status(table.game as GameId) === 'disabled';
 
@@ -668,8 +676,6 @@ export default component PlayPage()
         draw(want);
     }
 
-    derived rematch = table !== null && seated ? rematchOf(table) : undefined;
-
     derived vaultHeld = vaults.state();
 
     derived vaultOpen = vaultHeld !== null && vaultHeld.configured ? vaultHeld : null;
@@ -686,22 +692,68 @@ export default component PlayPage()
         }
     }
 
-    const boardProps = (match: MatchView): { match: MatchView; events: EventBatch; starting: boolean; onAgain?: () => void; rematch?: Rematch; stake?: Staked; speech: Record<string, string>; turnMs: number } => ({
+    const afterResult = (id: string) =>
+    {
+        if (resultShown === id)
+        {
+            return;
+        }
+
+        resultShown = id;
+        cancelReturn();
+        const clock = runtime().clock;
+        let remaining = RESULT_VISIBLE_MS;
+        let visibleSince: number | null = null;
+        let cancelTick = () => {};
+
+        const visibility = () =>
+        {
+            cancelTick();
+
+            if (visibleSince !== null)
+            {
+                remaining -= clock.now() - visibleSince;
+                visibleSince = null;
+            }
+
+            if (!document.hidden)
+            {
+                visibleSince = clock.now();
+                cancelTick = clock.after(Math.max(0, remaining), () =>
+                {
+                    cancelReturn();
+
+                    if (untrack(board.match)?.id === id && untrack(() => route().pathname) === `/app/play/${ mine }`)
+                    {
+                        navigate('/app/games', { replace: true });
+                    }
+                });
+            }
+        };
+
+        document.addEventListener('visibilitychange', visibility);
+        cancelReturn = () =>
+        {
+            cancelTick();
+            document.removeEventListener('visibilitychange', visibility);
+        };
+        visibility();
+    };
+
+    const boardProps = (match: MatchView): { match: MatchView; events: EventBatch; stake?: Staked; speech: Record<string, string>; turnMs: number; onResult: (id: string) => void } => ({
         match,
         events: board.events(),
-        starting,
-        onAgain: seated && table?.tournament === undefined ? () => void again() : undefined,
-        rematch,
         stake: staked,
         speech,
-        turnMs: turnMs(table?.mode ?? 'live')
+        turnMs: turnMs(table?.mode ?? 'live'),
+        onResult: afterResult
     });
 
     effect
     {
-        const id = table?.matchId;
+        const id = matchId;
 
-        if (id !== undefined && seated)
+        if (id !== undefined)
         {
             if (board.openId() !== id)
             {
@@ -711,12 +763,7 @@ export default component PlayPage()
             return;
         }
 
-        const held = board.match();
-
-        if (held === null || held.tableId !== table?.id || id !== undefined)
-        {
-            board.close();
-        }
+        board.close();
     }
 
     const drawWatch = () =>
@@ -821,31 +868,6 @@ export default component PlayPage()
     };
 
     const begin = starter((tableId) => lobby.begin(tableId));
-
-    const again = starter(async (tableId) =>
-    {
-        if (table?.stake === undefined)
-        {
-            await lobby.again(tableId, board.match()?.id);
-            return;
-        }
-
-        if (staked?.short !== undefined)
-        {
-            toasts.show({ kind: 'warning', text: locale.t('tables.refused.paid-funds'), dedupe: 'paid-funds' });
-            return;
-        }
-
-        const signed = await vaults.signStake(tableId);
-
-        if ('said' in signed)
-        {
-            toasts.show({ kind: 'warning', text: locale.t(signed.said) });
-            return;
-        }
-
-        await lobby.again(tableId, board.match()?.id, signed.signature);
-    });
 
     const copyLink = async () =>
     {
@@ -984,7 +1006,7 @@ export default component PlayPage()
             }
         </Show>
 
-        <Show when={ closed }>
+        <Show when={ closed && opened === null }>
             { () =>
                 <EmptyState
                     icon="clock"

@@ -5,7 +5,7 @@ import Button from '../ui/button.component.azeroth';
 import { runtime } from '../../lib/runtime.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import type { MatchView } from '../../api.ts';
-import type { Rematch, Staked } from './boards.ts';
+import type { Staked } from './boards.ts';
 
 export const RESULT_OUT = 240;
 
@@ -13,19 +13,21 @@ export const RESULT_OUT = 240;
 // grew when a won pot came to hold three seconds on its winner rather than one and a half.
 export const RESULT_WAIT = 18_500;
 
-export default component TableResult(props: { match: MatchView; shown: boolean; mine?: number; busy?: boolean; fold?: boolean; onAgain?: () => void; rematch?: Rematch; stake?: Staked; onStand?: (stands: boolean) => void })
+export default component TableResult(props: { match: MatchView; shown: boolean; mine?: number; fold?: boolean; stake?: Staked; onStand?: (stands: boolean) => void; onShown?: (id: string) => void })
 {
     const locale = useLocale();
 
     state folded = false;
 
-    state last = untrack(() => ({ match: props.match, mine: props.mine, rematch: props.rematch, stake: props.stake, busy: props.busy === true }));
+    state last = untrack(() => ({ match: props.match, mine: props.mine, stake: props.stake }));
 
     state standing = false;
 
     derived drawn = standing && props.fold !== true;
 
     state leaving = false;
+
+    state panel: HTMLDivElement | null = null;
 
     let stop: () => void = () => undefined;
 
@@ -37,7 +39,7 @@ export default component TableResult(props: { match: MatchView; shown: boolean; 
 
     effect
     {
-        const now = { match: props.match, mine: props.mine, rematch: props.rematch, stake: props.stake, busy: props.busy === true };
+        const now = { match: props.match, mine: props.mine, stake: props.stake };
         const shown = props.shown && now.match.finishedAt !== undefined;
 
         untrack(() =>
@@ -84,6 +86,28 @@ export default component TableResult(props: { match: MatchView; shown: boolean; 
         untrack(() => props.onStand?.(stands));
     }
 
+    effect
+    {
+        const node = panel;
+        const id = last.match.id;
+        const shown = props.onShown;
+
+        if (drawn && !folded && node !== null && shown !== undefined)
+        {
+            const observer = new IntersectionObserver((entries) =>
+            {
+                if (entries.some((entry) => entry.isIntersecting))
+                {
+                    observer.disconnect();
+                    shown(id);
+                }
+            });
+
+            observer.observe(node);
+            onCleanup(() => observer.disconnect());
+        }
+    }
+
     onCleanup(() => stop());
 
     <Show when={ drawn }>
@@ -97,10 +121,10 @@ export default component TableResult(props: { match: MatchView; shown: boolean; 
                 }
             >
                 { () =>
-                    <div class="table-result" data-leaving={ leaving ? 'true' : undefined } inert={ leaving }>
+                    <div class="table-result" ref={ (element) => panel = element } data-leaving={ leaving ? 'true' : undefined } inert={ leaving }>
                         <div class="flex flex-col gap-2">
                             <div class="table-result-card">
-                                <MatchResult match={ last.match } mine={ last.mine } busy={ last.busy } onAgain={ props.onAgain } rematch={ last.rematch } stake={ last.stake } />
+                                <MatchResult match={ last.match } mine={ last.mine } stake={ last.stake } />
                             </div>
                             <Button variant="secondary" size="sm" class="self-center" onClick={ () => folded = true }>{ locale.t('match.result.board') }</Button>
                         </div>

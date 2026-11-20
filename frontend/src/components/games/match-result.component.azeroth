@@ -5,18 +5,23 @@ import Icon from '../../icons/icon.component.azeroth';
 import { explorerTx, nuraOf } from '../../lib/nura.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
+import { useCatalogue } from '../../stores/catalogue.store.ts';
+import type { GameId } from '../../data/games.ts';
 import { playersOf, scoreOf, type MatchPlayer } from '../../data/match.ts';
 import type { MatchView, TableMoney } from '../../api.ts';
-import type { Rematch, Staked } from './boards.ts';
+import type { Staked } from './boards.ts';
 import { potOf, shareOf } from '../../../../backend/src/domains/stake/policy.ts';
 import { resultWord } from './plate-tag.ts';
 
 const PAYING = new Set(['settling', 'settled', 'refunding', 'refunded', 'reclaimed']);
 
-export default component MatchResult(props: { match: MatchView; mine?: number; busy?: boolean; onAgain?: () => void; rematch?: Rematch; stake?: Staked })
+export default component MatchResult(props: { match: MatchView; mine?: number; stake?: Staked })
 {
     const locale = useLocale();
     const people = usePeople();
+    const catalogue = useCatalogue();
+
+    derived gameName = locale.t(catalogue.byId(props.match.game as GameId).nameKey);
 
     const rankOf = (player: MatchPlayer) => player.place ?? (player.result === 'won' ? 1 : 2);
 
@@ -130,24 +135,6 @@ export default component MatchResult(props: { match: MatchView; mine?: number; b
 
     derived reasoned = reason !== '';
 
-    derived asking = props.onAgain !== undefined && props.rematch !== undefined;
-
-    derived ready = props.rematch?.ready === true;
-
-    derived waiting = (props.rematch?.waiting ?? []).map(nameOf);
-
-    derived free = props.rematch?.empty ?? 0;
-
-    derived paid = props.stake !== undefined;
-
-    derived startable = ready && waiting.length === 0 && free === 0 && !paid;
-
-    derived locking = paid && ready && waiting.length === 0 && free === 0;
-
-    derived short = paid && !ready && props.stake?.short !== undefined;
-
-    derived shortLine = locale.t('play.stake.short', { free: locale.n(nuraOf(props.stake?.short ?? '0'), { maximumFractionDigits: 4 }) });
-
     derived moneyLine = (() =>
     {
         const stake = props.stake;
@@ -204,7 +191,8 @@ export default component MatchResult(props: { match: MatchView; mine?: number; b
                 <Icon name={ voided ? 'clock' : (drawn ? 'equal' : 'trophy') } size={ 22 } />
             </span>
             <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-                <p class="text-ui-lg font-semibold text-text" aria-live="polite">{ headline }</p>
+                <p class="text-ui-xs text-muted">{ gameName }</p>
+                <h2 class="text-ui-lg font-semibold text-text" aria-live="polite">{ headline }</h2>
                 <Show when={ reasoned }>
                     { () => <p class="text-ui-sm text-muted">{ reason }</p> }
                 </Show>
@@ -298,59 +286,6 @@ export default component MatchResult(props: { match: MatchView; mine?: number; b
             { () => <p class="text-ui-xs text-muted">{ uncountedLine }</p> }
         </Show>
 
-        <Show when={ asking }>
-            { () =>
-                <div class="flex flex-col gap-2">
-                    <Show when={ !ready }>
-                        { () =>
-                            <Button variant="primary" size="lg" leading="play" loading={ props.busy === true } onClick={ () => props.onAgain?.() }>
-                                { locale.t('match.rematch') }
-                            </Button>
-                        }
-                    </Show>
-                    <Show when={ short }>
-                        { () =>
-                            <div class="flex flex-col" data-short>
-                                <p class="text-ui-sm font-semibold text-gold">{ shortLine }</p>
-                                <Link to="/app/me/wallet" class="inline-flex min-h-11 items-center self-start text-ui-sm font-semibold text-accent hover:underline">{ locale.t('vault.title') }</Link>
-                            </div>
-                        }
-                    </Show>
-                    <Show when={ startable }>
-                        { () =>
-                            <Button variant="primary" size="lg" leading="play" loading={ props.busy === true } onClick={ () => props.onAgain?.() }>
-                                { locale.t('match.start') }
-                            </Button>
-                        }
-                    </Show>
-                    <div class="flex flex-col gap-1" aria-live="polite">
-                        <Show when={ locking }>
-                            { () =>
-                                <p class="flex items-center gap-2 text-ui-sm text-muted">
-                                    <Icon name="lock" size={ 15 } class="shrink-0" />
-                                    <span class="min-w-0">{ locale.t('play.stake.locking') }</span>
-                                </p>
-                            }
-                        </Show>
-                        <Show when={ ready && waiting.length > 0 }>
-                            { () =>
-                                <p class="flex items-center gap-2 text-ui-sm text-muted">
-                                    <Icon name="clock" size={ 15 } class="shrink-0" />
-                                    <span class="min-w-0">{ locale.t('match.rematch.waiting', { names: locale.list(waiting) }) }</span>
-                                </p>
-                            }
-                        </Show>
-                        <Show when={ free > 0 }>
-                            { () =>
-                                <p class="flex items-center gap-2 text-ui-sm text-muted">
-                                    <Icon name="seat" size={ 15 } class="shrink-0" />
-                                    <span class="min-w-0">{ locale.plural('match.rematch.empty', free) }</span>
-                                </p>
-                            }
-                        </Show>
-                    </div>
-                </div>
-            }
-        </Show>
+        <Button variant="primary" size="lg" leading="games" to="/app/games">{ locale.t('app.nav.games') }</Button>
     </Panel>
 }

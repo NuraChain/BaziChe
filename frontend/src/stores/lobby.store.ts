@@ -65,8 +65,6 @@ export interface LobbyApi
     /** Deals the board. Any seated player may, once every chair is taken and everybody is ready. */
     begin(tableId: string): Promise<void>;
 
-    again(tableId: string, over?: string, signature?: string): Promise<void>;
-
     refresh(): Promise<void>;
     start(): () => void;
     stop(): void;
@@ -224,22 +222,6 @@ export const useLobby = createStore((): LobbyApi =>
             ? table
             : { ...table, chairs: table.chairs.map((chair) => (chair.seat === table.mine ? change(chair) : chair)) });
 
-    const afterGame = (tableId: string, over: string | undefined) => (table: TableSummary): TableSummary =>
-    {
-        if (over === undefined || table.matchId !== over)
-        {
-            return atMine(tableId, (chair) => ({ ...chair, ready: true }))(table);
-        }
-
-        const { matchId: _over, yourTurn: _turn, ...settled } = table;
-
-        return {
-            ...settled,
-            status: table.taken >= table.seats ? 'ready' : 'open',
-            chairs: table.chairs.map((chair) => ({ ...chair, ready: chair.seat === table.mine }))
-        };
-    };
-
     const goesWithTheChair = (table: TableSummary) =>
         table.privacy === 'invite' || (table.privacy === 'friends' && table.host === untrack(who));
 
@@ -250,14 +232,16 @@ export const useLobby = createStore((): LobbyApi =>
 
         if (open !== '' && held !== null && held.id === open && held.mine !== undefined && goesWithTheChair(held))
         {
-            await seated.refetch();
+            await Promise.all([seated.refetch(), viewing.refetch()]);
+            const current = untrack(viewing.data);
 
-            if (!(untrack(seated.data)?.tables ?? []).some((table) => table.id === open))
+            if (!(untrack(seated.data)?.tables ?? []).some((table) => table.id === open)
+                && (current?.status !== 'closed' || current.lastMatchId === undefined))
             {
                 left.add(open);
+                await viewing.refetch();
             }
 
-            await viewing.refetch();
             return;
         }
 
@@ -334,16 +318,6 @@ export const useLobby = createStore((): LobbyApi =>
             ...(config.stake === undefined ? {} : { stake: config.stake }),
             ...(config.clock === undefined ? {} : { clock: config.clock })
         };
-    };
-
-    const settle = async (tableId: string, signature?: string) =>
-    {
-        const table = await client.tables.ready({ params: { id: tableId }, input: { ready: true, ...(signature === undefined ? {} : { signature }) } });
-
-        if (table.stake === undefined && table.chairs.every((chair) => chair.who !== undefined && chair.ready))
-        {
-            await client.tables.start({ params: { id: tableId } }).catch(() => undefined);
-        }
     };
 
     return {
@@ -483,11 +457,6 @@ export const useLobby = createStore((): LobbyApi =>
         {
             await client.tables.start({ params: { id: tableId } });
             await revalidate();
-        },
-
-        async again(tableId, over, signature)
-        {
-            await guessed.during(afterGame(tableId, over), () => inTurn(() => settle(tableId, signature)), truth);
         },
 
         refresh: revalidate,

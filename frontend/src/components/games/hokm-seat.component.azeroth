@@ -66,7 +66,7 @@ export default component HokmSeat(props: {
             }
         />
         <Show when={ timed }>
-            { () => <TurnClock remainingMs={ props.remainingMs } over={ false } yours={ props.yours } brief class="hokm-clock" /> }
+            { () => <TurnClock remainingMs={ props.remainingMs } over={ false } yours={ props.yours } brief dark class="hokm-clock" /> }
         </Show>
         <span class="hokm-pile" style={ `--n: ${ props.backs }` } data-empty={ props.backs === 0 ? 'true' : undefined } aria-hidden="true">
             <For each={ pile } key={ (back) => back } let={ back }>

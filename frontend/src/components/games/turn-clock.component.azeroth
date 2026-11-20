@@ -17,7 +17,7 @@ const TICK_FROM = 5;
 
 const HIGH_FROM = 2;
 
-export default component TurnClock(props: { remainingMs?: number; over: boolean; yours?: boolean; class?: string; brief?: boolean })
+export default component TurnClock(props: { remainingMs?: number; over: boolean; yours?: boolean; class?: string; brief?: boolean; dark?: boolean })
 {
     const locale = useLocale();
     const settings = useSettings();
@@ -194,6 +194,7 @@ export default component TurnClock(props: { remainingMs?: number; over: boolean;
     <Show when={ running }>
         { () =>
             <span
+                data-theme={ props.dark ? 'dark' : undefined }
                 class={ () => [
                     'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-ui-xs font-semibold',
                     secondsLeft !== null && secondsLeft <= URGENT_AT ? 'border-danger/40 bg-danger/10 text-danger' : 'border-line bg-raised text-muted',

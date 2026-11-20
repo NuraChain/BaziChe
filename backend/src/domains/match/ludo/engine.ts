@@ -318,7 +318,7 @@ function move(state: LudoState, seat: number, piece: number, events: GameEvent[]
     advance(state);
 }
 
-export function apply(state: LudoState, action: EngineAction): Outcome
+export function apply(state: LudoState, action: EngineAction, draw?: () => number): Outcome
 {
     if (state.winner !== null)
     {
@@ -369,7 +369,9 @@ export function apply(state: LudoState, action: EngineAction): Outcome
             return { ok: false, reason: 'already-rolled' };
         }
 
-        if (action.die < 1 || action.die > 6 || !Number.isInteger(action.die))
+        const die = draw === undefined ? action.die : draw();
+
+        if (die < 1 || die > 6 || !Number.isInteger(die))
         {
             return { ok: false, reason: 'illegal-move' };
         }
@@ -377,7 +379,7 @@ export function apply(state: LudoState, action: EngineAction): Outcome
         const next = clone(state);
         const events: GameEvent[] = [];
 
-        roll(next, action.seat, action.die, events);
+        roll(next, action.seat, die, events);
         next.rev = state.rev + 1;
 
         return { ok: true, state: next, events };

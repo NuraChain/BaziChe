@@ -487,7 +487,7 @@ describe('the random draw', () =>
         expect(shuffledSeeds(4, () => 0)).toEqual([2, 3, 4, 1]);
     });
 
-    it('is a set of modules that import only each other, with no clock in them', () =>
+    it('uses only pure engine and shuffle modules', () =>
     {
         const folder = join(HERE, '..', 'src', 'domains', 'tournament', 'engine');
 
@@ -495,7 +495,9 @@ describe('the random draw', () =>
         {
             const source = readFileSync(join(folder, file), 'utf8');
 
-            expect(source.match(/from '([^']+)'/g)?.every((line) => line.startsWith("from './")) ?? true, file).toBe(true);
+            const imports = [...source.matchAll(/from '([^']+)'/g)].map(([, path]) => path);
+
+            expect(imports.every((path) => path.startsWith('./') || path === '../../match/randomness.ts'), file).toBe(true);
             expect(source, file).not.toMatch(/\bDate\b|setTimeout|setInterval|Math\.random/);
         }
     });

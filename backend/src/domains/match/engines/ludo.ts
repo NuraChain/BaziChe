@@ -66,12 +66,10 @@ export const ludoEngine: Engine<LudoState, EngineAction> = {
      * The die is drawn HERE, from the `draws` handed in, and never carried through a caller.
      *
      * `parse` returns a roll with a placeholder because its job is to read what was asked, not to
-     * decide what happened; the number is taken at the moment the action is applied, inside the
-     * transaction that records it. That is what leaves no field on the way in and no layer between
-     * the draw and the ledger.
+     * decide what happened; the engine calls the supplied draw only after validating the roll.
      */
     apply: (state: LudoState, action: EngineAction, draws: Draws) =>
-        apply(state, action.kind === 'roll' ? { ...action, die: draws.die(6) } : action),
+        apply(state, action, () => draws.die(6)),
 
     legal: (state: LudoState, seat: number): EngineAction[] =>
     {

@@ -34,6 +34,8 @@ const FORBIDDEN = [
     '@azerothjs/',
     'Math.random',
     'Date.now',
+    'performance.now',
+    'getRandomValues',
     'new Date',
     'crypto',
     'process.'
@@ -65,7 +67,7 @@ describe.each(PURE)('the %s engine is pure', (game) =>
 
             for (const [, specifier] of source.matchAll(/from '([^']+)'/g))
             {
-                expect(specifier.startsWith('./') || specifier.startsWith('../cards/'), `${ name } imports ${ specifier }`).toBe(true);
+                expect(specifier.startsWith('./') || specifier.startsWith('../cards/') || specifier === '../randomness.ts', `${ name } imports ${ specifier }`).toBe(true);
             }
         });
     }

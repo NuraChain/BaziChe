@@ -82,6 +82,7 @@ export interface PokerState
     street: Street;
     board: number[];
     holes: number[][];
+    stock?: number[];
     stacks: number[];
     bets: number[];
     put: number[];

@@ -1,3 +1,5 @@
+import { shuffle } from '../../match/randomness.ts';
+
 /**
  * One game of a tournament, whatever the format, and everything every format does to it. A seed is
  * a whole number from 1, and 1 is the best. No database and no clock lives under `engine/`, so a
@@ -311,15 +313,4 @@ export const withoutAbsent = (rows: readonly Standing[], absent: ReadonlySet<num
 
 /** The seeds 1 to `count` in a random order, from a source of whole numbers below the one it is given. */
 export const shuffledSeeds = (count: number, below: (limit: number) => number) =>
-{
-    const seeds = Array.from({ length: count }, (_, index) => index + 1);
-
-    for (let index = seeds.length - 1; index > 0; index -= 1)
-    {
-        const other = below(index + 1);
-
-        [seeds[index], seeds[other]] = [seeds[other], seeds[index]];
-    }
-
-    return seeds;
-};
+    shuffle(Array.from({ length: count }, (_, index) => index + 1), below);

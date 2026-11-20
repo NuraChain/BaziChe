@@ -20,6 +20,7 @@ import { TableSeat } from '../../entities/table-seat.entity.ts';
 import { User } from '../../entities/user.entity.ts';
 import type { SocialService } from '../social/service.ts';
 import { cubeLive } from '../match/backgammon/cube.ts';
+import { secureBelow } from '../match/randomness-server.ts';
 import type { EscrowState } from '../stake/policy.ts';
 import { chairFor, quickOf, type QuickAsk, type QuickFilter } from './quick.ts';
 import { TABLE_REFUSALS, type TableRefusal } from './refusals.ts';
@@ -156,12 +157,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const CODE = /^[a-z2-9]{4,12}$/i;
 
-function codeFrom(random: () => number)
+function newCode()
 {
     let out = '';
     for (let index = 0; index < CODE_LENGTH; index += 1)
     {
-        out += ALPHABET[Math.floor(random() * ALPHABET.length)];
+        out += ALPHABET[secureBelow(ALPHABET.length)];
     }
     return out;
 }
@@ -438,7 +439,7 @@ interface Opening
 
 const openRow = async (tx: EntityManager, host: string, opening: Opening, guests: readonly string[], ready: boolean) =>
 {
-    const inserted = await tx.getRepository(Table).insert({ ...opening, code: codeFrom(Math.random), hostId: host });
+    const inserted = await tx.getRepository(Table).insert({ ...opening, code: newCode(), hostId: host });
     const id = inserted.identifiers[0].id as string;
 
     /**
@@ -1443,7 +1444,7 @@ export function createTableService(db: DataSource, social: SocialService)
             }
 
             const inserted = await tx.getRepository(Table).insert({
-                code: codeFrom(Math.random),
+                code: newCode(),
                 game,
                 seats: 2,
                 mode: 'live',

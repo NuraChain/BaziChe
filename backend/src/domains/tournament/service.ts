@@ -1,4 +1,5 @@
 import { randomInt } from 'node:crypto';
+import { secureBelow } from '../match/randomness-server.ts';
 
 import { HttpError, NotFoundError } from '@azerothjs/http';
 import { In, type DataSource, type EntityManager } from 'typeorm';
@@ -292,7 +293,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             return cancelled(tx, tournament);
         }
 
-        const seeds = shuffledSeeds(entries.length, randomInt);
+        const seeds = shuffledSeeds(entries.length, secureBelow);
         const engine = formatOf(tournament);
         const rules: Rules = { entrants: entries.length, bestOf: tournament.bestOf, rounds: engine.roundsFor(entries.length) };
         const games = engine.advance(engine.start(rules), rules);

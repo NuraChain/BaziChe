@@ -13,7 +13,7 @@ const XP_KNOCKOUT = 3;
 
 type PokerBoard = Extract<MatchBoard, { kind: 'poker' }>;
 
-const dieOf = (draws: Draws): Die => (sides) => draws.die(sides);
+const dieOf = ({ die, shuffle }: Draws): Die => Object.assign((sides: number) => die(sides), { shuffle });
 
 function readerOf(state: PokerState, seat: number | null)
 {

@@ -1,4 +1,5 @@
 import { DECK } from '../cards/cards.ts';
+import type { Shuffle } from '../randomness.ts';
 import { actors, allInTo, inHand, mayRaise, minRaiseTo, nextAlive, nextToAct, needsToAct, toCall } from './betting.ts';
 import { evaluate, type Strength } from './evaluator.ts';
 import { layers, leftOf, split, uncalled } from './pots.ts';
@@ -17,7 +18,7 @@ import {
     type Won
 } from './state.ts';
 
-export type Die = (sides: number) => number;
+export type Die = ((sides: number) => number) & { shuffle?: Shuffle };
 
 export type Applied =
     | { ok: true; state: PokerState; events: PokerEvent[] }
@@ -44,6 +45,18 @@ export function chipsInPlay(state: PokerState)
 
 function draw(state: PokerState, die: Die)
 {
+    if (state.stock !== undefined)
+    {
+        const card = state.stock.pop();
+
+        if (card === undefined)
+        {
+            throw new RangeError('Poker stock exhausted.');
+        }
+
+        return card;
+    }
+
     const used = new Set([...state.holes.flat(), ...state.board]);
     const remaining = DECK.filter((card) => !used.has(card));
     const pick = Math.min(remaining.length, Math.max(1, Math.floor(die(remaining.length))));
@@ -111,6 +124,11 @@ function startHand(state: PokerState, events: PokerEvent[], die: Die)
     state.street = 'preflop';
     state.board = [];
     state.holes = state.out.map(() => []);
+    if (die.shuffle !== undefined)
+    {
+        state.stock = die.shuffle(DECK).reverse();
+    }
+
     state.bets = state.out.map(() => 0);
     state.put = state.out.map(() => 0);
     state.start = [...state.stacks];

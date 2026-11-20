@@ -30,6 +30,7 @@
 
 import type { MatchBoard, MatchLog, MatchPlay } from '../../schemas.ts';
 import type { Format, Variant } from './sides.ts';
+import type { Shuffle } from './randomness.ts';
 
 /**
  * Why a seat stopped playing, and the closed set is the platform's rather than a game's.
@@ -44,6 +45,7 @@ export type ForfeitReason = 'resign' | 'timeout' | 'left';
 export interface Draws
 {
     die(sides: number): number;
+    shuffle?: Shuffle;
 }
 
 /** What an engine did, or why it would not. Never an exception. */

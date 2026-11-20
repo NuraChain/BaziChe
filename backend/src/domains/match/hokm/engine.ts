@@ -1,4 +1,5 @@
 import { SUITS, suitOf, type Suit } from '../cards/cards.ts';
+import { shuffle, type Shuffle } from '../randomness.ts';
 import { autoCard, deckFor, legalCards, putAway, trickWinner, worthKeeping } from './cards.ts';
 import { dealerOf, duelResult, matchWinner, nextHakem, trickCount, tripleResult, winningTricks } from './scoring.ts';
 import { sideCount, sideOf, seatsOfSide, type HokmAction, type HokmEvent, type HokmRefusal, type HokmState } from './state.ts';
@@ -36,21 +37,10 @@ export interface Applied
 export type Outcome = { ok: true; state: HokmState; events: HokmEvent[] } | { ok: false; reason: HokmRefusal };
 
 /** A shuffle, drawn from the server's generator so the engine holds no randomness of its own. */
-export type Deal = (sides: number) => number;
+export type Deal = ((sides: number) => number) & { shuffle?: Shuffle };
 
-function shuffled(cards: number[], deal: Deal)
-{
-    const order = [...cards];
-
-    for (let index = order.length - 1; index > 0; index -= 1)
-    {
-        const pick = deal(index + 1) - 1;
-
-        [order[index], order[pick]] = [order[pick], order[index]];
-    }
-
-    return order;
-}
+const shuffled = (cards: readonly number[], deal: Deal) =>
+    deal.shuffle?.(cards) ?? shuffle(cards, (limit) => deal(limit) - 1);
 
 /**
  * The Hâkem's five, and at three and four players NOBODY else's anything.
@@ -84,7 +74,9 @@ function dealHand(state: HokmState, deal: Deal): HokmState
         phase: 'trump',
         trump: null,
         hands,
-        stock: duel ? order.slice(OPENING * 2).sort(byNumber) : [],
+        stock: deal.shuffle === undefined
+            ? (duel ? order.slice(OPENING * 2).sort(byNumber) : [])
+            : order.slice(duel ? OPENING * 2 : OPENING),
         offer: null,
         glimpse: Array.from({ length: state.seats }, () => null),
         turn: state.hakem,
@@ -102,6 +94,16 @@ export function discardDue(state: HokmState, seat: number)
 
 function lift(stock: readonly number[], deal: Deal)
 {
+    if (stock.length === 0)
+    {
+        throw new RangeError('Hokm stock exhausted.');
+    }
+
+    if (deal.shuffle !== undefined)
+    {
+        return { card: stock[0], stock: stock.slice(1) };
+    }
+
     const pick = Math.min(stock.length, Math.max(1, Math.floor(deal(stock.length))));
 
     return { card: stock[pick - 1], stock: stock.filter((_, index) => index !== pick - 1) };
@@ -129,13 +131,13 @@ function subsets(cards: readonly number[], size: number): number[][]
  * The rest of the deal at three and four players, once trump is named: everybody up to a full hand,
  * the Hâkem included.
  *
- * The remaining cards are taken in the same shuffled order the opening five came from, so a hand is
- * a deterministic function of one shuffle rather than of two.
+ * Legacy replays reshuffle the remaining cards because those snapshots never kept their order.
  */
 function dealRest(state: HokmState, deal: Deal)
 {
-    const held = new Set(state.hands.flat());
-    const rest = shuffled(deckFor(state.seats).filter((card) => !held.has(card)), deal);
+    const rest = deal.shuffle === undefined
+        ? shuffled(deckFor(state.seats).filter((card) => !state.hands[state.hakem].includes(card)), deal)
+        : state.stock;
     const size = trickCount(state.seats);
 
     const hands = state.hands.map((hand) => [...hand]);
@@ -153,6 +155,11 @@ function dealRest(state: HokmState, deal: Deal)
         }
 
         hands[seat].sort((a, b) => a - b);
+    }
+
+    if (next !== rest.length)
+    {
+        throw new RangeError('Hokm stock does not match the deal.');
     }
 
     return hands;
@@ -395,7 +402,7 @@ export function apply(state: HokmState, action: HokmAction, deal: Deal): Outcome
             ok: true,
             state: state.seats === 2
                 ? { ...called, phase: 'discard' }
-                : { ...called, phase: 'tricks', hands: dealRest(state, deal) },
+                : { ...called, phase: 'tricks', hands: dealRest(state, deal), stock: [] },
             events: [{ e: 'trump', seat: action.seat, suit: action.suit }]
         };
     }

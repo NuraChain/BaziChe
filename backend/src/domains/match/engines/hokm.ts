@@ -12,6 +12,8 @@ const sidesOf = (state: HokmState) => Array.from({ length: sideCount(state.seats
 
 const gone = (state: HokmState, side: number) => seatsOfSide(side, state.seats).some((seat) => state.out[seat] === true);
 
+const dealOf = ({ die, shuffle }: Draws) => Object.assign((sides: number) => die(sides), { shuffle });
+
 /**
  * Hokm, behind the seam every game sits behind.
  *
@@ -32,7 +34,7 @@ export const hokmEngine: Engine<HokmState, HokmAction> = {
     formats: SEATS.map((seats) => ({ seats, variant: variantOf(sideCount(seats) < seats) })),
 
     create: (seats: readonly number[], draws: Draws, table: TableConfig) =>
-        create(seats.length, table.target > 0 ? table.target : 7, (sides) => draws.die(sides)),
+        create(seats.length, table.target > 0 ? table.target : 7, dealOf(draws)),
 
     /**
      * A play addressed to another game, or one missing the thing its verb needs, is null - the
@@ -69,7 +71,7 @@ export const hokmEngine: Engine<HokmState, HokmAction> = {
     forfeit: (seat: number, reason: ForfeitReason): HokmAction => ({ kind: 'forfeit', seat, reason }),
 
     apply: (state: HokmState, action: HokmAction, draws: Draws) =>
-        apply(state, action, (sides) => draws.die(sides)),
+        apply(state, action, dealOf(draws)),
 
     legal: (state: HokmState, seat: number) => legalMoves(state, seat),
 

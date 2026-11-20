@@ -611,8 +611,8 @@ export default component OverviewPage()
                         </div>
                         <ul class="flex flex-col gap-2 px-4 py-3 text-ui-base text-muted" data-facts>
                             <li data-fact="week"><span class="tally font-semibold text-text">{ week.count }</span> { week.label }</li>
-                            <li><Link to="/admin/people?list=suspended" class={ LISTED } data-suspended><span class="tally">{ suspended.count }</span> { suspended.label }</Link></li>
-                            <li><Link to="/admin/people?list=minors" class={ LISTED } data-minors><span class="tally">{ minors.count }</span> { minors.label }</Link></li>
+                            <li><Link to="/admin/people?list=suspended" class={ LISTED } data-suspended><span class="tally">{ suspended.count }</span>{ ` ${ suspended.label }` }</Link></li>
+                            <li><Link to="/admin/people?list=minors" class={ LISTED } data-minors><span class="tally">{ minors.count }</span>{ ` ${ minors.label }` }</Link></li>
                         </ul>
                     </Panel>
 

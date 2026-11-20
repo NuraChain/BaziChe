@@ -150,9 +150,20 @@ describe('a picture drawn again', () =>
         expect(workers[0].terminated).toBe(true);
     });
 
-    it('is drawn on the page where the browser has no canvas for a worker', async () =>
+    it.each(['no worker canvas', 'worker refused', 'transfer refused'])('draws on the page and releases resources with %s', async (condition) =>
     {
-        vi.stubGlobal('OffscreenCanvas', undefined);
+        if (condition === 'no worker canvas')
+        {
+            vi.stubGlobal('OffscreenCanvas', undefined);
+        }
+        else if (condition === 'worker refused')
+        {
+            vi.stubGlobal('Worker', class { constructor() { throw new Error('Worker unavailable'); } });
+        }
+        else
+        {
+            vi.spyOn(FakeWorker.prototype, 'postMessage').mockImplementation(() => { throw new Error('Transfer unavailable'); });
+        }
 
         const context = { fillStyle: '', fillRect: vi.fn(), drawImage: vi.fn() };
 
@@ -165,7 +176,14 @@ describe('a picture drawn again', () =>
         const bitmap = picture();
         const [ made ] = await redraw(bitmap, [ { width: 40, height: 30, type: 'image/jpeg', ground: '#111827' } ]);
 
-        expect(workers).toHaveLength(0);
+        if (condition !== 'no worker canvas')
+        {
+            expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+        }
+        if (condition === 'transfer refused')
+        {
+            expect(workers[0].terminated).toBe(true);
+        }
         expect(made?.type).toBe('image/jpeg');
         expect(await made?.text()).toBe('40');
         expect(context.fillStyle).toBe('#111827');

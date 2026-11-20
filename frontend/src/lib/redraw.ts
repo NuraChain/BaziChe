@@ -100,7 +100,7 @@ const onPage = async (asked: Asked) =>
  * that could not be made. The page's own encoder (`toBlob`) works only while the page is idle and
  * waits a second for that before it works anyway, and over an open sheet the page is seldom idle: a
  * photo took two seconds to be ready to send and its thumb one more. So it is done in a worker, on
- * an `OffscreenCanvas`, and on the page only where a browser has neither. Either way the picture is
+ * an `OffscreenCanvas`, with the page encoder as a fallback if the worker cannot take the picture. The picture is
  * let go of once it is drawn.
  */
 export async function redraw(bitmap: ImageBitmap, drawings: readonly Drawing[], crop: Crop | null = null): Promise<(Blob | null)[]>
@@ -111,22 +111,28 @@ export async function redraw(bitmap: ImageBitmap, drawings: readonly Drawing[], 
     }
 
     const url = URL.createObjectURL(new Blob([WORKER], { type: 'text/javascript' }));
-    const worker = new Worker(url);
+    let worker: Worker | undefined;
 
     try
     {
+        const active = new Worker(url);
+        worker = active;
         const made = await new Promise<(Blob | null)[] | null>((done) =>
         {
-            worker.onmessage = (event: MessageEvent<(Blob | null)[] | null>) => done(event.data);
-            worker.onerror = () => done(null);
-            worker.postMessage({ bitmap, crop, drawings }, [bitmap]);
+            active.onmessage = (event: MessageEvent<(Blob | null)[] | null>) => done(event.data);
+            active.onerror = () => done(null);
+            active.postMessage({ bitmap, crop, drawings }, [bitmap]);
         });
 
         return made ?? drawings.map(() => null);
     }
+    catch
+    {
+        return onPage({ bitmap, crop, drawings });
+    }
     finally
     {
-        worker.terminate();
+        worker?.terminate();
         URL.revokeObjectURL(url);
     }
 }

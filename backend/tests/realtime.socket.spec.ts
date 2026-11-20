@@ -444,7 +444,7 @@ describe('a bound socket', () =>
         await settle();
 
         talker.send({ v: 1, t: 'play', match: 'm1', key: 'slow', rev: 0, play: { kind: 'ludo', verb: 'roll' } });
-        talker.send({ v: 1, t: 'play', match: 'm1', key: 'fast', play: { kind: 'ludo', verb: 'roll' } });
+        talker.send({ v: 1, t: 'play', match: 'm1', key: 'fast', rev: 1, play: { kind: 'ludo', verb: 'roll' } });
         await settle(400);
 
         const acks = talker.frames.filter((frame) => frame.t === 'ack').map((frame) => frame.t === 'ack' ? frame.key : '');
@@ -457,8 +457,8 @@ describe('a bound socket', () =>
         const talker = talk('/ws', { Origin: 'http://localhost:3100', Cookie: COOKIE });
         await settle();
 
-        talker.send({ v: 1, t: 'play', match: 'refused', key: 'k1', play: { kind: 'ludo', verb: 'roll' } });
-        talker.send({ v: 1, t: 'play', match: 'm1', key: 'k2', play: { kind: 'ludo', verb: 'roll', die: 6 } });
+        talker.send({ v: 1, t: 'play', match: 'refused', key: 'k1', rev: 0, play: { kind: 'ludo', verb: 'roll' } });
+        talker.send({ v: 1, t: 'play', match: 'm1', key: 'k2', rev: 0, play: { kind: 'ludo', verb: 'roll', die: 6 } });
         await settle(300);
 
         const refusals = talker.frames.flatMap((frame) => frame.t === 'refused' ? [[frame.key, frame.status, frame.code]] : []);

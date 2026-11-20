@@ -143,16 +143,14 @@ export function createNotifyService(db: DataSource, social: SocialService)
         /** Takes back from everybody what one key told them, and answers whose bell lost a row. */
         async retractAll(kind: NotificationKind, dedupeKey: string)
         {
-            const told = await db.getRepository(Notification).find({ select: { userId: true }, where: { kind, dedupeKey } });
+            const { raw } = await db.getRepository(Notification)
+                .createQueryBuilder()
+                .delete()
+                .where({ kind, dedupeKey })
+                .returning(['userId'])
+                .execute();
 
-            if (told.length === 0)
-            {
-                return [];
-            }
-
-            await db.getRepository(Notification).delete({ kind, dedupeKey });
-
-            return told.map((row) => row.userId);
+            return rowsOf<{ user_id: string }>(raw).map((row) => row.user_id);
         },
 
         /**

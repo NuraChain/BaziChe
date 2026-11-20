@@ -4,7 +4,7 @@ On 20 November 2026, Playwright MCP opened 66 public, player and staff URLs in l
 
 ## Measurements
 
-The first axe-core 4.13.0 pass found 58 failing text nodes on English desktop and 39 on Persian mobile. Repeating that pass on the final build `84892d00f98428aa` found zero in either locale. The passing node counts were 4,961 and 2,326. The rule left 239 and 97 nodes respectively for human inspection, including text over gradients and imagery. These are counts of rendered instances across routes. They depend on the visible fixture data, and a shared component can occur many times.
+The first axe-core 4.13.0 pass found 58 failing text nodes on English desktop and 39 on Persian mobile. Repeating that pass on the final build `5a8cbfb7d17ba1e8` found zero in either locale. The passing node counts were 4,834 and 2,436. The rule left 233 and 101 nodes respectively for human inspection, including text over gradients and imagery. These are counts of rendered instances across routes. They depend on the visible fixture data, and a shared component can occur many times.
 
 To check gradients, translucent layers and game artwork, we captured the rendered text and the background at the same glyph positions. The table lists measured contrast ratios. Normal text needs 4.5:1 and large text needs 3:1 under WCAG AA. [WCAG 2.2 text contrast criteria](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)
 
@@ -27,12 +27,16 @@ To check gradients, translucent layers and game artwork, we captured the rendere
 | Chess coordinates over wood | 1.97:1 | 11.41:1 |
 | Poker pocket caption below the raise sheet | 2.66:1 | 4.71:1 |
 | Poker all-in action | 2.72:1 | 7.13:1 |
+| Poker blinds | 3.94:1 | 9.57:1 |
+| Room code in the table switcher | 3.54:1 | 6.24:1 |
 
 The public-page pass covered 156 English and Persian views from 320 to 1440 px, including the navigation drawer, wallet chooser, public profile, touch layouts, reduced-motion posters and live WebGL landing scenes. All 1,565 sampled glyph readings met their applicable threshold. The lowest public reading was 5.40:1 on the 320 px sign-in screen. On 49 signed-in player and staff routes per locale, the additional screenshot measurements covered 2,654 English desktop samples, 1,346 Persian mobile samples and 924 Persian samples after scrolling.
 
 On Persian mobile, one sample on the staff money page reached 3.63:1 six pixels from the viewport bottom, where the fixed navigation covered the text. Scrolling the explanation above the navigation cleared the overlap.
 
 The final game pass checked 11 lobby, play, betting and result states in both languages at 320×640 and 1440×900. All 44 views fit their viewport. The eight raise and all-in views placed the action sheet above the dealer puck. On the 320 px Chess board the narrower clock rail kept the player's own name visible alongside the clocks. Dark and red SVG card ranks measured 12.54:1 and 5.29:1 against the darkest paper stop.
+
+At 320×640 the original Persian full-pot preset was truncated. The final label, «کل پات», fits alongside the other three presets. On a 200-chip flop, all four 64×40 px touch targets showed their full labels and selected the expected amounts of 20, 100, 200 and 1,400 chips.
 
 ## Repeating the automated check
 

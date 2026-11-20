@@ -1,6 +1,6 @@
 # Baziche product verification
 
-On 20 November 2026, Playwright MCP exercised Baziche in Google Chrome with synthetic players and staff on a disposable PostgreSQL database. The review started on a clean `main` at `073fdcf4`, 14 commits ahead of its remote-tracking branch. The original client build was `0cbc692371cad671`. After the readability and mobile game fixes, the final client build was `84892d00f98428aa`.
+On 20 November 2026, Playwright MCP exercised Baziche in Google Chrome with synthetic players and staff on a disposable PostgreSQL database. The review started on a clean `main` at `073fdcf4`, 14 commits ahead of its remote-tracking branch. The original client build was `0cbc692371cad671`. The game contrast review used `84892d00f98428aa`. The final client build, including the compact Persian Poker preset, was `5a8cbfb7d17ba1e8`.
 
 The [interface review](product-interface.md) covers the route inventory, shared components, themes, localization and accessibility. The [light-theme contrast review](light-contrast.md) records before-and-after readings from the rendered pages and game overlays. The [game and media review](product-games.md) covers each game, the artwork and audio inventory, board dimensions, game actions and result timing. The [backend review](product-backend.md) covers the 25 domain directories, data access, transactions, rankings of issues, measurements and rollback of the first service change.
 

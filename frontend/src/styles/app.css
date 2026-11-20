@@ -7101,13 +7101,13 @@ button.chess-san:hover
 }
 
 /*
- * A mythic look's badge is the edge's light made pale, so the page's own ink reads on every stop
- * of it. The gradient ends on the colour it starts with and is drawn twice as wide as the badge,
+ * A mythic look's pastel gradient pairs with dark ink so every stop stays readable in both themes.
+ * The gradient ends on the colour it starts with and is drawn twice as wide as the badge,
  * so moving it a whole width along is a loop with no seam.
  */
 .tier-mythic
 {
-    color: var(--bright-ink);
+    color: #0B1220;
     background: linear-gradient(100deg, #FFB3C0, #FFE39A, #9FF3EA, #D9CCFF, #FFB3C0) 0 0 / 200% 100%;
 }
 

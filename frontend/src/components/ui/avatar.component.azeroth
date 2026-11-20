@@ -75,7 +75,7 @@ export default component Avatar(props: {
     >
         <span
             class="flex h-full w-full items-center justify-center overflow-hidden rounded-full"
-            style="background: color-mix(in oklab, hsl(var(--hue) 52% 38%) 85%, var(--field))"
+            style="background: color-mix(in oklab, hsl(var(--hue) 52% 38%) var(--avatar-tint), var(--field))"
         >
             <Show when={ picture !== '' && picture !== broken } fallback={ <span aria-hidden="true">{ initialsOf(name) }</span> }>
                 { () =>

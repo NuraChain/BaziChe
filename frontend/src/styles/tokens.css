@@ -119,6 +119,7 @@
     --line: #1F2937;
     --line-strong: #334155;
     --shadow-ink: var(--void);
+    --avatar-tint: 72%;
 
     --text: #F8FAFC;
     --muted: #94A3B8;
@@ -172,6 +173,7 @@
     --line: #C4D0E0;
     --line-strong: #7A889C;
     --shadow-ink: #526681;
+    --avatar-tint: 35%;
 
     --text: #142139;
     --muted: #3E506A;

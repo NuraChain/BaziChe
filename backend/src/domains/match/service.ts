@@ -404,19 +404,14 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
 
         return await atOnce(async (tx) =>
         {
-            const match = await tx.getRepository(Match).findOne({ where: { id: matchId } });
+            const { entities: [match], raw: [viewer] } = await tx.getRepository(Match)
+                .createQueryBuilder('m')
+                .innerJoin(MatchPlayer, 'p', 'p.match_id = m.id and p.user_id = :me', { me })
+                .addSelect('p.seat', 'seat')
+                .where('m.id = :matchId', { matchId })
+                .getRawAndEntities<{ seat: number }>();
 
-            if (match === null)
-            {
-                return null;
-            }
-
-            const seat = await tx.getRepository(MatchPlayer).findOne({
-                select: { seat: true },
-                where: { matchId, userId: me }
-            });
-
-            return seat === null ? null : { match, state: stateOf(match), players: await seatsOf(tx, matchId), mine: seat.seat };
+            return match === undefined ? null : { match, state: stateOf(match), players: await seatsOf(tx, matchId), mine: viewer.seat };
         });
     };
 

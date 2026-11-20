@@ -153,7 +153,7 @@ export default component PlayHeader(props: { table: TableSummary; others: TableS
                                                 <GameIcon game={ table.game as GameId } class="h-8 w-8" />
                                                 <span class="contents @2xl/head:block @2xl/head:sr-only @4xl/head:contents" data-words>
                                                     <span class="max-w-[9rem] truncate">{ nameOf(table.game) }</span>
-                                                    <span class="shrink-0 text-ui-xs font-normal uppercase tracking-wide opacity-70">{ table.code }</span>
+                                                    <span class="shrink-0 text-ui-xs font-normal uppercase tracking-wide text-muted">{ table.code }</span>
                                                     <Show when={ table.yourTurn === true }>
                                                         { () => <Badge dot text={ locale.t('card.yourTurn') } tone="live" /> }
                                                     </Show>

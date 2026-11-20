@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@azerothjs/http';
 import { Between, IsNull, type DataSource, type EntityManager } from 'typeorm';
 
+import { commitOf } from '../../chain/vault.ts';
 import { EscrowSeat } from '../../entities/escrow-seat.entity.ts';
 import { Escrow } from '../../entities/escrow.entity.ts';
 import { MatchAction } from '../../entities/match-action.entity.ts';
@@ -14,14 +16,16 @@ import { maskOf } from '../stake/policy.ts';
 import { isSystem } from '../system/sql.ts';
 import { clockOf } from '../table/clocks.ts';
 import { gameOff, gameOn, lockTable, stillLocking, tableRefusal } from '../table/service.ts';
-import { hmacSha256, keccak, pickBelow } from '../../lib/crypto.ts';
+import { hmacSha256, keccak } from '../../lib/crypto.ts';
 import { cursorOf, keyOf, keysetAfter, olderThan, type Keyed } from '../../lib/keyset.ts';
 import type { AchieveService } from '../achieve/service.ts';
 import type { QuestProgressHook, RewardFinishEffects } from '../reward/progress.ts';
 import { firstRow } from '../../lib/rows.ts';
 import { createRecorder } from './record.ts';
 import { envelopeOf } from './envelope.ts';
-import { OPENING, drawsOf, seedOf } from './fair.ts';
+import { OPENING, drawsOf, seedOf, stakeMatchId } from './fair.ts';
+import type { MatchRandomnessProtocol, RandomnessAudit, RandomnessProtocol } from './randomness.ts';
+import { gameRandomness, RandomnessError } from './randomness-server.ts';
 import { backgammonEngine } from './engines/backgammon.ts';
 import { chessEngine } from './engines/chess.ts';
 import { hokmEngine } from './engines/hokm.ts';
@@ -200,6 +204,8 @@ export const sameTurn = (engine: Engine, before: unknown, after: unknown) =>
 /** Nobody chose anything: every seat plays in Classic. */
 const CLASSIC: LooksReader = async (_runner, _game, userIds) => new Map(userIds.map((id) => [id, {}]));
 
+const PROBE_DRAWS: Draws = { die: () => 1, shuffle: (items) => [...items] };
+
 export function createMatchService(db: DataSource, achieve: AchieveService, engines: readonly Engine[] = ENGINES, looksOf: LooksReader = CLASSIC, reward?: QuestProgressHook)
 {
     const recorder = createRecorder(achieve, reward);
@@ -208,31 +214,66 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
 
     const engineFor = (game: string) => byGame.get(game) ?? null;
 
-    /**
-     * The one source of randomness in this domain, handed to engines rather than taken by them.
-     *
-     * `pickBelow` is `randomInt` from `node:crypto` - never `randomBytes(1) % sides`, which quietly
-     * favours the low faces - and it is the same generator that used to be called `rollDie` here and
-     * `pickBelow` beside it. An engine imports nothing and cannot reach either, which is what makes
-     * "there is no randomness inside an engine to subvert" structural rather than a review comment.
-     */
-    const draws: Draws = { die: (sides: number) => pickBelow(sides) + 1 };
+    const seeded = (seats: readonly Pick<EscrowSeat, 'seat' | 'secret' | 'signature' | 'commitment'>[], count: number, version: 1 | 2) =>
+    {
+        if (seats.length !== count || seats.some((seat, index) => seat.seat !== index
+            || !/^0x[0-9a-f]{64}$/i.test(seat.secret) || !/^0x(?:[0-9a-f]{2})+$/i.test(seat.signature)
+            || commitOf(seat.secret as `0x${string}`) !== seat.commitment))
+        {
+            throw new RandomnessError('Invalid match escrow randomness material.');
+        }
 
-    const seeded = (seats: readonly { secret: string; signature: string }[]) =>
-        seats.length === 0 ? null : seedOf(keccak, seats.map((seat) => seat.secret), seats.map((seat) => seat.signature));
+        return seedOf(keccak, seats.map((seat) => seat.secret), seats.map((seat) => seat.signature), version);
+    };
 
-    const seedOfMatch = async (runner: EntityManager | DataSource, matchId: string) => seeded(await runner.getRepository(EscrowSeat)
-        .createQueryBuilder('s')
-        .innerJoin(Escrow, 'e', 'e.id = s.escrow_id')
-        .select('s.secret', 'secret')
-        .addSelect('s.signature', 'signature')
-        .where('e.match_id = :matchId', { matchId })
-        .orderBy('s.seat', 'ASC')
-        .getRawMany<{ secret: string; signature: string }>());
+    const drawsAt = (protocol: RandomnessProtocol, seed: Uint8Array | null, match: { id: string; game: string }, rev: number) =>
+    {
+        if (seed === null)
+        {
+            return gameRandomness(protocol, rev);
+        }
 
-    const drawsAt = (seed: Uint8Array | null, rev: number) => seed === null ? draws : drawsOf(hmacSha256, seed, rev);
+        const source = drawsOf(hmacSha256, seed, rev, protocol === 'stake-v2' ? match : undefined);
 
-    const deal = async (tx: EntityManager, table: Table, chairs: TableSeat[], dice: Draws) =>
+        return gameRandomness(protocol, rev, (limit) => source.die(limit) - 1);
+    };
+
+    const randomnessOf = async (tx: EntityManager, match: Match) =>
+    {
+        if (match.randomnessProtocol === 'server-v2')
+        {
+            return (rev: number) => drawsAt('server-v2', null, match, rev);
+        }
+
+        const escrow = await tx.getRepository(Escrow).findOne({ select: { id: true }, where: { matchId: match.id } });
+
+        if (escrow === null)
+        {
+            if (match.randomnessProtocol === 'stake-v2')
+            {
+                throw new RandomnessError('Match escrow randomness material is missing.');
+            }
+
+            return (rev: number) => drawsAt('server-v1', null, match, rev);
+        }
+
+        const seats = await tx.getRepository(EscrowSeat).find({
+            select: { seat: true, secret: true, signature: true, commitment: true, nonce: true },
+            where: { escrowId: escrow.id },
+            order: { seat: 'ASC' }
+        });
+        const protocol = match.randomnessProtocol ?? 'stake-v1';
+        const seed = seeded(seats, match.seats, protocol === 'stake-v2' ? 2 : 1);
+
+        if (protocol === 'stake-v2' && stakeMatchId(keccak, match.game, seats) !== match.id)
+        {
+            throw new RandomnessError('Match escrow randomness material belongs to a different match.');
+        }
+
+        return (rev: number) => drawsAt(protocol, seed, match, rev);
+    };
+
+    const deal = async (tx: EntityManager, table: Table, chairs: TableSeat[], stake?: { id: string; seed: Uint8Array }) =>
     {
         /**
          * Whether anything here knows how to play it, rather than whether it is called ludo.
@@ -276,23 +317,27 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             throw tableRefusal('not-ready', 'That table is not ready to start.');
         }
 
+        const id = stake?.id ?? randomUUID();
+        const protocol: MatchRandomnessProtocol = stake === undefined ? 'server-v2' : 'stake-v2';
+        const rng = drawsAt(protocol, stake?.seed ?? null, { id, game: table.game }, OPENING);
         const seats = chairs.map((chair) => chair.seat);
-        const { state, events } = engine.create(seats, dice, {
+        const config: TableConfig = {
             target: table.target,
             cube: table.cube,
             blinds: table.blinds as TableConfig['blinds'],
             variant,
             clock: clockOf(table.clock)
-        });
+        };
+        const { state, events } = engine.create(seats, rng.draws, config);
 
         const inserted = firstRow<{ id: string }>(await tx.query(
-            `insert into matches (table_id, game, variant, seats, state, rev, deadline_at)
-             select $1, $2, $8, $3::smallint, $4::jsonb, $7::int, now() + ($5 || ' milliseconds')::interval
+            `insert into matches (table_id, game, variant, seats, state, rev, deadline_at, id, randomness_protocol)
+             select $1, $2, $8, $3::smallint, $4::jsonb, $7::int, now() + ($5 || ' milliseconds')::interval, $9, $10
               where not exists (select 1 from matches where table_id = $1 and finished_at is null)
                 and (select count(*) from table_seats s where s.table_id = $1 and s.user_id is not null) = $6::bigint
                 and not exists (select 1 from table_seats s where s.table_id = $1 and s.ready = false)
              returning id`,
-            [table.id, table.game, table.seats, JSON.stringify(state), limitOf(engine, state, table.mode), table.seats, revOf(state), variant]
+            [table.id, table.game, table.seats, JSON.stringify(state), limitOf(engine, state, table.mode), table.seats, revOf(state), variant, id, protocol]
         ));
 
         if (inserted === null)
@@ -315,8 +360,9 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             seat: -1,
             userId: null,
             kind: 'open',
-            payload: {},
+            payload: { config },
             events: events as Record<string, unknown>[],
+            randomness: rng.audit(),
             state: state as Record<string, unknown>,
             idempotencyKey: null
         });
@@ -369,24 +415,22 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             return null;
         }
 
-        const match = await db.getRepository(Match).findOne({ where: { id: matchId } });
-
-        if (match === null)
+        return await atOnce(async (tx) =>
         {
-            return null;
-        }
+            const match = await tx.getRepository(Match).findOne({ where: { id: matchId } });
 
-        const seat = await db.getRepository(MatchPlayer).findOne({
-            select: { seat: true },
-            where: { matchId, userId: me }
+            if (match === null)
+            {
+                return null;
+            }
+
+            const seat = await tx.getRepository(MatchPlayer).findOne({
+                select: { seat: true },
+                where: { matchId, userId: me }
+            });
+
+            return seat === null ? null : { match, state: stateOf(match), players: await seatsOf(tx, matchId), mine: seat.seat };
         });
-
-        if (seat === null)
-        {
-            return null;
-        }
-
-        return { match, state: stateOf(match), players: await seatsOf(db, matchId), mine: seat.seat };
     };
 
     const told = async (load: MatchLoad, rev: number): Promise<ActionLog[]> =>
@@ -461,7 +505,8 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
         next: unknown,
         events: unknown[],
         action: { seat: number; userId: string | null; kind: MatchAction['kind']; payload: Record<string, unknown>; key: string | null },
-        mode: string
+        mode: string,
+        randomness: RandomnessAudit | null
     ) =>
     {
         const ending = engine.finish(next);
@@ -490,6 +535,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             kind: action.kind,
             payload: action.payload,
             events: events as Record<string, unknown>[],
+            randomness,
             state: next as Record<string, unknown>,
             idempotencyKey: action.key
         });
@@ -678,7 +724,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                     throw stillLocking();
                 }
 
-                return await deal(tx, table, chairs, draws);
+                return await deal(tx, table, chairs);
             }).catch((error: unknown) =>
             {
                 if (typeof error === 'object' && error !== null && 'code' in error && error.code === UNIQUE_VIOLATION)
@@ -715,7 +761,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             const table = await tx.getRepository(Table).findOneOrFail({ where: { id: tableId } });
             const chairs = await tx.getRepository(TableSeat).find({ where: { tableId }, order: { seat: 'ASC' } });
 
-            return await deal(tx, table, chairs, draws);
+            return await deal(tx, table, chairs);
         },
 
         begin: async (escrowId: string) =>
@@ -740,7 +786,11 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
 
                 const table = await tx.getRepository(Table).findOne({ where: { id: held.tableId } });
                 const chairs = await tx.getRepository(TableSeat).find({ where: { tableId: held.tableId }, order: { seat: 'ASC' } });
-                const staked = await tx.getRepository(EscrowSeat).find({ select: { seat: true, userId: true, secret: true, signature: true }, where: { escrowId }, order: { seat: 'ASC' } });
+                const staked = await tx.getRepository(EscrowSeat).find({
+                    select: { seat: true, userId: true, secret: true, signature: true, commitment: true, nonce: true },
+                    where: { escrowId },
+                    order: { seat: 'ASC' }
+                });
                 const same = table !== null
                     && table.status !== 'closed'
                     && chairs.length === staked.length
@@ -749,7 +799,10 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                         .where('u.id in (:...ids)', { ids: staked.map((one) => one.userId) })
                         .andWhere(`(u.is_minor or u.is_suspended or ${ isSystem('u.id') })`)
                         .getExists();
-                const matchId = same ? await deal(tx, table, chairs, drawsAt(seeded(staked), OPENING)) : null;
+                const matchId = same ? await deal(tx, table, chairs, {
+                    id: stakeMatchId(keccak, table.game, staked),
+                    seed: seeded(staked, table.seats, 2)
+                }) : null;
 
                 await tx.getRepository(Escrow).update(
                     { id: escrowId },
@@ -764,7 +817,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             me: string,
             matchId: string,
             want: { play: MatchPlay | null; rev?: number; key: string }
-        ): Promise<{ load: MatchLoad; applied: Applied; before: number; rewardEffects: RewardFinishEffects }> =>
+        ): Promise<{ load: MatchLoad; applied: Applied; before: number; actionRev?: number; rewardEffects: RewardFinishEffects }> =>
         {
             if (!UUID.test(matchId))
             {
@@ -772,6 +825,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             }
 
             let before = -1;
+            let actionRev: number | undefined;
             let rewardEffects = NO_REWARD_EFFECTS;
 
             const applied = await db.transaction(async (tx): Promise<Applied> =>
@@ -812,6 +866,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
 
                 if (done !== null)
                 {
+                    actionRev = done.rev;
                     return 'already';
                 }
 
@@ -820,7 +875,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                     refuse('game-over');
                 }
 
-                if (want.rev !== undefined && want.rev !== match.rev)
+                if ((want.play !== null || want.rev !== undefined) && want.rev !== match.rev)
                 {
                     return 'stale';
                 }
@@ -842,41 +897,28 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                 }
 
                 const moment = engine.bank === undefined ? undefined : await momentOf(tx, match.id);
-                const outcome = engine.apply(stateOf(match), action, drawsAt(await seedOfMatch(tx, match.id), match.rev + 1), moment);
+                const rng = (await randomnessOf(tx, match))(match.rev + 1);
+                const outcome = engine.apply(stateOf(match), action, rng.draws, moment);
 
                 if (!outcome.ok)
                 {
                     refuse(outcome.reason);
                 }
 
-                /**
-                 * The payload is WHAT WAS ASKED FOR, verbatim, and nothing about what happened.
-                 *
-                 * It used to be `{ die }` - the number the service had just drawn - which put the
-                 * one value a player must not choose into the column a player's request writes.
-                 * What the die came up is in `events`, where the engine put it, and the ledger reads
-                 * the same either way.
-                 */
+                // Replay needs the original clock reading for a timed chess action.
                 rewardEffects = await commit(tx, match, engine, outcome.state, outcome.events, {
                     seat: seat.seat,
                     userId: me,
                     kind: want.play === null && conceded === null ? 'forfeit' : 'play',
-                    payload: want.play === null ? { verb: 'resign' } : { ...want.play },
+                    payload: { ...(want.play ?? { verb: 'resign' }), ...(moment === undefined ? {} : { moment }) },
                     key: want.key
-                }, await modeOf(tx, match.tableId));
+                }, await modeOf(tx, match.tableId), rng.audit());
 
+                actionRev = revOf(outcome.state);
                 return 'now';
-            }).catch((error: unknown) =>
-            {
-                if (typeof error === 'object' && error !== null && 'code' in error && error.code === UNIQUE_VIOLATION)
-                {
-                    return 'already' as Applied;
-                }
-
-                throw error;
             });
 
-            return { load: (await read(me, matchId)) as MatchLoad, applied, before, rewardEffects };
+            return { load: await dealtIn(me, matchId), applied, before, actionRev, rewardEffects };
         },
 
         proof: async (me: string, matchId: string) =>
@@ -901,7 +943,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             }
 
             const actions = await db.getRepository(MatchAction).find({
-                select: { rev: true, seat: true, kind: true, payload: true, events: true },
+                select: { rev: true, seat: true, kind: true, payload: true, events: true, randomness: true },
                 where: { matchId },
                 order: { rev: 'ASC' }
             });
@@ -925,7 +967,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                 const match = await tx.getRepository(Match).findOneByOrFail({ id: matchId });
                 const engine = engineFor(match.game);
 
-                if (engine !== null && engine.apply(stateOf(match), engine.forfeit(seat, 'left'), draws).ok)
+                if (engine !== null && engine.apply(stateOf(match), engine.forfeit(seat, 'left'), PROBE_DRAWS).ok)
                 {
                     return match.tableId;
                 }
@@ -957,16 +999,24 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                 return null;
             }
 
-            const outcome = engine.apply(stateOf(match), engine.forfeit(seat.seat, 'left'), drawsAt(await seedOfMatch(tx, match.id), match.rev + 1));
+            const action = engine.forfeit(seat.seat, 'left');
+
+            if (!mayForfeit)
+            {
+                if (engine.apply(stateOf(match), action, PROBE_DRAWS).ok)
+                {
+                    throw tableRefusal('playing', 'A game has started at that table, and leaving it now is a forfeit.');
+                }
+
+                return null;
+            }
+
+            const rng = (await randomnessOf(tx, match))(match.rev + 1);
+            const outcome = engine.apply(stateOf(match), action, rng.draws);
 
             if (!outcome.ok)
             {
                 return null;
-            }
-
-            if (!mayForfeit)
-            {
-                throw tableRefusal('playing', 'A game has started at that table, and leaving it now is a forfeit.');
             }
 
             const rewardEffects = await commit(tx, match, engine, outcome.state, outcome.events, {
@@ -975,7 +1025,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                 kind: 'forfeit',
                 payload: { verb: 'left' },
                 key: null
-            }, await modeOf(tx, match.tableId));
+            }, await modeOf(tx, match.tableId), rng.audit());
 
             return { matchId: match.id, before: match.rev, rewardEffects };
         },
@@ -1144,20 +1194,19 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
 
                     const forfeiting = nextMissForfeits(chair?.timeouts ?? 0);
 
-                    const seed = await seedOfMatch(tx, match.id);
-
-                    const dice = drawsAt(seed, match.rev + 1);
+                    const forRevision = await randomnessOf(tx, match);
+                    const rng = forRevision(match.rev + 1);
 
                     const action = forfeiting
                         ? engine.forfeit(seat, 'timeout')
-                        : engine.autoplay(state, seat, dice);
+                        : engine.autoplay(state, seat, rng.draws);
 
                     if (action === null)
                     {
                         return await stuck('no-autoplay');
                     }
 
-                    const outcome = engine.apply(state, action, dice);
+                    const outcome = engine.apply(state, action, rng.draws);
 
                     if (!outcome.ok)
                     {
@@ -1166,7 +1215,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
 
                     await tx.getRepository(MatchPlayer).increment({ matchId: match.id, seat }, 'timeouts', 1);
 
-                    const step = async (at: Match, next: unknown, events: unknown[]) =>
+                    const step = async (at: Match, next: unknown, events: unknown[], randomness: RandomnessAudit | null) =>
                     {
                         rewardEffects = await commit(tx, at, engine, next, events, {
                             seat,
@@ -1174,27 +1223,27 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                             kind: forfeiting ? 'forfeit' : 'play',
                             payload: { verb: forfeiting ? 'timeout' : 'auto' },
                             key: null
-                        }, mode);
+                        }, mode, randomness);
 
                         return { ...at, rev: revOf(next), state: next };
                     };
 
                     const turnGoesOn = (at: Match) => engine.finish(at.state) === null && sameTurn(engine, state, at.state);
 
-                    let current = await step(match, outcome.state, outcome.events);
+                    let current = await step(match, outcome.state, outcome.events, rng.audit());
 
                     for (let steps = 1; !forfeiting && steps < FOLD_MAX && turnGoesOn(current); steps += 1)
                     {
-                        const rolled = drawsAt(seed, current.rev + 1);
-                        const auto = engine.autoplay(current.state, seat, rolled);
-                        const folded = auto === null ? null : engine.apply(current.state, auto, rolled);
+                        const rolled = forRevision(current.rev + 1);
+                        const auto = engine.autoplay(current.state, seat, rolled.draws);
+                        const folded = auto === null ? null : engine.apply(current.state, auto, rolled.draws);
 
                         if (folded === null || !folded.ok)
                         {
                             break;
                         }
 
-                        current = await step(current, folded.state, folded.events);
+                        current = await step(current, folded.state, folded.events, rolled.audit());
                     }
 
                     if (turnGoesOn(current))
@@ -1214,13 +1263,23 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                     throw error;
                 }
 
-                await db.transaction(async (tx) => await postpone(tx, failed.id, await modeOf(tx, failed.tableId)));
+                await db.transaction(async (tx) =>
+                {
+                    const mode = await modeOf(tx, failed.tableId);
+
+                    await tx.getRepository(Match).createQueryBuilder()
+                        .update()
+                        .set({ deadlineAt: deadlineFrom(turnMs(mode)) })
+                        .where({ id: failed.id, rev: failed.rev, finishedAt: IsNull() })
+                        .andWhere('deadline_at < now()')
+                        .execute();
+                });
 
                 return {
                     matchId: failed.id,
                     game: failed.game,
                     played: false,
-                    reason: `threw:${ error instanceof Error ? error.message : String(error) }`
+                    reason: error instanceof RandomnessError ? 'threw:randomness' : 'threw:match-transition'
                 };
             }
         }

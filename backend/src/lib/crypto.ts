@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes, randomInt } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 
 import { keccak256 } from 'viem';
 
@@ -17,29 +17,6 @@ import { keccak256 } from 'viem';
 export function mintToken()
 {
     return randomBytes(32).toString('base64url');
-}
-
-/**
- * A die, 1 to 6, from the same generator the tokens come from.
- *
- * `randomInt` rather than `randomBytes(1) % 6`: Node rejects and redraws, so every face is equally
- * likely, where modulo over a byte quietly favours the low ones. `Math.random` is out for the
- * reason above - it is seeded here on purpose.
- *
- * This is the die of a free table, and nothing there can be checked: the server draws, the server
- * records, and a player cannot see that it did not draw twice and keep the one it liked. A table
- * played for NURA draws from a seed its players can work out again afterwards
- * (`domains/match/fair.ts`).
- */
-export function rollDie()
-{
-    return randomInt(1, 7);
-}
-
-/** One of `count` things, drawn the same way a die is. Used for who moves first. */
-export function pickBelow(count: number)
-{
-    return count <= 1 ? 0 : randomInt(0, count);
 }
 
 export function hmacSha256(key: Uint8Array, message: Uint8Array)

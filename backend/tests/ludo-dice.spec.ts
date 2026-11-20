@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { rollDie, pickBelow } from '../src/lib/crypto.ts';
+import { gameRandomness } from '../src/domains/match/randomness-server.ts';
 
 /**
  * The client cannot choose a die, and that is structural rather than a rule somebody remembers.
@@ -24,10 +24,11 @@ describe('the die', () =>
     it('is always a face', () =>
     {
         const seen = new Set<number>();
+        const { draws } = gameRandomness('server-v2', 1);
 
         for (let draw = 0; draw < 4000; draw += 1)
         {
-            const die = rollDie();
+            const die = draws.die(6);
 
             expect(Number.isInteger(die)).toBe(true);
             expect(die).toBeGreaterThanOrEqual(1);
@@ -40,12 +41,14 @@ describe('the die', () =>
 
     it('draws who goes first from the same generator, and never out of range', () =>
     {
-        expect(pickBelow(1)).toBe(0);
-        expect(pickBelow(0)).toBe(0);
+        const { draws } = gameRandomness('server-v2', 1);
+
+        expect(draws.die(1)).toBe(1);
+        expect(() => draws.die(0)).toThrow(RangeError);
 
         for (let draw = 0; draw < 2000; draw += 1)
         {
-            const index = pickBelow(4);
+            const index = draws.die(4) - 1;
 
             expect(index).toBeGreaterThanOrEqual(0);
             expect(index).toBeLessThan(4);

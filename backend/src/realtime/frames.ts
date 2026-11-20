@@ -53,7 +53,7 @@ export type ServerFrame =
     | { v: 1; t: 'sound'; n: number; room: string; join: string; codec: Codec; at: number; data: string }
     | { v: 1; t: 'game'; n: number; at: number; match: MatchView; events: MatchEvent[] }
     | { v: 1; t: 'watch'; n: number; at: number; match: MatchView; events: MatchEvent[] }
-    | { v: 1; t: 'ack'; n: number; key: string; match: MatchView; applied: Applied; events: MatchEvent[] }
+    | { v: 1; t: 'ack'; n: number; key: string; match: MatchView; applied: Applied; actionRev?: number; events: MatchEvent[] }
     | { v: 1; t: 'refused'; n: number; key: string; match: string; status: number; code: string; message: string }
     | { v: 1; t: 'pulse'; n: number; games: Pulse['games']; watching: string; notice?: Pulse['notice'] }
     | { v: 1; t: 'pong'; n: number; at: number };
@@ -128,8 +128,8 @@ export const game = (n: number, at: number, match: MatchView, events: MatchEvent
 export const watched = (n: number, at: number, match: MatchView, events: MatchEvent[]): ServerFrame =>
     ({ v: 1, t: 'watch', n, at, match, events });
 
-export const ack = (n: number, key: string, match: MatchView, applied: Applied, events: MatchEvent[]): ServerFrame =>
-    ({ v: 1, t: 'ack', n, key, match, applied, events });
+export const ack = (n: number, key: string, match: MatchView, applied: Applied, events: MatchEvent[], actionRev?: number): ServerFrame =>
+    ({ v: 1, t: 'ack', n, key, match, applied, events, ...(actionRev === undefined ? {} : { actionRev }) });
 
 export const refused = (n: number, key: string, match: string, why: { status: number; code: string; message: string }): ServerFrame =>
     ({ v: 1, t: 'refused', n, key, match, status: why.status, code: why.code, message: why.message });

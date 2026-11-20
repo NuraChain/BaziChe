@@ -3423,6 +3423,7 @@ export type MatchEvent = Infer<typeof matchEvent>;
 export const matchAck = object({
     match: matchView,
     applied: enumOf(['now', 'already', 'stale']),
+    actionRev: number({ int: true, min: 1 }).optional(),
     events: array(matchEvent)
 });
 
@@ -3434,8 +3435,8 @@ export const matchAck = object({
  * that has since moved writes nothing rather than landing for a different reason.
  */
 export const matchActionInput = object({
-    key: string({ max: 64 }),
-    rev: number({ int: true, min: 0 }).optional()
+    key: string({ min: 1, max: 64 }),
+    rev: number({ int: true, min: 0, max: 2_147_483_647 }).optional()
 });
 
 /**
@@ -3508,8 +3509,8 @@ export const matchPlay = union([ludoPlay, hokmPlay, backgammonPlay, pokerPlay, c
 export type MatchPlay = Infer<typeof matchPlay>;
 
 export const matchPlayInput = object({
-    key: string({ max: 64 }),
-    rev: number({ int: true, min: 0 }).optional(),
+    key: string({ min: 1, max: 64 }),
+    rev: number({ int: true, min: 0, max: 2_147_483_647 }),
     play: matchPlay
 });
 
@@ -3547,10 +3548,17 @@ const proofAction = object({
     seat: number(),
     kind: enumOf(['open', 'play', 'forfeit']),
     payload: string(),
-    events: string()
+    events: string(),
+    randomness: string().optional()
 });
 
 export const matchProof = object({
+    randomness: object({
+        protocol: literal('stake-v2'),
+        matchId: string(),
+        lastRev: number({ int: true, min: 1 }),
+        voided: boolean()
+    }).optional(),
     game: string(),
     variant: enumOf(VARIANTS),
     seats: array(number()),

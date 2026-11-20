@@ -1,5 +1,5 @@
 import { NotFoundError, type HttpError } from '@azerothjs/http';
-import { In, IsNull, type DataSource, type EntityManager } from 'typeorm';
+import { In, IsNull, Not, type DataSource, type EntityManager } from 'typeorm';
 import { getAddress, toHex, type Address, type Hex } from 'viem';
 
 import { commitOf, freshBytes, vaultIdOf, type Refusal, type Stake, type Vault, type VaultCall, type VaultGame } from '../../chain/vault.ts';
@@ -1051,7 +1051,7 @@ export function createStakeService(db: DataSource, vault: Vault, hooks: StakeHoo
                 return null;
             }
 
-            const escrow = await db.getRepository(Escrow).findOne({ where: { matchId } });
+            const escrow = await db.getRepository(Escrow).findOne({ where: { matchId, match: { finishedAt: Not(IsNull()) } } });
 
             if (escrow === null)
             {

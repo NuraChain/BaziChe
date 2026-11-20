@@ -59,7 +59,7 @@ export default component CheckPage()
         void people.want(held.players.map((player) => player.who));
 
         void checker()
-            .then((module) => checked = module.check(held))
+            .then((module) => checked = module.check(held, id))
             .catch(() => broken = true);
     }
 

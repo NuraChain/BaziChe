@@ -1,6 +1,7 @@
 import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { Match } from './match.entity.ts';
 import { User } from './user.entity.ts';
+import type { RandomnessAudit } from '../domains/match/randomness.ts';
 
 /**
  * What KIND of thing this row records, in the two words the platform reads.
@@ -81,6 +82,10 @@ export class MatchAction
 
     @Column({ type: 'jsonb', default: () => `'[]'` })
     events!: unknown[];
+
+    /** Shuffle indices reconstruct the private stock. Only a finished paid proof selects them. */
+    @Column({ type: 'jsonb', nullable: true, select: false })
+    randomness!: RandomnessAudit | null;
 
     /**
      * The board as it stood AFTER this action, which is what a spectator is shown.

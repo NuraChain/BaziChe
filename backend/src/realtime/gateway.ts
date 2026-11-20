@@ -98,7 +98,7 @@ async function playOver(deps: GatewayDeps, connection: Connection, frame: Extrac
     try
     {
         const answer = await deps.ports.match.play(connection.userId, frame.match, input.value);
-        deps.hub.reply(connection, (n) => ack(n, frame.key, answer.match, answer.applied, answer.events));
+        deps.hub.reply(connection, (n) => ack(n, frame.key, answer.match, answer.applied, answer.events, answer.actionRev));
     }
     catch (error)
     {

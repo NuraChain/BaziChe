@@ -3,8 +3,9 @@ import { chessEngine } from '../../../backend/src/domains/match/engines/chess.ts
 import { hokmEngine } from '../../../backend/src/domains/match/engines/hokm.ts';
 import { ludoEngine } from '../../../backend/src/domains/match/engines/ludo.ts';
 import { pokerEngine } from '../../../backend/src/domains/match/engines/poker.ts';
-import { OPENING, bytesOf, drawsOf, hexOf, seedOf } from '../../../backend/src/domains/match/fair.ts';
-import type { Engine, ForfeitReason } from '../../../backend/src/domains/match/engine.ts';
+import { OPENING, bytesOf, drawsOf, hexOf, seedOf, stakeMatchId } from '../../../backend/src/domains/match/fair.ts';
+import { trackedDraws } from '../../../backend/src/domains/match/randomness.ts';
+import type { Engine, ForfeitReason, Moment, TableConfig } from '../../../backend/src/domains/match/engine.ts';
 import type { MatchPlay, MatchProof } from '../api.ts';
 import { keccak, mac } from './fair.ts';
 import { addressFrom } from './signer.ts';
@@ -104,15 +105,29 @@ export function replay(proof: MatchProof, seed: Uint8Array)
     const total = proof.actions.length;
     const engine = ENGINES.get(proof.game);
     const [opening, ...rest] = proof.actions;
+    const domain = proof.randomness === undefined ? undefined : { id: proof.randomness.matchId, game: proof.game };
+    const at = (rev: number) =>
+    {
+        const source = drawsOf(mac, seed, rev, domain);
+
+        return domain === undefined
+            ? { draws: source, audit: () => null }
+            : trackedDraws('stake-v2', rev, (limit) => source.die(limit) - 1);
+    };
+    const drawnAsRecorded = (action: MatchProof['actions'][number], roll: ReturnType<typeof at>) =>
+        domain === undefined || (action.randomness !== undefined && spelt(roll.audit()) === spelt(JSON.parse(action.randomness)));
 
     if (engine === undefined || opening === undefined || opening.kind !== 'open' || opening.rev !== OPENING)
     {
         return { moves: 0, total, wrong: { rev: opening?.rev ?? OPENING, said: opening?.events ?? '', drawn: '' } };
     }
 
-    const made = engine.create(proof.seats, drawsOf(mac, seed, OPENING), { target: proof.target, cube: proof.cube, blinds: proof.blinds, variant: proof.variant });
+    const openingPayload = JSON.parse(opening.payload) as { config?: TableConfig };
+    const config = domain === undefined ? undefined : openingPayload.config;
+    const lead = at(OPENING);
+    const made = engine.create(proof.seats, lead.draws, config ?? { target: proof.target, cube: proof.cube, blinds: proof.blinds, variant: proof.variant });
 
-    if (revOf(made.state) !== OPENING || spelt(made.events) !== spelt(JSON.parse(opening.events)))
+    if (revOf(made.state) !== OPENING || spelt(made.events) !== spelt(JSON.parse(opening.events)) || !drawnAsRecorded(opening, lead))
     {
         return { moves: 0, total, wrong: { rev: OPENING, said: opening.events, drawn: JSON.stringify(made.events) } };
     }
@@ -122,14 +137,17 @@ export function replay(proof: MatchProof, seed: Uint8Array)
 
     for (const action of rest)
     {
-        const payload = JSON.parse(action.payload) as { verb?: string };
-        const dice = drawsOf(mac, seed, action.rev);
+        const payload = JSON.parse(action.payload) as { verb?: string; moment?: Moment };
+        const roll = at(action.rev);
         const asked = action.kind === 'forfeit'
             ? engine.forfeit(action.seat, payload.verb as ForfeitReason)
-            : (payload.verb === 'auto' ? engine.autoplay(state, action.seat, dice) : engine.parse(payload as MatchPlay, action.seat));
-        const outcome = asked === null ? null : engine.apply(state, asked, dice);
+            : (payload.verb === 'auto'
+                ? engine.autoplay(state, action.seat, roll.draws)
+                : (payload.verb === 'resign' ? engine.concede?.(action.seat) ?? null : engine.parse(payload as MatchPlay, action.seat)));
+        const outcome = asked === null ? null : engine.apply(state, asked, roll.draws, payload.moment);
 
-        if (outcome === null || !outcome.ok || revOf(outcome.state) !== action.rev || spelt(outcome.events) !== spelt(JSON.parse(action.events)))
+        if (outcome === null || !outcome.ok || revOf(outcome.state) !== action.rev
+            || spelt(outcome.events) !== spelt(JSON.parse(action.events)) || !drawnAsRecorded(action, roll))
         {
             return { moves, total, wrong: { rev: action.rev, said: action.events, drawn: outcome?.ok === true ? JSON.stringify(outcome.events) : '' } };
         }
@@ -138,12 +156,33 @@ export function replay(proof: MatchProof, seed: Uint8Array)
         moves += 1;
     }
 
+    if (proof.randomness !== undefined)
+    {
+        const { lastRev, voided } = proof.randomness;
+        const expected = lastRev - (voided ? 1 : 0);
+
+        if (revOf(state) !== expected || (engine.finish(state) === null) !== voided)
+        {
+            return { moves, total, wrong: { rev: expected, said: String(expected), drawn: String(revOf(state)) } };
+        }
+    }
+
     return { moves, total, wrong: null };
 }
 
-export function check(proof: MatchProof): Checked
+export function check(proof: MatchProof, matchId?: string): Checked
 {
-    const seed = seedOf(keccak, proof.players.map((seat) => seat.secret), proof.players.map((seat) => seat.signature));
+    if (proof.randomness !== undefined)
+    {
+        const expected = stakeMatchId(keccak, proof.game, proof.players.map((seat) => ({ commitment: seat.commit, nonce: seat.nonce })));
+
+        if (proof.randomness.matchId !== expected || (matchId !== undefined && expected !== matchId.toLowerCase()))
+        {
+            throw new Error('Randomness transcript belongs to a different match.');
+        }
+    }
+
+    const seed = seedOf(keccak, proof.players.map((seat) => seat.secret), proof.players.map((seat) => seat.signature), proof.randomness === undefined ? 1 : 2);
     const seats = proof.players.map((seat) => ({
         seat: seat.seat,
         who: seat.who,

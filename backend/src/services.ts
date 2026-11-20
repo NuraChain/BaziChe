@@ -2047,7 +2047,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         me: string,
         matchId: string,
         want: { play: MatchPlay | null; key: string; rev?: number }
-    ): Promise<{ match: MatchView; applied: 'now' | 'already' | 'stale'; events: MatchEventLog[] }> =>
+    ): Promise<{ match: MatchView; applied: 'now' | 'already' | 'stale'; actionRev?: number; events: MatchEventLog[] }> =>
     {
         const answer = await match.act(me, matchId, want);
 
@@ -2065,9 +2065,15 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             }
         }
 
-        const since = want.rev === undefined ? null : await match.since(me, matchId, want.rev);
+        const from = answer.actionRev === undefined ? want.rev : Math.min(want.rev ?? answer.actionRev - 1, answer.actionRev - 1);
+        const since = from === undefined ? null : await match.since(me, matchId, from);
 
-        return { match: asMatch(answer.load), applied: answer.applied, events: since === null ? [] : logged(since.events) };
+        return {
+            match: asMatch(since?.load ?? answer.load),
+            applied: answer.applied,
+            ...(answer.actionRev === undefined ? {} : { actionRev: answer.actionRev }),
+            events: since === null ? [] : logged(since.events)
+        };
     };
 
     /** System players move through `played`, the same path and the same courtesies as a person's move. */
@@ -5457,7 +5463,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             play: async (me, matchId, input) =>
                 await played(me, matchId, { play: input.play, key: input.key, rev: input.rev }),
 
-            resign: async (me, matchId, input) => await played(me, matchId, { play: null, key: input.key }),
+            resign: async (me, matchId, input) => await played(me, matchId, { play: null, key: input.key, rev: input.rev }),
 
             history: (me, cursor) => match.history(me, cursor),
 
@@ -5516,6 +5522,14 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 const who = new Map(played.players.map((player) => [player.seat, player.who]));
 
                 return {
+                    ...(played.match.randomnessProtocol === 'stake-v2'
+                        ? { randomness: {
+                            protocol: 'stake-v2' as const,
+                            matchId: played.match.id,
+                            lastRev: played.match.rev,
+                            voided: voidedOf(played.match.state)
+                        } }
+                        : {}),
                     game: played.match.game,
                     variant: played.match.variant,
                     seats: played.players.map((player) => player.seat),
@@ -5542,7 +5556,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                         seat: action.seat,
                         kind: action.kind,
                         payload: JSON.stringify(action.payload),
-                        events: JSON.stringify(action.events)
+                        events: JSON.stringify(action.events),
+                        ...(played.match.randomnessProtocol === 'stake-v2' ? { randomness: JSON.stringify(action.randomness ?? null) } : {})
                     })),
                     ...(paid.escrow.openTx === null ? {} : { openTx: paid.escrow.openTx }),
                     ...(paid.escrow.closeTx === null ? {} : { closeTx: paid.escrow.closeTx })

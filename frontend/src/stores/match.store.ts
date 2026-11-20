@@ -283,7 +283,7 @@ export const useBoard = createStore((): BoardApi =>
 
     const pending = () => unmended;
 
-    const inTime = <T>(asked: Promise<T>) => new Promise<T | null>((resolve) =>
+    const inTime = <T>(asked: Promise<T>, reportFailure = false) => new Promise<T | null>((resolve, reject) =>
     {
         const stop = runtime().clock.after(MEND_MS, () => resolve(null));
 
@@ -293,10 +293,17 @@ export const useBoard = createStore((): BoardApi =>
                 stop();
                 resolve(answer);
             },
-            () =>
+            (error: unknown) =>
             {
                 stop();
-                resolve(null);
+                if (reportFailure)
+                {
+                    reject(error);
+                }
+                else
+                {
+                    resolve(null);
+                }
             }
         );
     });
@@ -447,6 +454,8 @@ export const useBoard = createStore((): BoardApi =>
         }
     };
 
+    let retry: { intent: string; key: string } | null = null;
+
     const act = async (play: MatchPlay | null, quiet = false): Promise<Outcome> =>
     {
         const current = untrack(board);
@@ -458,15 +467,24 @@ export const useBoard = createStore((): BoardApi =>
 
         setBusy(true);
 
-        const key = mintKey();
         const id = current.id;
+        const intent = JSON.stringify([id, current.rev, play]);
+        const key = retry?.intent === intent ? retry.key : mintKey();
+        retry = { intent, key };
 
         try
         {
             const answer = (play === null ? null : await overSocket(id, key, current.rev, play))
-                ?? (play === null
-                    ? await client.matches.resign({ params: { id }, input: { key } })
-                    : await client.matches.play({ params: { id }, input: { key, rev: current.rev, play } }));
+                ?? await inTime(play === null
+                    ? client.matches.resign({ params: { id }, input: { key, rev: current.rev } })
+                    : client.matches.play({ params: { id }, input: { key, rev: current.rev, play } }), true);
+
+            if (answer === null)
+            {
+                throw new Error('Match command timed out.');
+            }
+
+            retry = null;
 
             const told = play === null && answer.events.length === 0 && answer.match.rev > current.rev
                 ? await inTime(client.matches.since({ params: { id }, query: { rev: String(current.rev) } }))
@@ -478,7 +496,12 @@ export const useBoard = createStore((): BoardApi =>
         }
         catch (error)
         {
-            await revalidate().catch(() => undefined);
+            if (error instanceof ApiError && error.status >= 400 && error.status < 500)
+            {
+                retry = null;
+            }
+
+            await inTime(revalidate());
 
             if (quiet)
             {
@@ -664,6 +687,7 @@ export const useBoard = createStore((): BoardApi =>
             heardFor = '';
             heardRev = -1;
             unmended = null;
+            retry = null;
             waiting.clear();
             early.clear();
             opened.clear();

@@ -2,6 +2,7 @@ import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, 
 import { Game } from './game.entity.ts';
 import { Table } from './table.entity.ts';
 import type { Variant } from '../domains/match/sides.ts';
+import type { MatchRandomnessProtocol } from '../domains/match/randomness.ts';
 
 export type MatchOutcome = 'won' | 'drawn' | 'abandoned';
 
@@ -22,6 +23,7 @@ export type MatchOutcome = 'won' | 'drawn' | 'abandoned';
 @Check('matches_outcome_known', `outcome is null or outcome in ('won', 'drawn', 'abandoned')`)
 @Check('matches_rev_matches_state', `(state ->> 'rev')::int = rev`)
 @Check('matches_rev_positive', `rev >= 0`)
+@Check('matches_randomness_protocol_known', `randomness_protocol is null or randomness_protocol in ('server-v2', 'stake-v2')`)
 @Check('matches_seats_range', `seats between 2 and 9`)
 @Check('matches_teams_four', `variant <> 'teams' or seats = 4`)
 @Check('matches_variant_known', `variant in ('standard', 'teams')`)
@@ -52,6 +54,9 @@ export class Match
 
     @Column({ type: 'integer', default: 0 })
     rev!: number;
+
+    @Column({ name: 'randomness_protocol', type: 'varchar', length: 24, nullable: true })
+    randomnessProtocol!: MatchRandomnessProtocol | null;
 
     @Column({ name: 'deadline_at', type: 'timestamptz', nullable: true })
     deadlineAt!: Date | null;

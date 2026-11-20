@@ -34,9 +34,14 @@ def preview(game, parts):
     floor = bpy.context.active_object
     floor.name = 'preview-floor'
     kit.assign(floor, kit.material('preview-floor', base=studio.SPEC['sky'], roughness=1.0))
-    studio.preview(os.path.join(PREVIEWS, 'showcase-%s.png' % game), **parts['hero'])
-    if os.environ.get('NURA_TOP') == '1':
-        studio.preview(os.path.join(PREVIEWS, 'showcase-%s-top.png' % game), (0.0, 0.0, 0.15), (0.0, -0.001, 1.25), fov=24.0, width=1200, height=1200)
+    if ONLY == GAMES:
+        still = os.path.join(kit.output_dir(), 'card-%s.webp' % game)
+        card_view = {**parts['hero'], 'fov': 38.0}
+        studio.preview(still, **card_view, width=720, height=480, samples=64)
+    if PREVIEW:
+        studio.preview(os.path.join(PREVIEWS, 'showcase-%s.png' % game), **parts['hero'])
+        if os.environ.get('NURA_TOP') == '1':
+            studio.preview(os.path.join(PREVIEWS, 'showcase-%s-top.png' % game), (0.0, 0.0, 0.15), (0.0, -0.001, 1.25), fov=24.0, width=1200, height=1200)
     bpy.data.objects.remove(floor, do_unlink=True)
     for obj in shown:
         if obj.parent is parts['root']:
@@ -71,7 +76,7 @@ for game in ONLY:
         piece.hide_render = True
     for obj in settling:
         obj.hide_render = False
-    if PREVIEW:
+    if PREVIEW or ONLY == GAMES:
         preview(game, parts)
     for obj in members + decals():
         obj.hide_render = True
@@ -117,14 +122,14 @@ if ONLY == GAMES:
     exported = [obj for parts in built for obj in descendants(parts['root'])]
     settle.rest()
     shrink(2048)
-    for name in ('dark_wood_Diffuse_2k.jpg', 'dark_wood_Rough_2k.jpg', 'dark_wood_nor_gl_2k.jpg', 'scuba_suede_nor_gl_2k.jpg'):
+    for name in ('dark_wood_Diffuse_2k.jpg', 'dark_wood_Rough_2k.jpg', 'dark_wood_nor_gl_2k.jpg'):
         picture = bpy.data.images.get(name)
         if picture is not None and picture.size[0] > 1024:
             picture.scale(1024, 1024)
     kit.export(kit.output_path('showcase-desktop'), exported)
     settle.retarget(kit.output_path('showcase-desktop'))
     shrink(1024)
-    for name in ('dark_wood_Diffuse_2k.jpg', 'dark_wood_Rough_2k.jpg', 'dark_wood_nor_gl_2k.jpg', 'scuba_suede_nor_gl_2k.jpg'):
+    for name in ('dark_wood_Diffuse_2k.jpg', 'dark_wood_Rough_2k.jpg', 'dark_wood_nor_gl_2k.jpg'):
         picture = bpy.data.images.get(name)
         if picture is not None and picture.size[0] > 512:
             picture.scale(512, 512)

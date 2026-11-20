@@ -188,7 +188,8 @@ def pawn(name, colour):
         profile.append((max(math.cos(a) * ball_r, 0.0), ball_z + math.sin(a) * ball_r))
     profile.append((0.0, ball_z + ball_r))
     obj = kit.lathe(name, profile, sides=36)
-    kit.assign(obj, looks.pawn(colour))
+    kit.assign(obj, looks.pawn(colour), looks.brass())
+    kit.slot(obj, 1, lambda centre, normal: 0.0012 < centre.z < 0.0036 or 0.0203 < centre.z < 0.0225)
     kit.smooth(obj, 45.0)
     return obj
 

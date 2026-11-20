@@ -35,8 +35,8 @@ def build():
     kit.smooth(slab, 30.0)
 
     felt = kit.rounded_plate('poker-felt', 0.41, 0.31, 0.004, 0.078, corner_segments=12, location=(0.0, 0.0, TOP + SLAB_HEIGHT))
-    kit.uv_planar(felt, (0.0, 0.0, 1.0, 1.0), only_up=False)
-    kit.assign(felt, looks.felt())
+    looks.board_uv(felt, 'poker', 0.41, 0.31, only_up=False)
+    kit.assign(felt, looks.board_face('poker'))
 
     base = TOP + SLAB_HEIGHT
     profile = [(-0.021, base), (-0.021, base + 0.008), (-0.017, base + 0.017), (-0.009, base + 0.0225), (0.0, base + 0.024), (0.009, base + 0.0225), (0.017, base + 0.017), (0.021, base + 0.008), (0.021, base)]
@@ -44,7 +44,11 @@ def build():
     kit.assign(rail, looks.leather())
     kit.smooth(rail, 50.0)
 
-    line = kit.sweep('poker-line', [(-0.0011, FELT_TOP - 0.0005), (-0.0011, FELT_TOP + 0.0005), (0.0011, FELT_TOP + 0.0005), (0.0011, FELT_TOP - 0.0005)], kit.rect_path(0.15, 0.1, 0.055, corner_segments=12))
+    apron = kit.sweep('poker-apron', [(-0.008, base), (-0.008, FELT_TOP + 0.001), (0.008, FELT_TOP + 0.007), (0.008, base)], kit.rect_path(0.194, 0.144, 0.075, corner_segments=12))
+    kit.uv_box(apron, scale=1.6)
+    kit.assign(apron, looks.walnut())
+
+    line = kit.sweep('poker-line', [(-0.0008, FELT_TOP + 0.002), (-0.0008, FELT_TOP + 0.0045), (0.0008, FELT_TOP + 0.0045), (0.0008, FELT_TOP + 0.002)], kit.rect_path(0.19, 0.14, 0.074, corner_segments=12))
     kit.assign(line, looks.brass())
 
     chips = {}
@@ -75,14 +79,14 @@ def build():
     for part in button:
         pieces.place(part, 0.104, -0.062, FELT_TOP + 0.0002)
 
-    for obj in [plinth, slab, felt, rail, line] + cards + button:
+    for obj in [plinth, slab, felt, rail, apron, line] + cards + button:
         obj.parent = root
 
     return {
         'root': root,
         'plinth': plinth,
         'surfaces': [slab, felt],
-        'raised': [rail, line],
+        'raised': [rail, apron, line],
         'pieces': placed + cards + button,
         'surface_z': FELT_TOP,
         'surface_size': 0.44,

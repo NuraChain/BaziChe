@@ -3,6 +3,7 @@ import { GAME_HUE, gameArt } from './art.ts';
 
 export default component GameArt(props: {
     game: GameId;
+    src?: string;
     ratio?: 'card' | 'wide';
     priority?: boolean;
     class?: string;
@@ -23,7 +24,7 @@ export default component GameArt(props: {
         ></div>
         <Show when={ !failed }>
             <img
-                src={ gameArt(props.game) }
+                src={ props.src ?? gameArt(props.game) }
                 alt=""
                 class="relative h-full w-full object-cover"
                 loading={ props.priority === true ? 'eager' : 'lazy' }

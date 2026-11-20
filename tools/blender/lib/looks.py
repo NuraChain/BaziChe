@@ -1,4 +1,6 @@
+import json
 import os
+from functools import cache
 
 from lib import kit
 
@@ -28,36 +30,31 @@ def walnut():
     )
 
 
-def baize():
-    return kit.material(
-        'baize',
-        base='#1C5E47',
-        roughness=0.92,
-        sheen=0.8,
-        sheen_roughness=0.35,
-        sheen_tint='#7FD3B0',
-        normal_image=kit.texture('scuba_suede', 'nor_gl'),
-        normal_strength=0.35,
-        uv_scale=3.0
-    )
+@cache
+def _boards():
+    with open(_art('boards.json'), encoding='utf-8') as handle:
+        return json.load(handle)
 
 
-def felt():
-    return kit.material(
-        'felt',
-        base=kit.token('poker-felt'),
-        roughness=0.9,
-        sheen=0.8,
-        sheen_roughness=0.4,
-        sheen_tint='#86E0BD',
-        normal_image=kit.texture('scuba_suede', 'nor_gl'),
-        normal_strength=0.35,
-        uv_scale=3.0
-    )
+def board_uv(obj, game, width, depth, only_up=True):
+    atlas = _boards()
+    tile = atlas['surfaces'][game]
+    w = atlas['width']
+    h = atlas['height']
+    x, y, size = tile['x'], tile['y'], tile['size']
+    rect = ((x + 0.5) / w, 1 - (y + size - 0.5) / h, (x + size - 0.5) / w, 1 - (y + 0.5) / h)
+    kit.uv_planar(obj, rect, extent=((-width / 2, -depth / 2), (width / 2, depth / 2)), only_up=only_up)
+
+
+def board_face(game):
+    if game in ('hokm', 'poker'):
+        return kit.material(game + '-baize', base_image=_art('boards.png'), roughness=0.86,
+                            sheen=0.4, sheen_roughness=0.45, sheen_tint='#86C7AA')
+    return kit.material('board-art', base_image=_art('boards.png'), roughness=0.48, coat=0.24, coat_roughness=0.18)
 
 
 def leather():
-    return kit.material('leather', base=kit.token('poker-rail'), roughness=0.46, coat=0.35, coat_roughness=0.3)
+    return kit.material('leather', base='#6E3926', roughness=0.6, coat=0.08, coat_roughness=0.35)
 
 
 def brass():
@@ -84,45 +81,9 @@ def ebony():
     return kit.material('ebony', base='#1E1611', roughness=0.32, coat=0.75, coat_roughness=0.07)
 
 
-def chess_square(name, base):
-    return kit.material(
-        'chess-' + name,
-        base=base,
-        roughness=0.44,
-        coat=0.6,
-        coat_roughness=0.1,
-        normal_image=kit.texture('dark_wood', 'nor_gl'),
-        normal_strength=0.25,
-        uv_scale=2.2
-    )
-
-
-def sticker():
-    return kit.material('sticker', base='#FFFFFF', roughness=0.36, coat=0.4, coat_roughness=0.1)
-
-
-def ludo_ink():
-    return kit.material('ludo-ink', base='#2A1E5C', roughness=0.4)
-
-
-def ludo_board():
-    return kit.material('ludo-board', base_image=_art('ludo-board.png'), roughness=0.42, coat=0.3, coat_roughness=0.14)
-
-
-def ludo_side():
-    return kit.material('ludo-side', base='#D07A3A', roughness=0.42, coat=0.4, coat_roughness=0.12)
-
-
 def pawn(colour):
-    return kit.material('pawn-' + colour, base=kit.token('ludo-' + colour), roughness=0.28, coat=0.8, coat_roughness=0.06)
-
-
-def nard(name):
-    return kit.material('nard-' + name, base=kit.token('nard-' + name), roughness=0.5, coat=0.15, coat_roughness=0.2)
-
-
-def nard_field():
-    return kit.material('nard-field', base=kit.token('nard-field'), roughness=0.62)
+    enamel = {'red': '#AD4143', 'green': '#2D7356', 'blue': '#3F6795', 'yellow': '#C18C28'}
+    return kit.material('pawn-' + colour, base=enamel[colour], roughness=0.32, coat=0.65, coat_roughness=0.1)
 
 
 def checker(side):

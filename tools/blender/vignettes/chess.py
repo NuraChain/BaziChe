@@ -14,9 +14,7 @@ THICKNESS = 0.026
 BOARD_TOP = TOP + THICKNESS
 FIELD = SIZE * 896 / 1000
 SQUARE = FIELD / 8
-TILE = 0.0012
-FIELD_TOP = BOARD_TOP + TILE
-REST = FIELD_TOP + 0.0003
+REST = BOARD_TOP + 0.0003
 SIDES = 16
 
 WHITE = [
@@ -129,36 +127,6 @@ def knight(name):
 MAKERS = {'p': pawn, 'r': rook, 'b': bishop, 'q': queen, 'k': king, 'n': knight}
 
 
-def field(name):
-    half = FIELD / 2
-    bm = bmesh.new()
-    grid = [[bm.verts.new((-half + column * SQUARE, -half + row * SQUARE, FIELD_TOP)) for column in range(9)] for row in range(9)]
-    for row in range(8):
-        for column in range(8):
-            bm.faces.new((grid[row][column], grid[row][column + 1], grid[row + 1][column + 1], grid[row + 1][column]))
-    edge = [grid[0][column] for column in range(8)] + [grid[row][8] for row in range(8)] + [grid[8][column] for column in range(8, 0, -1)] + [grid[row][0] for row in range(8, 0, -1)]
-    low = [bm.verts.new((vertex.co.x, vertex.co.y, BOARD_TOP)) for vertex in edge]
-    for index in range(len(edge)):
-        nxt = (index + 1) % len(edge)
-        bm.faces.new((low[index], low[nxt], edge[nxt], edge[index]))
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    obj = kit.mesh_object(name, bm)
-
-    def cell(centre):
-        return (math.floor((centre.x + half) / SQUARE), math.floor((centre.y + half) / SQUARE))
-
-    def mapper(face, co):
-        if face.normal.z < 0.5:
-            return (co.x * 1.6, co.z * 1.6)
-        column, row = cell(face.calc_center_median())
-        return (co.x * 1.6, co.y * 1.6) if (column + row) % 2 == 0 else (co.y * 1.6, co.x * 1.6)
-
-    kit.uv_map(obj, mapper)
-    kit.assign(obj, looks.chess_square('maple', '#E9D3AA'), looks.chess_square('walnut', '#7A4E30'))
-    kit.slot(obj, 1, lambda centre, normal: normal.z < 0.5 or sum(cell(centre)) % 2 == 0)
-    return obj
-
-
 def build():
     root = bpy.data.objects.new('chess', None)
     bpy.context.collection.objects.link(root)
@@ -167,14 +135,10 @@ def build():
 
     board = kit.rounded_plate('chess-board', SIZE, SIZE, THICKNESS, 0.01, corner_segments=6, location=(0.0, 0.0, TOP))
     kit.uv_box(board, scale=1.6)
-    kit.assign(board, looks.walnut())
+    looks.board_uv(board, 'chess', SIZE, SIZE)
+    kit.assign(board, looks.board_face('chess'), looks.walnut())
+    kit.slot(board, 1, lambda centre, normal: normal.z < 0.5)
     kit.smooth(board, 30.0)
-
-    squares = field('chess-field')
-
-    reach = SIZE / 2 - SIZE * 52 * 0.42 / 1000
-    inlay = kit.sweep('chess-inlay', [(-0.0005, BOARD_TOP - 0.0002), (-0.0005, BOARD_TOP + 0.0003), (0.0005, BOARD_TOP + 0.0003), (0.0005, BOARD_TOP - 0.0002)], kit.rect_path(reach, reach, 0.005, corner_segments=2))
-    kit.assign(inlay, looks.brass())
 
     holder = bpy.data.objects.new('chess-pieces', None)
     bpy.context.collection.objects.link(holder)
@@ -206,16 +170,16 @@ def build():
     hero.rotation_euler = (0.0, 0.0, math.radians(-28.0))
     settle.drop(hero, 'settle-chess', 0.16, (0.22, -0.14, 0.9), bounce=0.003, drift=(0.03, -0.02))
 
-    for obj in [plinth, board, squares, inlay, hero]:
+    for obj in [plinth, board, hero]:
         obj.parent = root
 
     return {
         'root': root,
         'plinth': plinth,
-        'surfaces': [board, squares, inlay],
+        'surfaces': [board],
         'raised': [],
         'pieces': placed + [hero],
-        'surface_z': FIELD_TOP,
+        'surface_z': BOARD_TOP,
         'surface_size': SIZE,
         'surface_clip': (SIZE, SIZE),
         'hero': {'look_at': (0.0, 0.0, 0.14), 'position': (-0.3, -0.62, 0.52), 'fov': 30.0}

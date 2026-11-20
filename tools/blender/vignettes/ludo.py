@@ -57,15 +57,10 @@ def build():
 
     plinth = studio.plinth('ludo-plinth')
 
-    board = kit.rounded_plate('ludo-board', SIZE, SIZE, THICKNESS, SIZE * 0.032, corner_segments=8, location=(0.0, 0.0, TOP))
-
-    def mapper(poly, co):
-        if poly.normal.z > 0.5:
-            return ((co.x + SIZE / 2) / SIZE, (co.y + SIZE / 2) / SIZE)
-        return (0.02, 0.5)
-
-    kit.uv_map(board, mapper)
-    kit.assign(board, looks.ludo_board(), looks.ludo_side())
+    board = kit.rounded_plate('ludo-board', SIZE, SIZE, THICKNESS, SIZE * 60 / 1024, corner_segments=8, location=(0.0, 0.0, TOP))
+    kit.uv_box(board, scale=1.6)
+    looks.board_uv(board, 'ludo', SIZE, SIZE)
+    kit.assign(board, looks.board_face('ludo'), looks.walnut())
     kit.slot(board, 1, lambda centre, normal: normal.z < 0.5)
     kit.smooth(board, 30.0)
 
@@ -89,7 +84,7 @@ def build():
     for prototype in prototypes.values():
         bpy.data.objects.remove(prototype, do_unlink=True)
 
-    die = pieces.die('ludo-die', 0.022, looks.sticker(), looks.ludo_ink())
+    die = pieces.die('ludo-die', 0.022, looks.ivory(), looks.ink())
     x, y = cell_point(8, 12)
     pieces.place(die, x, y, BOARD_TOP + 0.011, math.radians(24.0))
     settle.drop(die, 'settle-ludo', 0.24, (4.4, 2.2, 1.6), bounce=0.008)

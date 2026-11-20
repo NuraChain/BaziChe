@@ -231,13 +231,17 @@ def bake_contact(game, label, root, surface_z, size, casters, hidden, resolution
 
 def preview(path, look_at, position, fov=32.0, width=1600, height=1000, samples=192):
     scene = bpy.context.scene
+    previous_samples = scene.cycles.samples
     scene.cycles.samples = samples
     scene.render.resolution_x = width
     scene.render.resolution_y = height
     scene.render.resolution_percentage = 100
     scene.render.film_transparent = False
-    scene.render.image_settings.file_format = 'PNG'
-    scene.render.image_settings.color_depth = '8'
+    settings = scene.render.image_settings
+    settings.file_format = 'WEBP' if path.endswith('.webp') else 'PNG'
+    settings.color_mode = 'RGB'
+    settings.color_depth = '8'
+    settings.quality = 84
     scene.render.filepath = path
     target = bpy.data.objects.new('preview-target', None)
     target.location = look_at
@@ -256,5 +260,6 @@ def preview(path, look_at, position, fov=32.0, width=1600, height=1000, samples=
     scene.camera = camera
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     bpy.ops.render.render(write_still=True)
+    scene.cycles.samples = previous_samples
     bpy.data.objects.remove(camera, do_unlink=True)
     bpy.data.objects.remove(target, do_unlink=True)

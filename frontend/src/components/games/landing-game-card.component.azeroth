@@ -35,7 +35,7 @@ export default component LandingGameCard(props: { game: Game; returning: boolean
         onFocusOut={ leave }
     >
         <div class="relative">
-            <GameArt game={ props.game.id } class="lg:aspect-video transition-transform duration-500 ease-[var(--ease-reveal)] group-hover:scale-[1.03]" />
+            <GameArt game={ props.game.id } src={ `/world/card-${ props.game.id }.webp` } class="lg:aspect-video transition-transform duration-500 ease-[var(--ease-reveal)] group-hover:scale-[1.03]" />
             <span class="absolute start-2 top-2 flex rounded-full bg-void/70 backdrop-blur-md">
                 <Badge dot text={ locale.t('landing.games.live') } tone="live" size="sm" />
             </span>

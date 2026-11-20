@@ -27,7 +27,7 @@
     }
 }
 
-html:has(.site-drawer[open])
+html:has(.site-drawer[open], [data-wallet-dialog])
 {
     overflow: hidden;
 }

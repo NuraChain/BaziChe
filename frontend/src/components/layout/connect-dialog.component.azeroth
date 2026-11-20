@@ -4,7 +4,7 @@ import { NURA_CHAIN } from '../../data/chain.ts';
 import '../../icons/all.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import type { IconName } from '../../icons/registry.ts';
-import { focusQuietly } from '../../lib/focus.ts';
+import { focusQuietly, tabbables } from '../../lib/focus.ts';
 import { qrOf } from '../../lib/qr.ts';
 import {
     announcedWallets,
@@ -116,6 +116,7 @@ export default component ConnectDialog(props: { close: () => void; navigate: (to
 
         const stopDiscovery = discoverWallets(() => present = announcedWallets());
         present = announcedWallets();
+        let releasePage: (() => void) | null = null;
 
         const onKeyDown = (event: KeyboardEvent) =>
         {
@@ -123,11 +124,27 @@ export default component ConnectDialog(props: { close: () => void; navigate: (to
             {
                 event.preventDefault();
                 dismiss();
+                return;
+            }
+            if (event.key !== 'Tab' || panel === null)
+            {
+                return;
+            }
+
+            const controls = tabbables(panel);
+            const first = controls[0] ?? panel;
+            const last = controls.at(-1) ?? panel;
+            const active = document.activeElement;
+            const wrap = event.shiftKey ? active === panel || active === first : active === last;
+            if (wrap || !panel.contains(active))
+            {
+                event.preventDefault();
+                focusQuietly(event.shiftKey ? last : first);
             }
         };
         document.addEventListener('keydown', onKeyDown);
 
-        requestAnimationFrame(() =>
+        const frame = requestAnimationFrame(() =>
         {
             entering = false;
 
@@ -135,6 +152,13 @@ export default component ConnectDialog(props: { close: () => void; navigate: (to
             // tooltip would then open across the heading the moment the dialog appeared.
             if (panel !== null)
             {
+                const page = document.getElementById('root');
+                if (page !== null && !page.contains(panel))
+                {
+                    const inert = page.inert;
+                    page.inert = true;
+                    releasePage = () => page.inert = inert;
+                }
                 focusQuietly(panel);
             }
         });
@@ -142,6 +166,8 @@ export default component ConnectDialog(props: { close: () => void; navigate: (to
         return () =>
         {
             document.removeEventListener('keydown', onKeyDown);
+            cancelAnimationFrame(frame);
+            releasePage?.();
             stopDiscovery();
             if (returnTo !== null && returnTo.isConnected)
             {
@@ -199,7 +225,7 @@ export default component ConnectDialog(props: { close: () => void; navigate: (to
 
     <Portal>
         <div class="fixed inset-0 z-(--z-overlay) pointer-events-none">
-            <div class="absolute inset-0 pointer-events-auto" data-kind="modal">
+            <div class="absolute inset-0 pointer-events-auto" data-kind="modal" data-wallet-dialog>
                 <div class={ () => [ OVERLAY_SCRIM, entering || leaving ? 'opacity-0' : '' ].filter(Boolean).join(' ') } onClick={ () => dismiss() }></div>
 
                 <div

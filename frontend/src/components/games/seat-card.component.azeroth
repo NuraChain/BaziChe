@@ -118,15 +118,15 @@ export default component SeatCard(props: {
                     when={ inviting }
                     fallback={
                         <span class="lobby-chair-seat" role="img" aria-label={ locale.t('play.lobby.open') }>
-                            <span class="lobby-chair-face" data-open="true"><Icon name="seat" size={ 18 } /></span>
-                            <span class="lobby-chair-name" aria-hidden="true">{ locale.t('play.lobby.open') }</span>
+                            <span class="lobby-chair-face" data-open="true" data-theme="dark"><Icon name="seat" size={ 18 } /></span>
+                            <span class="lobby-chair-name" data-theme="dark" aria-hidden="true">{ locale.t('play.lobby.open') }</span>
                         </span>
                     }
                 >
                     { () =>
                         <button type="button" class="lobby-chair-seat" data-invites="true" onClick={ () => props.onInvite?.() }>
-                            <span class="lobby-chair-face" data-open="true"><Icon name="friend-add" size={ 18 } /></span>
-                            <span class="lobby-chair-name">{ locale.t('play.lobby.invite') }</span>
+                            <span class="lobby-chair-face" data-open="true" data-theme="dark"><Icon name="friend-add" size={ 18 } /></span>
+                            <span class="lobby-chair-name" data-theme="dark">{ locale.t('play.lobby.invite') }</span>
                             <span class="sr-only">{ locale.t('play.lobby.open') }</span>
                         </button>
                     }
@@ -151,7 +151,7 @@ export default component SeatCard(props: {
                             <Icon name="selected" size={ 10 } />
                         </span>
                     </span>
-                    <span class="lobby-chair-name" dir="auto">{ name }</span>
+                    <span class="lobby-chair-name" data-theme="dark" dir="auto">{ name }</span>
                     <span class="table-plate-tag" data-tone={ ready ? 'live' : 'neutral' }>{ says }</span>
                     <Show when={ props.team } let={ side }>
                         <span class="sr-only">{ side }</span>

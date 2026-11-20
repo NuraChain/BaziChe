@@ -134,9 +134,9 @@ describe('the poker table as it has been shown', () =>
             [2, 41, [{ at: 0, who: 'turn' }]],
             [2, 41, [{ at: 5, who: 'other' }]],
             [6, 41, [{ at: 0, who: 'other' }, { at: 1, who: 'turn' }, { at: 2, who: 'other' }]],
-            [6, 43, [{ at: 9, who: 'turn' }, { at: 30, who: 'other' }, { at: 31, who: 'other' }]],
+            [6, 13, [{ at: 9, who: 'turn' }, { at: 30, who: 'other' }, { at: 31, who: 'other' }]],
             [9, 3, [{ at: 3, who: 'other' }, { at: 4, who: 'other' }, { at: 40, who: 'turn' }, { at: 90, who: 'other' }]],
-            [9, 53, [{ at: 14, who: 'turn' }, { at: 15, who: 'turn' }, { at: 16, who: 'turn' }]]
+            [9, 2, [{ at: 14, who: 'turn' }, { at: 15, who: 'turn' }, { at: 16, who: 'turn' }]]
         ];
 
         for (const [seats, seed, quits] of walks)

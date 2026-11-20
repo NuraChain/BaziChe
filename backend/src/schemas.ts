@@ -9,7 +9,6 @@ import { CAMPAIGN_STATES, INVITE_FLAGS, REWARD_KINDS, REWARD_STATES, VISITOR_SHA
 import { MARKET_MAY, MARKET_STATES, POSITION_STATES } from './domains/market/policy.ts';
 import { ORDER_STATES, OWNED_VIA, SHOP_ITEM_STATUSES, SHOP_MAY } from './domains/shop/policy.ts';
 import { CHECK_FAMILIES, CHECK_KINDS, CHECK_LISTS, CHECK_RESOLUTIONS } from './domains/reconcile/kinds.ts';
-import { VARIANTS } from './domains/match/sides.ts';
 import { BREAK_DAYS, ELIGIBILITIES, ESCROW_STATES } from './domains/stake/policy.ts';
 import { REASONS } from './domains/match/chess/state.ts';
 import { CLOCKS } from './domains/table/clocks.ts';
@@ -3549,7 +3548,7 @@ const proofAction = object({
     kind: enumOf(['open', 'play', 'forfeit']),
     payload: string(),
     events: string(),
-    randomness: string().optional()
+    randomness: string()
 });
 
 export const matchProof = object({
@@ -3558,13 +3557,9 @@ export const matchProof = object({
         matchId: string(),
         lastRev: number({ int: true, min: 1 }),
         voided: boolean()
-    }).optional(),
+    }),
     game: string(),
-    variant: enumOf(VARIANTS),
     seats: array(number()),
-    target: number(),
-    cube: boolean(),
-    blinds: tableBlinds,
     chainId: number(),
     vault: string(),
     amount: string(),

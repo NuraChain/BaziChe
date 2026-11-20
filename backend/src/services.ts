@@ -112,7 +112,6 @@ import type {
     Notification,
     PersonSummary,
     MatchPlay,
-    MatchProof,
     MatchView,
     Pulse,
     TableSummary
@@ -5522,20 +5521,14 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 const who = new Map(played.players.map((player) => [player.seat, player.who]));
 
                 return {
-                    ...(played.match.randomnessProtocol === 'stake-v2'
-                        ? { randomness: {
-                            protocol: 'stake-v2' as const,
-                            matchId: played.match.id,
-                            lastRev: played.match.rev,
-                            voided: voidedOf(played.match.state)
-                        } }
-                        : {}),
+                    randomness: {
+                        protocol: 'stake-v2',
+                        matchId: played.match.id,
+                        lastRev: played.match.rev,
+                        voided: voidedOf(played.match.state)
+                    },
                     game: played.match.game,
-                    variant: played.match.variant,
                     seats: played.players.map((player) => player.seat),
-                    target: played.table.target,
-                    cube: played.table.cube,
-                    blinds: played.table.blinds as MatchProof['blinds'],
                     chainId: paid.chainId,
                     vault: paid.vault,
                     amount: paid.escrow.amount,
@@ -5557,7 +5550,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                         kind: action.kind,
                         payload: JSON.stringify(action.payload),
                         events: JSON.stringify(action.events),
-                        ...(played.match.randomnessProtocol === 'stake-v2' ? { randomness: JSON.stringify(action.randomness ?? null) } : {})
+                        randomness: JSON.stringify(action.randomness ?? null)
                     })),
                     ...(paid.escrow.openTx === null ? {} : { openTx: paid.escrow.openTx }),
                     ...(paid.escrow.closeTx === null ? {} : { closeTx: paid.escrow.closeTx })

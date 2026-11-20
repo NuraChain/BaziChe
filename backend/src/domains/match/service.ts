@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@azerothjs/http';
-import { Between, IsNull, type DataSource, type EntityManager } from 'typeorm';
+import { Between, IsNull, Not, type DataSource, type EntityManager } from 'typeorm';
 
 import { commitOf } from '../../chain/vault.ts';
 import { EscrowSeat } from '../../entities/escrow-seat.entity.ts';
@@ -23,8 +23,8 @@ import type { QuestProgressHook, RewardFinishEffects } from '../reward/progress.
 import { firstRow } from '../../lib/rows.ts';
 import { createRecorder } from './record.ts';
 import { envelopeOf } from './envelope.ts';
-import { OPENING, drawsOf, seedOf, stakeMatchId } from './fair.ts';
-import type { MatchRandomnessProtocol, RandomnessAudit, RandomnessProtocol } from './randomness.ts';
+import { OPENING, seedOf, stakeDraws, stakeMatchId } from './fair.ts';
+import type { RandomnessAudit, RandomnessProtocol } from './randomness.ts';
 import { gameRandomness, RandomnessError } from './randomness-server.ts';
 import { backgammonEngine } from './engines/backgammon.ts';
 import { chessEngine } from './engines/chess.ts';
@@ -214,7 +214,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
 
     const engineFor = (game: string) => byGame.get(game) ?? null;
 
-    const seeded = (seats: readonly Pick<EscrowSeat, 'seat' | 'secret' | 'signature' | 'commitment'>[], count: number, version: 1 | 2) =>
+    const seeded = (seats: readonly Pick<EscrowSeat, 'seat' | 'secret' | 'signature' | 'commitment'>[], count: number) =>
     {
         if (seats.length !== count || seats.some((seat, index) => seat.seat !== index
             || !/^0x[0-9a-f]{64}$/i.test(seat.secret) || !/^0x(?:[0-9a-f]{2})+$/i.test(seat.signature)
@@ -223,38 +223,26 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             throw new RandomnessError('Invalid match escrow randomness material.');
         }
 
-        return seedOf(keccak, seats.map((seat) => seat.secret), seats.map((seat) => seat.signature), version);
-    };
-
-    const drawsAt = (protocol: RandomnessProtocol, seed: Uint8Array | null, match: { id: string; game: string }, rev: number) =>
-    {
-        if (seed === null)
-        {
-            return gameRandomness(protocol, rev);
-        }
-
-        const source = drawsOf(hmacSha256, seed, rev, protocol === 'stake-v2' ? match : undefined);
-
-        return gameRandomness(protocol, rev, (limit) => source.die(limit) - 1);
+        return seedOf(keccak, seats.map((seat) => seat.secret), seats.map((seat) => seat.signature));
     };
 
     const randomnessOf = async (tx: EntityManager, match: Match) =>
     {
         if (match.randomnessProtocol === 'server-v2')
         {
-            return (rev: number) => drawsAt('server-v2', null, match, rev);
+            return (rev: number) => gameRandomness(rev);
+        }
+
+        if (match.randomnessProtocol !== 'stake-v2')
+        {
+            refuse('unplayable');
         }
 
         const escrow = await tx.getRepository(Escrow).findOne({ select: { id: true }, where: { matchId: match.id } });
 
         if (escrow === null)
         {
-            if (match.randomnessProtocol === 'stake-v2')
-            {
-                throw new RandomnessError('Match escrow randomness material is missing.');
-            }
-
-            return (rev: number) => drawsAt('server-v1', null, match, rev);
+            throw new RandomnessError('Match escrow randomness material is missing.');
         }
 
         const seats = await tx.getRepository(EscrowSeat).find({
@@ -262,15 +250,14 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             where: { escrowId: escrow.id },
             order: { seat: 'ASC' }
         });
-        const protocol = match.randomnessProtocol ?? 'stake-v1';
-        const seed = seeded(seats, match.seats, protocol === 'stake-v2' ? 2 : 1);
+        const seed = seeded(seats, match.seats);
 
-        if (protocol === 'stake-v2' && stakeMatchId(keccak, match.game, seats) !== match.id)
+        if (stakeMatchId(keccak, match.game, seats) !== match.id)
         {
             throw new RandomnessError('Match escrow randomness material belongs to a different match.');
         }
 
-        return (rev: number) => drawsAt(protocol, seed, match, rev);
+        return (rev: number) => stakeDraws(hmacSha256, seed, rev, match);
     };
 
     const deal = async (tx: EntityManager, table: Table, chairs: TableSeat[], stake?: { id: string; seed: Uint8Array }) =>
@@ -318,8 +305,8 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
         }
 
         const id = stake?.id ?? randomUUID();
-        const protocol: MatchRandomnessProtocol = stake === undefined ? 'server-v2' : 'stake-v2';
-        const rng = drawsAt(protocol, stake?.seed ?? null, { id, game: table.game }, OPENING);
+        const protocol: RandomnessProtocol = stake === undefined ? 'server-v2' : 'stake-v2';
+        const rng = stake === undefined ? gameRandomness(OPENING) : stakeDraws(hmacSha256, stake.seed, OPENING, { id, game: table.game });
         const seats = chairs.map((chair) => chair.seat);
         const config: TableConfig = {
             target: table.target,
@@ -801,7 +788,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                         .getExists();
                 const matchId = same ? await deal(tx, table, chairs, {
                     id: stakeMatchId(keccak, table.game, staked),
-                    seed: seeded(staked, table.seats, 2)
+                    seed: seeded(staked, table.seats)
                 }) : null;
 
                 await tx.getRepository(Escrow).update(
@@ -928,16 +915,9 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                 return null;
             }
 
-            const match = await db.getRepository(Match).findOne({ where: { id: matchId } });
+            const match = await db.getRepository(Match).findOne({ where: { id: matchId, randomnessProtocol: 'stake-v2', finishedAt: Not(IsNull()) } });
 
-            if (match === null || match.finishedAt === null || !await db.getRepository(MatchPlayer).existsBy({ matchId, userId: me }))
-            {
-                return null;
-            }
-
-            const table = await db.getRepository(Table).findOne({ select: { target: true, cube: true, blinds: true }, where: { id: match.tableId } });
-
-            if (table === null)
+            if (match === null || !await db.getRepository(MatchPlayer).existsBy({ matchId, userId: me }))
             {
                 return null;
             }
@@ -948,7 +928,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                 order: { rev: 'ASC' }
             });
 
-            return { match, table, players: await seatsOf(db, matchId), actions: actions.filter((action) => !isVoided(action)) };
+            return { match, players: await seatsOf(db, matchId), actions: actions.filter((action) => !isVoided(action)) };
         },
 
         playingAt: async (tx: EntityManager, me: string) =>

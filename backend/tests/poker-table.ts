@@ -1,6 +1,6 @@
 import { expect } from 'vitest';
 
-import { DECK, cardOf, type Rank, type Suit } from '../src/domains/match/cards/cards.ts';
+import { cardOf, type Rank, type Suit } from '../src/domains/match/cards/cards.ts';
 import { apply, create, type Die } from '../src/domains/match/poker/engine.ts';
 import type { PokerAction, PokerEvent, PokerState } from '../src/domains/match/poker/state.ts';
 
@@ -34,39 +34,24 @@ export function seeded(seed: number): Die & { next: () => number }
     return Object.assign((sides: number) => 1 + Math.floor(next() * sides), { next });
 }
 
-export function rig(button: number, cards: readonly number[]): Die
+function rig(button: number, ...hands: number[][]): Die
 {
-    const queue = [...cards];
-    const dealt = new Set<number>();
-    let opened = false;
+    const queue = [...hands];
 
-    return (sides: number) =>
-    {
-        if (!opened)
+    return Object.assign(() => button + 1, {
+        shuffle: <T>(deck: readonly T[]) =>
         {
-            opened = true;
+            const order = queue.shift() ?? [];
+            const dealt = new Set(order);
 
-            return button + 1;
+            if (dealt.size !== order.length)
+            {
+                throw new Error('Duplicate card in the test deck.');
+            }
+
+            return [...order.map((card) => deck[card]), ...deck.filter((_, index) => !dealt.has(index))];
         }
-
-        if (sides === DECK.length)
-        {
-            dealt.clear();
-        }
-
-        const remaining = DECK.filter((candidate) => !dealt.has(candidate));
-        const wanted = queue.shift();
-        const index = wanted === undefined ? 0 : remaining.indexOf(wanted);
-
-        if (index < 0)
-        {
-            throw new Error(`card ${ wanted } was dealt twice in one hand`);
-        }
-
-        dealt.add(remaining[index]);
-
-        return index + 1;
-    };
+    });
 }
 
 export function dealOrder(seats: number, button: number): number[]
@@ -88,10 +73,9 @@ export function seated(
     const sequence = [
         ...order.map((seat) => dealt[seat][0]),
         ...order.map((seat) => dealt[seat][1]),
-        ...(board === '' ? [] : hand(board)),
-        ...later
+        ...(board === '' ? [] : hand(board))
     ];
-    const die = rig(button, sequence);
+    const die = rig(button, sequence, [...later]);
     const state = create(stacks.length, opening, die).state;
 
     state.stacks = stacks.map((chips, seat) => chips - state.put[seat]);

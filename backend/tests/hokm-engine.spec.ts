@@ -58,7 +58,8 @@ function wrong(state: HokmState): string | null
         return `a glimpse during ${ state.phase }`;
     }
 
-    if (state.stock.length > 0 && (state.seats !== 2 || state.phase === 'tricks'))
+    if ((state.phase === 'tricks' && state.stock.length > 0)
+        || (state.seats > 2 && state.phase === 'trump' && state.stock.length !== deckFor(state.seats).length - 5))
     {
         return `a stock of ${ state.stock.length } at ${ state.seats } players during ${ state.phase }`;
     }
@@ -213,7 +214,7 @@ describe('a hokm match always ends', () =>
                 while (state.winner === null && actions < 20000)
                 {
                     const seat = state.phase === 'trump' ? state.hakem : state.turn;
-                    const move = autoplay(state, seat, deal);
+                    const move = autoplay(state, seat);
 
                     if (move === null)
                     {
@@ -284,7 +285,7 @@ describe('what the sweep plays for an absent seat', () =>
                 for (let action = 0; state.winner === null && action < 20000; action += 1)
                 {
                     const seat = hokmEngine.turnOf(state)!;
-                    const move = autoplay(state, seat, deal);
+                    const move = autoplay(state, seat);
                     const legal = legalMoves(state, seat);
 
                     if (move === null || !legal.some((one) => JSON.stringify(one) === JSON.stringify(move)))
@@ -349,7 +350,7 @@ describe('what the sweep plays for an absent seat', () =>
             ]
         };
 
-        expect(autoplay(state, 0, seeded(1))).toEqual({ kind: 'card', seat: 0, card: cardOf('diamonds', '4') });
+        expect(autoplay(state, 0)).toEqual({ kind: 'card', seat: 0, card: cardOf('diamonds', '4') });
     });
 
     it('keeps its trumps when void and holding a plain card', () =>
@@ -370,7 +371,7 @@ describe('what the sweep plays for an absent seat', () =>
             ]
         };
 
-        expect(autoplay(state, 1, seeded(1))).toEqual({ kind: 'card', seat: 1, card: cardOf('spades', '4') });
+        expect(autoplay(state, 1)).toEqual({ kind: 'card', seat: 1, card: cardOf('spades', '4') });
     });
 });
 
@@ -404,7 +405,7 @@ describe('a trick is taken by the rules', () =>
         for (let step = 0; step < 4; step += 1)
         {
             const seat = state.turn;
-            const move = autoplay(state, seat, deal);
+            const move = autoplay(state, seat);
             const outcome = apply(state, move!, deal);
 
             expect(outcome.ok).toBe(true);
@@ -467,7 +468,7 @@ describe('a trick is taken by the rules', () =>
 
         const play = () =>
         {
-            const outcome = apply(state, autoplay(state, state.turn, deal)!, deal);
+            const outcome = apply(state, autoplay(state, state.turn)!, deal);
 
             expect(outcome.ok).toBe(true);
 
@@ -516,7 +517,7 @@ describe('a trick is taken by the rules', () =>
 
         for (let step = 0; step < 4000 && state.winner === null; step += 1)
         {
-            const move = autoplay(state, state.phase === 'trump' ? state.hakem : state.turn, deal);
+            const move = autoplay(state, state.phase === 'trump' ? state.hakem : state.turn);
 
             if (move === null)
             {
@@ -558,7 +559,7 @@ describe('a trick is taken by the rules', () =>
 
         for (let step = 0; step < 4000 && state.winner === null; step += 1)
         {
-            const move = autoplay(state, state.phase === 'trump' ? state.hakem : state.turn, deal);
+            const move = autoplay(state, state.phase === 'trump' ? state.hakem : state.turn);
 
             if (move === null)
             {
@@ -646,7 +647,7 @@ describe('refusing what is not a move', () =>
 
         state = called.state;
 
-        const opening = autoplay(state, state.turn, deal) as { card: number };
+        const opening = autoplay(state, state.turn) as { card: number };
         const first = apply(state, { kind: 'card', seat: state.turn, card: opening.card }, deal);
 
         expect(first.ok).toBe(true);
@@ -834,7 +835,7 @@ describe('the two-handed draw', () =>
 
         while (state.phase !== 'tricks')
         {
-            state = stepOf(state, autoplay(state, state.turn, deal)!, deal).state;
+            state = stepOf(state, autoplay(state, state.turn)!, deal).state;
         }
 
         const round = state.round;
@@ -844,7 +845,7 @@ describe('the two-handed draw', () =>
 
         while (state.round === round && state.winner === null)
         {
-            const step = stepOf(state, autoplay(state, state.turn, deal)!, deal);
+            const step = stepOf(state, autoplay(state, state.turn)!, deal);
             const fields = [
                 ...step.state.hands.flat(),
                 ...step.state.trick,
@@ -966,7 +967,7 @@ describe('refusing a discard or a draw', () =>
 
                 expect(legalMoves(state, seat).every((move) => move.kind === 'trump' || move.kind === 'card'), `${ seats } players`).toBe(true);
 
-                state = stepOf(state, autoplay(state, seat, deal)!, deal).state;
+                state = stepOf(state, autoplay(state, seat)!, deal).state;
             }
         }
     });
@@ -1065,7 +1066,7 @@ describe('walking away', () =>
 
             for (let action = 0; state.winner === null && action < 20000; action += 1)
             {
-                const step = apply(state, autoplay(state, hokmEngine.turnOf(state)!, deal)!, deal);
+                const step = apply(state, autoplay(state, hokmEngine.turnOf(state)!)!, deal);
 
                 if (!step.ok)
                 {
@@ -1187,7 +1188,7 @@ describe('one turn on the clock', () =>
         {
             const seat = hokmEngine.turnOf(state)!;
             const before = state;
-            const step = apply(state, autoplay(state, seat, deal)!, deal);
+            const step = apply(state, autoplay(state, seat)!, deal);
 
             if (!step.ok)
             {
@@ -1215,7 +1216,7 @@ describe('one turn on the clock', () =>
         while (state.phase !== 'tricks' || state.trick.length === 0)
         {
             const before = state;
-            const step = apply(state, autoplay(state, hokmEngine.turnOf(state)!, deal)!, deal);
+            const step = apply(state, autoplay(state, hokmEngine.turnOf(state)!)!, deal);
 
             if (!step.ok)
             {

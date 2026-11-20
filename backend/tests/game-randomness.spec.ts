@@ -50,10 +50,10 @@ describe('authoritative randomness', () =>
 
     it('records ranges and sampled values and propagates entropy failures', () =>
     {
-        const rng = gameRandomness('server-v2', 1, (limit) => limit - 1);
+        const rng = gameRandomness(1, (limit) => limit - 1);
 
         expect(rng.draws.die(20)).toBe(20);
-        expect(rng.draws.shuffle!([5, 8, 9])).toEqual([5, 8, 9]);
+        expect(rng.draws.shuffle([5, 8, 9])).toEqual([5, 8, 9]);
         expect(rng.audit()?.draws).toEqual([
             { kind: 'die', sides: 20, face: 20 },
             { kind: 'shuffle', count: 3, swaps: [2, 1] }
@@ -63,7 +63,7 @@ describe('authoritative randomness', () =>
             expect(() => rng.draws.die(sides)).toThrow(RangeError);
         }
 
-        const failed = gameRandomness('server-v2', 2, () => { throw new Error('entropy unavailable'); });
+        const failed = gameRandomness(2, () => { throw new Error('entropy unavailable'); });
         expect(() => failed.draws.die(6)).toThrow();
         expect(failed.audit()).toBeNull();
     });
@@ -71,7 +71,7 @@ describe('authoritative randomness', () =>
     it('checks Ludo roll eligibility before sampling a die', () =>
     {
         const opened = ludoEngine.create([0, 1], { die: () => 1 }, { target: 1, cube: false, blinds: 'low', variant: 'standard' });
-        const rng = gameRandomness('server-v2', 2, () => 5);
+        const rng = gameRandomness(2, () => 5);
         const action = ludoEngine.parse({ kind: 'ludo', verb: 'roll' }, 1)!;
 
         expect(ludoEngine.apply(opened.state, action, rng.draws)).toEqual({ ok: false, reason: 'not-your-turn' });
@@ -82,7 +82,7 @@ describe('authoritative randomness', () =>
     {
         const samples = 60_000;
         const counts = Array<number>(sides).fill(0);
-        const { draws } = gameRandomness('server-v2', 2);
+        const { draws } = gameRandomness(2);
 
         for (let n = 0; n < samples; n += 1)
         {
@@ -99,11 +99,11 @@ describe('authoritative randomness', () =>
         const samples = 30_000;
         const keys = ['012', '021', '102', '120', '201', '210'];
         const counts = new Map(keys.map((key) => [key, 0]));
-        const { draws } = gameRandomness('server-v2', 1);
+        const { draws } = gameRandomness(1);
 
         for (let n = 0; n < samples; n += 1)
         {
-            const key = draws.shuffle!([0, 1, 2]).join('');
+            const key = draws.shuffle([0, 1, 2]).join('');
 
             counts.set(key, counts.get(key)! + 1);
         }
@@ -136,7 +136,7 @@ describe('authoritative randomness', () =>
 
     it.each([2, 3, 4])('deals the %i-seat Hokm deck once and keeps the unseen stock private', (seats) =>
     {
-        const opening = gameRandomness('server-v2', 1, () => 0);
+        const opening = gameRandomness(1, () => 0);
         const { state } = hokmEngine.create(Array.from({ length: seats }, (_, index) => index), opening.draws, TABLE);
         const { hands, stock, hakem } = state;
 
@@ -145,7 +145,7 @@ describe('authoritative randomness', () =>
         expect(hokmEngine.view(state, (hakem + 1) % seats)).toMatchObject({ hand: seats === 2 ? hands[1] : [] });
         expect(opening.audit()?.draws.map((draw) => draw.kind)).toEqual(['die', 'shuffle']);
 
-        const next = gameRandomness('server-v2', 2, () => { throw new Error('unexpected draw'); });
+        const next = gameRandomness(2, () => { throw new Error('unexpected draw'); });
         const outcome = hokmEngine.apply(state, { kind: 'trump', seat: hakem, suit: 'spades' }, next.draws);
 
         if (!outcome.ok)
@@ -159,12 +159,12 @@ describe('authoritative randomness', () =>
 
     it('consumes both cards of each two-player Hokm draw and never recycles discards', () =>
     {
-        const opening = gameRandomness('server-v2', 1, () => 0);
+        const opening = gameRandomness(1, () => 0);
         let { state } = hokmEngine.create([0, 1], opening.draws, TABLE);
         const discarded: number[] = [];
         const apply = (action: Parameters<typeof hokmEngine.apply>[1]) =>
         {
-            const next = hokmEngine.apply(state, action, gameRandomness('server-v2', state.rev + 1,
+            const next = hokmEngine.apply(state, action, gameRandomness(state.rev + 1,
                 () => { throw new Error('unexpected draw'); }).draws);
 
             if (!next.ok)
@@ -203,11 +203,11 @@ describe('authoritative randomness', () =>
 
     it.each([2, 3, 4, 5, 6, 7, 8, 9])('conserves the %i-seat Poker deck across each street and projects private cards per seat', (seats) =>
     {
-        const rng = gameRandomness('server-v2', 1, () => 0);
+        const rng = gameRandomness(1, () => 0);
         const opened = pokerEngine.create(Array.from({ length: seats }, (_, index) => index), rng.draws, TABLE);
         const testDeck = (state: typeof opened.state) =>
         {
-            expect([...state.holes.flat(), ...state.board, ...state.stock!].sort((a, b) => a - b)).toEqual(DECK);
+            expect([...state.holes.flat(), ...state.board, ...state.stock].sort((a, b) => a - b)).toEqual(DECK);
             expect(pokerEngine.view(state, null)).toMatchObject({ hole: [] });
             expect(pokerEngine.view(state, null)).not.toHaveProperty('stock');
         };
@@ -220,7 +220,7 @@ describe('authoritative randomness', () =>
             testDeck(state);
             const seat = pokerEngine.turnOf(state)!;
             const action = pokerEngine.legal(state, seat).find((one) => one.kind === 'check' || one.kind === 'call')!;
-            const next = pokerEngine.apply(state, action, gameRandomness('server-v2', state.rev + 1, () => { throw new Error('unexpected draw'); }).draws);
+            const next = pokerEngine.apply(state, action, gameRandomness(state.rev + 1, () => { throw new Error('unexpected draw'); }).draws);
 
             if (!next.ok)
             {

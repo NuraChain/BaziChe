@@ -24,7 +24,7 @@ describe('the die', () =>
     it('is always a face', () =>
     {
         const seen = new Set<number>();
-        const { draws } = gameRandomness('server-v2', 1);
+        const { draws } = gameRandomness(1);
 
         for (let draw = 0; draw < 4000; draw += 1)
         {
@@ -41,7 +41,7 @@ describe('the die', () =>
 
     it('draws who goes first from the same generator, and never out of range', () =>
     {
-        const { draws } = gameRandomness('server-v2', 1);
+        const { draws } = gameRandomness(1);
 
         expect(draws.die(1)).toBe(1);
         expect(() => draws.die(0)).toThrow(RangeError);

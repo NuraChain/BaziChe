@@ -3,9 +3,9 @@ import 'reflect-metadata';
 import { createHmac } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
-import { concat, keccak256, type Hex } from 'viem';
+import { keccak256, toHex, type Hex } from 'viem';
 
-import { OPENING, bytesOf, drawOf, drawsOf, hexOf, seedOf, stakeMatchId } from '../src/domains/match/fair.ts';
+import { OPENING, bytesOf, hexOf, seedOf, stakeDraws, stakeMatchId } from '../src/domains/match/fair.ts';
 import { ENGINES } from '../src/domains/match/service.ts';
 import { hmacSha256, keccak } from '../src/lib/crypto.ts';
 
@@ -15,6 +15,8 @@ const SIGNATURES = [`0x${ 'aa'.repeat(65) }`, `0x${ 'bb'.repeat(65) }`];
 
 const seed = seedOf(keccak, SECRETS, SIGNATURES);
 
+const MATCH = { id: 'existing-match', game: 'backgammon' };
+
 const word = (key: Uint8Array, label: string) => createHmac('sha256', key).update(label).digest().readUInt32BE(0);
 
 const oracle = (key: Uint8Array, rev: number, index: number, sides: number) =>
@@ -23,7 +25,7 @@ const oracle = (key: Uint8Array, rev: number, index: number, sides: number) =>
 
     for (let round = 0; ; round += 1)
     {
-        const value = word(key, `${ rev }.${ index }.${ round }`);
+        const value = word(key, JSON.stringify(['baziche', 'stake-v2', MATCH.game, MATCH.id, rev, index, round]));
 
         if (value < ceiling)
         {
@@ -34,9 +36,9 @@ const oracle = (key: Uint8Array, rev: number, index: number, sides: number) =>
 
 describe('the seed of a game played for NURA', () =>
 {
-    it('is the keccak of every secret and then every signature, in seat order', () =>
+    it('hashes the protocol, secrets and signatures in seat order', () =>
     {
-        expect(hexOf(seed)).toBe(keccak256(concat([...SECRETS, ...SIGNATURES] as Hex[])));
+        expect(hexOf(seed)).toBe(keccak256(toHex(JSON.stringify(['baziche', 'stake-v2', SECRETS, SIGNATURES]))));
     });
 
     it('changes with any one of them, and with their order', () =>
@@ -67,33 +69,35 @@ describe('a draw from the seed', () =>
             commitment: keccak256(secret as Hex),
             nonce: `0x${ (0xc1 + index).toString(16).repeat(32) }`
         })));
-        const key = seedOf(keccak, SECRETS, SIGNATURES, 2);
-        const rng = drawsOf(hmacSha256, key, OPENING, { game, id });
+        const key = seedOf(keccak, SECRETS, SIGNATURES);
+        const { draws } = stakeDraws(hmacSha256, key, OPENING, { game, id });
 
         expect(id).toBe('3eaaf597-fded-8376-9fb0-9243ea52ab20');
         expect([...key]).toEqual([
             193, 80, 4, 157, 44, 136, 52, 62, 235, 160, 149, 196, 74, 251, 185, 250,
             92, 16, 220, 115, 157, 226, 19, 93, 26, 205, 67, 135, 139, 227, 123, 226
         ]);
-        expect([9, 52, 51, 50, 49, 48, 47, 46].map(rng.die)).toEqual([7, 9, 30, 31, 11, 16, 8, 19]);
+        expect([9, 52, 51, 50, 49, 48, 47, 46].map(draws.die)).toEqual([7, 9, 30, 31, 11, 16, 8, 19]);
     });
 
-    it('is HMAC-SHA256 of the seed over "revision.draw.round", read as a 32-bit number', () =>
+    it('takes the first 32 bits of the match-scoped HMAC-SHA256 message', () =>
     {
         for (const sides of [2, 6, 13, 36, 52])
         {
+            const { draws } = stakeDraws(hmacSha256, seed, 7, MATCH);
+
             for (let index = 0; index < 40; index += 1)
             {
-                expect(drawOf(hmacSha256, seed, 7, index, sides)).toBe(oracle(seed, 7, index, sides));
+                expect(draws.die(sides)).toBe(oracle(seed, 7, index, sides));
             }
         }
     });
 
     it('counts its draws within one action, and starts again at the next', () =>
     {
-        const first = drawsOf(hmacSha256, seed, 3);
-        const again = drawsOf(hmacSha256, seed, 3);
-        const next = drawsOf(hmacSha256, seed, 4);
+        const first = stakeDraws(hmacSha256, seed, 3, MATCH).draws;
+        const again = stakeDraws(hmacSha256, seed, 3, MATCH).draws;
+        const next = stakeDraws(hmacSha256, seed, 4, MATCH).draws;
         const faces = Array.from({ length: 20 }, () => first.die(6));
 
         expect(Array.from({ length: 20 }, () => again.die(6))).toEqual(faces);
@@ -111,20 +115,24 @@ describe('a draw from the seed', () =>
             return asked.length === 1 ? new Uint8Array(32).fill(0xff) : hmacSha256(key, message);
         };
 
-        expect(drawOf(topped, seed, 1, 0, 6)).toBe((word(seed, '1.0.1') % 6) + 1);
-        expect(asked).toEqual(['1.0.0', '1.0.1']);
+        const has = (attempt: number) => JSON.stringify(['baziche', 'stake-v2', MATCH.game, MATCH.id, 1, 0, attempt]);
+
+        expect(stakeDraws(topped, seed, 1, MATCH).draws.die(6)).toBe((word(seed, has(1)) % 6) + 1);
+        expect(asked).toEqual([has(0), has(1)]);
     });
 
-    it('answers one for a die of one side or none, as the server\'s own die does', () =>
+    it('handles a single possible result and rejects an empty range', () =>
     {
-        expect(drawOf(hmacSha256, seed, 1, 0, 1)).toBe(1);
-        expect(drawOf(hmacSha256, seed, 1, 0, 0)).toBe(1);
+        const { draws } = stakeDraws(hmacSha256, seed, 1, MATCH);
+
+        expect(draws.die(1)).toBe(1);
+        expect(() => draws.die(0)).toThrow(RangeError);
     });
 
     it('lands on every face about as often as any other', () =>
     {
         const counts = [0, 0, 0, 0, 0, 0];
-        const dice = drawsOf(hmacSha256, seed, 9);
+        const dice = stakeDraws(hmacSha256, seed, 9, MATCH).draws;
 
         for (let draw = 0; draw < 6000; draw += 1)
         {
@@ -145,7 +153,8 @@ describe('the revision a game opens at', () =>
             for (const format of engine.formats)
             {
                 const seats = Array.from({ length: format.seats }, (_, seat) => seat);
-                const made = engine.create(seats, drawsOf(hmacSha256, seed, OPENING), { target: 3, cube: true, blinds: 'low', variant: format.variant });
+                const { draws } = stakeDraws(hmacSha256, seed, OPENING, { ...MATCH, game: engine.id });
+                const made = engine.create(seats, draws, { target: 3, cube: true, blinds: 'low', variant: format.variant });
 
                 expect((made.state as { rev: number }).rev, `${ engine.id } ${ format.seats } ${ format.variant }`).toBe(OPENING);
             }

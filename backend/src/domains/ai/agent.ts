@@ -17,7 +17,7 @@ import { chessEngine } from '../match/engines/chess.ts';
 import { hokmEngine } from '../match/engines/hokm.ts';
 import { ludoEngine } from '../match/engines/ludo.ts';
 import { pokerEngine } from '../match/engines/poker.ts';
-import type { Draws, Engine } from '../match/engine.ts';
+import type { Engine } from '../match/engine.ts';
 import type { Format } from '../match/sides.ts';
 import type { MatchBoard, MatchLog, MatchPlay } from '../../schemas.ts';
 import type { Skill } from '../system/rules.ts';
@@ -125,9 +125,6 @@ export function seededRandom(seed: number): () => number
         return (state >>> 0) / 4294967296;
     };
 }
-
-/** A die for an agent's own search, drawn from its seeded random. Never the match's draws. */
-export const chanceOf = (random: () => number): Draws => ({ die: (sides) => 1 + Math.floor(random() * sides) });
 
 /** A 32-bit FNV-1a hash, for seeding from text. */
 export function hashOf(text: string)

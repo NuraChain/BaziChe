@@ -20,13 +20,13 @@ The authority path is the authenticated HTTP API or admitted WebSocket, then the
 
 1. Add a shared bounded-integer and Fisher–Yates implementation. Exercise deterministic range and permutation tests, then run distribution tests against Node's CSPRNG.
 2. Add a versioned RNG transcript to the existing action ledger. Update all gameplay paths and put seed lookup and command deduplication under the existing locks.
-3. Update Poker and Hokm to persist and consume shuffled private decks for new matches. Preserve the old deck paths for active legacy games and historical paid proof replay.
+3. Persist and consume shuffled private decks in Poker and Hokm.
 4. Require a revision for play commands, return the original committed action on retry and recover browser timeouts through the existing snapshot and action feed.
-5. Verify deck composition, private projections, compatibility, concurrency and restart behavior. Run the application tests and build, then exercise multiplayer play through Playwright.
+5. Verify deck composition, private projections, concurrency and restart behavior. Run the application tests and build, then exercise multiplayer play through Playwright.
 
 ## Randomness and card lifecycle
 
-The pure engine boundary supplies a bounded die and, for newly opened matches, a shuffle. The free
+The pure engine boundary supplies a bounded die and a shuffle. The free
 match service supplies Node's `crypto.randomInt(0, n)` and adds one for an n-sided die. It validates
 the range before drawing. Backgammon uses two successive draws for an ordinary roll and uses its
 existing tie rules during opening throws. Ludo checks membership, turn and roll state before
@@ -46,8 +46,8 @@ filters still govern HTTP, WebSocket, spectators and AI seat views.
 
 The `matches.randomness_protocol` and `match_actions.randomness` entity columns are nullable.
 The startup schema mechanism adds them to existing databases. New matches identify their protocol
-as `server-v2` or `stake-v2`. Unversioned matches continue with the legacy card lifecycle and RNG
-protocol. Existing action rows and deck state require no rewrite. A random action records the
+as `server-v2` or `stake-v2`. Unversioned rows remain readable as history. Those matches cannot
+continue or produce a paid proof. Existing action rows and deck state require no rewrite. A random action records the
 algorithm, protocol, randomness rules version, revision and ordered dice faces or shuffle indices
 in the same row as the action and resulting state. Deck size and the versioned game rules identify
 the shuffle input. Match, game, actor, command key, action ID, timestamp and state are available from
@@ -81,8 +81,7 @@ It derives the match UUID from the game and the signed commitment/nonce tuples. 
 server-selected match ID as an extra source of variation after the players sign. The existing
 HMAC-SHA-256 sampler includes the protocol, game, match ID, action revision, draw index and rejection
 attempt in its versioned input. It rejects a 32-bit word at or above the largest multiple of the bound
-before mapping the value to the range. Legacy paid proofs retain their original byte encoding,
-sampler inputs and dealing order.
+before mapping the value to the range.
 
 The proof endpoint requires a finished match and a participant. Verification checks the wallet
 commitments, derives the seed and match identifier, and compares the recorded action and RNG
@@ -120,7 +119,8 @@ request per die or card.
 ## Deployment and recovery
 
 - Deploy the backend and browser bundle together with the normal schema versioning procedure.
-  Back up the database first. Leave escrow material, match state and the action ledger in place
+  Finish or void unversioned active matches before deploying. Back up the database first.
+  Leave escrow material, match state and the action ledger in place
   during rollback. Use a rollback build that understands both protocols while a version 2 match
   is live. An older binary would interpret new card stock using the previous rules.
 - There are no new environment variables, external randomness services or dependencies. Keep the
@@ -152,7 +152,7 @@ freedom. These are distribution checks. The bounded sampler and the permutation 
 why the mapping is unbiased.
 
 The engine tests also exercise Poker from two to nine seats, all Hokm formats, the full two-seat
-Hokm draw phase, private projections and preservation of the existing paid transcript format.
+Hokm draw phase and private projections.
 The version 2 browser verifier tests reject changed draws, wrong match identifiers, gaps and
 truncated proofs. Playwright MCP exercised the real Ludo roll button, checked that its announced
 face matched the WebSocket acknowledgement and recorded action, and reloaded the browser. The
@@ -163,8 +163,3 @@ An isolated paid escrow fixture checked fail-closed behavior when contribution d
 blocked proof reads during live play, and matched the committed roll to the participant's
 transcript after a staff void. This fixture exercised the database and the match service. It used
 no live chain or funded wallet.
-
-A database created by the pre-change build was upgraded by the new build while a Poker match
-was in progress. The original state and hole cards survived intact. The match then advanced to
-the flop using the legacy draw path, with the new ledger recording the legacy protocol for
-the new action.

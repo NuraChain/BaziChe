@@ -163,7 +163,7 @@ describe('against the engine', () =>
             for (let step = 0; step < 600 && state.winner === null; step += 1)
             {
                 const seat = state.phase === 'trump' ? state.hakem : state.turn;
-                const move = autoplay(state, seat, deal)!;
+                const move = autoplay(state, seat)!;
 
                 if (state.phase === 'draw')
                 {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Hex } from 'viem';
 
 import { STAKE_FIELDS, commitOf, stakeDigest as serverDigest } from '../../backend/src/chain/vault.ts';
-import { OPENING, bytesOf, drawsOf, hexOf, seedOf } from '../../backend/src/domains/match/fair.ts';
+import { OPENING, bytesOf, hexOf, seedOf, stakeDraws } from '../../backend/src/domains/match/fair.ts';
 import { hmacSha256, keccak as serverKeccak } from '../../backend/src/lib/crypto.ts';
 import type { MatchProof } from '../src/api.ts';
 import { keccak, mac } from '../src/lib/fair.ts';
@@ -56,8 +56,9 @@ describe('the seed and the draws, in the browser and on the server', () =>
 
         for (const sides of [2, 6, 36, 52])
         {
-            const here = drawsOf(mac, browser, 12);
-            const there = drawsOf(hmacSha256, server, 12);
+            const match = { game: 'ludo', id: 'match' };
+            const here = stakeDraws(mac, browser, 12, match).draws;
+            const there = stakeDraws(hmacSha256, server, 12, match).draws;
 
             expect(Array.from({ length: 30 }, () => here.die(sides))).toEqual(Array.from({ length: 30 }, () => there.die(sides)));
         }
@@ -90,8 +91,8 @@ describe('checking a game played for NURA', () =>
 {
     it.each<Played>(['ludo', 'hokm', 'backgammon', 'poker'])('replays a v2 %s transcript bound to the match', async (game) =>
     {
-        const proof = await proofOf(game, { version: 2, resign: true });
-        const checked = check(proof, proof.randomness!.matchId);
+        const proof = await proofOf(game, { resign: true });
+        const checked = check(proof, proof.randomness.matchId);
 
         expect(checked.wrong).toBeNull();
         expect(checked.seats.every((seat) => seat.kept && seat.signed)).toBe(true);
@@ -198,18 +199,13 @@ describe('checking a game played for NURA', () =>
     it('does not replay a game whose seats the seed was made in another order', async () =>
     {
         const proof = await proofOf('backgammon');
-        const checked = check({ ...proof, players: [...proof.players].reverse() });
-
-        expect(checked.wrong).not.toBeNull();
+        expect(() => check({ ...proof, players: [...proof.players].reverse() })).toThrow('different match');
     });
 
     it('answers a game it does not know with nothing played', async () =>
     {
         const proof = await proofOf('ludo', { steps: 3 });
-        const checked = check({ ...proof, game: 'no-such-game' });
-
-        expect(checked.moves).toBe(0);
-        expect(checked.wrong?.rev).toBe(OPENING);
+        expect(() => check({ ...proof, game: 'no-such-game' })).toThrow('different match');
     });
 
     it('reads its hex the way the chain writes it', () =>

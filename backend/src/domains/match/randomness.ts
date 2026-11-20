@@ -1,10 +1,8 @@
 export type Shuffle = <T>(items: readonly T[]) => T[];
 
-export const MATCH_RANDOMNESS_PROTOCOLS = ['server-v2', 'stake-v2'] as const;
+export type CardDraw = ((sides: number) => number) & { shuffle?: Shuffle };
 
-export type MatchRandomnessProtocol = typeof MATCH_RANDOMNESS_PROTOCOLS[number];
-
-export type RandomnessProtocol = MatchRandomnessProtocol | 'server-v1' | 'stake-v1';
+export type RandomnessProtocol = 'server-v2' | 'stake-v2';
 
 type RandomDraw =
     | { kind: 'die'; sides: number; face: number }
@@ -14,7 +12,7 @@ export interface RandomnessAudit
 {
     protocol: RandomnessProtocol;
     algorithm: 'node:crypto.randomInt' | 'hmac-sha256/rejection32';
-    rulesVersion: 1 | 2;
+    rulesVersion: 2;
     rev: number;
     draws: RandomDraw[];
 }
@@ -38,10 +36,12 @@ export function shuffle<T>(items: readonly T[], below: (limit: number) => number
     return order;
 }
 
+export const shuffleCards = <T>(items: readonly T[], draw: CardDraw) =>
+    draw.shuffle?.(items) ?? shuffle(items, (limit) => draw(limit) - 1);
+
 export function trackedDraws(protocol: RandomnessProtocol, rev: number, below: (limit: number) => number)
 {
     const history: RandomDraw[] = [];
-    const modern = protocol === 'server-v2' || protocol === 'stake-v2';
 
     const sample = (limit: number) =>
     {
@@ -88,11 +88,11 @@ export function trackedDraws(protocol: RandomnessProtocol, rev: number, below: (
 
     const audit = (): RandomnessAudit | null => history.length === 0 ? null : {
         protocol,
-        algorithm: protocol.startsWith('stake-') ? 'hmac-sha256/rejection32' : 'node:crypto.randomInt',
-        rulesVersion: modern ? 2 : 1,
+        algorithm: protocol === 'stake-v2' ? 'hmac-sha256/rejection32' : 'node:crypto.randomInt',
+        rulesVersion: 2,
         rev,
         draws: [...history]
     };
 
-    return { draws: { die, ...(modern ? { shuffle: shuffled } : {}) }, audit };
+    return { draws: { die, shuffle: shuffled }, audit };
 }

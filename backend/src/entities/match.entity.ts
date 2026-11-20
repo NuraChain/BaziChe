@@ -2,7 +2,7 @@ import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, 
 import { Game } from './game.entity.ts';
 import { Table } from './table.entity.ts';
 import type { Variant } from '../domains/match/sides.ts';
-import type { MatchRandomnessProtocol } from '../domains/match/randomness.ts';
+import type { RandomnessProtocol } from '../domains/match/randomness.ts';
 
 export type MatchOutcome = 'won' | 'drawn' | 'abandoned';
 
@@ -56,7 +56,7 @@ export class Match
     rev!: number;
 
     @Column({ name: 'randomness_protocol', type: 'varchar', length: 24, nullable: true })
-    randomnessProtocol!: MatchRandomnessProtocol | null;
+    randomnessProtocol!: RandomnessProtocol | null;
 
     @Column({ name: 'deadline_at', type: 'timestamptz', nullable: true })
     deadlineAt!: Date | null;

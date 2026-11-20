@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { trackedDraws, type RandomnessProtocol } from './randomness.ts';
+import { trackedDraws } from './randomness.ts';
 
 export class RandomnessError extends Error {}
 
@@ -15,7 +15,7 @@ export function secureBelow(limit: number)
     }
 }
 
-export function gameRandomness(protocol: RandomnessProtocol, rev: number, below = secureBelow)
+export function gameRandomness(rev: number, below = secureBelow)
 {
-    return trackedDraws(protocol, rev, below);
+    return trackedDraws('server-v2', rev, below);
 }

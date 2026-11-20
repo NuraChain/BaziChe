@@ -1,5 +1,5 @@
 import { DECK } from '../cards/cards.ts';
-import type { Shuffle } from '../randomness.ts';
+import { shuffleCards, type CardDraw } from '../randomness.ts';
 import { actors, allInTo, inHand, mayRaise, minRaiseTo, nextAlive, nextToAct, needsToAct, toCall } from './betting.ts';
 import { evaluate, type Strength } from './evaluator.ts';
 import { layers, leftOf, split, uncalled } from './pots.ts';
@@ -18,7 +18,7 @@ import {
     type Won
 } from './state.ts';
 
-export type Die = ((sides: number) => number) & { shuffle?: Shuffle };
+export type Die = CardDraw;
 
 export type Applied =
     | { ok: true; state: PokerState; events: PokerEvent[] }
@@ -43,25 +43,16 @@ export function chipsInPlay(state: PokerState)
     return state.stacks.reduce((sum, chips) => sum + chips, 0) + state.put.reduce((sum, chips) => sum + chips, 0) + state.gone;
 }
 
-function draw(state: PokerState, die: Die)
+function draw(state: PokerState)
 {
-    if (state.stock !== undefined)
+    const card = state.stock.pop();
+
+    if (card === undefined)
     {
-        const card = state.stock.pop();
-
-        if (card === undefined)
-        {
-            throw new RangeError('Poker stock exhausted.');
-        }
-
-        return card;
+        throw new RangeError('Poker stock exhausted.');
     }
 
-    const used = new Set([...state.holes.flat(), ...state.board]);
-    const remaining = DECK.filter((card) => !used.has(card));
-    const pick = Math.min(remaining.length, Math.max(1, Math.floor(die(remaining.length))));
-
-    return remaining[pick - 1];
+    return card;
 }
 
 function commit(state: PokerState, seat: number, chips: number)
@@ -124,11 +115,7 @@ function startHand(state: PokerState, events: PokerEvent[], die: Die)
     state.street = 'preflop';
     state.board = [];
     state.holes = state.out.map(() => []);
-    if (die.shuffle !== undefined)
-    {
-        state.stock = die.shuffle(DECK).reverse();
-    }
-
+    state.stock = shuffleCards(DECK, die).reverse();
     state.bets = state.out.map(() => 0);
     state.put = state.out.map(() => 0);
     state.start = [...state.stacks];
@@ -160,7 +147,7 @@ function startHand(state: PokerState, events: PokerEvent[], die: Die)
     {
         for (const seat of dealt)
         {
-            state.holes[seat].push(draw(state, die));
+            state.holes[seat].push(draw(state));
         }
     }
 
@@ -172,7 +159,7 @@ function startHand(state: PokerState, events: PokerEvent[], die: Die)
     state.turn = nextToAct(state, bb) ?? bb;
 }
 
-function dealStreet(state: PokerState, events: PokerEvent[], die: Die)
+function dealStreet(state: PokerState, events: PokerEvent[])
 {
     const count = state.street === 'preflop' ? 3 : 1;
     const cards: number[] = [];
@@ -181,7 +168,7 @@ function dealStreet(state: PokerState, events: PokerEvent[], die: Die)
 
     for (let card = 0; card < count; card += 1)
     {
-        const next = draw(state, die);
+        const next = draw(state);
 
         state.board.push(next);
         cards.push(next);
@@ -333,7 +320,7 @@ function settle(state: PokerState, events: PokerEvent[], die: Die)
         {
             while (state.board.length < 5)
             {
-                dealStreet(state, events, die);
+                dealStreet(state, events);
             }
 
             finishHand(state, events, true);
@@ -346,7 +333,7 @@ function settle(state: PokerState, events: PokerEvent[], die: Die)
             continue;
         }
 
-        dealStreet(state, events, die);
+        dealStreet(state, events);
         state.turn = nextToAct(state, state.button) ?? state.button;
     }
 
@@ -462,6 +449,7 @@ export function create(seats: number, blinds: keyof typeof OPENING, die: Die)
         street: 'preflop',
         board: [],
         holes: Array.from({ length: seats }, () => []),
+        stock: [],
         stacks: Array.from({ length: seats }, () => STACK),
         bets: Array.from({ length: seats }, () => 0),
         put: Array.from({ length: seats }, () => 0),

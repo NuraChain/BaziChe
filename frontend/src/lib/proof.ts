@@ -3,8 +3,7 @@ import { chessEngine } from '../../../backend/src/domains/match/engines/chess.ts
 import { hokmEngine } from '../../../backend/src/domains/match/engines/hokm.ts';
 import { ludoEngine } from '../../../backend/src/domains/match/engines/ludo.ts';
 import { pokerEngine } from '../../../backend/src/domains/match/engines/poker.ts';
-import { OPENING, bytesOf, drawsOf, hexOf, seedOf, stakeMatchId } from '../../../backend/src/domains/match/fair.ts';
-import { trackedDraws } from '../../../backend/src/domains/match/randomness.ts';
+import { OPENING, bytesOf, hexOf, seedOf, stakeDraws, stakeMatchId } from '../../../backend/src/domains/match/fair.ts';
 import type { Engine, ForfeitReason, Moment, TableConfig } from '../../../backend/src/domains/match/engine.ts';
 import type { MatchPlay, MatchProof } from '../api.ts';
 import { keccak, mac } from './fair.ts';
@@ -105,27 +104,19 @@ export function replay(proof: MatchProof, seed: Uint8Array)
     const total = proof.actions.length;
     const engine = ENGINES.get(proof.game);
     const [opening, ...rest] = proof.actions;
-    const domain = proof.randomness === undefined ? undefined : { id: proof.randomness.matchId, game: proof.game };
-    const at = (rev: number) =>
-    {
-        const source = drawsOf(mac, seed, rev, domain);
-
-        return domain === undefined
-            ? { draws: source, audit: () => null }
-            : trackedDraws('stake-v2', rev, (limit) => source.die(limit) - 1);
-    };
+    const match = { id: proof.randomness.matchId, game: proof.game };
+    const at = (rev: number) => stakeDraws(mac, seed, rev, match);
     const drawnAsRecorded = (action: MatchProof['actions'][number], roll: ReturnType<typeof at>) =>
-        domain === undefined || (action.randomness !== undefined && spelt(roll.audit()) === spelt(JSON.parse(action.randomness)));
+        spelt(roll.audit()) === spelt(JSON.parse(action.randomness));
 
     if (engine === undefined || opening === undefined || opening.kind !== 'open' || opening.rev !== OPENING)
     {
         return { moves: 0, total, wrong: { rev: opening?.rev ?? OPENING, said: opening?.events ?? '', drawn: '' } };
     }
 
-    const openingPayload = JSON.parse(opening.payload) as { config?: TableConfig };
-    const config = domain === undefined ? undefined : openingPayload.config;
+    const { config } = JSON.parse(opening.payload) as { config: TableConfig };
     const lead = at(OPENING);
-    const made = engine.create(proof.seats, lead.draws, config ?? { target: proof.target, cube: proof.cube, blinds: proof.blinds, variant: proof.variant });
+    const made = engine.create(proof.seats, lead.draws, config);
 
     if (revOf(made.state) !== OPENING || spelt(made.events) !== spelt(JSON.parse(opening.events)) || !drawnAsRecorded(opening, lead))
     {
@@ -156,15 +147,12 @@ export function replay(proof: MatchProof, seed: Uint8Array)
         moves += 1;
     }
 
-    if (proof.randomness !== undefined)
-    {
-        const { lastRev, voided } = proof.randomness;
-        const expected = lastRev - (voided ? 1 : 0);
+    const { lastRev, voided } = proof.randomness;
+    const expected = lastRev - (voided ? 1 : 0);
 
-        if (revOf(state) !== expected || (engine.finish(state) === null) !== voided)
-        {
-            return { moves, total, wrong: { rev: expected, said: String(expected), drawn: String(revOf(state)) } };
-        }
+    if (revOf(state) !== expected || (engine.finish(state) === null) !== voided)
+    {
+        return { moves, total, wrong: { rev: expected, said: String(expected), drawn: String(revOf(state)) } };
     }
 
     return { moves, total, wrong: null };
@@ -172,17 +160,14 @@ export function replay(proof: MatchProof, seed: Uint8Array)
 
 export function check(proof: MatchProof, matchId?: string): Checked
 {
-    if (proof.randomness !== undefined)
-    {
-        const expected = stakeMatchId(keccak, proof.game, proof.players.map((seat) => ({ commitment: seat.commit, nonce: seat.nonce })));
+    const expected = stakeMatchId(keccak, proof.game, proof.players.map((seat) => ({ commitment: seat.commit, nonce: seat.nonce })));
 
-        if (proof.randomness.matchId !== expected || (matchId !== undefined && expected !== matchId.toLowerCase()))
-        {
-            throw new Error('Randomness transcript belongs to a different match.');
-        }
+    if (proof.randomness.matchId !== expected || (matchId !== undefined && expected !== matchId.toLowerCase()))
+    {
+        throw new Error('Randomness transcript belongs to a different match.');
     }
 
-    const seed = seedOf(keccak, proof.players.map((seat) => seat.secret), proof.players.map((seat) => seat.signature), proof.randomness === undefined ? 1 : 2);
+    const seed = seedOf(keccak, proof.players.map((seat) => seat.secret), proof.players.map((seat) => seat.signature));
     const seats = proof.players.map((seat) => ({
         seat: seat.seat,
         who: seat.who,

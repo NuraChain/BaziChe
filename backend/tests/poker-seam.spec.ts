@@ -241,17 +241,16 @@ describe('what one seat may see of another', () =>
         }
     }, 60_000);
 
-    it('holds no future board card anywhere in the state', () =>
+    it('keeps every undealt card in private stock and sends only the visible board', () =>
     {
         const state = pokerEngine.create([0, 1, 2, 3, 4, 5, 6, 7, 8], { die: seeded(33) }, { target: 0, cube: false, blinds: 'low', variant: 'standard' }).state;
         const known = new Set([...state.holes.flat(), ...state.board]);
 
         expect(state.board).toEqual([]);
         expect(known.size).toBe(18);
-        expect(Object.keys(state).sort()).toEqual([
-            'acts', 'bb', 'bets', 'board', 'button', 'current', 'exits', 'faced', 'folded', 'game', 'gone', 'hand', 'holes',
-            'last', 'opening', 'out', 'places', 'put', 'raise', 'rev', 'sb', 'seats', 'stacks', 'start', 'street', 'turn',
-            'v', 'winner'
-        ]);
+        expect(state.stock).toHaveLength(34);
+        expect(new Set([...known, ...state.stock]).size).toBe(52);
+        expect(pokerEngine.view(state, null)).toMatchObject({ board: [], hole: [] });
+        expect(pokerEngine.view(state, 0)).not.toHaveProperty('stock');
     });
 });

@@ -89,8 +89,7 @@ export const hokmEngine: Engine<HokmState, HokmAction> = {
         return state.phase === 'trump' ? state.hakem : state.turn;
     },
 
-    autoplay: (state: HokmState, seat: number, draws: Draws) =>
-        autoplay(state, seat, (sides) => draws.die(sides)),
+    autoplay,
 
     finish: (state: HokmState): Ending | null =>
     {

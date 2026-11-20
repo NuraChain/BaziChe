@@ -318,10 +318,11 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
                 wake();
                 return;
             }
-            const lit = tuned(tune);
-            add(played(lit, () => steps.flatMap((one) =>
+            const scale = tune.scale ?? 1;
+            add(played(tune, () => steps.flatMap((one) =>
             {
-                const born = EFFECTS[one.effect]({ x: at.x + (one.dx ?? 0) * (lit.scale ?? 1), y: at.y + (one.dy ?? 0) * (lit.scale ?? 1) }, { ...lit, ...one.tune });
+                const point = { x: at.x + (one.dx ?? 0) * scale, y: at.y + (one.dy ?? 0) * scale };
+                const born = EFFECTS[one.effect](point, tuned({ ...tune, ...one.tune }));
                 for (const particle of born)
                 {
                     particle.age -= one.after ?? 0;

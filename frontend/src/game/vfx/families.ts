@@ -9,10 +9,13 @@ const paced = (tune: Tune) => tune.speed ?? 1;
 const FLAME = ['#FFF1C1', '#FFC14D', '#FF7A1F', '#E2381C'];
 const CHARGE = ['#EAF6FF', '#7DF0FF', '#3FA9FF', '#8B5CFF'];
 const COSMOS = ['#FFFFFF', '#FFE58A', '#4FE3D8', '#B04BFF'];
+const TILE = ['#E7BE63', '#B9F0E8'];
+const CIRCUIT = ['#FF46D2', '#38E8FF'];
 const SHADOW = ['#E9D5FF', '#A855F7', '#5B21B6'];
 const RUNE = ['#F2C14E', '#BFF2D9', '#2BB67F'];
 const SUN = ['#FFF6D6', '#FFC94A', '#FF7A1A', '#D7263D'];
 const DIGITAL = ['#20E6FF', '#FF2E4D', '#7C5CFF', '#FFFFFF'];
+const CIRCUIT_TRACE = [[25, 16], [31, 22], [31, 33], [38, 40], [48, 40]] as const;
 
 /** A point on the ring of `radius` round `at`, at `angle` or anywhere. */
 const onRing = (at: Point, radius: number, angle = random() * TAU) => ({ x: at.x + Math.cos(angle) * radius, y: at.y + Math.sin(angle) * radius, angle });
@@ -170,12 +173,56 @@ const ray = (at: Point, tune: Tune, angle: number, colors: readonly string[], fi
 });
 
 export type Family = 'eruption' | 'cracks' | 'charge' | 'strike' | 'discharge' | 'starburst' | 'nebula' | 'rift' | 'implosion'
-    | 'absorb' | 'release' | 'fracture' | 'crystals' | 'shatter' | 'sigil' | 'debris' | 'fireworks' | 'flare' | 'sunburst' | 'wings' | 'glitch' | 'scan';
+    | 'absorb' | 'release' | 'fracture' | 'crystals' | 'shatter' | 'sigil' | 'debris' | 'fireworks' | 'flare' | 'sunburst' | 'wings' | 'glitch' | 'scan'
+    | 'mosaic' | 'circuit';
 
 export type FamilyStream = 'blaze' | 'cinders' | 'static' | 'orbit' | 'tendrils' | 'wisps' | 'mist' | 'glints' | 'runes' | 'coil' | 'feathers' | 'rays' | 'pixels' | 'comet';
 
 /** The effect families: bursts that play once and say all they have to say, each a composition in time. */
 export const FAMILIES: Record<Family, (at: Point, tune: Tune) => Particle[]> = {
+    mosaic: (at, tune) =>
+    {
+        const scale = scaled(tune);
+        const colors = tune.colors ?? TILE;
+        const tiles = Array.from({ length: 8 }, (_, index) =>
+        {
+            const angle = index * TAU / 8;
+            const pace = 19 * scale * paced(tune);
+            return make('rosette', onRing(at, 31 * scale, angle), {
+                vx: Math.cos(angle) * pace,
+                vy: Math.sin(angle) * pace,
+                drag: 2.4,
+                age: -index * 23,
+                life: lives(580, 680, tune),
+                size: 4.8 * scale,
+                turn: angle,
+                grow: 1.2,
+                alpha: light(0.94, tune),
+                envelope: 'swell',
+                color: colors[index % colors.length] ?? TILE[0]!,
+                glow: true
+            });
+        });
+        return [...tiles, ring(at, { ...tune, colors }, 27, 38, 1.3, 600, 110)];
+    },
+
+    circuit: (at, tune) =>
+    {
+        const scale = scaled(tune);
+        const colors = tune.colors ?? CIRCUIT;
+        const leads = [-1, 1].flatMap((x, side) => [-1, 1].flatMap((y, row) =>
+        {
+            const outline = CIRCUIT_TRACE.map(([across, down]) => ({ x: across * x * scale, y: down * y * scale }));
+            const tip = outline.at(-1)!;
+            const color = colors[(side + row) % colors.length] ?? CIRCUIT[side]!;
+            return [
+                make('crack', at, { outline, width: 1.55 * scale, life: lives(470, 470, tune), alpha: light(0.88, tune), color, glow: true }),
+                make('orb', { x: at.x + tip.x, y: at.y + tip.y }, { age: -95, size: 2.3 * scale, life: lives(300, 300, tune), alpha: light(0.78, tune), color, glow: true })
+            ];
+        }));
+        return [...leads, ...delayed(sparksAt(at, { ...tune, colors }, many(8, tune)), 95)];
+    },
+
     eruption: (at, tune) => [
         make('orb', at, { life: lives(320, 320, tune), size: 20 * scaled(tune), alpha: light(0.7, tune), color: '#FFF1C1', glow: true }),
         ...Array.from({ length: many(40, tune) }, (_, nth) => ({ ...tongue(at, tune, 10), age: -nth * 14, vy: between(-200, -110) * paced(tune), size: between(7, 12) * scaled(tune), life: lives(380, 640, tune) })),
@@ -461,13 +508,14 @@ export const FAMILIES: Record<Family, (at: Point, tune: Tune) => Particle[]> = {
     {
         const colors = tune.colors ?? SUN;
         const radius = 36 * scaled(tune);
-        return [-1, 1].flatMap((side) => Array.from({ length: many(16, tune) }, (_, nth) =>
+        const count = many(16, tune);
+        return [-1, 1].flatMap((side) => Array.from({ length: count }, (_, nth) =>
         {
-            const along = nth / 16;
+            const along = (nth + 0.5) / count;
             const angle = Math.PI / 2 + side * (0.4 + along * 1.6);
             const from = onRing(at, radius, angle);
             return feather(from, tune, colors, {
-                age: -nth * 30,
+                age: -along * 480,
                 vx: side * Math.cos(angle - Math.PI / 2) * 40,
                 vy: -between(60, 120) * paced(tune),
                 turn: angle + Math.PI / 2,

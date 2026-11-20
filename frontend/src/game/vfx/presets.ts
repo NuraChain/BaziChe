@@ -32,7 +32,7 @@ export interface Tune
 export const TRAIL_EVERY = 16;
 
 export type Shape = 'dot' | 'orb' | 'puff' | 'spark' | 'star' | 'flake' | 'confetti' | 'ring' | 'bolt'
-    | 'flame' | 'shard' | 'feather' | 'rune' | 'ribbon' | 'nebula' | 'glitch' | 'crack' | 'ray' | 'slit' | 'shade';
+    | 'flame' | 'shard' | 'feather' | 'rune' | 'rosette' | 'ribbon' | 'nebula' | 'glitch' | 'crack' | 'ray' | 'slit' | 'shade';
 
 export type Envelope = 'fade' | 'swell' | 'flicker' | 'stutter';
 
@@ -350,13 +350,12 @@ export const PRESETS: Record<Preset, (at: Point, tune: Tune) => Particle[]> = {
     shockwave: (at, tune) => [ring(at, tune, 4, 64, 3, 420), ring(at, tune, 4, 40, 1.6, 360, 110)]
 };
 
-/** What less motion is shown in place of any burst: one soft light that fades where it was. */
-export const flash = (at: Point, tune: Tune) => [make('dot', at, {
+export const flash = (at: Point, tune: Tune) => [make('ring', at, {
     life: 240,
-    size: 18 * (tune.scale ?? 1),
-    alpha: light(0.45, tune),
-    color: pick(tune.colors ?? ENERGY),
-    glow: true
+    size: 28 * (tune.scale ?? 1),
+    width: Math.max(1.2, 1.8 * (tune.scale ?? 1)),
+    alpha: light(0.7, tune),
+    color: tune.colors?.[0] ?? ENERGY[0]!
 })];
 
 export const bolt = (from: Point, to: Point, tune: Tune) => [

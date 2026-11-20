@@ -2632,12 +2632,14 @@ describe('ludo pawns in the look their owner chose', () =>
 
         await played(before);
         await elapse(1700);
-        await vi.waitFor(() => expect(engine.bursts.map((one) => one.preset)).toContain('sparks'));
+        await vi.waitFor(() =>
+        {
+            const capture = engine.bursts.find((one) => one.steps === CAPTURES.neon);
+            expect(capture?.tune.colors, 'a capture played no signature of its walker’s collection').toEqual(lightOf('neon'));
+        });
 
         const flash = drawn.map((one) => one.el).find((el) => el instanceof HTMLImageElement && el.className.includes('invert(1)'));
 
-        expect(engine.bursts.find((one) => one.preset === 'sparks')!.steps, 'a capture played no signature of its walker’s collection').toBe(CAPTURES.neon);
-        expect(engine.bursts.find((one) => one.preset === 'sparks')!.tune.colors).toEqual(lightOf('neon'));
         expect(flash?.getAttribute('src'), 'the taken pawn flashed in another drawing').toBe('/pawns/shiraz-yellow.svg');
         expect(voiced(), 'the walker lands, then takes, each in its own voice, and the taken pawn says nothing').toEqual(['neon.pawn', 'neon.capture']);
     });

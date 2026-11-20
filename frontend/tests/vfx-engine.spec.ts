@@ -15,6 +15,7 @@ interface Counted
     context: CanvasRenderingContext2D;
     drawn: () => number;
     colors: Set<string>;
+    radii: number[];
 }
 
 /** A 2D context that does nothing but count what it is asked to draw and with what colours. */
@@ -22,6 +23,7 @@ function counting(): Counted
 {
     let drawn = 0;
     const colors = new Set<string>();
+    const radii: number[] = [];
     const noop = () => undefined;
     const paint = () =>
     {
@@ -45,7 +47,7 @@ function counting(): Counted
         setTransform: noop,
         clearRect: noop,
         beginPath: noop,
-        arc: noop,
+        arc: (_x: number, _y: number, radius: number) => radii.push(radius),
         moveTo: noop,
         lineTo: noop,
         quadraticCurveTo: noop,
@@ -61,7 +63,7 @@ function counting(): Counted
         createRadialGradient: () => ({ addColorStop: noop })
     };
 
-    return { context: context as unknown as CanvasRenderingContext2D, drawn: () => drawn, colors };
+    return { context: context as unknown as CanvasRenderingContext2D, drawn: () => drawn, colors, radii };
 }
 
 const made = (counted: Counted, options: VfxOptions = {}) => createVfx(host, {
@@ -149,6 +151,15 @@ describe('the particle engine', () =>
         vfx.burst('sparks', AT, { intensity: 0.5 });
 
         expect(vfx.live()).toBe(10);
+    });
+
+    it('applies the device quality to layers that specify their own density', () =>
+    {
+        const vfx = made(counting(), { quality: 'low' });
+
+        vfx.signature([{ effect: 'sparks', tune: { density: 2 } }], AT);
+
+        expect(vfx.live()).toBe(18);
     });
 
     it('lets a stream emit for as long as it runs, then drains and stops asking', () =>
@@ -250,13 +261,19 @@ describe('the particle engine', () =>
         }
     });
 
-    it('shows less motion one fade where a burst was, and nothing for a stream or a bolt', () =>
+    it('shows a stationary outline around the piece for reduced-motion bursts and bolts, and skips streams', () =>
     {
-        const vfx = made(counting(), { quiet: () => true });
+        const counted = counting();
+        const vfx = made(counted, { quiet: () => true });
 
-        vfx.burst('sparks', AT);
+        vfx.burst('sparks', AT, { colors: ['#FFC072'] });
 
         expect(vfx.live()).toBe(1);
+
+        clock.advance(96);
+
+        expect(new Set(counted.radii)).toEqual(new Set([28]));
+        expect(counted.colors).toContain('#FFC072');
 
         clock.advance(300);
 

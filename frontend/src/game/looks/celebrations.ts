@@ -10,17 +10,17 @@ import { lightOf, wornOf, type Collection } from './table.ts';
  */
 export const CELEBRATIONS = {
     glow: [{ effect: 'pulse' }, { effect: 'stars', after: 80, tune: { density: 2 } }, { effect: 'fireworks', after: 380 }, { effect: 'stars', after: 820, tune: { density: 1.4 } }],
-    shiraz: [{ effect: 'shockwave' }, { effect: 'dust', after: 60, tune: { density: 2.2 } }, { effect: 'fireworks', after: 420 }],
-    neon: [{ effect: 'pulse' }, { effect: 'sparks', after: 40, tune: { density: 2.4 } }, { effect: 'fireworks', after: 360 }, { effect: 'scan', after: 700 }],
-    gold: [{ effect: 'shockwave' }, { effect: 'burst', after: 60, tune: { density: 2 } }, { effect: 'confetti', after: 300 }, { effect: 'fireworks', after: 600 }],
-    inferno: [{ effect: 'cracks' }, { effect: 'eruption', after: 320 }, { effect: 'fireworks', after: 650 }],
+    shiraz: [{ effect: 'mosaic' }, { effect: 'dust', after: 160, tune: { density: 1.4 } }, { effect: 'mosaic', after: 530, dy: -22 }],
+    neon: [{ effect: 'circuit' }, { effect: 'sparks', after: 110, tune: { density: 1.5 } }, { effect: 'circuit', after: 440, dy: -22 }],
+    gold: [{ effect: 'burst' }, { effect: 'confetti', after: 260 }],
+    inferno: [{ effect: 'cracks' }, { effect: 'eruption', after: 320 }, { effect: 'embers', after: 720, tune: { duration: 1200 } }],
     storm: [{ effect: 'charge' }, { effect: 'strike', after: 420 }, { effect: 'discharge', after: 470 }, { effect: 'strike', after: 900 }],
-    astral: [{ effect: 'rift', tune: { speed: 1.5 } }, { effect: 'starburst', after: 300 }, { effect: 'stars', after: 420, tune: { density: 2 } }, { effect: 'fireworks', after: 700 }],
+    astral: [{ effect: 'rift', tune: { speed: 1.5 } }, { effect: 'starburst', after: 300 }, { effect: 'nebula', after: 620, tune: { duration: 1400 } }],
     void: [{ effect: 'implosion' }, { effect: 'release', after: 420 }, { effect: 'fracture', after: 460 }, { effect: 'starburst', after: 900 }],
-    jade: [{ effect: 'sigil' }, { effect: 'orbs', after: 260 }, { effect: 'dust', after: 300, tune: { density: 2 } }, { effect: 'fireworks', after: 820 }],
-    frost: [{ effect: 'crystals' }, { effect: 'shatter', after: 500 }, { effect: 'fireworks', after: 700 }],
-    phoenix: [{ effect: 'wings' }, { effect: 'flare', after: 300 }, { effect: 'sunburst', after: 420 }, { effect: 'fireworks', after: 650 }],
-    oni: [{ effect: 'scan' }, { effect: 'glitch', after: 200, tune: { density: 2 } }, { effect: 'fireworks', after: 600 }, { effect: 'glitch', after: 1000 }]
+    jade: [{ effect: 'sigil' }, { effect: 'orbs', after: 260 }, { effect: 'dust', after: 440, tune: { density: 1.5 } }],
+    frost: [{ effect: 'crystals' }, { effect: 'shatter', after: 500 }, { effect: 'frost', after: 690, tune: { duration: 1100 } }],
+    phoenix: [{ effect: 'wings' }, { effect: 'flare', after: 300 }, { effect: 'sunburst', after: 420 }],
+    oni: [{ effect: 'scan' }, { effect: 'glitch', after: 200, tune: { density: 1.5 } }, { effect: 'fracture', after: 540 }, { effect: 'glitch', after: 800 }]
 } as const satisfies Record<Collection, readonly Step[]>;
 
 /** How wide a place a celebration fills at scale 1, and the most it is scaled to: past that its bolts smear. */

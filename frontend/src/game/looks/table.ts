@@ -34,8 +34,8 @@ export function lightOf(collection: Collection)
  */
 const BURSTS = {
     glow: 'stars',
-    shiraz: 'dust',
-    neon: 'sparks',
+    shiraz: 'mosaic',
+    neon: 'circuit',
     gold: 'burst',
     inferno: 'cracks',
     storm: 'discharge',
@@ -59,8 +59,8 @@ export function burstOf(collection: Collection)
  */
 export const CRITICALS = {
     glow: [{ effect: 'pulse' }, { effect: 'stars', after: 60, tune: { density: 1.8 } }],
-    shiraz: [{ effect: 'shockwave' }, { effect: 'dust', after: 80, tune: { density: 2 } }],
-    neon: [{ effect: 'pulse' }, { effect: 'sparks', after: 60, tune: { density: 2 } }],
+    shiraz: [{ effect: 'mosaic' }, { effect: 'dust', after: 160, tune: { duration: 700 } }],
+    neon: [{ effect: 'circuit' }, { effect: 'sparks', after: 110, tune: { density: 1.5 } }],
     gold: [{ effect: 'shockwave' }, { effect: 'burst', after: 60, tune: { density: 1.6 } }],
     inferno: [{ effect: 'cracks' }, { effect: 'eruption', after: 300 }],
     storm: [{ effect: 'charge' }, { effect: 'strike', after: 420 }, { effect: 'discharge', after: 470 }],
@@ -78,8 +78,8 @@ export const CRITICALS = {
  */
 export const CAPTURES = {
     glow: [{ effect: 'stars' }, { effect: 'shockwave', after: 40 }],
-    shiraz: [{ effect: 'dust', tune: { density: 1.6 } }, { effect: 'shockwave', after: 40 }],
-    neon: [{ effect: 'sparks' }, { effect: 'shockwave', after: 40 }],
+    shiraz: [{ effect: 'mosaic', tune: { speed: 1.25 } }],
+    neon: [{ effect: 'circuit', tune: { speed: 1.2 } }],
     gold: [{ effect: 'burst' }, { effect: 'shockwave', after: 40 }],
     inferno: [{ effect: 'eruption', tune: { intensity: 0.8 } }],
     storm: [{ effect: 'discharge' }, { effect: 'shockwave', after: 40 }],

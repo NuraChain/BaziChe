@@ -189,6 +189,8 @@ const RUNES = [
     [[-0.6, -0.8, 0.6, -0.8], [0, -0.8, 0, 1], [-0.4, 0.3, 0.4, 0.3]]
 ] as const;
 
+const ROSETTE = [[-0.73, -0.73, 0.73, -0.73, 0.73, 0.73, -0.73, 0.73, -0.73, -0.73], [0, -1, 1, 0, 0, 1, -1, 0, 0, -1]] as const;
+
 /** Strokes a path twice, a wide faint glow and a narrow bright line, the way every lit line here is drawn. */
 function lit(context: CanvasRenderingContext2D, trace: () => void, width: number, core = '')
 {
@@ -274,9 +276,9 @@ function drawFamily(context: CanvasRenderingContext2D, particle: Particle, size:
         return;
     }
 
-    if (particle.shape === 'rune')
+    if (particle.shape === 'rune' || particle.shape === 'rosette')
     {
-        const glyph = RUNES[(particle.glyph ?? 0) % RUNES.length] ?? RUNES[0];
+        const glyph = particle.shape === 'rosette' ? ROSETTE : (RUNES[(particle.glyph ?? 0) % RUNES.length] ?? RUNES[0]);
         context.save();
         context.translate(particle.x, particle.y);
         context.rotate(particle.turn);
@@ -408,7 +410,7 @@ function drawFamily(context: CanvasRenderingContext2D, particle: Particle, size:
     }
 }
 
-const FAMILY_SHAPES = new Set(['flame', 'shard', 'feather', 'rune', 'ribbon', 'nebula', 'shade', 'glitch', 'crack', 'ray', 'slit']);
+const FAMILY_SHAPES = new Set(['flame', 'shard', 'feather', 'rune', 'rosette', 'ribbon', 'nebula', 'shade', 'glitch', 'crack', 'ray', 'slit']);
 
 export function drawParticle(context: CanvasRenderingContext2D, particle: Particle)
 {
@@ -472,6 +474,19 @@ export function drawParticle(context: CanvasRenderingContext2D, particle: Partic
 
     if (particle.shape === 'ring')
     {
+        if (!particle.glow)
+        {
+            context.beginPath();
+            context.arc(particle.x, particle.y, size, 0, TAU);
+            context.strokeStyle = '#17131C';
+            context.lineWidth = particle.width + 2;
+            context.stroke();
+            context.strokeStyle = particle.color;
+            context.lineWidth = particle.width;
+            context.stroke();
+            return;
+        }
+
         const width = particle.width * (1 - at * 0.6);
         for (const [stroke, alpha] of [[width * 3.2, 0.28], [width, 1]] as const)
         {

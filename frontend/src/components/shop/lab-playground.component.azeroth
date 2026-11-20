@@ -4,6 +4,7 @@ import { momentOf, retune, STAGES, type TableMoment } from '../../game/looks/mom
 import type { Collection } from '../../game/looks/table.ts';
 import type { Voiced } from '../../game/sound-files.ts';
 import { lazyVfx } from '../../game/vfx/lazy.ts';
+import { useDevice } from '../../stores/device.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import Button from '../ui/button.component.azeroth';
 import Select from '../ui/select.component.azeroth';
@@ -36,10 +37,11 @@ const isMoment = (word: string): word is TableMoment => (MOMENTS as readonly str
 export default component LabPlayground(props: { collection: Collection; say: (voiced: Voiced) => void })
 {
     const locale = useLocale();
+    const device = useDevice();
 
     let stage: HTMLElement | null = null;
     let effects: ReturnType<typeof lazyVfx> | null = null;
-    let made: Chosen | null = null;
+    let made = '';
 
     state moment: TableMoment = 'six';
     state intensity = 1;
@@ -51,23 +53,26 @@ export default component LabPlayground(props: { collection: Collection; say: (vo
     state quality: Chosen = 'device';
     state still = false;
 
+    derived quiet = still || device.reducedMotion();
+
     derived options = MOMENTS.map((one) => ({ value: one, label: locale.t(`shop.lab.moment.${ one }`) }));
 
     derived qualities = QUALITIES.map((id) => ({ value: id, label: locale.t(`shop.lab.quality.${ id }`) }));
 
     const factor = (value: number) => locale.n(value, { style: 'percent', maximumFractionDigits: 0 });
 
-    /** The engine over the stage, made again whenever the quality it draws at is chosen, since an engine keeps the quality it was made with. */
-    const remake = (chosen: Chosen) =>
+    const remake = (collection: Collection, chosen: Chosen, stationary: boolean) =>
     {
-        if (stage === null || chosen === made)
+        const shown = `${ collection }:${ chosen }:${ stationary }`;
+
+        if (stage === null || shown === made)
         {
             return;
         }
 
-        made = chosen;
+        made = shown;
         effects?.dispose();
-        effects = lazyVfx(stage, chosen === 'device' ? { quiet: () => still } : { quiet: () => still, quality: chosen });
+        effects = lazyVfx(stage, { quiet: () => stationary, quality: chosen === 'device' ? undefined : chosen });
     };
 
     const play = () =>
@@ -84,6 +89,7 @@ export default component LabPlayground(props: { collection: Collection; say: (vo
 
         void effects?.play((vfx) =>
         {
+            vfx.clear();
             vfx.signature(played.steps, played.at, played.tune);
 
             if (played.voice !== null)
@@ -113,7 +119,7 @@ export default component LabPlayground(props: { collection: Collection; say: (vo
 
     mount
     {
-        remake(untrack(() => quality));
+        untrack(() => remake(props.collection, quality, quiet));
 
         return () =>
         {
@@ -124,9 +130,11 @@ export default component LabPlayground(props: { collection: Collection; say: (vo
 
     effect
     {
+        const collection = props.collection;
         const chosen = quality;
+        const stationary = quiet;
 
-        untrack(() => remake(chosen));
+        untrack(() => remake(collection, chosen, stationary));
     }
 
     <section class="rounded-panel border border-line bg-field p-3" aria-labelledby="lab-playground" data-lab-playground={ props.collection }>
@@ -151,7 +159,7 @@ export default component LabPlayground(props: { collection: Collection; say: (vo
             <Slider label={ locale.t('shop.lab.knob.density') } min={ 0.25 } max={ 3 } step={ 0.05 } value={ density } valueText={ factor(density) } onChange={ (value) => density = value } />
             <Slider label={ locale.t('shop.lab.knob.size') } min={ 0.25 } max={ 3 } step={ 0.05 } value={ size } valueText={ factor(size) } onChange={ (value) => size = value } />
             <Toggle checked={ fixed } label={ locale.t('shop.lab.knob.seed') } description={ locale.t('shop.lab.knob.seedHint') } onChange={ (on) => fixed = on } />
-            <Toggle checked={ still } label={ locale.t('shop.lab.knob.still') } description={ locale.t('shop.lab.knob.stillHint') } onChange={ (on) => still = on } />
+            <Toggle checked={ quiet } disabled={ device.reducedMotion() } label={ locale.t('shop.lab.knob.still') } description={ locale.t('shop.lab.knob.stillHint') } onChange={ (on) => still = on } />
         </div>
     </section>
 }

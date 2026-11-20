@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { bracketSizeFor, seedOrder } from '../src/domains/tournament/engine/elimination.ts';
-import { FORMATS, type FormatId } from '../src/domains/tournament/engine/formats.ts';
+import { FORMATS, MIN_ENTRANTS, type FormatId } from '../src/domains/tournament/engine/formats.ts';
 import { applyResult, currentPhase, dueGames, forfeitAbsent, shuffledSeeds, withoutAbsent, type Game, type Rules, type Side } from '../src/domains/tournament/engine/game.ts';
 import { groupCountFor, groupsOf } from '../src/domains/tournament/engine/groups.ts';
 import { rankLeague } from '../src/domains/tournament/engine/league.ts';
@@ -500,6 +500,32 @@ describe('the random draw', () =>
             expect(imports.every((path) => path.startsWith('./') || path === '../../match/randomness.ts'), file).toBe(true);
             expect(source, file).not.toMatch(/\bDate\b|setTimeout|setInterval|Math\.random/);
         }
+    });
+});
+
+describe('a field short of the places offered', () =>
+{
+    const FORMAT_IDS = Object.keys(FORMATS) as FormatId[];
+
+    it('needs four players to start, whatever the size of the tournament', () =>
+    {
+        expect(MIN_ENTRANTS).toBe(4);
+    });
+
+    it.each(FORMAT_IDS)('runs %s with four entrants, the smallest field that may start', (format) =>
+    {
+        const { standings } = playOut(format, MIN_ENTRANTS, SIDES(MIN_ENTRANTS));
+
+        expect(standings.filter((row) => row.place === 1)).toHaveLength(1);
+        expect(standings.every((row) => row.place !== null)).toBe(true);
+    });
+
+    it.each(FORMAT_IDS)('runs %s with thirty entrants, as a hundred-and-twenty-eight-place tournament that is short', (format) =>
+    {
+        const { standings } = playOut(format, 30, SIDES(30));
+
+        expect(standings.filter((row) => row.place === 1)).toHaveLength(1);
+        expect(standings.every((row) => row.place !== null)).toBe(true);
     });
 });
 

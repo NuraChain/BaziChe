@@ -13,7 +13,7 @@ public table.
 |---|---|---|
 | Who plays | One against one, in all five games (ludo, hokm and poker at two seats) | One winner per game keeps every format simple. |
 | Formats | Single and double elimination, round robin, Swiss, groups + playoffs | Each is an adapter behind one interface. |
-| Start | When full, or at the start time with at least 4 players; otherwise cancelled | Fully automatic. Empty places become byes. |
+| Start | When full, at its time, or when its creator starts it early: at least 4 players, or it is cancelled | Fully automatic, unless its creator starts it. A field short of its places still runs; the empty ones become byes. |
 | No winner | Knockout: one more game, then the better seed. League: a draw | It can never loop. Seeds are drawn at random at the start. |
 | Who creates | Any signed-in player, at most 3 at once; listed or link-only | |
 | Match length | Best of 1, 3 or 5 | |

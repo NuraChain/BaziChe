@@ -4,6 +4,7 @@ import Page from '../../components/app/page.component.azeroth';
 import PageHeader from '../../components/app/page-header.component.azeroth';
 import FriendRow from '../../components/social/friend-row.component.azeroth';
 import LanguageSwitch from '../../components/layout/language-switch.component.azeroth';
+import ThemePicker from '../../components/layout/theme-picker.component.azeroth';
 import Panel from '../../components/ui/panel.component.azeroth';
 import Badge from '../../components/ui/badge.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
@@ -299,7 +300,7 @@ export default component SettingsPage()
                                 </span>
                                 <span class="flex min-w-0 flex-1 flex-col">
                                     <span class="text-ui-md font-semibold text-text">{ locale.t('settings.account.wallet', { wallet: guest ? locale.t('guest.title') : wallet.name() ?? locale.t('wallet.unnamed') }) }</span>
-                                    <code class="tally truncate text-ui-sm text-muted">{ shortAddress(account.address() ?? '') }</code>
+                                    <code class="tally truncate text-ui-sm text-muted" dir="ltr">{ shortAddress(account.address() ?? '') }</code>
                                     <span class="mt-1 text-ui-xs text-faint">{ locale.t('settings.account.network') }: { guest ? locale.t('guest.offlineShort') : NURA_CHAIN.name }</span>
                                 </span>
                             </div>
@@ -325,6 +326,10 @@ export default component SettingsPage()
                             <div class="flex flex-wrap items-center justify-between gap-3">
                                 <span class="text-ui-md font-semibold text-text">{ locale.t('settings.appearance.language') }</span>
                                 <LanguageSwitch class="w-48" />
+                            </div>
+                            <div class="flex flex-wrap items-center justify-between gap-3 border-bs border-line pt-3">
+                                <span class="text-ui-md font-semibold text-text">{ locale.t('theme.label') }</span>
+                                <ThemePicker />
                             </div>
                             <Show when={ device.reducedMotion() }>
                                 { () =>

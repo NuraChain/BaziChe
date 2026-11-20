@@ -1,0 +1,42 @@
+import { useLocale } from '../../stores/locale.store.ts';
+import { useTheme } from '../../stores/theme.store.ts';
+import IconButton from '../ui/icon-button.component.azeroth';
+import Segmented from '../ui/segmented.component.azeroth';
+
+export default component ThemePicker(props: { compact?: boolean; block?: boolean })
+{
+    const locale = useLocale();
+    const theme = useTheme();
+
+    derived light = theme.theme() === 'light';
+
+    derived items = [
+        { id: 'dark', label: locale.t('theme.dark') },
+        { id: 'light', label: locale.t('theme.light') }
+    ];
+
+    <Show
+        when={ props.compact === true }
+        fallback={
+            <div class={ props.block === true ? 'w-full' : 'w-48 max-w-full' }>
+                <Segmented
+                    items={ items }
+                    value={ theme.theme() }
+                    label={ locale.t('theme.label') }
+                    onChange={ (id) => theme.choose(id === 'light' ? 'light' : 'dark') }
+                    block
+                />
+            </div>
+        }
+    >
+        { () =>
+            <IconButton
+                icon="palette"
+                label={ locale.t('theme.lightSwitch') }
+                pressed={ light }
+                class="aria-pressed:bg-raised aria-pressed:text-accent"
+                onClick={ () => theme.choose(light ? 'dark' : 'light') }
+            />
+        }
+    </Show>
+}

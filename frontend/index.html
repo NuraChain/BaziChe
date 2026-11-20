@@ -31,8 +31,8 @@
         <script>
             (function ()
             {
-                var LOCALES = ['en', 'fa'];
-                var RTL = ['fa'];
+                var LOCALES = ['en', 'fa', 'ar', 'es', 'pt', 'hi', 'zh', 'ru', 'fr', 'tr'];
+                var RTL = ['fa', 'ar'];
                 var root = document.documentElement;
 
                 function chosen(name, allowed)
@@ -52,10 +52,20 @@
                 var locale = chosen('locale', LOCALES);
                 if (locale === null)
                 {
-                    locale = (navigator.language || 'en').toLowerCase().indexOf('fa') === 0 ? 'fa' : 'en';
+                    var preferred = (navigator.language || 'en').toLowerCase().split('-')[0];
+                    locale = root.lang !== 'en' && LOCALES.indexOf(root.lang) !== -1
+                        ? root.lang
+                        : (LOCALES.indexOf(preferred) !== -1 ? preferred : 'en');
                 }
                 root.setAttribute('lang', locale);
                 root.setAttribute('dir', RTL.indexOf(locale) === -1 ? 'ltr' : 'rtl');
+
+                var theme = chosen('baziche-theme', ['dark', 'light']) || 'dark';
+                root.setAttribute('data-theme', theme);
+                if (theme === 'light')
+                {
+                    document.querySelector('meta[name="theme-color"]').setAttribute('content', '#EDF2F7');
+                }
             })();
         </script>
     </head>

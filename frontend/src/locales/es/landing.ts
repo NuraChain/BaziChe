@@ -13,6 +13,11 @@ export const landing: Pick<Dictionary, keyof typeof reference> = {
     'nav.menu': 'Menú',
     'nav.close': 'Cerrar menú',
 
+    'theme.label': 'Tema',
+    'theme.dark': 'Oscuro',
+    'theme.light': 'Claro',
+    'theme.lightSwitch': 'Tema claro',
+
     'landing.arrival.eyebrow': 'Juega. Conecta. Compite.',
     'landing.arrival.lead': 'Juegos clásicos,',
     'landing.arrival.accent': 'jugados en compañía.',

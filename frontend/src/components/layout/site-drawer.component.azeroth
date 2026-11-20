@@ -3,6 +3,7 @@ import { Link } from 'azerothjs';
 import BrandLogo from './brand-logo.component.azeroth';
 import BrandMark from './brand-mark.component.azeroth';
 import LanguageSwitch from './language-switch.component.azeroth';
+import ThemePicker from './theme-picker.component.azeroth';
 import GameIcon from '../games/game-icon.component.azeroth';
 import SeatCount from '../games/seat-count.component.azeroth';
 import Badge from '../ui/badge.component.azeroth';
@@ -182,6 +183,11 @@ export default component SiteDrawer(props: {
                             </li>
                         </For>
                     </ul>
+                </section>
+
+                <section aria-labelledby="drawer-theme" class="flex flex-col gap-2">
+                    <h2 id="drawer-theme" class="label text-ui-xs text-faint">{ locale.t('theme.label') }</h2>
+                    <ThemePicker block />
                 </section>
 
                 <section aria-labelledby="drawer-language" class="flex flex-col gap-2">

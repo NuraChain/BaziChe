@@ -377,8 +377,9 @@
 {
     .scrim
     {
+        --scrim-direction: to right;
         background: linear-gradient(
-            to right,
+            var(--scrim-direction),
             var(--void) 0%,
             color-mix(in oklab, var(--void) 82%, transparent) 24%,
             color-mix(in oklab, var(--void) 32%, transparent) 42%,
@@ -388,12 +389,17 @@
 
     [dir='rtl'] .scrim
     {
+        --scrim-direction: to left;
+    }
+
+    :root[data-theme='light'] .scrim
+    {
         background: linear-gradient(
-            to left,
+            var(--scrim-direction),
             var(--void) 0%,
-            color-mix(in oklab, var(--void) 82%, transparent) 24%,
-            color-mix(in oklab, var(--void) 32%, transparent) 42%,
-            transparent 58%
+            color-mix(in oklab, var(--void) 91%, transparent) min(50%, 40rem),
+            color-mix(in oklab, var(--void) 38%, transparent) min(65%, 51rem),
+            transparent min(82%, 64rem)
         );
     }
 

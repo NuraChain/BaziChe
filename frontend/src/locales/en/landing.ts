@@ -10,6 +10,11 @@ export const landing = {
     'nav.menu': 'Menu',
     'nav.close': 'Close menu',
 
+    'theme.label': 'Theme',
+    'theme.dark': 'Dark',
+    'theme.light': 'Light',
+    'theme.lightSwitch': 'Light theme',
+
     'landing.arrival.eyebrow': 'Play. Connect. Compete.',
     'landing.arrival.lead': 'Classic games,',
     'landing.arrival.accent': 'played together.',

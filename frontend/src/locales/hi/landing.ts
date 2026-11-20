@@ -13,6 +13,11 @@ export const landing: Pick<Dictionary, keyof typeof reference> = {
     'nav.menu': 'मेन्यू',
     'nav.close': 'मेन्यू बंद करो',
 
+    'theme.label': 'थीम',
+    'theme.dark': 'गहरी',
+    'theme.light': 'हल्की',
+    'theme.lightSwitch': 'हल्की थीम',
+
     'landing.arrival.eyebrow': 'खेलो। जुड़ो। मुक़ाबला करो।',
     'landing.arrival.lead': 'पुराने पसंदीदा खेल,',
     'landing.arrival.accent': 'साथ मिलकर।',

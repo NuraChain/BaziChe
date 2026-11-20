@@ -9,6 +9,11 @@
     }
 }
 
+:root[data-theme='light'] .site-header
+{
+    animation: none;
+}
+
 @starting-style
 {
     .site-drawer[open]

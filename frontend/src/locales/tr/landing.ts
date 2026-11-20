@@ -13,6 +13,11 @@ export const landing: Pick<Dictionary, keyof typeof reference> = {
     'nav.menu': 'Menü',
     'nav.close': 'Menüyü kapat',
 
+    'theme.label': 'Tema',
+    'theme.dark': 'Koyu',
+    'theme.light': 'Açık',
+    'theme.lightSwitch': 'Açık tema',
+
     'landing.arrival.eyebrow': 'Oyna. Tanış. Yarış.',
     'landing.arrival.lead': 'Klasik oyunlar,',
     'landing.arrival.accent': 'hep birlikte.',

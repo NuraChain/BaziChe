@@ -25,6 +25,7 @@ import Avatar from '../ui/avatar.component.azeroth';
 import Badge from '../ui/badge.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
 import Tooltip from '../ui/tooltip.component.azeroth';
+import ThemePicker from '../layout/theme-picker.component.azeroth';
 import AdminMore from './admin-more.component.azeroth';
 import AdminOffline from './admin-offline.component.azeroth';
 
@@ -191,7 +192,8 @@ export default component AdminShell(props: { children?: MountNode })
                         </div>
                     </nav>
                     <div class="shrink-0 border-t border-line p-2 lg:p-3" data-staff>
-                        <div class="flex justify-center lg:hidden">
+                        <div class="flex flex-col items-center gap-1 lg:hidden">
+                            <ThemePicker compact />
                             <IconButton icon="back" label={ locale.t('admin.back') } variant="ghost" size="md" flip tipSide="end" to="/app" />
                         </div>
                         <div class="hidden flex-col gap-2 lg:flex">
@@ -204,10 +206,13 @@ export default component AdminShell(props: { children?: MountNode })
                                     </Show>
                                 </div>
                             </div>
-                            <Link to="/app" class="flex h-9 items-center gap-2 rounded-control px-2 text-ui-sm font-semibold text-muted transition-colors duration-150 hover:bg-raised hover:text-text" data-leave>
-                                <Icon name="back" size={ 16 } class="icon-flip" />
-                                <span>{ locale.t('admin.back') }</span>
-                            </Link>
+                            <div class="flex items-center gap-1">
+                                <Link to="/app" class="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-control px-2 text-ui-sm font-semibold text-muted transition-colors duration-150 hover:bg-raised hover:text-text coarse:min-h-11" data-leave>
+                                    <Icon name="back" size={ 16 } class="icon-flip shrink-0" />
+                                    <span>{ locale.t('admin.back') }</span>
+                                </Link>
+                                <ThemePicker compact />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -223,6 +228,7 @@ export default component AdminShell(props: { children?: MountNode })
                             <Show when={ ranked }>
                                 <Badge text={ roleWord } tone="accent" />
                             </Show>
+                            <ThemePicker compact />
                         </div>
                     </div>
                 </header>

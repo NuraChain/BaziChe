@@ -331,17 +331,24 @@
 
 @utility hero-surface
 {
+    --hero-angle: 135deg;
+    --hero-glow-position: 85%;
+    --hero-start: #0F1B33;
     border: 1px solid color-mix(in oklab, var(--accent) 22%, var(--line));
     background:
-        radial-gradient(120% 90% at 85% 0%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 60%),
-        linear-gradient(135deg, #0F1B33 0%, var(--field) 55%, var(--void) 100%);
+        radial-gradient(120% 90% at var(--hero-glow-position) 0%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 60%),
+        linear-gradient(var(--hero-angle), var(--hero-start) 0%, var(--field) 55%, var(--void) 100%);
 }
 
 [dir='rtl'] .hero-surface
 {
-    background:
-        radial-gradient(120% 90% at 15% 0%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 60%),
-        linear-gradient(225deg, #0F1B33 0%, var(--field) 55%, var(--void) 100%);
+    --hero-angle: 225deg;
+    --hero-glow-position: 15%;
+}
+
+:root[data-theme='light'] .hero-surface
+{
+    --hero-start: var(--raised);
 }
 
 @utility glow-cta

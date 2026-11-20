@@ -177,13 +177,16 @@ export function createNotifyService(db: DataSource, social: SocialService)
          * Raw SQL because it is an `insert ... select` over `unnest` ending in an upsert that counts
          * up - the same two shapes `tell` needs, asked once for a whole room rather than five queries
          * per recipient. Answers who was told, so the caller rings exactly those.
+         * The group-call row lock orders this write with the update that ends the call.
          */
         async tellAll(userIds: readonly string[], input: {
-            kind: NotificationKind;
             actorId: string | null;
             ref: Record<string, string>;
             dedupeKey: string;
-        }): Promise<string[]>
+        } & (
+            | { kind: 'group-call'; callId: string }
+            | { kind: Exclude<NotificationKind, 'group-call'> }
+        )): Promise<string[]>
         {
             const targets = [...new Set(userIds)].filter((id) => id !== input.actorId);
 
@@ -192,11 +195,16 @@ export function createNotifyService(db: DataSource, social: SocialService)
                 return [];
             }
 
+            const callId = input.kind === 'group-call' ? input.callId : null;
             const rows = await db.query(
                 `insert into notifications (user_id, kind, actor_id, ref, dedupe_key)
                  select t.id, $2, $3::uuid, $4::jsonb, $5
                    from unnest($1::uuid[]) as t(id)
                   where ${ notSystem('t.id') }
+                    and ($8::uuid is null or exists (
+                            select 1 from calls c
+                             where c.id = $8 and c.kind = 'group' and c.state = 'live'
+                               for share))
                     and not exists (
                             select 1 from mutes m
                              where m.user_id = t.id
@@ -215,7 +223,7 @@ export function createNotifyService(db: DataSource, social: SocialService)
                     actor_id   = excluded.actor_id,
                     ref        = excluded.ref
                  returning user_id`,
-                [targets, input.kind, input.actorId, JSON.stringify(clean(input.ref)), input.dedupeKey, input.ref.conversationId ?? null, NOTICE_OF[input.kind]]
+                [targets, input.kind, input.actorId, JSON.stringify(clean(input.ref)), input.dedupeKey, input.ref.conversationId ?? null, NOTICE_OF[input.kind], callId]
             );
 
             return rowsOf<{ user_id: string }>(rows).map((row) => row.user_id);

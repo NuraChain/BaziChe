@@ -1403,7 +1403,13 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
             await courtesy('voice chat notice', async () =>
             {
-                for (const userId of await notify.tellAll(await chat.recipients(row.room), { kind: 'group-call', actorId: starter.id, ref: { conversationId: row.room }, dedupeKey }))
+                for (const userId of await notify.tellAll(await chat.recipients(row.room), {
+                    kind: 'group-call',
+                    callId: row.id,
+                    actorId: starter.id,
+                    ref: { conversationId: row.room },
+                    dedupeKey
+                }))
                 {
                     live?.selfChanged(userId, 'notifications');
                     wake(userId);

@@ -131,6 +131,22 @@ describe('playing over the socket', () =>
         expect(useBoard().match()?.rev).toBe(2);
     });
 
+    it('releases the pending button after an HTTP timeout and retries the same revision under the original key', async () =>
+    {
+        socket.drop();
+        http.mockImplementationOnce(() => new Promise(() => {}));
+        const first = useBoard().roll();
+        await settle();
+        expect(useBoard().busy()).toBe(true);
+        clock.advance(MEND_MS + 1);
+        expect(await first).toBe('failed');
+        expect(useBoard().busy()).toBe(false);
+
+        expect(await useBoard().roll()).toBe('already');
+        expect(http.mock.calls[1][0].input).toEqual(http.mock.calls[0][0].input);
+        expect(useBoard().match()?.rev).toBe(2);
+    });
+
     it('asks over HTTP once a second and a half has gone by with no ack', async () =>
     {
         const rolling = useBoard().roll();

@@ -88,6 +88,24 @@ describe('the seed and the draws, in the browser and on the server', () =>
 
 describe('checking a game played for NURA', () =>
 {
+    it.each<Played>(['ludo', 'hokm', 'backgammon', 'poker'])('replays a v2 %s transcript bound to the match', async (game) =>
+    {
+        const proof = await proofOf(game, { version: 2, resign: true });
+        const checked = check(proof, proof.randomness!.matchId);
+
+        expect(checked.wrong).toBeNull();
+        expect(checked.seats.every((seat) => seat.kept && seat.signed)).toBe(true);
+        expect(() => check(proof, '22d1c32e-9b03-4d8d-b65b-6b0f239b20a3')).toThrow('different match');
+
+        const [opening, ...rest] = proof.actions;
+        const firstDraw = proof.actions.findIndex((action) => action.randomness !== 'null');
+        const changed = proof.actions.map((action, index) => index === firstDraw ? { ...action, randomness: 'null' } : action);
+
+        expect(check({ ...proof, actions: changed }).wrong?.rev).toBe(proof.actions[firstDraw].rev);
+        expect(check({ ...proof, actions: [opening, ...rest.slice(1)] }).wrong).not.toBeNull();
+        expect(check({ ...proof, actions: proof.actions.slice(0, -1) }).wrong).not.toBeNull();
+    });
+
     it.each<Played>(['ludo', 'hokm', 'backgammon', 'poker'])('finds every move of a game of %s where the seed says it is', async (game) =>
     {
         const proof = await proofOf(game, { resign: true });

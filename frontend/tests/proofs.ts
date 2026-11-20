@@ -7,7 +7,8 @@ import { backgammonEngine } from '../../backend/src/domains/match/engines/backga
 import { hokmEngine } from '../../backend/src/domains/match/engines/hokm.ts';
 import { ludoEngine } from '../../backend/src/domains/match/engines/ludo.ts';
 import { pokerEngine } from '../../backend/src/domains/match/engines/poker.ts';
-import { OPENING, drawsOf, seedOf } from '../../backend/src/domains/match/fair.ts';
+import { OPENING, drawsOf, seedOf, stakeMatchId } from '../../backend/src/domains/match/fair.ts';
+import { trackedDraws } from '../../backend/src/domains/match/randomness.ts';
 import { hmacSha256, keccak } from '../../backend/src/lib/crypto.ts';
 import type { MatchPlay, MatchProof } from '../src/api.ts';
 
@@ -35,6 +36,8 @@ const AMOUNT = 10n * 10n ** 18n;
 
 const DEADLINE = 1_900_000_000n;
 
+const nonceOf = (seat: number): Hex => `0x${ (0xa0 + seat).toString(16).repeat(32) }`;
+
 const revOf = (state: unknown) => (state as { rev: number }).rev;
 
 const ludoWire = (state: unknown): MatchPlay =>
@@ -58,21 +61,39 @@ export async function signed(game: Played, secrets: readonly Hex[], signers = PL
             amount: AMOUNT,
             feeBps: 500,
             commit: commitOf(secrets[seat]),
-            nonce: `0x${ (0xa0 + seat).toString(16).repeat(32) }`,
+            nonce: nonceOf(seat),
             deadline: DEADLINE
         }
     })));
 }
 
-export async function proofOf(game: Played, options: { steps?: number; wired?: boolean; resign?: boolean } = {})
+export async function proofOf(game: Played, options: { steps?: number; wired?: boolean; resign?: boolean; version?: 2 } = {})
 {
     const engine = ENGINES[game] as Engine;
     const seats = [0, 1];
     const secrets = seats.map((seat) => `0x${ (0x11 * (seat + 1)).toString(16).padStart(2, '0').repeat(32) }` as Hex);
     const signatures = await signed(game, secrets);
-    const seed = seedOf(keccak, secrets, signatures);
-    const opened = engine.create(seats, drawsOf(hmacSha256, seed, OPENING), CONFIG[game]);
-    const actions: MatchProof['actions'] = [{ rev: OPENING, seat: -1, kind: 'open', payload: '{}', events: JSON.stringify(opened.events) }];
+    const seed = seedOf(keccak, secrets, signatures, options.version);
+    const id = stakeMatchId(keccak, game, seats.map((seat) => ({ commitment: commitOf(secrets[seat]), nonce: nonceOf(seat) })));
+    const domain = options.version === 2 ? { id, game } : undefined;
+    const at = (rev: number) =>
+    {
+        const source = drawsOf(hmacSha256, seed, rev, domain);
+
+        return domain === undefined
+            ? { draws: source, report: () => ({}) }
+            : (() =>
+            {
+                const rng = trackedDraws('stake-v2', rev, (limit) => source.die(limit) - 1);
+
+                return { draws: rng.draws, report: () => ({ randomness: JSON.stringify(rng.audit()) }) };
+            })();
+    };
+    const opening = at(OPENING);
+    const opened = engine.create(seats, opening.draws, CONFIG[game]);
+    const actions: MatchProof['actions'] = [{
+        rev: OPENING, seat: -1, kind: 'open', payload: JSON.stringify({ config: CONFIG[game] }), events: JSON.stringify(opened.events), ...opening.report()
+    }];
     let state = opened.state;
 
     for (let step = 0; step < (options.steps ?? 40); step += 1)
@@ -84,7 +105,7 @@ export async function proofOf(game: Played, options: { steps?: number; wired?: b
             break;
         }
 
-        const dice = drawsOf(hmacSha256, seed, revOf(state) + 1);
+        const { draws: dice, report } = at(revOf(state) + 1);
         const wire = options.wired === true && game === 'ludo' ? ludoWire(state) : null;
         const action = wire === null ? engine.autoplay(state, seat, dice) : engine.parse(wire, seat);
         const outcome = action === null ? null : engine.apply(state, action, dice);
@@ -94,22 +115,23 @@ export async function proofOf(game: Played, options: { steps?: number; wired?: b
             break;
         }
 
-        actions.push({ rev: revOf(outcome.state), seat, kind: 'play', payload: JSON.stringify(wire ?? { verb: 'auto' }), events: JSON.stringify(outcome.events) });
+        actions.push({ rev: revOf(outcome.state), seat, kind: 'play', payload: JSON.stringify(wire ?? { verb: 'auto' }), events: JSON.stringify(outcome.events), ...report() });
         state = outcome.state;
     }
 
     if (options.resign === true && engine.finish(state) === null)
     {
-        const dice = drawsOf(hmacSha256, seed, revOf(state) + 1);
+        const { draws: dice, report } = at(revOf(state) + 1);
         const outcome = engine.apply(state, engine.forfeit(0, 'resign'), dice);
 
         if (outcome.ok)
         {
-            actions.push({ rev: revOf(outcome.state), seat: 0, kind: 'forfeit', payload: JSON.stringify({ verb: 'resign' }), events: JSON.stringify(outcome.events) });
+            actions.push({ rev: revOf(outcome.state), seat: 0, kind: 'forfeit', payload: JSON.stringify({ verb: 'resign' }), events: JSON.stringify(outcome.events), ...report() });
         }
     }
 
     const proof: MatchProof = {
+        ...(domain === undefined ? {} : { randomness: { protocol: 'stake-v2' as const, matchId: id, lastRev: actions.at(-1)!.rev, voided: false } }),
         game,
         variant: CONFIG[game].variant,
         seats,
@@ -127,7 +149,7 @@ export async function proofOf(game: Played, options: { steps?: number; wired?: b
             address: PLAYERS[seat].address.toLowerCase(),
             commit: commitOf(secrets[seat]),
             secret: secrets[seat],
-            nonce: `0x${ (0xa0 + seat).toString(16).repeat(32) }`,
+            nonce: nonceOf(seat),
             deadline: Number(DEADLINE),
             signature: signatures[seat]
         })),

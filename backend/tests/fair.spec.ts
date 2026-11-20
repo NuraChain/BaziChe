@@ -5,7 +5,7 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { concat, keccak256, type Hex } from 'viem';
 
-import { OPENING, bytesOf, drawOf, drawsOf, hexOf, seedOf } from '../src/domains/match/fair.ts';
+import { OPENING, bytesOf, drawOf, drawsOf, hexOf, seedOf, stakeMatchId } from '../src/domains/match/fair.ts';
 import { ENGINES } from '../src/domains/match/service.ts';
 import { hmacSha256, keccak } from '../src/lib/crypto.ts';
 
@@ -60,6 +60,24 @@ describe('the seed of a game played for NURA', () =>
 
 describe('a draw from the seed', () =>
 {
+    it('pins the version 2 identity, key and bounded draws to a fixed encoding', () =>
+    {
+        const game = 'poker';
+        const id = stakeMatchId(keccak, game, SECRETS.map((secret, index) => ({
+            commitment: keccak256(secret as Hex),
+            nonce: `0x${ (0xc1 + index).toString(16).repeat(32) }`
+        })));
+        const key = seedOf(keccak, SECRETS, SIGNATURES, 2);
+        const rng = drawsOf(hmacSha256, key, OPENING, { game, id });
+
+        expect(id).toBe('3eaaf597-fded-8376-9fb0-9243ea52ab20');
+        expect([...key]).toEqual([
+            193, 80, 4, 157, 44, 136, 52, 62, 235, 160, 149, 196, 74, 251, 185, 250,
+            92, 16, 220, 115, 157, 226, 19, 93, 26, 205, 67, 135, 139, 227, 123, 226
+        ]);
+        expect([9, 52, 51, 50, 49, 48, 47, 46].map(rng.die)).toEqual([7, 9, 30, 31, 11, 16, 8, 19]);
+    });
+
     it('is HMAC-SHA256 of the seed over "revision.draw.round", read as a 32-bit number', () =>
     {
         for (const sides of [2, 6, 13, 36, 52])

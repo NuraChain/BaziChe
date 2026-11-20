@@ -64,7 +64,7 @@ export const usePeople = createStore((): PeopleApi =>
      * Handles already asked about and the answer each waits on, so a thread of strangers asks once
      * rather than once per render. A refused request forgets its handles: a refusal is not an answer.
      */
-    const asked = new Map<string, Promise<void>>();
+    let asked = new Map<string, Promise<void>>();
 
     /** One look at a person at a time: a second asker while it is out waits on the same answer. */
     const looking = new Map<string, Promise<unknown>>();
@@ -81,21 +81,24 @@ export const usePeople = createStore((): PeopleApi =>
             // A new Map only when something actually changed: the identity is what every `derived`
             // reading this store depends on, so rewriting it on every payload would re-render the
             // whole app for no reason.
-            let changed = false;
-            const next = new Map(current);
+            let next = current;
 
             for (const person of people)
             {
                 const held = next.get(person.handle);
                 if (held === undefined || held.displayName !== person.displayName || held.bio !== person.bio
+                    || held.avatar !== person.avatar || held.deco !== person.deco || held.nameplate !== person.nameplate
                     || held.hue !== person.hue || held.isMinor !== person.isMinor || held.lastSeenAt !== person.lastSeenAt)
                 {
+                    if (next === current)
+                    {
+                        next = new Map(current);
+                    }
                     next.set(person.handle, person);
-                    changed = true;
                 }
             }
 
-            return changed ? next : current;
+            return next;
         });
     };
 
@@ -108,6 +111,7 @@ export const usePeople = createStore((): PeopleApi =>
 
         want(handles)
         {
+            const requests = asked;
             const missing = untrack(() =>
             {
                 const held = known();
@@ -118,8 +122,18 @@ export const usePeople = createStore((): PeopleApi =>
             {
                 const batch = missing.slice(start, start + NAMES_MAX);
                 const answered = client.social.names({ query: { handles: batch.join(',') } })
-                    .then((answer) => remember(answer.people))
-                    .catch(() => batch.forEach((handle) => asked.delete(handle)));
+                    .then((answer) =>
+                    {
+                        if (requests === asked)
+                        {
+                            remember(answer.people);
+                            for (const person of answer.people)
+                            {
+                                requests.delete(person.handle);
+                            }
+                        }
+                    })
+                    .catch(() => batch.forEach((handle) => requests.delete(handle)));
 
                 for (const handle of batch)
                 {
@@ -140,7 +154,13 @@ export const usePeople = createStore((): PeopleApi =>
             }
 
             const answered: Promise<unknown> = client.social.person({ params: { handle } })
-                .then((answer) => remember([answer.person]))
+                .then((answer) =>
+                {
+                    if (looking.get(handle) === answered)
+                    {
+                        remember([answer.person]);
+                    }
+                })
                 .catch(() => undefined)
                 .finally(() =>
                 {
@@ -157,7 +177,7 @@ export const usePeople = createStore((): PeopleApi =>
 
         reset()
         {
-            asked.clear();
+            asked = new Map();
             looking.clear();
             setKnown(new Map());
         }

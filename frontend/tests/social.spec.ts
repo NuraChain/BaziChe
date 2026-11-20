@@ -146,6 +146,34 @@ describe('mutual friends', () =>
     });
 });
 
+describe('people shared by profiles, chat and tables', () =>
+{
+    it('updates the avatar and equipped cosmetics even when the profile text stays the same', () =>
+    {
+        const people = usePeople();
+        const person = { id: 'reader', handle: 'reader', displayName: 'Reader', bio: '', hue: 40, isMinor: false };
+        const dressed = { ...person, avatar: '/avatars/reader.webp', nameplate: 'shiraz', deco: 'neon' };
+        people.remember([person]);
+        people.remember([dressed]);
+        expect(people.byHandle(person.handle)).toEqual(dressed);
+        people.remember([person]);
+        expect(people.byHandle(person.handle)).toEqual(person);
+    });
+
+    it('discards outstanding names and profile reads when the account resets', async () =>
+    {
+        const people = usePeople();
+        people.reset();
+        const names = people.want(['sara.k']);
+        const profile = people.look('reza.t');
+        people.reset();
+        await Promise.all([names, profile]);
+        expect(people.known()).toEqual([]);
+        await people.want(['sara.k']);
+        expect(people.byHandle('sara.k')?.handle).toBe('sara.k');
+    });
+});
+
 describe('social store', () =>
 {
     it('holds a request in flight so a second press is the same request, not a second one', async () =>

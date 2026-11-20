@@ -4,7 +4,7 @@ import { sideOf } from '../../../../backend/src/domains/match/sides.ts';
 import { feeFor, potOf, shareOf } from '../../../../backend/src/domains/stake/policy.ts';
 import type { TableSummary } from '../../api.ts';
 import { client } from '../../api.ts';
-import { BAR_LEFT, BAR_WIDTH, BOTTOM, FIELD_LEFT, FIELD_RIGHT, FRAME, HEIGHT, MIDDLE, SPIKES, TOP, TRAY, TRAY_LEFT, WIDTH } from '../../game/backgammon-layout.ts';
+import { HEIGHT, WIDTH } from '../../game/backgammon-layout.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { attempt } from '../../lib/attempt.ts';
 import { explorerTx, nuraOf } from '../../lib/nura.ts';
@@ -325,15 +325,7 @@ export default component LobbyPanel(props: {
                 <Show when={ nard }>
                     { () =>
                         <svg class="lobby-board" viewBox={ `0 0 ${ WIDTH } ${ HEIGHT }` }>
-                            <rect x="0" y="0" width={ WIDTH } height={ HEIGHT } rx="22" fill="var(--nard-frame)" />
-                            <rect x={ FIELD_LEFT } y={ TOP } width={ FIELD_RIGHT - FIELD_LEFT } height={ BOTTOM - TOP } rx="6" fill="var(--nard-field)" />
-                            <rect x={ BAR_LEFT } y={ TOP - 6 } width={ BAR_WIDTH } height={ BOTTOM - TOP + 12 } fill="var(--nard-frame)" />
-                            <rect x={ TRAY_LEFT } y={ TOP } width={ TRAY } height={ BOTTOM - TOP } rx="8" fill="var(--nard-tray)" />
-                            <line x1={ TRAY_LEFT + 8 } y1={ MIDDLE } x2={ TRAY_LEFT + TRAY - 8 } y2={ MIDDLE } stroke="var(--nard-frame)" stroke-width="4" />
-                            <For each={ [...SPIKES] } key={ (spike) => spike.point } let={ spike }>
-                                <polygon points={ spike.path } fill={ spike.shade === 'a' ? 'var(--nard-point-a)' : 'var(--nard-point-b)' } />
-                            </For>
-                            <rect x={ FRAME / 2 } y={ FRAME / 2 } width={ WIDTH - FRAME } height={ HEIGHT - FRAME } rx="16" fill="none" stroke="var(--nard-inlay)" stroke-width="3" />
+                            <image href="/board/backgammon-table.svg" width={ WIDTH } height={ HEIGHT } />
                         </svg>
                     }
                 </Show>

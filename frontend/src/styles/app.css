@@ -4981,19 +4981,8 @@ svg.lobby-board
     inline-size: 0.875rem;
     block-size: 0.875rem;
     border-radius: 999px;
+    background: var(--checker) center / 100% 100% no-repeat;
     box-shadow: 0 1px 3px rgb(0 0 0 / 0.55);
-}
-
-.bg-checker-light
-{
-    background: var(--nard-light);
-    outline: 1px solid rgb(0 0 0 / 0.3);
-}
-
-.bg-checker-dark
-{
-    background: var(--nard-dark);
-    outline: 1px solid rgb(255 255 255 / 0.3);
 }
 
 .board-token::before,
@@ -5427,37 +5416,28 @@ svg.lobby-board
     box-sizing: border-box;
     inline-size: var(--man);
     block-size: var(--man);
-    border: calc(var(--man) * 0.05) solid var(--rim);
     border-radius: 50%;
-    background: radial-gradient(circle at 34% 28%, var(--hi), var(--fill) 58%, var(--lo));
+    background: var(--checker) center / 100% 100% no-repeat;
     box-shadow: 0 calc(var(--man) * 0.06) calc(var(--man) * 0.13) rgb(0 0 0 / 0.5);
     will-change: translate;
 }
 
-.man::after
+:is(.man, .bg-checker)[data-tone='light']
 {
-    content: '';
-    position: absolute;
-    inset: 19%;
-    border: calc(var(--man) * 0.035) solid var(--rim);
-    border-radius: 50%;
-    opacity: 0.55;
-}
-
-.man[data-tone='light']
-{
+    --checker: url('/board/backgammon-light.svg');
     --fill: var(--nard-light);
     --rim: var(--nard-light-rim);
     --hi: #FFFDF8;
-    --lo: #E3D8BE;
+    --lo: #AA7A4B;
 }
 
-.man[data-tone='dark']
+:is(.man, .bg-checker)[data-tone='dark']
 {
+    --checker: url('/board/backgammon-dark.svg');
     --fill: var(--nard-dark);
     --rim: var(--nard-dark-rim);
-    --hi: #54413A;
-    --lo: #17100C;
+    --hi: #68433B;
+    --lo: #140C0B;
 }
 
 .man[data-lit]
@@ -5501,13 +5481,9 @@ svg.lobby-board
 
 .man[data-off]
 {
-    background: linear-gradient(var(--hi), var(--fill) 70%, var(--lo));
-    box-shadow: 0 calc(var(--man) * 0.03) calc(var(--man) * 0.06) rgb(0 0 0 / 0.5);
-}
-
-.man[data-off]::after
-{
-    display: none;
+    border: max(1px, calc(var(--man) * 0.023)) solid var(--rim);
+    background: linear-gradient(104deg, transparent 10%, rgb(255 247 226 / 0.18) 37%, transparent 68%), linear-gradient(var(--hi), var(--fill) 46%, var(--lo));
+    box-shadow: inset 0 1px rgb(255 244 211 / 0.28), 0 calc(var(--man) * 0.03) calc(var(--man) * 0.06) rgb(0 0 0 / 0.55);
 }
 
 .bgt-count
@@ -5535,23 +5511,6 @@ svg.lobby-board
     color: var(--nard-light);
 }
 
-/*
- * A player's checkers in their look (`game/board/backgammon-table.ts`): the drawing their side's
- * tone names in place of the board's own rim, face and groove, and a slab borne off painted from its
- * material and rim. The count on a tall stack and the arrow that takes a move back lie on a plain
- * middle of the checker's own material, so they never lie on its emblem.
- */
-.man[data-checkers]:not([data-off])
-{
-    border: 0;
-    background: var(--checker) center / 100% 100% no-repeat;
-}
-
-.man[data-checkers]:not([data-off])::after
-{
-    display: none;
-}
-
 .man[data-checkers][data-back]
 {
     background: radial-gradient(circle closest-side, var(--fill) 0 46%, transparent 48%), var(--checker) center / 100% 100% no-repeat;
@@ -5560,12 +5519,6 @@ svg.lobby-board
 .bgt-count[data-checkers]
 {
     background: radial-gradient(circle closest-side, var(--fill) 0 46%, transparent 48%);
-}
-
-.bg-checker[data-checkers]
-{
-    background: var(--checker) center / 100% 100% no-repeat;
-    outline: 0;
 }
 
 [data-checkers='glow'][data-tone='light']
@@ -5899,6 +5852,12 @@ svg.lobby-board
     --die: 1em;
 }
 
+.bgt-dice > .die3d:not([data-look]) .die3d-face
+{
+    background: url('/board/backgammon-die.svg') center / 100% 100% no-repeat;
+    box-shadow: none;
+}
+
 .bgt-left
 {
     position: absolute;
@@ -6043,18 +6002,18 @@ svg.lobby-board
     place-items: center;
     box-sizing: border-box;
     border-style: solid;
-    border-color: var(--nard-dark);
-    background: var(--nard-light);
-    color: var(--nard-dark);
+    border-color: #8E6847;
+    background: linear-gradient(145deg, #FFF7DF, var(--nard-light) 46%, #D1AA77);
+    color: #382217;
     font-weight: 800;
-    box-shadow: 0 0.4cqw 0.9cqw rgb(0 0 0 / 0.45);
+    box-shadow: inset 0 0.18cqw 0 rgb(255 255 255 / 0.7), inset 0 -0.26cqw 0 rgb(77 43 22 / 0.28), 0 0.4cqw 0.9cqw rgb(0 0 0 / 0.55);
 }
 
 .bgt-cube[data-live]
 {
     cursor: pointer;
     pointer-events: auto;
-    box-shadow: 0 0 0 0.45cqw var(--accent), 0 0.4cqw 0.9cqw rgb(0 0 0 / 0.45);
+    outline: 0.45cqw solid var(--accent);
 }
 
 .bgt-cube[data-live]::before

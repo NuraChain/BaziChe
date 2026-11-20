@@ -32,11 +32,7 @@ import {
     BOTTOM,
     CUBE,
     DICE_X,
-    FIELD_LEFT,
-    FIELD_RIGHT,
-    FRAME,
     HEIGHT,
-    MIDDLE,
     RADIUS,
     TOP,
     TRAY,
@@ -45,7 +41,6 @@ import {
     cubeY,
     patchOf,
     pointAt,
-    SPIKES,
     type Patch
 } from '../../game/backgammon-layout.ts';
 import type { MatchView } from '../../api.ts';
@@ -1316,28 +1311,17 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
                                         onPointerCancel={ quit }
                                         onPointerLeave={ quit }
                                     >
-                                        <rect x="0" y="0" width={ WIDTH } height={ HEIGHT } rx="22" fill="var(--nard-frame)" />
-                                        <rect x={ FIELD_LEFT } y={ TOP } width={ FIELD_RIGHT - FIELD_LEFT } height={ BOTTOM - TOP } rx="6" fill="var(--nard-field)" />
-                                        <rect x={ BAR_LEFT } y={ TOP - 6 } width={ BAR_WIDTH } height={ BOTTOM - TOP + 12 } fill="var(--nard-frame)" />
+                                        <image href="/board/backgammon-table.svg" width={ WIDTH } height={ HEIGHT } />
                                         <rect
-                                            x={ TRAY_LEFT }
-                                            y={ TOP }
-                                            width={ TRAY }
-                                            height={ BOTTOM - TOP }
+                                            x={ TRAY_LEFT + 1 }
+                                            y={ TOP + 1 }
+                                            width={ TRAY - 2 }
+                                            height={ BOTTOM - TOP - 2 }
                                             rx="8"
-                                            fill="var(--nard-tray)"
+                                            fill="none"
                                             stroke={ trayLit ? 'var(--accent)' : 'none' }
                                             stroke-width="6"
                                         />
-                                        <line x1={ TRAY_LEFT + 8 } y1={ MIDDLE } x2={ TRAY_LEFT + TRAY - 8 } y2={ MIDDLE } stroke="var(--nard-frame)" stroke-width="4" />
-
-                                        <For each={ [...SPIKES] } key={ (spike) => spike.point } let={ spike }>
-                                            <g>
-                                                <polygon points={ spike.path } fill={ spike.shade === 'a' ? 'var(--nard-point-a)' : 'var(--nard-point-b)' } />
-                                            </g>
-                                        </For>
-
-                                        <rect x={ FRAME / 2 } y={ FRAME / 2 } width={ WIDTH - FRAME } height={ HEIGHT - FRAME } rx="16" fill="none" stroke="var(--nard-inlay)" stroke-width="3" />
                                     </svg>
 
                                     <div class="bg-layer" aria-hidden="true" ref={ (element) => layer = element }></div>
@@ -1412,7 +1396,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
                                         bubble={ props.speech?.[whoAt(plate.seat)] }
                                         below={ plate.seat !== viewer }
                                         anchor={ plate.seat === viewer ? 'end' : 'start' }
-                                        marker={ <span class={ () => (plate.tone === 'light' ? 'bg-checker bg-checker-light' : 'bg-checker bg-checker-dark') } data-tone={ plate.tone } data-checkers={ plate.checkers } aria-hidden="true"></span> }
+                                        marker={ <span class="bg-checker" data-tone={ plate.tone } data-checkers={ plate.checkers } aria-hidden="true"></span> }
                                         facts={
                                             <span class="contents">
                                                 <span class="bg-score" aria-hidden="true">

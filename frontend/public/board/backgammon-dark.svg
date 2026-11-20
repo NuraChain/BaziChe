@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+    <title>Dark walnut Backgammon checker</title>
+    <defs>
+        <linearGradient id="bevel" x2="68%" y2="100%">
+            <stop stop-color="#956A50"/>
+            <stop offset=".33" stop-color="#573626"/>
+            <stop offset=".69" stop-color="#2C1915"/>
+            <stop offset="1" stop-color="#110B0A"/>
+        </linearGradient>
+        <radialGradient id="face" cx="44%" cy="39%" r="64%" fx="31%" fy="23%">
+            <stop stop-color="#805449"/>
+            <stop offset=".43" stop-color="#4F332B"/>
+            <stop offset=".8" stop-color="#36221D"/>
+            <stop offset="1" stop-color="#221513"/>
+        </radialGradient>
+        <linearGradient id="groove" x2="60%" y2="100%">
+            <stop stop-color="#302019"/>
+            <stop offset=".54" stop-color="#966A4B"/>
+            <stop offset="1" stop-color="#B7865C"/>
+        </linearGradient>
+    </defs>
+    <circle cx="64" cy="64" r="61.5" fill="url(#bevel)" stroke="#160D0B" stroke-width="1.5"/>
+    <circle cx="64" cy="62" r="55.5" fill="url(#face)" stroke="#806047" stroke-width="1.5"/>
+    <circle cx="64" cy="62" r="45" fill="none" stroke="url(#groove)" stroke-width="3"/>
+    <circle cx="64" cy="62" r="41.5" fill="none" stroke="#B38668" stroke-opacity=".32"/>
+    <path d="M16 46A52 52 0 0 1 83 13" fill="none" stroke="#C99B76" stroke-opacity=".64" stroke-width="2" stroke-linecap="round"/>
+    <path d="M43 113A55 55 0 0 0 111 85" fill="none" stroke="#100907" stroke-opacity=".72" stroke-width="1.25" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+    <title>Ivory Backgammon checker</title>
+    <defs>
+        <linearGradient id="bevel" x2="68%" y2="100%">
+            <stop stop-color="#FFFAE6"/>
+            <stop offset=".3" stop-color="#EFD9AE"/>
+            <stop offset=".63" stop-color="#BC915B"/>
+            <stop offset="1" stop-color="#794B2D"/>
+        </linearGradient>
+        <radialGradient id="face" cx="44%" cy="39%" r="64%" fx="31%" fy="23%">
+            <stop stop-color="#FFFDF3"/>
+            <stop offset=".52" stop-color="#F6EAD0"/>
+            <stop offset=".84" stop-color="#DBC197"/>
+            <stop offset="1" stop-color="#AE855A"/>
+        </radialGradient>
+        <linearGradient id="groove" x2="60%" y2="100%">
+            <stop stop-color="#A7855D"/>
+            <stop offset=".56" stop-color="#DFC098"/>
+            <stop offset="1" stop-color="#FFFAE7"/>
+        </linearGradient>
+    </defs>
+    <circle cx="64" cy="64" r="61.5" fill="url(#bevel)" stroke="#704829" stroke-width="1.5"/>
+    <circle cx="64" cy="62" r="55.5" fill="url(#face)" stroke="#E7CDA2" stroke-width="1.5"/>
+    <circle cx="64" cy="62" r="45" fill="none" stroke="url(#groove)" stroke-width="3"/>
+    <circle cx="64" cy="62" r="41.5" fill="none" stroke="#FFFAE7" stroke-opacity=".56"/>
+    <path d="M16 46A52 52 0 0 1 83 13" fill="none" stroke="#FFFEF6" stroke-opacity=".85" stroke-width="2" stroke-linecap="round"/>
+    <path d="M43 113A55 55 0 0 0 111 85" fill="none" stroke="#8A603A" stroke-opacity=".6" stroke-width="1.25" stroke-linecap="round"/>
+</svg>

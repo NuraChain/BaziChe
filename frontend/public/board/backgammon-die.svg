@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+    <title>Ivory Backgammon die face</title>
+    <defs>
+        <linearGradient id="bevel" x2="55%" y2="100%">
+            <stop stop-color="#FFFAE7"/>
+            <stop offset=".42" stop-color="#E8CDA2"/>
+            <stop offset=".74" stop-color="#BD8F5E"/>
+            <stop offset="1" stop-color="#92613C"/>
+        </linearGradient>
+        <radialGradient id="face" cx="43%" cy="40%" r="79%" fx="29%" fy="20%">
+            <stop stop-color="#FFFEF5"/>
+            <stop offset=".53" stop-color="#F6E9CE"/>
+            <stop offset=".88" stop-color="#E2C99D"/>
+            <stop offset="1" stop-color="#BD9367"/>
+        </radialGradient>
+    </defs>
+    <rect x="1" y="1" width="126" height="126" rx="22" fill="url(#bevel)" stroke="#9B734E" stroke-width="1.5"/>
+    <rect x="4.5" y="3.5" width="119" height="119" rx="19" fill="url(#face)" stroke="#D7B587"/>
+    <path d="M8 26C8 15 15 8 26 8H95" fill="none" stroke="#FFFDF1" stroke-width="2" stroke-linecap="round"/>
+    <path d="M29 119H102C113 119 120 110 120 100" fill="none" stroke="#AE8057" stroke-opacity=".65" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

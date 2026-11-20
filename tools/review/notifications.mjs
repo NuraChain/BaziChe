@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+
+import { makeDevice } from '../../frontend/tests/keys.ts';
+import { encodeFile, encodeText } from '../../frontend/src/lib/body.ts';
+import { sealFile } from '../../frontend/src/lib/chat-file.ts';
+import { commitmentOf, confirmationOf, mintEpochKey, mintFrankingKey, sealText, signRecipients } from '../../frontend/src/lib/crypto.ts';
 
 const database = process.env.QA_NOTIFY_DATABASE;
 const port = Number(process.env.QA_NOTIFY_PORT);
@@ -17,7 +23,7 @@ if (!database || !Number.isInteger(port) || port < 1 || port > 65535)
 
 const built = pathToFileURL(resolve(process.env.QA_NOTIFY_BUILD ?? '.dist-backend') + sep);
 const load = (path) => import(new URL(path, built));
-const { entities, Call, Conversation, ConversationMember, Notification, User } = await load('entities/index.js');
+const { entities, Call, ChatFile, Conversation, ConversationEpoch, ConversationMember, Device, Mute, Notification, Session, User } = await load('entities/index.js');
 const { syncSchema } = await load('db/schema.js');
 const { queueRunners } = await load('lib/one-at-a-time.js');
 const { createGroupService } = await load('domains/group/service.js');
@@ -64,7 +70,7 @@ async function within(action, reason)
     }
 }
 
-async function waitForLock(prefix)
+async function waitForLock(...prefixes)
 {
     const deadline = Date.now() + 5000;
 
@@ -73,8 +79,9 @@ async function waitForLock(prefix)
         const [row] = await db.query(
             `select exists (
                 select 1 from pg_stat_activity
-                 where datname = current_database() and cardinality(pg_blocking_pids(pid)) > 0 and query like $1
-            ) as blocked`, [`${ prefix }%`]
+                 where datname = current_database() and cardinality(pg_blocking_pids(pid)) > 0
+                   and query like any($1::text[])
+            ) as blocked`, [prefixes.map((prefix) => `${ prefix }%`)]
         );
 
         if (row.blocked)
@@ -85,12 +92,13 @@ async function waitForLock(prefix)
         await wait(20);
     }
 
-    throw new Error(`Expected a PostgreSQL lock wait for ${ prefix }.`);
+    throw new Error(`Expected a PostgreSQL lock wait for ${ prefixes.join(' or ') }.`);
 }
 
 let beforeDelete = null;
 let beforeFanout = null;
 let afterFanout = null;
+let afterChatRead = null;
 let afterEnd = null;
 const makeRunner = db.driver.createQueryRunner.bind(db.driver);
 
@@ -106,12 +114,24 @@ db.driver.createQueryRunner = (...args) =>
             await beforeDelete();
         }
 
-        if (/^insert into notifications/i.test(sql) && parameters[0]?.[1] === groupCall)
+        const fanout = /^(insert into notifications|with message_times\b)/i.test(sql);
+        const chatRead = /^update conversation_members set last_read_at = now/i.test(sql);
+
+        if (fanout || (chatRead && afterChatRead !== null))
         {
-            const before = beforeFanout;
-            const after = afterFanout;
-            beforeFanout = null;
-            afterFanout = null;
+            const before = fanout ? beforeFanout : null;
+            const after = fanout ? afterFanout : afterChatRead;
+
+            if (fanout)
+            {
+                beforeFanout = null;
+                afterFanout = null;
+            }
+            else
+            {
+                afterChatRead = null;
+            }
+
             await before?.();
 
             if (after !== null)
@@ -231,6 +251,7 @@ async function lifecycle(notify, social, [owner, member])
         callChanged() {},
         voiceChatChanged() {},
         chatChanged() {},
+        chatSeen() {},
         selfChanged(userId, topic)
         {
             if (topic === 'notifications')
@@ -284,7 +305,7 @@ async function lifecycle(notify, social, [owner, member])
         endingFirst = ports.calls.end(owner, id);
         await within(wroteEnding.ready, 'End never updated the call.');
         allowInvite.release();
-        await waitForLock('insert into notifications');
+        await waitForLock('insert into notifications', 'with message_times');
         commitEnding.release();
         await Promise.all([ringingAfterEnd, endingFirst]);
         assert.deepEqual(await forCall(id), []);
@@ -318,11 +339,204 @@ async function lifecycle(notify, social, [owner, member])
         await Promise.allSettled([ringingFirst, endingAfterRing]);
     }
 
-    const message = { kind: 'message', actorId: owner, ref: { conversationId: room }, dedupeKey: 'review:message' };
-    assert.deepEqual(await notify.tellAll([owner, member], message), [member]);
-    assert.deepEqual(await notify.tellAll([owner, member], message), [member]);
-    assert.equal((await rowsFor(message.dedupeKey, 'message'))[0].count, 2);
+    await chatDelivery(ports, owner, member, room, refreshes);
     assert.deepEqual(errors, []);
+}
+
+async function chatFixture(owner, room)
+{
+    const account = await makeDevice(privateKeyToAccount(generatePrivateKey()));
+    const secret = mintEpochKey();
+    const session = randomUUID();
+    await db.getRepository(Device).insert({
+        id: account.id, userId: owner, exchangeKey: account.exchangeKey, signingKey: account.signingKey,
+        attested: account.peer.attested, attestedAddress: account.address, attestedMessage: account.peer.message,
+        attestedSignature: account.peer.signature
+    });
+    await db.getRepository(Session).insert({
+        id: session, userId: owner, deviceId: account.id, tokenHash: randomBytes(32).toString('hex'),
+        expiresAt: new Date(Date.now() + 3600000)
+    });
+    const confirmation = await confirmationOf(secret, room, 1);
+    await db.getRepository(ConversationEpoch).insert({
+        conversationId: room, epoch: 1, mintedBy: account.id, recipients: account.id, confirmation,
+        signature: await signRecipients(account.secrets, room, 1, account.id, [account.id], confirmation)
+    });
+
+    let seq = 0;
+    const message = async (kind, plain, extra) =>
+    {
+        const key = mintFrankingKey();
+        const aad = {
+            conversationId: room, epoch: 1, seq: ++seq, messageId: randomUUID(),
+            senderAccountId: owner, senderDeviceId: account.id, kind,
+            clientAt: Date.now(), commitment: await commitmentOf(key, plain), expiresAt: 0
+        };
+        return {
+            id: aad.messageId, senderDeviceId: account.id, epoch: 1, kind, ...extra,
+            seq: aad.seq, commitment: aad.commitment, clientAt: new Date(aad.clientAt).toISOString(), expiresAt: 0,
+            ...await sealText(secret, account.secrets, aad, plain, key)
+        };
+    };
+
+    return {
+        session,
+        text: () => message('text', encodeText({ text: 'Notification regression' })),
+        async album()
+        {
+            const album = randomUUID();
+            const photo = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/W/oAAAAASUVORK5CYII=', 'base64');
+            const messages = [];
+
+            for (let item = 0; item < 2; item += 1)
+            {
+                const file = randomUUID();
+                const sealed = await sealFile(photo, file);
+                await db.getRepository(ChatFile).insert({ id: file, uploaderId: owner, bytes: Buffer.from(sealed.body), size: sealed.body.length });
+                const plain = encodeFile({
+                    file: { id: file, key: sealed.key, iv: sealed.iv, as: 'photo', mime: 'image/png', name: 'fixture.png', bytes: photo.length, w: 1, h: 1 },
+                    album: { id: album, at: item, of: 2 }
+                });
+                messages.push(await message('file', plain, { file, fileAs: 'photo' }));
+            }
+
+            return { album, messages };
+        }
+    };
+}
+
+async function chatDelivery(ports, owner, member, room, refreshes)
+{
+    const fixture = await chatFixture(owner, room);
+    const notice = () => notices().findOneBy({ userId: member, kind: 'message', dedupeKey: `chat:${ room }` });
+    const read = () => ports.chat.markRead(member, room);
+    const send = (input) => ports.chat.send(owner, fixture.session, room, input);
+    const album = (input) => ports.chat.sendAlbum(owner, fixture.session, room, input);
+
+    const text = await fixture.text();
+    const photos = await fixture.album();
+
+    for (const [publish, input, ids] of [
+        [send, text, [text.id]],
+        [album, photos, photos.messages.map((item) => item.id)]
+    ])
+    {
+        const entered = held();
+        const released = held();
+        beforeFanout = async () => { entered.release(); await within(released.ready, 'Chat delivery never released.'); };
+        const writing = publish(input);
+
+        try
+        {
+            await within(entered.ready, 'Chat send never reached notification fan-out.');
+            const page = await ports.chat.messages(member, room, undefined, 40);
+            assert.ok(ids.every((id) => page.messages.some((message) => message.id === id)));
+            await read();
+            refreshes.length = 0;
+            released.release();
+            await writing;
+            assert.equal(await notice(), null, 'Already-read content produced a late notification.');
+            assert.deepEqual(refreshes, []);
+        }
+        finally
+        {
+            released.release();
+            await Promise.allSettled([writing]);
+        }
+    }
+
+    const photosAfterRead = await fixture.album();
+    const reachedFanout = held();
+    const readyToFanout = held();
+    const wroteRead = held();
+    const commitRead = held();
+    beforeFanout = async () => { reachedFanout.release(); await within(readyToFanout.ready, 'Chat delivery never released.'); };
+    const waitingAlbum = album(photosAfterRead);
+    let readingFirst;
+
+    try
+    {
+        await within(reachedFanout.ready, 'Album never reached notification fan-out.');
+        afterChatRead = async () => { wroteRead.release(); await within(commitRead.ready, 'Chat read never released.'); };
+        readingFirst = read();
+        await within(wroteRead.ready, 'Reader never updated its watermark.');
+        readyToFanout.release();
+        await waitForLock('with message_times');
+        commitRead.release();
+        await Promise.all([waitingAlbum, readingFirst]);
+        assert.equal(await notice(), null);
+    }
+    finally
+    {
+        readyToFanout.release();
+        commitRead.release();
+        await Promise.allSettled([waitingAlbum, readingFirst]);
+    }
+
+    const next = await fixture.text();
+    const wroteNotice = held();
+    const commitNotice = held();
+    afterFanout = async () => { wroteNotice.release(); await within(commitNotice.ready, 'Chat delivery never released.'); };
+    const writingFirst = send(next);
+    let waitingReader;
+
+    try
+    {
+        await within(wroteNotice.ready, 'Message never inserted the notification.');
+        waitingReader = read();
+        await waitForLock('update conversation_members set last_read_at = now');
+        commitNotice.release();
+        await Promise.all([writingFirst, waitingReader]);
+        assert.ok((await notice()).readAt);
+    }
+    finally
+    {
+        commitNotice.release();
+        await Promise.allSettled([writingFirst, waitingReader]);
+    }
+
+    refreshes.length = 0;
+    const unread = await fixture.album();
+    const sent = await album(unread);
+    assert.deepEqual(sent.messages.map((item) => item.id), unread.messages.map((item) => item.id));
+    const delivered = await notice();
+    assert.equal(delivered.count, 3);
+    assert.equal(delivered.readAt, null);
+    assert.deepEqual(refreshes, [member]);
+    await read();
+    assert.ok((await notice()).readAt);
+
+    const older = await fixture.text();
+    const newer = await fixture.text();
+    const reachedOlder = held();
+    const releaseOlder = held();
+    beforeFanout = async () => { reachedOlder.release(); await within(releaseOlder.ready, 'Older delivery never released.'); };
+    const delayedOlder = send(older);
+    let complete;
+
+    try
+    {
+        await within(reachedOlder.ready, 'Older message never reached notification fan-out.');
+        await send(newer);
+        const latest = await notice();
+        releaseOlder.release();
+        await delayedOlder;
+        complete = await notice();
+        assert.equal(complete.count, delivered.count + 2);
+        assert.equal(complete.readAt, null);
+        assert.deepEqual(complete.createdAt, latest.createdAt);
+    }
+    finally
+    {
+        releaseOlder.release();
+        await Promise.allSettled([delayedOlder]);
+    }
+
+    await db.getRepository(Mute).insert({ userId: member, subjectKind: 'conversation', subjectId: room });
+    refreshes.length = 0;
+    await album(await fixture.album());
+    assert.equal((await notice()).count, complete.count);
+    assert.deepEqual(refreshes, []);
 }
 
 try
@@ -344,7 +558,7 @@ try
 
     await retraction(notify, ids);
     await lifecycle(notify, social, ids);
-    console.log('Notification retraction and group-call lifecycle regressions passed.');
+    console.log('Notification retraction, group-call lifecycle and chat delivery regressions passed.');
 }
 finally
 {

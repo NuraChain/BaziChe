@@ -178,6 +178,7 @@ export function createNotifyService(db: DataSource, social: SocialService)
          * up - the same two shapes `tell` needs, asked once for a whole room rather than five queries
          * per recipient. Answers who was told, so the caller rings exactly those.
          * The group-call row lock orders this write with the update that ends the call.
+         * Chat uses committed message times and locks the recipient's watermark against markRead.
          */
         async tellAll(userIds: readonly string[], input: {
             actorId: string | null;
@@ -185,7 +186,7 @@ export function createNotifyService(db: DataSource, social: SocialService)
             dedupeKey: string;
         } & (
             | { kind: 'group-call'; callId: string }
-            | { kind: 'message'; count?: number }
+            | { kind: 'message'; messageIds: readonly string[] }
             | { kind: Exclude<NotificationKind, 'group-call' | 'message'> }
         )): Promise<string[]>
         {
@@ -197,12 +198,26 @@ export function createNotifyService(db: DataSource, social: SocialService)
             }
 
             const callId = input.kind === 'group-call' ? input.callId : null;
-            const count = input.kind === 'message' ? input.count ?? 1 : 1;
+            const messageIds = input.kind === 'message' ? input.messageIds : null;
             const rows = await db.query(
-                `insert into notifications (user_id, kind, actor_id, ref, dedupe_key, count)
-                 select t.id, $2, $3::uuid, $4::jsonb, $5, $9::integer
+                `with message_times as materialized (
+                    select x.created_at from messages x
+                     where x.id = any($9::uuid[]) and x.conversation_id = $6::text::uuid
+                 )
+                 insert into notifications (user_id, kind, actor_id, ref, dedupe_key, count, created_at)
+                 select t.id, $2, $3::uuid, $4::jsonb, $5, coalesce(pending.count, 1), coalesce(pending.latest, now())
                    from unnest($1::uuid[]) as t(id)
+                   left join lateral (
+                       select count(*)::integer as count, max(x.created_at) as latest
+                         from (
+                             select m.last_read_at from conversation_members m
+                              where $9::uuid[] is not null and m.conversation_id = $6::text::uuid and m.user_id = t.id
+                                for share
+                         ) recipient
+                         join message_times x on x.created_at > recipient.last_read_at
+                   ) pending on $9::uuid[] is not null
                   where ${ notSystem('t.id') }
+                    and ($9::uuid[] is null or pending.count > 0)
                     and ($8::uuid is null or exists (
                             select 1 from calls c
                              where c.id = $8 and c.kind = 'group' and c.state = 'live'
@@ -220,12 +235,16 @@ export function createNotifyService(db: DataSource, social: SocialService)
                  on conflict (user_id, dedupe_key) do update set
                     count      = case when notifications.kind = excluded.kind then notifications.count + excluded.count else excluded.count end,
                     kind       = excluded.kind,
-                    created_at = now(),
+                    created_at = case when notifications.kind = 'message' and excluded.kind = 'message'
+                                      then greatest(notifications.created_at, excluded.created_at)
+                                      else excluded.created_at end,
                     read_at    = null,
-                    actor_id   = excluded.actor_id,
+                    actor_id   = case when notifications.kind = 'message' and excluded.kind = 'message'
+                                           and notifications.created_at > excluded.created_at
+                                      then notifications.actor_id else excluded.actor_id end,
                     ref        = excluded.ref
                  returning user_id`,
-                [targets, input.kind, input.actorId, JSON.stringify(clean(input.ref)), input.dedupeKey, input.ref.conversationId ?? null, NOTICE_OF[input.kind], callId, count]
+                [targets, input.kind, input.actorId, JSON.stringify(clean(input.ref)), input.dedupeKey, input.ref.conversationId ?? null, NOTICE_OF[input.kind], callId, messageIds]
             );
 
             return rowsOf<{ user_id: string }>(rows).map((row) => row.user_id);

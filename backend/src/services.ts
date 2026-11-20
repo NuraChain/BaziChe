@@ -5906,7 +5906,8 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                     kind: 'message',
                     actorId: me,
                     ref: { conversationId },
-                    dedupeKey: `chat:${ conversationId }`
+                    dedupeKey: `chat:${ conversationId }`,
+                    messageIds: [message.id]
                 });
 
                 for (const recipient of told)
@@ -5923,13 +5924,12 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             {
                 const rows = await chat.sendAlbum(me, conversationId, await device.deviceOfSession(sessionId), input.album, input.messages);
 
-                // Each photo and video is a message, so the room's row counts every one of them.
                 const told = await notify.tellAll(await chat.recipients(conversationId), {
                     kind: 'message',
                     actorId: me,
                     ref: { conversationId },
                     dedupeKey: `chat:${ conversationId }`,
-                    count: rows.length
+                    messageIds: rows.map((row) => row.id)
                 });
 
                 for (const recipient of told)

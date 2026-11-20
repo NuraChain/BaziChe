@@ -101,8 +101,15 @@ export async function currentSubscription(): Promise<PushSubscription | null>
     {
         return null;
     }
-    const registration = await navigator.serviceWorker.getRegistration(WORKER);
-    return registration === undefined ? null : await registration.pushManager.getSubscription();
+    try
+    {
+        const registration = await navigator.serviceWorker.getRegistration(WORKER);
+        return registration === undefined ? null : await registration.pushManager.getSubscription();
+    }
+    catch
+    {
+        return null;
+    }
 }
 
 /**

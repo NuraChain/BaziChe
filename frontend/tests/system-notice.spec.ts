@@ -103,6 +103,15 @@ describe('a notice shown by the system', () =>
         await expect(tellSystem({ ...NOTICE, pushed: true }), 'a browser with no push at all was taken for one a push reaches').resolves.toBe(true);
     });
 
+    it('shows the notice when the browser cannot read its push subscription', async () =>
+    {
+        browser = fakeNotices('granted', { push: true, lookupFails: true });
+        browser.hide(true);
+
+        await expect(tellSystem({ ...NOTICE, pushed: true })).resolves.toBe(true);
+        expect(browser.shown.map((one) => one.options.tag)).toEqual(['chat:c-sara']);
+    });
+
     it('is one notice for one subject, however often it is told', async () =>
     {
         browser = fakeNotices('granted');

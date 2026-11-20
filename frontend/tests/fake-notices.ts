@@ -28,6 +28,7 @@ export interface FakeNoticesOptions
     registered?: boolean;
     push?: boolean;
     pushFails?: boolean;
+    lookupFails?: boolean;
     subscribed?: boolean;
     madeWith?: ArrayBuffer;
 }
@@ -104,7 +105,15 @@ export function fakeNotices(permission: NotificationPermission, options: FakeNot
         })),
 
         pushManager: {
-            getSubscription: async () => subscription,
+            getSubscription: async () =>
+            {
+                if (options.lookupFails === true)
+                {
+                    throw new DOMException('Error retrieving push subscription.', 'AbortError');
+                }
+
+                return subscription;
+            },
             subscribe: async (asked?: { applicationServerKey?: ArrayBuffer }) =>
             {
                 if (options.pushFails === true)

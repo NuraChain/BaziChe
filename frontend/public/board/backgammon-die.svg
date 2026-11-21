@@ -1,15 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:h="http://www.w3.org/1999/xlink" viewBox="0 0 128 128">
-<title>Engraved ivory die</title>
-<defs>
-<linearGradient id="ib" x2=".66" y2="1"><stop stop-color="#fff7da"/><stop offset=".26" stop-color="#e6c792"/><stop offset=".55" stop-color="#ae855a"/><stop offset=".78" stop-color="#dbb47d"/><stop offset="1" stop-color="#8f613d"/></linearGradient>
-<radialGradient id="if" cx=".37" cy=".29" r=".87"><stop stop-color="#fffbed"/><stop offset=".58" stop-color="#f7edd5"/><stop offset="1" stop-color="#d8be94"/></radialGradient>
-<g id="ic" fill="none" stroke="#b59461"><path d="M8.5 31V24Q8.5 9 25 9H37M12 23Q13 13 23 13Q19 18 12 20"/></g>
-<g id="ip"><use h:href="#ic"/><use h:href="#ic" transform="translate(128) scale(-1 1)"/></g>
-</defs>
-<rect x="1" y="1" width="126" height="126" rx="22" fill="url(#ib)" stroke="#97704c" stroke-width="1.5"/>
-<rect x="4.5" y="3.5" width="119" height="119" rx="19" fill="url(#if)" stroke="#fef6dc" stroke-width="1.2"/>
-<use h:href="#ip"/>
-<use h:href="#ip" transform="translate(0 126) scale(1 -1)"/>
-<path d="M17 119Q21 121 28 121H99Q113 121 118 110" fill="none" stroke="#af895a" opacity=".7"/>
-</svg>
-           
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:h="http://www.w3.org/1999/xlink" viewBox="0 0 128 128"><title>Engraved ivory die</title><defs><linearGradient id="ib" x2=".66" y2="1"><stop stop-color="#fff7d5"/><stop offset=".26" stop-color="#e9cc9b"/><stop offset=".55" stop-color="#b38e65"/><stop offset=".78" stop-color="#ddba88"/><stop offset="1" stop-color="#956b48"/></linearGradient><radialGradient id="if" cx=".37" cy=".29" r=".87"><stop stop-color="#fff9e8"/><stop offset=".58" stop-color="#f8eed6"/><stop offset="1" stop-color="#dec8a2"/></radialGradient><g id="ic" fill="none" stroke="#b59461"><path d="M8.5 31V24Q8.5 9 25 9H37M12 23Q13 13 23 13Q19 18 12 20"/></g><g id="ip"><use h:href="#ic"/><use h:href="#ic" transform="translate(128) scale(-1 1)"/></g></defs><rect x="1" y="1" width="126" height="126" rx="22" fill="url(#ib)" stroke="#97704c" stroke-width="1.5"/><rect x="4.5" y="3.5" width="119" height="119" rx="19" fill="url(#if)" stroke="#fef6dc" stroke-width="1.2"/><use h:href="#ip"/><use h:href="#ip" transform="translate(0 126) scale(1 -1)"/><path d="M17 119Q21 121 28 121H99Q113 121 118 110" fill="none" stroke="#af895a" opacity=".7"/></svg>                         

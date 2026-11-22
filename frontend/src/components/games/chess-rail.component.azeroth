@@ -22,6 +22,7 @@ export interface TrayGroup
  */
 export default component ChessRail(props: {
     who: string;
+    ai?: boolean;
     name: string;
     side: Colour;
     me: boolean;
@@ -68,6 +69,7 @@ export default component ChessRail(props: {
     <div class="chess-rail" data-me={ props.me ? 'true' : undefined }>
         <TablePlate
             who={ props.who }
+            ai={ props.ai }
             look={ props.look }
             name={ props.name }
             turn={ props.turn }

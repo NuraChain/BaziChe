@@ -1493,6 +1493,9 @@ html:has(.site-drawer[open], [data-wallet-dialog])
     outline-offset: 2px;
 }
 
+:is(.poker-seat, .hokm-seat, .yard-badge) .table-plate-identity .ai-badge-label { display: none; }
+:is(.poker-seat, .hokm-seat, .yard-badge) .table-plate-identity .ai-badge-short { display: inline; }
+
 .table-plate-press
 {
     position: absolute;
@@ -3888,10 +3891,14 @@ svg.lobby-board
     display: contents;
 }
 
-.poker-seat .table-plate-name
+.poker-seat .table-plate-identity
 {
     grid-area: name;
     align-self: end;
+}
+
+.poker-seat .table-plate-name
+{
     max-inline-size: 100%;
     font-size: var(--type);
     line-height: 1.2;
@@ -4322,6 +4329,7 @@ svg.lobby-board
         text-align: center;
     }
 
+    .poker-seat[data-lies='upright'] .table-plate-identity:not(:has([data-ai-player])),
     .poker-seat[data-lies='upright'] .table-plate-name
     {
         position: static;

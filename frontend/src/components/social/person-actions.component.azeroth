@@ -1,3 +1,4 @@
+import AiBadge from '../games/ai-badge.component.azeroth';
 import { untrack, useNavigate } from 'azerothjs';
 
 import type { MatchPlayer } from '../../data/match.ts';
@@ -44,6 +45,7 @@ interface Action
  */
 export default component PersonActions(props: OverlayProps & {
     personId: string;
+    ai?: boolean;
     disclose?: { conversationId: string; messageId: string; text: string; frankingKey: string };
     look?: MatchPlayer['look'];
 })
@@ -280,6 +282,7 @@ export default component PersonActions(props: OverlayProps & {
         <header class="flex items-center gap-3 px-2 pb-2 pt-1">
             <Avatar person={ person } size="md" />
             <span class="flex min-w-0 flex-1 flex-col">
+                <AiBadge ai={ props.ai ?? person?.ai } />
                 <span class="truncate text-ui-md font-semibold text-text" dir="auto">{ person === null ? props.personId : person.displayName }</span>
                 <span class="truncate text-ui-xs text-muted" dir="ltr">@{ person?.handle ?? props.personId }</span>
             </span>

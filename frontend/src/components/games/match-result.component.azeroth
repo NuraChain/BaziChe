@@ -1,3 +1,4 @@
+import AiBadge from './ai-badge.component.azeroth';
 import { Link, untrack } from 'azerothjs';
 import Button from '../ui/button.component.azeroth';
 import Panel from '../ui/panel.component.azeroth';
@@ -227,6 +228,7 @@ export default component MatchResult(props: { match: MatchView; mine?: number; s
                                     </span>
                                 }
                             </Show>
+                            <AiBadge ai={ chair.player.ai } />
                             <span class="min-w-0 flex-1 truncate text-ui-sm text-text" dir="auto">
                                 { chair.player.seat === props.mine ? locale.t('match.you') : nameOf(chair.player.who) }
                             </span>

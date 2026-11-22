@@ -1,3 +1,4 @@
+import AiBadge from './ai-badge.component.azeroth';
 import { onCleanup, untrack, type Child } from 'azerothjs';
 
 import type { MatchPlayer } from '../../data/match.ts';
@@ -20,6 +21,7 @@ export interface PlateTeam
 
 export default component TablePlate(props: {
     who: string;
+    ai?: boolean;
     name: string;
     turn?: boolean;
     remainingMs?: number;
@@ -160,7 +162,10 @@ export default component TablePlate(props: {
             </Show>
         </span>
         <span class="table-plate-text">
-            <span class="table-plate-name" dir="auto">{ props.name }</span>
+            <span class="table-plate-identity flex min-w-0 max-w-full items-center gap-1">
+                <AiBadge ai={ props.ai } />
+                <span class="table-plate-name" dir="auto">{ props.name }</span>
+            </span>
             <Show when={ stated }>
                 { () => <span class="table-plate-facts">{ facts }</span> }
             </Show>
@@ -175,7 +180,7 @@ export default component TablePlate(props: {
             <span class="table-plate-bubble" dir="auto" role="status">{ said }</span>
         </Show>
         <Show when={ theirs }>
-            { () => <button type="button" class="table-plate-press" tabindex="-1" aria-haspopup="dialog" aria-label={ locale.t('actions.about', { name: props.name }) } onClick={ () => aboutPerson(props.who, props.look) }></button> }
+            { () => <button type="button" class="table-plate-press" tabindex="-1" aria-haspopup="dialog" aria-label={ locale.t('actions.about', { name: props.name }) } onClick={ () => aboutPerson(props.who, props.look, props.ai) }></button> }
         </Show>
     </div>
 }

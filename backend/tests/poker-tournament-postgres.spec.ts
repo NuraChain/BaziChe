@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { DataSource } from 'typeorm';
 import { expect, it } from 'vitest';
 
-import { entities, Match, MatchPlayer, Table, Tournament, User } from '../src/entities/index.ts';
-import { syncSchema } from '../src/db/schema.ts';
-import { seedReference } from '../src/db/seed-reference.ts';
+import { Match, MatchPlayer, Table, Tournament, User } from '../src/entities/index.ts';
+import { withPostgres, testPostgres } from './test-postgres.ts';
 import { createAchieveService } from '../src/domains/achieve/service.ts';
 import { toCall } from '../src/domains/match/poker/betting.ts';
 import type { PokerState } from '../src/domains/match/poker/state.ts';
@@ -13,24 +11,10 @@ import { createSocialService } from '../src/domains/social/service.ts';
 import { createTableService } from '../src/domains/table/service.ts';
 import { createTournamentService } from '../src/domains/tournament/service.ts';
 
-/** Set this to a PostgreSQL maintenance database on which the test may create a temporary database. */
-const maintenance = process.env.POKER_TEST_POSTGRES;
-
-it.skipIf(!maintenance)('deals real poker matches, survives a restart and advances the actual winning seats', async () =>
+it.skipIf(!testPostgres)('deals real poker matches, survives a restart and advances the actual winning seats', async () =>
 {
-    const admin = new DataSource({ type: 'postgres', url: maintenance });
-    await admin.initialize();
-    const name = 'arcade_poker_' + randomUUID().replaceAll('-', '');
-    const url = new URL(maintenance!);
-    url.pathname = '/' + name;
-    const db = new DataSource({ type: 'postgres', url: url.toString(), entities, uuidExtension: 'pgcrypto' });
-
-    try
+    await withPostgres(async (db) =>
     {
-        await admin.query('create database ' + name);
-        await db.initialize();
-        await syncSchema(db);
-        await seedReference(db);
         const users = await db.getRepository(User).save(Array.from({ length: 12 }, (_, n) => ({
             handle: 'player' + n, displayName: 'Player ' + n, hue: n
         })));
@@ -154,11 +138,5 @@ it.skipIf(!maintenance)('deals real poker matches, survives a restart and advanc
         await db.getRepository(Tournament).update(old.id, { nextRoundAt: new Date(0) });
         expect((await reconnect().advance(old.id))!.rung.map((one) => one.players.length)).toEqual([2, 2]);
         expect((await tournaments.detail(users[0].id, old.code))!.format).toBe('single');
-    }
-    finally
-    {
-        if (db.isInitialized) await db.destroy();
-        await admin.query('drop database if exists ' + name);
-        await admin.destroy();
-    }
+    });
 }, 90000);

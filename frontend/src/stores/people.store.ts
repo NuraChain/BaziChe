@@ -88,7 +88,7 @@ export const usePeople = createStore((): PeopleApi =>
                 const held = next.get(person.handle);
                 if (held === undefined || held.displayName !== person.displayName || held.bio !== person.bio
                     || held.avatar !== person.avatar || held.deco !== person.deco || held.nameplate !== person.nameplate
-                    || held.hue !== person.hue || held.isMinor !== person.isMinor || held.lastSeenAt !== person.lastSeenAt)
+                    || held.hue !== person.hue || held.isMinor !== person.isMinor || held.ai !== person.ai || held.lastSeenAt !== person.lastSeenAt)
                 {
                     if (next === current)
                     {

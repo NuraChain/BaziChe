@@ -7,6 +7,7 @@ import { useLocale } from '../../stores/locale.store.ts';
 
 export default component PokerSeat(props: {
     who: string;
+    ai?: boolean;
     name: string;
     turn: boolean;
     own: boolean;
@@ -67,6 +68,7 @@ export default component PokerSeat(props: {
     <>
         <TablePlate
             who={ props.who }
+            ai={ props.ai }
             look={ props.look }
             name={ props.name }
             turn={ props.turn }

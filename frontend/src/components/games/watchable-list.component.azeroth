@@ -3,6 +3,7 @@ import { createResource } from 'azerothjs';
 import Button from '../ui/button.component.azeroth';
 import SectionHeading from '../ui/section-heading.component.azeroth';
 import AvatarGroup from '../ui/avatar-group.component.azeroth';
+import { playerName } from '../../lib/player-name.ts';
 import { client } from '../../api.ts';
 import { useLocale } from '../../stores/locale.store.ts';
 import { usePeople } from '../../stores/people.store.ts';
@@ -61,8 +62,7 @@ export default component WatchableList(props: { game: GameId })
                                 max={ 4 }
                             />
                             <span class="min-w-0 flex-1 truncate text-ui-sm text-text">
-                                { row.players.map((handle) => people.byHandle(handle)?.displayName ?? { en: handle, fa: handle })
-                                    .map((name) => locale.text(name))
+                                { row.players.map((handle) => playerName(locale.text(people.byHandle(handle)?.displayName ?? handle), row.aiPlayers?.includes(handle), locale))
                                     .join(locale.t('list.separator')) }
                             </span>
                             <Button variant="outline" size="sm" leading="activity" to={ `/app/play/${ row.id }` }>

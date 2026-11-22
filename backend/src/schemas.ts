@@ -281,6 +281,7 @@ export const matchHistoryEntry = object({
     ratingBefore: number().optional(),
     ratingAfter: number().optional(),
 
+    aiPlayers: array(string()).optional(),
     /** Everybody who played, by handle, in seat order. */
     players: array(string())
 });
@@ -1434,6 +1435,7 @@ export const messageRefusal = enumOf(['blocked', 'strangers-off', 'minor-safety'
  * sent, and a filter it was trusted to apply is a filter one code path forgets.
  */
 export const personSummary = object({
+    ai: literal(true).optional(),
     /** The HANDLE. Every person reference on this wire is one - see the identity notes. */
     id: string(),
     handle: string(),
@@ -1645,6 +1647,7 @@ export type PersonView = Infer<typeof personView>;
  */
 export const publicPerson = object({
     person: object({
+        ai: literal(true).optional(),
         handle: string(),
         displayName: string(),
         bio: string(),
@@ -2667,6 +2670,7 @@ export type TableMoney = Infer<typeof tableMoney>;
 /** One chair. `who` and `invited` are handles, because that is how the wire names a person. */
 export const tableSeat = object({
     seat: number(),
+    ai: literal(true).optional(),
     who: string().optional(),
     invited: string().optional(),
     ready: boolean(),
@@ -3002,6 +3006,7 @@ export type TableLookView = Infer<typeof tableLook>;
  */
 export const matchPlayer = object({
     seat: number(),
+    ai: literal(true).optional(),
     who: string(),
 
     /**
@@ -3603,6 +3608,7 @@ export type MatchProof = Infer<typeof matchProof>;
 /** One table with a game running on it, as somebody looking for something to watch sees it. */
 export const watchableTable = object({
     id: string(),
+    aiPlayers: array(string()).optional(),
     code: string(),
     game: string(),
     seats: number(),

@@ -1,0 +1,16 @@
+import { useLocale } from '../../stores/locale.store.ts';
+
+export default component AiBadge(props: { ai?: boolean })
+{
+    const locale = useLocale();
+
+    <Show when={ props.ai === true }>
+        { () =>
+            <span data-ai-player class="inline-flex shrink-0 items-center rounded-control bg-accent-fill px-1 text-ui-2xs font-semibold text-accent-ink"
+                title={ locale.t('play.ai.player') } aria-label={ locale.t('play.ai.player') }>
+                <span class="ai-badge-label">{ locale.t('play.ai.badge') }</span>
+                <span class="ai-badge-short hidden" aria-hidden="true">AI</span>
+            </span>
+        }
+    </Show>
+}

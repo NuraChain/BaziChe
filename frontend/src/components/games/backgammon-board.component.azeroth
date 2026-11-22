@@ -1386,6 +1386,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
                                 <div class="bg-rail" data-me={ plate.seat === viewer ? 'true' : undefined }>
                                     <TablePlate
                                         who={ whoAt(plate.seat) }
+                                        ai={ game.players.find((player) => player.seat === plate.seat)?.ai }
                                         look={ lookAt(plate.seat) }
                                         name={ nameOf(plate.seat) }
                                         turn={ plate.seat === onTurn }

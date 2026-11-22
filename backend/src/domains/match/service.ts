@@ -52,6 +52,7 @@ interface HistoryRow extends Keyed
     rating_before: number | null;
     rating_after: number | null;
     players: string[] | null;
+    ai_players: string[] | null;
 }
 
 const UNIQUE_VIOLATION = '23505';
@@ -74,6 +75,7 @@ export type Expired =
 export interface MatchSeatRow
 {
     seat: number;
+    ai: boolean;
     who: string;
 
     /**
@@ -371,6 +373,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             .select('p.seat', 'seat')
             .addSelect('u.handle::text', 'who')
             .addSelect('p.user_id', 'user_id')
+            .addSelect(isSystem('p.user_id'), 'ai')
             .addSelect('p.timeouts', 'timeouts')
             .addSelect('p.result', 'result')
             .addSelect(
@@ -578,6 +581,8 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                 .addSelect('p.rating_before', 'rating_before')
                 .addSelect('p.rating_after', 'rating_after')
                 .addSelect('(select array_agg(u.handle::text order by o.seat) from match_players o join users u on u.id = o.user_id where o.match_id = m.id)', 'players')
+                .addSelect(`(select array_agg(u.handle::text order by o.seat) from match_players o join users u on u.id = o.user_id
+                            where o.match_id = m.id and ${ isSystem('o.user_id') })`, 'ai_players')
                 .where('p.user_id = :me', { me })
                 .andWhere('m.finished_at is not null')
                 .andWhere('p.result is not null');
@@ -601,6 +606,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
                     finishedAt: new Date(row.finished_at).toISOString(),
                     result: row.result,
                     players: row.players ?? [],
+                    ...(row.ai_players == null ? {} : { aiPlayers: row.ai_players }),
                     ...(row.rating_before === null ? {} : { ratingBefore: row.rating_before }),
                     ...(row.rating_after === null ? {} : { ratingAfter: row.rating_after })
                 })),

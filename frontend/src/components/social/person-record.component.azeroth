@@ -1,3 +1,4 @@
+import { playerName } from '../../lib/player-name.ts';
 import LoadMore from '../ui/load-more.component.azeroth';
 import AchievementFamilyCard from './achievement-family.component.azeroth';
 import AchievementTile from './achievement-tile.component.azeroth';
@@ -97,8 +98,8 @@ export default component PersonRecord(props: { handle: string; history?: boolean
         return person === null ? handle : locale.text(person.displayName);
     };
 
-    const beside = (players: readonly string[]) =>
-        players.filter((one) => one !== props.handle).map(nameOf).join(locale.t('list.separator'));
+    const beside = (players: readonly string[], aiPlayers?: string[]) =>
+        players.filter((one) => one !== props.handle).map((who) => playerName(nameOf(who), aiPlayers?.includes(who), locale)).join(locale.t('list.separator'));
 
     derived levelled = progress !== null && parts.includes('level');
 
@@ -247,7 +248,7 @@ export default component PersonRecord(props: { handle: string; history?: boolean
                                                 { locale.t(catalogue.byId(row.game as never).nameKey) }
                                             </span>
                                             <span class="truncate text-ui-2xs text-muted">
-                                                { locale.t('history.against', { players: beside(row.players) }) }
+                                                { locale.t('history.against', { players: beside(row.players, row.aiPlayers) }) }
                                             </span>
                                         </span>
                                         <Show when={ row.ratingAfter !== undefined && row.ratingBefore !== undefined }>

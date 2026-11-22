@@ -60,6 +60,7 @@ interface RulesRow
 export interface SeatRow
 {
     seat: number;
+    ai: boolean;
 
     /** The occupant's handle, or null for an empty chair. */
     who: string | null;
@@ -295,6 +296,7 @@ const tableQuery = (db: DataSource, me: string) => db.getRepository(Table)
                        'seat',    s.seat,
                        'who',     (select u.handle::text from users u where u.id = s.user_id),
                        'invited', (select u.handle::text from users u where u.id = s.invited_id),
+                       'ai',      ${ isSystem('s.user_id') },
                        'ready',   s.ready,
                        'host',    coalesce(s.user_id = t.host_id, false)
                    ) order by s.seat),
@@ -929,6 +931,10 @@ export function createTableService(db: DataSource, social: SocialService)
                        where p.match_id = m.id)`,
                     'players'
                 )
+                .addSelect(
+                    `(select array_agg(u.handle::text order by p.seat) from match_players p join users u on u.id = p.user_id
+                       where p.match_id = m.id and ${ isSystem('p.user_id') })`, 'ai_players'
+                )
                 .where(ON_SHOW)
                 .andWhere('(cast(:game as varchar) is null or t.game = :game)', { game })
                 .andWhere(
@@ -945,6 +951,7 @@ export function createTableService(db: DataSource, social: SocialService)
                     game: string;
                     seats: number;
                     players: string[];
+                    ai_players: string[] | null;
                     started_at: Date;
                 }>();
         },

@@ -287,9 +287,9 @@ and the switch off, in `psql` before the new build starts:
 ## System players
 
 Seats the server plays at public quick-play tables, so a person is not left waiting
-(`docs/design/2026-11-17-system-players-design.md`). To the players they are players; only staff can
-tell which accounts they are: Admin › People marks them for everyone who may open it (a moderator
-and above), and the System players page needs the `system` ability (an admin's). A match with one
+(`docs/design/2026-11-17-system-players-design.md`). Players and spectators see an AI label beside server-controlled seats, including
+on finished games and profiles. Admin › People also marks these accounts for moderators and above.
+The System players page needs the `system` ability (an admin's). A match with one
 moves no rating and makes no market, and for the people in it counts for no quest, no invite, no
 achievement progress and no streak. System players earn their own achievements, but never appear
 among holders or on a board. The whole feature ships switched off.

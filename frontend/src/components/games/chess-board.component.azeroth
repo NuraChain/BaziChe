@@ -1163,6 +1163,7 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
                                 <div class="contents">
                                     <ChessRail
                                         who={ whoAt(seat) }
+                                        ai={ game.players.find((player) => player.seat === seat)?.ai }
                                         look={ lookAt(seat) }
                                         name={ nameOf(seat) }
                                         side={ colourAt(seat) }

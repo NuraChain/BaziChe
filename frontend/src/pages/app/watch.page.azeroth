@@ -11,6 +11,7 @@ import FilterBar from '../../components/ui/filter-bar.component.azeroth';
 import Pagination from '../../components/ui/pagination.component.azeroth';
 import Skeleton from '../../components/ui/skeleton.component.azeroth';
 import { GAMES, type GameId } from '../../data/games.ts';
+import { playerName } from '../../lib/player-name.ts';
 import { client } from '../../api.ts';
 import { pagingFor, visible } from '../../lib/pagination.ts';
 import { usePageParams } from '../../lib/page-param.ts';
@@ -207,7 +208,7 @@ export default component WatchPage()
                                             size="xs"
                                             max={ 4 }
                                         />
-                                        <span class="min-w-0 truncate text-ui-xs text-muted" dir="auto">{ row.players.map(nameOf).join(locale.t('list.separator')) }</span>
+                                        <span class="min-w-0 truncate text-ui-xs text-muted" dir="auto">{ row.players.map((who) => playerName(nameOf(who), row.aiPlayers?.includes(who), locale)).join(locale.t('list.separator')) }</span>
                                     </span>
                                 </span>
                                 <Button variant="outline" size="sm" leading="activity" to={ `/app/play/${ row.id }` }>

@@ -356,6 +356,9 @@ export default component LobbyPanel(props: {
                 </Show>
                 <span>{ status }</span>
             </p>
+            <Show when={ searching && props.table.quick === true && !paid && props.table.privacy === 'public' }>
+                { () => <p class="text-ui-sm text-muted">{ locale.t('quickMatch.aiSeats') }</p> }
+            </Show>
             <Show when={ room !== '' }>
                 { () => <p class="text-ui-sm text-faint">{ room }</p> }
             </Show>

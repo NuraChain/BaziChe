@@ -1,3 +1,4 @@
+import AiBadge from '../games/ai-badge.component.azeroth';
 import { Link, onCleanup, untrack, type Child } from 'azerothjs';
 
 import type { Progress } from '../../api.ts';
@@ -21,7 +22,7 @@ export interface ProfileStat
 }
 
 export default component ProfileHeader(props: {
-    person: Facade & { handle: string; nameplate?: string | undefined };
+    person: Facade & { handle: string; ai?: boolean; nameplate?: string | undefined };
     presence: Presence;
     stats: ProfileStat[];
     progress?: Progress | null;
@@ -215,7 +216,8 @@ export default component ProfileHeader(props: {
                         <Show when={ props.eyebrow !== undefined }>
                             <div class="hidden pb-1 coarse:py-2.5 has-[*]:flex">{ props.eyebrow }</div>
                         </Show>
-                        <div class="flex pb-1 coarse:py-2.5">
+                        <div class="flex items-center gap-2 pb-1 coarse:py-2.5">
+                            <AiBadge ai={ props.person.ai } />
                             <button
                                 type="button"
                                 class={ COPY_CHIP }

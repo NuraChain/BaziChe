@@ -7,9 +7,9 @@ import { whyFailed } from './failure.ts';
 const SHEET = 'person-menu';
 
 /** Opens the sheet about a person; from their plate at a table it is handed what they wear there. */
-export function aboutPerson(personId: string, look?: MatchPlayer['look'])
+export function aboutPerson(personId: string, look?: MatchPlayer['look'], ai?: boolean)
 {
     void import('../components/social/person-actions.component.azeroth')
-        .then((module) => useOverlay().open(module.default, { personId, ...(look === undefined ? {} : { look }) }, { label: useLocale().t('actions.title'), id: SHEET }))
+        .then((module) => useOverlay().open(module.default, { personId, ai, ...(look === undefined ? {} : { look }) }, { label: useLocale().t('actions.title'), id: SHEET }))
         .catch((error: unknown) => useToasts().show({ kind: 'warning', text: useLocale().t(whyFailed(error)), dedupe: SHEET }));
 }

@@ -8,7 +8,7 @@ import { FriendRequest } from '../../entities/friend-request.entity.ts';
 import { Friendship } from '../../entities/friendship.entity.ts';
 import { Mute, type MuteSubject } from '../../entities/mute.entity.ts';
 import { isNotice } from '../notify/notices.ts';
-import { notSystem } from '../system/sql.ts';
+import { isSystem, notSystem } from '../system/sql.ts';
 import { folded, likeLiteral, SEARCH_FROM, searchNeedle } from './names.ts';
 import { PROFILE_LOOKS, chosenIn, profileLookColumns, type ProfileLooks } from '../shop/looks.ts';
 import { GroupReport } from '../../entities/group-report.entity.ts';
@@ -17,6 +17,7 @@ import { clampPrivacy, mayDiscover, mayMessage, maySeeOnline, maySendRequest, ty
 
 export interface PersonRow extends ProfileLooks
 {
+    ai?: boolean;
     id: string;
     handle: string;
     display_name: string;
@@ -45,7 +46,7 @@ const partyOf = (row: PersonRow): Party => ({
     showOnline: row.show_online
 });
 
-const PERSON_COLUMNS = `u.id, u.handle, u.display_name, u.bio, u.avatar, u.hue, u.is_minor, u.allow_stranger_messages, u.show_online, u.last_seen_at, u.created_at, ${ profileLookColumns('u') }`;
+const PERSON_COLUMNS = `u.id, ${ isSystem('u.id') } as ai, u.handle, u.display_name, u.bio, u.avatar, u.hue, u.is_minor, u.allow_stranger_messages, u.show_online, u.last_seen_at, u.created_at, ${ profileLookColumns('u') }`;
 
 /** Whether a path parameter could be an id at all. A malformed one is 22P02, which is a 500. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -142,6 +143,7 @@ export function createSocialService(db: DataSource)
             return await db.getRepository(User)
                 .createQueryBuilder('u')
                 .select('u.handle::text', 'handle')
+                .addSelect(isSystem('u.id'), 'ai')
                 .addSelect('u.display_name', 'display_name')
                 .addSelect('u.bio', 'bio')
                 .addSelect('u.avatar', 'avatar')
@@ -151,7 +153,7 @@ export function createSocialService(db: DataSource)
                 .addSelect(chosenIn('u', PROFILE_LOOKS.nameplate), 'nameplate')
                 .where('u.handle in (:...handles)', { handles: [...handles] })
                 .andWhere('u.is_suspended = false')
-                .getRawMany<Pick<PersonRow, 'handle' | 'display_name' | 'bio' | 'avatar' | 'hue' | 'is_minor' | 'deco' | 'nameplate'>>();
+                .getRawMany<Pick<PersonRow, 'ai' | 'handle' | 'display_name' | 'bio' | 'avatar' | 'hue' | 'is_minor' | 'deco' | 'nameplate'>>();
         },
 
         async friends(me: string): Promise<PersonRow[]>

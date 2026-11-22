@@ -5,8 +5,8 @@ import type { Skill } from '../domains/system/rules.ts';
 
 /**
  * A seat the server plays: a `users` row only because chairs, match seats and moves all key on a
- * user id. It never holds a wallet or a session. Which accounts these are is known to the staff
- * holding `system` and to nobody else, so nothing public reads this table except to leave its rows out.
+ * user id. It never holds a wallet or a session. Players see an AI marker on its seat.
+ * Its configuration and management belong to staff holding `system`.
  */
 @Check('system_players_skill_known', `skill in ('casual', 'intermediate', 'advanced', 'semi-pro')`)
 @Check('system_players_style_range', `style between 0 and 999`)

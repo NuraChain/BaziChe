@@ -11,6 +11,7 @@ export const SIDE_TONE = ['text-accent', 'text-gold', 'text-live'];
 export default component HokmSeat(props: {
     side: string;
     who: string;
+    ai?: boolean;
     name: string;
     turn: boolean;
     yours: boolean;
@@ -38,6 +39,7 @@ export default component HokmSeat(props: {
     <>
         <TablePlate
             who={ props.who }
+            ai={ props.ai }
             look={ props.look }
             name={ props.name }
             turn={ props.turn }

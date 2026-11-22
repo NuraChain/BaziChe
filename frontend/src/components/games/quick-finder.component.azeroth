@@ -309,8 +309,11 @@ export default component QuickFinder(props: OverlayProps & { game: GameId })
             </Show>
         </div>
 
-        <Toggle checked={ ask.humansOnly === true } disabled={ busy } label={ locale.t('quickMatch.humansOnly') }
-            description={ locale.t('quickMatch.humansOnlyHint') } onChange={ (checked) => choose({ ...ask, humansOnly: checked }) } />
+        <Show when={ !wagering }>
+            { () => <Toggle checked={ ask.humansOnly === true } disabled={ busy } label={ locale.t('quickMatch.humansOnly') }
+                description={ locale.t(ask.humansOnly === true ? 'quickMatch.humansOnlyHint' : 'quickMatch.aiSeats') }
+                onChange={ (checked) => choose({ ...ask, humansOnly: checked }) } /> }
+        </Show>
         <Button variant="primary" size="lg" block leading="play" loading={ busy } onClick={ () => void find() }>
             { locale.t('quickMatch.find') }
         </Button>

@@ -960,6 +960,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 seat: chair.seat,
                 ready: chair.ready,
                 host: chair.host,
+                ...(chair.ai ? { ai: true as const } : {}),
                 ...(chair.who === null ? {} : { who: chair.who }),
                 ...(chair.invited === null ? {} : { invited: chair.invited })
             })),
@@ -2559,6 +2560,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
     const seenBy = (viewer: PersonRow, row: PersonRow, relation: Parameters<typeof maySeeOnline>[2]) =>
     {
         const summary: PersonSummary = {
+            ...(row.ai ? { ai: true as const } : {}),
             // The handle, not the uuid. The browser keys people by handle - it is the public
             // identifier, it is what the URL carries, and it is what a message's author is - so
             // the wire says the same thing everywhere rather than two names for one person.
@@ -4040,6 +4042,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             async names(handles)
             {
                 return (await social.namesOf(handles)).map((row) => ({
+                    ...(row.ai ? { ai: true as const } : {}),
                     id: row.handle,
                     handle: row.handle,
                     displayName: row.display_name,
@@ -4063,6 +4066,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
                 return {
                     person: {
+                        ...(subject.ai ? { ai: true as const } : {}),
                         handle: subject.handle,
                         displayName: subject.display_name,
                         bio: subject.bio,
@@ -5611,6 +5615,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                         game: row.game,
                         seats: row.seats,
                         players: row.players ?? [],
+                        ...(row.ai_players == null ? {} : { aiPlayers: row.ai_players }),
                         startedAt: row.started_at.toISOString()
                     }))
                 };

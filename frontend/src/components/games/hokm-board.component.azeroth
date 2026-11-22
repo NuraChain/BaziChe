@@ -2559,6 +2559,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                                     <HokmSeat
                                         side={ plateAt(seat).side }
                                         who={ whoAt(seat) }
+                                        ai={ game.players.find((player) => player.seat === seat)?.ai }
                                         look={ lookAt(seat) }
                                         name={ nameOf(seat) }
                                         turn={ seat === turnAt }

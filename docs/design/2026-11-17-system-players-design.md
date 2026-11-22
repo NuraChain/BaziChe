@@ -10,9 +10,9 @@ the worker, one agent per game). What to do in operation is the System players s
 
 A **system player** is a seat the server plays. After a person has waited at an open public
 quick-play table for the set time, the server seats system players in its free chairs, one at a
-time, and starts the match once every chair is taken and ready. To the other players it is a player
-like any other: a name, a colour, a record of real games. Only staff can tell which accounts these
-are: the mark is shown to everyone who may open Admin › People (a moderator and above).
+time, and starts the match once every chair is taken and ready. Players and spectators see a localized AI label beside each server-controlled
+seat, including in the waiting room and the game result. The account keeps its name, colour and
+game record, and its profile identifies it as an AI player.
 
 It is not a way to make the site look busier: system players are never seated at a table where no
 person is waiting, never in a private, paid or tournament game, never on a board, and they leave the
@@ -47,12 +47,10 @@ forgets to ask is found by searching for one name.
   takes an idle one (not retired, not seated, in no live match, neither blocking nor blocked by
   anyone at the table, and not one that sat at this table in the last 10 minutes) and makes a new
   one only when none is idle and the pool is under the cap; otherwise the table waits.
-- **The mark reaches the wire in one place**: the staff's view of a person (`system: true`), for
-  every viewer holding `people` (a moderator and above). It once needed `system`, but a system
-  player has no wallet, sessions or devices, so the rest of that view told a moderator anyway. No
-  player-facing answer gains a field. The game thread's member list leaves the address out for any
-  member with no device (the address only anchors a device), so a system player, which has no
-  wallet, reads like any person without a device.
+- **Public identity.** Occupied chairs, match seats and profiles carry `ai: true` when the user
+  is registered in `system_players`. Watchable match lists and match history identify the same
+  players by handle. These fields follow the existing visibility of each table and profile.
+  Admin › People continues to expose its `system` flag to staff. Skill and style stay internal.
 
 ## The switch and the settings (SP-D2)
 
@@ -330,8 +328,7 @@ knowingly:
 - in poker, one that busts simply stands up;
 - every member of the staff who may open Admin › People sees the mark, and the staff log names them
   to the staff;
-- the repository is public, so the existence of system players is public; which accounts they are
-  is not.
+- players can identify each AI opponent on its seat and profile.
 
 ## Not built yet
 

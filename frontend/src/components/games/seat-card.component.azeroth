@@ -1,3 +1,4 @@
+import AiBadge from './ai-badge.component.azeroth';
 import { onCleanup, untrack } from 'azerothjs';
 
 import type { TableSeat } from '../../api.ts';
@@ -151,13 +152,13 @@ export default component SeatCard(props: {
                             <Icon name="selected" size={ 10 } />
                         </span>
                     </span>
-                    <span class="lobby-chair-name" data-theme="dark" dir="auto">{ name }</span>
+                    <span class="lobby-chair-name" data-theme="dark" dir="auto"><AiBadge ai={ props.seat.ai } /> { name }</span>
                     <span class="table-plate-tag" data-tone={ ready ? 'live' : 'neutral' }>{ says }</span>
                     <Show when={ props.team } let={ side }>
                         <span class="sr-only">{ side }</span>
                     </Show>
                     <Show when={ pressable }>
-                        { () => <button type="button" class="lobby-chair-press" aria-haspopup="dialog" aria-label={ locale.t('actions.about', { name: fullName }) } onClick={ () => aboutPerson(who) }></button> }
+                        { () => <button type="button" class="lobby-chair-press" aria-haspopup="dialog" aria-label={ locale.t('actions.about', { name: fullName }) } onClick={ () => aboutPerson(who, undefined, props.seat.ai) }></button> }
                     </Show>
                     <Show when={ removable }>
                         { () =>

@@ -3,7 +3,7 @@ import type { Engine } from './engine.ts';
 import type { MatchSeatRow } from './service.ts';
 import type { Format } from './sides.ts';
 
-type SeatRow = Pick<MatchSeatRow, 'seat' | 'who' | 'timeouts' | 'result' | 'exit' | 'rating_before' | 'rating_after'> & Partial<Pick<MatchSeatRow, 'look'>>;
+type SeatRow = Pick<MatchSeatRow, 'seat' | 'who' | 'timeouts' | 'result' | 'exit' | 'rating_before' | 'rating_after'> & Partial<Pick<MatchSeatRow, 'look' | 'ai'>>;
 
 export function envelopeOf(engine: Pick<Engine, 'standings' | 'sideOf'> | null, state: unknown, rows: readonly SeatRow[], finished: boolean, format: Format): MatchView['players']
 {
@@ -12,6 +12,7 @@ export function envelopeOf(engine: Pick<Engine, 'standings' | 'sideOf'> | null, 
     return rows.map((row) => ({
         seat: row.seat,
         who: row.who,
+        ...(row.ai ? { ai: true as const } : {}),
         ...(row.timeouts === null ? {} : { timeouts: row.timeouts }),
         ...(row.result == null ? {} : { result: row.result }),
         ...(row.result == null || row.exit == null ? {} : { exit: row.exit }),

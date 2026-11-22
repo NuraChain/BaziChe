@@ -10,7 +10,7 @@ import ErrorState from '../../components/ui/error-state.component.azeroth';
 import FilterBar from '../../components/ui/filter-bar.component.azeroth';
 import SectionHeading from '../../components/ui/section-heading.component.azeroth';
 import Skeleton from '../../components/ui/skeleton.component.azeroth';
-import { NURA_CHAIN } from '../../data/chain.ts';
+import { NURA_PURCHASE_URL } from '../../data/chain.ts';
 import { GAMES } from '../../data/games.ts';
 import Icon from '../../icons/icon.component.azeroth';
 import { openLook } from '../../lib/look-sheet.ts';
@@ -101,7 +101,7 @@ export default component ShopPage()
                             <span class="font-semibold text-text"><span class="tally">{ inWallet }</span> NURA</span>
                         </span>
                     </Show>
-                    <a href={ NURA_CHAIN.site } target="_blank" rel="noreferrer noopener" class="flex min-h-10 items-center gap-1 rounded-control px-3 text-ui-sm font-semibold text-accent hover:bg-raised coarse:min-h-11">
+                    <a href={ NURA_PURCHASE_URL } target="_blank" rel="noreferrer noopener" class="flex min-h-10 items-center gap-1 rounded-control px-3 text-ui-sm font-semibold text-accent hover:bg-raised coarse:min-h-11">
                         { locale.t('shop.getNura') }
                         <Icon name="forward" size={ 14 } class="icon-flip" />
                     </a>

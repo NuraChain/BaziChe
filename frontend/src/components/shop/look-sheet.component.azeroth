@@ -1,7 +1,7 @@
 import { untrack } from 'azerothjs';
 
 import { bundleOf, lookOf, PROFILE_SLOTS, type ShopSlot } from '../../../../backend/src/domains/shop/catalogue.ts';
-import { NURA_CHAIN } from '../../data/chain.ts';
+import { NURA_PURCHASE_URL } from '../../data/chain.ts';
 import { GAMES } from '../../data/games.ts';
 import { burstOver } from '../../game/looks/equip.ts';
 import { createVoices, type SoundHandle } from '../../game/sound.ts';
@@ -362,7 +362,7 @@ export default component LookSheet(props: OverlayProps & { item: string })
                                 </Show>
                                 <Show when={ isShort }>
                                     <p class="text-ui-sm text-text">{ shortWords }</p>
-                                    <a href={ NURA_CHAIN.site } target="_blank" rel="noopener noreferrer" class="self-start text-ui-sm font-semibold text-accent underline-offset-2 hover:underline">{ locale.t('shop.getNura') }</a>
+                                    <a href={ NURA_PURCHASE_URL } target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center self-start text-ui-sm font-semibold text-accent underline-offset-2 hover:underline">{ locale.t('shop.getNura') }</a>
                                 </Show>
                             </div>
                         </Show>

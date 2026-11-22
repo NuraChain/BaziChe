@@ -1395,6 +1395,68 @@ html:has(.site-drawer[open], [data-wallet-dialog])
     }
 }
 
+.play-table-link
+{
+    position: relative;
+    display: flex;
+    height: 2.75rem;
+    align-items: center;
+    gap: 0.5rem;
+    padding-inline: 0.375rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--field);
+    color: var(--muted);
+    font-size: var(--text-ui-sm);
+    font-weight: 600;
+}
+
+.play-table-link:hover { border-color: var(--line-strong); color: var(--text); }
+.play-table-link[data-turn] { border-color: color-mix(in srgb, var(--live) 50%, transparent); background: color-mix(in srgb, var(--live) 10%, transparent); color: var(--text); }
+.play-table-link[data-compact] { width: 2.75rem; padding: 0; justify-content: center; }
+.play-table-link[data-turn]::after
+{
+    position: absolute;
+    inset-block-start: -0.125rem;
+    inset-inline-end: -0.125rem;
+    width: 0.75rem;
+    height: 0.75rem;
+    border: 2px solid var(--void);
+    border-radius: 50%;
+    background: var(--live);
+}
+
+.play-table-link[data-compact][data-turn]::after { content: ''; }
+@container head (min-width: 42rem) and (max-width: 55.999rem)
+{
+    .play-table-link { padding-inline-end: 0.375rem; }
+    .play-table-link[data-turn]::after { content: ''; }
+}
+
+.play-heading-identity
+{
+    padding-inline-start: 0.625rem;
+    border-inline-start: 3px solid var(--game-accent, var(--accent));
+}
+
+.hokm-table
+{
+    --plate-surface: #102e2a;
+    --plate-edge: #6d9585;
+}
+
+.poker-table
+{
+    --plate-surface: color-mix(in srgb, var(--poker-felt) 38%, #111321);
+    --plate-edge: color-mix(in srgb, var(--poker-rail) 30%, #c9b28f);
+}
+
+.yard-badge .table-plate
+{
+    --plate-surface: color-mix(in srgb, var(--ink) 15%, #142035);
+    --plate-edge: color-mix(in srgb, var(--ink) 65%, #d2d9e5);
+}
+
 .table-plate
 {
     --ink: var(--accent);
@@ -1407,9 +1469,9 @@ html:has(.site-drawer[open], [data-wallet-dialog])
     gap: 0.45rem;
     padding-block: 0.25rem;
     padding-inline: 0.25rem 0.625rem;
-    border: 1px solid var(--table-label-edge);
+    border: 1px solid var(--plate-edge, var(--table-label-edge));
     border-radius: 999px;
-    background: var(--table-label);
+    background: var(--plate-surface, var(--table-label));
     box-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.6);
     transition: box-shadow 200ms ease, border-color 200ms ease, opacity 300ms ease;
 }
@@ -1965,8 +2027,8 @@ svg.lobby-board
 {
     overflow: hidden;
     color: var(--text);
-    font-size: var(--text-ui-xs);
-    font-weight: 600;
+    font-size: var(--text-ui-sm);
+    font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -2166,7 +2228,7 @@ svg.lobby-board
     --top-room: calc(var(--edge) + var(--plate-h) + var(--pile-h));
     --foot-room: calc(var(--edge) + var(--plate-h));
     --band: calc(100cqh - var(--top-room) - var(--foot-room) - 2 * var(--trick-gap));
-    --side-w: 3.25rem;
+    --side-w: clamp(3.25rem, 16cqw, 4.75rem);
     --side-room: calc(3.5cqw + var(--side-w));
     --trick-w: min(clamp(2.6rem, 16cqmin, 9rem), (var(--band) - 2 * var(--trick-gap)) / 2.85, (100cqw - 2 * var(--side-room) - 4 * var(--trick-gap)) / 3.4);
     --trick-h: calc(var(--trick-w) * 288 / 204);
@@ -2283,11 +2345,8 @@ svg.lobby-board
 
 .hokm-seat:is([data-side='left'], [data-side='right']) .table-plate-name
 {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    margin: -1px;
-    clip-path: inset(50%);
+    max-inline-size: 100%;
+    font-size: clamp(0.75rem, 3.2cqw, 0.875rem);
 }
 
 .hokm-seat:is([data-side='left'], [data-side='right']) .table-plate-facts
@@ -3551,9 +3610,9 @@ svg.lobby-board
 {
     --u: 1cqmin;
     --face: clamp(1.75rem, var(--u) * 9, 3.5rem);
-    --type: clamp(0.6875rem, var(--u) * 3.1, 1rem);
+    --type: clamp(0.75rem, var(--u) * 3.25, 1rem);
     --pill-w: clamp(6.5rem, var(--u) * 34, 15rem);
-    --col-w: clamp(3.5rem, var(--u) * 15, 8rem);
+    --col-w: clamp(3.75rem, var(--u) * 17, 8rem);
     --back-w: clamp(1.35rem, var(--u) * 8.4, 4.5rem);
     --shown-w: clamp(1.9rem, var(--u) * 14.25, 6.4rem);
     --gap: clamp(0.2rem, var(--u), 0.5rem);
@@ -4232,23 +4291,6 @@ svg.lobby-board
     pointer-events: none;
 }
 
-@container (max-width: 30rem) or (max-height: 22rem)
-{
-    .poker-seat[data-lies='upright'] .table-plate
-    {
-        grid-template-areas: 'face' 'line';
-    }
-
-    .poker-seat[data-lies='upright'] .table-plate-name
-    {
-        position: absolute;
-        inline-size: 1px;
-        block-size: 1px;
-        margin: -1px;
-        clip-path: inset(50%);
-    }
-}
-
 @container (max-width: 19rem) or (max-height: 15rem)
 {
     .poker-backs
@@ -4810,7 +4852,7 @@ svg.lobby-board
 .bg-rail .table-plate-name
 {
     color: var(--nard-light);
-    font-size: clamp(0.8125rem, var(--rail) * 0.15, 1rem);
+    font-size: clamp(0.9375rem, var(--rail) * 0.19, 1.125rem);
 }
 
 .bg-rail .table-plate-facts
@@ -6764,7 +6806,7 @@ nav[data-island] [aria-current='page'] .nav-pill
 .chess-rail .table-plate-name
 {
     color: var(--chess-light);
-    font-size: clamp(0.8125rem, var(--rail) * 0.2, 1rem);
+    font-size: clamp(0.9375rem, var(--rail) * 0.22, 1.125rem);
 }
 
 .chess-rail .table-plate-facts

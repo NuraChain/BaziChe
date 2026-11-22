@@ -222,3 +222,9 @@ product refuses everywhere else. `poker-pass.mjs` found it.
 ## What is left
 
 Cash tables, rebuys, PLO and hand replay are not built.
+
+## Tournament shootouts
+
+New poker tournaments play a single match at each table. The draw seats at most six players per table and divides the field evenly whenever the last table would be short. Seven entrants sit four and three. Thirteen sit five, four and four. Each table winner qualifies. The next round redraws the qualifiers by the same rule. Eliminated players share a tournament place with the others eliminated that round.
+
+A table deals as soon as everyone confirms. At the ready deadline, two or more attendees play, one attendee advances by walkover, and an empty table sends nobody forward. An abandoned or void match also sends nobody forward. The tournament finishes when one qualifier remains, or without a champion if none remain. The original field and the actual match seat order are stored separately, so missing players and server restarts preserve the winner's identity. Previously created poker tournaments retain the format recorded at creation.

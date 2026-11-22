@@ -45,11 +45,13 @@ export default component TournamentCreatePage()
     state starts = localInput(runtime().clock.now() + HOUR_MS);
     state sending = false;
 
-    derived sizes = FORMATS[format].sizes;
-
-    derived fittedSize = sizes.includes(size) ? size : sizes[0];
-
     derived fittedGame = games.some((one) => one.id === game) ? game : games[0]?.id ?? game;
+
+    derived poker = fittedGame === 'poker';
+    derived formats = poker ? ['shootout'] as FormatId[] : [...FORMAT_IDS];
+    derived fittedFormat = poker ? 'shootout' : format;
+    derived sizes = FORMATS[fittedFormat].sizes;
+    derived fittedSize = sizes.includes(size) ? size : sizes[0];
 
     derived ready = name.trim() !== '' && starts !== '' && !sending;
 
@@ -70,9 +72,9 @@ export default component TournamentCreatePage()
                 input: {
                     name: name.trim(),
                     game: fittedGame as GameId,
-                    format,
+                    format: fittedFormat,
                     size: fittedSize,
-                    bestOf: Number(bestOf),
+                    bestOf: poker ? 1 : Number(bestOf),
                     listed: listed === 'yes',
                     startsAt: new Date(starts).toISOString()
                 }
@@ -123,15 +125,15 @@ export default component TournamentCreatePage()
                 <fieldset class="flex flex-col gap-2">
                     <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('tournaments.new.format') }</legend>
                     <ul class="flex flex-wrap gap-2">
-                        <For each={ [...FORMAT_IDS] } key={ (id) => id } let={ id }>
+                        <For each={ formats } key={ (id) => id } let={ id }>
                             <li>
-                                <Chip icon="medal" selected={ format === id } onClick={ () => format = id }>
+                                <Chip icon="medal" selected={ fittedFormat === id } onClick={ () => { if (id !== 'shootout') format = id; } }>
                                     <span>{ locale.t(`tournaments.format.${ id }`) }</span>
                                 </Chip>
                             </li>
                         </For>
                     </ul>
-                    <p class="text-ui-xs text-faint">{ locale.t(`tournaments.formatHint.${ format }`) }</p>
+                    <p class="text-ui-xs text-faint">{ locale.t(`tournaments.formatHint.${ fittedFormat }`) }</p>
                 </fieldset>
 
                 <fieldset class="flex flex-col gap-2">
@@ -147,16 +149,18 @@ export default component TournamentCreatePage()
                     </ul>
                 </fieldset>
 
-                <fieldset class="flex flex-col gap-2">
-                    <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('tournaments.new.length') }</legend>
-                    <Segmented
-                        block
-                        label={ locale.t('tournaments.new.length') }
-                        value={ bestOf }
-                        items={ BEST_OF.map((n) => ({ id: String(n), label: locale.t('tournaments.bestOf', { n: locale.n(n) }) })) }
-                        onChange={ (id) => bestOf = id }
-                    />
-                </fieldset>
+                <Show when={ !poker }>
+                    { () => <fieldset class="flex flex-col gap-2">
+                        <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('tournaments.new.length') }</legend>
+                        <Segmented
+                            block
+                            label={ locale.t('tournaments.new.length') }
+                            value={ bestOf }
+                            items={ BEST_OF.map((n) => ({ id: String(n), label: locale.t('tournaments.bestOf', { n: locale.n(n) }) })) }
+                            onChange={ (id) => bestOf = id }
+                        />
+                    </fieldset> }
+                </Show>
 
                 <fieldset class="flex flex-col gap-2">
                     <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('tournaments.new.starts') }</legend>

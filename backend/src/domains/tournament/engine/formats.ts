@@ -1,13 +1,15 @@
 import { doubleElimination, singleElimination } from './elimination.ts';
 import type { Format } from './game.ts';
 import { groupsAndPlayoffs } from './groups.ts';
+import { shootout } from './shootout.ts';
 import { roundRobin, swiss } from './league.ts';
 
 export const FORMAT_IDS = ['single', 'double', 'round-robin', 'swiss', 'groups'] as const;
 
-export type FormatId = typeof FORMAT_IDS[number];
+export type FormatId = typeof FORMAT_IDS[number] | 'shootout';
 
 export const FORMATS: Record<FormatId, Format> = {
+    shootout,
     'single': singleElimination,
     'double': doubleElimination,
     'round-robin': roundRobin,

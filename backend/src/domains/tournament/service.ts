@@ -1,9 +1,11 @@
 import { randomInt } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { secureBelow } from '../match/randomness-server.ts';
 
 import { HttpError, NotFoundError } from '@azerothjs/http';
 import { In, type DataSource, type EntityManager } from 'typeorm';
 
+import type { MatchWalkout } from '../match/service.ts';
 import { Game } from '../../entities/game.entity.ts';
 import { GameRule } from '../../entities/game-rule.entity.ts';
 import { Match } from '../../entities/match.entity.ts';
@@ -16,6 +18,7 @@ import { User } from '../../entities/user.entity.ts';
 import { lockTable } from '../table/service.ts';
 import { isSystem } from '../system/sql.ts';
 import { BEST_OF, FORMATS, MIN_ENTRANTS, type FormatId } from './engine/formats.ts';
+import { pokerResult, pokerWalkover } from './engine/shootout.ts';
 import { READY_MS } from './ready.ts';
 import { applyResult, dueGames, forfeitAbsent, shuffledSeeds, undecided, walkover, withoutAbsent, type Game as EngineGame, type Link, type Rules, type Side } from './engine/game.ts';
 
@@ -65,7 +68,7 @@ const LIST_MAX = 60;
 
 const ACTIVE: TournamentStatus[] = ['open', 'running'];
 
-const GAME_COLUMNS = ['stage', 'round', 'slot', 'phase', 'seed_a', 'seed_b', 'score_a', 'score_b', 'winner_seed', 'how', 'attempt', 'dealt', 'win_to', 'lose_to', 'table_id', 'match_id'];
+const GAME_COLUMNS = ['stage', 'round', 'slot', 'phase', 'seed_a', 'seed_b', 'poker', 'score_a', 'score_b', 'winner_seed', 'how', 'attempt', 'dealt', 'win_to', 'lose_to', 'table_id', 'match_id'];
 
 const codeOf = () => Array.from({ length: CODE_LENGTH }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
 
@@ -89,6 +92,7 @@ const toEngine = (row: TournamentGame): EngineGame => ({
     round: row.round,
     slot: row.slot,
     phase: row.phase,
+    ...(row.poker === null ? {} : { poker: row.poker }),
     a: row.seedA,
     b: row.seedB,
     scoreA: row.scoreA,
@@ -106,6 +110,7 @@ const fromEngine = (game: EngineGame) => ({
     round: game.round,
     slot: game.slot,
     phase: game.phase,
+    poker: game.poker ?? null,
     seedA: game.a,
     seedB: game.b,
     scoreA: game.scoreA,
@@ -181,8 +186,10 @@ export interface Advanced
 
 export interface TournamentCollaborators
 {
-    /** Opens a two-chair table with both players already ready, and answers its id. */
-    seat(tx: EntityManager, tournamentId: string, game: string, players: readonly [string, string]): Promise<string>;
+    /** Opens a table with its tournament participants seated in the supplied order. */
+    seat(tx: EntityManager, tournamentId: string, game: string, players: readonly string[]): Promise<string>;
+
+    forfeit(tx: EntityManager, userId: string, tableId: string): Promise<MatchWalkout | null>;
 
     /** Deals at a table in the caller's transaction, and answers the match. */
     deal(tx: EntityManager, tableId: string): Promise<string | null>;
@@ -260,10 +267,12 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
         }
 
         const closed: { id: string }[] = await tx.query(
-            `update tables set status = 'closed', closed_at = now()
-              where id = any($1::uuid[]) and status <> 'closed'
-                and not exists (select 1 from matches m where m.table_id = tables.id)
-              returning id`,
+            `with closed as (
+                update tables set status = 'closed', closed_at = now()
+                 where id = any($1::uuid[]) and status <> 'closed'
+                   and not exists (select 1 from matches m where m.table_id = tables.id)
+                 returning id
+            ) select id from closed`,
             [tableIds]
         );
         const ids = closed.map((one) => one.id);
@@ -322,7 +331,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             const row = held.get(game.key);
             const wanted = fromEngine(game);
 
-            if (row !== undefined && Object.entries(wanted).some(([field, value]) => row[field as keyof typeof wanted] !== value))
+            if (row !== undefined && Object.entries(wanted).some(([field, value]) => !isDeepStrictEqual(row[field as keyof typeof wanted], value)))
             {
                 await tx.getRepository(TournamentGame).update({ id: row.id }, wanted);
                 changed = true;
@@ -349,11 +358,11 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
     };
 
     /**
-     * Opens a table for every game that is due and seats its two players, who then have `READY_MS`
+     * Opens a table for every game that is due and seats its assigned players, who then have `READY_MS`
      * to say they are ready (`settleWaiting`): a game dealt the moment the table opened was lost on
      * the clock by whoever had not yet got there.
      */
-    const dealRound = async (tx: EntityManager, tournament: Tournament, games: readonly EngineGame[], rows: readonly TournamentGame[], seats: ReadonlyMap<number, string | null>) =>
+    const dealRound = async (tx: EntityManager, tournament: Tournament, games: readonly EngineGame[], rows: TournamentGame[], seats: ReadonlyMap<number, string | null>) =>
     {
         const opened: Rung[] = [];
         const held = new Map(rows.map((row) => [toEngine(row).key, row]));
@@ -361,25 +370,38 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
 
         for (const game of dueGames(games))
         {
-            const one = seats.get(game.a as number) ?? null;
-            const other = seats.get(game.b as number) ?? null;
+            const seeds = game.poker?.seeds ?? [game.a as number, game.b as number];
+            const lineup = seeds.filter((seed) => seats.get(seed) != null);
+            const players = lineup.map((seed) => seats.get(seed) as string);
 
-            if (one === null || other === null)
+            if (game.poker !== undefined && players.length < 2)
             {
-                next.set(game.key, walkover(game, one === null ? game.b as number : game.a as number));
+                next.set(game.key, pokerWalkover(game, lineup));
                 continue;
             }
 
-            const tableId = await helpers.seat(tx, tournament.id, tournament.game, [one, other]);
+            if (game.poker === undefined && players.length < 2)
+            {
+                next.set(game.key, walkover(game, lineup[0] ?? (game.b as number)));
+                continue;
+            }
 
-            next.set(game.key, { ...game, dealt: true });
-            opened.push({ tableId, players: [one, other] });
+            const tableId = await helpers.seat(tx, tournament.id, tournament.game, players);
+
+            next.set(game.key, { ...game, ...(game.poker === undefined ? {} : { poker: { ...game.poker, lineup } }), dealt: true });
+            opened.push({ tableId, players });
 
             const row = held.get(game.key);
 
-            if (row !== undefined)
+            if (row === undefined)
             {
-                // The match of an earlier attempt goes: this one's is dealt once both are ready.
+                // The advance that generated this round can also open it if its break already elapsed.
+                const repo = tx.getRepository(TournamentGame);
+                rows.push(await repo.save(repo.create({ ...fromEngine(game), tournamentId: tournament.id, tableId })));
+            }
+            else
+            {
+                // The previous attempt's match is replaced once the new table confirms.
                 await tx.getRepository(TournamentGame).update({ id: row.id }, { tableId, matchId: null });
                 row.tableId = tableId;
                 row.matchId = null;
@@ -390,26 +412,69 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
     };
 
     /**
-     * Every game whose table waits for its players: dealt the moment both are ready, and once
-     * `READY_MS` has gone by, won by whoever was, or, if nobody was, a game with no winner, which
-     * the format's own rule settles (once more, then the better seed in a knockout). A chair left
-     * empty is a player not ready.
+     * Deal when everyone confirms. At the deadline a poker table plays with its ready players;
+     * a duel resolves its two ready flags using the series rules.
      */
-    const settleWaiting = async (tx: EntityManager, tournament: Tournament, rows: TournamentGame[], games: EngineGame[]) =>
+    const settleWaiting = async (tx: EntityManager, tournament: Tournament, rows: TournamentGame[], games: EngineGame[], seats: ReadonlyMap<number, string | null>) =>
     {
         const dealt: Dealt[] = [];
         const lapsed: string[] = [];
         const waiting = rows.flatMap((row, index) => games[index].dealt && games[index].how === null && row.tableId !== null && row.matchId === null
             ? [{ row, index, tableId: row.tableId }]
             : []);
-        const tableIds = waiting.map((one) => one.tableId);
-        const tables = tableIds.length === 0 ? [] : await tx.getRepository(Table).find({ select: { id: true, status: true, createdAt: true }, where: { id: In(tableIds) } });
-        const seated = tableIds.length === 0 ? [] : await tx.getRepository(TableSeat).find({ select: { tableId: true, seat: true, userId: true, ready: true }, where: { tableId: In(tableIds) } });
+        const duelTables = waiting.filter(({ index }) => games[index].poker === undefined).map(({ tableId }) => tableId);
+        const tables = duelTables.length === 0 ? [] : await tx.getRepository(Table).find({ select: { id: true, status: true, createdAt: true }, where: { id: In(duelTables) } });
+        const seated = duelTables.length === 0 ? [] : await tx.getRepository(TableSeat).find({ select: { tableId: true, seat: true, userId: true, ready: true }, where: { tableId: In(duelTables) } });
 
         for (const { row, index, tableId } of waiting)
         {
             const game = games[index];
             const table = tables.find((one) => one.id === tableId);
+            if (game.poker !== undefined)
+            {
+                await lockTable(tx, tableId);
+                const assigned = game.poker;
+                const current = await tx.getRepository(Table).findOne({ select: { status: true, createdAt: true }, where: { id: tableId } });
+                const chairs = await tx.getRepository(TableSeat).find({
+                    where: { tableId }, order: { seat: 'ASC' }, lock: { mode: 'pessimistic_write' }
+                });
+                const ready = chairs.filter((chair) => chair.ready && chair.userId !== null && seats.get(assigned.lineup[chair.seat]) === chair.userId);
+                const open = current !== null && current.status !== 'closed';
+                const complete = ready.length === assigned.lineup.length;
+                if (open && !complete && current.createdAt.getTime() + READY_MS > Date.now())
+                {
+                    continue;
+                }
+
+                const lineup = ready.map((chair) => assigned.lineup[chair.seat]);
+                if (!open || lineup.length < 2)
+                {
+                    games[index] = pokerWalkover(game, open ? lineup : []);
+                    lapsed.push(tableId);
+                    continue;
+                }
+
+                if (!complete)
+                {
+                    // Poker indexes stacks and cards by consecutive seat number.
+                    await tx.getRepository(TableSeat).delete({ tableId });
+                    await tx.getRepository(TableSeat).insert(ready.map((chair, seat) => ({ ...chair, seat })));
+                    await tx.getRepository(Table).update({ id: tableId }, { seats: ready.length });
+                }
+
+                const matchId = await helpers.deal(tx, tableId);
+                if (matchId === null)
+                {
+                    throw new Error(`a poker tournament table would not deal: ${ tableId }`);
+                }
+
+                games[index] = { ...game, poker: { ...assigned, lineup } };
+                await tx.getRepository(TournamentGame).update({ id: row.id }, { matchId });
+                row.matchId = matchId;
+                dealt.push({ tableId, matchId, players: ready.map((chair) => chair.userId as string) });
+                continue;
+            }
+
             const chairs = seated.filter((chair) => chair.tableId === tableId);
             const readyAt = (seat: number) => chairs.some((chair) => chair.seat === seat && chair.userId !== null && chair.ready);
             const aReady = readyAt(0);
@@ -489,12 +554,17 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
                 return game;
             }
 
+            if (game.poker !== undefined)
+            {
+                return pokerResult(game, result.outcome === 'won' ? result.winnerSeat : null, absentOf(seats));
+            }
+
             const side: Side | null = result.outcome === 'won' && result.winnerSeat !== null ? (result.winnerSeat === 0 ? 'a' : 'b') : null;
 
             return applyResult(game, side, tournament.bestOf);
         });
 
-        const waited = await settleWaiting(tx, tournament, rows, games);
+        const waited = await settleWaiting(tx, tournament, rows, games, seats);
         const dealt: Dealt[] = waited.dealt;
         let changed = waited.dealt.length > 0 || waited.lapsed.length > 0;
 
@@ -586,7 +656,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             .addSelect('m.finished_at', 'match_finished_at')
             .where('g.tournament_id = :id', { id: summary.id })
             .getRawMany<{
-                stage: string; round: number; slot: number; phase: number; seed_a: number | null; seed_b: number | null; score_a: number; score_b: number;
+                stage: string; round: number; slot: number; phase: number; poker: TournamentGame['poker']; seed_a: number | null; seed_b: number | null; score_a: number; score_b: number;
                 winner_seed: number | null; how: EngineGame['how']; attempt: number; dealt: boolean; win_to: string | null; lose_to: string | null; table_id: string | null; match_id: string | null;
                 table_status: string | null; match_finished_at: Date | null;
             }>();
@@ -600,6 +670,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
             round: row.round,
             slot: row.slot,
             phase: row.phase,
+            ...(row.poker === null ? {} : { poker: row.poker }),
             a: row.seed_a,
             b: row.seed_b,
             scoreA: row.score_a,
@@ -615,7 +686,9 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
         const live = (row: typeof rows[number]) => row.match_id !== null && row.dealt && row.how === null && row.match_finished_at === null;
         const myGame = mine?.seed === null || mine === undefined || mine.removed
             ? undefined
-            : rows.find((row) => live(row) && (row.seed_a === mine.seed || row.seed_b === mine.seed))?.table_id ?? undefined;
+            : rows.find((row) => row.poker !== null
+                ? row.dealt && row.how === null && row.table_status !== 'closed' && row.poker.lineup.includes(mine.seed as number)
+                : live(row) && (row.seed_a === mine.seed || row.seed_b === mine.seed))?.table_id ?? undefined;
 
         const rules = rulesOf(tournament);
         const format = formatOf(tournament);
@@ -652,13 +725,17 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
                 round: row.round,
                 slot: row.slot,
                 phase: row.phase,
+                ...(row.poker === null ? {} : { seats: (row.how === 'played' || live(row) ? row.poker.lineup : row.poker.seeds).map((seed) => ({
+                    seed, ...(handleOf(seed) === undefined ? {} : { who: handleOf(seed) as string })
+                })) }),
+                ...(row.poker === null || row.winner_seed === null ? {} : { winnerSeed: row.winner_seed }),
                 ...(row.seed_a === null ? {} : { aSeed: row.seed_a }),
                 ...(row.seed_b === null ? {} : { bSeed: row.seed_b }),
                 ...(handleOf(row.seed_a) === undefined ? {} : { a: handleOf(row.seed_a) as string }),
                 ...(handleOf(row.seed_b) === undefined ? {} : { b: handleOf(row.seed_b) as string }),
                 scoreA: row.score_a,
                 scoreB: row.score_b,
-                ...(row.winner_seed === null ? {} : { winner: row.winner_seed === row.seed_a ? 'a' as const : 'b' as const }),
+                ...(row.poker !== null || row.winner_seed === null ? {} : { winner: row.winner_seed === row.seed_a ? 'a' as const : 'b' as const }),
                 ...(row.how === null ? {} : { how: row.how }),
                 attempt: row.attempt,
                 live: live(row),
@@ -746,7 +823,14 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
 
         async create(me: string, input: TournamentCreate)
         {
-            const engine = FORMATS[input.format];
+            // Clients that still request single elimination for poker get the six-seat knockout.
+            const format = input.game === 'poker' && input.format === 'single' ? 'shootout' : input.format;
+            if ((input.game === 'poker') !== (format === 'shootout') || (format === 'shootout' && input.bestOf !== 1))
+            {
+                throw refusal('tournament-format', 'Poker tournaments use one shootout per table.');
+            }
+
+            const engine = FORMATS[format];
 
             if (!engine.sizes.includes(input.size) || !(BEST_OF as readonly number[]).includes(input.bestOf))
             {
@@ -766,7 +850,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
                 .where('r.game_id = :game', { game: input.game })
                 .getOne();
 
-            if (rule === null || !rule.seats.includes(2) || !rule.modes.includes('live'))
+            if (rule === null || !(format === 'shootout' ? [2, 3, 4, 5, 6] : [2]).every((size) => rule.seats.includes(size)) || !rule.modes.includes('live'))
             {
                 throw refusal('tournament-game', 'That game cannot be played in a tournament.');
             }
@@ -792,7 +876,7 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
                             code,
                             name: input.name,
                             game: input.game,
-                            format: input.format,
+                            format,
                             size: input.size,
                             bestOf: input.bestOf,
                             listed: input.listed,
@@ -1038,19 +1122,32 @@ export function createTournamentService(db: DataSource, helpers: TournamentColla
                 {
                     await tx.getRepository(TournamentEntry).delete({ id: entry.id });
 
-                    return { match: null };
+                    return { match: null, walked: null };
                 }
 
                 await tx.getRepository(TournamentEntry).update({ id: entry.id }, { removedAt: () => 'now()' });
 
                 const rows = await tx.getRepository(TournamentGame).find({ where: { tournamentId: tournament.id } });
+                if (tournament.format === 'shootout')
+                {
+                    const playing = rows.find((row) => row.how === null && row.matchId !== null && row.poker?.lineup.includes(entry.seed as number));
+                    if (!playing?.tableId)
+                    {
+                        return { match: null, walked: null };
+                    }
+
+                    await lockTable(tx, playing.tableId);
+                    const walked = await helpers.forfeit(tx, userId, playing.tableId);
+                    return { match: null, walked };
+                }
+
                 const before = rows.map(toEngine);
                 const after = forfeitAbsent(before, new Set([entry.seed]));
                 const forfeited = rows.find((row, index) => before[index].how === null && after[index].how !== null && row.matchId !== null);
 
                 await persist(tx, tournament.id, rows, after);
 
-                return { match: forfeited?.matchId ?? null };
+                return { match: forfeited?.matchId ?? null, walked: null };
             },
 
             async list(filter: { search?: string; status?: TournamentStatus }, limit: number)

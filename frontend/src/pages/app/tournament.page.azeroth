@@ -110,9 +110,9 @@ export default component TournamentPage()
 
     derived titled = trees.length > 1;
 
-    derived leagueGames = games.filter((game) => game.stage === 'league' || /^group\d+$/.test(game.stage));
+    derived leagueGames = games.filter((game) => game.stage === 'shootout' || game.stage === 'league' || /^group\d+$/.test(game.stage));
 
-    derived groups = [...new Set(leagueGames.map((game) => game.stage).filter((stage) => stage !== 'league'))];
+    derived groups = [...new Set(leagueGames.map((game) => game.stage).filter((stage) => /^group\d+$/.test(stage)))];
 
     derived grouped = groups.length > 0;
 
@@ -140,7 +140,7 @@ export default component TournamentPage()
 
     /** Whatever has two players, what is being played first and then the latest. */
     derived allGames = games
-        .filter((game) => game.a !== undefined && game.b !== undefined)
+        .filter((game) => game.seats !== undefined || (game.a !== undefined && game.b !== undefined))
         .sort((one, other) => Number(other.live) - Number(one.live) || other.phase - one.phase || one.slot - other.slot);
 
     derived noGames = allGames.length === 0;

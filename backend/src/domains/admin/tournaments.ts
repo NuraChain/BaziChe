@@ -140,7 +140,7 @@ export function createTournamentStaff(db: DataSource, tournaments: TournamentSer
 
             await noted(tx, actor, tournament, 'remove', reason, { stage: tournament.status }, { id: person.id, handle: person.handle });
 
-            return { id: tournament.id, match: out.match };
+            return { id: tournament.id, match: out.match, walked: out.walked, userId: person.id };
         })
     };
 }

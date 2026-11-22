@@ -4039,7 +4039,7 @@ export type NotificationKind = Infer<typeof notificationKind>;
 
 /* ----------------------------------------------------------------- tournaments */
 
-export const tournamentFormat = enumOf(['single', 'double', 'round-robin', 'swiss', 'groups']);
+export const tournamentFormat = enumOf(['single', 'double', 'round-robin', 'swiss', 'groups', 'shootout']);
 
 export const tournamentStatus = enumOf(['open', 'running', 'finished', 'cancelled']);
 
@@ -4112,6 +4112,8 @@ const tournamentGame = object({
     phase: number(),
     a: string().optional(),
     b: string().optional(),
+    seats: array(object({ seed: number(), who: string().optional() })).optional(),
+    winnerSeed: number().optional(),
     aSeed: number().optional(),
     bSeed: number().optional(),
     scoreA: number(),

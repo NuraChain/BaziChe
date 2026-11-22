@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { bracketSizeFor, seedOrder } from '../src/domains/tournament/engine/elimination.ts';
-import { FORMATS, MIN_ENTRANTS, type FormatId } from '../src/domains/tournament/engine/formats.ts';
+import { FORMATS, FORMAT_IDS, MIN_ENTRANTS, type FormatId } from '../src/domains/tournament/engine/formats.ts';
 import { applyResult, currentPhase, dueGames, forfeitAbsent, shuffledSeeds, withoutAbsent, type Game, type Rules, type Side } from '../src/domains/tournament/engine/game.ts';
 import { groupCountFor, groupsOf } from '../src/domains/tournament/engine/groups.ts';
 import { rankLeague } from '../src/domains/tournament/engine/league.ts';
@@ -505,8 +505,6 @@ describe('the random draw', () =>
 
 describe('a field short of the places offered', () =>
 {
-    const FORMAT_IDS = Object.keys(FORMATS) as FormatId[];
-
     it('needs four players to start, whatever the size of the tournament', () =>
     {
         expect(MIN_ENTRANTS).toBe(4);

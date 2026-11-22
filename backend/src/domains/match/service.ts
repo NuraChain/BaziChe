@@ -60,6 +60,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type Applied = 'now' | 'already' | 'stale';
 
+export interface MatchWalkout
+{
+    matchId: string;
+    before: number;
+    rewardEffects: RewardFinishEffects;
+}
+
 export type Expired =
     | { matchId: string; game: string; played: true; before: number; rewardEffects: RewardFinishEffects }
     | { matchId: string; game: string; played: false; reason: string };
@@ -951,7 +958,7 @@ export function createMatchService(db: DataSource, achieve: AchieveService, engi
             return null;
         },
 
-        walkOut: async (tx: EntityManager, me: string, tableId: string, mayForfeit: boolean) =>
+        walkOut: async (tx: EntityManager, me: string, tableId: string, mayForfeit: boolean): Promise<MatchWalkout | null> =>
         {
             const match = await tx.getRepository(Match).findOne({
                 where: { tableId, finishedAt: IsNull() },

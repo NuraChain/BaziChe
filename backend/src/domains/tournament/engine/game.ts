@@ -25,6 +25,14 @@ export interface Rules
     rounds: number;
 }
 
+export interface PokerDraw
+{
+    /** The original draw, including players who eventually missed the ready deadline. */
+    seeds: number[];
+    /** Tournament seeds in actual poker seat order. Re-seated once if the deadline shortened the table. */
+    lineup: number[];
+}
+
 export interface Game
 {
     key: string;
@@ -37,6 +45,7 @@ export interface Game
 
     a: number | null;
     b: number | null;
+    poker?: PokerDraw;
     scoreA: number;
     scoreB: number;
     winner: number | null;
@@ -227,7 +236,7 @@ export const dueGames = (games: readonly Game[]) =>
 {
     const phase = currentPhase(games);
 
-    return undecided(games).filter((game) => game.phase === phase && !game.dealt && game.a !== null && game.b !== null);
+    return undecided(games).filter((game) => game.phase === phase && !game.dealt && (game.poker !== undefined || (game.a !== null && game.b !== null)));
 };
 
 /**

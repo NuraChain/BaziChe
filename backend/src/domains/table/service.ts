@@ -1436,12 +1436,12 @@ export function createTableService(db: DataSource, social: SocialService)
         },
 
         /**
-         * Opens the table a tournament game is played at, with both players already sitting and
-         * neither ready: each says so, and the tournament deals the game once both have, or settles
+         * Opens the table a tournament game is played at, with the drawn players sitting and
+         * waiting to confirm readiness. The tournament deals once everyone confirms, or settles
          * it when `READY_MS` runs out (`tournament/ready.ts`). Public so anybody can watch; no chat
-         * and no voice, because the two were paired by a draw and may have blocked one another.
+         * and no voice, because the players were assigned by a draw and may have blocked one another.
          */
-        async seatForTournament(tx: EntityManager, tournamentId: string, game: string, players: readonly [string, string])
+        async seatForTournament(tx: EntityManager, tournamentId: string, game: string, players: readonly string[])
         {
             const rules = await rulesOf(game);
 
@@ -1453,7 +1453,7 @@ export function createTableService(db: DataSource, social: SocialService)
             const inserted = await tx.getRepository(Table).insert({
                 code: newCode(),
                 game,
-                seats: 2,
+                seats: players.length,
                 mode: 'live',
                 privacy: 'public',
                 target: rules.targets[0] ?? 0,

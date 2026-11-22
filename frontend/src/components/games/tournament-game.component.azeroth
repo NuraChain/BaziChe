@@ -16,7 +16,8 @@ export default component TournamentGame(props: { game: TournamentGameRow; series
 
     derived game = props.game;
 
-    derived sides = [
+    derived winner = game.winnerSeed === undefined ? game.winner : String(game.winnerSeed);
+    derived sides = game.seats?.map((seat) => ({ id: String(seat.seed), who: seat.who, score: 0 })) ?? [
         { id: 'a', who: game.a, score: game.scoreA },
         { id: 'b', who: game.b, score: game.scoreB }
     ];
@@ -46,10 +47,10 @@ export default component TournamentGame(props: { game: TournamentGameRow; series
 
     <article class={ [ 'flex min-w-0 flex-col gap-1 rounded-tile border bg-field p-2', game.live ? 'border-accent' : 'border-line' ].join(' ') }>
         <For each={ sides } key={ (side) => side.id } let={ side }>
-            <div class={ [ 'flex min-w-0 items-center gap-2 rounded-control px-1 py-0.5', game.winner === side.id ? 'bg-accent-fill text-accent-ink font-semibold' : (game.winner !== undefined ? 'text-faint' : 'text-text') ].join(' ') }>
+            <div class={ [ 'flex min-w-0 items-center gap-2 rounded-control px-1 py-0.5', winner === side.id ? 'bg-accent-fill text-accent-ink font-semibold' : (winner !== undefined ? 'text-faint' : 'text-text') ].join(' ') }>
                 <Avatar person={ side.who === undefined ? null : people.byHandle(side.who) } size="xs" />
                 <span class="min-w-0 flex-1 truncate text-ui-sm" dir="auto">{ nameOf(side.who) }</span>
-                <Show when={ game.winner === side.id }>
+                <Show when={ winner === side.id }>
                     { () => <Icon name="selected" size={ 14 } class="shrink-0" /> }
                 </Show>
                 <Show when={ scored && props.series }>

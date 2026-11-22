@@ -147,7 +147,7 @@ export default component AdminTournamentPage()
         return act(
             {
                 title: locale.t('tournaments.admin.removeAsk', { who: `@${ who }`, name }),
-                lead: locale.t(waitingToStart ? 'tournaments.admin.removeLeadOpen' : 'tournaments.admin.removeLeadRunning'),
+                lead: locale.t(waitingToStart ? 'tournaments.admin.removeLeadOpen' : tournament?.format === 'shootout' ? 'tournaments.admin.removeLeadPoker' : 'tournaments.admin.removeLeadRunning'),
                 confirm: locale.t('tournaments.admin.remove'),
                 destructive: true
             },

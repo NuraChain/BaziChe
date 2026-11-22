@@ -25,7 +25,7 @@ import { sendPush, type VapidKeys } from './domains/notify/push.ts';
 import { pushKeys } from './domains/notify/push-keys.ts';
 import { createAchieveService } from './domains/achieve/service.ts';
 import { endingOf } from './domains/match/declare.ts';
-import { ENGINES, createMatchService, voidedOf, type MatchLoad } from './domains/match/service.ts';
+import { ENGINES, createMatchService, voidedOf, type MatchLoad, type MatchWalkout } from './domains/match/service.ts';
 import { WATCH_TAIL } from './domains/match/turns.ts';
 import { callRefusal, createCallService, type CallChange, type CallRow } from './domains/call/service.ts';
 import { RING_SECONDS, type CallEnding } from './domains/call/rules.ts';
@@ -1059,7 +1059,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
     const match = createMatchService(db, achieve, ENGINES, shop.looksAt, reward);
 
-    const tournaments = createTournamentService(db, { seat: table.seatForTournament, deal: match.dealTournament });
+    const tournaments = createTournamentService(db, {
+        seat: table.seatForTournament, deal: match.dealTournament,
+        forfeit: (tx, userId, tableId) => match.walkOut(tx, userId, tableId, true)
+    });
     const tournamentStaff = createTournamentStaff(db, tournaments, owners);
 
     /**
@@ -1952,6 +1955,25 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         }
     });
 
+    const afterWalkout = async (me: string, walked: MatchWalkout) =>
+    {
+        await rewardEffects(walked.rewardEffects);
+        await courtesy('game push', () => pushMatch(walked.matchId, walked.before));
+
+        const load = await match.peek(walked.matchId);
+
+        if (load !== null)
+        {
+            await courtesy('turn notice', () => nudgeTurn(load, me));
+        }
+
+        if (load !== null && load.match.finishedAt !== null)
+        {
+            await finished(walked.matchId);
+            stakes.kick();
+        }
+    };
+
     const walkAway = async (me: string, tableId: string, forfeit: boolean) =>
     {
         const before = await mustTable(me, tableId);
@@ -1961,21 +1983,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
         if (walked !== null)
         {
-            await rewardEffects(walked.rewardEffects);
-            await courtesy('game push', () => pushMatch(walked.matchId, walked.before));
-
-            const load = await match.peek(walked.matchId);
-
-            if (load !== null)
-            {
-                await courtesy('turn notice', () => nudgeTurn(load, me));
-            }
-
-            if (load !== null && load.match.finishedAt !== null)
-            {
-                await finished(walked.matchId);
-                stakes.kick();
-            }
+            await afterWalkout(me, walked);
         }
 
         if (before.conversation_id !== null)
@@ -3275,6 +3283,11 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             removeFromTournament: (me, code, input) => staffOnTournament(me, code, async (actor) =>
             {
                 const out = await tournamentStaff.remove(actor, code, input.player, input.reason);
+
+                if (out.walked !== null)
+                {
+                    await afterWalkout(out.userId, out.walked);
+                }
 
                 // The game they were in is already lost by walkover, so ending its table is a courtesy
                 // to the other player: one the staff may not be able to do, if they sit at it.

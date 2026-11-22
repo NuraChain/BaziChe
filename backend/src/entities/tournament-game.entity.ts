@@ -2,7 +2,7 @@ import { Check, Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedCo
 import { Match } from './match.entity.ts';
 import { Table } from './table.entity.ts';
 import { Tournament } from './tournament.entity.ts';
-import type { Decided } from '../domains/tournament/engine/game.ts';
+import type { Decided, PokerDraw } from '../domains/tournament/engine/game.ts';
 
 @Check('tournament_games_how_known', `how is null or how in ('played', 'bye', 'seed', 'draw', 'void')`)
 @Index('tournament_games_place', ['tournamentId', 'stage', 'round', 'slot'], { unique: true })
@@ -34,6 +34,9 @@ export class TournamentGame
 
     @Column({ name: 'seed_b', type: 'smallint', nullable: true })
     seedB!: number | null;
+
+    @Column({ type: 'jsonb', nullable: true })
+    poker!: PokerDraw | null;
 
     @Column({ name: 'score_a', type: 'smallint', default: 0 })
     scoreA!: number;

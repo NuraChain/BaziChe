@@ -2,6 +2,7 @@ import { useNavigate } from 'azerothjs';
 
 import FeatureOff from '../app/feature-off.component.azeroth';
 import Button from '../ui/button.component.azeroth';
+import Toggle from '../ui/switch.component.azeroth';
 import Chip from '../ui/chip.component.azeroth';
 import Segmented from '../ui/segmented.component.azeroth';
 import SheetHeader from '../ui/sheet-header.component.azeroth';
@@ -308,6 +309,8 @@ export default component QuickFinder(props: OverlayProps & { game: GameId })
             </Show>
         </div>
 
+        <Toggle checked={ ask.humansOnly === true } disabled={ busy } label={ locale.t('quickMatch.humansOnly') }
+            description={ locale.t('quickMatch.humansOnlyHint') } onChange={ (checked) => choose({ ...ask, humansOnly: checked }) } />
         <Button variant="primary" size="lg" block leading="play" loading={ busy } onClick={ () => void find() }>
             { locale.t('quickMatch.find') }
         </Button>

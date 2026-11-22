@@ -36,6 +36,7 @@ export function fitted(held: Record<string, unknown>, rules: TableRules): QuickA
         ...(format === undefined ? {} : { seats: format.seats, teams: format.teams }),
         ...(mode === undefined ? {} : { mode }),
         ...aimed,
+        ...(held.humansOnly === true ? { humansOnly: true } : {}),
         ...(typeof held.cube === 'boolean' && cubeAsked(aimed, rules) ? { cube: held.cube } : {}),
         ...(blinds === undefined ? {} : { blinds }),
         ...(clock === undefined ? {} : { clock })

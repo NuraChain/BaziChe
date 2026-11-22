@@ -211,6 +211,8 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'quickMatch.started': 'بازی {game} شروع شد',
     'quickMatch.stillPlaying': 'بازی {game} هنوز تموم نشده',
     'quickMatch.go': 'برو سر میز',
+    'quickMatch.humansOnly': 'بدون هوش مصنوعی',
+    'quickMatch.humansOnlyHint': 'تا وقتی همهٔ صندلی‌ها را بازیکن‌های واقعی پر کنند منتظر بمان.',
     'quickMatch.title': 'دنبال چه بازی‌ای هستی؟',
     'quickMatch.lead': 'سر میزی می‌شینی که دقیقاً همونیه که خواستی، و وقتی پر شد، بازی خودش شروع می‌شه.',
     'quickMatch.game': 'بازی',

@@ -40,6 +40,7 @@ const boardOf = (chairs: Chair[], more: Partial<Board> = {}): Board => ({
     open: true,
     public: true,
     quick: true,
+    humansOnly: false,
     staked: false,
     tournament: false,
     live: false,
@@ -116,6 +117,11 @@ describe('when a table may be filled', () =>
         expect(fillable(ON, boardOf([person(0, 'ann', NOW - 30_000, false), empty(1)]), everyone)).toBe(false);
         expect(fillable(ON, boardOf([person(0, 'ann'), empty(1)]), new Set())).toBe(false);
         expect(fillable(ON, boardOf([bot(0, 'sys'), empty(1), empty(2)]), everyone)).toBe(false);
+    });
+
+    it('keeps a human-only quick table waiting for people after any delay', () =>
+    {
+        expect(fillable(ON, boardOf([person(0, 'ann', NOW - 600_000), empty(1)], { humansOnly: true }), everyone)).toBe(false);
     });
 
     it('never fills a chair held for an invite', () =>

@@ -2778,6 +2778,7 @@ export const tableCreateInput = object({
 });
 
 export const tableQuickInput = object({
+    humansOnly: boolean().optional(),
     game: string({ max: 32 }),
     seats: number({ int: true, min: 2, max: 9 }).optional(),
     mode: tableMode.optional(),

@@ -221,6 +221,8 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'quickMatch.started': '你的 {game} 对局开始了',
     'quickMatch.stillPlaying': '你的 {game} 对局还在进行',
     'quickMatch.go': '去桌子',
+    'quickMatch.humansOnly': '不使用 AI',
+    'quickMatch.humansOnlyHint': '等待真人玩家坐满所有座位。',
     'quickMatch.title': '你想玩什么？',
     'quickMatch.lead': '你会坐到完全符合条件的桌子上，坐满后对局自动开始。',
     'quickMatch.game': '游戏',

@@ -18,6 +18,7 @@ export interface QuickRules
 
 export interface QuickAsk
 {
+    humansOnly?: boolean;
     seats?: number;
     mode?: QuickMode;
     target?: number;

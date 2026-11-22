@@ -221,6 +221,8 @@ export const play: Pick<Dictionary, keyof typeof reference> = {
     'quickMatch.started': 'Sua partida de {game} começou',
     'quickMatch.stillPlaying': 'Sua partida de {game} ainda está rolando',
     'quickMatch.go': 'Ir para a mesa',
+    'quickMatch.humansOnly': 'Sem IA',
+    'quickMatch.humansOnlyHint': 'Espere até que todos os lugares sejam ocupados por pessoas.',
     'quickMatch.title': 'O que você procura?',
     'quickMatch.lead': 'Você senta numa mesa exatamente assim, e a partida começa sozinha quando ela enche.',
     'quickMatch.game': 'Jogo',

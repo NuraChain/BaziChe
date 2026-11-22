@@ -218,6 +218,8 @@ export const play = {
     'quickMatch.started': 'Your {game} game has started',
     'quickMatch.stillPlaying': 'Your {game} game is still on',
     'quickMatch.go': 'Go to the table',
+    'quickMatch.humansOnly': 'No AI',
+    'quickMatch.humansOnlyHint': 'Wait for human players to fill every seat.',
     'quickMatch.title': 'What are you looking for?',
     'quickMatch.lead': 'You sit down at a table of exactly that, and the game starts by itself when it is full.',
     'quickMatch.game': 'Game',

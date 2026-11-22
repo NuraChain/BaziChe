@@ -67,6 +67,7 @@ export interface Board
     open: boolean;
     public: boolean;
     quick: boolean;
+    humansOnly: boolean;
     staked: boolean;
     tournament: boolean;
     live: boolean;
@@ -120,6 +121,7 @@ export const fillable = (config: SystemConfig, board: Board, here: ReadonlySet<s
         && board.agent
         && board.available
         && board.quick
+        && !board.humansOnly
         && board.public
         && board.open
         && !board.live
@@ -246,6 +248,7 @@ const BOARDS_SQL = `
            t.privacy = 'public' as public,
            t.tournament_id is not null as tournament,
            exists (select 1 from quick_tables q where q.table_id = t.id) as quick,
+           exists (select 1 from quick_tables q where q.table_id = t.id and q.humans_only) as "humansOnly",
            exists (select 1 from table_stakes k where k.table_id = t.id) as staked,
            exists (select 1 from matches m where m.table_id = t.id and m.finished_at is null) as live,
            (select ${ ms('max(m.started_at)') } from matches m where m.table_id = t.id) as started,
@@ -274,7 +277,7 @@ const BOARDS_SQL = `
 const FILLABLE_SQL = `
     select t.id, t.game
       from tables t
-      join quick_tables q on q.table_id = t.id
+      join quick_tables q on q.table_id = t.id and not q.humans_only
      cross join lateral (select max(m.finished_at) as last from matches m where m.table_id = t.id) f
      cross join lateral (
                select greatest(min(s.joined_at), f.last) as since, bool_and(s.ready) as ready

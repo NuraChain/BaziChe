@@ -28,7 +28,7 @@ import { clockFor, isClock } from './clocks.ts';
 import { guestChairs, teamsOf, type Partners } from './teams.ts';
 import { scopeFor, type VoiceScope } from './voices.ts';
 import { readyBySql } from '../tournament/ready.ts';
-import { notSystem } from '../system/sql.ts';
+import { isSystem, notSystem } from '../system/sql.ts';
 
 /**
  * What the catalogue says a table of this game may be.
@@ -479,7 +479,7 @@ const OCCUPANTS = 'select s.user_id from table_seats s where s.table_id = t.id a
 
 const passedOver = (away: number, missed: number) => away + missed === 0 ? {} : { passed: { away, missed } };
 
-const compatible = (tx: EntityManager, lead: string, game: string, filter: QuickFilter, stake: string | null) => tx.getRepository(Table)
+const compatible = (tx: EntityManager, lead: string, game: string, filter: QuickFilter, stake: string | null, humansOnly: boolean) => tx.getRepository(Table)
     .createQueryBuilder('t')
     .where(`t.game = :game and t.status = 'open' and t.mode = :mode and t.tournament_id is null`, { game, mode: filter.mode })
     .andWhere(
@@ -488,6 +488,12 @@ const compatible = (tx: EntityManager, lead: string, game: string, filter: Quick
                                                  where f.user_id = :lead and f.friend_id = t.host_id)))`,
         { lead }
     )
+    // A manually created table never receives automatic seats. A quick table must have
+    // opted out at creation, so a later filler sweep cannot change the searcher's choice.
+    .andWhere(`(not :humansOnly or (
+        not exists (select 1 from quick_tables q where q.table_id = t.id and not q.humans_only)
+        and not exists (select 1 from table_seats s where s.table_id = t.id and ${ isSystem('s.user_id') })
+    ))`, { humansOnly })
     .andWhere('(cast(:seats as int) is null or t.seats = :seats)', { seats: filter.seats })
     .andWhere('(cast(:target as int) is null or t.target = :target)', { target: filter.target })
     .andWhere('(cast(:blinds as varchar) is null or t.blinds = :blinds)', { blinds: filter.blinds })
@@ -727,6 +733,7 @@ export function createTableService(db: DataSource, social: SocialService)
         )
         {
             const stake = ask.stake ?? null;
+            const humansOnly = ask.humansOnly === true;
             const rules = await rulesOf(ask.game);
 
             if (rules === null)
@@ -754,7 +761,7 @@ export function createTableService(db: DataSource, social: SocialService)
 
                 await tx.query(`select pg_advisory_xact_lock(hashtext('quick'), hashtext($1))`, [ask.game]);
 
-                const waiting = await compatible(tx, lead, ask.game, want.filter, stake)
+                const waiting = await compatible(tx, lead, ask.game, want.filter, stake, humansOnly)
                     .innerJoin(TableSeat, 'mine', 'mine.table_id = t.id and mine.user_id = :lead and mine.ready')
                     .select('t.id', 'id')
                     .orderBy('mine.joined_at', 'DESC')
@@ -778,7 +785,7 @@ export function createTableService(db: DataSource, social: SocialService)
                 const left = want.filter.mode === 'live' ? await letGo(tx, lead) : [];
                 const gone = left.length === 0 ? {} : { left };
 
-                const candidates = await compatible(tx, lead, ask.game, want.filter, stake)
+                const candidates = await compatible(tx, lead, ask.game, want.filter, stake, humansOnly)
                     .select('t.id', 'id')
                     .addSelect('t.teams', 'teams')
                     // People only: a system player has no socket and is always here.
@@ -837,7 +844,7 @@ export function createTableService(db: DataSource, social: SocialService)
                     roomId: null
                 }, [], true);
 
-                await tx.getRepository(QuickTable).insert({ tableId: opened });
+                await tx.getRepository(QuickTable).insert({ tableId: opened, humansOnly });
 
                 if (stake !== null)
                 {

@@ -2,6 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersBackgammon as reference } from '../en/helpers-backgammon.ts';
 
 export const helpersBackgammon: Pick<Dictionary, keyof typeof reference> = {
+    'backgammon.hand.select': 'Bir pul seç',
+    'backgammon.hand.to': 'İşaretli bir hedefe dokun',
     'helpers.backgammon.bar': 'Kırık pul önce oyuna girer. O girmeden başka hiçbir pul oynamaz.',
     'helpers.backgammon.doubles': 'Çift zar dört kez oynanır: dört hamle, her biri {die}.',
     'helpers.backgammon.both': 'Oynanabiliyorsa iki zar da oynanmalı; diğer zarı oynanamaz bırakacak bir hamle sunulmaz.',

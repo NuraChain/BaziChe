@@ -2,6 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersBackgammon as reference } from '../en/helpers-backgammon.ts';
 
 export const helpersBackgammon: Pick<Dictionary, keyof typeof reference> = {
+    'backgammon.hand.select': 'Elige una ficha',
+    'backgammon.hand.to': 'Toca un destino marcado',
     'helpers.backgammon.bar': 'Una ficha en la barra entra primero. No se mueve nada más hasta que haya entrado.',
     'helpers.backgammon.doubles': 'Un doble se juega cuatro veces: cuatro movimientos de {die}.',
     'helpers.backgammon.both': 'Hay que jugar los dos dados siempre que se pueda, así que no se ofrece una jugada que deje el otro dado sin movimiento posible.',

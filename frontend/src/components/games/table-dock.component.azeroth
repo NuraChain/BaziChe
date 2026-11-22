@@ -2,6 +2,7 @@ import TableMenu from './table-menu.component.azeroth';
 import VoiceControl from './voice-control.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
 import { useLocale } from '../../stores/locale.store.ts';
+import { useDevice } from '../../stores/device.store.ts';
 import { useOverlay } from '../../stores/overlay.store.ts';
 import { useSettings } from '../../stores/settings.store.ts';
 import { useVoice } from '../../stores/voice.store.ts';
@@ -12,13 +13,6 @@ import type { GameId } from '../../data/games.ts';
 const canFullscreen = () =>
     typeof document !== 'undefined' && document.fullscreenEnabled === true;
 
-const lockUpright = (): Promise<void> =>
-{
-    const orientation = screen.orientation as (ScreenOrientation & { lock?: (to: string) => Promise<void> }) | undefined;
-
-    return orientation?.lock?.('portrait').catch(() => undefined) ?? Promise.resolve();
-};
-
 export default component TableDock(props: {
     code?: string;
     game?: GameId;
@@ -27,7 +21,6 @@ export default component TableDock(props: {
     onChat?: () => void;
     onResign?: () => void;
     onLeave?: () => void;
-    upright?: boolean;
     voice?: string;
     hostVoice?: boolean;
     onHostVoice?: () => void;
@@ -36,6 +29,7 @@ export default component TableDock(props: {
 })
 {
     const locale = useLocale();
+    const device = useDevice();
     const settings = useSettings();
     const overlay = useOverlay();
     const voice = useVoice();
@@ -64,13 +58,12 @@ export default component TableDock(props: {
 
     const toggleFull = () =>
     {
-        const host = props.target ?? document.documentElement;
+        // On touch the table menu and dialogs live in the app's overlay host, outside the arena.
+        const host = device.coarse() ? document.documentElement : props.target ?? document.documentElement;
 
         if (document.fullscreenElement === null)
         {
-            void host.requestFullscreen?.()
-                .then(() => props.upright === true ? lockUpright() : undefined)
-                .catch(() => undefined);
+            void host.requestFullscreen?.().catch(() => undefined);
             return;
         }
 
@@ -99,7 +92,7 @@ export default component TableDock(props: {
     };
 
     <div class="flex shrink-0 items-center gap-1">
-        <span class="hidden items-center gap-0.5 rounded-full border border-line bg-field/70 p-1 @2xl:flex">
+        <span class="hidden items-center gap-0.5 rounded-full border border-line bg-field/70 p-1 @2xl:fine:flex">
             <IconButton
                 icon={ sound ? 'sound' : 'sound-off' }
                 label={ locale.t(sound ? 'play.dock.soundOff' : 'play.dock.soundOn') }
@@ -187,7 +180,7 @@ export default component TableDock(props: {
             </Show>
         </span>
 
-        <span class="flex @2xl:hidden">
+        <span class="flex @2xl:fine:hidden">
             <IconButton icon="more" label={ locale.t('play.menu.title') } variant="ghost" onClick={ () => openMenu() } />
         </span>
 

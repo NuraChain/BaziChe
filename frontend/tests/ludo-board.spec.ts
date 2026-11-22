@@ -152,11 +152,30 @@ let drawn: Drawn[];
 let still: boolean;
 let broke: unknown[];
 let picked: string[];
+let previewed: (string | null)[];
 let byKey: boolean[];
 let facts: Facts[];
 let passes: [number, number, string][];
 let sting: 'win' | 'lose' | 'draw' | null;
 let worn: Record<number, MatchPlayer['look']>;
+
+const point = (type: string, at: { x: number; y: number }, pointerType = 'mouse') =>
+{
+    const event = new MouseEvent(type, { clientX: at.x, clientY: at.y, bubbles: true });
+
+    Object.defineProperties(event, {
+        pointerType: { value: pointerType },
+        pointerId: { value: 1 },
+        isPrimary: { value: true }
+    });
+    host.dispatchEvent(event);
+};
+
+const tap = (at: { x: number; y: number }, pointerType = 'mouse') =>
+{
+    point('pointerdown', at, pointerType);
+    point('pointerup', at, pointerType);
+};
 
 const elapse = async (ms: number) =>
 {
@@ -219,6 +238,7 @@ beforeEach(async () =>
     drawn = [];
     broke = [];
     picked = [];
+    previewed = [];
     byKey = [];
     facts = [];
     passes = [];
@@ -253,6 +273,7 @@ beforeEach(async () =>
         ending: () => sting,
         feel: (kind) => felt.push(kind),
         looks: (seat) => worn[seat],
+        onPreview: (key) => previewed.push(key),
         onPick: (key, keyed) =>
         {
             picked.push(key);
@@ -349,7 +370,7 @@ describe('the ludo board as it is drawn', () =>
 
         expect(pawns().filter((one) => one.hasAttribute('data-movable')).map((one) => one.dataset.key)).toEqual(['0-0']);
 
-        host.dispatchEvent(new MouseEvent('pointerup', { clientX: far.x, clientY: far.y - CELL * 300, bubbles: true }));
+        tap({ x: far.x, y: far.y - CELL * 300 });
 
         expect(picked).toEqual([]);
 
@@ -357,7 +378,7 @@ describe('the ludo board as it is drawn', () =>
 
         expect(pawns().filter((one) => one.hasAttribute('data-movable'))).toHaveLength(0);
 
-        host.dispatchEvent(new MouseEvent('pointerup', { clientX: near.x + 12, clientY: near.y - CELL * 300, bubbles: true }));
+        tap({ x: near.x + 12, y: near.y - CELL * 300 });
 
         expect(picked).toEqual(['0-0']);
     });
@@ -1877,14 +1898,6 @@ describe('where a lit pawn would land', () =>
 
     const middleOf = (colour: LudoColour, progress: number) => centreOf(cellAt(colour, progress)!.col, cellAt(colour, progress)!.row, 1000);
 
-    const point = (type: string, at: { x: number; y: number }, pointerType = 'mouse') =>
-    {
-        const event = new MouseEvent(type, { clientX: at.x, clientY: at.y, bubbles: true });
-
-        Object.defineProperty(event, 'pointerType', { value: pointerType });
-        host.dispatchEvent(event);
-    };
-
     it('marks the square each lit pawn would reach, under the pawns, with the squares on the way', () =>
     {
         table.reset(sight(standing([[10, 30, YARD, YARD], [5, YARD, YARD, YARD]], 3)));
@@ -2066,26 +2079,55 @@ describe('where a lit pawn would land', () =>
         table.reset(sight(standing([[10, 12, YARD, YARD], [5, YARD, YARD, YARD]], 2)));
         table.lit(new Set(['0-0', '0-1']), true, [{ key: '0-0', to: 12, takes: 0, says: '' }, { key: '0-1', to: 14, takes: 0, says: '' }]);
 
-        point('pointerup', middleOf('red', 14));
+        tap(middleOf('red', 14));
 
         expect(picked).toEqual(['0-1']);
 
-        point('pointerup', middleOf('red', 12));
+        tap(middleOf('red', 12));
 
         expect(picked, 'a press on a pawn moved the pawn whose mark lies under it').toEqual(['0-1', '0-1']);
 
         table.reset(sight(standing([[10, YARD, YARD, YARD], [5, YARD, YARD, YARD]], 1)));
         table.lit(new Set(['0-0']), true, [{ key: '0-0', to: 11, takes: 0, says: '' }]);
         picked.length = 0;
-        point('pointerup', middleOf('red', 11));
+        tap(middleOf('red', 11));
 
         expect(picked).toEqual(['0-0']);
 
         table.lit(new Set(['0-0']), false, [{ key: '0-0', to: 11, takes: 0, says: '' }]);
         picked.length = 0;
-        point('pointerup', middleOf('red', 15));
+        tap(middleOf('red', 15));
 
         expect(picked, 'a square that is not marked took a press').toEqual([]);
+    });
+
+    it('previews a touch, including with hints off, and commits only a matching touch on its landing', () =>
+    {
+        sized();
+        table.reset(sight(standing([[10, 30, YARD, YARD], [5, YARD, YARD, YARD]], 3)));
+        const goals = [{ key: '0-0', to: 13, takes: 0, says: '' }, { key: '0-1', to: 33, takes: 0, says: '' }];
+        const movable = new Set(['0-0', '0-1']);
+        const pawn = middleOf('red', 10);
+        const target = middleOf('red', 13);
+
+        table.lit(movable, false, goals);
+        tap(pawn, 'touch');
+        expect(previewed).toEqual(['0-0']);
+        expect(picked).toEqual([]);
+        table.lit(movable, false, goals, '0-0');
+        expect(marks().map((one) => one.dataset.goal)).toEqual(['0-0']);
+        expect(mark('0-0').hasAttribute('data-aim')).toBe(true);
+
+        point('pointerup', target, 'touch');
+        point('pointerdown', target, 'touch');
+        point('pointercancel', target, 'touch');
+        point('pointerup', target, 'touch');
+        point('pointerdown', target, 'touch');
+        point('pointermove', pawn, 'touch');
+        point('pointerup', target, 'touch');
+        expect(picked).toEqual([]);
+        tap(target, 'touch');
+        expect(picked).toEqual(['0-0']);
     });
 
     it('shows which mark is a pawn\'s under a mouse, on the pawn or on the mark, and lets go when the mouse leaves', () =>
@@ -2298,7 +2340,7 @@ describe('the ludo board, played from a keyboard', () =>
 
         expect(picked, 'one press of a mouse moved the pawn twice').toEqual(['0-0']);
 
-        host.dispatchEvent(new MouseEvent('pointerup', { clientX: body.x, clientY: body.y - CELL * 300, bubbles: true }));
+        tap({ x: body.x, y: body.y - CELL * 300 });
 
         expect(picked).toEqual(['0-0', '0-0']);
         expect(byKey).toEqual([true, false]);

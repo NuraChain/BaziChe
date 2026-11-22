@@ -2,6 +2,7 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersHokm as reference } from '../en/helpers-hokm.ts';
 
 export const helpersHokm: Pick<Dictionary, keyof typeof reference> = {
+    'helpers.hokm.tapAgain': 'उठे हुए पत्ते को खेलने के लिए उसे फिर से टैप करें।',
     'helpers.hokm.lead': 'हाथ की शुरुआत करता है।',
     'helpers.hokm.lead.trump': 'तुरुप से शुरुआत: जब तक किसी के पास तुरुप है, उसे तुरुप ही चलनी होगी।',
     'helpers.hokm.ahead': 'अभी तक हाथ इसी का है।',

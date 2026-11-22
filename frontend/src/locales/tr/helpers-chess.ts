@@ -2,6 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersChess as reference } from '../en/helpers-chess.ts';
 
 export const helpersChess: Pick<Dictionary, keyof typeof reference> = {
+    'helpers.chess.touch.place': '{square} · İşaretli bir kareye dokun.',
+    'helpers.chess.touch.pick': 'Hamlelerini görmek için bir taşa dokun.',
     'helpers.chess.tip.first': 'Saatin ilk hamlenden sonra başlar. 30 saniye içinde oyna, yoksa oyun iptal olur ve kimseye sayılmaz.',
     'helpers.chess.tip.waitFirst': 'Rakip 30 saniye içinde ilk hamlesini yapmazsa oyun iptal olur ve kimseye sayılmaz.',
     'helpers.chess.tip.check': 'Şah çekildi: şahını kaçır, araya bir taş koy ya da şah çeken taşı al.',

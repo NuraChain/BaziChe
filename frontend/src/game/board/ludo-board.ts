@@ -1,4 +1,5 @@
 import { PAUSES } from '../../../../backend/src/domains/match/pauses.ts';
+import { crossedSlop, primaryPress } from '../pointer.ts';
 import { BLOCK, CELL, DIE_SIZE, DROP, GRID, HOME_SCALE, MARGIN, PAWN_BOX, SHADOW_BOX, YARD_AT, YARD_SIZE, aimNear, stackSpot } from '../layout.ts';
 import { celebrationOf, cheerAt } from '../looks/celebrations.ts';
 import { DIE_PROPERTIES, dieDress } from '../looks/dice.ts';
@@ -253,6 +254,8 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
     let goals: readonly BoardGoal[] = [];
     let marked = '';
     let aimed: string | null = null;
+    let selected: string | null = null;
+    let contact: { id: number; key: string | null; destination: boolean; x: number; y: number } | null = null;
     let roving: string | null = null;
     let plateDie: Rolled | null = null;
     let where: Where = 'none';
@@ -607,12 +610,12 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
     const mark = () =>
     {
-        const wanted = hints ? goals.flatMap((goal) =>
+        const wanted = goals.flatMap((goal) =>
         {
             const pawn = pawnOf(shown, goal.key);
 
-            return pawn !== undefined && movable.has(goal.key) && goal.to > pawn.progress ? [{ goal, pawn }] : [];
-        }) : [];
+            return (hints || goalFor(selected ?? '')?.key === goal.key) && pawn !== undefined && movable.has(goal.key) && goal.to > pawn.progress ? [{ goal, pawn }] : [];
+        });
         const said = wanted.map(({ goal, pawn }) => `${ goal.key }:${ pawn.progress }:${ goal.to }:${ goal.takes }`).join();
 
         if (said === marked)
@@ -1588,6 +1591,8 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
     const strip = () =>
     {
+        contact = null;
+        selected = null;
         clearDie();
         unmark();
         where = 'none';
@@ -1604,24 +1609,62 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         flying.clear();
     };
 
-    const under = (event: PointerEvent) =>
+    const under = (event: PointerEvent, targetOnly = false) =>
     {
         const box = host.getBoundingClientRect();
 
         return aimNear(
-            shown.pawns.map((pawn) => ({ key: pawn.key, ...placeFor(pawn), playable: movable.has(pawn.key) && !flying.has(pawn.key) })),
-            [...marks].map(([key, one]) => ({ key, col: one.col, row: one.row })),
+            targetOnly ? [] : shown.pawns.map((pawn) => ({ key: pawn.key, ...placeFor(pawn), playable: usable(pawn.key) })),
+            [...marks]
+                .filter(([key]) => targetOnly ? key === goalFor(selected ?? '')?.key : event.pointerType === 'mouse')
+                .map(([key, one]) => ({ key, col: one.col, row: one.row })),
             event.clientX - box.left,
             event.clientY - box.top,
             box.width
         );
     };
 
+    const press = (event: PointerEvent) =>
+    {
+        if (!primaryPress(event) || movable.size === 0 || contact !== null)
+        {
+            return;
+        }
+        const destination = event.pointerType !== 'mouse' && selected !== null && under(event, true) !== null;
+        const key = destination ? selected : under(event);
+
+        contact = { id: event.pointerId, key, destination, x: event.clientX, y: event.clientY };
+    };
+
     const pick = (event: PointerEvent) =>
     {
-        const key = under(event);
+        const held = contact;
+        if (held === null || held.id !== event.pointerId)
+        {
+            return;
+        }
+        contact = null;
 
-        if (key !== null)
+        if (crossedSlop(event, held))
+        {
+            return;
+        }
+        if (held.destination && held.key === selected && selected !== null && usable(selected) && under(event, true) !== null)
+        {
+            options.onPick?.(selected, false);
+            return;
+        }
+
+        const key = under(event);
+        if (key !== held.key || (key !== null && !usable(key)))
+        {
+            return;
+        }
+        if (event.pointerType !== 'mouse' && options.onPreview !== undefined)
+        {
+            options.onPreview(key === selected ? null : key);
+        }
+        else if (key !== null)
         {
             options.onPick?.(key, false);
         }
@@ -1629,10 +1672,21 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
     const hover = (event: PointerEvent) =>
     {
-        aimAt(hints && event.pointerType === 'mouse' ? under(event) : null);
+        if (contact?.id === event.pointerId && crossedSlop(event, contact))
+        {
+            contact = null;
+        }
+        aimAt(selected ?? (hints && event.pointerType === 'mouse' ? under(event) : null));
     };
 
-    const leave = () => aimAt(null);
+    const leave = (event: PointerEvent) =>
+    {
+        if (contact?.id === event.pointerId)
+        {
+            contact = null;
+        }
+        aimAt(selected);
+    };
 
     const keyAt = (target: EventTarget | null) => (target instanceof HTMLElement && target.classList.contains('lp-hit') ? target.parentElement?.dataset.key ?? null : null);
 
@@ -1715,6 +1769,8 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         }
     });
 
+    host.addEventListener('pointerdown', press);
+    host.addEventListener('pointercancel', leave);
     host.addEventListener('pointerup', pick);
     host.addEventListener('pointermove', hover);
     host.addEventListener('pointerleave', leave);
@@ -1842,8 +1898,13 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
             }
         },
 
-        lit(keys, visible, wanted)
+        lit(keys, visible, wanted, chosen = null)
         {
+            if (keys !== movable || wanted !== goals)
+            {
+                contact = null;
+            }
+            selected = chosen;
             movable = keys;
             hints = visible;
             goals = wanted;
@@ -1855,6 +1916,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
             }
 
             mark();
+            aimAt(selected);
         },
 
         async advance(key, to)
@@ -1920,6 +1982,8 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
         dispose()
         {
+            host.removeEventListener('pointerdown', press);
+            host.removeEventListener('pointercancel', leave);
             host.removeEventListener('pointerup', pick);
             host.removeEventListener('pointermove', hover);
             host.removeEventListener('pointerleave', leave);

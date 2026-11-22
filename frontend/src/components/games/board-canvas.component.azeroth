@@ -3,10 +3,20 @@ import { useLocale } from '../../stores/locale.store.ts';
 import { useOverlay } from '../../stores/overlay.store.ts';
 import { CELL, FRAME_ROUND, MARGIN } from '../../game/layout.ts';
 import { FINISHED } from '../../game/board/path.ts';
-import type { BoardHandle, BoardOptions, BoardToken } from '../../game/bridge.ts';
+import { placeOf } from '../../game/ludo-felt.ts';
+import type { BoardGoal, BoardHandle, BoardOptions, BoardToken } from '../../game/bridge.ts';
 import { sceneFor } from '../../game/scenes.ts';
 
-export default component BoardCanvas(props: { game: string; tokens: readonly BoardToken[]; rig: Omit<BoardOptions, 'host' | 'plate'>; onTable: (table: BoardHandle | null) => void })
+export default component BoardCanvas(props: {
+    game: string;
+    rev: number;
+    tokens: readonly BoardToken[];
+    active: boolean;
+    selected: string | null;
+    goalForPawn: (key: string) => BoardGoal | undefined;
+    rig: Omit<BoardOptions, 'host' | 'plate'>;
+    onTable: (table: BoardHandle | null) => void;
+})
 {
     const device = useDevice();
     const locale = useLocale();
@@ -16,6 +26,39 @@ export default component BoardCanvas(props: { game: string; tokens: readonly Boa
     let handle: BoardHandle | null = null;
 
     state failed = false;
+
+    derived landing = (() =>
+    {
+        const key = props.selected;
+        if (!failed || !props.active || key === null)
+        {
+            return null;
+        }
+
+        const pawn = props.tokens.find((token) => token.key === key && token.playable);
+        const goal = props.goalForPawn(key);
+
+        if (pawn === undefined || goal === undefined)
+        {
+            return null;
+        }
+
+        const home = props.tokens.filter((token) => token.colour === pawn.colour && token.at === FINISHED).length;
+
+        return { key, label: goal.says, ...placeOf(pawn.colour, goal.to, 0, home) };
+    })();
+
+    const byKeyboard = (event: KeyboardEvent) =>
+    {
+        if (event.key === 'Enter' || event.key === ' ')
+        {
+            event.preventDefault();
+            if (!event.repeat)
+            {
+                (event.currentTarget as HTMLElement).click();
+            }
+        }
+    };
 
     mount
     {
@@ -112,14 +155,47 @@ export default component BoardCanvas(props: { game: string; tokens: readonly Boa
 
         <Show when={ failed }>
             { () =>
-                <For each={ [...props.tokens] } key={ (token) => token.key } let={ token }>
+                <For each={ [...props.tokens] } key={ (token) => `${ props.rev }:${ token.key }` } let={ token }>
                     <span
                         class="board-token absolute inset-s-0 inset-bs-0 inline-[calc(var(--cell)*0.80)] block-[calc(var(--cell)*0.80)] [translate:calc(var(--rim)_+_var(--at-col)_*_var(--cell)_+_var(--cell)_*_0.10)_calc(var(--rim)_+_var(--at-row)_*_var(--cell)_+_var(--cell)_*_0.10)] z-[calc(var(--at-row)*10)] origin-[50%_62.5%] [transition:translate_var(--duration-ui,180ms)_var(--ease-ui,ease)] motion-reduce:[transition:none] data-home:[scale:0.62]"
-                        aria-hidden="true"
+                        role={ props.active && token.playable ? 'button' : undefined }
+                        tabindex={ props.active && token.playable ? 0 : undefined }
+                        aria-hidden={ props.active && token.playable ? undefined : 'true' }
+                        aria-label={ props.active && token.playable ? props.goalForPawn(token.key)?.says : undefined }
+                        aria-pressed={ props.active && token.playable ? props.selected === token.key : undefined }
+                        data-key={ token.key }
+                        onKeyDown={ byKeyboard }
+                        onClick={ () =>
+                        {
+                            if (props.active && token.playable)
+                            {
+                                props.rig.onPreview?.(props.selected === token.key ? null : token.key);
+                            }
+                        } }
                         data-home={ token.at === FINISHED ? 'true' : undefined }
                         style={ `--at-col:${ token.col }; --at-row:${ token.row }; --pawn: url('/board/pawn-${ token.colour }.svg'); --tone: var(--ludo-${ token.colour })` }
                     ></span>
                 </For>
+            }
+        </Show>
+
+        <Show when={ landing !== null }>
+            { () =>
+                <span
+                    class="board-landing"
+                    role="button"
+                    tabindex="0"
+                    aria-label={ landing!.label }
+                    style={ `--at-col:${ landing!.col }; --at-row:${ landing!.row }` }
+                    onKeyDown={ byKeyboard }
+                    onClick={ (event) =>
+                    {
+                        if (landing !== null)
+                        {
+                            props.rig.onPick?.(landing.key, event.detail === 0);
+                        }
+                    } }
+                ></span>
             }
         </Show>
     </div>

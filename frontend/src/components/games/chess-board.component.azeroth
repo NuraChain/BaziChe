@@ -11,6 +11,7 @@ import { coachOf } from '../../game/helpers/chess.ts';
 import { useDevice } from '../../stores/device.store.ts';
 import { useReview } from '../../stores/review.store.ts';
 import { useSettings } from '../../stores/settings.store.ts';
+import { crossedSlop, primaryPress } from '../../game/pointer.ts';
 import { haptic } from '../../lib/haptics.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -18,7 +19,7 @@ import { usePeople } from '../../stores/people.store.ts';
 import { legalMoves, type Move } from '../../../../backend/src/domains/match/chess/moves.ts';
 import { EMPTY, colourOf, kindOf, nameOf as squareName, type Colour, type Kind, type Position, type Promotion } from '../../../../backend/src/domains/match/chess/board.ts';
 import { sanOf } from '../../../../backend/src/domains/match/chess/san.ts';
-import { feltOf, leadOf, step, takenBy, type Felt, type Told } from '../../game/chess-felt.ts';
+import { feltOf, leadOf, takenBy, type Told } from '../../game/chess-felt.ts';
 import { replayOf, type Replayed } from '../../game/chess-replay.ts';
 import { costOf, createChessTable, type ChessFacts, type ChessTable, type Lay } from '../../game/board/chess-table.ts';
 import { SIZE, boxOf, cellOf, placeOf, squareAt, type Foot } from '../../game/chess-layout.ts';
@@ -46,14 +47,11 @@ interface Asking
     to: number;
 }
 
-interface Pressed
-{
-    at: string;
-    told: Told;
-}
-
 interface Drag
 {
+    revision: string;
+    source: boolean;
+    moved: boolean;
     id: number;
     square: number;
     x: number;
@@ -81,10 +79,6 @@ const TRAY_ORDER: readonly Kind[] = ['q', 'r', 'b', 'n', 'p'];
 
 const WALKS: Record<string, number | undefined> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
 
-const SLOP = 10;
-
-const MOUSE_SLOP = 4;
-
 const FINGER = 60;
 
 const CLAIM_SLACK = 150;
@@ -92,15 +86,6 @@ const CLAIM_SLACK = 150;
 const CLAIM_AGAIN = 1000;
 
 const CLAIMS_MOST = 4;
-
-/** How many of the answer's moves the reader's own move already showed: a decline it made, and the move itself. */
-const covered = (moves: readonly Told[], mine: Told) =>
-{
-    const first = moves[0]?.e === 'decline' ? 1 : 0;
-    const move = moves[first];
-
-    return move?.e === 'move' && move.from === mine.from && move.to === mine.to && move.promotion === mine.promotion ? first + 1 : null;
-};
 
 const toldOf = (move: Move, seat: number, legal: readonly Move[]): Told => ({
     e: 'move',
@@ -115,8 +100,6 @@ const toldOf = (move: Move, seat: number, legal: readonly Move[]): Told => ({
     san: sanOf(move, legal)
 });
 
-const clampTo = (point: { x: number; y: number }) => ({ x: Math.min(Math.max(point.x, 0), SIZE - 1), y: Math.min(Math.max(point.y, 0), SIZE - 1) });
-
 export default component ChessBoard(props: { match: MatchView; events: EventBatch; stake?: Staked; speech?: Record<string, string>; turnMs?: number; onPresenting?: (busy: boolean) => void; onResult?: (id: string) => void })
 {
     const locale = useLocale();
@@ -130,7 +113,9 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
 
     state asking: Asking | null = null;
 
-    state pressed: Pressed | null = null;
+    state denied: Picked | null = null;
+
+    state touchSelection = false;
 
     state facts: ChessFacts | null = null;
 
@@ -172,7 +157,7 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
 
     derived myTurn = live && colour !== null && view !== null && view.turn === colour;
 
-    derived waiting = pressed !== null && pressed.at === at;
+    derived waiting = board.busy();
 
     derived legal = myTurn && !waiting && position !== null ? legalMoves(position) : [];
 
@@ -202,7 +187,9 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
 
     derived hints = settings.settings().hintMoves;
 
-    derived aimed = hints ? reach : NOWHERE;
+    derived aimed = hints || touchSelection ? reach : NOWHERE;
+
+    derived refused = denied?.at === at ? denied.square : null;
 
     derived promoting = asking !== null && asking.at === at ? asking : null;
 
@@ -293,14 +280,11 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
             return { id: game.id, rev: game.rev, seat: mine ?? null, view: { ...feltOf({ board: back.position.board, turn: back.position.turn, ...moved }), foot, mated: null } };
         }
 
-        const felt: Felt = feltOf(view);
-        const ahead = pressed !== null && pressed.at === at ? step(felt, pressed.told) : felt;
-
         return {
             id: game.id,
             rev: game.rev,
             seat: mine ?? null,
-            view: { ...ahead, foot, mated: view.over?.reason === 'checkmate' ? view.turn : null }
+            view: { ...feltOf(view), foot, mated: view.over?.reason === 'checkmate' ? view.turn : null }
         };
     };
 
@@ -605,39 +589,26 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
 
     const send = async (move: Move) =>
     {
-        const seat = untrack(() => mine);
-        const rev = untrack(() => game.rev);
-        const key = untrack(() => at);
-
-        if (seat === undefined || untrack(board.busy))
+        if (!untrack(() => myTurn) || untrack(board.busy))
         {
             return;
         }
 
-        const told = toldOf(move, seat, untrack(() => legal));
+        const key = untrack(() => at);
 
         picked = null;
         asking = null;
-        pressed = { at: key, told };
+        denied = null;
         haptic('tick');
-        presenter?.predict({ rev, covers: (moves) => covered(moves, told) });
-        presenter?.act(async (ctx) =>
-        {
-            if (table !== null && !(await table.advance(told)))
-            {
-                await mend(ctx);
-            }
-        }, costOf(told));
 
         const outcome = await board.play({ kind: 'chess', verb: 'move', from: move.from, to: move.to, ...(move.promotion === undefined ? {} : { promotion: move.promotion }) });
 
-        if (outcome === 'stale' || outcome === 'failed')
+        if ((outcome === 'stale' || outcome === 'failed') && untrack(() => at) === key)
         {
-            pressed = null;
+            table?.release(false);
+            denied = { at: key, square: move.to };
             sound?.play('deny', { gain: 0.5 });
             haptic('deny');
-            presenter?.predict(null);
-            presenter?.act((ctx) => mend(ctx));
         }
     };
 
@@ -674,8 +645,36 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
         }
     };
 
+    let promotionButton: HTMLButtonElement | null = null;
+
+    // A touch that opens the chooser can dispatch its compatibility click over a newly mounted button.
+    const pressPromotion = (event: PointerEvent) =>
+    {
+        promotionButton = primaryPress(event) && event.target instanceof HTMLButtonElement ? event.target : null;
+    };
+
+    const answerPromotion = (event: MouseEvent, choice: Promotion | null) =>
+    {
+        const confirmed = event.detail === 0 || promotionButton === event.currentTarget;
+
+        promotionButton = null;
+
+        if (confirmed)
+        {
+            if (choice === null)
+            {
+                cancelPromotion();
+            }
+            else
+            {
+                promote(choice);
+            }
+        }
+    };
+
     const cancelPromotion = () =>
     {
+        promotionButton = null;
         asking = null;
         picked = null;
     };
@@ -704,7 +703,12 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
             return;
         }
 
-        picked = null;
+        if (current !== null)
+        {
+            denied = { at: untrack(() => at), square };
+            sound?.play('deny', { gain: 0.5 });
+            haptic('deny');
+        }
     };
 
     const boardAt = (event: PointerEvent) =>
@@ -723,29 +727,49 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
 
     const squareOf = (point: { x: number; y: number }) => squareAt(point.x, point.y, untrack(() => foot));
 
-    const press = (event: PointerEvent) =>
+    const cancelDrag = () =>
     {
-        byKey = false;
-
-        if (event.button > 0 || (drag !== null && !event.isPrimary) || untrack(() => chooser))
+        if (drag?.carried)
         {
-            return;
+            table?.release(false);
         }
 
         drag = null;
         carrying = false;
+    };
 
-        const square = squareOf(boardAt(event));
-
-        if (square === null || untrack(board.busy) || !untrack(() => movable).has(square))
+    const press = (event: PointerEvent) =>
+    {
+        if (!primaryPress(event) || drag !== null || untrack(() => chooser || !myTurn || waiting))
         {
             return;
         }
 
+        const square = squareOf(boardAt(event));
+
+        if (square === null)
+        {
+            picked = null;
+            denied = null;
+            return;
+        }
+
+        byKey = false;
+        touchSelection = event.pointerType !== 'mouse';
+        denied = null;
+        const source = untrack(() => movable).has(square);
         const was = untrack(() => chosen) === square;
 
-        picked = { at: untrack(() => at), square };
-        drag = { id: event.pointerId, square, x: event.clientX, y: event.clientY, carried: false, was };
+        if (source)
+        {
+            picked = { at: untrack(() => at), square };
+            if (!was)
+            {
+                haptic('select');
+            }
+        }
+
+        drag = { revision: untrack(() => at), source, moved: false, id: event.pointerId, square, x: event.clientX, y: event.clientY, carried: false, was };
         (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     };
 
@@ -756,11 +780,17 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
             return;
         }
 
+        if (drag.revision !== untrack(() => at))
+        {
+            cancelDrag();
+            return;
+        }
+
+        drag.moved ||= crossedSlop(event, drag);
+
         if (!drag.carried)
         {
-            const slop = event.pointerType === 'mouse' ? MOUSE_SLOP : SLOP;
-
-            if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < slop || table?.grab(drag.square) !== true)
+            if (!drag.source || !drag.moved || table?.grab(drag.square) !== true)
             {
                 return;
             }
@@ -773,74 +803,81 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
         const hand = handAt(event);
 
         table?.drag(hand.x, hand.y);
-        table?.hover(squareOf(clampTo(hand)));
+        table?.hover(squareOf(boardAt(event)));
     };
 
     const lift = (event: PointerEvent) =>
     {
         const held = drag;
 
-        if (event.button > 0 || (held !== null && held.id !== event.pointerId))
+        if (held === null || held.id !== event.pointerId)
         {
             return;
         }
+
+        if (held.revision !== untrack(() => at) || untrack(() => waiting || !myTurn))
+        {
+            cancelDrag();
+            return;
+        }
+
+        const square = squareOf(boardAt(event));
 
         drag = null;
         carrying = false;
 
-        if (held === null)
-        {
-            choose(squareOf(boardAt(event)));
-
-            return;
-        }
-
         if (!held.carried)
         {
-            if (held.was && squareOf(boardAt(event)) === held.square)
+            if (!held.moved && !crossedSlop(event, held) && square === held.square)
             {
-                picked = null;
+                if (!held.source)
+                {
+                    choose(square);
+                }
+                else if (held.was)
+                {
+                    picked = null;
+                }
             }
-
             return;
         }
 
-        const square = squareOf(clampTo(handAt(event)));
-        const reached = square !== null && square !== held.square && untrack(() => reach).has(square);
-
-        if (!reached)
+        if (square !== null && untrack(() => reach).has(square))
         {
-            table?.release(square !== null && square !== held.square);
-
+            if (go(held.square, square) && untrack(() => chooser))
+            {
+                table?.release(false);
+            }
             return;
         }
 
-        const ways = untrack(() => legal).filter((move) => move.from === held.square && move.to === square);
-
-        if (ways.length > 1)
+        table?.release(square !== null && square !== held.square);
+        if (square !== null && square !== held.square)
         {
-            table?.release(false);
-            asking = { at: untrack(() => at), from: held.square, to: square };
-
-            return;
+            denied = { at: held.revision, square };
         }
-
-        void send(ways[0]);
     };
 
     const quit = (event: PointerEvent) =>
     {
-        if (drag !== null && drag.id === event.pointerId)
+        if (drag?.id === event.pointerId)
         {
-            if (drag.carried)
-            {
-                table?.release(false);
-            }
-
-            drag = null;
-            carrying = false;
+            cancelDrag();
+            picked = null;
         }
     };
+
+    effect
+    {
+        const key = at;
+        untrack(() =>
+        {
+            if (drag !== null && drag.revision !== key)
+            {
+                cancelDrag();
+            }
+        });
+    }
 
     const answer = async (verb: 'accept' | 'decline') =>
     {
@@ -934,6 +971,8 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
         const square = Number(key.slice(3));
 
         byKey = true;
+        touchSelection = false;
+        denied = null;
 
         if (untrack(() => chosen) === square)
         {
@@ -1103,6 +1142,11 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
         return locale.t('match.turn.theirs', { name: nameOf(view.turn === 'w' ? whiteSeat : 1 - whiteSeat) });
     })();
 
+    derived touchStatus = chooser ? locale.t('chess.promote.title')
+        : refused !== null ? locale.t('match.refused.illegal-move')
+        : chosen !== null ? locale.t('helpers.chess.touch.place', { square: squareName(chosen) })
+        : myTurn && !inCheck && !waiting ? locale.t('helpers.chess.touch.pick') : turnSaid;
+
     <div data-rev={ props.match.rev } data-presenting={ presenting ? 'true' : undefined } style={ dress } class="table-stage chess-stage" ref={ (element) => root = element }>
         <div class="table-grid chess-grid">
             <Show when={ ready }>
@@ -1117,13 +1161,14 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
                                     onPointerMove={ carry }
                                     onPointerUp={ lift }
                                     onPointerCancel={ quit }
+                                    onLostPointerCapture={ quit }
                                 >
                                     <div class="chess-layer" aria-hidden="true" ref={ (element) => layer = element }></div>
                                 </div>
 
                                 <Show when={ mine !== undefined }>
                                     { () =>
-                                        <div class="chess-cursor" role="group" aria-label={ locale.t('chess.board') } ref={ (element) => cursor = element } onKeyDown={ onKey } onFocusIn={ onFocus } onClick={ onClick }>
+                                        <div class="chess-cursor" data-sources={ device.coarse() && hints && chosen === null ? 'true' : undefined } role="group" aria-label={ locale.t('chess.board') } ref={ (element) => cursor = element } onKeyDown={ onKey } onFocusIn={ onFocus } onClick={ onClick }>
                                             <For each={ stops } key={ (stop) => stop.key } let={ stop }>
                                                 <span class="chess-stop" role="button" tabindex={ stop.key === roving ? 0 : -1 } aria-label={ stop.says } data-stop={ stop.key } style={ stop.place }></span>
                                             </For>
@@ -1131,12 +1176,16 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
                                     }
                                 </Show>
 
+                                <Show when={ refused !== null }>
+                                    { () => <span aria-hidden="true" class="chess-refused" style={ placeOf(refused!, foot) }></span> }
+                                </Show>
+
                                 <Show when={ chooser }>
                                     { () =>
-                                        <div class="chess-promote" role="group" aria-label={ locale.t('chess.promote.title') } onKeyDown={ onAskKey }>
-                                            <button type="button" class="chess-promote-veil" tabindex="-1" aria-label={ locale.t('common.cancel') } onClick={ cancelPromotion }></button>
+                                        <div class="chess-promote" role="group" aria-label={ locale.t('chess.promote.title') } data-touch={ device.coarse() || touchSelection ? 'true' : undefined } onPointerDown={ pressPromotion } onPointerCancel={ () => promotionButton = null } onKeyDown={ onAskKey }>
+                                            <button type="button" class="chess-promote-veil" tabindex="-1" aria-label={ locale.t('common.cancel') } onClick={ (event) => answerPromotion(event, null) }></button>
                                             <For each={ promotions } key={ (one) => one.promotion } let={ one }>
-                                                <button type="button" class="chess-promote-piece" data-piece={ one.name } style={ one.place } aria-label={ locale.t(`chess.promote.${ one.promotion }` as never) } onClick={ () => promote(one.promotion) }></button>
+                                                <button type="button" class="chess-promote-piece" data-piece={ one.name } style={ device.coarse() || touchSelection ? undefined : one.place } aria-label={ locale.t(`chess.promote.${ one.promotion }` as never) } onClick={ (event) => answerPromotion(event, one.promotion) }></button>
                                             </For>
                                         </div>
                                     }
@@ -1198,6 +1247,11 @@ export default component ChessBoard(props: { match: MatchView; events: EventBatc
                     <section class="table-bar chess-bar">
                         <p class="sr-only" aria-live="polite">{ says }</p>
                         <p class="sr-only">{ turnSaid }</p>
+                        <Show when={ device.coarse() && mine !== undefined }>
+                            { () =>
+                                <p class="board-touch-status" role="status">{ touchStatus }</p>
+                            }
+                        </Show>
                     </section>
                 }
             </Show>

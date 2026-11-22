@@ -59,6 +59,8 @@ export interface BoardOptions
     /** What a seat's player chose for this table as the game began, asked as their things are drawn. */
     looks?: (seat: number) => MatchPlayer['look'];
 
+    onPreview?: (key: string | null) => void;
+
     onPick?: (key: string, keyed: boolean) => void;
 
     onFacts?: (facts: Facts) => void;
@@ -71,7 +73,7 @@ export interface BoardHandle extends Table<Felt, Told>
     /** Plays each seat's entrance in its look, as a game opens in front of this browser. */
     enter(): void;
 
-    lit(keys: ReadonlySet<string>, hints: boolean, goals: readonly BoardGoal[]): void;
+    lit(keys: ReadonlySet<string>, hints: boolean, goals: readonly BoardGoal[], selected?: string | null): void;
 
     advance(key: string, to: number): Promise<boolean>;
 

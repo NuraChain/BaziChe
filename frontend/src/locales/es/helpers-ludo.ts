@@ -2,6 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersLudo as reference } from '../en/helpers-ludo.ts';
 
 export const helpersLudo: Pick<Dictionary, keyof typeof reference> = {
+    'helpers.ludo.touch.land': 'Toca la casilla de destino marcada.',
+    'helpers.ludo.touch.pick': 'Toca una ficha para ver su movimiento.',
     'helpers.ludo.tip.yard': 'No tienes ninguna ficha en el recorrido: solo un seis saca una de la base.',
     'helpers.ludo.tip.six': 'Un seis: después de esta jugada vuelves a tirar.',
     'helpers.ludo.tip.threeSixes': 'Tres seises seguidos terminan el turno, y el tercero no se juega.',

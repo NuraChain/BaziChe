@@ -20,9 +20,10 @@ export default component CoachLine(props: { tip: Tip | null; class?: string; lam
     <Show when={ lit }>
         { () =>
             <p
-                class={ [ 'coach-line flex cursor-pointer items-start gap-2 coarse:min-h-11 rounded-tile border border-line bg-raised/60 px-3 py-2 text-ui-xs text-muted', props.class ?? '' ].filter(Boolean).join(' ') }
-                role="note"
+                role="button"
                 tabindex="0"
+                class={ [ 'coach-line flex cursor-pointer items-start gap-2 coarse:min-h-11 rounded-tile border border-line bg-raised/60 px-3 py-2 text-start text-ui-xs text-muted focus-visible:outline-2 focus-visible:outline-accent', props.class ?? '' ].filter(Boolean).join(' ') }
+                aria-expanded={ open }
                 data-open={ open ? 'true' : undefined }
                 data-lamp={ props.lamp === true ? 'true' : undefined }
                 onClick={ toggle }

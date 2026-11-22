@@ -1,4 +1,6 @@
 export const helpersBackgammon = {
+    'backgammon.hand.select': 'Choose a checker',
+    'backgammon.hand.to': 'Tap a marked destination',
     'helpers.backgammon.bar': 'A checker on the bar comes back in first. Nothing else moves until it has entered.',
     'helpers.backgammon.doubles': 'A double plays four times: four moves of {die}.',
     'helpers.backgammon.both': 'Both dice have to be played when they can be, so a move that would leave the other die nowhere to go is not offered.',

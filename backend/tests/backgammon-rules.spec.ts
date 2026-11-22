@@ -478,7 +478,27 @@ describe('staging a turn one hop at a time, which is how the board lets somebody
     {
         const closed = sideFrom({ me: { 25: 1, 6: 14 }, them: { 19: 2, 20: 2, 21: 2, 22: 2, 23: 2, 24: 2 } });
 
-        expect(stage(closed, [3, 5], [])).toEqual({ at: closed, next: [], done: true });
+        expect(stage(closed, [3, 5], [])).toEqual({ at: closed, left: [3, 5], next: [], done: true });
+    });
+
+    it('shows the smaller die left when the forced higher die bears off the last checker', () =>
+    {
+        const side = sideFrom({ me: { 0: 14, 3: 1 }, them: { 6: 15 } });
+        const hops = [{ from: 3, to: OFF }];
+
+        expect(settle(side, [4, 6], hops)?.played[0].die).toBe(6);
+        expect(stage(side, [4, 6], hops)?.left).toEqual([4]);
+    });
+
+    it('keeps both dice available when either could pay for the first bear-off', () =>
+    {
+        const side = sideFrom({ me: { 0: 13, 3: 2 }, them: { 6: 15 } });
+        const hop = { from: 3, to: OFF };
+        const partial = stage(side, [4, 6], [hop]);
+
+        expect(partial?.left).toBeNull();
+        expect(partial?.next).toEqual([hop]);
+        expect(stage(side, [4, 6], [hop, hop])?.left).toEqual([]);
     });
 });
 

@@ -2,6 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersChess as reference } from '../en/helpers-chess.ts';
 
 export const helpersChess: Pick<Dictionary, keyof typeof reference> = {
+    'helpers.chess.touch.place': '{square} · یکی از خانه‌های مشخص‌شده را لمس کن.',
+    'helpers.chess.touch.pick': 'برای دیدن حرکت‌ها، یک مهره را لمس کن.',
     'helpers.chess.tip.first': 'ساعتت از اولین حرکتت راه می‌افته. تا ۳۰ ثانیه حرکت کن، وگرنه بازی لغو می‌شه و واسه هیچ‌کس حساب نمی‌شه.',
     'helpers.chess.tip.waitFirst': 'اگه حریف تا ۳۰ ثانیه اولین حرکتش رو نکنه، بازی لغو می‌شه و واسه هیچ‌کس حساب نمی‌شه.',
     'helpers.chess.tip.check': 'کیش شدی: یا شاهت رو جابه‌جا کن، یا یه مهره بذار سر راه، یا مهره‌ای که کیش داده رو بزن.',

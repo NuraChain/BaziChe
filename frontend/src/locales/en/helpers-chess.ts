@@ -1,4 +1,6 @@
 export const helpersChess = {
+    'helpers.chess.touch.place': '{square} · Tap a marked square.',
+    'helpers.chess.touch.pick': 'Tap a piece to see its moves.',
     'helpers.chess.tip.first': 'Your clock starts after your first move. Make it within 30 seconds, or the game is called off and counts for nobody.',
     'helpers.chess.tip.waitFirst': 'If the other player makes no first move within 30 seconds, the game is called off and counts for nobody.',
     'helpers.chess.tip.check': 'You are in check: move your king, put a piece in the way, or take the piece that gives it.',

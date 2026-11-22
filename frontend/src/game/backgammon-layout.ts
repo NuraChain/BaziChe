@@ -75,25 +75,26 @@ export function stackAt(row: Row, index: number, base: number = row === 'top' ? 
     return row === 'top' ? base + offset : base - offset;
 }
 
-export function pointAt(x: number, y: number): number | 'bar' | 'tray' | null
+/** The decorative rim belongs to the column next to it. A release beyond the board never does. */
+export function inputSpotAt(x: number, y: number): number | null
 {
-    if (x >= TRAY_LEFT && x <= TRAY_LEFT + TRAY)
-    {
-        return 'tray';
-    }
-
-    if (x >= BAR_LEFT && x < BAR_LEFT + BAR_WIDTH)
-    {
-        return 'bar';
-    }
-
-    if (x < FIELD_LEFT || x >= FIELD_RIGHT || y < TOP || y > BOTTOM)
+    if (!(x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT))
     {
         return null;
     }
 
+    if (x >= (FIELD_RIGHT + TRAY_LEFT) / 2)
+    {
+        return 0;
+    }
+
+    if (x >= BAR_LEFT && x < BAR_LEFT + BAR_WIDTH)
+    {
+        return 25;
+    }
+
     const right = x >= BAR_LEFT + BAR_WIDTH;
-    const slot = Math.floor((x - (right ? BAR_LEFT + BAR_WIDTH : FIELD_LEFT)) / POINT_WIDTH);
+    const slot = Math.max(0, Math.min(5, Math.floor((x - (right ? BAR_LEFT + BAR_WIDTH : FIELD_LEFT)) / POINT_WIDTH)));
     const top = y < MIDDLE;
 
     if (top)

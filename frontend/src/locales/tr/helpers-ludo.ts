@@ -2,6 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersLudo as reference } from '../en/helpers-ludo.ts';
 
 export const helpersLudo: Pick<Dictionary, keyof typeof reference> = {
+    'helpers.ludo.touch.land': 'İşaretli hedef kareye dokun.',
+    'helpers.ludo.touch.pick': 'Hamleyi görmek için bir taşa dokun.',
     'helpers.ludo.tip.yard': 'Yolda hiç piyonun yok: piyonu evden yalnızca altı çıkarır.',
     'helpers.ludo.tip.six': 'Altı geldi: bu hamleden sonra bir daha atarsın.',
     'helpers.ludo.tip.threeSixes': 'Üst üste üç altı sırayı bitirir, üçüncüsü oynanmaz.',

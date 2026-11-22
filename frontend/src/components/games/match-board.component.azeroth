@@ -24,7 +24,7 @@ import { heardAt } from '../../game/looks/table.ts';
 import { createSound, endCue, type SoundHandle } from '../../game/sound.ts';
 import { createPresenter, type Sight, type Table } from '../../game/stage/presenter.ts';
 import { createStage } from '../../game/stage/stage.ts';
-import { coachOf, goalsOf, movedTo, pieceFor } from '../../game/helpers/ludo.ts';
+import { coachOf, goalsOf, pieceFor } from '../../game/helpers/ludo.ts';
 import type { Tip } from '../../game/helpers/tip.ts';
 import { haptic } from '../../lib/haptics.ts';
 import { runtime } from '../../lib/runtime.ts';
@@ -32,8 +32,6 @@ import { TOKENS_PER_PLAYER } from '../../../../backend/src/domains/match/ludo/bo
 import { partnerOf, variantOf } from '../../../../backend/src/domains/match/sides.ts';
 
 const STAGE = `--cell-cq: ${ (CELL * 100).toFixed(4) }cqi; --margin-cq: ${ (MARGIN * 100).toFixed(4) }cqi; border-radius: ${ (FRAME_ROUND * 100).toFixed(3) }%`;
-
-const PRESS_MS = 400;
 
 const HURRY_MS = 8000;
 
@@ -111,7 +109,7 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
             : locale.t('match.turn.helpingTheirs', { name: nameOf, partner: owner });
     })();
 
-    state ahead: { id: string; rev: number; board: NonNullable<ReturnType<typeof movedTo>> } | null = null;
+    state preview: { id: string; rev: number; key: string } | null = null;
 
     state facts: Facts | null = null;
 
@@ -129,9 +127,7 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
 
     state handed = false;
 
-    derived drawn = ahead !== null && ahead.id === game.id && ahead.rev === game.rev ? ahead.board : ludo;
-
-    derived tokens = seatsFor(drawn, mine);
+    derived tokens = seatsFor(ludo, mine === game.turn && !over ? mine : undefined);
 
     derived movable = new Set(tokens.filter((token) => token.playable).map((token) => token.key));
 
@@ -153,7 +149,7 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
         return locale.plural(goal.takes > 0 ? 'match.token.move.takes' : 'match.token.move', squares, vars);
     };
 
-    derived goals = movable.size === 0 ? NO_GOALS : goalsOf(drawn).map((goal) => ({ key: keyOf(drawn.controls, goal.piece), to: goal.to, takes: goal.takes, says: tokenSays(goal) }));
+    derived goals = movable.size === 0 ? NO_GOALS : goalsOf(ludo).map((goal) => ({ key: keyOf(ludo.controls, goal.piece), to: goal.to, takes: goal.takes, says: tokenSays(goal) }));
 
     derived result = over && !presenting;
 
@@ -162,6 +158,22 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
     derived hurried = game.remainingMs !== undefined && game.remainingMs < HURRY_MS;
 
     derived landed = hurried || shownRev >= game.rev;
+
+    derived chosen = preview !== null && preview.id === game.id && preview.rev === game.rev && yours && landed && movable.has(preview.key) ? preview.key : null;
+
+    const goalForPawn = (key: string) =>
+    {
+        const piece = pieceFor(ludo, Number(key.split('-')[1]));
+
+        return piece === null ? undefined : goals.find((goal) => goal.key === keyOf(ludo.controls, piece));
+    };
+
+    derived chosenGoal = chosen === null ? undefined : goalForPawn(chosen);
+
+    derived showTouchStatus = !over && mine !== undefined && (device.coarse() || !rigged || chosen !== null);
+
+    derived touchStatus = chosenGoal !== undefined ? locale.t('helpers.ludo.touch.land')
+        : passed || (yours && landed && goals.length > 0 ? locale.t('helpers.ludo.touch.pick') : said);
 
     derived homeAt = (seat: number, told: number) => facts?.home[seat] ?? told;
 
@@ -245,7 +257,7 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
 
     const stage = createStage({ clock: runtime().clock, quiet: () => device.reducedMotion(), report });
 
-    const sightNow = (): Sight<Felt> => ({ id: game.id, rev: game.rev, seat: mine ?? null, view: feltOf(drawn, game.turn, winners) });
+    const sightNow = (): Sight<Felt> => ({ id: game.id, rev: game.rev, seat: mine ?? null, view: feltOf(ludo, game.turn, winners) });
 
     const proxy: Table<Felt, Told> = {
         kind: 'ludo',
@@ -313,7 +325,7 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
         }
 
         made.offer(untrack(offering));
-        made.lit(untrack(() => (landed ? movable : NOTHING)), untrack(() => help.hintMoves), untrack(() => goals));
+        made.lit(untrack(() => (landed ? movable : NOTHING)), untrack(() => help.hintMoves), untrack(() => goals), untrack(() => chosen));
     };
 
     effect
@@ -332,13 +344,15 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
 
     effect
     {
-        const keys = landed ? movable : NOTHING;
+        const keys = landed && !board.busy() ? movable : NOTHING;
+        const selected = chosen;
+        void game.rev;
         const marks = goals;
         const hints = help.hintMoves;
 
         untrack(() =>
         {
-            table?.lit(keys, hints, marks);
+            table?.lit(keys, hints, marks, selected);
 
             if (keyed && keys.size > 0 && inReach())
             {
@@ -440,6 +454,18 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
         };
     }
 
+    const previewPawn = (key: string | null) =>
+    {
+        if (key === null || !untrack(() => yours && landed) || !untrack(() => movable).has(key) || untrack(board.busy))
+        {
+            preview = null;
+            return;
+        }
+
+        preview = { key, id: untrack(() => game.id), rev: untrack(() => game.rev) };
+        haptic('select');
+    };
+
     const pick = async (key: string) =>
     {
         const [seat, piece] = key.split('-').map(Number);
@@ -448,7 +474,7 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
         const moving = reader !== undefined && reader === untrack(() => game.turn) && seat === held.controls;
         const legal = moving ? pieceFor(held, piece) : null;
 
-        if (legal === null || !board.moves().includes(legal))
+        if (legal === null || !untrack(() => landed) || untrack(board.busy) || !board.moves().includes(legal))
         {
             return;
         }
@@ -458,40 +484,8 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
             table?.swap(key, keyOf(seat, legal));
         }
 
-        await moveNow(legal);
-    };
-
-    const moveNow = async (piece: number) =>
-    {
-        const seat = untrack(() => mine);
-        const current = untrack(() => ludo);
-        const id = untrack(() => game.id);
-        const rev = untrack(() => game.rev);
-        const next = seat === undefined || untrack(board.busy) ? null : movedTo(current, piece);
-
-        if (next !== null)
-        {
-            const to = next.seats.find((one) => one.seat === current.controls)?.tokens.find((token) => token.piece === piece)?.at;
-            const key = keyOf(current.controls, piece);
-
-            ahead = { id, rev, board: next };
-
-            if (to !== undefined)
-            {
-                presenter.act(async () =>
-                {
-                    await table?.advance(key, to);
-                }, PRESS_MS);
-            }
-        }
-
-        const outcome = await board.move(piece);
-
-        if (outcome === 'stale' || outcome === 'failed')
-        {
-            ahead = null;
-            presenter.act((ctx) => table?.settle(untrack(sightNow), ctx));
-        }
+        preview = null;
+        await board.move(legal);
     };
 
     const rollBy = (event: MouseEvent) =>
@@ -529,6 +523,7 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
             }
         },
         looks: (seat) => untrack(() => game.players.find((player) => player.seat === seat)?.look),
+        onPreview: previewPawn,
         onPick: (key, byKey) =>
         {
             keyed = byKey;
@@ -572,7 +567,16 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
                     </For>
 
                     <div class="board-stage table-surface isolate @container [box-shadow:0_26px_40px_-20px_rgb(0_0_0/0.85),0_3px_8px_rgb(0_0_0/0.45)] [grid-area:board]" style={ STAGE } ref={ (element) => boardNode = element }>
-                        <BoardCanvas game={ game.game } tokens={ tokens } rig={ gear } onTable={ attach } />
+                        <BoardCanvas
+                            game={ game.game }
+                            rev={ game.rev }
+                            tokens={ tokens }
+                            active={ yours && landed && !board.busy() }
+                            selected={ chosen }
+                            goalForPawn={ goalForPawn }
+                            rig={ gear }
+                            onTable={ attach }
+                        />
 
                         <Show when={ board.canRoll() }>
                             { () =>
@@ -606,6 +610,11 @@ export default component MatchBoard(props: { match: MatchView; events: EventBatc
                 { () =>
                     <section class="table-bar ludo-bar">
                         <p class="sr-only" aria-live="polite">{ passed === '' ? said : passed }</p>
+                        <Show when={ showTouchStatus }>
+                            { () =>
+                                <p class="board-touch-status" role="status">{ touchStatus }</p>
+                            }
+                        </Show>
                     </section>
                 }
             </Show>

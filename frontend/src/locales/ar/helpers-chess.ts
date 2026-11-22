@@ -2,6 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersChess as reference } from '../en/helpers-chess.ts';
 
 export const helpersChess: Pick<Dictionary, keyof typeof reference> = {
+    'helpers.chess.touch.place': '{square} · المس مربعًا محددًا.',
+    'helpers.chess.touch.pick': 'المس قطعة لرؤية نقلاتها.',
     'helpers.chess.tip.first': 'تبدأ ساعتك بعد حركتك الأولى. العبها خلال 30 ثانية، وإلا أُلغيت اللعبة ولم تُحسب لأحد.',
     'helpers.chess.tip.waitFirst': 'إن لم يلعب الخصم حركته الأولى خلال 30 ثانية، تُلغى اللعبة ولا تُحسب لأحد.',
     'helpers.chess.tip.check': 'ملكك في كش: حرّك الملك، أو ضع قطعة في الطريق، أو خذ القطعة التي تهدده.',

@@ -2,6 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersBackgammon as reference } from '../en/helpers-backgammon.ts';
 
 export const helpersBackgammon: Pick<Dictionary, keyof typeof reference> = {
+    'backgammon.hand.select': '选择棋子',
+    'backgammon.hand.to': '点按标出的落点',
     'helpers.backgammon.bar': '被打到中间栏的棋子要先回到棋盘上。它进场之前，其他棋子都不能走。',
     'helpers.backgammon.doubles': '掷出对子要走四次：每次走 {die} 点，共四步。',
     'helpers.backgammon.both': '两个骰子能用时都必须用，所以会让另一个骰子无路可走的走法不会出现。',

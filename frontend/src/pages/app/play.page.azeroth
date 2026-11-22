@@ -1054,7 +1054,6 @@ export default component PlayPage()
                                     game={ shown.game as GameId }
                                     animals={ playing === 'chess' }
                                     target={ arena }
-                                    upright={ playing === 'ludo' }
                                     onChat={ floating ? undefined : openChat }
                                     onResign={ resigning ? () => void resign() : undefined }
                                     onLeave={ seated && showing ? () => void leave(board.match()) : undefined }

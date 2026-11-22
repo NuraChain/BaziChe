@@ -256,6 +256,8 @@ export function settle(side: Side, roll: readonly number[], hops: readonly Hop[]
 export interface Staged
 {
     at: Side;
+    /** Unspent dice, or null when either face can still pay for a partial bearing-off turn. */
+    left: number[] | null;
     next: Hop[];
     done: boolean;
 }
@@ -267,7 +269,8 @@ export function stage(side: Side, roll: readonly number[], staged: readonly Hop[
     const need = deepest(side, dice, memo);
     const only = forcedDie(side, roll, need);
     const next = new Map<string, Hop>();
-    const reached: { at: Side | null } = { at: null };
+    const reached: { first: { at: Side; left: number[] } | null } = { first: null };
+    let ambiguous = false;
 
     if (staged.length > need)
     {
@@ -278,7 +281,8 @@ export function stage(side: Side, roll: readonly number[], staged: readonly Hop[
     {
         if (index === staged.length)
         {
-            reached.at ??= at;
+            reached.first ??= { at, left };
+            ambiguous ||= index < need && left.some((die, index) => die !== reached.first!.left[index]);
 
             for (const die of faces(left))
             {
@@ -322,5 +326,5 @@ export function stage(side: Side, roll: readonly number[], staged: readonly Hop[
 
     walk(side, dice, 0);
 
-    return reached.at === null ? null : { at: reached.at, next: [...next.values()], done: staged.length === need };
+    return reached.first === null ? null : { at: reached.first.at, left: ambiguous ? null : reached.first.left, next: [...next.values()], done: staged.length === need };
 }

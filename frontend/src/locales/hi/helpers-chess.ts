@@ -2,6 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersChess as reference } from '../en/helpers-chess.ts';
 
 export const helpersChess: Pick<Dictionary, keyof typeof reference> = {
+    'helpers.chess.touch.place': '{square} · चिह्नित खाना छुएँ।',
+    'helpers.chess.touch.pick': 'संभव चालें देखने के लिए किसी मोहरे पर टैप करें।',
     'helpers.chess.tip.first': 'तुम्हारी घड़ी पहली चाल के बाद शुरू होती है। 30 सेकंड के अंदर चाल चलो, वरना गेम रद्द हो जाएगा और किसी के लिए नहीं गिना जाएगा।',
     'helpers.chess.tip.waitFirst': 'अगर सामने वाला 30 सेकंड में पहली चाल नहीं चलता, तो गेम रद्द हो जाएगा और किसी के लिए नहीं गिना जाएगा।',
     'helpers.chess.tip.check': 'तुम्हें शह है: राजा को हटाओ, बीच में कोई मोहरा रखो, या शह देने वाले मोहरे को मार दो।',

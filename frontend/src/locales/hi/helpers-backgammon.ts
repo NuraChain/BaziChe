@@ -2,6 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersBackgammon as reference } from '../en/helpers-backgammon.ts';
 
 export const helpersBackgammon: Pick<Dictionary, keyof typeof reference> = {
+    'backgammon.hand.select': 'एक गोटी चुनें',
+    'backgammon.hand.to': 'चिह्नित मंज़िल पर टैप करें',
     'helpers.backgammon.bar': 'बार पर पड़ी गोटी पहले वापस आती है। जब तक वह अंदर न आ जाए, कुछ और नहीं चलता।',
     'helpers.backgammon.doubles': 'जोड़ी चार बार खेली जाती है: {die} की चार चालें।',
     'helpers.backgammon.both': 'जब हो सके दोनों पासे खेलने होते हैं, इसलिए ऐसी चाल नहीं दी जाती जिससे दूसरे पासे के लिए कोई जगह न बचे।',

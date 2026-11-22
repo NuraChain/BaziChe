@@ -2,6 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersLudo as reference } from '../en/helpers-ludo.ts';
 
 export const helpersLudo: Pick<Dictionary, keyof typeof reference> = {
+    'helpers.ludo.touch.land': 'Коснитесь отмеченной клетки назначения.',
+    'helpers.ludo.touch.pick': 'Коснитесь фишки, чтобы увидеть её ход.',
     'helpers.ludo.tip.yard': 'На дорожке нет ни одной фишки: вывести фишку из загона можно только шестёркой.',
     'helpers.ludo.tip.six': 'Шестёрка: после этого хода бросаешь ещё раз.',
     'helpers.ludo.tip.threeSixes': 'Три шестёрки подряд заканчивают ход, и третья не играется.',

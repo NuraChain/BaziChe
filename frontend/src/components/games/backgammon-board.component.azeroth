@@ -22,7 +22,7 @@ import { createBackgammonTable, HOP_MS, type BackgammonTable, type Facts, type I
 import { feltOf, seedOf, type Felt, type Told } from '../../game/backgammon-felt.ts';
 import { heardAt, wornOf } from '../../game/looks/table.ts';
 import { createSound, type SoundHandle } from '../../game/sound.ts';
-import { clamp } from '../../game/stage/curves.ts';
+import { primaryPress, crossedSlop } from '../../game/pointer.ts';
 import type { Ctx } from '../../game/stage/director.ts';
 import { createPresenter, type Presenter, type Sight } from '../../game/stage/presenter.ts';
 import { createStage } from '../../game/stage/stage.ts';
@@ -40,7 +40,7 @@ import {
     WIDTH,
     cubeY,
     patchOf,
-    pointAt,
+    inputSpotAt,
     type Patch
 } from '../../game/backgammon-layout.ts';
 import type { MatchView } from '../../api.ts';
@@ -87,7 +87,9 @@ interface Rolled
 
 interface Drag
 {
+    at: string;
     id: number;
+    moved: boolean;
     spot: number;
     x: number;
     y: number;
@@ -100,11 +102,7 @@ const NOWHERE: ReadonlyMap<number, Hop[]> = new Map();
 
 const FINGER = RADIUS * 2.2;
 
-const SLOP = 10;
-
 const HURRY_MS = 8000;
-
-const MOUSE_SLOP = 4;
 
 const POINTS = Array.from({ length: 24 }, (_, index) => index + 1);
 
@@ -127,6 +125,10 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
     state carrying = false;
 
     state rigged = false;
+
+    state touchPicked = false;
+
+    state refusedAt = '';
 
     state rolled: Rolled = { seed: -1, faces: '', landed: true };
 
@@ -234,13 +236,17 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
 
     derived far = plan?.at.them ?? rowOf(1 - viewer);
 
-    derived sources = new Set(chosen === null && hints ? (plan?.next ?? []).map((hop) => hop.from) : []);
+    derived thumb = device.coarse() || touchPicked;
+
+    derived origins = [...new Set((plan?.next ?? []).map((hop) => hop.from))];
+
+    derived sources = new Set(chosen === null && hints ? origins : []);
 
     derived reach = plan === null || chosen === null
         ? NOWHERE
         : reachOf({ me: [...rowOf(viewer)], them: [...rowOf(1 - viewer)] }, view!.dice, hops, chosen);
 
-    derived targets = hints ? [...reach.keys()] : [];
+    derived targets = hints || thumb ? [...reach.keys()] : [];
 
     derived lights = new Set<number>(chosen === null ? [...sources] : [...sources, chosen]);
 
@@ -250,35 +256,25 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
 
     derived dice = view === null || view.dice.length < 2 ? [] : diceOf(view.dice);
 
+    derived eitherDie = plan?.left === null ? locale.list(dice.map((face) => locale.n(face)), { type: 'disjunction' }) : '';
+
     derived spent = (() =>
     {
-        const left = [...dice];
+        const left = [...(plan?.left ?? dice)];
         const used = dice.map(() => false);
 
-        for (const hop of hops)
+        // Match identical dice from the end so the first copy dims after the first hop.
+        for (let index = dice.length - 1; index >= 0; index -= 1)
         {
-            const distance = hop.from - hop.to;
-            let found = left.indexOf(distance);
+            const slot = left.indexOf(dice[index]);
 
-            if (found < 0 && hop.to === 0)
+            if (slot === -1)
             {
-                const bigger = left.filter((face) => face > distance).sort((a, b) => a - b)[0];
-
-                found = bigger === undefined ? -1 : left.indexOf(bigger);
+                used[index] = true;
             }
-
-            if (found >= 0)
+            else
             {
-                const face = left[found];
-
-                left.splice(found, 1);
-
-                const slot = dice.findIndex((one, index) => one === face && !used[index]);
-
-                if (slot >= 0)
-                {
-                    used[slot] = true;
-                }
+                left.splice(slot, 1);
             }
         }
 
@@ -425,7 +421,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
             }
 
             const ways = (plan?.next ?? []).filter((hop) => hop.from === spot);
-            const only = spot !== last?.to && new Set(ways.map((hop) => hop.to)).size === 1 ? ways[0] : null;
+            const only = !thumb && spot !== last?.to && new Set(ways.map((hop) => hop.to)).size === 1 ? ways[0] : null;
 
             if (only === null)
             {
@@ -495,7 +491,11 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
             : [...reach.keys(), chosen, ...(home === null ? [] : [home])];
 
         return [
-            ...[...new Set(spots)].sort((one, two) => two - one).map((spot) => ({ key: `at-${ spot }`, says: sayAt(spot), place: placed(patchOf(spot)) })),
+            ...[...new Set(spots)].sort((one, two) => two - one).map((spot) => ({
+                key: `at-${ spot }`,
+                says: sayAt(spot),
+                place: placed(patchOf(spot))
+            })),
             ...(whole ? [{ key: 'dice', says: locale.t('backgammon.stop.play'), place: DICE_PLACE }] : [])
         ];
     })();
@@ -714,8 +714,23 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
             rigged = true;
         }
 
+        const outside = (event: PointerEvent) =>
+        {
+            if (event.isPrimary && !(event.target instanceof Element && root?.contains(event.target) &&
+                event.target.closest('.bg-board')))
+            {
+                lose();
+                picked = null;
+                refusedAt = '';
+                men?.hold(null);
+            }
+        };
+
+        document.addEventListener('pointerdown', outside, true);
         return () =>
         {
+            document.removeEventListener('pointerdown', outside, true);
+            lose();
             unwatch();
             props.onPresenting?.(false);
             presenter?.dispose();
@@ -772,11 +787,12 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
     {
         const last = hops[hops.length - 1];
 
-        if (last === undefined)
+        if (last === undefined || board.busy())
         {
             return;
         }
 
+        refusedAt = '';
         const next = hops.slice(0, -1);
         const earlier = view === null ? null : stage({ me: [...rowOf(viewer)], them: [...rowOf(1 - viewer)] }, view.dice, next);
         const hit = earlier === null ? false : hits(outcomeOf(earlier.at, last));
@@ -808,31 +824,11 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
         return event.pointerType === 'touch' ? { x: at.x, y: at.y - FINGER } : at;
     };
 
-    const spotOf = (at: { x: number; y: number }) =>
+    const spotOf = (event: PointerEvent) =>
     {
-        const found = pointAt(at.x, at.y);
+        const { x, y } = boardAt(event);
 
-        if (found === null)
-        {
-            return null;
-        }
-
-        return found === 'bar' ? 25 : (found === 'tray' ? 0 : found);
-    };
-
-    const onTable = (at: { x: number; y: number }) =>
-        at.x >= -RADIUS && at.x <= WIDTH + RADIUS && at.y >= -RADIUS && at.y <= HEIGHT + RADIUS;
-
-    const dropAt = (event: PointerEvent) =>
-    {
-        const hand = handAt(event);
-
-        if (!onTable(hand) && !onTable(boardAt(event)))
-        {
-            return null;
-        }
-
-        return spotOf({ x: clamp(hand.x, RADIUS, WIDTH - RADIUS), y: clamp(hand.y, RADIUS, HEIGHT - RADIUS) });
+        return inputSpotAt(x, y);
     };
 
     const go = (spot: number) =>
@@ -856,7 +852,14 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
         return false;
     };
 
-    const choose = (spot: number | null) =>
+    const deny = () =>
+    {
+        refusedAt = at;
+        sound?.play('deny', { gain: 0.5 });
+        haptic('deny');
+    };
+
+    const choose = (spot: number | null, explicit = false) =>
     {
         const held = plan;
 
@@ -865,7 +868,9 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
             return null;
         }
 
-        if (spot === null)
+        refusedAt = '';
+
+        if (spot === null || spot === chosen)
         {
             picked = null;
 
@@ -900,12 +905,12 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
 
         if (leaving.length === 0)
         {
-            picked = null;
+            deny();
 
             return null;
         }
 
-        if (new Set(leaving.map((one) => one.to)).size === 1)
+        if (!explicit && new Set(leaving.map((one) => one.to)).size === 1)
         {
             add(leaving[0]);
 
@@ -913,6 +918,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
         }
 
         picked = { at, spot };
+        haptic('select');
 
         return null;
     };
@@ -921,8 +927,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
     {
         if (refused)
         {
-            sound?.play('deny', { gain: 0.5 });
-            haptic('deny');
+            deny();
         }
 
         picked = null;
@@ -942,42 +947,46 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
 
     const press = (event: PointerEvent) =>
     {
-        const spot = spotOf(boardAt(event));
+        if (!primaryPress(event) || drag !== null || plan === null || board.busy())
+        {
+            return;
+        }
+
+        const spot = spotOf(event);
+
+        if (spot === null)
+        {
+            return;
+        }
 
         byKey = false;
+        touchPicked = event.pointerType !== 'mouse';
+        refusedAt = '';
+        drag = { at, id: event.pointerId, spot, x: event.clientX, y: event.clientY, moved: false, carried: false };
+        (event.currentTarget as SVGSVGElement).setPointerCapture(event.pointerId);
 
-        if (event.button > 0 || (drag !== null && !event.isPrimary))
-        {
-            return;
-        }
-
-        lose();
-
-        if (spot === null || plan === null || board.busy())
-        {
-            return;
-        }
-
-        if (spot === last?.to || plan.next.some((hop) => hop.from === spot))
+        if (origins.includes(spot) || spot === taken)
         {
             men?.hold(spot);
-            drag = { id: event.pointerId, spot, x: event.clientX, y: event.clientY, carried: false };
-            (event.currentTarget as SVGSVGElement).setPointerCapture(event.pointerId);
         }
     };
 
     const carry = (event: PointerEvent) =>
     {
-        if (drag === null || drag.id !== event.pointerId)
+        if (drag === null || drag.id !== event.pointerId || drag.at !== at)
         {
             return;
         }
 
         if (!drag.carried)
         {
-            const slop = event.pointerType === 'mouse' ? MOUSE_SLOP : SLOP;
+            if (!crossedSlop(event, drag))
+            {
+                return;
+            }
 
-            if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < slop || men?.grab(drag.spot) !== true)
+            drag.moved = true;
+            if ((!origins.includes(drag.spot) && drag.spot !== taken) || men?.grab(drag.spot) !== true)
             {
                 return;
             }
@@ -997,7 +1006,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
     {
         const held = drag;
 
-        if (event.button > 0 || (held !== null && held.id !== event.pointerId))
+        if (held === null || held.id !== event.pointerId)
         {
             return;
         }
@@ -1005,22 +1014,26 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
         drag = null;
         carrying = false;
 
-        if (held === null || !held.carried)
+        if (held.at !== at || plan === null || board.busy())
         {
-            if (choose(spotOf(boardAt(event))) === null)
-            {
-                men?.hold(chosen);
-            }
+            men?.release();
+            men?.hold(chosen);
 
             return;
         }
 
-        const spot = dropAt(event);
-        const elsewhere = spot !== null && spot !== held.spot;
+        const spot = spotOf(event);
 
-        if (chosen !== held.spot || board.busy() || !elsewhere || !go(spot))
+        if (!held.carried)
         {
-            putBack(elsewhere);
+            if (!held.moved && !crossedSlop(event, held) && spot === held.spot)
+            {
+                choose(spot, event.pointerType !== 'mouse');
+            }
+        }
+        else if (spot === null || spot === held.spot || chosen !== held.spot || !go(spot))
+        {
+            putBack(spot !== null && spot !== held.spot);
         }
 
         men?.hold(chosen);
@@ -1031,13 +1044,22 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
         if (drag !== null && drag.id === event.pointerId)
         {
             lose();
-        }
-
-        if (drag === null)
-        {
             men?.hold(chosen);
         }
     };
+
+    effect
+    {
+        const revision = at;
+
+        untrack(() =>
+        {
+            if (drag !== null && drag.at !== revision)
+            {
+                lose();
+            }
+        });
+    }
 
     const roll = async () =>
     {
@@ -1111,7 +1133,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
         {
             const spot = Number(key.slice(3));
 
-            if (choose(spot === chosen ? null : spot) === null)
+            if (choose(spot, thumb) === null)
             {
                 men?.hold(chosen);
             }
@@ -1309,7 +1331,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
                                         onPointerMove={ carry }
                                         onPointerUp={ tap }
                                         onPointerCancel={ quit }
-                                        onPointerLeave={ quit }
+                                        onLostPointerCapture={ quit }
                                     >
                                         <image href="/board/backgammon-table.svg" width={ WIDTH } height={ HEIGHT } />
                                         <rect
@@ -1330,7 +1352,14 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
                                         { () =>
                                             <div class="bg-cursor" role="group" aria-label={ locale.t('backgammon.board') } ref={ (element) => cursor = element } onKeyDown={ onKey } onFocusIn={ onFocus } onClick={ onClick }>
                                                 <For each={ stops } key={ (stop) => stop.key } let={ stop }>
-                                                    <span class="bg-stop" role="button" tabindex={ stop.key === roving ? 0 : -1 } aria-label={ stop.says } data-stop={ stop.key } style={ stop.place }></span>
+                                                    <span
+                                                        class="bg-stop"
+                                                        role="button"
+                                                        tabindex={ stop.key === roving ? 0 : -1 }
+                                                        aria-label={ stop.says }
+                                                        data-stop={ stop.key }
+                                                        style={ stop.place }
+                                                    ></span>
                                                 </For>
                                             </div>
                                         }
@@ -1429,8 +1458,13 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
 
             <Show when={ barOpen }>
                 { () =>
-                    <section class="table-bar bg-bar">
-                        <p class="sr-only" aria-live="polite">{ passed === '' ? says : passed }</p>
+                    <section class="table-bar bg-bar" data-visible={ thumb && mine !== undefined ? 'true' : undefined } dir={ locale.dir() }>
+                        <p aria-live="polite" data-refused={ refusedAt === at ? 'true' : undefined }>
+                            { !thumb || !staging || asked ? (passed || says) : refusedAt === at ? locale.t('match.refused.illegal-move')
+                                : whole ? locale.t('backgammon.turn.confirm')
+                                : chosen === null ? locale.t('backgammon.hand.select') : locale.t('backgammon.hand.to') }
+                            { eitherDie === '' ? '' : ` · ${ eitherDie }` }
+                        </p>
 
                         <p class="sr-only">
                             <span class="block">{ locale.t('backgammon.match', { target: locale.n(view!.target), round: locale.n(facts?.round ?? view!.round) }) }</span>

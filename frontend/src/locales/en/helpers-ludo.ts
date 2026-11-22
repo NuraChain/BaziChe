@@ -1,4 +1,6 @@
 export const helpersLudo = {
+    'helpers.ludo.touch.land': 'Tap the marked landing square.',
+    'helpers.ludo.touch.pick': 'Tap a token to preview its move.',
     'helpers.ludo.tip.yard': 'No token is on the track: only a six brings one out of the yard.',
     'helpers.ludo.tip.six': 'A six: after this move you roll again.',
     'helpers.ludo.tip.threeSixes': 'Three sixes in a row end the turn, and the third one is not played.',

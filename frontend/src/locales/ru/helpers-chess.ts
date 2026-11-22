@@ -2,6 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersChess as reference } from '../en/helpers-chess.ts';
 
 export const helpersChess: Pick<Dictionary, keyof typeof reference> = {
+    'helpers.chess.touch.place': '{square} · Коснитесь отмеченной клетки.',
+    'helpers.chess.touch.pick': 'Коснитесь фигуры, чтобы увидеть её ходы.',
     'helpers.chess.tip.first': 'Твои часы пойдут после первого хода. Сделай его за 30 секунд, иначе партия отменится и никому не засчитается.',
     'helpers.chess.tip.waitFirst': 'Если соперник не сделает первый ход за 30 секунд, партия отменится и никому не засчитается.',
     'helpers.chess.tip.check': 'Тебе шах: уведи короля, закройся фигурой или возьми фигуру, которая объявила шах.',

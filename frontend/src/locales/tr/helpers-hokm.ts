@@ -2,6 +2,7 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersHokm as reference } from '../en/helpers-hokm.ts';
 
 export const helpersHokm: Pick<Dictionary, keyof typeof reference> = {
+    'helpers.hokm.tapAgain': 'Oynamak için kaldırılan karta tekrar dokun.',
     'helpers.hokm.lead': 'Eli açar.',
     'helpers.hokm.lead.trump': 'Kozla açar: elinde koz olan herkes koz oynamak zorunda.',
     'helpers.hokm.ahead': 'Şimdilik eli alıyor.',

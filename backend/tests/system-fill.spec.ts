@@ -260,6 +260,14 @@ describe('when system players stand up', () =>
         expect(standUps(ON, { ...board, now: finished + Math.max(one, two) }).map((stood) => stood.why)).toEqual(['after', 'after']);
     });
 
+    it('releases a player stranded at a partial table after its last seat change', () =>
+    {
+        const chairs = (since: number) => [person(0, 'ann', NOW - 120_000), bot(1, 'a', since), empty(2), empty(3)];
+        expect(standUps(ON, boardOf(chairs(NOW - STALL_MS + 1)))).toEqual([]);
+        expect(standUps(ON, boardOf(chairs(NOW - STALL_MS)))).toEqual([{ user: 'a', why: 'stalled' }]);
+        expect(standUps(ON, boardOf(chairs(NOW - STALL_MS), { live: true }))).toEqual([]);
+    });
+
     it('keeps a system player seated after the game was over', () =>
     {
         const board = boardOf([person(0, 'ann'), bot(1, 'a', NOW - 1_000), empty(2)], { started: NOW - 200_000, finished: NOW - 60_000 });

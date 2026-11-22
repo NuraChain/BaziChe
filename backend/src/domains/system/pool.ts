@@ -12,6 +12,9 @@ export interface Wanted
     /** The people at the table: a system player one of them blocks, or who is blocked by one, is not taken. */
     seated: readonly string[];
 
+    /** Chairs open to system players at this table, including the one being claimed. */
+    chairs: number;
+
     /** System players who sat at this table lately: not taken, so none stands up and sits straight back down. */
     lately: readonly string[];
 
@@ -45,17 +48,23 @@ export const systemUserOf = (name: SystemName) => ({
 
 export const styleOf = (random: () => number) => Math.min(STYLE_MOST, Math.floor(random() * (STYLE_MOST + 1)));
 
+// A finished table keeps its chairs for its result and history. Only an open table owns a
+// system player. Use the same definition before and after obtaining the pool row lock.
+const seatedNow = (user: string) => `exists (
+    select 1 from table_seats s
+    join tables t on t.id = s.table_id and t.status = 'open'
+    where s.user_id = ${ user })`;
+
 /**
- * Not retired, not seated anywhere, in no live match, and neither blocking nor blocked by anyone at
+ * Not retired, not seated at an open table, in no live match, and neither blocking nor blocked by anyone at
  * the table. `skip locked` so two fillers never take the same one; the row stays locked until the
  * caller's transaction ends, which is where it is seated.
  */
-const IDLE_SQL = `
-    select sp.user_id
+const IDLE_FROM = `
       from system_players sp
      where sp.retired_at is null
        and not (sp.user_id = any($2::uuid[]))
-       and not exists (select 1 from table_seats s where s.user_id = sp.user_id)
+       and not ${ seatedNow('sp.user_id') }
        and not exists (
                select 1 from match_players mp
                join matches m on m.id = mp.match_id
@@ -63,7 +72,10 @@ const IDLE_SQL = `
        and not exists (
                select 1 from blocks b
                where (b.user_id = sp.user_id and b.blocked_id = any($1::uuid[]))
-                  or (b.blocked_id = sp.user_id and b.user_id = any($1::uuid[])))
+                  or (b.blocked_id = sp.user_id and b.user_id = any($1::uuid[])))`;
+
+const IDLE_SQL = `
+    select sp.user_id ${ IDLE_FROM }
      order by random()
      limit 1
        for update of sp skip locked`;
@@ -74,7 +86,7 @@ const IDLE_SQL = `
  */
 const STILL_IDLE_SQL = `
     select 1 as idle
-     where not exists (select 1 from table_seats s where s.user_id = $1::uuid)
+     where not ${ seatedNow('$1::uuid') }
        and not exists (
                select 1 from match_players mp
                join matches m on m.id = mp.match_id
@@ -88,6 +100,22 @@ const STILL_IDLE_SQL = `
 export async function takeIdle(tx: EntityManager, wanted: Wanted): Promise<string | null>
 {
     const passed: string[] = [...wanted.lately];
+
+    // Serialize these decisions through the seating commit. If several tables each need
+    // three more players, spreading the last three across all of them starts no games.
+    await tx.query(`select pg_advisory_xact_lock(hashtext('system-players'), hashtext('make'))`);
+    if (wanted.chairs > 1)
+    {
+        const [pool] = rowsOf<{ available: number }>(await tx.query(
+            `select ((select count(*) ${ IDLE_FROM })
+                    + greatest(0, $3::int - (select count(*) from system_players where retired_at is null)))::int as available`,
+            [[...wanted.seated], passed, wanted.config.most]
+        ));
+        if (pool.available < wanted.chairs)
+        {
+            return null;
+        }
+    }
 
     for (let attempt = 0; attempt < TAKE_ATTEMPTS; attempt += 1)
     {
@@ -105,9 +133,6 @@ export async function takeIdle(tx: EntityManager, wanted: Wanted): Promise<strin
 
         passed.push(found.user_id);
     }
-
-    // One maker at a time, so two fillers both under the cap by one do not both make one.
-    await tx.query(`select pg_advisory_xact_lock(hashtext('system-players'), hashtext('make'))`);
 
     const [{ size }] = rowsOf<{ size: number }>(await tx.query('select count(*)::int as size from system_players where retired_at is null'));
 

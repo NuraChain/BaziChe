@@ -27,7 +27,7 @@ const FILL_MOST = 50;
 /** How many tables with a system player waiting are looked at in one pass. */
 const SEATED_MOST = 500;
 
-/** A table every chair of which is taken, that has not started this long after, lets its system players go. */
+/** An unstarted table that has gained no player for this long releases its system players. */
 export const STALL_MS = 60_000;
 
 /** After a game, each system player stands up somewhere in this window, its own moment for its own seat. */
@@ -215,11 +215,9 @@ export const standUps = (config: SystemConfig, board: Board): { user: string; wh
         return all('off');
     }
 
-    const filled = board.chairs.every((chair) => chair.user !== null)
-        ? Math.max(...board.chairs.map((chair) => chair.joined ?? 0))
-        : null;
+    const lastJoin = Math.max(...board.chairs.map((chair) => chair.joined ?? 0));
 
-    if (filled !== null && (board.started === null || board.started < filled) && board.now - filled >= STALL_MS)
+    if ((board.started === null || board.started < lastJoin) && board.now - lastJoin >= STALL_MS)
     {
         return all('stalled');
     }
@@ -275,7 +273,7 @@ const BOARDS_SQL = `
  * presence are asked by the caller.
  */
 const FILLABLE_SQL = `
-    select t.id, t.game
+    select t.id, t.game, w.since::text as since
       from tables t
       join quick_tables q on q.table_id = t.id and not q.humans_only
      cross join lateral (select max(m.finished_at) as last from matches m where m.table_id = t.id) f
@@ -295,7 +293,7 @@ const FILLABLE_SQL = `
        and exists (select 1 from table_seats s where s.table_id = t.id and s.user_id is null and s.invited_id is null)
        and w.since is not null
        and w.since <= now() - make_interval(secs => $1)
-     order by w.since, t.id
+     order by (w.since, t.id) <= ($5::timestamptz, $6::uuid), w.since, t.id
      limit $3`;
 
 /** Open tables with a system player sitting and no game running: the ones that may have to let it go. */
@@ -355,6 +353,9 @@ export function createSeatFiller(db: DataSource, agents: ReadonlySet<string>, ra
     const stoodAt = new Map<string, number>();
     const leftAt = new Map<string, Map<string, number>>();
     const aloneSince = new Map<string, number>();
+    // Resume after the last attempted table, including one rejected on presence or pool
+    // availability. Once the end is reached the SQL order wraps to the oldest waiter.
+    let cursor: { since: string; id: string } | null = null;
 
     const forget = (now: number) =>
     {
@@ -383,8 +384,14 @@ export function createSeatFiller(db: DataSource, agents: ReadonlySet<string>, ra
         }
     };
 
-    const configNow = async () =>
-        systemConfigOf(rowsOf<{ value: string }>(await db.query(`select value from settings where key = 'system-players'`))[0]?.value ?? null);
+    const configNow = async (tx?: EntityManager) =>
+    {
+        // A staff change can land between two tables in the same sweep. Hold the
+        // current setting through each seat/stand commit so the later change wins.
+        const sql = `select value from settings where key = 'system-players'${ tx === undefined ? '' : ' for share' }`;
+        const [row] = rowsOf<{ value: string }>(await (tx ?? db).query(sql));
+        return systemConfigOf(row?.value ?? null);
+    };
 
     const boardsOf = async (from: DataSource | EntityManager, ids: readonly string[]) =>
         ids.length === 0 ? [] : rowsOf<BoardRow>(await from.query(BOARDS_SQL, [ids])).map((row) => boardOf(row, {
@@ -404,7 +411,7 @@ export function createSeatFiller(db: DataSource, agents: ReadonlySet<string>, ra
     const threadOf = async (tx: EntityManager, tableId: string) =>
         rowsOf<{ id: string }>(await tx.query(`select c.id from conversations c where c.table_id = $1 and c.kind = 'game'`, [tableId]))[0]?.id ?? null;
 
-    const fillOne = async (config: SystemConfig, tableId: string, game: string, here: (userIds: readonly string[]) => ReadonlySet<string>) =>
+    const fillOne = async (tableId: string, game: string, here: (userIds: readonly string[]) => ReadonlySet<string>) =>
         await db.transaction(async (tx) =>
         {
             await tx.query(`select pg_advisory_xact_lock(hashtext('quick'), hashtext($1))`, [game]);
@@ -419,6 +426,7 @@ export function createSeatFiller(db: DataSource, agents: ReadonlySet<string>, ra
 
             const people = board.chairs.flatMap((chair) => isPerson(chair) ? [chair.user!] : []);
 
+            const config = await configNow(tx);
             if (!fillable(config, board, here(people)))
             {
                 return null;
@@ -432,7 +440,10 @@ export function createSeatFiller(db: DataSource, agents: ReadonlySet<string>, ra
             }
 
             const lately = await latelyAt(tx, tableId, board.now);
-            const userId = await takeIdle(tx, { config, seated: people, lately, random, skill: config.skill });
+            const userId = await takeIdle(tx, {
+                config, seated: people, lately, random, skill: config.skill,
+                chairs: board.chairs.filter(isFree).length
+            });
 
             if (userId === null || !await seatAt(tx, tableId, seat, userId))
             {
@@ -453,7 +464,7 @@ export function createSeatFiller(db: DataSource, agents: ReadonlySet<string>, ra
             return { userId, full: startsWith(board, seat), conversationId };
         });
 
-    const standAt = async (config: SystemConfig, tableId: string) =>
+    const standAt = async (tableId: string) =>
         await db.transaction(async (tx) =>
         {
             await lockTable(tx, tableId);
@@ -463,6 +474,7 @@ export function createSeatFiller(db: DataSource, agents: ReadonlySet<string>, ra
             const gone: string[] = [];
             let closed = false;
 
+            const config = await configNow(tx);
             for (const { user } of board === undefined ? [] : standUps(config, board))
             {
                 const stood = await standUp(tx, tableId, user);
@@ -532,7 +544,7 @@ export function createSeatFiller(db: DataSource, agents: ReadonlySet<string>, ra
                     continue;
                 }
 
-                const stood = await standAt(config, board.id).catch(failed(board.id));
+                const stood = await standAt(board.id).catch(failed(board.id));
 
                 if (stood === null || stood.gone.length === 0)
                 {
@@ -560,16 +572,19 @@ export function createSeatFiller(db: DataSource, agents: ReadonlySet<string>, ra
             }
 
             const off = Object.entries(config.games).flatMap(([game, on]) => on ? [] : [game]);
-            const waiting = rowsOf<{ id: string; game: string }>(await db.query(FILLABLE_SQL, [config.wait, off, FILL_MOST, [...agents]]));
+            const waiting = rowsOf<{ id: string; game: string; since: string }>(await db.query(FILLABLE_SQL, [
+                config.wait, off, FILL_MOST, [...agents], cursor?.since ?? null, cursor?.id ?? null
+            ]));
 
-            for (const { id, game } of waiting)
+            for (const { id, game, since } of waiting)
             {
                 if (clock() >= until)
                 {
                     break;
                 }
 
-                const sat = await fillOne(config, id, game, here).catch(failed(id));
+                cursor = { since, id };
+                const sat = await fillOne(id, game, here).catch(failed(id));
 
                 if (sat === null)
                 {

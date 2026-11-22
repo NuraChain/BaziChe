@@ -1666,6 +1666,22 @@ export function buildApi(ports: Ports)
                 return ports.table.quickStake(context.principal.userId, context.input.game, context.input.stake);
             }),
 
+            linked: routes.get('/:id/invite/:token', { output: tableSummary }, async (context) =>
+            {
+                const table = await ports.table.view(context.principal.userId, context.params.id, context.params.token);
+                if (table === null)
+                {
+                    throw new NotFoundError('No table there.');
+                }
+                return table;
+            }),
+
+            claimLinked: routes.post('/:id/invite/:token/seat', { output: seatResult }, async (context) =>
+            {
+                const { table, seat } = await ports.table.claim(context.principal.userId, context.params.id, context.params.token);
+                return seat === null ? { table } : { table, seat };
+            }),
+
             /** Resolves the short code somebody pasted into a chat. */
             byCode: routes.get('/code/:code', { output: tableSummary }, async (context) =>
             {

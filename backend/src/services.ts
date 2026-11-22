@@ -1011,6 +1011,10 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         {
             summary.closedBy = 'staff';
         }
+        if (row.link_token)
+        {
+            summary.linkToken = row.link_token;
+        }
         if (row.quick)
         {
             summary.quick = true;
@@ -1038,9 +1042,9 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
         return summary;
     };
 
-    const mustTable = async (me: string, tableId: string) =>
+    const mustTable = async (me: string, tableId: string, token?: string) =>
     {
-        const found = await table.byId(me, tableId);
+        const found = await table.byId(me, tableId, token);
         if (found === null)
         {
             throw new NotFoundError('No table there.');
@@ -5161,9 +5165,9 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 });
             },
 
-            async view(me, tableId)
+            async view(me, tableId, token)
             {
-                const found = await table.byId(me, tableId);
+                const found = await table.byId(me, tableId, token);
 
                 if (found !== null)
                 {
@@ -5227,17 +5231,17 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
                 return asTable(made);
             },
 
-            async claim(me, tableId)
+            async claim(me, tableId, token)
             {
-                const seen = await table.byId(me, tableId);
+                const seen = await table.byId(me, tableId, token);
 
                 if (seen !== null && seen.stake !== null && seen.mine === null)
                 {
                     await stakes.playerOf(me);
                 }
 
-                const seat = await table.claimSeat(me, tableId);
-                const after = await mustTable(me, tableId);
+                const seat = await table.claimSeat(me, tableId, token);
+                const after = await mustTable(me, tableId, seat === null ? token : undefined);
 
                 if (seat !== null)
                 {

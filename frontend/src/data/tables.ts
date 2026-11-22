@@ -1,3 +1,4 @@
+import type { TableLinkAudience } from '../../../backend/src/schemas.ts';
 import type { GameId } from './games.ts';
 import { SEATS } from './seats.ts';
 import { CLOCK_DEFAULT, type ClockId } from '../../../backend/src/domains/table/clocks.ts';
@@ -29,6 +30,7 @@ export interface TableConfig
     seats: number;
     mode: TableMode;
     privacy: TablePrivacy;
+    linkAudience?: TableLinkAudience;
     target: number;
     cube: boolean;
     blinds: Blinds;

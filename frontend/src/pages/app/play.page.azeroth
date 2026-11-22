@@ -146,7 +146,7 @@ export default component PlayPage()
 
         if (id !== '' && here.startsWith('/app/play/'))
         {
-            lobby.open(id);
+            lobby.open(id, params().token);
         }
     }
 
@@ -196,6 +196,14 @@ export default component PlayPage()
     }
 
     derived table = lobby.table();
+
+    effect
+    {
+        if (params().token !== undefined && table !== null && table.id === params().id && table.mine !== undefined)
+        {
+            navigate(`/app/play/${ table.id }`, { replace: true });
+        }
+    }
 
     derived loading = lobby.loading() && table === null;
 
@@ -875,7 +883,9 @@ export default component PlayPage()
         {
             return;
         }
-        await copyText(`${ window.location.origin }/app/play/${ table.id }`, 'play.lobby.copied');
+        const token = table.linkToken ?? params().token;
+        const path = `/app/play/${ table.id }${ token === undefined ? '' : `/invite/${ token }` }`;
+        await copyText(`${ window.location.origin }${ path }`, 'play.lobby.copied');
     };
 
     const sitDown = async () =>

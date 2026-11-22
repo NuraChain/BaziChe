@@ -52,6 +52,7 @@ export default component CreateGameForm(props: { game: Game; onCreated: (tableId
     state paired = defaults.teams;
     state mode = defaults.mode as TableMode;
     state privacy = defaults.privacy as TablePrivacy;
+    state linkAudience = 'friends' as 'friends' | 'everyone';
     state target = defaults.target;
     state cube = defaults.cube;
     state blinds = defaults.blinds as Blinds;
@@ -145,7 +146,7 @@ export default component CreateGameForm(props: { game: Game; onCreated: (tableId
 
     derived pointed = short || barred;
 
-    derived config = { game: props.game.id, seats, mode, privacy, target, cube: cubed, blinds, chat, voice, teams, ...(wager === null ? {} : { stake: wager }), ...(clocked && clock !== undefined ? { clock } : {}) } satisfies TableConfig;
+    derived config = { game: props.game.id, seats, mode, privacy, linkAudience, target, cube: cubed, blinds, chat, voice, teams, ...(wager === null ? {} : { stake: wager }), ...(clocked && clock !== undefined ? { clock } : {}) } satisfies TableConfig;
 
     derived tooMany = invitees.length > seats - 1;
 
@@ -322,6 +323,16 @@ export default component CreateGameForm(props: { game: Game; onCreated: (tableId
                 onChange={ (id) => privacy = id as TablePrivacy }
             />
             <p class="text-ui-xs text-faint">{ privacyHint }</p>
+        </fieldset>
+
+        <fieldset class="flex flex-col gap-2">
+            <legend class="label mb-2 text-ui-sm text-muted">{ locale.t('create.linkAudience') }</legend>
+            <Segmented block label={ locale.t('create.linkAudience') } value={ linkAudience }
+                items={ [
+                    { id: 'friends', label: locale.t('create.linkFriends'), icon: 'people' },
+                    { id: 'everyone', label: locale.t('create.linkEveryone'), icon: 'discover' }
+                ] }
+                onChange={ (id) => linkAudience = id === 'everyone' ? 'everyone' : 'friends' } />
         </fieldset>
 
         <Show when={ rules.targets.length > 0 }>

@@ -2635,6 +2635,9 @@ export const tablePrivacy = enumOf(['invite', 'room', 'friends', 'public']);
 
 export type TablePrivacy = Infer<typeof tablePrivacy>;
 
+export const tableLinkAudience = enumOf(['friends', 'everyone']);
+export type TableLinkAudience = Infer<typeof tableLinkAudience>;
+
 /** The three levels a table with blinds can be played at. A closed set, so it is an enum. */
 export const tableBlinds = enumOf(['low', 'mid', 'high']);
 
@@ -2732,6 +2735,7 @@ export const tableSummary = object({
     readyBy: string().optional(),
 
     quick: boolean().optional(),
+    linkToken: string().optional(),
 
     keptOut: array(string()).optional(),
 
@@ -2747,6 +2751,7 @@ export type TableSummary = Infer<typeof tableSummary>;
 export const tableList = object({ tables: array(tableSummary) });
 
 export const tableCreateInput = object({
+    linkAudience: tableLinkAudience.optional(),
     game: string({ max: 32 }),
     seats: number({ int: true, min: 2, max: 32 }),
     mode: tableMode,

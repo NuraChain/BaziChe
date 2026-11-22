@@ -94,6 +94,7 @@ import type {
     ServerInfo,
     SocialGraph,
     LeaderboardWindow,
+    TableLinkAudience,
     TablePrivacy,
     TableSummary,
     MatchPlay,
@@ -408,7 +409,7 @@ export interface TablePort
     /** The tables this account is sitting at. */
     mine(me: string): Promise<TableSummary[]>;
 
-    view(me: string, tableId: string): Promise<TableSummary | null>;
+    view(me: string, tableId: string, token?: string): Promise<TableSummary | null>;
     byCode(me: string, code: string): Promise<TableSummary | null>;
 
     /**
@@ -423,6 +424,7 @@ export interface TablePort
         seats: number;
         mode: 'live' | 'turns';
         privacy: TablePrivacy;
+        linkAudience?: TableLinkAudience;
         target: number;
         cube: boolean;
         blinds: string;
@@ -441,7 +443,7 @@ export interface TablePort
      * `seat` absent means the table filled up first - an answer, not an error, because two people
      * reaching for the last chair is ordinary rather than exceptional.
      */
-    claim(me: string, tableId: string): Promise<{ table: TableSummary; seat: number | null }>;
+    claim(me: string, tableId: string, token?: string): Promise<{ table: TableSummary; seat: number | null }>;
 
     leave(me: string, tableId: string, forfeit: boolean): Promise<void>;
     setReady(me: string, tableId: string, ready: boolean, signature?: string): Promise<TableSummary>;

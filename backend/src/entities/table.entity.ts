@@ -1,4 +1,5 @@
 import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import type { TableLinkAudience } from '../schemas.ts';
 import { Conversation } from './conversation.entity.ts';
 import { Game } from './game.entity.ts';
 import { Tournament } from './tournament.entity.ts';
@@ -35,6 +36,8 @@ export type TableStatus = 'open' | 'closed';
 @Check('tables_clock_known', `clock is null or clock in ('3+2', '5+0', '10+0', '15+10', '30+0')`)
 @Check('tables_clock_live', `clock is null or mode = 'live'`)
 @Check('tables_closed_has_at', `(status = 'closed') = (closed_at is not null)`)
+@Check('tables_link_audience_known', `link_audience is null or link_audience in ('friends', 'everyone')`)
+@Check('tables_link_token_paired', `(link_audience is null) = (link_token is null)`)
 @Check('tables_mode_known', `mode in ('live', 'turns')`)
 @Check('tables_privacy_known', `privacy in ('invite', 'room', 'friends', 'public')`)
 @Check('tables_room_is_private', `room_id is null or privacy = 'room'`)
@@ -66,6 +69,12 @@ export class Table
 
     @Column({ type: 'varchar', length: 16 })
     privacy!: TablePrivacy;
+
+    @Column({ name: 'link_audience', type: 'varchar', length: 12, nullable: true })
+    linkAudience!: TableLinkAudience | null;
+
+    @Column({ name: 'link_token', type: 'uuid', nullable: true })
+    linkToken!: string | null;
 
     @Column({ type: 'smallint', default: 0 })
     target!: number;

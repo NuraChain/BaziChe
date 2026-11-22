@@ -32,7 +32,7 @@ export interface LobbyApi
 
     waiting: Getter<TableSummary[]>;
 
-    open(tableId: string): void;
+    open(tableId: string, token?: string): void;
     close(): void;
     openId: Getter<string>;
 
@@ -93,6 +93,7 @@ export const useLobby = createStore((): LobbyApi =>
     const who = () => account.user()?.id ?? null;
 
     const [openId, setOpenId] = createSignal('');
+    const [invite, setInvite] = createSignal<string | undefined>(undefined);
 
     const [finding, setFinding] = createSignal<readonly GameId[]>([]);
 
@@ -176,7 +177,7 @@ export const useLobby = createStore((): LobbyApi =>
     const left = new Set<string>();
 
     const viewing = createResource(
-        () => (openId() === '' ? null : { id: openId(), who: who() }),
+        () => (openId() === '' ? null : { id: openId(), who: who(), token: invite() }),
         async (current) =>
         {
             if (left.has(current.id))
@@ -186,7 +187,8 @@ export const useLobby = createStore((): LobbyApi =>
 
             try
             {
-                return await client.tables.view({ params: { id: current.id } });
+                return current.token === undefined ? await client.tables.view({ params: { id: current.id } })
+                    : await client.tables.linked({ params: { id: current.id, token: current.token } });
             }
             catch (error)
             {
@@ -283,6 +285,7 @@ export const useLobby = createStore((): LobbyApi =>
         seats: number;
         mode: TableConfig['mode'];
         privacy: TableConfig['privacy'];
+        linkAudience?: TableConfig['linkAudience'];
         target: number;
         cube: boolean;
         blinds: TableConfig['blinds'];
@@ -314,6 +317,7 @@ export const useLobby = createStore((): LobbyApi =>
             voice: scopeFor(config.voice, teams),
             teams,
             invitees: [...invitees],
+            ...(config.linkAudience === undefined ? {} : { linkAudience: config.linkAudience }),
             ...(config.roomId === undefined ? {} : { roomId: config.roomId }),
             ...(config.stake === undefined ? {} : { stake: config.stake }),
             ...(config.clock === undefined ? {} : { clock: config.clock })
@@ -336,10 +340,11 @@ export const useLobby = createStore((): LobbyApi =>
 
         waiting: () => tablesNow().filter((table) => table.yourTurn === true),
 
-        open(tableId)
+        open(tableId, token)
         {
             const back = left.delete(tableId) && untrack(openId) === tableId;
 
+            setInvite(token);
             setOpenId(tableId);
             arriving.get(tableId)?.();
 
@@ -401,7 +406,9 @@ export const useLobby = createStore((): LobbyApi =>
 
         async claim(tableId)
         {
-            const claimed = await client.tables.claim({ params: { id: tableId } });
+            const token = openId() === tableId ? invite() : undefined;
+            const claimed = token === undefined ? await client.tables.claim({ params: { id: tableId } })
+                : await client.tables.claimLinked({ params: { id: tableId, token } });
             await revalidate();
             return claimed.seat ?? null;
         },

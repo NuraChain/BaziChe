@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { ConflictError, ForbiddenError, HttpError, NotFoundError, ValidationError } from '@azerothjs/http';
 import { IsNull, Not, type DataSource, type EntityManager } from 'typeorm';
 
@@ -8,7 +9,7 @@ import { GameRule } from '../../entities/game-rule.entity.ts';
 import { Match } from '../../entities/match.entity.ts';
 import { Table } from '../../entities/table.entity.ts';
 import type { TableMode } from '../../entities/table.entity.ts';
-import type { TablePrivacy, TableStatus } from '../../schemas.ts';
+import type { TableLinkAudience, TablePrivacy, TableStatus } from '../../schemas.ts';
 import { keyedQueue } from '../../lib/keyed-queue.ts';
 import { firstRow } from '../../lib/rows.ts';
 import { ConversationMember } from '../../entities/conversation-member.entity.ts';
@@ -118,6 +119,7 @@ export interface TableRow
     mine: number | null;
 
     is_host: boolean;
+    link_token: string | null;
     quick: boolean;
     conversation_id: string | null;
 
@@ -188,6 +190,9 @@ const tableQuery = (db: DataSource, me: string) => db.getRepository(Table)
     .addSelect('t.seats', 'seats')
     .addSelect('t.mode', 'mode')
     .addSelect('t.privacy', 'privacy')
+    // Only seated people can distribute the invitation. Other viewers of a public
+    // or friends table may know its ID and code without possessing the shared link.
+    .addSelect('case when exists (select 1 from table_seats s where s.table_id = t.id and s.user_id = :me) then t.link_token end', 'link_token')
     .addSelect('t.target', 'target')
     .addSelect('t.cube', 'cube')
     .addSelect('t.blinds', 'blinds')
@@ -330,6 +335,16 @@ const visibleTo = (viewer: string) => `(
                                          where cm.conversation_id = t.room_id and cm.user_id = ${ viewer }))
 )`;
 
+// A share URL authorizes this read or seat claim only. Raw IDs, codes and listings
+// continue to use visibleTo. Friendship, removal and blocks are evaluated at use.
+const linkAccess = `t.link_token = :token and t.status = 'open'
+    and t.room_id is null and t.tournament_id is null and t.host_id is not null
+    and (t.link_audience = 'everyone' or t.host_id = :me or exists (
+        select 1 from friendships f where f.user_id = :me and f.friend_id = t.host_id))
+    and not exists (select 1 from table_removals r where r.table_id = t.id and r.user_id = :me)
+    and not exists (select 1 from blocks b where
+        (b.user_id = :me and b.blocked_id = t.host_id) or (b.blocked_id = :me and b.user_id = t.host_id))`;
+
 /** Who may watch the game at table `t`: the table is open, they may see it, and neither they nor its host blocked the other. */
 const watchable = (viewer: string) => `t.status <> 'closed' and ${ visibleTo(viewer) }
      and not exists (select 1 from blocks b
@@ -435,6 +450,8 @@ interface Opening
     voice: VoiceScope;
     teams: boolean;
     roomId: string | null;
+    linkAudience?: TableLinkAudience;
+    linkToken?: string;
 }
 
 const openRow = async (tx: EntityManager, host: string, opening: Opening, guests: readonly string[], ready: boolean) =>
@@ -672,15 +689,15 @@ export function createTableService(db: DataSource, social: SocialService)
             .where('r.game_id = :game', { game })
             .getRawOne<RulesRow>() ?? null;
 
-    const one = async (me: string, tableId: string): Promise<TableRow | null> =>
+    const one = async (me: string, tableId: string, token?: string): Promise<TableRow | null> =>
     {
-        if (!UUID.test(tableId))
+        if (!UUID.test(tableId) || (token !== undefined && !UUID.test(token)))
         {
             return null;
         }
         return await tableQuery(db, me)
             .where('t.id = :tableId', { tableId })
-            .andWhere(visibleTo(':me'))
+            .andWhere(token === undefined ? visibleTo(':me') : linkAccess, { token })
             .getRawOne<TableRow>() ?? null;
     };
 
@@ -710,9 +727,9 @@ export function createTableService(db: DataSource, social: SocialService)
             .andWhere(visibleTo(':who'), { who })
             .getExists();
 
-    const mustSee = async (me: string, tableId: string) =>
+    const mustSee = async (me: string, tableId: string, token?: string) =>
     {
-        const table = await one(me, tableId);
+        const table = await one(me, tableId, token);
         if (table === null)
         {
             throw new NotFoundError('No table there.');
@@ -1021,6 +1038,7 @@ export function createTableService(db: DataSource, social: SocialService)
             voice: VoiceScope;
             teams: boolean;
             invitees: string[];
+            linkAudience?: TableLinkAudience;
             roomId?: string | null;
             stake?: string | null;
         })
@@ -1184,7 +1202,9 @@ export function createTableService(db: DataSource, social: SocialService)
                             chat: input.chat,
                             voice: input.voice,
                             teams,
-                            roomId
+                            roomId,
+                            ...(roomId === null && input.linkAudience !== undefined
+                                ? { linkAudience: input.linkAudience, linkToken: randomUUID() } : {})
                         }, guests, false);
 
                         if (stake !== null)
@@ -1221,9 +1241,9 @@ export function createTableService(db: DataSource, social: SocialService)
          * Deciding the seat in application code and then writing it is the same race with extra
          * steps, and the symptom is two people in the last chair.
          */
-        async claimSeat(me: string, tableId: string): Promise<number | null>
+        async claimSeat(me: string, tableId: string, token?: string): Promise<number | null>
         {
-            const table = await mustSee(me, tableId);
+            const table = await mustSee(me, tableId, token);
             if (table.status === 'closed')
             {
                 throw tableRefusal('table-closed', 'That table has closed.');
@@ -1267,6 +1287,17 @@ export function createTableService(db: DataSource, social: SocialService)
                     // by their first and conclude the table is full. The lock is released with
                     // the transaction, whichever way it ends.
                     await tx.query('select pg_advisory_xact_lock(hashtext($1), hashtext($2))', [tableId, me]);
+
+                    if (token !== undefined)
+                    {
+                        await lockTable(tx, tableId);
+                        const allowed = await tx.getRepository(Table).createQueryBuilder('t')
+                            .where('t.id = :tableId', { tableId }).andWhere(linkAccess, { me, token }).getExists();
+                        if (!allowed)
+                        {
+                            throw new NotFoundError('No table there.');
+                        }
+                    }
 
                     // `tx`, not a global repository: this read has to happen inside the advisory
                     // lock taken above, and a repository off the DataSource would check out a

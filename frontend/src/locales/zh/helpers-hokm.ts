@@ -2,7 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersHokm as reference } from '../en/helpers-hokm.ts';
 
 export const helpersHokm: Pick<Dictionary, keyof typeof reference> = {
-    'helpers.hokm.tapAgain': '再次点按抬起的牌即可出牌。',
+    'helpers.hokm.touchPick': '轻点手牌将其抬起，也可以将牌拖到桌面上。',
+    'helpers.hokm.tapAgain': '轻点标记处或已抬起的牌即可出牌。',
     'helpers.hokm.lead': '首出这一墩。',
     'helpers.hokm.lead.trump': '首出将牌：手里有将牌的人都必须跟将牌。',
     'helpers.hokm.ahead': '目前赢着这一墩。',

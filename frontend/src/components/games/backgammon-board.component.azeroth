@@ -123,6 +123,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
     state doubling = '';
 
     state carrying = false;
+    state overPoint: number | null = null;
 
     state rigged = false;
 
@@ -943,6 +944,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
 
         drag = null;
         carrying = false;
+        overPoint = null;
     };
 
     const press = (event: PointerEvent) =>
@@ -998,6 +1000,8 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
         }
 
         const hand = handAt(event);
+        const point = spotOf(event);
+        overPoint = point !== null && reach.has(point) ? point : null;
 
         men?.drag(hand.x, hand.y);
     };
@@ -1013,6 +1017,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
 
         drag = null;
         carrying = false;
+        overPoint = null;
 
         if (held.at !== at || plan === null || board.busy())
         {
@@ -1358,6 +1363,7 @@ export default component BackgammonBoard(props: { match: MatchView; events: Even
                                                         tabindex={ stop.key === roving ? 0 : -1 }
                                                         aria-label={ stop.says }
                                                         data-stop={ stop.key }
+                                                        data-landing={ carrying && overPoint !== null && stop.key === `at-${ overPoint }` ? 'true' : undefined }
                                                         style={ stop.place }
                                                     ></span>
                                                 </For>

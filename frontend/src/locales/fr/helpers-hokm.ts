@@ -2,7 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersHokm as reference } from '../en/helpers-hokm.ts';
 
 export const helpersHokm: Pick<Dictionary, keyof typeof reference> = {
-    'helpers.hokm.tapAgain': 'Touchez de nouveau la carte soulevée pour la jouer.',
+    'helpers.hokm.touchPick': 'Touchez une carte pour la soulever ou glissez-la sur le tapis.',
+    'helpers.hokm.tapAgain': 'Touchez la marque ou la carte soulevée pour la jouer.',
     'helpers.hokm.lead': 'Ouvre la levée.',
     'helpers.hokm.lead.trump': 'Ouvre à l’atout : chacun doit jouer atout tant qu’il en a.',
     'helpers.hokm.ahead': 'Remporte la levée pour l’instant.',

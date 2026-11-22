@@ -2,8 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersLudo as reference } from '../en/helpers-ludo.ts';
 
 export const helpersLudo: Pick<Dictionary, keyof typeof reference> = {
-    'helpers.ludo.touch.land': '轻点标记的目标格。',
-    'helpers.ludo.touch.pick': '轻点棋子以预览走法。',
+    'helpers.ludo.touch.land': '轻点标记的格子，或把棋子拖到那里松手。',
+    'helpers.ludo.touch.pick': '轻点或拖动棋子查看路线。',
     'helpers.ludo.tip.yard': '跑道上还没有你的棋子：只有掷出六点才能从基地出一枚。',
     'helpers.ludo.tip.six': '六点：走完这一步你再掷一次。',
     'helpers.ludo.tip.threeSixes': '连续三次六点会结束这一回合，第三次不走。',

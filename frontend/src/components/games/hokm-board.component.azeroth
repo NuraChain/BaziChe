@@ -544,6 +544,15 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
         haptic('tick');
     };
 
+    const tapFelt = (event: MouseEvent) =>
+    {
+        const target = event.target;
+        if (chosen !== null && event.detail > 0 && target instanceof Element && target.closest('.hokm-imprint') !== null)
+        {
+            void playCard(chosen, false);
+        }
+    };
+
     const press = (event: MouseEvent, card: number) =>
     {
         if ((event as PointerEvent).pointerId === secondaryPointer || (grip !== null && grip.card !== card))
@@ -941,6 +950,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             effects?.warm();
         }
 
+        node.toggleAttribute('data-hand-face', seat === mine);
         return dressCards(node, lookAt(seat));
     };
 
@@ -2442,7 +2452,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
             <Show when={ dealt }>
                 { () =>
                     <div class="table-fit">
-                        <div class="table-surface hokm-table" data-drop={ carrying ? 'true' : undefined }>
+                        <div class="table-surface hokm-table" onClick={ tapFelt } data-drop={ carrying ? 'true' : undefined }>
                             <div class="felt-mats" aria-hidden="true">
                                 <For each={ matted } key={ (seat) => seat } let={ seat }>
                                     <span class="felt-mat" data-seat={ seat } data-side={ plateAt(seat).side } data-mat={ matAt(seat) ?? undefined } data-turn={ seat === turnAt ? 'true' : undefined }></span>
@@ -2603,10 +2613,19 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                                 <span class="hokm-glimpse" aria-hidden="true"><CardFace card={ seen.card } /></span>
                             </Show>
 
+                            <Show when={ chosen !== null && !carrying }>
+                                { () =>
+                                    <span class="hokm-imprint" data-hand-face="" data-faces={ facesAt(mine) ?? undefined } aria-hidden="true">
+                                        <CardFace card={ chosen! } />
+                                    </span>
+                                }
+                            </Show>
+
                             <For each={ laid.cards } key={ (one) => one.card } let={ one }>
                                 <div
                                     class="hokm-trick"
                                     data-card={ one.card }
+                                    data-hand-face={ one.seat === mine ? 'true' : undefined }
                                     data-faces={ facesAt(one.seat) ?? undefined }
                                     data-landing={ landing.includes(one.card) ? 'true' : undefined }
                                     data-took={ one.seat === laid.took ? 'true' : 'false' }
@@ -2690,11 +2709,8 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                             <Show when={ glimpsed } let={ seen }>
                                 <p class="sr-only">{ locale.t('hokm.draw.glimpse', { card: cardSays(seen.card) }) }</p>
                             </Show>
-                            <Show when={ chosen !== null }>
-                                { () => <span class="hokm-hand-hint" dir={ locale.dir() } role="status">{ locale.t('helpers.hokm.tapAgain') }</span> }
-                            </Show>
-                            <Show when={ blocked && myTurn }>
-                                { () => <span class="hokm-hand-hint" dir={ locale.dir() } role="status">{ locale.t('hokm.follow') }</span> }
+                            <Show when={ myTurn && (blocked || chosen !== null || (device.coarse() && legal.size > 0)) }>
+                                { () => <span class="hokm-hand-hint" dir={ locale.dir() } role="status">{ locale.t(blocked ? 'hokm.follow' : chosen !== null ? 'helpers.hokm.tapAgain' : 'helpers.hokm.touchPick') }</span> }
                             </Show>
                             <span class="hokm-rail-end">
                                 <Show when={ sortable }>
@@ -2728,7 +2744,7 @@ export default component HokmBoard(props: { match: MatchView; events: EventBatch
                         </section>
                         <Show when={ handed }>
                             { () =>
-                                <div class="hokm-hands" data-sliding={ sliding ? 'true' : undefined } data-faces={ facesAt(mine) ?? undefined } style={ `--rows: ${ roomy }; --across: ${ rows[0]?.length || 1 }` }>
+                                <div class="hokm-hands" data-hand-face="" data-sliding={ sliding ? 'true' : undefined } data-faces={ facesAt(mine) ?? undefined } style={ `--rows: ${ roomy }; --across: ${ rows[0]?.length || 1 }` }>
                                 <For each={ rows } key={ (_, index) => index } let={ row }>
                                     <ul class="hokm-hand" style={ `--n: ${ row.length }` } aria-label={ locale.t('hokm.hand') }>
                                         <For each={ row } key={ (card) => card } let={ card } index={ index }>

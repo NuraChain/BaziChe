@@ -1,5 +1,6 @@
 export const helpersHokm = {
-    'helpers.hokm.tapAgain': 'Tap the lifted card again to play it.',
+    'helpers.hokm.touchPick': 'Tap a card to lift it, or drag it onto the felt.',
+    'helpers.hokm.tapAgain': 'Tap the marked spot or the lifted card to play.',
     'helpers.hokm.lead': 'Leads the trick.',
     'helpers.hokm.lead.trump': 'Leads a trump: everybody has to play trump while they hold one.',
     'helpers.hokm.ahead': 'Takes the trick so far.',

@@ -2,8 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersLudo as reference } from '../en/helpers-ludo.ts';
 
 export const helpersLudo: Pick<Dictionary, keyof typeof reference> = {
-    'helpers.ludo.touch.land': 'चलने के लिए चिह्नित खाना छुएँ।',
-    'helpers.ludo.touch.pick': 'चाल देखने के लिए किसी गोटी पर टैप करें।',
+    'helpers.ludo.touch.land': 'चिह्नित खाने को छुएँ या गोटी वहीं छोड़ें।',
+    'helpers.ludo.touch.pick': 'चाल देखने के लिए गोटी को छुएँ या खींचें।',
     'helpers.ludo.tip.yard': 'ट्रैक पर कोई गोटी नहीं है: सिर्फ़ छक्का ही गोटी को घर से बाहर निकालता है।',
     'helpers.ludo.tip.six': 'छक्का: इस चाल के बाद तुम फिर से पासा फेंकोगे।',
     'helpers.ludo.tip.threeSixes': 'लगातार तीन छक्के बारी ख़त्म कर देते हैं, और तीसरा नहीं चला जाता।',

@@ -21,6 +21,8 @@ export default component PokerSeat(props: {
     anchor: 'start' | 'end' | 'centre';
     button: boolean;
     stack: string;
+    onBank?: (event: MouseEvent) => void;
+    bankLabel: string;
     holds: boolean;
     cards: number;
     shown: readonly number[];
@@ -82,7 +84,19 @@ export default component PokerSeat(props: {
             anchor={ props.anchor }
             facts={
                 <span class="contents">
-                    <span class="tally font-bold text-gold">{ props.stack }</span>
+                    <span class="poker-bankroll tally font-bold text-gold"
+                        role={ props.onBank ? 'button' : undefined } tabindex={ props.onBank ? 0 : undefined }
+                        aria-label={ props.onBank ? `${ props.bankLabel } · ${ props.stack }` : undefined }
+                        onClick={ (event: MouseEvent) => props.onBank?.(event) }
+                        onKeyDown={ (event: KeyboardEvent) =>
+                        {
+                            if (props.onBank && (event.key === 'Enter' || event.key === ' '))
+                            {
+                                event.preventDefault();
+                                (event.currentTarget as HTMLElement).click();
+                            }
+                        } }
+                    >{ props.stack }</span>
                     <Show when={ dealing }>
                         { () => <span class="sr-only">{ locale.t('poker.dealer') }</span> }
                     </Show>

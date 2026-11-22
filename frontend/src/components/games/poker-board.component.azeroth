@@ -95,7 +95,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
     state amount = 0;
 
     state wager: 'raise' | 'call' | null = null;
-    let opener: HTMLButtonElement | null = null;
+    let opener: HTMLElement | null = null;
     let lastPointer = '';
 
     state shown: Felt | null = null;
@@ -1678,9 +1678,17 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
 
     const openWager = (event: MouseEvent, which: 'raise' | 'call') =>
     {
-        opener = event.currentTarget as HTMLButtonElement;
+        opener = event.currentTarget as HTMLElement;
         wager = which;
         queueMicrotask(() => root?.querySelector<HTMLElement>('.poker-raise-head button')?.focus({ preventScroll: true }));
+    };
+
+    const openStack = (event: MouseEvent) =>
+    {
+        if (canRaise && !choosing && !board.busy())
+        {
+            openWager(event, 'raise');
+        }
     };
 
     const closeWager = () =>
@@ -1793,7 +1801,7 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                             </div>
 
                             <For each={ chairs } key={ (seat) => seat } let={ seat }>
-                                <div class="poker-seat" data-seat={ seat } data-lies={ plateAt(seat).lies } data-backs={ backsAt(seat) ?? undefined } data-faces={ facesAt(seat) ?? undefined } data-chips={ chipsAt(seat) ?? undefined } style={ placed(seat) }>
+                                <div class="poker-seat" data-seat={ seat } data-bank={ seat === mine && canRaise && !choosing && !board.busy() ? 'true' : undefined } data-lies={ plateAt(seat).lies } data-backs={ backsAt(seat) ?? undefined } data-faces={ facesAt(seat) ?? undefined } data-chips={ chipsAt(seat) ?? undefined } style={ placed(seat) }>
                                     <PokerSeat
                                         who={ whoAt(seat) }
                                         ai={ game.players.find((player) => player.seat === seat)?.ai }
@@ -1811,6 +1819,8 @@ export default component PokerBoard(props: { match: MatchView; events: EventBatc
                                         anchor={ plateAt(seat).x > 60 ? 'end' : (plateAt(seat).x < 40 ? 'start' : 'centre') }
                                         button={ button === seat }
                                         stack={ chips(plateAt(seat).row.stack) }
+                                        onBank={ seat === mine && canRaise && !choosing && !board.busy() ? openStack : undefined }
+                                        bankLabel={ raiseTitle }
                                         holds={ inHand(felt, seat) && seat !== mine }
                                         cards={ HOLE - (arriving[seat] ?? 0) }
                                         shown={ openAt(seat) }

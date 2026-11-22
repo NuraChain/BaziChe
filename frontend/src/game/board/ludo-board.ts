@@ -255,7 +255,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
     let marked = '';
     let aimed: string | null = null;
     let selected: string | null = null;
-    let contact: { id: number; key: string | null; destination: boolean; x: number; y: number } | null = null;
+    let contact: { id: number; key: string | null; destination: boolean; dragging: boolean; x: number; y: number } | null = null;
     let roving: string | null = null;
     let plateDie: Rolled | null = null;
     let where: Where = 'none';
@@ -1589,9 +1589,20 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         }
     };
 
+    const releaseTouch = () =>
+    {
+        const id = contact?.id;
+        contact = null;
+        root.removeAttribute('data-at-goal');
+        if (id !== undefined && host.hasPointerCapture?.(id))
+        {
+            host.releasePointerCapture(id);
+        }
+    };
+
     const strip = () =>
     {
-        contact = null;
+        releaseTouch();
         selected = null;
         clearDie();
         unmark();
@@ -1633,7 +1644,11 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         const destination = event.pointerType !== 'mouse' && selected !== null && under(event, true) !== null;
         const key = destination ? selected : under(event);
 
-        contact = { id: event.pointerId, key, destination, x: event.clientX, y: event.clientY };
+        contact = { id: event.pointerId, key, destination, dragging: false, x: event.clientX, y: event.clientY };
+        if (event.pointerType !== 'mouse' && !destination && key !== null && usable(key))
+        {
+            host.setPointerCapture?.(event.pointerId);
+        }
     };
 
     const pick = (event: PointerEvent) =>
@@ -1643,8 +1658,16 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         {
             return;
         }
-        contact = null;
+        releaseTouch();
 
+        if (held.dragging)
+        {
+            if (held.key !== null && held.key === selected && usable(held.key) && under(event, true) !== null)
+            {
+                options.onPick?.(held.key, false);
+            }
+            return;
+        }
         if (crossedSlop(event, held))
         {
             return;
@@ -1672,9 +1695,21 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
     const hover = (event: PointerEvent) =>
     {
-        if (contact?.id === event.pointerId && crossedSlop(event, contact))
+        const held = contact;
+        if (held?.id === event.pointerId && (held.dragging || crossedSlop(event, held)))
         {
-            contact = null;
+            if (event.pointerType === 'mouse' || held.destination || held.key === null || !usable(held.key) || !options.onPreview)
+            {
+                releaseTouch();
+                return;
+            }
+            if (!held.dragging)
+            {
+                held.dragging = true;
+                options.onPreview(held.key);
+            }
+            root.toggleAttribute('data-at-goal', selected === held.key && under(event, true) !== null);
+            return;
         }
         aimAt(selected ?? (hints && event.pointerType === 'mouse' ? under(event) : null));
     };
@@ -1683,7 +1718,8 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
     {
         if (contact?.id === event.pointerId)
         {
-            contact = null;
+            if (event.type === 'pointerleave' && host.hasPointerCapture?.(event.pointerId)) return;
+            releaseTouch();
         }
         aimAt(selected);
     };
@@ -1771,6 +1807,7 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
 
     host.addEventListener('pointerdown', press);
     host.addEventListener('pointercancel', leave);
+    host.addEventListener('lostpointercapture', leave);
     host.addEventListener('pointerup', pick);
     host.addEventListener('pointermove', hover);
     host.addEventListener('pointerleave', leave);
@@ -1902,8 +1939,9 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         {
             if (keys !== movable || wanted !== goals)
             {
-                contact = null;
+                releaseTouch();
             }
+            host.toggleAttribute('data-pawn-turn', keys.size > 0);
             selected = chosen;
             movable = keys;
             hints = visible;
@@ -1984,6 +2022,8 @@ export async function createLudoBoard(options: BoardOptions): Promise<BoardHandl
         {
             host.removeEventListener('pointerdown', press);
             host.removeEventListener('pointercancel', leave);
+            host.removeEventListener('lostpointercapture', leave);
+            host.removeAttribute('data-pawn-turn');
             host.removeEventListener('pointerup', pick);
             host.removeEventListener('pointermove', hover);
             host.removeEventListener('pointerleave', leave);

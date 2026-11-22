@@ -2,8 +2,8 @@ import type { Dictionary } from '../en/index.ts';
 import type { helpersLudo as reference } from '../en/helpers-ludo.ts';
 
 export const helpersLudo: Pick<Dictionary, keyof typeof reference> = {
-    'helpers.ludo.touch.land': 'خانهٔ مقصد مشخص‌شده را لمس کن.',
-    'helpers.ludo.touch.pick': 'برای دیدن حرکت، یک مهره را لمس کن.',
+    'helpers.ludo.touch.land': 'روی خانهٔ مشخص‌شده بزن یا مهره رو همون‌جا رها کن.',
+    'helpers.ludo.touch.pick': 'برای دیدن مسیر، مهره رو لمس کن یا بکش.',
     'helpers.ludo.tip.yard': 'هیچ مهره‌ای روی مسیر نیست؛ فقط با شش یکی از خونه میاد بیرون.',
     'helpers.ludo.tip.six': 'شش آوردی؛ بعد از این حرکت دوباره تاس می‌ریزی.',
     'helpers.ludo.tip.threeSixes': 'سه تا شش پشت سر هم نوبتت رو تموم می‌کنه و شش سوم بازی نمی‌شه.',

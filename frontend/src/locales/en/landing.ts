@@ -86,6 +86,7 @@ export const landing = {
     'footer.security': 'Report a security issue',
     'footer.license': 'MIT License',
     'footer.chain': 'NuraChain',
+    'footer.ashbringer': 'Ashbringer',
     'footer.chainSite': 'About NuraChain',
     'footer.explorer': 'Block explorer',
     'footer.chainCode': 'NuraChain on GitHub',

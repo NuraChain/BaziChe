@@ -1,3 +1,5 @@
+export const NURA_PURCHASE_URL = 'https://ashbringer.org';
+
 export interface ChainConfig
 {
     chainId: string;

@@ -89,6 +89,7 @@ export const landing: Pick<Dictionary, keyof typeof reference> = {
     'footer.security': 'أبلغ عن مشكلة أمنية',
     'footer.license': 'رخصة MIT',
     'footer.chain': 'NuraChain',
+    'footer.ashbringer': 'Ashbringer',
     'footer.chainSite': 'عن NuraChain',
     'footer.explorer': 'مستكشف الكتل',
     'footer.chainCode': 'NuraChain على GitHub',

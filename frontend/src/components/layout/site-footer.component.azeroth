@@ -1,4 +1,4 @@
-import { NURA_CHAIN } from '../../data/chain.ts';
+import { NURA_CHAIN, NURA_PURCHASE_URL } from '../../data/chain.ts';
 import { GAMES } from '../../data/games.ts';
 import type { MessageKey } from '../../locales/en.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -45,6 +45,7 @@ const COLUMNS: { title: MessageKey; links: FooterLink[] }[] = [
         title: 'footer.chain',
         links: [
             { key: 'footer.chainSite', href: NURA_CHAIN.site },
+            { key: 'footer.ashbringer', href: NURA_PURCHASE_URL },
             { key: 'footer.explorer', href: NURA_CHAIN.explorerUrls[0] },
             { key: 'footer.chainCode', href: 'https://github.com/NuraChain' }
         ]

@@ -1,3 +1,4 @@
+import type { SupportCreate, SupportList, SupportListQuery, SupportReply, SupportThread } from './schemas.ts';
 import type { Principal } from './http/auth.ts';
 import type {
     AchievementLadder,
@@ -1177,6 +1178,16 @@ export interface RewardPort
 
 export interface Ports
 {
+    support: {
+        mine(me: string, query: SupportListQuery): Promise<SupportList>;
+        open(me: string, input: SupportCreate): Promise<{ id: string } | null>;
+        thread(me: string, id: string, before?: string): Promise<SupportThread | null>;
+        reply(me: string, id: string, input: SupportReply): Promise<{ id: string } | null>;
+        queue(me: string, query: SupportListQuery): Promise<SupportList | null>;
+        read(me: string, id: string, before?: string): Promise<SupportThread | null>;
+        answer(me: string, id: string, input: SupportReply): Promise<{ id: string } | null>;
+        close(me: string, id: string): Promise<{ id: string } | null>;
+    };
     meta: MetaPort;
     catalogue: CataloguePort;
     identity: IdentityPort;

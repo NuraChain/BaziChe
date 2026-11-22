@@ -87,6 +87,7 @@ import { createStreakReminder } from './domains/reward/reminder.ts';
 import { createRewardService } from './domains/reward/service.ts';
 import type { RewardFinishEffects } from './domains/reward/progress.ts';
 import { createReportsService } from './domains/admin/reports.ts';
+import { createSupportService } from './domains/support/service.ts';
 import { createStaffService, record, staffRefusal, type Actor } from './domains/admin/staff.ts';
 import { rateOf, setUsdRate, usdRate } from './domains/stake/rate.ts';
 import { createTournamentStaff } from './domains/admin/tournaments.ts';
@@ -1732,6 +1733,7 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
 
     const accounts = createPeopleService(db, owners, shownOwners, config.origin);
 
+    const tickets = createSupportService(db);
     const desk = createReportsService(db, shownOwners);
 
     const plays = createPlayService(db, owners, shownOwners);
@@ -3915,6 +3917,24 @@ export function buildPorts(db: DataSource, config: ServerConfig, live?: WriteLis
             }
         },
 
+        support: {
+            mine: (me, query) => tickets.list(me, query),
+            open: (me, input) => tickets.open(me, input),
+            thread: (me, id, before) => tickets.thread(me, id, before),
+            reply: (me, id, input) => tickets.change(id, me, input),
+            queue: async (me, query) => await ableTo(me, 'support') === null ? null : tickets.list(null, query),
+            read: async (me, id, before) => await ableTo(me, 'support') === null ? null : tickets.thread(null, id, before),
+            async answer(me, id, input)
+            {
+                const actor = await ableTo(me, 'support');
+                return actor === null ? null : tickets.change(id, actor, input);
+            },
+            async close(me, id)
+            {
+                const actor = await ableTo(me, 'support');
+                return actor === null ? null : tickets.change(id, actor, null);
+            }
+        },
         social: {
             async graph(me)
             {

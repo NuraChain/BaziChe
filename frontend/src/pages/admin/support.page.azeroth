@@ -1,0 +1,6 @@
+import SupportDesk from '../../components/support/desk.component.azeroth';
+
+export default component SupportQueuePage()
+{
+    <div class="max-w-[48rem]"><SupportDesk staff={ true } /></div>
+}

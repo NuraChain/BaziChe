@@ -1,5 +1,6 @@
 import { array, boolean, enumOf, literal, number, object, record, string as text, union, type Infer, type StringOptions } from '@azerothjs/schema';
 import { ACTION_KINDS, CLEAR_PARTS, GRANTED_ROLES, MATCH_LISTS, MINTER_CONTRACT_STATES, MINTER_OPERATIONS, MINTER_STATES, NOTICE_HOURS, NOTICE_MAX, PEOPLE_LISTS, REPORT_LISTS, REPORT_OUTCOMES, REPORT_STATUSES, SALE_HOURS, STAFF_ROLES, STUCK_KINDS, SUSPEND_CATEGORIES, SUSPEND_DAYS, CAMPAIGN_MOST, CAMPAIGN_MOVES, MILESTONE_MOST, MILESTONES_MOST, REWARD_LISTS, REWARD_MOVES, SEASON_NAME_MOST } from './domains/admin/roles.ts';
+import { BODY_LIMIT, SUBJECT_LIMIT, SUPPORT_ID, SUPPORT_STATES } from './domains/support/rules.ts';
 import { RARITY_IDS } from './domains/achieve/rarity.ts';
 import { PARTY_ENDS, PARTY_STAGES } from './domains/party/rules.ts';
 import { CALL_ENDINGS, CALL_KINDS, CALL_STATES } from './domains/call/rules.ts';
@@ -29,6 +30,26 @@ const NUL_FREE = new RegExp(`^[^${ NUL }]*$`);
 const SAYS_SOMETHING = new RegExp(`^[^${ NUL }]*[^\\s${ NUL }][^${ NUL }]*$`);
 
 const string = (options: StringOptions = {}) => text({ pattern: NUL_FREE, ...options });
+
+const supportText = (max: number) => string({ trim: true, min: 1, max, pattern: SAYS_SOMETHING });
+const supportRequest = string({ pattern: SUPPORT_ID });
+export const supportCreate = object({ requestId: supportRequest, subject: supportText(SUBJECT_LIMIT), body: supportText(BODY_LIMIT) });
+export const supportReply = object({ requestId: supportRequest, body: supportText(BODY_LIMIT) });
+export const supportRef = object({ id: string() });
+export const supportListQuery = object({
+    status: enumOf(SUPPORT_STATES).optional(),
+    page: string({ pattern: /^[1-9][0-9]{0,5}$/ }).optional()
+});
+export const supportThreadQuery = object({ before: string({ pattern: /^[1-9][0-9]{0,8}$/ }).optional() });
+const supportSummary = object({ id: string(), subject: string(), owner: string(), status: enumOf(SUPPORT_STATES), updatedAt: string() });
+const supportMessage = object({ sequence: number(), staff: boolean(), body: string(), at: string() });
+export const supportList = object({ tickets: array(supportSummary), more: boolean() });
+export const supportThread = object({ ticket: supportSummary, messages: array(supportMessage), older: boolean() });
+export type SupportThread = Infer<typeof supportThread>;
+export type SupportList = Infer<typeof supportList>;
+export type SupportCreate = Infer<typeof supportCreate>;
+export type SupportReply = Infer<typeof supportReply>;
+export type SupportListQuery = Infer<typeof supportListQuery>;
 
 const said = () => string({ min: 3, max: 500, pattern: SAYS_SOMETHING });
 

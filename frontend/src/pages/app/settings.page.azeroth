@@ -305,6 +305,7 @@ export default component SettingsPage()
                                 </span>
                             </div>
                             <div class="flex flex-col gap-2 @md:flex-row @2xl:shrink-0">
+                                <Button variant="outline" leading="chats" to="/app/support" class="w-full @2xl:w-auto">{ locale.t('support.title') }</Button>
                                 <Button variant="outline" leading="key" to="/app/me/devices" class="w-full @2xl:w-auto">
                                     { locale.t('devices.title') }
                                 </Button>

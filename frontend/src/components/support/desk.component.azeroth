@@ -1,0 +1,21 @@
+import { useHead, useParams } from 'azerothjs';
+import TicketList from './ticket-list.component.azeroth';
+import TicketThread from './ticket-thread.component.azeroth';
+import { useLocale } from '../../stores/locale.store.ts';
+
+export default component SupportDesk(props: { staff: boolean })
+{
+    const locale = useLocale();
+    const params = useParams();
+    derived base = props.staff ? '/admin/support' : '/app/support';
+    derived id = params().id ?? '';
+    useHead({ title: () => locale.t('support.title') });
+
+    <Show when={ id !== '' } fallback={ <TicketList staff={ props.staff } base={ base } /> }>
+        { () =>
+            <For each={ [id] } key={ (key) => key } let={ key }>
+                <div><TicketThread staff={ props.staff } base={ base } id={ key } /></div>
+            </For>
+        }
+    </Show>
+}

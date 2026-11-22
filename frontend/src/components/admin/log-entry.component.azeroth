@@ -19,6 +19,7 @@ const MARKS: Record<ActionKind, { icon: IconName; tone: string }> = {
     expire: { icon: 'clock', tone: 'bg-raised text-muted' },
     clear: { icon: 'trash', tone: 'bg-danger/15 text-danger' },
     'sign-out': { icon: 'sign-out', tone: 'bg-gold/15 text-gold' },
+    support: { icon: 'chats', tone: 'bg-accent/15 text-accent' },
     report: { icon: 'flag', tone: 'bg-gold/15 text-gold' },
     game: { icon: 'games', tone: 'bg-accent/15 text-accent' },
     void: { icon: 'close', tone: 'bg-danger/15 text-danger' },

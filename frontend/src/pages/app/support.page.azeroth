@@ -1,0 +1,12 @@
+import Page from '../../components/app/page.component.azeroth';
+import SupportDesk from '../../components/support/desk.component.azeroth';
+import { useLocale } from '../../stores/locale.store.ts';
+
+export default component SupportPage()
+{
+    const locale = useLocale();
+
+    <Page label={ locale.t('support.title') } width="narrow">
+        <SupportDesk staff={ false } />
+    </Page>
+}

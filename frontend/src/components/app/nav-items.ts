@@ -26,7 +26,7 @@ export const NAV: NavItem[] = [
     { ...GAMES, lights: ['watch', 'tournaments', 'leaderboard', 'shop'] },
     { ...FRIENDS, lights: ['discover'] },
     CHATS,
-    { tab: 'me', lights: ['settings'], to: '/app/me', icon: 'me', labelKey: 'app.nav.profile' }
+    { tab: 'me', lights: ['settings', 'support'], to: '/app/me', icon: 'me', labelKey: 'app.nav.profile' }
 ];
 
 export const RAIL: NavItem[] = [
@@ -41,6 +41,7 @@ export const RAIL: NavItem[] = [
     { tab: 'discover', lights: [], to: '/app/discover', icon: 'discover', labelKey: 'app.nav.discover' },
     { tab: 'shop', lights: [], to: '/app/shop', icon: 'bag', labelKey: 'app.nav.shop' },
     { tab: 'rewards', lights: [], to: '/app/rewards', icon: 'gift', labelKey: 'app.nav.rewards' },
+    { tab: 'support', lights: [], to: '/app/support', icon: 'chats', labelKey: 'support.title' },
     { tab: 'settings', lights: [], to: '/app/me/settings', icon: 'settings', labelKey: 'app.nav.settings' }
 ];
 

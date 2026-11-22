@@ -76,6 +76,8 @@ import { PushSubscription } from './push-subscription.entity.ts';
 import { RecoveryNonce } from './recovery-nonce.entity.ts';
 import { RecoveryVault } from './recovery-vault.entity.ts';
 import { Referral } from './referral.entity.ts';
+import { SupportTicket } from './support-ticket.entity.ts';
+import { SupportMessage } from './support-message.entity.ts';
 import { Report } from './report.entity.ts';
 import { Season } from './season.entity.ts';
 import { Session } from './session.entity.ts';
@@ -101,7 +103,7 @@ export {
     Tournament, TournamentEntry, TournamentGame,
     Game, GameRule, Group, GroupBan, GroupEvent, GroupInvite, GroupMember, GroupMute, GroupReport, GroupRequest, InviteBoardOff, InviteCampaign, InviteCode, InviteReward, InviteVisit, Market, MarketDisclosure, MarketPosition, Match, MatchAction, MatchPlayer, Message, MinterChange, Mute,
     NftToken, Notice, Notification, OwnedItem, PaidAccount, PlayerStats, ProfileSponsorship, PushSubscription,
-    QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, RewardCheckin, RewardCycleTotal, RewardFreeze, RewardGrant, RewardPayout, RewardQuestGame, RewardQuestOpponent, RewardQuestProgress, RewardStreak, Season, Session, Setting, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, SystemPlayer, Table, TableRemoval, TableSeat, TableStake, User,
+    QuickTable, RecoveryNonce, RecoveryVault, Referral, Report, SupportTicket, SupportMessage, RewardCheckin, RewardCycleTotal, RewardFreeze, RewardGrant, RewardPayout, RewardQuestGame, RewardQuestOpponent, RewardQuestProgress, RewardStreak, Season, Session, Setting, ShopCollection, ShopItem, ShopOrder, SiweNonce, StaffAction, StaffMember, StakeConsent, Suspension, SystemPlayer, Table, TableRemoval, TableSeat, TableStake, User,
     UserAchievement, VoiceNote, VoicePlay, Wallet
 };
 
@@ -118,7 +120,7 @@ export {
 export const entities: Function[] = [
     Game, GameRule, Achievement,
     User, Avatar, Wallet, Session, SiweNonce, Device, ProfileSponsorship,
-    Friendship, FriendRequest, Block, Mute, Report,
+    Friendship, FriendRequest, Block, Mute, Report, SupportTicket, SupportMessage,
     Conversation, ConversationMember, VoiceNote, ChatFile, Message, VoicePlay, ConversationPin, ConversationEpoch, EpochKey, EpochArchive,
     RecoveryVault, RecoveryNonce, InviteCode, InviteVisit, InviteCampaign, InviteReward, InviteBoardOff, Referral, EstablishedPlayer,
     Group, GroupMember, GroupBan, GroupMute, GroupInvite, GroupRequest, GroupEvent, GroupReport,

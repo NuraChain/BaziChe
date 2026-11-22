@@ -2942,3 +2942,70 @@ describe('what a wallet shows of a minted look or legendary achievement', () =>
         expect((await read('looks/nope.json')).status).toBe(404);
     });
 });
+
+describe('private support routes', () =>
+{
+    const id = '71a06b7c-399d-4842-b46c-dcc3e646351e';
+    const open = { requestId: id, subject: '  Missing purchase  ', body: '  Please check my receipt.  ' };
+    const request = (app: ReturnType<typeof buildApp>, path: string, body?: unknown) =>
+        app.handle(new Request(`http://local/api${ path }`, body === undefined ? {} : {
+            method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
+        }));
+
+    function as(me: string | null, calls: unknown[][] = [])
+    {
+        const support = Object.fromEntries(['mine', 'open', 'reply', 'thread', 'queue', 'read', 'answer', 'close'].map((name) => [
+            name, (...args: unknown[]) =>
+            {
+                calls.push([name, ...args]);
+                if (name === 'mine') { return { tickets: [], more: false }; }
+                return name === 'open' ? { id } : null;
+            }
+        ]));
+        return buildApp({ db: fakeDb({ initialized: true }), config, log: silent, ports: {
+            identity: { principal: () => me === null ? null : { userId: me, handle: me, isMinor: false, sessionId: 'session' } },
+            support
+        } as unknown as Ports });
+    }
+
+    it('requires a session on every player and staff endpoint', async () =>
+    {
+        const calls: unknown[][] = [];
+        const app = as(null, calls);
+        for (const [path, body] of [
+            ['/support/tickets'], ['/support/tickets', open], [`/support/tickets/${id}`],
+            [`/support/tickets/${id}/replies`, open], ['/admin/support'], [`/admin/support/${id}`],
+            [`/admin/support/${id}/replies`, open], [`/admin/support/${id}/close`, {}]
+        ] as const)
+        {
+            expect((await request(app, path, body)).status, path).toBe(401);
+        }
+        expect(calls).toEqual([]);
+    });
+
+    it('takes ownership from the session, trims submissions and rejects empty or excessive content', async () =>
+    {
+        const calls: unknown[][] = [];
+        const app = as('player', calls);
+        expect((await request(app, '/support/tickets', open)).ok).toBe(true);
+        expect(calls).toEqual([['open', 'player', { requestId: id, subject: 'Missing purchase', body: 'Please check my receipt.' }]]);
+        for (const input of [{ ...open, subject: ' ' }, { ...open, body: ' ' }, { ...open, body: 'X'.repeat(4001) }, { ...open, requestId: 'bad' }])
+        {
+            expect((await request(app, '/support/tickets', input)).ok).toBe(false);
+        }
+        expect(calls).toHaveLength(1);
+    });
+
+    it('exposes missing or inaccessible tickets identically and uses staff commands only on staff routes', async () =>
+    {
+        const calls: unknown[][] = [];
+        const app = as('other', calls);
+        expect((await request(app, `/support/tickets/${id}`)).status).toBe(404);
+        expect((await request(app, `/support/tickets/${id}/replies`, { requestId: id, body: 'Hello' })).status).toBe(404);
+        expect((await request(app, '/admin/support')).status).toBe(404);
+        expect((await request(app, `/admin/support/${id}`)).status).toBe(404);
+        expect((await request(app, `/admin/support/${id}/replies`, { requestId: id, body: 'Hello' })).status).toBe(404);
+        expect((await request(app, `/admin/support/${id}/close`, {})).status).toBe(404);
+        expect(calls.map(([name, me]) => [name, me])).toEqual(['thread', 'reply', 'queue', 'read', 'answer', 'close'].map((name) => [name, 'other']));
+    });
+});

@@ -4,6 +4,7 @@ import { feature, reply } from '@azerothjs/http/api';
 import { clearSessionCookie, offChain, readSessionToken, requireSession, sessionCookie } from './http/auth.ts';
 import type { Ports } from './ports.ts';
 import {
+    supportCreate, supportReply, supportRef, supportThreadQuery, supportThread, supportListQuery, supportList,
     achievementLadder,
     leaderboard,
     leaderboardQuery,
@@ -669,6 +670,15 @@ export function buildApi(ports: Ports)
         })),
 
         admin: feature('/admin', [session], (routes) => ({
+            supportQueue: routes.get('/support', { query: supportListQuery, output: supportList },
+                async (ctx) => onlyAdmin(await ports.support.queue(ctx.principal.userId, ctx.query))),
+            supportThread: routes.get('/support/:id', { query: supportThreadQuery, output: supportThread },
+                async (ctx) => onlyAdmin(await ports.support.read(ctx.principal.userId, ctx.params.id, ctx.query.before))),
+            supportAnswer: routes.post('/support/:id/replies', { input: supportReply, output: supportRef },
+                async (ctx) => onlyAdmin(await ports.support.answer(ctx.principal.userId, ctx.params.id, ctx.input))),
+            supportClose: routes.post('/support/:id/close', { output: supportRef },
+                async (ctx) => onlyAdmin(await ports.support.close(ctx.principal.userId, ctx.params.id))),
+
             vault: routes.get('/vault', { output: adminVault }, async (context) => onlyAdmin(await ports.admin.vault(context.principal.userId))),
 
             fee: routes.post('/vault/fee', { input: adminFeeInput, output: walletCall },
@@ -1148,6 +1158,17 @@ export function buildApi(ports: Ports)
 
             claimSent: routes.post('/claims/sent', { input: marketClaimSentInput, output: marketPositions },
                 (context) => ports.markets.claimSent(context.principal.userId, context.input.hash, context.input.positions))
+        })),
+
+        support: feature('/support', [session], (routes) => ({
+            mine: routes.get('/tickets', { query: supportListQuery, output: supportList },
+                (ctx) => ports.support.mine(ctx.principal.userId, ctx.query)),
+            open: routes.post('/tickets', { input: supportCreate, output: supportRef },
+                async (ctx) => onlyAdmin(await ports.support.open(ctx.principal.userId, ctx.input))),
+            thread: routes.get('/tickets/:id', { query: supportThreadQuery, output: supportThread },
+                async (ctx) => onlyAdmin(await ports.support.thread(ctx.principal.userId, ctx.params.id, ctx.query.before))),
+            reply: routes.post('/tickets/:id/replies', { input: supportReply, output: supportRef },
+                async (ctx) => onlyAdmin(await ports.support.reply(ctx.principal.userId, ctx.params.id, ctx.input)))
         })),
 
         social: feature('/social', [session], (routes) => ({

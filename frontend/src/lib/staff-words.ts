@@ -361,6 +361,11 @@ const said = (row: LogRow, locale: LocaleApi) =>
             : locale.t('admin.log.line.reward.amounts', { ...slots, most: mostIn(row.details.to, locale) });
     }
 
+    if (row.kind === 'support')
+    {
+        return locale.t(row.details.action === 'close' ? 'support.logClosed' : 'support.logReply', slots);
+    }
+
     if (row.kind === 'system-players')
     {
         return systemLine(row, locale, slots);

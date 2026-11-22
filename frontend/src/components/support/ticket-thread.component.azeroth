@@ -1,0 +1,102 @@
+import { createResource } from 'azerothjs';
+
+import { BODY_LIMIT } from '../../../../backend/src/domains/support/rules.ts';
+import { ApiError, client } from '../../api.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+
+export default component TicketThread(props: { staff: boolean; base: string; id: string })
+{
+    const locale = useLocale();
+    state before = '';
+    state body = '';
+    state sending = false;
+    state failure: 'support.closed' | 'common.actionFailed' | null = null;
+    let request = '';
+    const detail = createResource(() => ({ id: props.id, before }), (key) =>
+    {
+        const args = { params: { id: key.id }, query: key.before === '' ? {} : { before: key.before } };
+        return props.staff ? client.admin.supportThread(args) : client.support.thread(args);
+    }, { name: 'support.thread' });
+    derived result = detail.data();
+    derived ready = body.trim() !== '' && !sending;
+
+    const send = async (close: boolean) =>
+    {
+        if (sending || (!close && !ready)) { return; }
+        sending = true;
+        failure = null;
+        const params = { id: props.id };
+        try
+        {
+            if (close)
+            {
+                await client.admin.supportClose({ params });
+            }
+            else
+            {
+                request ||= crypto.randomUUID();
+                const input = { requestId: request, body };
+                await (props.staff ? client.admin.supportAnswer({ params, input }) : client.support.reply({ params, input }));
+                request = '';
+                body = '';
+            }
+            before = '';
+            await detail.refetch();
+        }
+        catch (error)
+        {
+            failure = error instanceof ApiError && error.code === 'support-closed' ? 'support.closed' : 'common.actionFailed';
+            if (failure === 'support.closed')
+            {
+                void detail.refetch();
+            }
+        }
+        finally
+        {
+            sending = false;
+        }
+    };
+
+    <section class="flex min-w-0 flex-col gap-5">
+        <div class="flex flex-wrap justify-between gap-2">
+            <Button to={ props.base } leading="back" variant="ghost">{ locale.t('support.title') }</Button>
+            <Button onClick={ () => void detail.refetch() } leading="refresh" variant="ghost">{ locale.t('support.refresh') }</Button>
+        </div>
+        <Show when={ detail.error() }>{ () => <ErrorState error={ detail.error() } onRetry={ () => void detail.refetch() } /> }</Show>
+        <Show when={ detail.error() ? null : result } let={ shown }>
+            <header class="flex flex-col gap-1">
+                <h1 class="title break-words text-ui-2xl text-text" dir="auto">{ shown.ticket.subject }</h1>
+                <p class="flex flex-wrap items-center gap-2 text-ui-sm text-muted"><bdi>@{ shown.ticket.owner }</bdi><span>{ locale.t(`support.${ shown.ticket.status }`) }</span></p>
+            </header>
+            <Show when={ shown.older }>{ () => <Button onClick={ () => before = String(shown.messages[0]!.sequence) }>{ locale.t('support.older') }</Button> }</Show>
+            <ol class="flex flex-col gap-3">
+                <For each={ shown.messages } key={ (message) => message.sequence } let={ message }>
+                    <li class="min-w-0 rounded-panel border border-line bg-field p-4">
+                        <div class="mb-2 flex flex-wrap items-center justify-between gap-2 text-ui-sm">
+                            <strong dir={ message.staff ? undefined : 'ltr' }>{ message.staff ? locale.t('support.staff') : '@' + shown.ticket.owner }</strong>
+                            <time class="text-muted" datetime={ message.at }>{ locale.date(new Date(message.at), { dateStyle: 'medium', timeStyle: 'short' }) }</time>
+                        </div>
+                        <p dir="auto" class="whitespace-pre-wrap break-words text-text">{ message.body }</p>
+                    </li>
+                </For>
+            </ol>
+            <Show when={ before !== '' }>{ () => <Button onClick={ () => before = '' }>{ locale.t('support.latest') }</Button> }</Show>
+            <Show when={ shown.ticket.status !== 'closed' && before === '' }>
+                { () =>
+                    <form class="flex flex-col gap-3" onSubmit={ (event) => { event.preventDefault(); void send(false); } }>
+                        <label for="support-reply" class="font-semibold text-text">{ locale.t('support.reply') }</label>
+                        <textarea id="support-reply" dir="auto" rows={ 4 } class="w-full rounded-control border border-line bg-field p-3 text-text" maxlength={ BODY_LIMIT } value={ body } disabled={ sending } onInput={ (event) => body = (event.currentTarget as HTMLTextAreaElement).value }></textarea>
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <Button submit variant="primary" disabled={ !ready }>{ locale.t('support.send') }</Button>
+                            <Show when={ props.staff }>{ () => <Button disabled={ sending } onClick={ () => void send(true) }>{ locale.t('support.close') }</Button> }</Show>
+                        </div>
+                    </form>
+                }
+            </Show>
+        </Show>
+        <Show when={ failure } let={ why }><p role="alert" class="text-danger">{ locale.t(why) }</p></Show>
+        <Show when={ !result && !detail.error() }>{ () => <p role="status">{ locale.t('common.loading') }</p> }</Show>
+    </section>
+}

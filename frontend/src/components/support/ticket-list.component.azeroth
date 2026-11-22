@@ -1,0 +1,96 @@
+import { createResource, Link, useNavigate } from 'azerothjs';
+
+import { BODY_LIMIT, SUBJECT_LIMIT, SUPPORT_STATES, type SupportStatus } from '../../../../backend/src/domains/support/rules.ts';
+import { client } from '../../api.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+import Button from '../ui/button.component.azeroth';
+import ErrorState from '../ui/error-state.component.azeroth';
+import Input from '../ui/input.component.azeroth';
+
+export default component TicketList(props: { staff: boolean; base: string })
+{
+    const locale = useLocale();
+    const { navigate } = useNavigate();
+    state status: SupportStatus | 'all' = props.staff ? 'open' : 'all';
+    state page = 1;
+    state subject = '';
+    state body = '';
+    state writing = false;
+    state sending = false;
+    state failed = false;
+    let request = '';
+    const list = createResource(() => ({ page: String(page), ...(status === 'all' ? {} : { status }) }),
+        (query) => props.staff ? client.admin.supportQueue({ query }) : client.support.mine({ query }), { name: 'support.list' });
+    derived result = list.data();
+    derived ready = subject.trim() !== '' && body.trim() !== '' && !sending;
+
+    const open = async () =>
+    {
+        if (!ready) { return; }
+        sending = true;
+        failed = false;
+        request ||= crypto.randomUUID();
+        try
+        {
+            const ticket = await client.support.open({ input: { requestId: request, subject, body } });
+            navigate(props.base + '/' + ticket.id);
+        }
+        catch
+        {
+            failed = true;
+        }
+        finally
+        {
+            sending = false;
+        }
+    };
+
+    <section class="flex min-w-0 flex-col gap-5">
+        <header class="flex flex-wrap items-center justify-between gap-3">
+            <h1 class="title text-ui-2xl text-text">{ locale.t('support.title') }</h1>
+            <Show when={ !props.staff && !writing }>
+                { () => <Button variant="primary" leading="add" onClick={ () => writing = true }>{ locale.t('support.new') }</Button> }
+            </Show>
+        </header>
+        <Show when={ writing }>
+            { () =>
+                <form class="flex flex-col gap-3 rounded-panel border border-line bg-field p-4" onSubmit={ (event) => { event.preventDefault(); void open(); } }>
+                    <label class="text-ui-sm font-semibold text-text" for="support-subject">{ locale.t('support.subject') }</label>
+                    <Input id="support-subject" value={ subject } onInput={ (s) => subject = s } maxlength={ SUBJECT_LIMIT } disabled={ sending } />
+                    <label class="text-ui-sm font-semibold text-text" for="support-body">{ locale.t('support.message') }</label>
+                    <textarea id="support-body" dir="auto" rows={ 5 } class="w-full rounded-control border border-line bg-sunk p-3 text-text" maxlength={ BODY_LIMIT } value={ body } disabled={ sending } onInput={ (event) => body = (event.currentTarget as HTMLTextAreaElement).value }></textarea>
+                    <Show when={ failed }>{ () => <p role="alert" class="text-danger">{ locale.t('common.actionFailed') }</p> }</Show>
+                    <div class="flex flex-wrap gap-2">
+                        <Button submit variant="primary" disabled={ !ready }>{ locale.t('support.submit') }</Button>
+                        <Button disabled={ sending } onClick={ () => writing = false }>{ locale.t('common.cancel') }</Button>
+                    </div>
+                </form>
+            }
+        </Show>
+        <div class="flex flex-wrap gap-2">
+            <For each={ ['all', ...SUPPORT_STATES] as const } key={ (one) => one } let={ one }>
+                <span><Button size="sm" pressed={ status === one } onClick={ () => { page = 1; status = one; } }>{ locale.t(`support.${ one }`) }</Button></span>
+            </For>
+        </div>
+        <Show when={ list.error() }>{ () => <ErrorState error={ list.error() } onRetry={ () => void list.refetch() } /> }</Show>
+        <Show when={ list.error() ? null : result } let={ found }>
+            <Show when={ found.tickets.length === 0 }>{ () => <p class="text-muted">{ locale.t('support.empty') }</p> }</Show>
+            <ul class="divide-y divide-line">
+                <For each={ found.tickets } key={ (row) => row.id } let={ row }>
+                    <li>
+                        <Link to={ props.base + '/' + row.id } class="flex min-h-14 flex-wrap items-center justify-between gap-2 py-3 hover:text-accent">
+                            <span class="min-w-0 flex-1"><strong class="block break-words" dir="auto">{ row.subject }</strong><Show when={ props.staff }>{ () => <bdi class="text-ui-sm text-muted">@{ row.owner }</bdi> }</Show></span>
+                            <span class="text-ui-sm text-muted">{ locale.t(`support.${ row.status }`) }</span>
+                            <time class="text-ui-xs text-muted" datetime={ row.updatedAt }>{ locale.date(new Date(row.updatedAt)) }</time>
+                        </Link>
+                    </li>
+                </For>
+            </ul>
+            <div class="flex gap-2">
+                <Show when={ page > 1 }>{ () => <Button onClick={ () => page -= 1 }>{ locale.t('page.previous') }</Button> }</Show>
+                <Show when={ found.more }>{ () => <Button onClick={ () => page += 1 }>{ locale.t('page.next') }</Button> }</Show>
+            </div>
+        </Show>
+        <Show when={ !result && !list.error() }>{ () => <p role="status">{ locale.t('common.loading') }</p> }</Show>
+    </section>
+}

@@ -67,6 +67,7 @@ const KIND_WORDS: Record<ActionKind | 'all', MessageKey> = {
     season: 'admin.log.kind.season',
     tournament: 'admin.log.kind.tournament',
     rate: 'admin.log.kind.rate',
+    support: 'support.title',
     'system-players': 'admin.log.kind.system-players'
 };
 

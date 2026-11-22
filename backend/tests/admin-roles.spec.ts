@@ -12,10 +12,10 @@ describe('who on the staff may do what', () =>
         const reach = (role: StaffRole | null) => (Object.keys(ABILITIES) as Ability[]).filter((ability) => may(role, ability)).sort();
 
         expect(reach(null)).toEqual([]);
-        expect(reach('moderator')).toEqual(['live', 'overview', 'people', 'reports']);
-        expect(reach('admin')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'rewards', 'seasons', 'shop', 'staff', 'system', 'tournaments']);
+        expect(reach('moderator')).toEqual(['live', 'overview', 'people', 'reports', 'support']);
+        expect(reach('admin')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'rewards', 'seasons', 'shop', 'staff', 'support', 'system', 'tournaments']);
         expect(reach('co-owner'), 'a co-owner signs for no contract').toEqual(reach('admin'));
-        expect(reach('owner')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'rewards', 'seasons', 'shop', 'staff', 'system', 'tournaments', 'wallet']);
+        expect(reach('owner')).toEqual(['health', 'invites', 'live', 'log', 'money', 'notice', 'overview', 'people', 'play', 'reports', 'rewards', 'seasons', 'shop', 'staff', 'support', 'system', 'tournaments', 'wallet']);
     });
 
     it('tells everyone who may open the people pages which accounts are system players, and keeps the system pages and their changes apart', () =>

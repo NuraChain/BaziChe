@@ -9,6 +9,7 @@ export const landing: Pick<Dictionary, keyof typeof reference> = {
 
     'nav.games': '游戏',
     'nav.connect': '连接钱包',
+    'nav.buyNura': '购买 NURA',
     'nav.enter': '开玩',
     'nav.menu': '菜单',
     'nav.close': '关闭菜单',

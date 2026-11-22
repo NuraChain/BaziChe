@@ -1,6 +1,7 @@
 import { Dynamic, type MountNode } from 'azerothjs';
 
 import BrandLogo from './brand-logo.component.azeroth';
+import BuyNuraLink from './buy-nura-link.component.azeroth';
 import BrandMark from './brand-mark.component.azeroth';
 import LanguageSwitch from './language-switch.component.azeroth';
 import Button from '../ui/button.component.azeroth';
@@ -61,7 +62,7 @@ export default component SiteHeader(props: { cta?: boolean })
         <div class="page-pad flex h-15 items-center gap-3">
             <a href="/" class="site-brand flex min-h-11 items-center gap-2.5 rounded-control" aria-label={ locale.t('brand.name') }>
                 <BrandLogo size="md" />
-                <BrandMark class="hidden text-ui-lg text-text min-[22.5rem]:inline" />
+                <BrandMark class="hidden text-ui-lg text-text sm:inline" />
             </a>
 
             <Show when={ props.cta !== false }>
@@ -92,7 +93,8 @@ export default component SiteHeader(props: { cta?: boolean })
                     </label>
                 </div> }
             </Show>
-            <div class="ms-auto flex items-center gap-2">
+            <div class="ms-auto flex items-center gap-1 sm:gap-2">
+                <BuyNuraLink />
                 <div class="hidden sm:block">
                     <LanguageSwitch class="w-40" />
                 </div>

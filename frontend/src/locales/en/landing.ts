@@ -6,6 +6,7 @@ export const landing = {
 
     'nav.games': 'Games',
     'nav.connect': 'Connect wallet',
+    'nav.buyNura': 'Buy NURA',
     'nav.enter': 'Play',
     'nav.menu': 'Menu',
     'nav.close': 'Close menu',

@@ -1,0 +1,12 @@
+import { NURA_PURCHASE_URL } from '../../data/chain.ts';
+import { useLocale } from '../../stores/locale.store.ts';
+
+export default component BuyNuraLink()
+{
+    const locale = useLocale();
+
+    <a href={ NURA_PURCHASE_URL } target="_blank" rel="noopener noreferrer"
+        class="inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-control px-1.5 text-ui-sm font-semibold text-accent hover:underline sm:px-3">
+        { locale.t('nav.buyNura') }
+    </a>
+}

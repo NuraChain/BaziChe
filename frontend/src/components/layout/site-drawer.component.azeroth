@@ -2,7 +2,6 @@ import { Link } from 'azerothjs';
 
 import BrandLogo from './brand-logo.component.azeroth';
 import BrandMark from './brand-mark.component.azeroth';
-import LanguageSwitch from './language-switch.component.azeroth';
 import ThemePicker from './theme-picker.component.azeroth';
 import GameIcon from '../games/game-icon.component.azeroth';
 import SeatCount from '../games/seat-count.component.azeroth';
@@ -14,7 +13,7 @@ import { GAMES } from '../../data/games.ts';
 import { runtime } from '../../lib/runtime.ts';
 import { createDrag } from '../../lib/swipe.ts';
 import { useConnect } from '../../stores/connect.store.ts';
-import { useLocale } from '../../stores/locale.store.ts';
+import { LOCALES, LOCALE_LABEL, useLocale } from '../../stores/locale.store.ts';
 
 export default component SiteDrawer(props: {
     open: boolean;
@@ -192,7 +191,23 @@ export default component SiteDrawer(props: {
 
                 <section aria-labelledby="drawer-language" class="flex flex-col gap-2">
                     <h2 id="drawer-language" class="label text-ui-xs text-faint">{ locale.t('locale.label') }</h2>
-                    <LanguageSwitch class="w-full" grid />
+                    <div class="grid w-full grid-cols-2 gap-1 rounded-control bg-sunk p-1" role="group" aria-label={ locale.t('locale.label') }>
+                        <For each={ LOCALES } key={ (code) => code } let={ code }>
+                            <button
+                                type="button"
+                                lang={ code }
+                                class={ () => [
+                                    'flex h-11 min-w-0 items-center gap-2 rounded-[0.375rem] px-3 text-ui-sm font-semibold transition-colors duration-150',
+                                    locale.locale() === code ? 'cursor-default bg-raised text-text shadow-1' : 'cursor-pointer text-muted hover:text-text'
+                                ].join(' ') }
+                                aria-pressed={ locale.locale() === code }
+                                onClick={ () => locale.setLocale(code) }
+                            >
+                                <img src={ `/flags/${ code }.svg` } alt="" width="20" height="15" loading="lazy" class="h-3.75 w-5 shrink-0 rounded-[2px] object-cover shadow-1" />
+                                <span class="min-w-0 truncate">{ LOCALE_LABEL[code] }</span>
+                            </button>
+                        </For>
+                    </div>
                 </section>
             </div>
         </div>

@@ -9,6 +9,7 @@ import { useNotifications } from '../../stores/notifications.store.ts';
 import { useAccount } from '../../stores/account.store.ts';
 import { useSettings } from '../../stores/settings.store.ts';
 import { leave, useShell } from '../../stores/shell.store.ts';
+import BuyNuraLink from '../layout/buy-nura-link.component.azeroth';
 import BrandMark from '../layout/brand-mark.component.azeroth';
 import { RAIL } from './nav-items.ts';
 import Avatar from '../ui/avatar.component.azeroth';
@@ -130,6 +131,7 @@ export default component TopBar()
                 }
             </Show>
 
+            <BuyNuraLink />
             <Show when={ !phone }>
                 { () =>
                     <span class="glow-cta me-1 hidden rounded-control lg:flex">

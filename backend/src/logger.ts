@@ -39,7 +39,7 @@ const REDACT = [
 export function createServerLogger(config: ServerConfig)
 {
     return createLogger({
-        level: config.env === 'production' ? 'info' : 'debug',
+        level: config.env === 'production' ? 'warn' : 'debug',
         sink: teeSink(terminalSink(), fileSink(new URL('../.logs/', import.meta.url))),
         redact: REDACT,
         fields: { service: 'baziche-server', env: config.env }

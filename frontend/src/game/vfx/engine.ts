@@ -84,8 +84,6 @@ export const QUALITY: Record<Quality, { density: number; ratio: number; ceiling:
 
 const STEP_MOST = 50;
 
-const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 /** What this device can draw: low under a finger, Save-Data or four cores and fewer, medium on six, high above. */
 export function qualityOf(): Quality
 {
@@ -147,7 +145,10 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
 {
     const quality = QUALITY[options.quality ?? qualityOf()];
     const ceiling = Math.round((options.ceiling ?? CEILING) * quality.ceiling);
-    const quiet = options.quiet ?? reduced;
+    const preference = options.quiet === undefined && typeof matchMedia === 'function'
+        ? matchMedia('(prefers-reduced-motion: reduce)')
+        : null;
+    const quiet = options.quiet ?? (() => preference?.matches === true);
     const frame = options.frame ?? animationFrame;
 
     const canvas = document.createElement('canvas');
@@ -163,6 +164,7 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
     let last = 0;
     let width = 0;
     let height = 0;
+    let drawnRatio = 0;
     let gone = false;
     let pointer: Point | null = null;
     let onScreen = true;
@@ -173,10 +175,11 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
         const nextWidth = host.clientWidth;
         const nextHeight = host.clientHeight;
 
-        if (nextWidth !== width || nextHeight !== height)
+        if (nextWidth !== width || nextHeight !== height || drawnRatio !== ratio)
         {
             width = nextWidth;
             height = nextHeight;
+            drawnRatio = ratio;
             canvas.width = Math.round(width * ratio);
             canvas.height = Math.round(height * ratio);
         }
@@ -205,7 +208,7 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
     {
         const seconds = ms / 1000;
 
-        for (const running of streams)
+        for (const running of quiet() ? [] : streams)
         {
             const point = running.at();
             if (point === null)
@@ -229,6 +232,7 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
         let kept = 0;
         for (const particle of particles)
         {
+            const previousAge = particle.age;
             particle.age += ms;
             if (particle.age >= particle.life)
             {
@@ -240,7 +244,7 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
             {
                 continue;
             }
-            move(particle, ms, pointer);
+            move(particle, previousAge < 0 ? particle.age : ms, pointer);
         }
         particles.length = kept;
     };
@@ -252,15 +256,16 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
             return;
         }
         context.clearRect(0, 0, width, height);
+        const lightSurface = document.documentElement.dataset.theme === 'light';
         for (const particle of particles)
         {
-            drawParticle(context, particle);
+            drawParticle(context, particle, lightSurface);
         }
         context.globalAlpha = 1;
         context.globalCompositeOperation = 'source-over';
     };
 
-    const alive = () => particles.length > 0 || streams.size > 0;
+    const alive = () => particles.length > 0 || (streams.size > 0 && !quiet());
 
     const tick = () =>
     {
@@ -288,6 +293,19 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
             pending = frame(tick);
         }
     };
+
+    const motionChanged = () =>
+    {
+        if (quiet())
+        {
+            pending?.();
+            pending = null;
+            particles.length = 0;
+            draw();
+        }
+        wake();
+    };
+    preference?.addEventListener?.('change', motionChanged);
 
     const seen = () => wake();
     document.addEventListener('visibilitychange', seen);
@@ -341,10 +359,6 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
 
         stream(kind, at, tune = {})
         {
-            if (quiet())
-            {
-                return () => undefined;
-            }
             const running: Running = { kind, at, tune: tuned(tune), owed: 0, random: tune.seed === undefined ? null : seeded(tune.seed) };
             streams.add(running);
             wake();
@@ -377,6 +391,7 @@ export function createVfx(host: HTMLElement, options: VfxOptions = {})
             streams.clear();
             drawing.delete(particles);
             watcher?.disconnect();
+            preference?.removeEventListener?.('change', motionChanged);
             document.removeEventListener('visibilitychange', seen);
             canvas.remove();
         }

@@ -9,7 +9,7 @@ import { createGovernor } from '../src/world/quality/governor.ts';
 import { PIXEL_BUDGET, TIER_ORDER, pickTier, pixelRatioFor } from '../src/world/quality/tiers.ts';
 import studio from '../src/world/render/studio.json';
 
-const BEATS = ['arrival', 'games', 'together', 'compete', 'finale'];
+const BEATS = ['arrival', ...GAMES.map((game) => game.id)];
 
 const PATH: Shot[] = BEATS.map((name, index) => ({ at: index / (BEATS.length - 1), ...SHOTS[name] }));
 
@@ -32,13 +32,14 @@ describe('the shot list', () =>
         }
     });
 
-    it('gives each solo beat a game of its own, and the beat about results to chess', () =>
+    it('opens on the gallery and stops at every published table in catalogue order', () =>
     {
-        const solos = ['arrival', 'together', 'compete', 'finale'].map((name) => SHOTS[name]);
-        const framed = GAMES.filter((game) => solos.includes(FOCUS[game.id]));
-
-        expect(framed, 'a solo beat that is no game\'s close-up').toHaveLength(solos.length);
-        expect(SHOTS.compete).toBe(FOCUS.chess);
+        expect(Object.keys(SHOTS)).toEqual(BEATS);
+        for (const game of GAMES)
+        {
+            expect(SHOTS[game.id]).toBe(FOCUS[game.id]);
+        }
+        expect(Object.values(FOCUS)).not.toContain(SHOTS.arrival);
     });
 
     it('lets two neighbouring floor pools meet without overlapping', () =>
@@ -76,6 +77,19 @@ describe('camera path', () =>
         {
             expect(sampleShots(PATH, step / 400).position[1]).toBeGreaterThan(0.3);
         }
+    });
+
+    it('travels around the front of a subject across the signed angle boundary', () =>
+    {
+        const target = [0, 0, 0] as const;
+        const frames: Shot[] = [
+            { at: 0, target, position: [0.1, 1, -1], fov: 32 },
+            { at: 1, target, position: [-0.1, 1, -1], fov: 32 }
+        ];
+        const middle = sampleShots(frames, 0.5);
+        expect(middle.position[0]).toBeCloseTo(0, 6);
+        expect(middle.position[2]).toBeCloseTo(-Math.hypot(1, 0.1), 6);
+        expect(middle.fov).toBe(32);
     });
 
     it('holds a single shot still', () =>
@@ -360,22 +374,22 @@ describe('camera rig', () =>
         const rig = createRig(PATH);
         rig.setProgress(1);
         expect(rig.update(16)).toBe(true);
-        expect(near(rig, SHOTS.finale.position)).toBeGreaterThan(0.5);
+        expect(near(rig, SHOTS.chess.position)).toBeGreaterThan(0.5);
         expect(settle(rig)).toBe(false);
-        expect(near(rig, SHOTS.finale.position)).toBeLessThan(0.01);
+        expect(near(rig, SHOTS.chess.position)).toBeLessThan(0.01);
     });
 
     it('turns to a game while its card is focused, and back when it is not', () =>
     {
         const rig = createRig(PATH);
-        rig.setProgress(0.25);
+        rig.setProgress(1 / (BEATS.length - 1));
         settle(rig);
         rig.focus(FOCUS.backgammon);
         settle(rig);
         expect(near(rig, FOCUS.backgammon.position)).toBeLessThan(0.01);
         rig.focus(null);
         settle(rig);
-        expect(near(rig, SHOTS.games.position)).toBeLessThan(0.01);
+        expect(near(rig, SHOTS.hokm.position)).toBeLessThan(0.01);
     });
 
     it('sways a few centimetres with the mouse and no more', () =>
@@ -402,6 +416,24 @@ describe('camera rig', () =>
             rig.snap();
             expect(Math.sign(rig.camera.view!.offsetX - resting)).toBe(away);
         }
+    });
+
+    it('orbits the camera without moving the animation trigger and parks again at zero', () =>
+    {
+        const rig = createRig(PATH);
+        const station = rig.station.clone();
+        const angle = (degrees: number) =>
+        {
+            rig.setOrbit(degrees);
+            rig.snap();
+            return rig.camera.position.clone();
+        };
+        expect(angle(28).distanceTo(station)).toBeGreaterThan(0.25);
+        expect(angle(200).distanceTo(angle(28))).toBeLessThan(0.000001);
+        expect(angle(-28).distanceTo(angle(28))).toBeGreaterThan(0.5);
+        expect(rig.station.equals(station)).toBe(true);
+        expect(angle(NaN).distanceTo(station)).toBeLessThan(0.000001);
+        expect(rig.update(16)).toBe(false);
     });
 
     it('frames the subject where the layout asks', () =>

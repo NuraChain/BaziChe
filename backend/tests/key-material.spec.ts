@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -72,7 +72,12 @@ describe('key material in the repository', () =>
 
     it('names no key in the specs or the documents but one of hardhat\'s, whatever else is written there as hex', () =>
     {
-        const keyish = found(['backend/tests', 'frontend/tests', 'docs', 'README.md', '.github'])
+        const roots = ['backend/tests', 'frontend/tests', 'docs', 'README.md'];
+        if (existsSync(join(ROOT, '.github')))
+        {
+            roots.push('.github');
+        }
+        const keyish = found(roots)
             .filter((key) => !key.published && KEYISH.test(key.said));
 
         expect(keyish.map((key) => `${ key.file }:${ key.line }`)).toEqual([]);

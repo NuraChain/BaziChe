@@ -2,8 +2,6 @@ import { createSignal, createStore } from 'azerothjs';
 
 export type Theme = 'dark' | 'light';
 
-const browserColour: Record<Theme, string> = { dark: '#0B1220', light: '#EDF2F7' };
-
 export const useTheme = createStore(() =>
 {
     const [theme, setTheme] = createSignal<Theme>(
@@ -13,8 +11,13 @@ export const useTheme = createStore(() =>
     const choose = (next: Theme) =>
     {
         setTheme(next);
-        document.documentElement.dataset.theme = next;
-        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', browserColour[next]);
+        const root = document.documentElement;
+        root.dataset.theme = next;
+        const chrome = getComputedStyle(root).getPropertyValue('--void').trim();
+        if (chrome)
+        {
+            document.querySelector('meta[name="theme-color"]')?.setAttribute('content', chrome);
+        }
         const secure = location.protocol === 'https:' ? '; Secure' : '';
         document.cookie = `baziche-theme=${ next }; Path=/; Max-Age=31536000; SameSite=Lax${ secure }`;
     };

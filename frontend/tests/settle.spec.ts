@@ -102,10 +102,10 @@ describe('pieces that settle when their game arrives', () =>
         const { root, die, clip } = scene();
         const settling = createSettling(root, [clip]);
 
-        expect(settling.look(new Vector3(...SHOTS.games.position))).toBe(false);
+        expect(settling.look(new Vector3(...SHOTS.arrival.position))).toBe(false);
         expect(die.visible).toBe(false);
 
-        expect(settling.look(new Vector3(...SHOTS.together.position))).toBe(true);
+        expect(settling.look(new Vector3(...SHOTS.ludo.position))).toBe(true);
         expect(die.visible).toBe(true);
     });
 
@@ -118,7 +118,7 @@ describe('pieces that settle when their game arrives', () =>
         expect(die.visible).toBe(true);
     });
 
-    it('drops the dice of a game no beat frames when its card flies to its close-up', () =>
+    it('drops the backgammon dice on its chapter or its focused preview', () =>
     {
         const root = new Group();
         const dice = new Group();
@@ -129,8 +129,8 @@ describe('pieces that settle when their game arrives', () =>
         ]);
         const settling = createSettling(root, [clip]);
 
-        expect(Object.values(SHOTS).some((shot) => shot === FOCUS.backgammon), 'a beat frames backgammon after all').toBe(false);
-        expect(settling.look(new Vector3(...SHOTS.compete.position))).toBe(false);
+        expect(SHOTS.backgammon).toBe(FOCUS.backgammon);
+        expect(settling.look(new Vector3(...SHOTS.chess.position))).toBe(false);
         expect(dice.visible).toBe(false);
 
         expect(settling.look(new Vector3(...FOCUS.backgammon.position))).toBe(true);
@@ -141,7 +141,7 @@ describe('pieces that settle when their game arrives', () =>
     {
         const { root, die, clip } = scene();
         const settling = createSettling(root, [clip]);
-        const partway = new Vector3(...SHOTS.games.position).lerp(new Vector3(...SHOTS.together.position), 0.8);
+        const partway = new Vector3(...SHOTS.arrival.position).lerp(new Vector3(...SHOTS.ludo.position), 0.8);
 
         expect(settling.look(partway)).toBe(false);
         expect(die.visible).toBe(false);

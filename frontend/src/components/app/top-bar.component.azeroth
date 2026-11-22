@@ -82,7 +82,7 @@ export default component TopBar()
         return () => window.removeEventListener('keydown', onKey);
     }
 
-    <header class="z-topbar safe-t sticky top-0 border-b border-line bg-void/85 backdrop-blur-md">
+    <header class="app-chrome z-topbar safe-t sticky top-0 border-b border-line bg-void/85 backdrop-blur-md">
         <div class="flex h-[var(--topbar-h)] w-full items-center gap-1.5 px-3 sm:gap-2 sm:px-6">
             <Show when={ collapsible }>
                 { () =>

@@ -1,4 +1,5 @@
 import WorldCanvas from '../components/world/world-canvas.component.azeroth';
+import { useLocale } from '../stores/locale.store.ts';
 import { beenHere } from '../lib/been-here.ts';
 import SceneArrival from '../sections/scene-arrival.section.azeroth';
 import SceneFinale from '../sections/scene-finale.section.azeroth';
@@ -22,22 +23,40 @@ const COMPETE: SceneRow[] = [
 
 export default component LandingPage()
 {
+    const locale = useLocale();
     state returning = false;
+
+    effect
+    {
+        const title = `${ locale.t('brand.name') } · ${ locale.t('landing.arrival.lead') } ${ locale.t('landing.arrival.accent') }`;
+        const description = locale.t('landing.arrival.body');
+        if (typeof document !== 'undefined')
+        {
+            document.title = title;
+            document.querySelector('meta[property="og:title"]')?.setAttribute('content', title);
+            for (const tag of document.querySelectorAll('meta[name="description"],meta[property="og:description"]'))
+            {
+                tag.setAttribute('content', description);
+            }
+        }
+    }
 
     mount
     {
         returning = beenHere();
     }
 
-    <div class="relative">
-        <WorldCanvas />
+    <div class="landing-page">
+        <div class="landing-theater">
+            <WorldCanvas />
 
-        <div class="scene-overlay relative z-10 mt-[-100lvh]">
-            <SceneArrival returning={ returning } />
-            <SceneGames returning={ returning } />
-            <SceneRows beat="together" title="landing.together.title" lead="landing.together.lead" rows={ TOGETHER } />
-            <SceneRows beat="compete" title="landing.compete.title" lead="landing.compete.lead" rows={ COMPETE } />
-            <SceneFinale returning={ returning } />
+            <div class="scene-overlay relative z-10 tour-overlay">
+                <SceneArrival returning={ returning } />
+                <SceneGames />
+            </div>
         </div>
+        <SceneRows beat="together" title="landing.together.title" lead="landing.together.lead" rows={ TOGETHER } />
+        <SceneRows beat="compete" title="landing.compete.title" lead="landing.compete.lead" rows={ COMPETE } />
+        <SceneFinale returning={ returning } />
     </div>
 }

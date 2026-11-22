@@ -29,9 +29,10 @@ export default component Segmented(props: {
         <For each={ props.items } key={ (item) => item.id } let={ item }>
             <button
                 type="button"
+                value={ item.id }
                 class={ [
                     'flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[0.375rem] px-3 text-ui-sm font-semibold transition-colors duration-150 coarse:h-11',
-                    props.value === item.id ? 'bg-raised text-text shadow-1' : 'cursor-pointer text-muted hover:text-text'
+                    props.value === item.id ? 'bg-field text-accent shadow-1 ring-1 ring-inset ring-accent/40' : 'cursor-pointer text-muted hover:text-text'
                 ].join(' ') }
                 aria-pressed={ props.value === item.id }
                 onClick={ () => props.onChange(item.id) }

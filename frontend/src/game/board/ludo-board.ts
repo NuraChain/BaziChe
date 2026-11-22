@@ -94,10 +94,10 @@ export const WIN_LEAST = 700;
 const SLIDE_MOST = 8;
 
 const TONE: Record<string, string> = {
-    red: '#FF5A4E',
-    green: '#2FC262',
-    yellow: '#FFC72C',
-    blue: '#3F8CFF'
+    red: '#EF675E',
+    green: '#23AF74',
+    yellow: '#F3B93A',
+    blue: '#3E89F2'
 };
 
 interface Spot
@@ -211,7 +211,7 @@ const costOf = (beat: Beat) =>
     return WIN_LEAST;
 };
 
-const RING = '<svg viewBox="-60 -30 120 60" aria-hidden="true" class="block inline-full block-full overflow-visible"><ellipse class="fill-none stroke-[#0B1220] [stroke-opacity:0.55] stroke-[10]" rx="56" ry="28"/><ellipse class="fill-none stroke-[#FFFFFF] [stroke-opacity:0.95] stroke-[5.5] [stroke-dasharray:7.5_2.5] animate-[lp-dash_2400ms_linear_infinite] [.lp[data-movable]:hover_&]:[stroke-dasharray:none] [.lp[data-movable]:hover_&]:stroke-[7.5] [.lb[data-still]_&]:animate-none [.lb[data-still]_&]:[stroke-dasharray:none]" rx="56" ry="28" pathLength="120"/></svg>';
+const RING = '<svg viewBox="-60 -30 120 60" aria-hidden="true" class="block inline-full block-full overflow-visible"><ellipse class="fill-none stroke-[#152724] [stroke-opacity:0.55] stroke-[10]" rx="56" ry="28"/><ellipse class="fill-none stroke-[#FFFFFF] [stroke-opacity:0.95] stroke-[5.5] [stroke-dasharray:7.5_2.5] animate-[lp-dash_2400ms_linear_infinite] [.lp[data-movable]:hover_&]:[stroke-dasharray:none] [.lp[data-movable]:hover_&]:stroke-[7.5] [.lb[data-still]_&]:animate-none [.lb[data-still]_&]:[stroke-dasharray:none]" rx="56" ry="28" pathLength="120"/></svg>';
 
 const SPIKES = Array.from({ length: 16 }, (_, index) =>
 {

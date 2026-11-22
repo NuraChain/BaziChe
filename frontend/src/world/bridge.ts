@@ -15,6 +15,8 @@ export interface WorldHandle
 
     setPointer(x: number, y: number): void;
 
+    setOrbit(degrees: number): void;
+
     setFrame(subjectX: number, subjectY: number): void;
 
     focus(id: GameId | null): void;

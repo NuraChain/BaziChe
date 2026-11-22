@@ -20,9 +20,9 @@ const sprites = new Map<string, HTMLCanvasElement | null>();
  * glows, so a glowing particle costs one draw; null where no canvas can be made, and a plain
  * circle is drawn instead.
  */
-function sprite(color: string, core: boolean)
+function sprite(color: string, core: boolean, lightSurface: boolean)
 {
-    const key = `${ color }${ core ? '*' : '' }`;
+    const key = `${ color }${ core ? '*' : '' }${ lightSurface ? '+' : '' }`;
     if (!sprites.has(key))
     {
         const canvas = typeof document === 'undefined' ? null : document.createElement('canvas');
@@ -40,13 +40,20 @@ function sprite(color: string, core: boolean)
             if (core)
             {
                 light.addColorStop(0, '#FFFFFF');
-                light.addColorStop(0.14, color);
-                light.addColorStop(0.36, clear(color, 0.5));
+                light.addColorStop(0.08, '#FFFAEB');
+                light.addColorStop(0.2, color);
+                light.addColorStop(0.44, clear(color, 0.31));
+                light.addColorStop(0.76, clear(color, 0.06));
             }
             else
             {
                 light.addColorStop(0, color);
-                light.addColorStop(0.5, clear(color, 0.4));
+                light.addColorStop(0.32, clear(color, 0.58));
+                light.addColorStop(0.72, clear(color, 0.1));
+            }
+            if (core && lightSurface)
+            {
+                light.addColorStop(0.6, 'rgba(25,47,40,0.18)');
             }
             light.addColorStop(1, clear(color, 0));
             context.fillStyle = light;
@@ -57,9 +64,9 @@ function sprite(color: string, core: boolean)
     return sprites.get(key) ?? null;
 }
 
-function soft(context: CanvasRenderingContext2D, particle: Particle, radius: number, core: boolean)
+function soft(context: CanvasRenderingContext2D, particle: Particle, radius: number, core: boolean, lightSurface = false)
 {
-    const image = sprite(particle.color, core);
+    const image = sprite(particle.color, core, lightSurface);
     if (image === null)
     {
         context.beginPath();
@@ -132,11 +139,11 @@ const brightness = (particle: Particle, at: number) =>
     }
     if (particle.envelope === 'flicker')
     {
-        return (1 - at ** 3) * (0.8 + 0.2 * Math.sin(particle.age * 0.09 + particle.x));
+        return (1 - at ** 3) * (0.86 + 0.14 * Math.sin(particle.age * 0.014 + particle.turn));
     }
     if (particle.envelope === 'stutter')
     {
-        return (Math.floor(particle.age / 55) % 3 === 1 ? 0.25 : 1) * (1 - at);
+        return (Math.floor(particle.age / 145 + particle.turn) % 3 === 1 ? 0.68 : 1) * (1 - at);
     }
     return 1 - at;
 };
@@ -251,6 +258,17 @@ function drawFamily(context: CanvasRenderingContext2D, particle: Particle, size:
         context.strokeStyle = '#FFFFFF';
         context.lineWidth = Math.max(0.6, particle.size * 0.14);
         context.stroke();
+        const facet = particle.outline;
+        if (facet !== undefined && facet.length >= 3)
+        {
+            context.globalAlpha *= 0.42;
+            context.fillStyle = '#FFF8E5';
+            context.beginPath();
+            context.moveTo(0, 0);
+            context.lineTo(facet[0]!.x, facet[0]!.y);
+            context.lineTo(facet[1]!.x, facet[1]!.y);
+            context.fill();
+        }
         context.restore();
         return;
     }
@@ -412,7 +430,7 @@ function drawFamily(context: CanvasRenderingContext2D, particle: Particle, size:
 
 const FAMILY_SHAPES = new Set(['flame', 'shard', 'feather', 'rune', 'rosette', 'ribbon', 'nebula', 'shade', 'glitch', 'crack', 'ray', 'slit']);
 
-export function drawParticle(context: CanvasRenderingContext2D, particle: Particle)
+export function drawParticle(context: CanvasRenderingContext2D, particle: Particle, lightSurface = false)
 {
     if (particle.age < 0)
     {
@@ -420,7 +438,8 @@ export function drawParticle(context: CanvasRenderingContext2D, particle: Partic
     }
 
     const at = Math.min(1, particle.age / particle.life);
-    const size = particle.size * (1 + (particle.grow - 1) * at);
+    const expansion = particle.shape === 'ring' && particle.glow ? at * (2 - at) : at;
+    const size = particle.size * (1 + (particle.grow - 1) * expansion);
 
     context.globalAlpha = Math.max(0, Math.min(1, particle.alpha * brightness(particle, at)));
     context.globalCompositeOperation = particle.glow ? 'lighter' : 'source-over';
@@ -435,7 +454,7 @@ export function drawParticle(context: CanvasRenderingContext2D, particle: Partic
 
     if (particle.shape === 'dot' && particle.glow)
     {
-        soft(context, particle, size * 3, true);
+        soft(context, particle, size * 3, true, lightSurface);
         return;
     }
 
@@ -449,7 +468,7 @@ export function drawParticle(context: CanvasRenderingContext2D, particle: Partic
 
     if (particle.shape === 'orb')
     {
-        soft(context, particle, size * 3.4, true);
+        soft(context, particle, size * 3.4, true, lightSurface);
         return;
     }
 
@@ -461,13 +480,23 @@ export function drawParticle(context: CanvasRenderingContext2D, particle: Partic
 
     if (particle.shape === 'spark')
     {
-        const pace = Math.hypot(particle.vx, particle.vy) || 1;
-        const length = size * 3 + pace * 0.03;
-        context.lineWidth = size;
+        const speed = Math.hypot(particle.vx, particle.vy);
+        const dx = speed > 0 ? particle.vx / speed : 0;
+        const dy = speed > 0 ? particle.vy / speed : -1;
+        const length = size * 2.6 + Math.min(speed * 0.032, size * 12);
+        const half = Math.max(0.52, size * 0.58);
+        context.beginPath();
+        context.moveTo(particle.x + dx * half, particle.y + dy * half);
+        context.lineTo(particle.x - dy * half, particle.y + dx * half);
+        context.lineTo(particle.x - dx * length, particle.y - dy * length);
+        context.lineTo(particle.x + dy * half, particle.y - dx * half);
+        context.fill();
+        context.globalCompositeOperation = 'lighter';
+        context.lineWidth = Math.max(0.38, half * 0.72);
         context.lineCap = 'round';
         context.beginPath();
         context.moveTo(particle.x, particle.y);
-        context.lineTo(particle.x - (particle.vx / pace) * length, particle.y - (particle.vy / pace) * length);
+        context.lineTo(particle.x - dx * length * 0.42, particle.y - dy * length * 0.42);
         context.stroke();
         return;
     }
@@ -557,8 +586,16 @@ export function drawParticle(context: CanvasRenderingContext2D, particle: Partic
     }
     else
     {
-        context.scale(1, Math.cos(particle.age * 0.012));
+        const face = Math.cos(particle.age * 0.009 + particle.turn);
+        context.scale(1, Math.max(0.1, Math.abs(face)));
+        if (face < 0)
+        {
+            context.globalAlpha *= 0.7;
+        }
         context.fillRect(-size / 2, -size * 0.3, size, size * 0.6);
+        context.globalAlpha *= 0.65;
+        context.globalCompositeOperation = face > 0 ? 'lighter' : 'source-over';
+        context.fillRect(-size / 2, -size * 0.3, size, Math.max(0.45, size * 0.09));
     }
 
     context.restore();

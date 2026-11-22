@@ -1,25 +1,22 @@
-import { createStore, createSignal, type Getter } from 'azerothjs';
+import { createSignal, createStore } from 'azerothjs';
 
 import type { GameId } from '../data/games.ts';
 
-export interface FocusApi
+export const useFocus = createStore(() =>
 {
-
-    game: Getter<GameId | null>;
-    focus(id: GameId | null): void;
-}
-
-export const useFocus = createStore((): FocusApi =>
-{
-    const [game, setGame] = createSignal<GameId | null>(null);
+    const [game, focus] = createSignal<GameId | null>(null);
+    const [chapter, setChapter] = createSignal<GameId | null>(null);
+    const [inTour, setInTour] = createSignal(false);
+    const [orbit, setOrbit] = createSignal(0);
 
     return {
-        game,
-        focus: (id) =>
+        game, focus, chapter, inTour, setInTour, orbit, setOrbit,
+        setChapter(id: GameId | null)
         {
-            if (game() !== id)
+            if (id !== chapter())
             {
-                setGame(id);
+                setChapter(id);
+                setOrbit(0);
             }
         }
     };

@@ -177,7 +177,7 @@ const SMOKE = ['#9AA4B2', '#6B7280', '#4B5563'];
 const DUST = ['#FFF5D6', '#FBE7A6', '#9CC2FF'];
 export const ENERGY = ['#9CC2FF', '#C7DBFF', '#FFFFFF'];
 export const ICE = ['#FFFFFF', '#DFF3FF', '#9FD8FF', '#6FC3F5'];
-const PAPER = ['#FF5A4E', '#2FC262', '#FFC72C', '#3F8CFF', '#FFFFFF'];
+const PAPER = ['#EF675E', '#23AF74', '#F3B93A', '#3E89F2', '#FFFFFF'];
 const BOLT = ['#BFE8FF'];
 
 /** How far either side of a tune's direction a throw may stray, in radians. */

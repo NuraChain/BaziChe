@@ -18,6 +18,9 @@ const UP = new Vector3(0, 1, 0);
 export interface Rig
 {
     camera: PerspectiveCamera;
+    readonly station: Readonly<Vector3>;
+    readonly subject: Readonly<Vector3>;
+    setOrbit(degrees: number): void;
 
     setPath(shots: Shot[]): void;
 
@@ -58,6 +61,8 @@ export function createRig(shots: Shot[])
     let desiredFov = 30;
 
     let push = 0;
+    let orbit = 0;
+    let desiredOrbit = 0;
 
     const pointer = { x: 0, y: 0 };
     const smoothed = { x: 0, y: 0 };
@@ -80,7 +85,7 @@ export function createRig(shots: Shot[])
         right.crossVectors(forward, UP).normalize();
         lift.crossVectors(right, forward).normalize();
 
-        camera.position.copy(position)
+        camera.position.copy(position).sub(target).applyAxisAngle(UP, orbit).add(target)
             .addScaledVector(right, smoothed.x * PARALLAX)
             .addScaledVector(lift, smoothed.y * PARALLAX);
         camera.lookAt(target);
@@ -94,6 +99,13 @@ export function createRig(shots: Shot[])
 
     const rig: Rig = {
         camera,
+        station: position,
+        subject: target,
+
+        setOrbit(degrees)
+        {
+            desiredOrbit = Math.min(28, Math.max(-28, Number.isFinite(degrees) ? degrees : 0)) * Math.PI / 180;
+        },
 
         setPath(next)
         {
@@ -131,6 +143,7 @@ export function createRig(shots: Shot[])
         snap()
         {
             desire();
+            orbit = desiredOrbit;
             position.copy(desiredPosition);
             target.copy(desiredTarget);
             fov = desiredFov;
@@ -149,6 +162,7 @@ export function createRig(shots: Shot[])
             fov += (desiredFov - fov) * damping(FOV_RATE, deltaMs);
 
             const settle = damping(POINTER_RATE, deltaMs);
+            orbit += (desiredOrbit - orbit) * damping(0.16, deltaMs);
             smoothed.x += (pointer.x - smoothed.x) * settle;
             smoothed.y += (pointer.y - smoothed.y) * settle;
 
@@ -157,7 +171,8 @@ export function createRig(shots: Shot[])
 
             apply();
 
-            return position.distanceTo(desiredPosition) > SETTLED
+            return Math.abs(desiredOrbit - orbit) > 0.0002
+                || position.distanceTo(desiredPosition) > SETTLED
                 || target.distanceTo(desiredTarget) > SETTLED
                 || Math.abs(desiredFov - fov) > 0.01
                 || Math.abs(pointer.x - smoothed.x) > 0.002

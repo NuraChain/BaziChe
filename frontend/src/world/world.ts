@@ -1,5 +1,4 @@
 import {
-    Color,
     NeutralToneMapping,
     Scene,
     WebGLRenderer,
@@ -79,12 +78,12 @@ export async function createWorld(options: WorldOptions)
 
     try
     {
-        renderer = new WebGLRenderer({ canvas, context });
+        renderer = new WebGLRenderer({ canvas, context, alpha: true });
         renderer.toneMapping = NeutralToneMapping;
         renderer.toneMappingExposure = STUDIO.exposure;
 
         const scene = new Scene();
-        scene.background = new Color(STUDIO.sky);
+        renderer.setClearColor(0x000000, 0);
         environment = createEnvironment(renderer);
         scene.environment = environment.texture;
 
@@ -131,6 +130,12 @@ async function start(
     size();
     rig.snap();
 
+    const render = () =>
+    {
+        showcase.frame(rig.subject.x);
+        renderer.render(scene, rig.camera);
+    };
+
     let frame = 0;
     let running = true;
     let disposed = false;
@@ -155,9 +160,9 @@ async function start(
         last = now;
 
         const moving = rig.update(delta);
-        settling.look(rig.camera.position);
+        settling.look(rig.station);
         const settled = settling.update(delta / 1000);
-        renderer.render(scene, rig.camera);
+        render();
 
         if ((moving || settled) && running)
         {
@@ -190,20 +195,20 @@ async function start(
         renderer.initTexture(texture);
     }
     const settling = createSettling(showcase.root, showcase.animations);
-    renderer.render(scene, rig.camera);
+    render();
     callbacks.onReady?.();
 
     const observer = new ResizeObserver(() =>
     {
         size();
         rig.snap();
-        if (settling.look(rig.camera.position))
+        if (settling.look(rig.station))
         {
             invalidate();
         }
         if (running && !disposed)
         {
-            renderer.render(scene, rig.camera);
+            render();
         }
     });
     observer.observe(canvas);
@@ -226,6 +231,12 @@ async function start(
         {
             scrollY = y;
             rig.setProgress(progressAt(y, arrivals));
+            invalidate();
+        },
+
+        setOrbit(degrees)
+        {
+            rig.setOrbit(degrees);
             invalidate();
         },
 

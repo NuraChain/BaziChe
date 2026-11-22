@@ -1,203 +1,74 @@
-import type { Beat, WorldHandle } from '../../world/bridge.ts';
+import type { TourStage } from '../../world/gate.ts';
 import { useFocus } from '../../stores/focus.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
-
-const FADE_MS = 400;
 
 export default component WorldCanvas()
 {
     const locale = useLocale();
     const focus = useFocus();
-
     let host: HTMLDivElement | null = null;
     let canvas: HTMLCanvasElement | null = null;
+    let stage: TourStage | null = null;
 
     state live = false;
-
-    let world: WorldHandle | null = null;
-    let reframe: (() => void) | null = null;
+    derived preview = !live && focus.chapter() === null ? focus.game() : null;
 
     mount
     {
-        let disposed = false;
-        let broken = false;
-        let detach: (() => void) | null = null;
-
-        const retire = () =>
+        let mounted = true;
+        void import('../../world/gate.ts').then(({ attachStage }) =>
         {
-            broken = true;
-            live = false;
-            detach?.();
-            detach = null;
-            const handle = world;
-            world = null;
-            window.setTimeout(() => handle?.dispose(), FADE_MS);
-        };
-
-        const start = async () =>
-        {
-            if (host === null || canvas === null)
+            if (mounted && host !== null && canvas !== null)
             {
-                return;
-            }
-
-            const { openWorld } = await import('../../world/gate.ts');
-            const opened = disposed ? null : openWorld(canvas);
-            if (opened === null)
-            {
-                return;
-            }
-
-            const lose = (): void => opened.context.getExtension('WEBGL_lose_context')?.loseContext();
-            const loaded = await import('../../world/world.ts').catch(() => null);
-            if (disposed || loaded === null)
-            {
-                lose();
-                return;
-            }
-            const { createWorld } = loaded;
-
-            const handle = await createWorld({
-                canvas,
-                context: opened.context,
-                choice: opened.choice,
-                assetBase: '/world',
-                callbacks:
-                {
-                    onReady: () =>
-                    {
-                        if (!broken)
-                        {
-                            live = true;
-                        }
-                    },
-                    onFailed: () => retire()
-                }
-            });
-
-            if (disposed || broken)
-            {
-                handle.dispose();
-                return;
-            }
-
-            world = handle;
-            handle.focus(focus.game());
-            const page = host.parentElement ?? document.body;
-
-            const measure = () =>
-            {
-                const stage = host!.clientHeight;
-                const beats: Beat[] = [...page.querySelectorAll<HTMLElement>('[data-beat]')].map((element, index) =>
-                {
-                    const box = element.getBoundingClientRect();
-                    return {
-                        name: element.dataset.beat ?? '',
-                        at: index === 0 ? 0 : Math.max(0, box.top + window.scrollY + Math.min(0, (box.height - stage) / 2))
-                    };
+                stage = attachStage(host, canvas, {
+                    onLive: (value) => live = value,
+                    onChapter: (id) => focus.setChapter(id),
+                    onTour: (visible) => focus.setInTour(visible),
+                    preview: () => focus.chapter() === null ? focus.game() : null
                 });
-                handle.measure(beats);
-            };
-
-            const frame = () =>
-            {
-                const style = getComputedStyle(host!);
-                const x = Number.parseFloat(style.getPropertyValue('--subject-x'));
-                const y = Number.parseFloat(style.getPropertyValue('--subject-y'));
-                handle.setFrame(Number.isFinite(x) ? x : 0.5, Number.isFinite(y) ? y : 0.5);
-            };
-
-            const onScroll = () => handle.setScroll(window.scrollY);
-
-            const onPointer = (event: PointerEvent) =>
-            {
-                if (event.pointerType === 'mouse')
-                {
-                    handle.setPointer((event.clientX / window.innerWidth) * 2 - 1, (event.clientY / window.innerHeight) * -2 + 1);
-                }
-            };
-
-            const onResize = () =>
-            {
-                frame();
-                measure();
-            };
-
-            const layout = new ResizeObserver(() => measure());
-            layout.observe(page);
-
-            const visibility = new IntersectionObserver((entries) =>
-            {
-                if (entries[entries.length - 1].isIntersecting)
-                {
-                    handle.resume();
-                }
-                else
-                {
-                    handle.pause();
-                }
-            });
-            visibility.observe(host);
-
-            window.addEventListener('scroll', onScroll, { passive: true });
-            window.addEventListener('resize', onResize, { passive: true });
-            window.addEventListener('pointermove', onPointer, { passive: true });
-
-            reframe = frame;
-            frame();
-            measure();
-            onScroll();
-            void document.fonts?.ready.then(() =>
-            {
-                if (world === handle)
-                {
-                    measure();
-                }
-            });
-
-            detach = () =>
-            {
-                window.removeEventListener('scroll', onScroll);
-                window.removeEventListener('resize', onResize);
-                window.removeEventListener('pointermove', onPointer);
-                layout.disconnect();
-                visibility.disconnect();
-                reframe = null;
-            };
-        };
-
-        void start().catch(() => retire());
-
+            }
+        });
         return () =>
         {
-            disposed = true;
-            detach?.();
-            world?.dispose();
-            world = null;
+            mounted = false;
+            stage?.dispose();
+            stage = null;
+            focus.setChapter(null);
+            focus.setInTour(false);
         };
     }
 
     effect
     {
         const id = focus.game();
-        world?.focus(id);
+        stage?.focus(focus.chapter() === null ? id : null);
+    }
+
+    effect
+    {
+        const angle = focus.orbit();
+        stage?.orbit(angle);
     }
 
     effect
     {
         locale.dir();
-        const again = reframe;
-        if (again !== null)
-        {
-            requestAnimationFrame(() => again());
-        }
+        stage?.refresh();
     }
 
-    <div ref={ (element) => host = element } class="stage [--subject-x:0.5] [--subject-y:0.3] bg-void bg-[url('/world/poster-portrait.webp')] bg-cover bg-[position:calc(var(--subject-x)*100%)_calc(var(--subject-y)*100%)] bg-no-repeat beside:[--subject-x:0.66] beside:[--subject-y:0.5] beside:bg-[url('/world/poster-wide-ltr.webp')] beside:rtl:[--subject-x:0.34] beside:rtl:bg-[url('/world/poster-wide-rtl.webp')]" aria-hidden="true">
+    <div ref={ (element) => host = element } data-shot={ focus.chapter() ?? 'arrival' } data-game-color={ focus.chapter() ?? focus.game() ?? undefined } class="stage world-stage [--subject-x:0.5] [--subject-y:0.32] beside:[--subject-x:0.725] beside:[--subject-y:0.5] beside:rtl:[--subject-x:0.275]" aria-hidden="true">
+        <div
+            class="world-poster absolute inset-0 bg-[url('/world/poster-portrait.webp')] bg-cover bg-[position:calc(var(--subject-x)*100%)_calc(var(--subject-y)*100%)] bg-no-repeat beside:bg-[url('/world/poster-wide-ltr.webp')] beside:rtl:bg-[url('/world/poster-wide-rtl.webp')]"
+            hidden={ preview !== null }
+            data-live={ live ? '' : undefined }
+        ></div>
         <canvas
             ref={ (element) => canvas = element }
             class={ () => ['world-canvas absolute inset-0 block h-full w-full [transition:opacity_400ms_ease]', live ? 'is-live opacity-100' : 'opacity-0'].join(' ') }
         ></canvas>
+        <Show when={ preview !== null }>
+            { () => <div class="landing-scene-still"><img src={ `/world/card-${ preview }.webp` } alt="" /></div> }
+        </Show>
         <div class="scrim"></div>
     </div>
 }

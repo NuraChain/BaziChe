@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createVfx, type VfxOptions } from '../src/game/vfx/engine.ts';
 import { PRESETS, STREAMS, type Preset } from '../src/game/vfx/presets.ts';
@@ -176,6 +176,35 @@ describe('the particle engine', () =>
 
         expect(vfx.live()).toBe(0);
         expect(clock.pending()).toBe(0);
+    });
+
+    it('suspends a running stream on reduced motion and resumes it when allowed', () =>
+    {
+        const preference = Object.assign(new EventTarget(), { matches: false });
+        vi.stubGlobal('matchMedia', () => preference);
+        const vfx = createVfx(host, {
+            quality: 'high', frame: (run) => clock.after(16, run), context: () => counting().context
+        });
+        try
+        {
+            const stop = vfx.stream('aura', () => AT);
+            clock.advance(300);
+            expect(vfx.live()).toBeGreaterThan(0);
+            preference.matches = true;
+            preference.dispatchEvent(new Event('change'));
+            expect(vfx.live()).toBe(0);
+            expect(clock.pending()).toBe(0);
+            preference.matches = false;
+            preference.dispatchEvent(new Event('change'));
+            clock.advance(300);
+            expect(vfx.live()).toBeGreaterThan(0);
+            stop();
+        }
+        finally
+        {
+            vfx.dispose();
+            vi.unstubAllGlobals();
+        }
     });
 
     it('keeps its canvas the size of its host for as long as it draws', () =>

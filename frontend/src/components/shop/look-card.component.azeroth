@@ -41,7 +41,7 @@ export default component LookCard(props: { item: string; onOpen: (item: string) 
         data-look={ props.item }
         onClick={ () => props.onOpen(props.item) }
     >
-        <span class="relative block overflow-hidden">
+        <span class="art-frame block">
             <img src={ `/looks/${ props.item }.svg` } alt="" width="160" height="120" loading="lazy" decoding="async" class="block aspect-[4/3] w-full object-cover transition-transform duration-300 group-hover:scale-[1.04] motion-reduce:transition-none" />
             <Show when={ bundled }>
                 <img src={ sigil } alt="" width="32" height="32" loading="lazy" decoding="async" class="absolute bottom-2 start-2 h-8 w-8 drop-shadow-md" data-sigil />

@@ -518,7 +518,7 @@ export default component MessageBubble(props: {
                                             <Show when={ quoteName !== '' }>
                                                 { () => <span class={ () => [ 'max-w-full truncate text-ui-2xs font-semibold', mine ? 'text-accent-ink' : 'text-accent' ].join(' ') } dir="auto">{ quoteName }</span> }
                                             </Show>
-                                            <span class={ () => [ 'line-clamp-2 max-w-full text-ui-xs', mine ? 'text-accent-ink/80' : 'text-muted' ].join(' ') } dir="auto">{ quoteText }</span>
+                                            <span class={ () => [ 'line-clamp-2 max-w-full text-ui-xs', mine ? 'text-accent-ink/90' : 'text-muted' ].join(' ') } dir="auto">{ quoteText }</span>
                                         </button>
                                     }
                                 </Show>
@@ -542,7 +542,7 @@ export default component MessageBubble(props: {
                                     { () => <LazyVoiceNote message={ props.message } mine={ mine } reserve={ stamp } trail={ ticked } /> }
                                 </Show>
                                 <time
-                                    class={ () => [ 'absolute bottom-1 end-3 text-ui-2xs leading-none', mine && !jumbo ? 'text-accent-ink/70' : 'text-faint' ].join(' ') }
+                                    class={ () => [ 'absolute bottom-1 end-3 text-ui-2xs leading-none', mine && !jumbo ? 'text-accent-ink/90' : 'text-faint' ].join(' ') }
                                     datetime={ new Date(props.message.at).toISOString() }
                                 >
                                     <span class="inline-flex items-center gap-0.5" dir={ locale.dir() }>

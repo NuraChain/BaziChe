@@ -378,7 +378,8 @@ const opened = async (event) =>
 
 self.addEventListener('install', (event) =>
 {
-    event.waitUntil(Promise.all([self.skipWaiting(), shelve()]));
+    // Refresh the offline appearance before an installed client takes over.
+    event.waitUntil(shelve().then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) =>

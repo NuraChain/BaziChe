@@ -44,10 +44,28 @@ export function sampleShots(shots: Shot[], progress: number): Frame
     const span = b.at - a.at;
     const u = span <= 0 ? 0 : Math.min(Math.max((t - a.at) / span, 0), 1);
 
+    if (u === 0 || u === 1)
+    {
+        const frame = u === 0 ? a : b;
+        return { position: frame.position, target: frame.target, fov: frame.fov };
+    }
+
+    const target = mix(a.target, b.target, u);
+    const ax = a.position[0] - a.target[0];
+    const az = a.position[2] - a.target[2];
+    const bx = b.position[0] - b.target[0];
+    const bz = b.position[2] - b.target[2];
+    const heading = Math.atan2(ax, az);
+    const delta = Math.atan2(bx, bz) - heading;
+    const turn = Math.atan2(Math.sin(delta), Math.cos(delta));
+    const travel = Math.min(1, Math.hypot(a.target[0] - b.target[0], a.target[2] - b.target[2])) * Math.sin(Math.PI * u) ** 2;
+    const radius = Math.hypot(ax, az) * (1 - u) + Math.hypot(bx, bz) * u + 0.20 * travel;
     return {
-        position: mix(a.position, b.position, u),
-        target: mix(a.target, b.target, u),
-        fov: a.fov + (b.fov - a.fov) * u
+        position: [target[0] + Math.sin(heading + turn * u) * radius,
+            a.position[1] * (1 - u) + b.position[1] * u + 0.16 * travel,
+            target[2] + Math.cos(heading + turn * u) * radius],
+        target,
+        fov: a.fov + (b.fov - a.fov) * u + 2.4 * travel
     };
 }
 
@@ -77,7 +95,9 @@ export function progressAt(scrollY: number, arrivals: readonly number[])
 
     const span = arrivals[index + 1] - arrivals[index];
     const passed = span <= 0 ? 1 : (scrollY - arrivals[index]) / span;
-    return (index + passed * passed * (3 - 2 * passed)) / last;
+    // Hold the close-up while its text is centred; use the middle of the interval to travel.
+    const moving = Math.min(1, Math.max(0, (passed - 0.16) / 0.68));
+    return (index + moving * moving * (3 - 2 * moving)) / last;
 }
 
 export interface Lens

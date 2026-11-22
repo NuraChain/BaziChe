@@ -35,10 +35,10 @@ export default component GameCard(props: {
 
     derived shut = locale.t(paused ? 'games.paused' : 'games.soon');
 
-    <article class={ `group relative flex flex-col overflow-hidden rounded-panel border border-line bg-field transition duration-200 ease-[var(--ease-ui)] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-2 ${ props.class ?? '' }` }>
-        <Link to={ href } class="relative block" aria-label={ name } prefetch="hover">
+    <article data-game-color={ props.game.id } class={ `group relative flex flex-col overflow-hidden panel-surface rounded-panel border border-line transition duration-200 ease-[var(--ease-ui)] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-2 ${ props.class ?? '' }` }>
+        <Link to={ href } class="art-frame block" aria-label={ name } prefetch="hover">
             <GameArt game={ props.game.id } ratio={ props.compact === true ? 'wide' : 'card' } class="transition-transform duration-500 ease-[var(--ease-reveal)] group-hover:scale-[1.03]" />
-            <span class="absolute start-2.5 top-2.5 flex rounded-full bg-void/70 backdrop-blur-md">
+            <span class="absolute start-2.5 top-2.5 art-badge flex rounded-full">
                 <Show when={ live }>
                     <Badge dot text={ locale.t('games.livePill') } tone="live" />
                 </Show>

@@ -15,7 +15,10 @@ assert.ok(routes.every((route) => route.startsWith('/') && new URL(route, origin
 const browser = await launchChrome();
 try
 {
-    for (const [locale, width, height] of [['en', 1440, 900], ['fa', 390, 844]])
+    for (const [theme, locale, width, height] of [
+        ['dark', 'en', 1440, 900], ['light', 'en', 1440, 900],
+        ['dark', 'fa', 390, 844], ['light', 'fa', 390, 844]
+    ])
     {
         const context = await browser.newContext({
             viewport: { width, height }, locale, isMobile: width < 500, hasTouch: width < 500, reducedMotion: 'reduce',
@@ -23,7 +26,7 @@ try
         });
         try
         {
-            const cookies = [{ name: 'locale', value: locale }, { name: 'baziche-theme', value: 'light' }];
+            const cookies = [{ name: 'locale', value: locale }, { name: 'baziche-theme', value: theme }];
             if (session)
             {
                 const split = session.indexOf('=');
@@ -40,14 +43,14 @@ try
                 await page.waitForLoadState('networkidle');
                 await page.evaluate(() => document.fonts.ready.then(() => undefined));
                 assert.equal(new URL(page.url()).pathname, new URL(route, origin).pathname, 'The route redirected. Use a session with the required role.');
-                assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
+                assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
                 assert.equal(await page.locator('html').getAttribute('lang'), locale);
                 await page.addScriptTag({ path: resolve(axe) });
                 const results = await page.evaluate(() => window.axe.run(document, { runOnly: ['color-contrast'] }));
                 const failed = results.violations.flatMap((rule) => rule.nodes);
                 const passed = results.passes.reduce((count, rule) => count + rule.nodes.length, 0);
                 const manual = results.incomplete.reduce((count, rule) => count + rule.nodes.length, 0);
-                console.log(`${ locale } ${ width }×${ height } ${ route } — ${ passed } passed, ${ failed.length } failed, ${ manual } require manual inspection`);
+                console.log(`${ theme } ${ locale } ${ width }×${ height } ${ route } — ${ passed } passed, ${ failed.length } failed, ${ manual } require manual inspection`);
                 for (const node of failed)
                 {
                     console.error(node.target.join(' '), node.failureSummary);

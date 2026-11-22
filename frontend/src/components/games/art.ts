@@ -1,10 +1,10 @@
 import type { GameId } from '../../data/games.ts';
 
 export const GAME_HUE: Record<GameId, number> = {
-    hokm: 350,
-    poker: 150,
+    hokm: 162,
+    poker: 259,
     backgammon: 28,
-    ludo: 265,
+    ludo: 34,
     chess: 40
 };
 

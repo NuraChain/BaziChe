@@ -6,6 +6,7 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { launchChrome } from '../chrome.mjs';
+import { GAMES } from '../../frontend/src/data/games.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const WORLD = join(ROOT, 'frontend', 'public', 'world');
@@ -16,6 +17,11 @@ export const POSTERS = [
     { file: 'poster-wide-ltr.webp', width: 1920, height: 1080, scale: 1, locale: 'en', budget: 130 * 1024 },
     { file: 'poster-wide-rtl.webp', width: 1920, height: 1080, scale: 1, locale: 'fa', budget: 130 * 1024 }
 ];
+
+const TABLE_STILLS = GAMES.map(({ id }) => ({
+    game: id, file: `card-${ id }.webp`, width: 1080, height: 720, scale: 1,
+    outputWidth: 720, outputHeight: 480, locale: 'en', budget: 32 * 1024
+}));
 
 function filesUnder(directory)
 {
@@ -46,6 +52,31 @@ export function fingerprint()
     return hash.digest('hex');
 }
 
+// Let CSS cast the large floor shadow in the active theme, so it stays smooth at any display size.
+// Contact shadows on pieces and boards still come from the original GLB materials.
+function photoScene(source, game)
+{
+    const jsonSize = source.readUInt32LE(12);
+    const scene = JSON.parse(source.subarray(20, 20 + jsonSize).toString('utf8'));
+    const roots = scene.scenes[scene.scene ?? 0];
+    if (game)
+    {
+        roots.nodes = roots.nodes.filter((index) => scene.nodes[index].name === game);
+        if (roots.nodes.length !== 1) throw new Error(`Expected one showcase root for ${ game }`);
+    }
+    for (const index of roots.nodes)
+    {
+        const table = scene.nodes[index];
+        table.children = table.children.filter((child) => !scene.nodes[child].name.startsWith('decal-floor-'));
+    }
+    const json = Buffer.from(JSON.stringify(scene));
+    const size = Math.ceil(json.length / 4) * 4;
+    const header = Buffer.from(source.subarray(0, 20));
+    header.writeUInt32LE(source.length - jsonSize + size, 8);
+    header.writeUInt32LE(size, 12);
+    return Buffer.concat([header, json, Buffer.alloc(size - json.length, 0x20), source.subarray(20 + jsonSize)]);
+}
+
 async function capture(browser, poster)
 {
     const context = await browser.newContext({
@@ -54,32 +85,57 @@ async function capture(browser, poster)
     });
     await context.addCookies([{ name: 'locale', value: poster.locale, url: BASE }]);
     const page = await context.newPage();
-    await page.addInitScript(() =>
+    await page.route('**/world/showcase-*.glb', (route) =>
+    {
+        const filename = new URL(route.request().url()).pathname.split('/').pop();
+        return route.fulfill({ contentType: 'model/gltf-binary', body: photoScene(readFileSync(join(WORLD, filename)), poster.game) });
+    });
+    await page.addInitScript((singleTable) =>
     {
         const style = document.createElement('style');
-        style.textContent = 'html{scrollbar-width:none}.scene-overlay,.site-header,.scrim{visibility:hidden!important}';
+        // Capture only the table and its shadow. The page supplies the dark or light studio.
+        style.textContent = `
+            html { scrollbar-width: none; }
+            .world-canvas { inline-size: 100% !important; inset-inline: 0 !important; }
+            html, body, #root, #root *:has(.world-canvas) { background: transparent !important; }
+            .scene-overlay, .site-header, .scrim, .world-poster, .landing-scene-still { visibility: hidden !important; }
+        `;
+        if (singleTable)
+        {
+            style.textContent += '.world-stage { --subject-x: 0.5 !important; --subject-y: 0.40 !important; }';
+        }
         document.addEventListener('DOMContentLoaded', () => document.head.append(style));
-    });
+    }, Boolean(poster.game));
     await page.goto(`${ BASE }/`, { waitUntil: 'load' });
     await page.waitForSelector('.world-canvas.is-live', { timeout: 30000 });
-    await page.waitForTimeout(1500);
-    const png = await page.locator('.world-canvas').screenshot({ scale: 'device', animations: 'disabled' });
+    if (poster.game)
+    {
+        await page.locator(`#tour-${ poster.game }`).evaluate((element) => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
+        await page.waitForSelector(`.world-stage[data-shot="${ poster.game }"]`);
+    }
+    await page.waitForTimeout(poster.game ? 2300 : 1500);
+    const png = await page.locator('.world-canvas').screenshot({ scale: 'device', animations: 'disabled', omitBackground: true });
     await context.close();
     return png;
 }
 
-async function encode(browser, png, budget)
+async function encode(browser, png, poster)
 {
     const page = await browser.newPage();
-    const result = await page.evaluate(async ({ source, limit }) =>
+    const result = await page.evaluate(async ({ source, limit, width, height }) =>
     {
         const image = new Image();
         image.src = source;
         await image.decode();
         const canvas = document.createElement('canvas');
-        canvas.width = image.naturalWidth;
-        canvas.height = image.naturalHeight;
-        canvas.getContext('2d').drawImage(image, 0, 0);
+        canvas.width = width ?? image.naturalWidth;
+        canvas.height = height ?? image.naturalHeight;
+        const context = canvas.getContext('2d');
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        if ([[0, 0], [canvas.width - 1, 0], [0, canvas.height - 1], [canvas.width - 1, canvas.height - 1]].every(([x, y]) => context.getImageData(x, y, 1, 1).data[3] !== 0))
+        {
+            throw new Error('The poster includes an opaque backdrop. Capture the isolated studio canvas.');
+        }
         for (let step = 18; step >= 8; step -= 1)
         {
             const quality = step / 20;
@@ -91,7 +147,7 @@ async function encode(browser, png, budget)
             }
         }
         return null;
-    }, { source: `data:image/png;base64,${ png.toString('base64') }`, limit: budget });
+    }, { source: `data:image/png;base64,${ png.toString('base64') }`, limit: poster.budget, width: poster.outputWidth, height: poster.outputHeight });
     await page.close();
     return result;
 }
@@ -111,10 +167,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url))
 
     const browser = await launchChrome({ headless: false, args: ['--use-angle=d3d11', '--window-position=-2400,0'] });
     let failed = false;
-    for (const poster of POSTERS)
+    for (const poster of [...POSTERS, ...TABLE_STILLS])
     {
         const png = await capture(browser, poster);
-        const webp = await encode(browser, png, poster.budget);
+        const webp = await encode(browser, png, poster);
         if (webp === null)
         {
             failed = true;

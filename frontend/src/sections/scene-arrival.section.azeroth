@@ -1,25 +1,50 @@
+import { GAMES } from '../data/games.ts';
 import PlayCta from '../components/layout/play-cta.component.azeroth';
 import Button from '../components/ui/button.component.azeroth';
+import { useFocus } from '../stores/focus.store.ts';
 import { useLocale } from '../stores/locale.store.ts';
 
 export default component SceneArrival(props: { returning: boolean })
 {
     const locale = useLocale();
+    const focus = useFocus();
 
-    <section data-beat="arrival" class="relative flex min-h-svh flex-col pt-15" aria-labelledby="arrival-title">
-        <div class="mt-auto page-pad beside:my-auto copy-plate pb-[max(2.5rem,env(safe-area-inset-bottom))]">
-            <div class="scene-column @container max-w-[40rem] beside:max-w-[36rem] sideways:max-w-[min(26rem,44vw)] flex flex-col items-start gap-4">
-                <p class="label text-ui-sm text-accent">{ locale.t('landing.arrival.eyebrow') }</p>
-                <h1 id="arrival-title" class="title text-display-lg text-text sideways:text-ui-3xl">
-                    <span class="block">{ locale.t('landing.arrival.lead') }</span>
-                    <span class="block text-accent">{ locale.t('landing.arrival.accent') }</span>
-                </h1>
-                <p class="max-w-[46ch] text-ui-md text-muted">{ locale.t('landing.arrival.body') }</p>
-                <div class="mt-2 flex w-full flex-col gap-3 @sm:w-auto @sm:flex-row">
-                    <PlayCta returning={ props.returning } />
-                    <Button href="#games" variant="ghost" size="lg" icon="chevron-down">{ locale.t('landing.cta.games') }</Button>
-                </div>
+    mount
+    {
+        return () => focus.focus(null);
+    }
+
+    <section data-beat="arrival" class="landing-arrival" aria-labelledby="arrival-title">
+        <div class="landing-intro">
+            <p class="landing-kicker">
+                <span>{ locale.t('games.category.cards') }</span>
+                <span aria-hidden="true">/</span>
+                <span>{ locale.t('games.category.board') }</span>
+            </p>
+            <h1 id="arrival-title" class="landing-title">
+                <span>{ locale.t('landing.arrival.lead') }</span>
+                <span>{ locale.t('landing.arrival.accent') }</span>
+            </h1>
+            <p class="landing-lead">{ locale.t('landing.arrival.body') }</p>
+            <div class="landing-actions">
+                <PlayCta returning={ props.returning } />
+                <Button href="#games" variant="ghost" size="lg">{ locale.t('landing.cta.games') }</Button>
             </div>
+            <nav class="landing-quick" aria-label={ locale.t('nav.games') }>
+                <For each={ GAMES } key={ (game) => game.id } let={ game }>
+                    <a
+                        data-game-color={ game.id }
+                        href={ `/app/games/${ game.slug }` }
+                        aria-label={ locale.t('landing.games.playGame', { game: locale.t(game.nameKey) }) }
+                        onPointerEnter={ (event) => { if (event.pointerType === 'mouse') focus.focus(game.id); } }
+                        onPointerLeave={ () => focus.focus(null) }
+                        onFocus={ () => focus.focus(game.id) }
+                        onBlur={ () => focus.focus(null) }
+                    >
+                        <span>{ locale.t(game.nameKey) }</span>
+                    </a>
+                </For>
+            </nav>
         </div>
     </section>
 }

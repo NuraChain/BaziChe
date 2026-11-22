@@ -6,36 +6,68 @@ import { useLocale } from '../stores/locale.store.ts';
 export interface SceneRow
 {
     icon: IconName;
-
     title: MessageKey;
-
     body: MessageKey;
 }
 
 export default component SceneRows(props: { beat: string; title: MessageKey; lead: MessageKey; rows: SceneRow[] })
 {
     const locale = useLocale();
+    derived social = props.beat === 'together';
+    let topics: HTMLDivElement | null = null;
 
-    <section id={ props.beat } data-beat={ props.beat } class="relative flex min-h-svh flex-col pt-15" aria-labelledby={ `${ props.beat }-title` }>
-        <div class="mt-auto page-pad beside:my-auto copy-plate pb-16">
-            <div class="scene-column @container max-w-[40rem] beside:max-w-[36rem] sideways:max-w-[min(26rem,44vw)]">
-                <div class="scroll-driven:animate-[reveal_linear_both] scroll-driven:[animation-timeline:view()] scroll-driven:[animation-range:entry_0%_entry_60%] flex flex-col gap-2">
-                    <h2 id={ `${ props.beat }-title` } class="title text-ui-3xl text-text @lg:text-ui-4xl">{ locale.t(props.title) }</h2>
-                    <p class="text-ui-md text-muted">{ locale.t(props.lead) }</p>
-                </div>
-                <ul class="scroll-driven:animate-[reveal_linear_both] scroll-driven:[animation-timeline:view()] scroll-driven:[animation-range:entry_0%_entry_60%] mt-6 divide-y divide-line rounded-panel border border-line bg-field">
+    mount
+    {
+        // Hydrating named disclosures can close the pre-opened item as the two trees exchange places.
+        queueMicrotask(() =>
+        {
+            if (topics && !topics.querySelector('details[open]')) topics.querySelector('details')?.setAttribute('open', '');
+        });
+    }
+
+    <section id={ props.beat } class="landing-notes" aria-labelledby={ `${ props.beat }-title` }>
+        <div class="landing-inner landing-note-layout">
+            <header class="landing-section-head">
+                <h2 id={ `${ props.beat }-title` }>{ locale.t(props.title) }</h2>
+                <p>{ locale.t(props.lead) }</p>
+                <a class="feature-link" href={ social ? '/app/friends' : '/app/leaderboard' }>{ locale.t(social ? 'footer.together' : 'footer.compete') }</a>
+            </header>
+            <Show when={ social } fallback={
+                <ul class="scorebook">
                     <For each={ props.rows } key={ (row) => row.title } let={ row }>
-                        <li class="flex items-start gap-3 p-4">
-                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-accent/12 text-accent">
-                                <Icon name={ row.icon } size={ 18 } />
-                            </span>
-                            <div class="flex min-w-0 flex-col gap-0.5">
-                                <h3 class="label text-ui-md text-text">{ locale.t(row.title) }</h3>
-                                <p class="text-ui-sm text-muted">{ locale.t(row.body) }</p>
-                            </div>
+                        <li>
+                            <Icon name={ row.icon } size={ 22 } />
+                            <div><h3>{ locale.t(row.title) }</h3><p>{ locale.t(row.body) }</p></div>
                         </li>
                     </For>
                 </ul>
+            }>
+                { () => <div class="table-topics" ref={ element => topics = element }>
+                    <For each={ props.rows } key={ (row) => row.title } let={ row } index={ index }>
+                        <details name="table-topics" open={ index === 0 }>
+                            <summary>
+                                <Icon name={ row.icon } size={ 20 } />
+                                <span>{ locale.t(row.title) }</span>
+                                <span aria-hidden="true" class="topic-toggle"></span>
+                            </summary>
+                            <p>{ locale.t(row.body) }</p>
+                        </details>
+                    </For>
+                </div> }
+            </Show>
+            <div class="table-study" aria-hidden="true">
+                <Show when={ social } fallback={
+                    <div class="knight-study">
+                        <span class="knight-board"></span>
+                        <img class="study-knight" src="/board/chess/wn.svg" loading="lazy" decoding="async" width="100" height="100" alt="" />
+                    </div>
+                }>
+                    { () => <div class="card-study">
+                        <img class="study-card far" src="/board/card-back.svg" loading="lazy" decoding="async" width="204" height="288" alt="" />
+                        <img class="study-card near" src="/backs/shiraz.svg" loading="lazy" decoding="async" width="204" height="288" alt="" />
+                        <img class="study-chip" src="/brand-chip.png" loading="lazy" decoding="async" width="96" height="96" alt="" />
+                    </div> }
+                </Show>
             </div>
         </div>
     </section>

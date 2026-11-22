@@ -152,6 +152,12 @@
         display: none;
     }
 
+    ::selection
+    {
+        background: var(--accent-fill);
+        color: var(--accent-ink);
+    }
+
     :focus-visible
     {
         outline: 2px solid var(--accent);
@@ -162,7 +168,7 @@
     body
     {
         overflow-anchor: none;
-    -webkit-tap-highlight-color: transparent;
+        -webkit-tap-highlight-color: transparent;
     }
 }
 
@@ -329,15 +335,67 @@
                 0 8px 40px -12px color-mix(in oklab, var(--accent) 55%, transparent);
 }
 
+@utility action-primary
+{
+    color: var(--accent-ink);
+    background-color: var(--accent-fill);
+    background-image: linear-gradient(112deg, var(--accent-fill), var(--accent-fill-end));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 24%), 0 3px 9px -6px var(--accent-fill);
+
+    @media (hover: hover)
+    {
+        &:hover:not(:disabled, [aria-disabled='true'])
+        {
+            background-image: linear-gradient(112deg, color-mix(in srgb, var(--accent-fill) 93%, white), var(--accent-fill-end));
+            box-shadow: inset 0 1px 0 rgb(255 255 255 / 30%), 0 5px 15px -7px var(--accent-fill);
+        }
+    }
+}
+
+@utility panel-surface
+{
+    background-color: var(--field);
+    background-image: linear-gradient(150deg, color-mix(in srgb, var(--game-accent, var(--accent)) 5%, transparent), transparent 52%);
+    box-shadow: var(--shadow-1);
+}
+
+@utility app-chrome
+{
+    background-image: radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 68%);
+}
+
+@utility art-frame
+{
+    position: relative;
+    overflow: hidden;
+
+    &::after
+    {
+        content: '';
+        pointer-events: none;
+        position: absolute;
+        inset: auto 0 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, var(--game-accent, var(--accent)) 35% 65%, transparent);
+    }
+}
+
+@utility art-badge
+{
+    background-color: color-mix(in srgb, var(--field) 96%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--game-accent, var(--accent)) 36%, transparent);
+}
+
 @utility hero-surface
 {
     --hero-angle: 135deg;
     --hero-glow-position: 85%;
-    --hero-start: #0F1B33;
-    border: 1px solid color-mix(in oklab, var(--accent) 22%, var(--line));
+    border: 1px solid color-mix(in oklab, var(--game-accent, var(--accent)) 26%, var(--line));
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 18%, transparent), var(--shadow-1);
     background:
-        radial-gradient(120% 90% at var(--hero-glow-position) 0%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 60%),
-        linear-gradient(var(--hero-angle), var(--hero-start) 0%, var(--field) 55%, var(--void) 100%);
+        radial-gradient(72% 150% at var(--hero-glow-position) 0%, color-mix(in srgb, var(--game-accent, var(--epic)) 14%, transparent), transparent 63%),
+        radial-gradient(84% 115% at 50% 100%, color-mix(in srgb, var(--aqua) 6%, transparent), transparent 68%),
+        linear-gradient(var(--hero-angle), var(--hero-start), var(--field) 64%, var(--void));
 }
 
 [dir='rtl'] .hero-surface
@@ -346,14 +404,9 @@
     --hero-glow-position: 15%;
 }
 
-:root[data-theme='light'] .hero-surface
-{
-    --hero-start: var(--raised);
-}
-
 @utility glow-cta
 {
-    box-shadow: 0 10px 28px -12px color-mix(in oklab, var(--accent) 75%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.14);
+    box-shadow: 0 8px 24px -11px color-mix(in srgb, var(--accent-fill) 55%, transparent);
 }
 
 @utility scrim
@@ -382,34 +435,6 @@
 
 @media (min-width: 64rem), (orientation: landscape) and (max-height: 540px) and (min-aspect-ratio: 4/3)
 {
-    .scrim
-    {
-        --scrim-direction: to right;
-        background: linear-gradient(
-            var(--scrim-direction),
-            var(--void) 0%,
-            color-mix(in oklab, var(--void) 82%, transparent) 24%,
-            color-mix(in oklab, var(--void) 32%, transparent) 42%,
-            transparent 58%
-        );
-    }
-
-    [dir='rtl'] .scrim
-    {
-        --scrim-direction: to left;
-    }
-
-    :root[data-theme='light'] .scrim
-    {
-        background: linear-gradient(
-            var(--scrim-direction),
-            var(--void) 0%,
-            color-mix(in oklab, var(--void) 91%, transparent) min(50%, 40rem),
-            color-mix(in oklab, var(--void) 38%, transparent) min(65%, 51rem),
-            transparent min(82%, 64rem)
-        );
-    }
-
     .copy-plate
     {
         padding-top: 0;
@@ -446,4 +471,236 @@
 {
     padding-inline: var(--page-pad, 1rem);
     scroll-padding-inline: var(--page-pad, 1rem);
+}
+
+/* A single studio spans the opening and all five game chapters. */
+.landing-page {
+    --landing-gutter: clamp(1.15rem, 5.5vw, 6.5rem);
+    --column: min(100% - 2 * var(--landing-gutter), 86rem);
+    color: var(--text);
+}
+.landing-theater { isolation: isolate; position: relative; }
+.world-stage {
+    height: 100svh;
+    background-color: var(--studio-sky);
+    background-image: radial-gradient(ellipse 70% 65% at calc(var(--subject-x) * 100%) 36%, var(--studio-floor), transparent 80%),
+        linear-gradient(170deg, var(--studio-light), var(--studio-sky) 73%);
+}
+.world-poster, .landing-game-art img, .landing-scene-still img {
+    filter: drop-shadow(0 clamp(.4rem,.8vw,.85rem) clamp(.5rem,1vw,1.1rem) color-mix(in srgb, var(--shadow-ink) 32%, transparent));
+}
+.world-poster[data-live] { visibility: hidden; }
+.world-stage .scrim {
+    background: linear-gradient(to bottom, transparent 30%, color-mix(in srgb,var(--void) 14%,transparent) 48%, var(--void) 70%);
+}
+.tour-overlay { margin-block-start: -100svh; }
+.landing-arrival, .landing-game {
+    position: relative;
+    display: grid;
+    align-content: end;
+    min-block-size: 100svh;
+    padding: max(44svh, 13.5rem) var(--landing-gutter) max(1.7rem, 5svh);
+}
+.landing-intro, .landing-game-body { inline-size: 100%; max-inline-size: 37rem; min-width: 0; }
+.landing-intro { padding-block-start: 1.25rem; }
+.landing-kicker, .chapter-meta {
+    display: flex; align-items: center; gap: .6rem;
+    color: var(--muted); font-size: .9rem; font-weight: 550;
+}
+.landing-kicker::before, .chapter-meta::before {
+    content: ''; inline-size: 1.75rem; block-size: 2px;
+    background: var(--game-accent, var(--accent)); margin-inline-end: .12rem;
+}
+.landing-kicker [aria-hidden] { color: var(--line-strong); }
+.landing-title {
+    margin-block: .83rem .95rem;
+    font-size: clamp(2.65rem, 8.3vw, 7.6rem);
+    font-weight: 715; line-height: .99; letter-spacing: -.065em;
+}
+.landing-title span { display: block; }
+.landing-title span + span { color: var(--accent); }
+:where(:lang(fa), :lang(ar), :lang(hi), :lang(zh)) .landing-title { line-height: 1.23; letter-spacing: normal; }
+.landing-lead, .landing-game-blurb { max-inline-size: 41ch; color: var(--muted); font-size: clamp(1rem,1.17vw,1.17rem); line-height: 1.68; }
+.landing-actions, .chapter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.1rem; margin-block-start: 1.2rem; }
+.landing-actions a[href='#games'], .chapter-next, .feature-link {
+    display: inline-flex; align-items: center; min-block-size: 44px;
+    color: var(--accent); font-weight: 620; text-decoration: underline; text-underline-offset: .31em;
+}
+.landing-actions a[href='#games'] { padding-inline: .3rem; }
+.landing-quick {
+    display: flex; flex-wrap: wrap; gap: 0 clamp(.66rem, 1.4vw, 1.6rem); align-items: center;
+    width: fit-content; max-width: 100%; margin-block-start: 1.2rem; border-block-start: 1px solid var(--line);
+}
+.landing-quick a { display: inline-flex; align-items: center; min-block-size: 44px; color: var(--muted); font-size: .9rem; font-weight: 550; text-decoration: none; }
+.landing-quick a:is(:hover,:focus-visible) { color: var(--game-accent); text-decoration: underline; text-underline-offset: .28em; }
+.landing-scene-still { position: absolute; inset: 4.6rem 0 auto; height: 39svh; display: grid; place-items: center; }
+.landing-scene-still img, .landing-game-art img { width: 100%; height: 100%; object-fit: contain; }
+.landing-tour { position: relative; }
+.landing-game {
+    isolation: isolate; padding-block-start: max(49svh,15rem); padding-block-end: max(2.3rem,7svh);
+    background: radial-gradient(ellipse at 54% 25%, color-mix(in srgb,var(--game-accent) 7%,var(--studio-sky)), var(--void) 76%);
+}
+.landing-game:focus { outline: none; }
+.landing-game-body { container-type: inline-size; }
+.landing-game-art { overflow: clip; position: absolute; z-index: -1; inset: max(4.25rem,10svh) 0 auto; height: 42svh; }
+.landing-game-art img { scale: 1.5; }
+.landing-game-category { color: var(--game-accent); font-weight: 700; }
+.meta-rule { inline-size: 1px; block-size: 1em; background: var(--line-strong); }
+.landing-game-body h3 { font-size: clamp(2.65rem, 19cqi, 7.3rem); letter-spacing: -.055em; line-height: 1.03; margin-block: .58rem 1rem; overflow-wrap: anywhere; }
+.landing-game[data-chapter='backgammon'] h3 { font-size: clamp(2.05rem,15.35cqi,5.9rem); }
+:where(:lang(fa),:lang(ar),:lang(hi),:lang(zh)) .landing-game-body h3 { letter-spacing: normal; line-height: 1.24; }
+.studio-angle { display: none; align-items: center; gap: .85rem; min-height: 44px; color: var(--muted); font-size: .87rem; margin-block-start: .52rem; }
+.studio-angle input { width: min(8rem,38vw); height: 44px; accent-color: var(--accent); cursor: ew-resize; touch-action: pan-y pinch-zoom; }
+@media (prefers-reduced-motion:no-preference) {
+    .world-poster[data-live] { transition: visibility 0s 400ms; }
+    .landing-theater:has(.world-canvas.is-live) .landing-game { background: transparent; }
+    .landing-theater:has(.world-canvas.is-live) .landing-game-art { visibility: hidden; }
+    .landing-theater:has(.world-canvas.is-live) .studio-angle { display: flex; }
+}
+[data-game-color='hokm'] { --game-accent: var(--live); }
+[data-game-color='poker'] { --game-accent: var(--epic); }
+[data-game-color='backgammon'] { --game-accent: var(--gold); }
+[data-game-color='ludo'] { --game-accent: var(--madder); }
+[data-game-color='chess'] { --game-accent: var(--accent); }
+
+/* A chapter chooser occupies the existing header slot. The main stage has no floating navigation. */
+.public-navigation { display: contents; }
+.landing-header-links, .header-table-picker[hidden], .landing-header-links[hidden] { display: none; }
+.header-table-picker {
+    position: relative; display: inline-flex; align-items: center; gap: .65rem;
+    margin-inline-start: clamp(0rem,1.5vw,2rem); min-inline-size: 0; color: var(--muted);
+}
+.header-table-picker select {
+    font: inherit; font-size: .92rem; font-weight: 640; color: var(--text); max-inline-size: min(13rem,24vw);
+    height: 44px; background: transparent; appearance: none; cursor: pointer;
+    padding-inline: .25rem 1.45rem; text-overflow: ellipsis;
+}
+.header-table-picker select option { background: var(--field); color: var(--text); }
+.header-table-picker::after {
+    content: ''; position: absolute; inset-inline-end: .44rem; top: calc(50% - .25rem);
+    width: .44rem; height: .44rem; transform: rotate(45deg);
+    border-right: 1.5px solid var(--accent); border-bottom: 1.5px solid var(--accent); pointer-events: none;
+}
+.picker-caption { display: none; }
+@media (max-width: 42rem) {
+    .site-header[data-touring] .site-brand > :last-child:not(:first-child) { display: none; }
+    .header-table-picker select { font-size: .84rem; }
+    .site-header[data-touring] > .page-pad { gap: .35rem; }
+}
+
+/* Social play opens like a table-side conversation. The scorebook lists what a finished game earns. */
+.landing-inner { inline-size: var(--column); margin-inline: auto; }
+.landing-notes, .landing-finale { position: relative; scroll-margin-block-start: var(--topbar-h); border-block-start: 1px solid var(--line); }
+.landing-notes { padding-block: clamp(3.4rem,8vw,8.5rem); background: var(--field); }
+.landing-note-layout { display: grid; gap: 1.5rem 6%; align-items: start; }
+.landing-section-head h2 { max-inline-size: 17ch; font-size: clamp(2.1rem,4.3vw,4.7rem); line-height: 1.05; letter-spacing: -.045em; }
+.landing-section-head p { max-inline-size: 40ch; font-size: clamp(1rem,1.22vw,1.18rem); color: var(--muted); margin-block-start: 1rem; line-height: 1.63; }
+:where(:lang(fa),:lang(ar),:lang(hi),:lang(zh)) .landing-section-head h2 { letter-spacing: normal; line-height: 1.29; }
+.feature-link { margin-block-start: .75rem; }
+.table-topics { border-block-start: 1px solid var(--line-strong); }
+.table-topics details { border-block-end: 1px solid var(--line); }
+.table-topics summary { display: flex; align-items: center; gap: 1rem; min-block-size: 3.9rem; padding-block: .85rem; font-weight: 650; font-size: clamp(1rem,1.5vw,1.25rem); list-style: none; cursor: pointer; }
+.table-topics summary::-webkit-details-marker { display: none; }
+.table-topics svg, .scorebook svg { color: var(--accent); flex: none; }
+.topic-toggle { position: relative; flex: none; inline-size: .9rem; block-size: .9rem; margin-inline-start: auto; color: var(--accent); }
+.topic-toggle::before, .topic-toggle::after { content: ''; position: absolute; top: 45%; left: 0; width: 100%; height: 2px; background: currentColor; }
+.topic-toggle::after { transform: rotate(90deg); }
+details[open] .topic-toggle::after { opacity: 0; }
+.table-topics p, .scorebook p { color: var(--muted); line-height: 1.65; font-size: 1rem; }
+.table-topics p { margin: -.12rem 0 1.35rem; padding-inline: 2.25rem; max-width: 58ch; }
+.table-study { grid-row: 2; height: clamp(7.5rem,20vw,14rem); max-width: 26rem; position: relative; overflow: clip; display: grid; align-items: center; }
+.card-study { width: 15rem; height: 100%; position: relative; }
+.study-card, .study-chip { position: absolute; filter: drop-shadow(1px 5px 5px rgba(10,18,31,.21)); }
+.study-card { width: auto; height: 77%; top: 12%; border-radius: 6%; }
+.study-card.far { left: 14%; transform: rotate(-19deg); }
+.study-card.near { left: 34%; transform: rotate(9deg); }
+.study-chip { height: 28%; width: auto; left: 65%; bottom: 9%; transform: rotate(13deg); }
+#compete { background: var(--void); }
+.scorebook { display: grid; gap: 0; }
+.scorebook li { display: flex; gap: 1rem; border-block-start: 1px solid var(--line); padding-block: 1.15rem; }
+.scorebook svg { margin-top: .16rem; color: var(--game-accent,var(--aqua)); }
+.scorebook h3 { font-size: 1.19rem; line-height: 1.42; margin-block-end: .25rem; }
+.knight-study { position: relative; width: 100%; height: 100%; isolation: isolate; }
+.knight-board {
+    position: absolute; width: 70%; height: 88%; inset-inline-start: 2%; bottom: 2%; border: 1px solid var(--line);
+    transform: perspective(230px) rotateX(44deg) rotateZ(-10deg);
+    background: repeating-conic-gradient(var(--raised) 0 25%, var(--field) 0 50%) 0 0 / 25% 50%;
+}
+.study-knight { position: absolute; height: 78%; width: auto; inset-inline-start: 24%; bottom: 10%; filter: drop-shadow(3px 7px 3px rgb(10 18 31 / 22%)); }
+.landing-finale { background: var(--studio-sky); }
+.landing-finale-inner { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 2rem; padding-block: clamp(3.75rem,8.5vw,8rem); }
+.landing-finale-inner .landing-section-head { border-inline-start: 3px solid var(--accent); padding-inline-start: clamp(1rem,3vw,2.5rem); }
+[data-site-footer] a[data-elsewhere] { border-color: transparent; background: transparent; }
+[data-site-footer] a[data-elsewhere]:is(:hover,:focus-visible) { background: var(--raised); color: var(--accent); }
+@media (min-width: 45rem) {
+    .landing-note-layout { grid-template-columns: minmax(0, .92fr) minmax(0, 1fr); grid-template-rows: auto 1fr; }
+    .landing-note-layout > .landing-section-head { grid-column: 1; grid-row: 1; }
+    .table-study { grid-column: 1; grid-row: 2; }
+    .scorebook, .table-topics { grid-column: 2; grid-row: 1 / 3; }
+    #compete .landing-section-head, #compete .table-study { grid-column: 2; }
+    #compete .scorebook { grid-column: 1; }
+    .picker-caption { display: inline; padding-inline-start: 1rem; border-inline-start: 1px solid var(--line-strong); font-size: .86rem; }
+}
+@media (max-width: 44.99rem) {
+    .landing-note-layout { grid-template-columns: 1fr; }
+    .table-study { width: 100%; }
+    .table-topics,.scorebook { grid-row: 3; }
+    .study-card { top: 10%; }
+    .knight-study { width: min(75%,15rem); }
+}
+@media (min-width: 64rem), (orientation: landscape) and (max-height: 540px) and (min-aspect-ratio: 4/3) {
+    .landing-arrival, .landing-game { align-content: center; min-block-size: 100svh; padding-block: max(5.5rem,12svh) max(3rem,8svh); }
+    .landing-intro { padding: 0; max-inline-size: min(47%, 43rem); }
+    .landing-game-body { max-inline-size: min(41%,37rem); }
+    .landing-game-art, .landing-scene-still { inset-block: 13% 9%; inset-inline: 43% 0; height: auto; }
+    .world-stage .scrim {
+        --scrim-direction: to right;
+        background: linear-gradient(var(--scrim-direction),var(--void),color-mix(in srgb,var(--void) 94%,transparent) 30%,transparent 61%);
+    }
+    [dir='rtl'] .world-stage .scrim { --scrim-direction: to left; }
+    .landing-game-art img { scale: 1.24; }
+    .landing-title { font-size: clamp(3rem, 5.8vw, 6.7rem); }
+    .landing-actions,.chapter-actions { margin-block-start: 1.65rem; }
+    .landing-quick { margin-block-start: 1.65rem; }
+}
+@media (min-width:64rem) {
+    .landing-header-links { display: flex; align-items: center; gap: clamp(1.1rem,2.4vw,2.3rem); margin-inline-start: clamp(1rem,3vw,4rem); }
+    .landing-header-links a { display: flex; align-items: center; min-block-size: 44px; color: var(--muted); font-weight: 570; font-size: .92rem; }
+    .landing-header-links a:is(:hover,:focus-visible) { color: var(--accent); }
+}
+@media (orientation:landscape) and (max-height:540px) and (max-width:63.99rem) {
+    .landing-arrival,.landing-game { padding-block: 4.6rem 1.1rem; }
+    .landing-title { font-size: clamp(2rem,4.8vw,3.1rem); margin-block: .35rem; }
+    .landing-lead,.landing-game-blurb { font-size: 1rem; line-height: 1.45; }
+    .landing-actions,.chapter-actions,.landing-quick,.studio-angle { margin-block-start: .35rem; }
+    .landing-game-body h3 { font-size: 2.45rem; margin-block: .35rem; }
+    .landing-game[data-chapter='backgammon'] h3 { font-size: 2.2rem; }
+}
+@media (max-width: 22.49rem) {
+    .landing-arrival { padding-block-start: max(43svh, 12rem); }
+    .landing-intro { padding-block-start: .65rem; }
+    .landing-title { font-size: clamp(1.97rem,10.1vw,2.25rem); letter-spacing: -.055em; margin-block: .45rem .65rem; }
+    .landing-actions { margin-block-start: .75rem; gap: .4rem .65rem; }
+    .landing-quick { margin-block-start: .65rem; }
+}
+@media (min-width: 80rem) {
+    .scorebook { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem 2.2rem; align-self: center; }
+    .scorebook li { display: block; }
+    .scorebook svg { margin-block-end: .55rem; }
+}
+@media (prefers-reduced-motion:no-preference) {
+    .landing-intro { animation: landing-entrance .6s var(--ease-reveal) both; }
+    .topic-toggle::after { transition: opacity .15s; }
+    .landing-quick a, .chapter-next, .feature-link { transition: color .16s ease; }
+    @keyframes landing-entrance { from { opacity: 0; transform: translateY(.45rem); } to { opacity: 1; transform: none; } }
+    @supports (animation-timeline: view()) {
+        .landing-game-body { animation: chapter-arrival linear both; animation-timeline: view(); animation-range: entry 0% entry 95%; }
+        @keyframes chapter-arrival { from { transform: translateY(.9rem); } to { transform: none; } }
+    }
+}
+@media (forced-colors:active) {
+    .world-stage, .landing-game { background: Canvas; }
+    .topic-toggle { forced-color-adjust: none; color: ButtonText; }
+    .header-table-picker select { appearance: auto; }
+    .header-table-picker::after { display: none; }
 }

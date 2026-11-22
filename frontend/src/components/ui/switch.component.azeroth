@@ -28,7 +28,7 @@ export default component Switch(props: {
         <span
             class={ [
                 'relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200',
-                props.checked ? 'bg-accent' : 'bg-line'
+                props.checked ? 'bg-accent-fill' : 'bg-line-strong'
             ].join(' ') }
             aria-hidden="true"
         >

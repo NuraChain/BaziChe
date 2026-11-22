@@ -1,60 +1,42 @@
 import type { Game } from '../../data/games.ts';
-import { useConnect } from '../../stores/connect.store.ts';
 import { useFocus } from '../../stores/focus.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
-import Badge from '../ui/badge.component.azeroth';
 import Button from '../ui/button.component.azeroth';
-import GameArt from './game-art.component.azeroth';
 import SeatCount from './seat-count.component.azeroth';
 
-export default component LandingGameCard(props: { game: Game; returning: boolean })
+export default component LandingGameCard(props: { game: Game; next?: Game })
 {
     const locale = useLocale();
-    const connect = useConnect();
     const focus = useFocus();
-
     derived name = locale.t(props.game.nameKey);
 
-    derived label = locale.t('landing.games.playGame', { game: name });
-
-    const enter = (event: PointerEvent) =>
-    {
-        if (event.pointerType === 'mouse')
-        {
-            focus.focus(props.game.id);
-        }
-    };
-
-    const leave = () => focus.focus(null);
-
-    <article
-        class="group flex w-full min-w-0 flex-col overflow-hidden rounded-panel border border-line bg-field transition duration-200 ease-[var(--ease-ui)] hover:border-line-strong"
-        onPointerEnter={ enter }
-        onPointerLeave={ leave }
-        onFocusIn={ () => focus.focus(props.game.id) }
-        onFocusOut={ leave }
-    >
-        <div class="relative">
-            <GameArt game={ props.game.id } src={ `/world/card-${ props.game.id }.webp` } class="lg:aspect-video transition-transform duration-500 ease-[var(--ease-reveal)] group-hover:scale-[1.03]" />
-            <span class="absolute start-2 top-2 flex rounded-full bg-void/70 backdrop-blur-md">
-                <Badge dot text={ locale.t('landing.games.live') } tone="live" size="sm" />
-            </span>
+    <article id={ `tour-${ props.game.id }` } data-chapter={ props.game.id } data-beat={ props.game.id }
+        data-game-color={ props.game.id } class="landing-game" aria-labelledby={ `title-${ props.game.id }` } tabindex="-1">
+        <div class="landing-game-art" aria-hidden="true">
+            <img src={ `/world/card-${ props.game.id }.webp` } width="720" height="480" loading="lazy" decoding="async" alt="" />
         </div>
-        <div class="flex flex-1 flex-col gap-1 p-3.5">
-            <h3 class="title truncate text-ui-lg text-text">{ name }</h3>
-            <p class="flex min-w-0 flex-wrap items-center gap-x-1.5 text-ui-sm text-muted">
-                <span>{ locale.t(props.game.categoryKey) }</span>
-                <span class="h-1 w-1 shrink-0 rounded-full bg-faint" aria-hidden="true"></span>
+        <div class="landing-game-body">
+            <div class="chapter-meta">
+                <span class="landing-game-category">{ locale.t(props.game.categoryKey) }</span>
+                <span aria-hidden="true" class="meta-rule"></span>
                 <SeatCount game={ props.game } />
-            </p>
-            <div class="mt-auto pt-3">
-                <Show
-                    when={ props.returning }
-                    fallback={ <Button variant="primary" size="md" block label={ label } onClick={ () => connect.show() }>{ locale.t('landing.games.play') }</Button> }
-                >
-                    { () => <Button variant="primary" size="md" block label={ label } to={ `/app/games/${ props.game.slug }` }>{ locale.t('landing.games.play') }</Button> }
-                </Show>
             </div>
+            <h3 id={ `title-${ props.game.id }` }>{ name }</h3>
+            <p class="landing-game-blurb">{ locale.t(props.game.blurbKey) }</p>
+            <div class="chapter-actions">
+                <Button href={ `/app/games/${ props.game.slug }` } variant="primary" size="lg" leading="play" label={ locale.t('landing.games.playGame', { game: name }) }>{ locale.t('landing.games.play') }</Button>
+                <a class="chapter-next" href={ props.next ? `#tour-${ props.next.id }` : '#together' }>
+                    { props.next ? locale.t('landing.tour.next', { game: locale.t(props.next.nameKey) }) : locale.t('footer.together') }
+                </a>
+            </div>
+            <label class="studio-angle">
+                <span>{ locale.t('landing.tour.angle') }</span>
+                <input type="range" min="-28" max="28" step="2" dir="ltr"
+                    disabled={ focus.chapter() !== props.game.id }
+                    value={ focus.chapter() === props.game.id ? focus.orbit() : 0 }
+                    onInput={ (event) => focus.setOrbit((event.currentTarget as HTMLInputElement).valueAsNumber) }
+                />
+            </label>
         </div>
     </article>
 }

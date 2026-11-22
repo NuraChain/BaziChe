@@ -10,8 +10,8 @@ export type PanelPad = 'none' | 'sm' | 'md' | 'lg';
 export type PanelStack = 'none' | 'sm' | 'md';
 
 export const BUTTON_VARIANT: Record<ButtonVariant, string> = {
-    primary: 'bg-accent-fill text-accent-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.12)] hover:brightness-110 active:brightness-95',
-    secondary: 'bg-raised text-text hover:bg-line-strong active:brightness-95',
+    primary: 'action-primary',
+    secondary: 'bg-raised text-text hover:bg-[color-mix(in_srgb,var(--accent)_15%,var(--raised))] active:brightness-95',
     outline: 'border border-line-strong text-text hover:border-accent hover:text-accent',
     ghost: 'text-muted hover:bg-raised hover:text-text',
     bare: 'text-muted hover:text-text',
@@ -127,7 +127,7 @@ export const AVATAR_DOT: Record<AvatarSize, string> = {
 };
 
 export const PANEL_TONE: Record<PanelTone, string> = {
-    field: 'border border-line bg-field',
+    field: 'panel-surface border border-line',
     sunk: 'border border-line bg-sunk',
     accent: 'border border-accent/40 bg-accent/5',
     live: 'border border-live/40 bg-live/5',
@@ -136,7 +136,7 @@ export const PANEL_TONE: Record<PanelTone, string> = {
 };
 
 export const PANEL_HOVER: Record<PanelTone, string> = {
-    field: 'hover:border-line-strong hover:bg-raised/60',
+    field: 'hover:border-line-strong hover:bg-raised',
     sunk: 'hover:border-line-strong',
     accent: 'hover:bg-accent/10',
     live: 'hover:bg-live/10',
@@ -168,13 +168,13 @@ export const PANEL_GLOW: Record<PanelTone, string> = {
 
 export const MEDAL = [
     'relative flex flex-none items-center justify-center inline-11 block-11 rounded-[999px]',
-    '[--metal-light:#F6C7A1] [--metal:#D08A52] [--metal-dark:#8A4F24]',
+    '[--metal-light:#E3B998] [--metal:#B98C6C] [--metal-dark:#76543D]',
     'text-[color-mix(in_oklab,var(--metal-dark)_80%,black)]',
     '[background:radial-gradient(circle_at_34%_28%,var(--metal-light),var(--metal)_55%,var(--metal-dark))]',
     '[box-shadow:inset_0_0_0_2px_rgb(255_255_255/0.35),inset_0_-3px_6px_rgb(0_0_0/0.25),0_0_0_2px_var(--metal-dark),0_6px_14px_-6px_rgb(0_0_0/0.7)]',
     'data-[tier=silver]:[--metal-light:#F8FAFC] data-[tier=silver]:[--metal:#CBD5E1] data-[tier=silver]:[--metal-dark:#6B7A90]',
-    'data-[tier=gold]:[--metal-light:#FFE8A3] data-[tier=gold]:[--metal:#F5B72E] data-[tier=gold]:[--metal-dark:#A86B12]',
-    'data-[tier=gold]:[box-shadow:inset_0_0_0_2px_rgb(255_255_255/0.4),inset_0_-3px_6px_rgb(0_0_0/0.22),0_0_0_2px_var(--metal-dark),0_0_16px_-2px_rgb(245_183_46/0.55)]',
+    'data-[tier=gold]:[--metal-light:#F5E4B8] data-[tier=gold]:[--metal:#CFAD70] data-[tier=gold]:[--metal-dark:#84643E]',
+    'data-[tier=gold]:[box-shadow:inset_0_0_0_2px_rgb(255_255_255/0.4),inset_0_-3px_6px_rgb(0_0_0/0.22),0_0_0_2px_var(--metal-dark),0_0_16px_-2px_rgb(207_173_112/0.55)]',
     'data-[tier=platinum]:[--metal-light:#F1F5FF] data-[tier=platinum]:[--metal:#A9B8E0] data-[tier=platinum]:[--metal-dark:#4E5C8C]',
     'data-[tier=platinum]:[box-shadow:inset_0_0_0_2px_rgb(255_255_255/0.5),inset_0_-3px_6px_rgb(0_0_0/0.2),0_0_0_2px_var(--metal-dark),0_0_16px_-2px_rgb(169_184_224/0.55)]',
     'data-[tier=diamond]:[--metal-light:#F0FDFF] data-[tier=diamond]:[--metal:#67E8F9] data-[tier=diamond]:[--metal-dark:#0E7490]',

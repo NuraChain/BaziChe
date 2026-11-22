@@ -5,6 +5,8 @@ import BrandMark from './brand-mark.component.azeroth';
 import LanguageSwitch from './language-switch.component.azeroth';
 import Button from '../ui/button.component.azeroth';
 import IconButton from '../ui/icon-button.component.azeroth';
+import { GAMES } from '../../data/games.ts';
+import { useFocus } from '../../stores/focus.store.ts';
 import { beenHere } from '../../lib/been-here.ts';
 import { useConnect } from '../../stores/connect.store.ts';
 import { useLocale } from '../../stores/locale.store.ts';
@@ -20,6 +22,8 @@ export default component SiteHeader(props: { cta?: boolean })
 {
     const locale = useLocale();
     const connect = useConnect();
+    const focus = useFocus();
+    derived touring = props.cta !== false && focus.inTour() && focus.chapter() !== null;
 
     state open = false;
 
@@ -53,13 +57,41 @@ export default component SiteHeader(props: { cta?: boolean })
         }
     };
 
-    <header class="site-header fixed inset-x-0 top-0 z-30 safe-t bg-[color-mix(in_srgb,var(--void)_85%,transparent)] [border-block-end:1px_solid_var(--line)] [-webkit-backdrop-filter:blur(12px)] [backdrop-filter:blur(12px)] supports-[animation-timeline:scroll()]:[animation:header-settle_linear_both] supports-[animation-timeline:scroll()]:[animation-timeline:scroll(root)] supports-[animation-timeline:scroll()]:[animation-range:0_120px]">
+    <header data-touring={ touring ? '' : undefined } class="site-header app-chrome fixed inset-x-0 top-0 z-30 safe-t bg-[color-mix(in_srgb,var(--void)_85%,transparent)] [border-block-end:1px_solid_var(--line)] [-webkit-backdrop-filter:blur(12px)] [backdrop-filter:blur(12px)] supports-[animation-timeline:scroll()]:[animation:header-settle_linear_both] supports-[animation-timeline:scroll()]:[animation-timeline:scroll(root)] supports-[animation-timeline:scroll()]:[animation-range:0_120px]">
         <div class="page-pad flex h-15 items-center gap-3">
-            <a href="/" class="flex min-h-11 items-center gap-2.5 rounded-control" aria-label={ locale.t('brand.name') }>
+            <a href="/" class="site-brand flex min-h-11 items-center gap-2.5 rounded-control" aria-label={ locale.t('brand.name') }>
                 <BrandLogo size="md" />
-                <BrandMark class="hidden text-ui-lg text-text min-[25rem]:inline" />
+                <BrandMark class="hidden text-ui-lg text-text min-[22.5rem]:inline" />
             </a>
 
+            <Show when={ props.cta !== false }>
+                { () => <div class="public-navigation">
+                    <nav class="landing-header-links" aria-label={ locale.t('brand.name') } hidden={ touring }>
+                        <a href="/#games">{ locale.t('nav.games') }</a>
+                        <a href="/#together">{ locale.t('footer.together') }</a>
+                        <a href="/#compete">{ locale.t('footer.compete') }</a>
+                    </nav>
+                    <label class="header-table-picker" hidden={ !touring }>
+                        <span class="picker-caption">{ locale.t('nav.games') }</span>
+                        <select aria-label={ locale.t('landing.cta.games') } value={ focus.chapter() ?? '' }
+                            onChange={ (event) =>
+                            {
+                                const id = (event.currentTarget as HTMLSelectElement).value;
+                                const target = document.getElementById(`tour-${ id }`);
+                                if (target !== null)
+                                {
+                                    location.hash = target.id;
+                                    target.focus({ preventScroll: true });
+                                }
+                            } }
+                        >
+                            <For each={ GAMES } key={ (game) => game.id } let={ game }>
+                                <option value={ game.id } selected={ game.id === focus.chapter() }>{ locale.t(game.nameKey) }</option>
+                            </For>
+                        </select>
+                    </label>
+                </div> }
+            </Show>
             <div class="ms-auto flex items-center gap-2">
                 <div class="hidden sm:block">
                     <LanguageSwitch class="w-40" />

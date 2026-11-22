@@ -15,7 +15,6 @@ import { useOverlay } from '../../stores/overlay.store.ts';
 import { useReports } from '../../stores/reports.store.ts';
 import { useSession } from '../../stores/session.store.ts';
 import { useToasts } from '../../stores/toasts.store.ts';
-import { ACTIVE_ROW } from '../app/nav-items.ts';
 import OverlayHost from '../app/overlay-host.component.azeroth';
 import PageFailed from '../app/page-failed.component.azeroth';
 import { watchSignedOut } from '../app/sign-out.ts';
@@ -159,7 +158,7 @@ export default component AdminShell(props: { children?: MountNode })
                                             to={ item.to }
                                             aria-label={ item.label }
                                             aria-current={ here === item.section ? 'page' : undefined }
-                                            class={ () => [ 'nav-row', ACTIVE_ROW, 'relative flex h-11 w-11 items-center justify-center rounded-tile text-muted transition-colors duration-150 hover:bg-raised hover:text-text', here === item.section ? 'is-active' : '' ].join(' ') }
+                                            class={ () => [ 'nav-row border-s-2 border-s-transparent', 'relative flex h-11 w-11 items-center justify-center rounded-tile text-muted transition-colors duration-150 hover:bg-raised hover:text-text', here === item.section ? 'is-active' : '' ].join(' ') }
                                         >
                                             <Icon name={ item.icon } size={ 20 } />
                                             <Badge count={ item.section === 'reports' ? waiting : 0 } size="sm" tone="gold" anchor label={ waitingLabel } />
@@ -178,7 +177,7 @@ export default component AdminShell(props: { children?: MountNode })
                                                 <Link
                                                     to={ item.to }
                                                     aria-current={ here === item.section ? 'page' : undefined }
-                                                    class={ () => [ 'nav-row', ACTIVE_ROW, 'flex h-10 items-center gap-3 rounded-tile px-3 text-ui-base font-semibold text-muted transition-colors duration-150 hover:bg-raised hover:text-text', here === item.section ? 'is-active' : '' ].join(' ') }
+                                                    class={ () => [ 'nav-row border-s-2 border-s-transparent', 'flex h-10 items-center gap-3 rounded-tile px-3 text-ui-base font-semibold text-muted transition-colors duration-150 hover:bg-raised hover:text-text', here === item.section ? 'is-active' : '' ].join(' ') }
                                                 >
                                                     <Icon name={ item.icon } size={ 18 } />
                                                     <span class="min-w-0 flex-1 truncate">{ item.label }</span>

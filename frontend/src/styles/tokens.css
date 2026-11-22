@@ -37,7 +37,7 @@
     --text-ui-input--line-height: 1.4;
 
     --text-display-md: clamp(1.75rem, 5.5vw, 2.5rem);
-    --text-display-lg: clamp(2rem, 6vw, 3rem);
+    --text-display-lg: clamp(2.15rem, 5.1vw, 3.85rem);
 
     --radius-control: 0.5rem;
     --radius-tile: 0.625rem;
@@ -45,9 +45,9 @@
     --radius-sheet: 1.125rem;
     --radius-hero: 1rem;
 
-    --shadow-1: 0 1px 2px color-mix(in oklab, var(--shadow-ink) 55%, transparent);
-    --shadow-2: 0 10px 28px -14px color-mix(in oklab, var(--shadow-ink) 80%, transparent);
-    --shadow-3: 0 28px 70px -28px color-mix(in oklab, var(--shadow-ink) 90%, transparent);
+    --shadow-1: 0 1px 3px color-mix(in oklab, var(--shadow-ink) 24%, transparent);
+    --shadow-2: 0 12px 28px -15px color-mix(in oklab, var(--shadow-ink) 64%, transparent);
+    --shadow-3: 0 28px 64px -26px color-mix(in oklab, var(--shadow-ink) 76%, transparent);
     --shadow-glow-accent: 0 0 0 1px color-mix(in oklab, var(--accent) 50%, transparent), 0 10px 34px -10px color-mix(in oklab, var(--accent) 55%, transparent);
     --shadow-glow-live: 0 0 0 1px color-mix(in oklab, var(--live) 50%, transparent), 0 10px 34px -10px color-mix(in oklab, var(--live) 50%, transparent);
     --shadow-glow-gold: 0 0 0 1px color-mix(in oklab, var(--gold) 45%, transparent), 0 8px 26px -10px color-mix(in oklab, var(--gold) 60%, transparent);
@@ -113,52 +113,61 @@
 
     --void: #0B1220;
     --sunk: #080D19;
-    --field: #111827;
-    --raised: #172133;
-    --lifted: #1B263B;
-    --line: #1F2937;
-    --line-strong: #334155;
-    --shadow-ink: var(--void);
+    --field: #16223B;
+    --raised: #1C2C49;
+    --lifted: #243656;
+    --line: #344766;
+    --line-strong: #738BB1;
+    --shadow-ink: #040A1C;
     --avatar-tint: 72%;
 
     --text: #F8FAFC;
-    --muted: #94A3B8;
-    --faint: #8898B1;
+    --muted: #C4D2EA;
+    --faint: #A8BAD8;
 
     --accent: #679FFF;
     --accent-fill: #2563EB;
+    --accent-fill-end: #264DBB;
+    --aqua: #5EE0DE;
     --accent-ink: #FFFFFF;
-    --bright-ink: #0B1220;
-    --live: #22C55E;
-    --gold: #F59E0B;
-    --win: #4ADE80;
-    --danger: #FF717B;
-    --danger-fill: #DC2626;
-    --madder: #FF7090;
-    --epic: #A78BFA;
+    --bright-ink: #0C1731;
+    --live: #49DDA2;
+    --gold: #FFC461;
+    --win: #90E8A8;
+    --danger: #FF92A3;
+    --danger-fill: #B52D52;
+    --madder: #FFA5BE;
+    --epic: #C4A9FF;
 
-    --scrim: color-mix(in oklab, var(--void) 70%, transparent);
+    --hero-start: #223C6A;
+    --studio-sky: #101B33;
+    --studio-light: #192B4B;
+    --studio-floor: #263C62;
+    --table-label: rgb(13 26 50 / 97%);
+    --table-label-edge: #7890B4;
+    --scrim: rgb(6 13 31 / 72%);
 
-    --ludo-red: #FF5A4E;
-    --ludo-green: #2FC262;
-    --ludo-yellow: #FFC72C;
-    --ludo-blue: #3F8CFF;
+    /* Physical pieces keep their material colours when the surrounding interface changes. */
+    --ludo-red: #EF675E;
+    --ludo-green: #23AF74;
+    --ludo-yellow: #F3B93A;
+    --ludo-blue: #3E89F2;
 
-    --nard-frame: #4A2E1C;
-    --nard-inlay: #C9A15C;
-    --nard-tray: #3A2416;
-    --nard-light: #F6F0E2;
-    --nard-light-rim: #B9A889;
-    --nard-dark: #2A1D17;
-    --nard-dark-rim: #7A5A45;
+    --nard-frame: #654536;
+    --nard-inlay: #C4A26B;
+    --nard-tray: #412E27;
+    --nard-light: #F5E6C8;
+    --nard-light-rim: #BCA178;
+    --nard-dark: #323135;
+    --nard-dark-rim: #897656;
 
-    --chess-frame: #4A2C18;
-    --chess-inlay: #C9A25A;
-    --chess-light: #F6EEDC;
-    --chess-ink: #1A120B;
+    --chess-frame: #684736;
+    --chess-inlay: #C8A66D;
+    --chess-light: #F6EAD1;
+    --chess-ink: #2C2926;
 
-    --poker-felt: #1F6B52;
-    --poker-rail: #3A2416;
+    --poker-felt: #464257;
+    --poker-rail: #4C3B39;
 }
 
 :root[data-theme='light']
@@ -166,31 +175,39 @@
     color-scheme: light;
 
     --void: #EDF2F7;
-    --sunk: #E1E8F2;
-    --field: #F8FAFF;
-    --raised: #E7EEF8;
-    --lifted: #FFFFFF;
-    --line: #C4D0E0;
-    --line-strong: #7A889C;
-    --shadow-ink: #526681;
+    --sunk: #E6EDFA;
+    --field: #FFFFFF;
+    --raised: #EAF1FF;
+    --lifted: #FAFCFF;
+    --line: #CEDBF0;
+    --line-strong: #6B7F9F;
+    --shadow-ink: #354C76;
     --avatar-tint: 35%;
 
     --text: #142139;
-    --muted: #3E506A;
-    --faint: #4E5E76;
+    --muted: #384F73;
+    --faint: #506382;
 
     --accent: #164DA4;
     --accent-fill: #2055BE;
+    --accent-fill-end: #244CA4;
+    --aqua: #006B7E;
     --bright-ink: #FFFFFF;
-    --live: #096338;
-    --gold: #785000;
-    --win: #155E3A;
-    --danger: #A32737;
-    --danger-fill: #B72C3E;
-    --madder: #99314D;
-    --epic: #633B92;
+    --live: #066544;
+    --gold: #805000;
+    --win: #216339;
+    --danger: #AC2B48;
+    --danger-fill: #AA274C;
+    --madder: #9A315D;
+    --epic: #633DAD;
 
-    --scrim: rgb(16 33 55 / 64%);
+    --hero-start: #DDEAFF;
+    --studio-sky: #ECF3FF;
+    --studio-light: #E2EDFC;
+    --studio-floor: #CEE5FB;
+    --table-label: rgb(249 252 255 / 97%);
+    --table-label-edge: #7385A4;
+    --scrim: rgb(19 35 66 / 58%);
 }
 
 @theme inline

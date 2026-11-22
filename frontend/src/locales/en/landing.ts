@@ -21,7 +21,9 @@ export const landing = {
     'landing.arrival.body': 'Chess, Hokm, Poker, Backgammon and Ludo, with friends or new faces. Sit down at an open table or set up your own.',
     'landing.cta.start': 'Start playing',
     'landing.cta.back': 'Back to your tables',
-    'landing.cta.games': 'See the games',
+    'landing.cta.games': "Tour the tables",
+    'landing.tour.angle': "Table angle",
+    'landing.tour.next': "Next table · {game}",
 
     'landing.games.title': 'Five games, all live',
     'landing.games.lead': 'Take turns at your own pace, or play in real time at the table. Poker is real time only.',
@@ -32,15 +34,15 @@ export const landing = {
     'games.players': 'players',
 
     'games.hokm.name': 'Hokm',
-    'games.hokm.blurb': 'Persian trick-taking at two, three or four. Name the suit, then hold your nerve.',
+    'games.hokm.blurb': "A trump can turn a trick. Follow the suit that was led and choose the moment to spend your strongest card.",
     'games.poker.name': 'Poker',
-    'games.poker.blurb': 'Texas hold’em at a real table: chips in front of you, and the pause before a call.',
+    'games.poker.blurb': "Two cards in your hand, five shared on the table. Make the strongest five-card hand, or bluff the table into folding.",
     'games.backgammon.name': 'Backgammon',
-    'games.backgammon.blurb': 'The oldest argument still running. Doubling cube on the table where everyone can see it.',
+    'games.backgammon.blurb': "Split two dice between your checkers. Build a block, leave an escape route, and bear off all fifteen before your opponent.",
     'games.ludo.name': 'Ludo',
-    'games.ludo.blurb': 'Four colours, one board, and a dice roll somebody will bring up again next week.',
+    'games.ludo.blurb': "Roll a six to bring a pawn into play. Race around the board, send a rival back, and bring all four pawns home.",
     'games.chess.name': 'Chess',
-    'games.chess.blurb': 'The oldest thinking game there is, with a clock beside the board and not a grain of luck.',
+    'games.chess.blurb': "Develop a knight, open a file for your rook, and find a route to the king. Each move gives your opponent a reply.",
     'games.category.cards': 'Cards',
     'games.category.board': 'Board',
 
@@ -69,7 +71,7 @@ export const landing = {
     'landing.compete.levels.body': 'Playing earns XP and your level shows it. It is a trophy; nothing is locked behind it.',
 
     'landing.finale.title': 'Pull up a chair',
-    'landing.finale.lead': 'Sign in with MetaMask, Trust Wallet or Nura Wallet. Play in your own language.',
+    'landing.finale.lead': 'Join as a guest or connect your wallet to take a seat.',
 
     'footer.rights': 'All rights reserved.',
     'footer.follow': 'Follow us',

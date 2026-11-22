@@ -233,7 +233,7 @@ export default component InvitePage()
                                         aria-label={ locale.t('invite.page.qr') }
                                         data-invite-qr
                                     >
-                                        <path d={ drawn.path } fill="#0B1220" />
+                                        <path d={ drawn.path } fill="#142721" />
                                     </svg>
                                     <figcaption class="max-w-44 text-center text-ui-xs text-muted">{ locale.t('invite.page.scan') }</figcaption>
                                 </figure>

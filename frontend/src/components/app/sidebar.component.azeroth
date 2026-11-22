@@ -11,7 +11,7 @@ import BrandMark from '../layout/brand-mark.component.azeroth';
 import Avatar from '../ui/avatar.component.azeroth';
 import Badge from '../ui/badge.component.azeroth';
 import { useNavCounts } from './nav-counts.ts';
-import { ACTIVE_ROW, lit, railFor } from './nav-items.ts';
+import { lit, railFor } from './nav-items.ts';
 
 export default component Sidebar()
 {
@@ -32,7 +32,7 @@ export default component Sidebar()
 
     derived status = dot === 'online' ? locale.t('common.online') : (user === null ? '' : `@${ user.handle }`);
 
-    <nav class="safe-t safe-b hidden h-dvh w-[var(--sidebar-w)] flex-col border-e border-line bg-void min-[1024px]:flex" aria-label={ locale.t('app.nav.primary') }>
+    <nav class="app-chrome safe-t safe-b hidden h-dvh w-[var(--sidebar-w)] flex-col border-e border-line bg-void min-[1024px]:flex" aria-label={ locale.t('app.nav.primary') }>
         <Link to="/app" class="flex h-[var(--topbar-h)] shrink-0 items-center gap-3 px-5" aria-label={ locale.t('app.nav.home') }>
             <BrandLogo size="lg" />
             <BrandMark class="truncate text-ui-lg text-text" />
@@ -41,7 +41,7 @@ export default component Sidebar()
         <ul class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 pt-3">
             <For each={ rail } key={ (item) => item.to } let={ item }>
                 <li>
-                    <Link to={ item.to } prefetch="hover" aria-current={ lit(item, tab) ? 'page' : undefined } class={ () => [ 'nav-row', ACTIVE_ROW, 'flex h-11 items-center gap-3 rounded-tile px-3 text-ui-md font-semibold text-muted transition-colors duration-150 hover:bg-raised hover:text-text', lit(item, tab) ? 'is-active' : '' ].join(' ') }>
+                    <Link to={ item.to } prefetch="hover" aria-current={ lit(item, tab) ? 'page' : undefined } class={ () => [ 'nav-row border-s-2 border-s-transparent', 'flex h-11 items-center gap-3 rounded-tile px-3 text-ui-md font-semibold text-muted transition-colors duration-150 hover:bg-raised hover:text-text', lit(item, tab) ? 'is-active' : '' ].join(' ') }>
                         <Icon name={ item.icon } size={ 20 } />
                         <span class="min-w-0 flex-1 truncate">{ locale.t(item.labelKey) }</span>
                         <Badge count={ countOf(item) } tone={ toneOf(item) } label={ labelOf(item) } />

@@ -20,6 +20,7 @@ export default component ThemePicker(props: { compact?: boolean; block?: boolean
         fallback={
             <div class={ props.block === true ? 'w-full' : 'w-48 max-w-full' }>
                 <Segmented
+                    class="theme-picker"
                     items={ items }
                     value={ theme.theme() }
                     label={ locale.t('theme.label') }

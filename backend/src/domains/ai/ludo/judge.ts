@@ -148,9 +148,15 @@ export function dangerOf(board: Board, target: LudoPlayer, at: number): number
     }
 
     const square = ringIndex(target.colour, at);
-    if (isProtectedRing(board.state.players, target, square) || board.crowd[square] >= 2)
+    if (board.crowd[square] >= 2)
     {
         return 0;
+    }
+
+    if (isProtectedRing(square))
+    {
+        const owner = board.state.players.find((one) => ENTRY[one.colour] === square);
+        return owner !== undefined && !owner.out && owner.side !== target.side && owner.pieces.includes(YARD) ? 1 / 6 : 0;
     }
 
     let survives = 1;

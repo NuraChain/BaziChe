@@ -5,7 +5,7 @@ achievements are live. A table of four is also played two against two when whoev
 the catalogue's `partners` for ludo is `optional`.
 
 Baziche uses Iranian mench on a 52-square track. Four filled stars protect every token and four hollow
-stars mark the entries. A partner's entry also protects a token in team play. The turn passes
+stars mark entries protected against ordinary landings. The entry colour can capture an opponent there by deploying a token from its yard on a six. The turn passes
 whenever the roll leaves no legal move, and each square holds one token.
 Baziche uses six-only entry and bonus rolls, clockwise play, and an eight-token team finish.
 
@@ -77,7 +77,7 @@ sources is a governing body: Ludo has none, and every source calls its own rules
 |---|---|---|
 | C1 | A token that lands exactly on an opponent sends it back to its yard, where it needs a six like any other. | cited: [WP] "the opposing token is returned to its respective home point"; [MoG] "the piece jumped upon is returned to its starting circle"; [setare] «مهره سبز دوباره باید به بیرون از صفحه بازی بروند و با تاس ۶ بعدی به بازی بیاورید» |
 | C2 | Capture is on the exact landing square only, never by passing over. | cited: [Schmidt] "Wer mit dem letzten Punkt seiner Augenzahl auf ein Feld trifft ... schlägt diese Figur"; [fekravaran] «اگر مهره شما دقیقاً روی خانه‌ای بیفتد...» |
-| C4 | A move onto a filled star requires an empty destination. In team play a token on its partner's entry is protected too. Other occupants of the entry follow the ordinary capture rule, including on a yard entry. | [Plato] for safe-square occupancy, Baziche house rule for the partner's entry. |
+| C4 | A move onto a filled star requires an empty destination. An occupied hollow star blocks ordinary landings. Only the entry colour can capture an opponent there by leaving the yard on a six. Friendly tokens still block entry. | [Plato] for safe-square occupancy, Baziche house rule for entries. |
 | C5 | The home lane is private: no other colour can enter it, so nothing there can be captured. | cited: [WP] "A player's home column squares are always "safe", since no opponent may enter them."; [fekravaran] «مهره‌ای که وارد خانه پایانی شود ... قابل زدن نیست» |
 | C6 | Own tokens are never captured. | cited: [Schmidt] "Eigene Steine können nicht geschlagen werden" |
 
@@ -110,9 +110,9 @@ sources is a governing body: Ludo has none, and every source calls its own rules
 
 ## Decided choices
 
-Baziche's four filled stars are safe for every token. In a team match a token on its partner's
-hollow star is also safe. An opponent on your start or your partner's start can be captured,
-including when a token leaves the yard onto its start after a six.
+Baziche's four filled stars are safe for every token. An occupied hollow star can be passed.
+Only the matching colour can land on an occupied entry, by bringing a piece out of its yard
+on a six to capture an opponent. A teammate on the entry blocks deployment.
 
 The one-token rule supersedes D28 and D29, which previously allowed two friendly tokens to
 form a block. A position recorded under those rules can still show a stack. Tokens may move

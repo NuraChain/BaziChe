@@ -47,7 +47,7 @@ export const rules: Pick<Dictionary, keyof typeof reference> = {
     'rules.ludo.3.title': 'Mover',
     'rules.ludo.3.points': 'Um peão anda exatamente o número tirado, no sentido horário, e pode pular um peão sozinho.\nDepois de uma volta no tabuleiro ele entra no seu próprio corredor, cinco casas onde ninguém mais entra. Chegar ao fim exige o número exato.\nSó um peão seu pode ficar na sua casa de saída de cada vez.',
     'rules.ludo.4.title': 'Capturar',
-    'rules.ludo.4.points': 'Parar exatamente num peão adversário o manda de volta para a base. Passar por cima, não.\nAs quatro estrelas cheias protegem qualquer peão. Você só pode parar nelas quando estiverem vazias. As estrelas vazadas marcam as saídas. Em equipes, o peão fica protegido na saída do parceiro. Você pode capturar um peão adversário na sua saída ou na do seu parceiro.',
+    'rules.ludo.4.points': 'Parar exatamente num peão adversário o manda de volta para a base. Passar por cima, não.\nEstrelas cheias protegem todos os peões. Você pode passar por uma saída ou estrela ocupada, mas só pode parar ali se estiver livre. Se um adversário ocupar a sua saída, tire um seis e coloque um novo peão em jogo para capturá-lo. Um peão seu ou do seu parceiro bloqueia a saída.',
     'rules.ludo.5.title': 'Casas ocupadas',
     'rules.ludo.5.points': 'Só cabe um peão por casa, inclusive no corredor final. Você pode passar por cima dos peões. Para parar numa casa ocupada, você precisa poder capturar o peão adversário.',
     'rules.ludo.6.title': 'Vencer',

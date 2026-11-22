@@ -46,7 +46,7 @@ const baseline: Agent<LudoState> = (() =>
             for (const at of player.pieces)
             {
                 const mine = player.side === side;
-                const safe = at !== YARD && at < RING_STEPS && isProtectedRing(state.players, player, ringIndex(player.colour, at)) ? 2 : 0;
+                const safe = at !== YARD && at < RING_STEPS && isProtectedRing(ringIndex(player.colour, at)) ? 2 : 0;
 
                 score += mine ? progressOf(at) + safe : -progressOf(at) / Math.max(1, state.players.length - 1);
             }
@@ -291,6 +291,9 @@ describe('the dice', () =>
         const start = position(TWO, [[26, YARD, YARD, YARD], [YARD, FINISHED, FINISHED, FINISHED]], 0, null);
 
         expect(dangerOf(boardOf(start), start.players[0], 26)).toBeCloseTo(1 / 6);
+
+        const ownStart = position(TWO, [[0, YARD, YARD, YARD], [yellowAt(49), FINISHED, FINISHED, FINISHED]], 0, null);
+        expect(dangerOf(boardOf(ownStart), ownStart.players[0], 0)).toBe(0);
 
         // A token in the home stretch cannot be reached.
         expect(dangerOf(boardOf(exposed), exposed.players[0], RING_STEPS + 1)).toBe(0);

@@ -121,11 +121,11 @@ export interface Walker
     side: number;
 }
 
-export function isProtectedRing(walkers: readonly Walker[], occupant: Walker, square: number)
+const STARTS = Object.values(ENTRY);
+
+export function isProtectedRing(square: number)
 {
-    // A hollow star also protects a teammate of the colour that enters there.
-    return SAFE.includes(square) || walkers.some((one) =>
-        one.side === occupant.side && one.colour !== occupant.colour && ENTRY[one.colour] === square);
+    return SAFE.includes(square) || STARTS.includes(square);
 }
 
 export type Obstacle = 'occupied' | 'safe' | 'start';
@@ -170,7 +170,7 @@ export function obstacle(walkers: readonly Walker[], mover: number, piece: numbe
             return 'occupied';
         }
 
-        if (isProtectedRing(walkers, walker, square))
+        if (isProtectedRing(square) && !(from === YARD && square === ENTRY[own.colour]))
         {
             return 'safe';
         }

@@ -51,7 +51,7 @@ export default component HomeSessions()
                         </div>
 
                         <div class="flex items-center justify-between gap-3 text-ui-xs text-muted">
-                            <span>{ locale.t('app.rewards.inProgress') }</span>
+                            <span>{ locale.t(quest.done ? 'app.rewards.claim' : 'app.rewards.inProgress') }</span>
                             <span class="tally">{ locale.n(Math.min(quest.progress, quest.target)) } / { locale.n(quest.target) }</span>
                         </div>
                         <div
@@ -114,11 +114,11 @@ export default component HomeSessions()
                         <div class="flex flex-wrap items-center gap-2">
                             <p class="text-ui-sm font-semibold text-text">{ locale.t('app.rewards.sessions.weekly') }</p>
                             <Show when={ chestOpened }>
-                                <span class="rounded-full bg-win/10 px-2 py-0.5 text-ui-xs font-semibold text-win">{ locale.t('app.rewards.sessions.chestReady') }</span>
+                                <span class="rounded-full bg-win/10 px-2 py-0.5 text-ui-xs font-semibold text-win">{ locale.t('app.rewards.chestOpened') }</span>
                             </Show>
                         </div>
                         <p class="mt-1 text-ui-xs text-muted">{ locale.t('app.rewards.sessions.weeklyProgress', { claimed: locale.n(weeklyClaimed) }) }</p>
-                        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-sunk" role="progressbar" aria-valuemin={ 0 } aria-valuemax={ 3 } aria-valuenow={ Math.min(weeklyClaimed, 3) }>
+                        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-sunk" role="progressbar" aria-valuemin={ 0 } aria-valuemax={ 3 } aria-valuenow={ Math.min(weeklyClaimed, 3) } aria-label={ locale.t('app.rewards.sessions.weekly') }>
                             <span class="block h-full rounded-full bg-accent" style={ 'width: ' + Math.round(Math.min(weeklyClaimed, 3) / 3 * 100) + '%' }></span>
                         </div>
                     </div>

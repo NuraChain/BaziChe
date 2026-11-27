@@ -22,7 +22,6 @@ export const rewards = {
     'app.rewards.sessions.chooseGame': 'Choose a game',
     'app.rewards.sessions.weekly': 'Weekly bonus chest',
     'app.rewards.sessions.weeklyProgress': '{claimed} of 3 quests claimed',
-    'app.rewards.sessions.chestReady': 'Chest unlocked',
     'app.rewards.dailyQuests': 'Daily quests',
     'app.rewards.weeklyQuests': 'Weekly quests',
     'app.rewards.chestOpened': 'Weekly chest opened',

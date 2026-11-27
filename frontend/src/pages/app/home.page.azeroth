@@ -5,6 +5,7 @@ import Page from '../../components/app/page.component.azeroth';
 import BrandLogo from '../../components/layout/brand-logo.component.azeroth';
 import BrandMark from '../../components/layout/brand-mark.component.azeroth';
 import GameTile from '../../components/games/game-tile.component.azeroth';
+import HomeSessions from '../../components/rewards/home-sessions.component.azeroth';
 import TableRow from '../../components/games/table-row.component.azeroth';
 import Avatar from '../../components/ui/avatar.component.azeroth';
 import Button from '../../components/ui/button.component.azeroth';
@@ -203,6 +204,8 @@ export default component HomePage()
                     </Link>
                 }
             </Show>
+
+            <HomeSessions />
 
             <Show when={ sitting }>
                 <section aria-labelledby="home-continue">

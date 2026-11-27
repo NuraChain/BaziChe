@@ -25,7 +25,6 @@ export const rewards: Pick<Dictionary, keyof typeof reference> = {
     'app.rewards.sessions.chooseGame': 'انتخاب بازی',
     'app.rewards.sessions.weekly': 'صندوق جایزه هفتگی',
     'app.rewards.sessions.weeklyProgress': '{claimed} از ۳ ماموریت دریافت شده',
-    'app.rewards.sessions.chestReady': 'صندوق باز شد',
     'app.rewards.dailyQuests': 'ماموریت‌های امروز',
     'app.rewards.weeklyQuests': 'ماموریت‌های این هفته',
     'app.rewards.chestOpened': 'صندوق این هفته رو باز کردی',
